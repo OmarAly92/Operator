@@ -6,7 +6,7 @@ name: Mobile
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
     paths:
       - "packages/mobile/**"

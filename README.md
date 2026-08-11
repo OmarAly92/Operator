@@ -196,7 +196,7 @@ opr start
 | [docs/backend-code-structure.md](docs/backend-code-structure.md) | Package ownership and where each backend concern belongs.                                    |
 | [docs/cli/README.md](docs/cli/README.md)                         | CLI behavior and daemon route mapping.                                                       |
 | [docs/development.md](docs/development.md)                       | Prerequisites, build steps, running tests, and troubleshooting for local development.        |
-| [docs/STATUS.md](docs/STATUS.md)                                 | What currently ships on `main` and what remains in flight.                                   |
+| [docs/STATUS.md](docs/STATUS.md)                                 | What currently ships on `master` and what remains in flight.                                 |
 | [docs/stack.md](docs/stack.md)                                   | Library, runtime, and dependency decisions.                                                  |
 
 ## Anonymous telemetry

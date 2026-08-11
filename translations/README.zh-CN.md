@@ -167,7 +167,7 @@ opr start
 | [docs/backend-code-structure.md](../docs/backend-code-structure.md) | 包职责归属以及各后端关注点应放在何处。                                                       |
 | [docs/cli/README.md](../docs/cli/README.md)                         | CLI 行为与 daemon 路由映射。                                                                 |
 | [docs/development.md](../docs/development.md)                       | 本地开发的先决条件、构建步骤、运行测试与故障排除。                                           |
-| [docs/STATUS.md](../docs/STATUS.md)                                 | `main` 上当前已交付的内容，以及仍在进行中的部分。                                            |
+| [docs/STATUS.md](../docs/STATUS.md)                                 | `master` 上当前已交付的内容，以及仍在进行中的部分。                                          |
 | [docs/stack.md](../docs/stack.md)                                   | 库、运行时与依赖决策。                                                                       |
 
 ## 匿名遥测

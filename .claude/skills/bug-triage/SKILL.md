@@ -10,7 +10,7 @@ Triage bugs into well-structured GitHub issues on the correct upstream repo.
 
 ## 1. Pre-flight
 
-- **Pull latest code:** `git pull origin main`. Stale code = bad triage.
+- **Pull latest code:** `git pull origin master`. Stale code = bad triage.
 - **Target repo:** Always file on the **current repo** (`OmarAly92/operator`), not forks.
 - **Record source:** chat URL, reporter name, attachments.
 
@@ -72,7 +72,7 @@ Event kinds: `session.spawned`, `session.spawn_failed`, `session.killed`, `lifec
 **Always trace the actual code** — don't surface-level diagnose. [#1129](https://github.com/OmarAly92/operator/issues/1129) looked like a simple `opr stop` issue but was actually a session lineage/cascade problem.
 
 ```bash
-git fetch origin main && git log --oneline origin/main -5   # current HEAD
+git fetch origin master && git log --oneline origin/master -5   # current HEAD
 # Record the commit hash you're analyzing against
 ```
 
@@ -155,7 +155,7 @@ SLUG="descriptive-slug"
 # Create asset branch
 gh api -X POST repos/<repo>/git/refs \
   -f ref="refs/heads/issue-assets-${SLUG}" \
-  -f sha=$(git rev-parse origin/main)
+  -f sha=$(git rev-parse origin/master)
 
 # Upload (portable base64)
 IMG_B64=$(base64 < /path/to/screenshot.png | tr -d '\n')
@@ -245,7 +245,7 @@ python3 skills/bug-triage/scripts/push_fix_to_github.py \
 <how to verify>"
 ```
 
-The script reads from GitHub API, applies one replacement, pushes, opens PR — no local checkout needed. **Verify `OLD_STRING` matches GitHub first:** `gh api repos/<repo>/contents/<path>?ref=main -q '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"`
+The script reads from GitHub API, applies one replacement, pushes, opens PR — no local checkout needed. **Verify `OLD_STRING` matches GitHub first:** `gh api repos/<repo>/contents/<path>?ref=master -q '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"`
 
 **Multiple edits to same file:** The push script does one replacement per run. For multiple changes, use a Python script to read from the branch (`gh api` + `base64.b64decode`), apply all replacements, then push via `gh api -X PUT` with the updated SHA.
 
@@ -277,7 +277,7 @@ Issue URL, PR URL (if created), labels, root cause summary, whether fix agent wa
 ### B. Remote Code Inspection (no local clone)
 
 ```bash
-gh api repos/{owner}/{repo}/git/trees/main?recursive=1 --jq '.tree[].path'    # list files
+gh api repos/{owner}/{repo}/git/trees/master?recursive=1 --jq '.tree[].path'    # list files
 gh api repos/{owner}/{repo}/contents/{path} --jq '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"  # read file
 gh search code "term" --repo {owner}/{repo} --json path --jq '.[].path'        # search code
 gh api "repos/{owner}/{repo}/commits?path={path}&per_page=10" --jq '.[] | "\(.sha[0:8]) \(.commit.message | split("\n")[0])"'  # file history
@@ -307,5 +307,5 @@ Example: [PR #1608](https://github.com/OmarAly92/operator/pull/1608) — source 
 - **GitHub issue is mandatory** — every triaged bug gets one, even if fix is trivial.
 - **`gh api --jq .content` truncates large files** (>~100KB). Use local git instead.
 - **Push script arg limits** — long commit messages hit `OSError: Argument list too long`. Use a Python script with JSON payloads instead.
-- **`OLD_STRING` must match GitHub byte-for-byte** — local code may differ from `origin/main`.
+- **`OLD_STRING` must match GitHub byte-for-byte** — local code may differ from `origin/master`.
 - **New fields on shared TS interfaces MUST be optional** (`field?: Type`). Downstream `Partial<X>` spreads break on required fields. Example: [PR #1523](https://github.com/OmarAly92/operator/pull/1523).

@@ -113,7 +113,7 @@ When the user wants to see multiple unmerged PRs together:
 5. Let renderer changes hot reload; restart Electron if either PR changes main/preload/IPC code.
 6. State that the integration branch is local-only. Do not push it unless the user explicitly requests a combined PR.
 
-Once one PR merges, prefer rebasing the remaining PR onto current `main`; the normal PR branch then contains both views without a local integration merge.
+Once one PR merges, prefer rebasing the remaining PR onto current `master`; the normal PR branch then contains both views without a local integration merge.
 
 ## Stop without collateral damage
 

@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/OmarAly92/operator/discussions
     about: Questions and ideas.
   - name: Contributing guide
-    url: https://github.com/OmarAly92/operator/blob/main/CONTRIBUTING.md
+    url: https://github.com/OmarAly92/operator/blob/master/CONTRIBUTING.md
     about: How to claim issues, open PRs, and work with maintainers.

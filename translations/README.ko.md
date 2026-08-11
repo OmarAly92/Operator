@@ -167,7 +167,7 @@ opr start
 | [docs/backend-code-structure.md](../docs/backend-code-structure.md) | 패키지 소유권과 각 백엔드 관심사가 속한 위치.                                                |
 | [docs/cli/README.md](../docs/cli/README.md)                         | CLI 동작과 데몬 라우트 매핑.                                                                 |
 | [docs/development.md](../docs/development.md)                       | 로컬 개발을 위한 사전 요구 사항, 빌드 단계, 테스트 실행, 문제 해결.                          |
-| [docs/STATUS.md](../docs/STATUS.md)                                 | `main`에 현재 출시된 내용과 진행 중인 항목.                                                  |
+| [docs/STATUS.md](../docs/STATUS.md)                                 | `master`에 현재 출시된 내용과 진행 중인 항목.                                                |
 | [docs/stack.md](../docs/stack.md)                                   | 라이브러리, 런타임, 의존성 결정.                                                             |
 
 ## 익명 텔레메트리

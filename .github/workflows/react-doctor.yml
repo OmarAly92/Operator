@@ -2,7 +2,7 @@ name: React Doctor
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "frontend/src/landing/**"
       - ".github/workflows/react-doctor.yml"

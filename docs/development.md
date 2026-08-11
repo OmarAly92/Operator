@@ -58,7 +58,7 @@ Keep your branch up to date by rebasing on main:
 
 ```bash
 git fetch origin
-git rebase origin/main
+git rebase origin/master
 ```
 
 ### Committing

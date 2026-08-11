@@ -1,6 +1,6 @@
 # operator status
 
-Current `main` ships a working single-user local loop: the Go daemon and the
+Current `master` ships a working single-user local loop: the Go daemon and the
 Electron/React frontend both drive a live daemon over HTTP/SSE/WebSocket. The
 core GitHub flow works end-to-end: add project → spawn session/orchestrator →
 attach terminal → observe PR → merge.

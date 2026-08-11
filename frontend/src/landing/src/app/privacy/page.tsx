@@ -354,7 +354,7 @@ export default function PrivacyPage() {
                 to stop daemon events. Because Operator is open source, you can also
                 build it yourself with an empty <Code>VITE_OPERATOR_POSTHOG_KEY</Code>
                 , which removes transmission entirely. See{" "}
-                <Ext href="https://github.com/OmarAly92/operator/blob/main/docs/telemetry.md">
+                <Ext href="https://github.com/OmarAly92/operator/blob/master/docs/telemetry.md">
                   docs/telemetry.md
                 </Ext>{" "}
                 for the full, source-level detail.

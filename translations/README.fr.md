@@ -167,7 +167,7 @@ opr start
 | [docs/backend-code-structure.md](../docs/backend-code-structure.md) | Propriété des paquets et emplacement de chaque préoccupation backend.                        |
 | [docs/cli/README.md](../docs/cli/README.md)                         | Comportement de la CLI et correspondance des routes du daemon.                               |
 | [docs/development.md](../docs/development.md)                       | Prérequis, étapes de build, exécution des tests et dépannage pour le développement local.    |
-| [docs/STATUS.md](../docs/STATUS.md)                                 | Ce qui est actuellement livré sur `main` et ce qui est encore en cours.                      |
+| [docs/STATUS.md](../docs/STATUS.md)                                 | Ce qui est actuellement livré sur `master` et ce qui est encore en cours.                    |
 | [docs/stack.md](../docs/stack.md)                                   | Décisions de bibliothèques, runtime et dépendances.                                          |
 
 ## Télémétrie anonyme

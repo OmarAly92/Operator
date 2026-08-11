@@ -30,7 +30,7 @@ Need the product/run overview first? Start with [README.md](README.md),
 [docs/architecture.md](docs/architecture.md), and
 [docs/development.md](docs/development.md).
 
-Two onboarding notes matter on current `main`:
+Two onboarding notes matter on current `master`:
 
 - On fresh Linux setups, prefer `cd frontend && npm run package` unless you have also installed distro packaging tools such as `rpm`/`rpmbuild` for `npm run make`.
 - Mobile companion app docs are still being filled in. Do not assume `packages/mobile/README.md` is a complete headless setup guide on this branch.
@@ -43,7 +43,7 @@ Bug reports should include Operator version, environment, repro steps, and expec
 ### Pull requests
 
 New PRs are prefilled from [`.github/pull_request_template.md`](.github/pull_request_template.md).
-Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `main`, one issue per PR, conventional commits, explain intentional omissions, and keep CI green for the area you touched.
+Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `master`, one issue per PR, conventional commits, explain intentional omissions, and keep CI green for the area you touched.
 
 ## Code of Conduct
 

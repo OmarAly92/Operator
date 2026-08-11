@@ -50,7 +50,7 @@ one), never a bare PATH lookup.
 
 ## 1. Pre-flight
 
-- **Pull latest code:** `git pull origin main`. Stale code = bad triage.
+- **Pull latest code:** `git pull origin master`. Stale code = bad triage.
 - **Target repo:** Always file on **`OmarAly92/operator`** (the current product repo, not
   a fork). Operator is the product, not a thin fork of upstream.
 - **Verify your binary:** confirm `opr status` shows port **3001** (see warning above).
@@ -130,7 +130,7 @@ one layer down. Operator's layers:
 - Agent hooks: `backend/internal/cli/hooks.go`
 
 ```bash
-git fetch origin main && git log --oneline origin/main -5   # current HEAD
+git fetch origin master && git log --oneline origin/master -5   # current HEAD
 # Record the commit hash you're analyzing against
 ```
 
@@ -219,7 +219,7 @@ SLUG="descriptive-slug"
 # Create asset branch
 gh api -X POST repos/OmarAly92/operator/git/refs \
   -f ref="refs/heads/issue-assets-${SLUG}" \
-  -f sha=$(git rev-parse origin/main)
+  -f sha=$(git rev-parse origin/master)
 
 # Upload (portable base64)
 IMG_B64=$(base64 < /path/to/screenshot.png | tr -d '\n')
@@ -305,7 +305,7 @@ There is no remote-patch script.
 - **Trivial, verifiable fix** (you can build and test it yourself):
 
   ```bash
-  git checkout -b fix/<slug> origin/main
+  git checkout -b fix/<slug> origin/master
   # make the edit
   cd backend && go build ./... && go test ./...   # must pass before pushing
   git commit -am "fix(<scope>): <summary>
@@ -372,7 +372,7 @@ any priority/confidence stated in the body), root cause summary.
 ### B. Remote Code Inspection (no local clone)
 
 ```bash
-gh api repos/OmarAly92/operator/git/trees/main?recursive=1 --jq '.tree[].path'    # list files
+gh api repos/OmarAly92/operator/git/trees/master?recursive=1 --jq '.tree[].path'    # list files
 gh api repos/OmarAly92/operator/contents/{path} --jq '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"  # read file
 gh search code "term" --repo OmarAly92/operator --json path --jq '.[].path'        # search code
 gh api "repos/OmarAly92/operator/commits?path={path}&per_page=10" --jq '.[] | "\(.sha[0:8]) \(.commit.message | split("\n")[0])"'  # file history
@@ -387,7 +387,7 @@ and reproduce against a known build:
 cd backend && go build -o /tmp/opr ./cmd/opr    # build the binary under test
 /tmp/opr version                               # record version/commit
 go version                                    # toolchain (build issues are often here)
-git log --oneline origin/main -1              # the commit you're analyzing against
+git log --oneline origin/master -1              # the commit you're analyzing against
 ```
 
 To bisect a regression, build `opr` at two commits and compare behavior:

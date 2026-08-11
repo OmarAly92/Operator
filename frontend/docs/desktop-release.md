@@ -1,9 +1,9 @@
 # Desktop release runbook
 
 How to cut a stable desktop release, end to end. Written from the v0.10.3 cut
-(2026-07-12), which bumps the version on `main` via a PR and tags the merge
+(2026-07-12), which bumps the version on `master` via a PR and tags the merge
 commit. v0.10.1/v0.10.2 used an older tag-only stamp commit that never landed
-on `main`; the PR-based flow below supersedes it.
+on `master`; the PR-based flow below supersedes it.
 
 ## How releases work
 
@@ -19,10 +19,10 @@ on `main`; the PR-based flow below supersedes it.
   electron-forge's GitHub publisher names the release `v<package.json version>`,
   NOT after the git tag. The `desktop-v*` tag is only the workflow trigger, so
   the tagged commit must carry the right version (see the stamp commit below).
-- The bump lands on `main` via a PR, so `main`'s `frontend/package.json`
+- The bump lands on `master` via a PR, so `master`'s `frontend/package.json`
   tracks the last released version; the `desktop-v*` tag then points at that
   merge commit. Nightlies stamp the version at build time from the highest
-  `desktop-v*` tag, so they are unaffected by whatever `main` currently carries.
+  `desktop-v*` tag, so they are unaffected by whatever `master` currently carries.
 
 ## Hard rule: exactly one publisher
 
@@ -73,43 +73,43 @@ Throughout, `X.Y.Z` is the new version (e.g. `0.10.2`) and `upstream` is the
 ### 1. Decide the version and review what ships
 
 ```bash
-git fetch upstream main
-# last stable tag reachable from main:
-git tag --merged upstream/main --sort=-creatordate | grep -Ev 'nightly|desktop' | head -1
+git fetch upstream master
+# last stable tag reachable from master:
+git tag --merged upstream/master --sort=-creatordate | grep -Ev 'nightly|desktop' | head -1
 # commits that will ship:
-git log v<last-stable>..upstream/main --oneline
+git log v<last-stable>..upstream/master --oneline
 ```
 
 Stable versions bump the patch unless something warrants minor/major.
 
-### 2. Bump the version on `main` via a PR
+### 2. Bump the version on `master` via a PR
 
-Bump `frontend/package.json` to `X.Y.Z` on a branch and merge it into `main`.
+Bump `frontend/package.json` to `X.Y.Z` on a branch and merge it into `master`.
 This is the only version pin the stable build reads; `packages/opr*` are not
 gated on the desktop release and stay as-is.
 
 ```bash
-git checkout -b release-X.Y.Z upstream/main
+git checkout -b release-X.Y.Z upstream/master
 # edit frontend/package.json: "version": "X.Y.Z"
 git add frontend/package.json
 git commit -m "chore(release): stamp desktop app version X.Y.Z"
 git push <your-remote> release-X.Y.Z
-gh pr create -R OmarAly92/operator --base main \
+gh pr create -R OmarAly92/operator --base master \
   --head <owner>:release-X.Y.Z \
   --title "chore(release): stamp desktop app version X.Y.Z"
 ```
 
-Merge the PR into `main` once it is green.
+Merge the PR into `master` once it is green.
 
 ### 3. Tag the merge commit and push (this triggers the release)
 
-Tag the merged `main` HEAD; confirm it carries the right version first, since
+Tag the merged `master` HEAD; confirm it carries the right version first, since
 the release name comes from `frontend/package.json`, not the tag.
 
 ```bash
-git fetch upstream main
-git show upstream/main:frontend/package.json | grep '"version"'   # must read X.Y.Z
-git tag -a desktop-vX.Y.Z upstream/main -m "Desktop release X.Y.Z: <highlights with PR numbers>"
+git fetch upstream master
+git show upstream/master:frontend/package.json | grep '"version"'   # must read X.Y.Z
+git tag -a desktop-vX.Y.Z upstream/master -m "Desktop release X.Y.Z: <highlights with PR numbers>"
 git push upstream desktop-vX.Y.Z
 ```
 

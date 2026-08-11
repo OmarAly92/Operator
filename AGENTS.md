@@ -48,7 +48,7 @@ When showing or demoing frontend changes, run `opr preview [url]` from inside th
 - `README.md` — current run/config/test quickstart.
 - `docs/README.md` — docs index.
 - `docs/architecture.md` — backend mental model, package layout, lifecycle/session/service boundaries, and load-bearing rules.
-- `docs/STATUS.md` — what is shipped on `main` today and what is still in flight.
+- `docs/STATUS.md` — what is shipped on `master` today and what is still in flight.
 - `docs/cli/README.md` — intended CLI shape: thin Cobra client over daemon HTTP, never direct storage/runtime access.
 - `CLAUDE.md` — compatibility pointer for Claude Code; it directs agents back to `AGENTS.md`.
 
@@ -130,7 +130,7 @@ Commit `openapi.yaml` and `frontend/src/api/schema.ts` together with the Go chan
 
 ## PR hygiene
 
-- Branch from `main` unless explicitly continuing an existing PR.
+- Branch from `master` unless explicitly continuing an existing PR.
 - Keep one issue per PR. If asked for separate work, create a separate branch and PR.
 - Use conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
 - Explain intentional omissions in the PR body, especially when the TypeScript original had more behavior than the Go rewrite domain currently supports.

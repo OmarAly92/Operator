@@ -29,7 +29,7 @@ Available harnesses: `claude-code`, `codex`, `aider`, `opencode`, `grok`, `droid
 
 ```bash
 # Spawn a worker for issue 142 in the operator project
-opr spawn --project operator --issue 142 --name "fix-session-leak" --prompt "Fix the session leak described in issue 142. Branch off upstream/main."
+opr spawn --project operator --issue 142 --name "fix-session-leak" --prompt "Fix the session leak described in issue 142. Branch off upstream/master."
 ```
 
 ```bash

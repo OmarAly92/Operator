@@ -180,7 +180,7 @@ title = "gitleaks config"
     # All offenders are example secret-patterns in security docs and
     # secret-redaction test fixtures, living in files already deleted from
     # the tree. The push-event scan walks full history, so these commits are
-    # allowlisted to keep `main` green without weakening detection on new code.
+    # allowlisted to keep `master` green without weakening detection on new code.
     # Also includes settings-revamp commits that hit LinkedIn false positives.
     commits = [
         "15ad44633a34151e81737183e6f35889a38ffbcb",

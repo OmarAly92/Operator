@@ -14,7 +14,7 @@ export const COMPANY = {
   FOUNDERS_EMAIL: "support@operator.example.com",
   REPORT_ISSUE_URL: "https://github.com/OmarAly92/operator/issues/new",
   LICENSE: "Apache-2.0",
-  LICENSE_URL: "https://github.com/OmarAly92/operator/blob/main/LICENSE",
+  LICENSE_URL: "https://github.com/OmarAly92/operator/blob/master/LICENSE",
 } as const;
 
 export const THEME_STORAGE_KEY = "opr-theme";

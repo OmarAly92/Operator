@@ -167,7 +167,7 @@ opr start
 | [docs/backend-code-structure.md](../docs/backend-code-structure.md) | パッケージの所有権と、各バックエンド関心事の置き場所。                                       |
 | [docs/cli/README.md](../docs/cli/README.md)                         | CLI の挙動とデーモンルートの対応。                                                           |
 | [docs/development.md](../docs/development.md)                       | ローカル開発の前提条件、ビルド手順、テスト実行、トラブルシューティング。                     |
-| [docs/STATUS.md](../docs/STATUS.md)                                 | `main` で現在出荷されている内容と、進行中の内容。                                            |
+| [docs/STATUS.md](../docs/STATUS.md)                                 | `master` で現在出荷されている内容と、進行中の内容。                                          |
 | [docs/stack.md](../docs/stack.md)                                   | ライブラリ、ランタイム、依存関係の決定。                                                     |
 
 ## 匿名テレメトリ
