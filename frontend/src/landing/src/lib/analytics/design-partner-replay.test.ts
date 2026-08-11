@@ -9,6 +9,7 @@ import {
 } from "./design-partner-replay";
 
 const OWN_PROJECT = "phc_marketingProjectKeyThatIsNotTheApp";
+const DESKTOP_KEY_STANDIN = "phc_desktopProjectKeyStandIn";
 
 describe("design partner replay", () => {
   it("records on the design partner page once the site has its own project", () => {
@@ -17,19 +18,37 @@ describe("design partner replay", () => {
     ).toEqual({ record: true });
   });
 
-  // The whole reason this function exists. Both surfaces point at one project
-  // today, and arming replay there would record the screens of desktop installs
+  // The whole reason this function exists: if both surfaces ever point at one
+  // project, arming replay there would record the screens of desktop installs
   // already in the field, including builds too old to carry the client block.
+  // No desktop key is baked in today, so the branch is exercised with an
+  // explicit one rather than the (empty) constant.
   it("refuses while the key is the desktop project, on the right page and with consent", () => {
     expect(
-      replayDecision({ key: DESKTOP_PROJECT_KEY, pathname: REPLAY_PATH, optedOut: false }),
+      replayDecision({
+        key: DESKTOP_KEY_STANDIN,
+        desktopKey: DESKTOP_KEY_STANDIN,
+        pathname: REPLAY_PATH,
+        optedOut: false,
+      }),
     ).toEqual({ record: false, reason: "shared-project" });
   });
 
   it("refuses whitespace-padded variants of the desktop key", () => {
     expect(
-      replayDecision({ key: `  ${DESKTOP_PROJECT_KEY}  `, pathname: REPLAY_PATH, optedOut: false }),
+      replayDecision({
+        key: `  ${DESKTOP_KEY_STANDIN}  `,
+        desktopKey: DESKTOP_KEY_STANDIN,
+        pathname: REPLAY_PATH,
+        optedOut: false,
+      }),
     ).toEqual({ record: false, reason: "shared-project" });
+  });
+
+  it("records with its own key while no desktop key is baked in", () => {
+    expect(
+      replayDecision({ key: OWN_PROJECT, desktopKey: "", pathname: REPLAY_PATH, optedOut: false }),
+    ).toEqual({ record: true });
   });
 
   it("records nowhere else on the site", () => {
@@ -76,7 +95,7 @@ it("keeps DESKTOP_PROJECT_KEY in sync with the shared desktop constant", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const sharedPath = resolve(here, "../../../../shared/posthog-config.ts");
   const source = readFileSync(sharedPath, "utf8");
-  const match = source.match(/DEFAULT_POSTHOG_PROJECT_KEY\s*=\s*"([^"]+)"/);
+  const match = source.match(/DEFAULT_POSTHOG_PROJECT_KEY\s*=\s*"([^"]*)"/);
   expect(match, `could not find DEFAULT_POSTHOG_PROJECT_KEY in ${sharedPath}`).toBeTruthy();
   expect(DESKTOP_PROJECT_KEY).toBe(match![1]);
 });

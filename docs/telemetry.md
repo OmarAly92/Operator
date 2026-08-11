@@ -212,8 +212,12 @@ is explicitly kept in anonymous mode.
 
 ## Configuration
 
-Renderer PostHog key and host are baked in at build time. To point a build at
-another PostHog project, set these environment variables before building:
+No PostHog project key is baked into this repository, so a build made from a
+clean checkout exports nothing: the renderer skips `posthog.init`, and the
+supervisor leaves the daemon's remote sink off. Local event recording is
+unaffected. To send a build's telemetry to your own PostHog project, either set
+these environment variables before building or hardcode the values in
+`frontend/src/shared/posthog-config.ts`:
 
 ```bash
 VITE_OPERATOR_POSTHOG_KEY=phc_yourkey
@@ -226,7 +230,7 @@ already provides explicit values:
 
 ```bash
 OPERATOR_TELEMETRY_EVENTS=on
-OPERATOR_TELEMETRY_REMOTE=posthog
+OPERATOR_TELEMETRY_REMOTE=posthog   # off unless a PostHog key is configured
 OPERATOR_TELEMETRY_POSTHOG_KEY=phc_yourkey
 OPERATOR_TELEMETRY_POSTHOG_HOST=https://us.i.posthog.com
 ```

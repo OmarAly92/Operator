@@ -1,13 +1,11 @@
 // PostHog project the mobile app reports to.
 //
-// This is the APP project, the same one the desktop app uses, so desktop and
-// mobile usage sit together and split by the `client` context property. The
-// marketing site is a separate project. The key is a public project key (it
-// ships in every client build by design, like the desktop's), not a secret, so
-// hardcoding it mirrors the desktop's shared constant. An EXPO_PUBLIC_ override
-// lets a build point elsewhere without a code change.
-export const MOBILE_POSTHOG_KEY =
-	process.env.EXPO_PUBLIC_POSTHOG_KEY?.trim() || "phc_uXAqS8nokL2QLSGBZSEMHTUNVXsFeXu3SrcWG7fjEyVH";
+// No key is baked in, so a build exports nothing unless EXPO_PUBLIC_POSTHOG_KEY
+// supplies one. A PostHog project key is public (it ships in every client build
+// by design) and not a secret, so a fork that wants mobile telemetry can either
+// set the env var or hardcode its own key here, mirroring the desktop's shared
+// constant.
+export const MOBILE_POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY?.trim() || "";
 
 export const MOBILE_POSTHOG_HOST =
 	process.env.EXPO_PUBLIC_POSTHOG_HOST?.trim() || "https://us.i.posthog.com";

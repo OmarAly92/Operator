@@ -550,10 +550,12 @@ let shellEnvPromise: Promise<void> | null = null;
 // events and inflate install/DAU counts. Set OPERATOR_TELEMETRY_REMOTE explicitly to
 // exercise the export path from a dev build.
 function telemetryOverrides(): Record<string, string> {
+	const posthogKey = (process.env.OPERATOR_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY).trim();
 	return {
 		OPERATOR_TELEMETRY_EVENTS: process.env.OPERATOR_TELEMETRY_EVENTS ?? "on",
-		OPERATOR_TELEMETRY_REMOTE: process.env.OPERATOR_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
-		OPERATOR_TELEMETRY_POSTHOG_KEY: process.env.OPERATOR_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
+		OPERATOR_TELEMETRY_REMOTE:
+			process.env.OPERATOR_TELEMETRY_REMOTE ?? (isDev || !posthogKey ? "off" : "posthog"),
+		OPERATOR_TELEMETRY_POSTHOG_KEY: posthogKey,
 		OPERATOR_TELEMETRY_POSTHOG_HOST: process.env.OPERATOR_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
 		// The daemon binary has no version of its own that release tooling sets,
 		// so without this every daemon event lands unattributable to a release.

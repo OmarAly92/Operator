@@ -8,19 +8,22 @@
  */
 
 /**
- * The desktop app's PostHog project key.
+ * The desktop app's PostHog project key, mirrored from shared/posthog-config.ts.
  *
- * Duplicated here deliberately. The marketing site and the desktop app currently
- * point at the same project, and arming replay on that project would start
- * recording the screens of installs already in the field, including builds old
- * enough to predate the client-side block. So recording refuses to start while
- * the configured key is this one, and moving the site to its own project is what
- * unlocks it.
+ * Duplicated here deliberately: the shared source lives in the desktop package,
+ * outside this static-export app. Arming replay on the desktop project would
+ * start recording the screens of installs already in the field, so recording
+ * refuses to start while the site's configured key is this one, and pointing the
+ * site at its own project is what unlocks it.
  *
- * This is a public project key. It ships in every client bundle by design and is
- * not a credential.
+ * Empty while no desktop key is baked in, which makes the guard inert — an empty
+ * site key is already refused as "no-key". The drift test forces this constant to
+ * be reconciled if the desktop ever bakes a key again.
+ *
+ * A PostHog project key is public. It ships in every client bundle by design and
+ * is not a credential.
  */
-export const DESKTOP_PROJECT_KEY = "phc_uXAqS8nokL2QLSGBZSEMHTUNVXsFeXu3SrcWG7fjEyVH";
+export const DESKTOP_PROJECT_KEY = "";
 
 /** The only path permitted to record. */
 export const REPLAY_PATH = "/design-partners";
@@ -40,10 +43,12 @@ export function replayDecision(input: {
   key: string | undefined;
   pathname: string;
   optedOut: boolean;
+  desktopKey?: string;
 }): ReplayDecision {
   const key = input.key?.trim() ?? "";
+  const desktopKey = (input.desktopKey ?? DESKTOP_PROJECT_KEY).trim();
   if (!key) return { record: false, reason: "no-key" };
-  if (key === DESKTOP_PROJECT_KEY) return { record: false, reason: "shared-project" };
+  if (desktopKey && key === desktopKey) return { record: false, reason: "shared-project" };
 
   const path = input.pathname.replace(/\/+$/, "") || "/";
   if (path !== REPLAY_PATH && !path.startsWith(`${REPLAY_PATH}/`)) {
