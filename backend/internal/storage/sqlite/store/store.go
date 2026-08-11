@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/gen"
 )
 
@@ -24,6 +25,26 @@ type Store struct {
 	qw      *gen.Queries // bound to the single writer connection
 	qr      *gen.Queries // bound to the reader pool
 	writeMu sync.Mutex
+
+	// sessionIDInUse reports whether a candidate session ID is already claimed
+	// in a namespace this store cannot see. Set by SetSessionIDInUse; nil means
+	// the store is the sole authority on session IDs.
+	sessionIDInUse func(context.Context, domain.SessionID) bool
+}
+
+// SetSessionIDInUse installs a probe consulted while allocating a session ID.
+// Session IDs double as terminal-runtime session names, and that namespace is
+// shared by every Operator instance on the machine — a tmux server outlives the
+// daemon that populated it, so a fresh database allocating from 1 can hand out
+// a name tmux still holds and the spawn fails at launch. The probe lets the
+// allocator skip those.
+//
+// The probe answers yes/no with no error: whether an unanswerable probe means
+// "free" or "taken" is a policy its owner decides, not the allocator. Wiring
+// installs it after the runtime exists; tests and read-only openers leave it
+// nil. It must be set before the store serves traffic.
+func (s *Store) SetSessionIDInUse(fn func(context.Context, domain.SessionID) bool) {
+	s.sessionIDInUse = fn
 }
 
 type conversationProjectionTxKey struct{}

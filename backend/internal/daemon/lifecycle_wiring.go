@@ -184,6 +184,11 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Scratch:  scratchWS,
 		Projects: store,
 	})
+	// Session ids double as runtime session names, and a terminal runtime's
+	// namespace is machine-wide: a tmux server outlives the daemon that filled
+	// it, so a database allocating from 1 can pick a name that is still taken
+	// and the spawn dies at launch. Let the allocator skip those.
+	store.SetSessionIDInUse(sessionIDClaimProbe(runtime, log))
 	mgr := sessionmanager.New(sessionmanager.Deps{
 		Runtime:             runtime,
 		Agents:              agents,

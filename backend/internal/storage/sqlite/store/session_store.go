@@ -25,11 +25,35 @@ func (s *Store) CreateSession(ctx context.Context, rec domain.SessionRecord) (do
 	if err != nil {
 		return domain.SessionRecord{}, fmt.Errorf("next session num for %s: %w", rec.ProjectID, err)
 	}
+	num, err = s.skipClaimedSessionNums(ctx, rec.ProjectID, num)
+	if err != nil {
+		return domain.SessionRecord{}, err
+	}
 	rec.ID = domain.SessionID(fmt.Sprintf("%s-%d", rec.ProjectID, num))
 	if err := s.qw.InsertSession(ctx, recordToInsert(rec, num)); err != nil {
 		return domain.SessionRecord{}, fmt.Errorf("insert session %s: %w", rec.ID, err)
 	}
 	return rec, nil
+}
+
+// maxClaimedSessionNumSkips bounds the search for a free session number so a
+// probe that reports everything claimed fails fast instead of looping.
+const maxClaimedSessionNumSkips = 64
+
+// skipClaimedSessionNums advances num past IDs already claimed outside this
+// store (see SetSessionIDInUse).
+func (s *Store) skipClaimedSessionNums(ctx context.Context, project domain.ProjectID, num int64) (int64, error) {
+	if s.sessionIDInUse == nil {
+		return num, nil
+	}
+	for range maxClaimedSessionNumSkips {
+		if !s.sessionIDInUse(ctx, domain.SessionID(fmt.Sprintf("%s-%d", project, num))) {
+			return num, nil
+		}
+		num++
+	}
+	return 0, fmt.Errorf("next session num for %s: %d consecutive ids are already claimed from %d",
+		project, maxClaimedSessionNumSkips, num-maxClaimedSessionNumSkips)
 }
 
 // UpdateSession writes the full mutable state of an existing session. The

@@ -72,6 +72,7 @@ type Runtime struct {
 
 var _ ports.Runtime = (*Runtime)(nil)
 var _ ports.Attacher = (*Runtime)(nil)
+var _ ports.SessionIDClaimChecker = (*Runtime)(nil)
 
 type runner interface {
 	Run(ctx context.Context, env []string, name string, args ...string) ([]byte, error)
@@ -515,6 +516,35 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 			}
 		}
 		return false, fmt.Errorf("tmux runtime: probe session %s: %w", id, err)
+	}
+	return true, nil
+}
+
+// IsSessionIDClaimed reports whether the tmux server already holds the session
+// name this id would register. The tmux server is per-machine and outlives the
+// daemon that populated it, so a database allocating ids from 1 — a fresh
+// install, a reset data dir, a second instance — can otherwise hand out a name
+// tmux still holds, and the spawn fails at launch with "duplicate session".
+//
+// An unreachable server is decisive here, unlike IsAlive: that probe must treat
+// it as inconclusive because an agent can outlive its server as an orphan, but
+// a name cannot be held on a server that is not running, and Create's
+// `new-session` starts a fresh one. Any other non-zero exit is inconclusive and
+// returns an error, leaving allocation unchanged.
+func (r *Runtime) IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error) {
+	id, err := tmuxSessionName(sessionID)
+	if err != nil {
+		return false, err
+	}
+	out, err := r.run(ctx, hasSessionArgs(id)...)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if sessionMissingOutput(string(out)) || serverUnreachableOutput(string(out)) {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("tmux runtime: probe session name %s: %w", id, err)
 	}
 	return true, nil
 }

@@ -1387,3 +1387,63 @@ func exitCodeErr(t *testing.T, code int) error {
 	}
 	return err
 }
+
+// -- IsSessionIDClaimed tests --
+
+func TestIsSessionIDClaimedReportsClaimedOnExitZero(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	fr.outputs = [][]byte{nil}
+
+	claimed, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1"))
+	if err != nil {
+		t.Fatalf("IsSessionIDClaimed: %v", err)
+	}
+	if !claimed {
+		t.Fatal("claimed = false, want true")
+	}
+	if got, want := fr.calls[0].args, hasSessionArgs("scratch-1"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("has-session args = %#v, want %#v", got, want)
+	}
+}
+
+func TestIsSessionIDClaimedReportsFreeWhenSessionMissing(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	fr.outputs = [][]byte{[]byte("can't find session: scratch-1")}
+	fr.err = &exec.ExitError{}
+
+	claimed, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1"))
+	if err != nil {
+		t.Fatalf("IsSessionIDClaimed: %v", err)
+	}
+	if claimed {
+		t.Fatal("claimed = true, want false")
+	}
+}
+
+// Unlike IsAlive, an unreachable server is decisive here. IsAlive must not read
+// it as death because the agent may outlive its server as an orphan; but a name
+// cannot be taken on a server that is not running, and `new-session` will spawn
+// a fresh one, so the id is free.
+func TestIsSessionIDClaimedReportsFreeWhenNoServerRunning(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	fr.outputs = [][]byte{[]byte("no server running on /tmp/tmux-1000/default")}
+	fr.err = &exec.ExitError{}
+
+	claimed, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1"))
+	if err != nil {
+		t.Fatalf("IsSessionIDClaimed: %v", err)
+	}
+	if claimed {
+		t.Fatal("claimed = true, want false")
+	}
+}
+
+func TestIsSessionIDClaimedSurfacesUnexpectedProbeFailure(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	fr.outputs = [][]byte{[]byte("some other tmux failure")}
+	fr.err = &exec.ExitError{}
+
+	if _, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1")); err == nil {
+		t.Fatal("err = nil, want an error for an unrecognised probe failure")
+	}
+}

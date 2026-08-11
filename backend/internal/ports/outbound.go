@@ -94,6 +94,17 @@ type StyledTerminalOutputReader interface {
 	GetStyledOutput(ctx context.Context, handle RuntimeHandle, lines int) (string, error)
 }
 
+// SessionIDClaimChecker is an optional runtime capability for reporting that a
+// session id is already taken in the runtime's own namespace. Session ids are
+// allocated from the database, but a terminal runtime's names are usually
+// machine-wide and outlive the daemon, so the two can disagree. Implementations
+// must answer only about the runtime's namespace, and must return an error
+// rather than a guess when the probe is inconclusive: callers treat an error as
+// "keep the id the database chose".
+type SessionIDClaimChecker interface {
+	IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error)
+}
+
 // RuntimeRestarter is an optional runtime capability for replacing the process
 // inside an existing terminal session. Implementations should preserve the
 // handle when possible so attached clients do not need a new terminal identity.
