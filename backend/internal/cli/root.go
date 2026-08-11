@@ -1,4 +1,4 @@
-// Package cli implements the user-facing ao command. It stays thin: commands
+// Package cli implements the user-facing opr command. It stays thin: commands
 // discover the local daemon, call its loopback HTTP API, and format output.
 package cli
 
@@ -14,13 +14,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemon"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/processalive"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/daemon"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/processalive"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
 )
 
-// Execute runs the ao CLI with process stdio.
+// Execute runs the opr CLI with process stdio.
 func Execute() error {
 	return executeWithDeps(DefaultDeps(), os.Args[1:])
 }
@@ -157,9 +157,9 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	ctx := &commandContext{deps: deps}
 
 	root := &cobra.Command{
-		Use:           "ao",
-		Short:         "Agent Orchestrator",
-		Long:          "Agent Orchestrator manages the local daemon that supervises parallel coding-agent sessions.",
+		Use:           "opr",
+		Short:         "Operator",
+		Long:          "Operator manages the local daemon that supervises parallel coding-agent sessions.",
 		Version:       VersionString(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -217,11 +217,11 @@ func shouldEmitCLIInvocation(cmd *cobra.Command) bool {
 		return false
 	}
 	switch commandPath {
-	// "ao daemon"/"ao start" are supervisor-driven bootstrapping, and
-	// "ao completion"/"ao help" are shell setup and self-documentation.
-	// "ao pty-host" and "ao agent-process" are internal runtime processes.
+	// "opr daemon"/"opr start" are supervisor-driven bootstrapping, and
+	// "opr completion"/"opr help" are shell setup and self-documentation.
+	// "opr pty-host" and "opr agent-process" are internal runtime processes.
 	// None reflect user activity.
-	case "ao daemon", "ao start", "ao completion", "ao help", "ao pty-host", "ao agent-process", "ao agent-process supervise":
+	case "opr daemon", "opr start", "opr completion", "opr help", "opr pty-host", "opr agent-process", "opr agent-process supervise":
 		return false
 	default:
 		return true
@@ -239,10 +239,10 @@ func (c *commandContext) emitCLIInvoked(ctx context.Context, cmd *cobra.Command)
 }
 
 func cliInvocationActorType(cmd *cobra.Command) string {
-	if strings.TrimSpace(cmd.CommandPath()) == "ao hooks" {
+	if strings.TrimSpace(cmd.CommandPath()) == "opr hooks" {
 		return "agent"
 	}
-	if sessionIDPattern.MatchString(strings.TrimSpace(os.Getenv("AO_SESSION_ID"))) {
+	if sessionIDPattern.MatchString(strings.TrimSpace(os.Getenv("OPERATOR_SESSION_ID"))) {
 		return "agent"
 	}
 	return "user"
@@ -264,7 +264,7 @@ func usageErrorCommand(args []string) (string, string) {
 	// path: anything past the deepest match is user data (session names,
 	// prompts, orchestrator names) and must never ride into telemetry.
 	current := NewRootCommand(Deps{})
-	tokens := []string{"ao"}
+	tokens := []string{"opr"}
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") {
 			break
@@ -283,7 +283,7 @@ func usageErrorCommand(args []string) (string, string) {
 		current = next
 	}
 	commandPath := strings.Join(tokens, " ")
-	command := "ao"
+	command := "opr"
 	if len(tokens) > 1 {
 		command = tokens[len(tokens)-1]
 	}
@@ -316,7 +316,7 @@ func atMostOneArg(cmd *cobra.Command, args []string) error {
 func newDaemonCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:    "daemon",
-		Short:  "Run the AO backend daemon",
+		Short:  "Run the Operator backend daemon",
 		Hidden: true,
 		Args:   noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

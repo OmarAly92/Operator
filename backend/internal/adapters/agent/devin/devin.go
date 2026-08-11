@@ -4,19 +4,19 @@
 // Devin for Terminal (binary "devin") is Cognition's terminal coding agent. It
 // has a documented Claude Code compatibility layer: it imports `.claude/`
 // configuration (commands, subagents, and Claude Code lifecycle hooks), storing
-// the converted hooks in `.devin/hooks.v1.json`. Because of this, AO reuses the
-// Claude Code hook installer (which writes .claude/settings.local.json with AO
+// the converted hooks in `.devin/hooks.v1.json`. Because of this, Operator reuses the
+// Claude Code hook installer (which writes .claude/settings.local.json with Operator
 // hook commands) and Devin picks them up via its compat layer. This makes Devin
 // a Tier B (Claude-compat) adapter, mirroring the grok adapter.
 //
 // Launch starts interactive Devin. Prompted worker tasks are passed after `--`
 // so Devin starts in interactive implementation mode with the task already
-// loaded. AO intentionally avoids `-p/--print`, which is non-interactive.
+// loaded. Operator intentionally avoids `-p/--print`, which is non-interactive.
 // Permission handling uses `--permission-mode`; Default emits no flag (defer to
 // Devin's config), AcceptEdits maps to `accept-edits`, Auto maps to `auto`, and
 // BypassPermissions maps to `dangerous`.
 //
-// Restore prefers a native session id from AO session metadata via `-r <id>`
+// Restore prefers a native session id from Operator session metadata via `-r <id>`
 // when one is available.
 package devin
 
@@ -29,10 +29,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 var devinBinarySpec = binaryutil.BinarySpec{
@@ -109,7 +109,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 	return ports.PromptDeliveryInCommand, nil
 }
 
-// PreLaunch records the AO worktree as trusted before Devin starts. Devin keeps
+// PreLaunch records the Operator worktree as trusted before Devin starts. Devin keeps
 // its own trusted_workspaces.json for the blocking "do you trust this folder?"
 // prompt; the Claude-compatible trust bit is also written because Devin imports
 // some Claude Code configuration.
@@ -134,7 +134,7 @@ func (p *Plugin) PreLaunch(ctx context.Context, cfg ports.LaunchConfig) error {
 	return ensureDevinWorkspaceTrusted(cfgPath, cfg.WorkspacePath)
 }
 
-// GetAgentHooks installs Devin's AO-managed workspace hook configuration.
+// GetAgentHooks installs Devin's Operator-managed workspace hook configuration.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	return devinHooks.Install(ctx, cfg.WorkspacePath)
 }
@@ -164,7 +164,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	return cmd, true, nil
 }
 
-// SessionInfo reads metadata under AO's normalized keys
+// SessionInfo reads metadata under Operator's normalized keys
 // ("title", "summary", "agentSessionId").
 func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (ports.SessionInfo, bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -195,7 +195,7 @@ func (p *Plugin) devinBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// appendApprovalFlags maps AO's permission modes onto Devin's native permission
+// appendApprovalFlags maps Operator's permission modes onto Devin's native permission
 // values.
 func appendApprovalFlags(cmd *[]string, permissions ports.PermissionMode) {
 	switch ports.NormalizePermissionMode(permissions) {

@@ -1,6 +1,6 @@
 import { appI18n } from "../i18n";
 
-/** Compact relative time — ported from agent-orchestrator session-detail-utils. */
+/** Compact relative time — ported from operator session-detail-utils. */
 export function formatTimeCompact(isoDate: string | null | undefined): string {
 	if (!isoDate) return appI18n.t("time.justNow");
 	const ts = new Date(isoDate).getTime();

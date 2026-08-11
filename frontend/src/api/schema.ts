@@ -164,10 +164,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Check whether a legacy AO install is available to import */
+        /** Check whether a legacy Operator install is available to import */
         get: operations["getImportStatus"];
         put?: never;
-        /** Run the legacy AO project import through the daemon store */
+        /** Run the legacy Operator project import through the daemon store */
         post: operations["runImport"];
         delete?: never;
         options?: never;
@@ -1080,7 +1080,7 @@ export interface paths {
         /** Get the managed preview server status for a session */
         get: operations["getSessionPreviewServer"];
         put?: never;
-        /** Start a session-owned server from .ao/launch.json and open its application preview */
+        /** Start a session-owned server from .operator/launch.json and open its application preview */
         post: operations["startSessionPreviewServer"];
         /** Stop the managed preview server for a session */
         delete: operations["stopSessionPreviewServer"];
@@ -1302,7 +1302,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Switch a logical AO session to another agent harness */
+        /** Switch a logical Operator session to another agent harness */
         post: operations["switchSessionAgent"];
         delete?: never;
         options?: never;
@@ -2471,13 +2471,13 @@ export interface components {
         SetActivityRequest: {
             /** @description Native agent session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this state (e.g. post-tool-use). */
+            /** @description Operator hook sub-command that produced this state (e.g. post-tool-use). */
             event?: string;
             /** @description Latest assistant update exposed by the provider hook. */
             latestAssistantUpdate?: string;
             /** @description Latest real user prompt exposed by the provider hook. */
             latestUserPrompt?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Operator process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Agent activity state reported by an agent hook. Optional for metadata-only hooks.
@@ -2514,9 +2514,9 @@ export interface components {
         SetReviewActivityRequest: {
             /** @description Native reviewer session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this signal. */
+            /** @description Operator hook sub-command that produced this signal. */
             event?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Operator process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state.
@@ -2636,7 +2636,7 @@ export interface components {
             sourceGenerationId: string;
         };
         SubmitReviewInput: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Operator. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -2648,7 +2648,7 @@ export interface components {
             verdict?: string;
         };
         SubmitReviewItem: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Operator. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -2663,7 +2663,7 @@ export interface components {
             /** @description Optional user guidance included in the bounded handoff context. */
             note?: string;
             /**
-             * @description Agent harness to continue the logical AO session with.
+             * @description Agent harness to continue the logical Operator session with.
              * @enum {string}
              */
             targetHarness: "claude-code" | "codex";
@@ -3029,8 +3029,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Operator worker. */
+                "X-Operator-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -3118,12 +3118,12 @@ export interface operations {
     getBrowserStatus: {
         parameters: {
             query?: {
-                /** @description AO session identifier. */
+                /** @description Operator session identifier. */
                 sessionId?: string;
             };
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Operator worker. */
+                "X-Operator-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -6035,7 +6035,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Operator conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -6109,7 +6109,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Operator conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -6914,8 +6914,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Operator worker. */
+                "X-Operator-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -6985,8 +6985,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Operator worker. */
+                "X-Operator-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -7096,8 +7096,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Operator worker. */
+                "X-Operator-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */

@@ -73,7 +73,7 @@ export function useInterfaceTransition(
 
 	const start = useCallback(
 		async (targetMode: "chat" | "tui", policy: "drain" | "interrupt") => {
-			if (!cfg) throw new Error("No AO server configured");
+			if (!cfg) throw new Error("No Operator server configured");
 			setStarting(true);
 			setError(undefined);
 			try {
@@ -95,7 +95,7 @@ export function useInterfaceTransition(
 	);
 
 	const cancel = useCallback(async () => {
-		if (!cfg) throw new Error("No AO server configured");
+		if (!cfg) throw new Error("No Operator server configured");
 		setCancelling(true);
 		setError(undefined);
 		try {

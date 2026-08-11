@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/review"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/review"
 )
 
 // TestRegistryMatchesDomainVocabulary enforces that the shipped reviewer

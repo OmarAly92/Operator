@@ -38,7 +38,7 @@ import { prBrowserUrl, prCardPresentation, sessionPRDisplaySummaries } from "../
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { findProjectOrchestrator, sortedPRs } from "../types/workspace";
 import { getAgentActivityView, getSessionTimelinePillView } from "../lib/session-presentation";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { BrowserPanelView, type BrowserAnnotationQueueModel } from "./BrowserPanel";
 import type { BrowserViewModel } from "../hooks/useBrowserView";
 import { useUiStore } from "../stores/ui-store";
@@ -353,7 +353,7 @@ function ResumeAgentControl({ session }: { session: WorkspaceSession }) {
 		onSuccess: async (data) => {
 			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 			if (data?.resumeMode === "saved_prompt") {
-				void aoBridge.notifications
+				void operatorBridge.notifications
 					.show({
 						id: `resume-agent-fallback:${session.id}:${Date.now()}`,
 						title: t("inspector.startedFromPrompt"),
@@ -1036,11 +1036,11 @@ function ReviewsSection({
 }
 
 /**
- * AO's own reviewer passes and the reviews humans and bots left on GitHub, in
+ * Operator's own reviewer passes and the reviews humans and bots left on GitHub, in
  * one list keyed by PR. They were two sections, which made the same PR appear
  * twice and left the reader joining them up by number; a review is a review,
  * and what matters is who wrote it. Each group inside a PR names its source —
- * "AO codex" against the agent that ran, "On GitHub" for everyone else.
+ * "Operator codex" against the agent that ran, "On GitHub" for everyone else.
  */
 function MergedReviewsSection({
 	githubPRs,
@@ -1058,12 +1058,12 @@ function MergedReviewsSection({
 	const { t } = useTranslation();
 	const openReviewStates = openReviewStatesFor(session, reviewStates);
 	const runsByPR = runsByPRFrom(openReviewStates, runs);
-	const aoStates = triggeredReviewStatesFrom(openReviewStates, runs);
+	const operatorStates = triggeredReviewStatesFrom(openReviewStates, runs);
 
 	// Union by PR number, newest PR first. A PR can appear on either side alone.
-	const byNumber = new Map<number, { ao?: PRReviewState; github?: SessionPRSummary }>();
-	for (const state of aoStates) {
-		byNumber.set(state.prNumber, { ...byNumber.get(state.prNumber), ao: state });
+	const byNumber = new Map<number, { opr?: PRReviewState; github?: SessionPRSummary }>();
+	for (const state of operatorStates) {
+		byNumber.set(state.prNumber, { ...byNumber.get(state.prNumber), opr: state });
 	}
 	for (const pr of githubPRs) {
 		byNumber.set(pr.number, { ...byNumber.get(pr.number), github: pr });
@@ -1082,9 +1082,9 @@ function MergedReviewsSection({
 	return (
 		<Section surface={false} title={t("inspector.reviews")}>
 			<div className="flex flex-col gap-2">
-				{rows.map(([number, { ao, github }], index) => {
-					const aoRuns = ao ? (runsByPR.get(ao.prUrl) ?? []) : [];
-					const aoReviewNotInjected = aoRuns.some((run) => run.autoInjectReview === false);
+				{rows.map(([number, { opr, github }], index) => {
+					const operatorRuns = opr ? (runsByPR.get(opr.prUrl) ?? []) : [];
+					const operatorReviewNotInjected = operatorRuns.some((run) => run.autoInjectReview === false);
 					const entries = github?.review?.reviews ?? [];
 					const unresolvedBy = github?.review?.unresolvedBy ?? [];
 					const unresolved = unresolvedBy.reduce((n, r) => n + r.count, 0);
@@ -1094,7 +1094,7 @@ function MergedReviewsSection({
 							reviewer.links.some((link) => link.autoInjectReview === false),
 						);
 					const meta = [
-						ao ? aoReviewMeta(ao) : `#${number}`,
+						opr ? operatorReviewMeta(opr) : `#${number}`,
 						unresolved > 0 ? t("inspector.unresolvedCount", { count: unresolved }) : null,
 					]
 						.filter(Boolean)
@@ -1105,18 +1105,18 @@ function MergedReviewsSection({
 							defaultOpen={index === 0}
 							key={number}
 							meta={meta}
-							title={(ao?.title ?? github?.title)?.trim() || `PR #${number}`}
-							verdict={ao ? reviewVerdict(ao) : undefined}
+							title={(opr?.title ?? github?.title)?.trim() || `PR #${number}`}
+							verdict={opr ? reviewVerdict(opr) : undefined}
 						>
-							{ao ? (
+							{opr ? (
 								<div className="flex min-w-0 flex-col gap-2">
 									<ReviewSourceLabel
 										icon={<Bot aria-hidden="true" />}
-										marker={aoReviewNotInjected ? t("inspector.review.notInjected") : undefined}
+										marker={operatorReviewNotInjected ? t("inspector.review.notInjected") : undefined}
 									>
-										{t("inspector.reviewBySource.ao")}
+										{t("inspector.reviewBySource.operator")}
 									</ReviewSourceLabel>
-									<ReviewerRuns reviewState={ao} runs={aoRuns} />
+									<ReviewerRuns reviewState={opr} runs={operatorRuns} />
 								</div>
 							) : null}
 							{entries.length > 0 || unresolved > 0 ? (
@@ -1378,7 +1378,7 @@ function mockReviewsResponse(session: WorkspaceSession): ReviewsResponse {
 function mockReviewTitle(prNumber: number): string {
 	switch (prNumber) {
 		case 319:
-			return "Browser preview rail renders inside AO";
+			return "Browser preview rail renders inside Operator";
 		case 320:
 			return "Review tab keeps stacked PR rows visible";
 		case 321:
@@ -1835,10 +1835,10 @@ function ReviewRunRow({ run, prUrl, isEarlier }: { run: ReviewRunFacts; prUrl: s
 	const { t } = useTranslation();
 	// A terminated run's body is the reason it stopped, not findings.
 	const raw = run.status === "cancelled" || run.status === "failed" ? "" : run.body?.trim();
-	// Falls back to the PR itself: an AO pass only has a review-comment anchor
+	// Falls back to the PR itself: an Operator pass only has a review-comment anchor
 	// once it has been submitted to GitHub, and a row with no way out at all is
 	// a dead end.
-	const reviewUrl = aoReviewCommentUrl(run);
+	const reviewUrl = operatorReviewCommentUrl(run);
 	const url = reviewUrl ?? (prUrl || null);
 	return (
 		<ReviewSummaryCard
@@ -1970,7 +1970,7 @@ function reviewRunHasOutcome(run: ReviewRunFacts | undefined): boolean {
 	);
 }
 
-/** The PRs AO has an agent review outcome for. */
+/** The PRs Operator has an agent review outcome for. */
 function triggeredReviewStatesFrom(openReviewStates: PRReviewState[], runs: ReviewRunFacts[]): PRReviewState[] {
 	return openReviewStates.filter(
 		(reviewState) =>
@@ -1982,7 +1982,7 @@ function triggeredReviewStatesFrom(openReviewStates: PRReviewState[], runs: Revi
 	);
 }
 
-function aoReviewMeta(reviewState: PRReviewState): string {
+function operatorReviewMeta(reviewState: PRReviewState): string {
 	const displayRun = reviewState.latestRun ?? reviewState.previousRun;
 	if (displayRun?.createdAt) {
 		return `#${reviewState.prNumber} · ${formatTimeCompact(displayRun.createdAt)}`;
@@ -1995,7 +1995,7 @@ function aoReviewMeta(reviewState: PRReviewState): string {
 
 // GitHub anchors a posted review at #pullrequestreview-<id> on the PR page; we
 // only have that link once the run has been delivered to GitHub.
-function aoReviewCommentUrl(run: PRReviewState["latestRun"]): string | null {
+function operatorReviewCommentUrl(run: PRReviewState["latestRun"]): string | null {
 	if (!run?.prUrl || !run.githubReviewId) return null;
 	return `${run.prUrl}#pullrequestreview-${run.githubReviewId}`;
 }

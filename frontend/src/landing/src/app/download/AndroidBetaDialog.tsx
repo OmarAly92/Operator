@@ -1,6 +1,6 @@
 "use client";
 
-import { ANDROID_TESTER_GROUP_URL } from "@ao/shared/constants";
+import { ANDROID_TESTER_GROUP_URL } from "@operator/shared/constants";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -89,7 +89,7 @@ export function AndroidBetaDialog() {
                 id="android-beta-dialog-title"
                 className="pr-8 text-xl font-semibold text-foreground"
               >
-                Get AO Mobile on Android
+                Get Operator Mobile on Android
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Three steps, about a minute. The closed beta is free.

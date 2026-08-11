@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { useNavigateToSession } from "../lib/navigate-to-session";
 import { attentionZone, workerSessions } from "../types/workspace";
 import type { TraySessionEntry } from "../../shared/tray";
@@ -33,11 +33,11 @@ export function TrayRuntime() {
 	useEffect(() => {
 		if (lastPushed.current === serialized) return;
 		lastPushed.current = serialized;
-		aoBridge.tray.setAttentionState({ sessions });
+		operatorBridge.tray.setAttentionState({ sessions });
 	}, [serialized, sessions]);
 
 	useEffect(() => {
-		return aoBridge.tray.onOpenSession((target) => {
+		return operatorBridge.tray.onOpenSession((target) => {
 			navigateToSession(target.projectId, target.sessionId);
 		});
 	}, [navigateToSession]);

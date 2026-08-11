@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -55,20 +55,20 @@ func TestReviewCommandBuildsPersistentInteractiveInvocation(t *testing.T) {
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
 		DataDir:          dataDir,
-		Prompt:           "complete the AO review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`.",
+		Prompt:           "complete the Operator review task in `/opr/prompts/reviewer/requests/batch-1/run-1/task.md`.",
 		SystemPrompt:     "secret system content must not enter argv",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
-		TaskPromptFile:   "/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
-		TaskPromptRoot:   "/ao/prompts/reviewer",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
+		TaskPromptFile:   "/opr/prompts/reviewer/requests/batch-1/run-1/task.md",
+		TaskPromptRoot:   "/opr/prompts/reviewer",
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
 
-	wantPrompt := "Read and follow the AO reviewer role in `/ao/prompts/reviewer/system.md`, then complete the AO review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`."
+	wantPrompt := "Read and follow the Operator reviewer role in `/opr/prompts/reviewer/system.md`, then complete the Operator review task in `/opr/prompts/reviewer/requests/batch-1/run-1/task.md`."
 	want := []string{
 		"cursor-agent", "--trust",
-		"--add-dir", "/ao/prompts/reviewer",
+		"--add-dir", "/opr/prompts/reviewer",
 		"--", wantPrompt,
 	}
 	if !reflect.DeepEqual(got.Argv, want) {
@@ -95,7 +95,7 @@ func TestReviewCommandBuildsPersistentInteractiveInvocation(t *testing.T) {
 	}
 	profileDir := filepath.Join(dataDir, "cursor-reviewers", "c442045692db6092")
 	if !reflect.DeepEqual(got.Env, map[string]string{cursorDataDirEnv: profileDir}) {
-		t.Fatalf("env = %#v, want AO-owned profile %q", got.Env, profileDir)
+		t.Fatalf("env = %#v, want Operator-owned profile %q", got.Env, profileDir)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestReviewCommandOmitsAddDirWhenPromptRootIsEmpty(t *testing.T) {
 	got, err := (&Reviewer{agent: agent}).ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		DataDir:          t.TempDir(),
-		Prompt:           "complete the task in `/ao/task.md`.",
-		SystemPromptFile: filepath.Join("ao", "system.md"),
+		Prompt:           "complete the task in `/opr/task.md`.",
+		SystemPromptFile: filepath.Join("opr", "system.md"),
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
@@ -219,7 +219,7 @@ func TestPreLaunchWritesIsolatedReviewerConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(trustData), workspace) || !strings.Contains(string(trustData), `"aoManaged": true`) {
+	if !strings.Contains(string(trustData), workspace) || !strings.Contains(string(trustData), `"operatorManaged": true`) {
 		t.Fatalf("reviewer trust marker = %s", trustData)
 	}
 	config := readReviewerConfig(t, configPath)

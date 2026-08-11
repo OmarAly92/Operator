@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 type fixedBrowserCapability string
@@ -22,17 +22,17 @@ func (f fixedBrowserCapability) Issue(_ domain.SessionID) (string, string, error
 func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
 	env := spawnEnv("mer-1", "mer", "issue-9", "/data", map[string]string{
 		"FOO":        "bar",
-		EnvSessionID: "hacked", // a project must not override AO-internal vars
+		EnvSessionID: "hacked", // a project must not override Operator-internal vars
 		EnvProjectID: "hacked",
 	})
 	if env["FOO"] != "bar" {
 		t.Fatalf("FOO = %q, want bar", env["FOO"])
 	}
 	if env[EnvSessionID] != "mer-1" {
-		t.Fatalf("AO_SESSION_ID = %q, want mer-1 (internal wins)", env[EnvSessionID])
+		t.Fatalf("OPERATOR_SESSION_ID = %q, want mer-1 (internal wins)", env[EnvSessionID])
 	}
 	if env[EnvProjectID] != "mer" {
-		t.Fatalf("AO_PROJECT_ID = %q, want mer (internal wins)", env[EnvProjectID])
+		t.Fatalf("OPERATOR_PROJECT_ID = %q, want mer (internal wins)", env[EnvProjectID])
 	}
 }
 
@@ -40,7 +40,7 @@ func TestRuntimeEnvInjectsBrowserCapability(t *testing.T) {
 	manager := &Manager{
 		dataDir:             "/data",
 		browserCapabilities: fixedBrowserCapability("capability-1"),
-		executable:          func() (string, error) { return filepath.Join("/opt", "aod", "ao"), nil },
+		executable:          func() (string, error) { return filepath.Join("/opt", "aod", "opr"), nil },
 		logger:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	env, verifier, err := manager.launchRuntimeEnv("mer-1", "mer", "", nil)
@@ -58,7 +58,7 @@ func TestRuntimeEnvInjectsBrowserCapability(t *testing.T) {
 func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 	manager := &Manager{
 		dataDir:    "/data",
-		executable: func() (string, error) { return filepath.Join("/opt", "aod", "ao"), nil },
+		executable: func() (string, error) { return filepath.Join("/opt", "aod", "opr"), nil },
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
@@ -72,7 +72,7 @@ func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 
 func TestHookPATH(t *testing.T) {
 	sep := string(os.PathListSeparator)
-	daemonExe := filepath.Join("/opt", "aod", "ao")
+	daemonExe := filepath.Join("/opt", "aod", "opr")
 	daemonDir := filepath.Dir(daemonExe)
 	exeOK := func() (string, error) { return daemonExe, nil }
 
@@ -109,10 +109,10 @@ func TestHookPATH(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			// A daemon binary not named "ao" cannot anchor `ao` resolution by
+			// A daemon binary not named "opr" cannot anchor `opr` resolution by
 			// having its directory prepended, so the pin must be refused.
-			name:       "executable not named ao fails",
-			executable: func() (string, error) { return filepath.Join("/opt", "aod", "ao-daemon"), nil },
+			name:       "executable not named opr fails",
+			executable: func() (string, error) { return filepath.Join("/opt", "aod", "opr-daemon"), nil },
 			daemonPATH: "/usr/bin",
 			wantErr:    true,
 		},

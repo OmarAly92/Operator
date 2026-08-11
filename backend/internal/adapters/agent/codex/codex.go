@@ -2,7 +2,7 @@
 // resuming hook-tracked sessions, installing workspace-local hooks, and reading
 // hook-derived session info.
 //
-// AO-managed sessions derive native session identity and display
+// Operator-managed sessions derive native session identity and display
 // metadata from Codex hooks instead of transcript/cache scans.
 package codex
 
@@ -20,13 +20,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/terminalui"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/terminalui"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 // Plugin is the Codex agent adapter. It is safe for concurrent use; the binary
@@ -42,7 +42,7 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-// EmitsSubmitActivity signals Codex fires a user-prompt-submit hook under AO's
+// EmitsSubmitActivity signals Codex fires a user-prompt-submit hook under Operator's
 // launch. See ports.SubmitActivitySignaler.
 func (p *Plugin) EmitsSubmitActivity() bool { return true }
 
@@ -53,14 +53,14 @@ func (p *Plugin) EmitsSubmitActivity() bool { return true }
 // ports.BlockedActivitySignaler.
 func (p *Plugin) EmitsBlockedActivity() bool { return false }
 
-// ExitDetectionMode opts Codex into AO's process supervisor. Codex hooks
+// ExitDetectionMode opts Codex into Operator's process supervisor. Codex hooks
 // expose turn boundaries but no reliable session-end event.
 func (p *Plugin) ExitDetectionMode() ports.AgentExitDetectionMode {
 	return ports.AgentExitDetectionSupervisor
 }
 
 // SteersActiveTurn is true: submitting input to the codex TUI mid-turn steers
-// the running turn rather than being swallowed or queued, so AO may write an
+// the running turn rather than being swallowed or queued, so Operator may write an
 // unsolicited coordination message into an active codex session. See
 // ports.ActiveTurnSteerer.
 func (p *Plugin) SteersActiveTurn() bool { return true }
@@ -111,7 +111,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 }
 
 // GetLaunchCommand builds the argv to start a new Codex session, applying the
-// no-update-check, hook-trust bypass, and approval flags, AO's session-flag
+// no-update-check, hook-trust bypass, and approval flags, Operator's session-flag
 // activity hooks, the workspace trust override, optional system-prompt
 // instructions, and the initial prompt (passed after `--` so a leading "-" is
 // not read as a flag).
@@ -458,11 +458,11 @@ func (p *Plugin) codexBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// DoctorLaunchProbes returns argv tails `ao doctor` runs against the installed
-// codex binary to smoke-test the launch surface AO's hook delivery depends on.
+// DoctorLaunchProbes returns argv tails `opr doctor` runs against the installed
+// codex binary to smoke-test the launch surface Operator's hook delivery depends on.
 // Probe 1 confirms --dangerously-bypass-hook-trust still exists (clap rejects
 // unknown flags with a non-zero exit even alongside --version). Probe 2 loads
-// codex's config with AO's `-c` session-flag overrides through the offline
+// codex's config with Operator's `-c` session-flag overrides through the offline
 // `features list` subcommand, so an override-parse regression surfaces as a
 // non-zero exit or warning output. Both are built from the same flag builders
 // the launch command uses, so the probes cannot drift from the real spawn argv.
@@ -478,7 +478,7 @@ func DoctorLaunchProbes() [][]string {
 		// The probe only asks Codex to parse the hook config; a bare fallback
 		// keeps that diagnostic available if the current executable cannot be
 		// resolved, while real session launches fail closed above.
-		appendSessionHookFlagsForExecutable(&overrideProbe, "ao")
+		appendSessionHookFlagsForExecutable(&overrideProbe, "opr")
 	}
 	appendWorkspaceTrustFlag(&overrideProbe, os.TempDir())
 	return [][]string{flagProbe, overrideProbe}
@@ -491,16 +491,16 @@ func appendNoUpdateCheckFlag(cmd *[]string) {
 func appendHideRateLimitNudgeFlag(cmd *[]string) {
 	// When the account nears its rate limit, the Codex TUI interposes an
 	// interactive "switch to a cheaper model?" dialog before the first turn.
-	// In a headless AO pane that dialog hangs the session invisibly and
+	// In a headless Operator pane that dialog hangs the session invisibly and
 	// swallows the auto-submitted spawn prompt, so suppress it.
 	*cmd = append(*cmd, "-c", "notice.hide_rate_limit_model_nudge=true")
 }
 
 func appendHookTrustBypassFlag(cmd *[]string) {
-	// AO's activity hooks ride the launch command as session-flag config (see
+	// Operator's activity hooks ride the launch command as session-flag config (see
 	// appendSessionHookFlags) and carry no persisted trust hash in the user's
 	// `[hooks.state]`. Without this flag Codex would hold them for an
-	// interactive hooks review, leaving AO without activity signals.
+	// interactive hooks review, leaving Operator without activity signals.
 	*cmd = append(*cmd, "--dangerously-bypass-hook-trust")
 }
 
@@ -519,7 +519,7 @@ func appendModelFlag(cmd *[]string, cfg ports.AgentConfig) {
 func appendApprovalFlags(cmd *[]string, permissions ports.PermissionMode) {
 	switch ports.NormalizePermissionMode(permissions) {
 	case ports.PermissionModeDefault:
-		// Codex sessions are AO-managed and run headlessly inside a terminal
+		// Codex sessions are Operator-managed and run headlessly inside a terminal
 		// mux pane; default to no approval prompts unless project settings
 		// explicitly choose a more restrictive mode.
 		*cmd = append(*cmd, "--dangerously-bypass-approvals-and-sandbox")

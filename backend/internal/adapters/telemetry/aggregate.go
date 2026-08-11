@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // AggregatingSink folds every occurrence of a bursty event in a flush window

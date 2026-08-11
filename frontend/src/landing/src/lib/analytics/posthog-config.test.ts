@@ -17,8 +17,8 @@ describe("marketing PostHog host", () => {
   });
 
   it("honours a configured host so a reverse proxy can be swapped in", () => {
-    expect(resolveMarketingPostHogHost(" https://ph.aoagents.dev ")).toBe(
-      "https://ph.aoagents.dev",
+    expect(resolveMarketingPostHogHost(" https://ph.operator.example.com ")).toBe(
+      "https://ph.operator.example.com",
     );
   });
 });
@@ -32,7 +32,7 @@ const config = buildMarketingPostHogConfig(DEFAULT_MARKETING_POSTHOG_HOST, {
   featureFlags: {},
 });
 
-  // AO records no sessions on any surface, by product decision. This is the
+  // Operator records no sessions on any surface, by product decision. This is the
   // guard against replay being switched on by an edit that looks unrelated.
   it("never enables session replay", () => {
     expect(config.disable_session_recording).toBe(true);

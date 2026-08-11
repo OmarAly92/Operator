@@ -3,7 +3,7 @@
 // (shared/daemon-status.ts); this module rides the existing daemon:status IPC
 // push and reports those failures through the renderer's telemetry client.
 import type { DaemonStatus } from "../../shared/daemon-status";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { captureRendererEvent } from "./telemetry";
 
 let started = false;
@@ -24,7 +24,7 @@ function reportStatus(status: DaemonStatus): void {
 	}
 	if (key === lastFailureKey) return;
 	lastFailureKey = key;
-	void captureRendererEvent("ao.renderer.daemon_failure", {
+	void captureRendererEvent("opr.renderer.daemon_failure", {
 		daemon_state: status.state,
 		code: status.code,
 		exit_code: typeof status.exitCode === "number" ? status.exitCode : undefined,
@@ -36,13 +36,13 @@ function reportStatus(status: DaemonStatus): void {
 export function startDaemonFailureTelemetry(): () => void {
 	if (started) return () => undefined;
 	started = true;
-	void aoBridge.daemon
+	void operatorBridge.daemon
 		.getStatus()
 		.then(reportStatus)
 		.catch(() => undefined);
 	let stopListener: () => void = () => undefined;
 	try {
-		stopListener = aoBridge.daemon.onStatus(reportStatus);
+		stopListener = operatorBridge.daemon.onStatus(reportStatus);
 	} catch {
 		// Preload bridge unavailable (browser preview): initial getStatus already handled.
 	}

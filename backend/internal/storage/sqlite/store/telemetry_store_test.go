@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	sqlitestore "github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	sqlitestore "github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 )
 
 func TestTelemetryStore_CreateListAndPrune(t *testing.T) {
@@ -59,7 +59,7 @@ func telemetryRecord(id string, at time.Time, projectID *domain.ProjectID, sessi
 	return sqlitestore.TelemetryEventRecord{
 		ID:          id,
 		OccurredAt:  at,
-		Name:        "ao.daemon.started",
+		Name:        "opr.daemon.started",
 		Source:      "daemon",
 		Level:       "info",
 		ProjectID:   projectID,

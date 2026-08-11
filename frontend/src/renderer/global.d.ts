@@ -1,13 +1,13 @@
-import type { AoBridge } from "../preload";
+import type { OperatorBridge } from "../preload";
 
 declare global {
 	interface Window {
-		ao?: AoBridge;
+		operator?: OperatorBridge;
 	}
 
 	interface ImportMetaEnv {
-		readonly VITE_AO_POSTHOG_KEY?: string;
-		readonly VITE_AO_POSTHOG_HOST?: string;
+		readonly VITE_OPERATOR_POSTHOG_KEY?: string;
+		readonly VITE_OPERATOR_POSTHOG_HOST?: string;
 	}
 }
 

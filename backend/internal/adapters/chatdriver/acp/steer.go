@@ -9,7 +9,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const steeringMethod = "_session/steering"
@@ -19,10 +19,10 @@ type steeringResponse struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-// Steer maps AO's existing mid-turn guidance contract onto ACP's steering
+// Steer maps Operator's existing mid-turn guidance contract onto ACP's steering
 // extension. promptRequired is load-bearing: if the turn wins the race and ends
-// before this request arrives, the agent returns the text to AO instead of
-// silently starting a detached provider turn with no durable AO turn row.
+// before this request arrives, the agent returns the text to Operator instead of
+// silently starting a detached provider turn with no durable Operator turn row.
 func (c *conversation) Steer(
 	ctx context.Context,
 	providerTurnID string,
@@ -67,7 +67,7 @@ func (c *conversation) Steer(
 	case "promptRequired":
 		return ports.ChatTurnRef{}, ports.ErrChatNoSteerableTurn
 	case "startedNewTurn":
-		// AO explicitly requested promptRequired, so this means the extension
+		// Operator explicitly requested promptRequired, so this means the extension
 		// contract was not honored. Claiming this joined the active turn would
 		// misattribute the provider's detached work in durable history.
 		return ports.ChatTurnRef{}, fmt.Errorf("ACP steering started a detached turn")

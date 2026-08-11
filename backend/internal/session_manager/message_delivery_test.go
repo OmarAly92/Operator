@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 type terminalReadyAgent struct{ fakeAgent }
@@ -22,7 +22,7 @@ func TestWaitForMessageDeliveryReadyWaitsForTerminalIdleMarker(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["orch"] = domain.SessionRecord{
 		ID:        "orch",
-		ProjectID: "ao",
+		ProjectID: "opr",
 		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
 		Mode:      domain.SessionModeTUI,
@@ -44,7 +44,7 @@ func TestWaitForMessageDeliveryReadyHonorsContextWhileTerminalStarts(t *testing.
 	st := newFakeStore()
 	st.sessions["orch"] = domain.SessionRecord{
 		ID:        "orch",
-		ProjectID: "ao",
+		ProjectID: "opr",
 		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
 		Mode:      domain.SessionModeTUI,

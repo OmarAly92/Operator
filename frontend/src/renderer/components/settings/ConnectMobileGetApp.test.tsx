@@ -6,7 +6,7 @@ import { ANDROID_SIGNUP_URL, ConnectMobileGetApp, TESTFLIGHT_URL } from "./Conne
 const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
 
 vi.mock("../../lib/bridge", () => ({
-	aoBridge: { app: { openExternal } },
+	operatorBridge: { app: { openExternal } },
 }));
 
 beforeEach(() => {

@@ -1,9 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- projects is the durable registry of repos AO manages (the SQLite twin of the
--- YAML config). id is a short human/LLM-friendly slug (mer, ao) with a numeric
--- suffix on collision (ao, ao1, ao2). Soft-delete via archived_at keeps the row
+-- projects is the durable registry of repos Operator manages (the SQLite twin of the
+-- YAML config). id is a short human/LLM-friendly slug (mer, opr) with a numeric
+-- suffix on collision (opr, ao1, ao2). Soft-delete via archived_at keeps the row
 -- so a session's project_id always resolves.
 CREATE TABLE projects (
     id              TEXT PRIMARY KEY,

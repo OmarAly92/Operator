@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 func previewCommand(name string, args ...string) *exec.Cmd {
@@ -20,7 +20,7 @@ func previewCommand(name string, args ...string) *exec.Cmd {
 }
 
 // errStalePreviewPID reports that a recorded preview PID could not be
-// re-verified as the process AO launched, so no signal was sent.
+// re-verified as the process Operator launched, so no signal was sent.
 var errStalePreviewPID = errors.New("preview pid is stale or recycled; refusing to signal")
 
 // previewProcessStartTime returns the kernel-reported start time of pid as an
@@ -49,7 +49,7 @@ func previewGroupHasMembers(pid int) bool {
 
 // signalPreviewGroup delivers sig to pid's process group only while the group
 // leader is still alive and its kernel start time matches the recorded one
-// verbatim. Anything less is not proof that the group is AO's preview: once
+// verbatim. Anything less is not proof that the group is Operator's preview: once
 // the leader is gone the number may already have been recycled, and a group
 // kill on a recycled PID can take down an unrelated family (a tmux server and
 // every agent session in it, issue #3475). A descendant that survives its
@@ -66,7 +66,7 @@ func signalPreviewGroup(pid int, recordedStart string, sig syscall.Signal) error
 	}
 	current := previewProcessStartTime(pid)
 	if current == "" {
-		return nil // leader gone: nothing provably AO's remains
+		return nil // leader gone: nothing provably Operator's remains
 	}
 	if current != recordedStart {
 		return errStalePreviewPID

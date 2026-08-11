@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// Translation from Codex app-server notifications into AO's provider-neutral
+// Translation from Codex app-server notifications into Operator's provider-neutral
 // Chat events.
 //
 // Two rules hold here.
@@ -43,7 +43,7 @@ const (
 	// earlier history to reclaim context. The schema also declares a
 	// `thread/compacted` notification for the same thing and marks it "Deprecated:
 	// use the ContextCompaction item type instead" — and 0.146.0 emits ONLY the
-	// item, never the notification. Reading the notification alone would mean AO
+	// item, never the notification. Reading the notification alone would mean Operator
 	// silently never noticed a compaction on any current provider.
 	itemContextCompaction = codexproto.ThreadItemTypeContextCompaction
 )
@@ -58,7 +58,7 @@ const itemError codexproto.ThreadItemType = "error"
 // threadItem is codexproto.ThreadItem plus the one field the provider does not
 // declare.
 //
-// Embedding rather than copying: the generated struct covers every field AO reads,
+// Embedding rather than copying: the generated struct covers every field Operator reads,
 // including the two the previous hand-written version got wrong. `tool`, not
 // `toolName`, is what an mcpToolCall item actually carries — verified against a
 // live call — so the old struct's ToolName never bound and every MCP call in the
@@ -127,7 +127,7 @@ type resolvedEnvelope struct {
 // now is passed rather than read from the clock so the rate-limit reset instant
 // can be expressed as a duration deterministically. The provider reports an
 // absolute timestamp; a duration is what a reader can act on without knowing
-// whether AO's clock agrees with the provider's.
+// whether Operator's clock agrees with the provider's.
 func normalizeNotification(n notification, now time.Time) []ports.ChatEvent {
 	switch n.Method {
 	case codexproto.MethodTurnStarted:
@@ -217,7 +217,7 @@ func normalizeNotification(n notification, now time.Time) []ports.ChatEvent {
 		//
 		// It folds into the same accumulation as the summary. A build emitting both
 		// would interleave them in the provider's own order, which is the best account
-		// available: AO cannot know which stream a reader wanted, and dropping one
+		// available: Operator cannot know which stream a reader wanted, and dropping one
 		// would silently discard reasoning the provider chose to send.
 		var p codexproto.ReasoningTextDeltaNotification
 		if err := json.Unmarshal(n.Params, &p); err != nil || p.Delta == "" {
@@ -459,7 +459,7 @@ func normalizeNotification(n notification, now time.Time) []ports.ChatEvent {
 		// VERIFIED live: {"status":{"type":"active","activeFlags":[]}} while a turn
 		// runs and {"status":{"type":"idle"}} when it ends.
 		//
-		// Recorded as thread state and deliberately NOT fed into AO's activity
+		// Recorded as thread state and deliberately NOT fed into Operator's activity
 		// signal. Turn lifecycle already drives that, and a second driver of the same
 		// reduction would be two sources of truth for one status.
 		var p codexproto.ThreadStatusChangedNotification
@@ -661,9 +661,9 @@ func normalizeNotification(n notification, now time.Time) []ports.ChatEvent {
 		//     so reading both would put one decision on the timeline twice.
 		//   - command/exec/outputDelta and process/outputDelta belong to the
 		//     client-driven exec API, where the CLIENT asked the server to run
-		//     something. AO does not use it, and an agent tool call never arrives on
+		//     something. Operator does not use it, and an agent tool call never arrives on
 		//     those methods.
-		//   - thread/realtime/* is the voice surface. AO has none, and inventing one
+		//   - thread/realtime/* is the voice surface. Operator has none, and inventing one
 		//     from a transcript delta would be a feature nobody asked for.
 		return nil
 	}
@@ -708,14 +708,14 @@ type rateLimitsEnvelope struct {
 	} `json:"rateLimits"`
 }
 
-// rateLimitsFrom converts a provider rate-limit snapshot into AO's neutral shape.
+// rateLimitsFrom converts a provider rate-limit snapshot into Operator's neutral shape.
 //
 // Two conversions matter. A window the account does not have comes back as null,
 // and is reported as a negative percent because the port's contract is that
 // negative means "not reported" — zero would claim the quota is untouched, which
 // is a different and much more reassuring statement than "no such window".
 // Second, the absolute reset timestamp becomes a remaining duration: a client
-// showing "resets in 4h" does not have to trust that AO's clock and the
+// showing "resets in 4h" does not have to trust that Operator's clock and the
 // provider's agree, and a stale snapshot decays into 0 rather than into a time in
 // the past that reads as if it already refilled.
 func rateLimitsFrom(p rateLimitsEnvelope, now time.Time) ports.ChatRateLimits {
@@ -748,11 +748,11 @@ func resetsIn(resetsAt *int64, now time.Time) int64 {
 	return remaining
 }
 
-// planFrom converts a provider plan into AO's structured form.
+// planFrom converts a provider plan into Operator's structured form.
 //
 // An unrecognized step status becomes pending rather than being carried through:
 // the statuses drive whether a step reads as done, and inventing "done" for a word
-// AO does not know would tick off work that may not have happened.
+// Operator does not know would tick off work that may not have happened.
 func planFrom(p codexproto.TurnPlanUpdatedNotification) domain.ConversationPlan {
 	plan := domain.ConversationPlan{Steps: make([]domain.ConversationPlanStep, 0, len(p.Plan))}
 	if p.Explanation != nil {
@@ -815,7 +815,7 @@ func reviewItemID(reviewID string) string {
 	if reviewID == "" {
 		return ""
 	}
-	return "ao-review-" + reviewID
+	return "opr-review-" + reviewID
 }
 
 // autoReviewStatus maps a review outcome onto an activity status. Anything that is
@@ -940,7 +940,7 @@ func autoReviewDetail(
 	return detail
 }
 
-// threadStatusFrom maps the provider's thread status onto AO's spelling. An
+// threadStatusFrom maps the provider's thread status onto Operator's spelling. An
 // unrecognized status yields the empty string, which the caller reads as "nothing
 // to record" rather than guessing.
 func threadStatusFrom(status codexproto.ThreadStatusType) domain.ThreadStatus {
@@ -958,7 +958,7 @@ func threadStatusFrom(status codexproto.ThreadStatusType) domain.ThreadStatus {
 	}
 }
 
-// waitingOnFrom maps the provider's active flags onto AO's spelling.
+// waitingOnFrom maps the provider's active flags onto Operator's spelling.
 func waitingOnFrom(flags []codexproto.ThreadActiveFlag) []string {
 	if len(flags) == 0 {
 		return nil
@@ -990,7 +990,7 @@ func normalizeItem(params json.RawMessage, completed bool) []ports.ChatEvent {
 	}
 	it := p.Item
 
-	// The user's own message comes back from the provider as an item. AO already
+	// The user's own message comes back from the provider as an item. Operator already
 	// persisted it when the send was accepted, so re-emitting it would duplicate
 	// the timeline entry.
 	if it.Type == itemUserMessage {
@@ -1189,8 +1189,8 @@ func looksLikeShell(prefix string) bool {
 	}
 }
 
-// activityDetail is the provider-neutral payload AO persists for an activity.
-// Provider DTOs are not passed through: only named fields AO renders.
+// activityDetail is the provider-neutral payload Operator persists for an activity.
+// Provider DTOs are not passed through: only named fields Operator renders.
 func activityDetail(it threadItem) []byte {
 	detail := map[string]any{}
 	if cmd := deref(it.Command); cmd != "" {
@@ -1234,10 +1234,10 @@ func activityDetail(it threadItem) []byte {
 		detail["text"] = summary
 	}
 	if len(it.Changes) > 0 {
-		// AO's own per-file shape, not the provider's `changes` array. The provider
+		// Operator's own per-file shape, not the provider's `changes` array. The provider
 		// spells the change kind as an object ({"type":"update","move_path":null}),
 		// so passing it through left a client with nothing it could read as a status,
-		// and it was a provider DTO on AO's wire besides.
+		// and it was a provider DTO on Operator's wire besides.
 		detail["files"] = fileChanges(it.Changes)
 	}
 	if tool := deref(it.Tool); tool != "" {
@@ -1317,7 +1317,7 @@ func joinReasoning(summary []string) string {
 	return strings.Join(parts, "\n\n")
 }
 
-// fileChangeDetail is one changed file as AO puts it on the wire.
+// fileChangeDetail is one changed file as Operator puts it on the wire.
 //
 // Declared here with its own JSON tags rather than reusing ports.ChatDiffFile,
 // which has none: marshalling that type directly would put Go field names
@@ -1332,7 +1332,7 @@ type fileChangeDetail struct {
 	// Patch is this file's unified diff, so a client can render the change as soon as
 	// the patch lands instead of waiting for the turn's aggregate.
 	Patch string `json:"patch,omitempty"`
-	// PatchTruncated reports that the patch was cut at AO's cap, so a partial diff is
+	// PatchTruncated reports that the patch was cut at Operator's cap, so a partial diff is
 	// never presented as a whole one.
 	PatchTruncated bool `json:"patchTruncated,omitempty"`
 }
@@ -1346,7 +1346,7 @@ type fileChangeDetail struct {
 // lives.
 const maxPatchChars = 16 * 1024
 
-// fileChanges converts the provider's per-file patches into AO's diff shape.
+// fileChanges converts the provider's per-file patches into Operator's diff shape.
 //
 // Counts are read out of the patch text here because the provider does not send
 // them. Two patch shapes arrive, both verified live: an update carries a unified
@@ -1365,13 +1365,13 @@ func fileChanges(changes []codexproto.FileUpdateChange) []fileChangeDetail {
 		}
 		if change.Kind.MovePath != nil && *change.Kind.MovePath != "" {
 			// A move is reported as an update carrying the destination, so the path
-			// AO shows is where the file ended up and OldPath is where it was.
+			// Operator shows is where the file ended up and OldPath is where it was.
 			file.Status = diffStatusRenamed
 			file.OldPath = change.Path
 			file.Path = *change.Kind.MovePath
 		}
 		// Counted from the WHOLE patch, before any truncation: the figures describe
-		// the change, not how much of it AO chose to store.
+		// the change, not how much of it Operator chose to store.
 		file.Additions, file.Deletions = countPatchLines(change.Diff, file.Status)
 		if len(file.Patch) > maxPatchChars {
 			file.Patch = file.Patch[:maxPatchChars]
@@ -1382,7 +1382,7 @@ func fileChanges(changes []codexproto.FileUpdateChange) []fileChangeDetail {
 	return files
 }
 
-// patchStatus maps the provider's change kind onto AO's neutral status.
+// patchStatus maps the provider's change kind onto Operator's neutral status.
 func patchStatus(kind codexproto.PatchChangeKindType) string {
 	switch kind {
 	case codexproto.PatchChangeKindTypeAdd:
@@ -1431,8 +1431,8 @@ func countPatchLines(patch, status string) (additions, deletions int) {
 	return additions, deletions
 }
 
-// turnStateFrom maps a provider turn status onto AO's turn state. An unknown
-// status is failed rather than completed: claiming success AO did not observe is
+// turnStateFrom maps a provider turn status onto Operator's turn state. An unknown
+// status is failed rather than completed: claiming success Operator did not observe is
 // worse than reporting an honest unknown failure.
 func turnStateFrom(status string) domain.TurnState {
 	switch status {

@@ -167,13 +167,13 @@ describe("BrowserPanel", () => {
 		postMock.mockResolvedValue({ data: {} });
 		annotationSubmitListeners.clear();
 		annotationCancelListeners.clear();
-		window.ao!.browser.onAnnotationSubmit = vi.fn((listener: (payload: BrowserAnnotationSubmitPayload) => void) => {
+		window.operator!.browser.onAnnotationSubmit = vi.fn((listener: (payload: BrowserAnnotationSubmitPayload) => void) => {
 			annotationSubmitListeners.add(listener);
 			return () => {
 				annotationSubmitListeners.delete(listener);
 			};
 		});
-		window.ao!.browser.onAnnotationCancel = vi.fn((listener: (payload: BrowserAnnotationCancelPayload) => void) => {
+		window.operator!.browser.onAnnotationCancel = vi.fn((listener: (payload: BrowserAnnotationCancelPayload) => void) => {
 			annotationCancelListeners.add(listener);
 			return () => {
 				annotationCancelListeners.delete(listener);
@@ -229,15 +229,15 @@ describe("BrowserPanel", () => {
 
 	it("uses the active app theme for the static browser preview", () => {
 		hookState.navState = { ...hookState.navState, url: "http://localhost:5173/" };
-		const ao = window.ao;
-		Object.defineProperty(window, "ao", { configurable: true, value: undefined });
+		const opr = window.operator;
+		Object.defineProperty(window, "operator", { configurable: true, value: undefined });
 		try {
 			render(<BrowserPanel active onTogglePopOut={() => undefined} poppedOut={false} session={session} />);
 
 			const preview = screen.getByText("Demo app preview").closest(".bg-preview, .bg-background");
 			expect(preview).toHaveClass("bg-background", "text-foreground");
 		} finally {
-			Object.defineProperty(window, "ao", { configurable: true, value: ao });
+			Object.defineProperty(window, "operator", { configurable: true, value: opr });
 		}
 	});
 
@@ -802,7 +802,7 @@ describe("BrowserPanel", () => {
 	});
 
 	it("shows annotation send errors", async () => {
-		postMock.mockResolvedValue({ error: { message: "AO daemon is not ready." } });
+		postMock.mockResolvedValue({ error: { message: "Operator daemon is not ready." } });
 		hookState.navState = { ...hookState.navState, url: "http://localhost:5173/" };
 		render(<BrowserPanel active onTogglePopOut={() => undefined} poppedOut={false} session={session} />);
 
@@ -826,12 +826,12 @@ describe("BrowserPanel", () => {
 			);
 		});
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Operator daemon is not ready.")).toBeInTheDocument();
 	});
 
 	it("keeps a failed annotation queued so the user can retry it", async () => {
 		postMock
-			.mockResolvedValueOnce({ error: { message: "AO daemon is not ready." } })
+			.mockResolvedValueOnce({ error: { message: "Operator daemon is not ready." } })
 			.mockResolvedValueOnce({ data: {} });
 		hookState.navState = { ...hookState.navState, url: "http://localhost:5173/" };
 		render(<BrowserPanel active onTogglePopOut={() => undefined} poppedOut={false} session={session} />);
@@ -849,7 +849,7 @@ describe("BrowserPanel", () => {
 			);
 		});
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Operator daemon is not ready.")).toBeInTheDocument();
 		expect(postMock).toHaveBeenCalledTimes(1);
 
 		await userEvent.click(screen.getByRole("button", { name: /retry annotation/i }));

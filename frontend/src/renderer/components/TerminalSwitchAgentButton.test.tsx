@@ -29,7 +29,7 @@ vi.mock("../lib/api-client", () => ({
 
 const worker: WorkspaceSession = {
 	activity: { state: "active", lastActivityAt: "2026-06-10T00:00:00Z" },
-	branch: "ao/sess-1",
+	branch: "opr/sess-1",
 	id: "sess-1",
 	kind: "worker",
 	provider: "claude-code",
@@ -183,7 +183,7 @@ describe("TerminalSwitchAgentButton", () => {
 		expect(button.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
 		await userEvent.click(button);
 		expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent(
-			"AO could not confirm whether the target agent started. Terminal input remains locked to prevent two agents from owning the session.",
+			"Operator could not confirm whether the target agent started. Terminal input remains locked to prevent two agents from owning the session.",
 		);
 	});
 
@@ -208,7 +208,7 @@ describe("TerminalSwitchAgentButton", () => {
 	});
 
 	it.each([
-		["marks completed history when AO had to use fallback context", false, true],
+		["marks completed history when Operator had to use fallback context", false, true],
 		["does not mark completed history when the semantic handoff was included", true, false],
 	] as const)("%s", async (_label, semanticHandoffIncluded, expected) => {
 		getMock.mockResolvedValue({

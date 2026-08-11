@@ -1,23 +1,23 @@
 export const COMPANY = {
-  NAME: "Agent Orchestrator",
-  SHORT_NAME: "AO",
-  MARKETING_URL: "https://aoagents.dev",
-  DOCS_URL: "https://aoagents.dev/docs",
-  GITHUB_URL: "https://github.com/Untrivial-ai/agent-orchestrator",
-  GITHUB_REPO: "Untrivial-ai/agent-orchestrator",
-  STATUS_URL: "https://status.aoagents.dev",
-  TRUST_URL: "https://aoagents.dev/privacy/",
-  MAIL_TO: "mailto:prateek@untrivial.ai",
-  X_URL: "https://x.com/aoagents",
-  LINKEDIN_URL: "https://www.linkedin.com/company/agent-orchestrator/",
-  DISCORD_URL: "https://discord.com/invite/UZv7JjxbwG",
-  FOUNDERS_EMAIL: "prateek@untrivial.ai",
-  REPORT_ISSUE_URL: "https://github.com/Untrivial-ai/agent-orchestrator/issues/new",
+  NAME: "Operator",
+  SHORT_NAME: "Operator",
+  MARKETING_URL: "https://operator.example.com",
+  DOCS_URL: "https://operator.example.com/docs",
+  GITHUB_URL: "https://github.com/OmarAly92/operator",
+  GITHUB_REPO: "OmarAly92/operator",
+  STATUS_URL: "https://status.operator.example.com",
+  TRUST_URL: "https://operator.example.com/privacy/",
+  MAIL_TO: "mailto:support@operator.example.com",
+  X_URL: "https://github.com/OmarAly92/operator",
+  LINKEDIN_URL: "https://github.com/OmarAly92/operator",
+  DISCORD_URL: "https://github.com/OmarAly92/operator/discussions",
+  FOUNDERS_EMAIL: "support@operator.example.com",
+  REPORT_ISSUE_URL: "https://github.com/OmarAly92/operator/issues/new",
   LICENSE: "Apache-2.0",
-  LICENSE_URL: "https://github.com/Untrivial-ai/agent-orchestrator/blob/main/LICENSE",
+  LICENSE_URL: "https://github.com/OmarAly92/operator/blob/main/LICENSE",
 } as const;
 
-export const THEME_STORAGE_KEY = "ao-theme";
+export const THEME_STORAGE_KEY = "opr-theme";
 export const POSTHOG_COOKIE_NAME = "ph_phc_";
 
 export const OPEN_ROLES = [] as { title: string; url: string; location: string }[];
@@ -28,7 +28,7 @@ export const PLATFORMS = {
   LINUX: "linux",
 } as const;
 
-export const GITHUB_STARS_URL = "https://api.github.com/repos/Untrivial-ai/agent-orchestrator";
+export const GITHUB_STARS_URL = "https://api.github.com/repos/OmarAly92/operator";
 
 // macOS points at the .dmg: this is rollout step 6 of issue #3267, taken once the
 // release conductor started publishing a signed, notarized dmg on the stable
@@ -46,12 +46,12 @@ export const GITHUB_STARS_URL = "https://api.github.com/repos/Untrivial-ai/agent
 // ever break, check that the newest non-prerelease release has both files rather
 // than assuming the pipeline is broken. The download page itself is resilient
 // here: it reads the live release list and falls back to the zip.
-export const DOWNLOAD_URL_MAC_ARM64 = "https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-darwin-arm64.dmg";
-export const DOWNLOAD_URL_MAC_X64 = "https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-darwin-x64.dmg";
-export const DOWNLOAD_URL_WINDOWS = "https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-win32-x64.exe";
-export const DOWNLOAD_URL_LINUX = "https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-linux-x64.AppImage";
+export const DOWNLOAD_URL_MAC_ARM64 = "https://github.com/OmarAly92/operator/releases/latest/download/operator-darwin-arm64.dmg";
+export const DOWNLOAD_URL_MAC_X64 = "https://github.com/OmarAly92/operator/releases/latest/download/operator-darwin-x64.dmg";
+export const DOWNLOAD_URL_WINDOWS = "https://github.com/OmarAly92/operator/releases/latest/download/operator-win32-x64.exe";
+export const DOWNLOAD_URL_LINUX = "https://github.com/OmarAly92/operator/releases/latest/download/operator-linux-x64.AppImage";
 
-// AO Mobile. iOS ships as a TestFlight beta — the same link the desktop app's
+// Operator Mobile. iOS ships as a TestFlight beta — the same link the desktop app's
 // Connect Mobile panel opens (frontend/src/renderer/components/settings/
 // ConnectMobileGetApp.tsx), so the two must be changed together.
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/t4U3fu2H";
@@ -61,11 +61,11 @@ export const TESTFLIGHT_APP_URL = "https://apps.apple.com/app/testflight/id89924
 
 /** Public self-join Group that grants eligibility for the Android closed test. */
 export const ANDROID_TESTER_GROUP_URL =
-  "https://groups.google.com/g/ao-mobile-testers/about";
+  "https://groups.google.com/g/opr-mobile-testers/about";
 
 /** Google Play page where an eligible Group member opts in and installs. */
 export const ANDROID_TEST_OPT_IN_URL =
-  "https://play.google.com/apps/testing/aoagents.dev";
+  "https://play.google.com/apps/testing/operator.example.com";
 
 export const AGENT_HARNESSES = 24;
 export const TAGLINE = "Stop babysitting agents. Start merging real work.";

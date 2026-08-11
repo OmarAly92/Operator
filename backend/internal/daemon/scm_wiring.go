@@ -9,10 +9,10 @@ import (
 	"errors"
 	"log/slog"
 
-	scmgithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/github"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	scmobserve "github.com/aoagents/agent-orchestrator/backend/internal/observe/scm"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	scmgithub "github.com/OmarAly92/operator/backend/internal/adapters/scm/github"
+	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	scmobserve "github.com/OmarAly92/operator/backend/internal/observe/scm"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 // startSCMObserver wires the provider-neutral SCM observer with the GitHub
@@ -34,7 +34,7 @@ func startSCMObserver(ctx context.Context, store *sqlite.Store, lcm *lifecycle.M
 
 func newGitHubSCMProvider(logger *slog.Logger) (*scmgithub.Provider, error) {
 	tokens := scmgithub.FallbackTokenSource{
-		scmgithub.EnvTokenSource{EnvVars: []string{"AO_GITHUB_TOKEN"}},
+		scmgithub.EnvTokenSource{EnvVars: []string{"OPERATOR_GITHUB_TOKEN"}},
 		&scmgithub.GHTokenSource{},
 	}
 	// Avoid token preflight on daemon startup and session service construction.

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t *testing.T) {
@@ -26,19 +26,19 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := newFakeStore()
-			st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+			st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
 			now := time.Now().UTC()
-			st.sessions["orch-old"] = domain.SessionRecord{ID: "orch-old", ProjectID: "ao", Kind: domain.KindOrchestrator, CreatedAt: now.Add(-time.Minute)}
-			st.sessions["orch-new"] = domain.SessionRecord{ID: "orch-new", ProjectID: "ao", Kind: domain.KindOrchestrator, CreatedAt: now}
-			st.sessions["orch-exited"] = domain.SessionRecord{ID: "orch-exited", ProjectID: "ao", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now.Add(time.Minute)}
-			st.sessions["orch-dead"] = domain.SessionRecord{ID: "orch-dead", ProjectID: "ao", Kind: domain.KindOrchestrator, IsTerminated: true, CreatedAt: now.Add(2 * time.Minute)}
-			st.sessions["worker"] = domain.SessionRecord{ID: "worker", ProjectID: "ao", Kind: domain.KindWorker, CreatedAt: now.Add(3 * time.Minute)}
+			st.sessions["orch-old"] = domain.SessionRecord{ID: "orch-old", ProjectID: "opr", Kind: domain.KindOrchestrator, CreatedAt: now.Add(-time.Minute)}
+			st.sessions["orch-new"] = domain.SessionRecord{ID: "orch-new", ProjectID: "opr", Kind: domain.KindOrchestrator, CreatedAt: now}
+			st.sessions["orch-exited"] = domain.SessionRecord{ID: "orch-exited", ProjectID: "opr", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now.Add(time.Minute)}
+			st.sessions["orch-dead"] = domain.SessionRecord{ID: "orch-dead", ProjectID: "opr", Kind: domain.KindOrchestrator, IsTerminated: true, CreatedAt: now.Add(2 * time.Minute)}
+			st.sessions["worker"] = domain.SessionRecord{ID: "worker", ProjectID: "opr", Kind: domain.KindWorker, CreatedAt: now.Add(3 * time.Minute)}
 			cmd := &fakeCommander{}
 			svc := &Service{store: st, manager: cmd, runBackground: runInline}
 
 			brief := "  Fix the renderer\nwithout changing the API.  "
 			out, err := svc.DelegateTask(context.Background(), DelegateTaskInput{
-				ProjectID: "ao", Brief: brief, RequestedAgent: tt.agent, Model: tt.model, RequestedMode: tt.mode,
+				ProjectID: "opr", Brief: brief, RequestedAgent: tt.agent, Model: tt.model, RequestedMode: tt.mode,
 			})
 			if err != nil {
 				t.Fatalf("DelegateTask: %v", err)
@@ -46,7 +46,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 			if out.WorkerID != "mer-9" || out.OrchestratorID != "" {
 				t.Fatalf("out = %#v, want worker mer-9 with asynchronous title handoff", out)
 			}
-			if !cmd.spawned || cmd.spawnedCfg.ProjectID != "ao" || cmd.spawnedCfg.Kind != domain.KindWorker || cmd.spawnedCfg.Harness != tt.wantAgent || cmd.spawnedCfg.Prompt != brief || cmd.spawnedCfg.DisplayName != "Fix the renderer wit" {
+			if !cmd.spawned || cmd.spawnedCfg.ProjectID != "opr" || cmd.spawnedCfg.Kind != domain.KindWorker || cmd.spawnedCfg.Harness != tt.wantAgent || cmd.spawnedCfg.Prompt != brief || cmd.spawnedCfg.DisplayName != "Fix the renderer wit" {
 				t.Fatalf("spawn cfg = %#v", cmd.spawnedCfg)
 			}
 			if cmd.spawnedCfg.AgentConfig.Model != strings.TrimSpace(tt.model) {
@@ -62,9 +62,9 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 				t.Fatalf("readiness waits = %#v; want orch-new", cmd.ready)
 			}
 			for _, want := range []string{
-				"AO TASK TITLE UPDATE",
+				"Operator TASK TITLE UPDATE",
 				"Do not spawn another worker or orchestrator",
-				`ao session rename mer-9 "<title, max 20 chars>"`,
+				`opr session rename mer-9 "<title, max 20 chars>"`,
 				"Worker session id: mer-9",
 				brief,
 			} {
@@ -100,13 +100,13 @@ func TestDelegatedTaskDisplayName(t *testing.T) {
 
 func TestDelegateTaskStartsPromptlessWorkerWithoutRequestingTitle(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
-	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "opr", Kind: domain.KindOrchestrator}
 	cmd := &fakeCommander{}
 
 	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(
 		context.Background(),
-		DelegateTaskInput{ProjectID: "ao", Brief: " \n\t "},
+		DelegateTaskInput{ProjectID: "opr", Brief: " \n\t "},
 	)
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
@@ -124,13 +124,13 @@ func TestDelegateTaskStartsPromptlessWorkerWithoutRequestingTitle(t *testing.T) 
 
 func TestDelegateTaskResumesNewestExitedOrchestratorBeforeRequestingTitle(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
 	now := time.Now().UTC()
-	st.sessions["orch-old"] = domain.SessionRecord{ID: "orch-old", ProjectID: "ao", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now.Add(-time.Minute)}
-	st.sessions["orch-new"] = domain.SessionRecord{ID: "orch-new", ProjectID: "ao", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now}
+	st.sessions["orch-old"] = domain.SessionRecord{ID: "orch-old", ProjectID: "opr", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now.Add(-time.Minute)}
+	st.sessions["orch-new"] = domain.SessionRecord{ID: "orch-new", ProjectID: "opr", Kind: domain.KindOrchestrator, Activity: domain.Activity{State: domain.ActivityExited}, CreatedAt: now}
 	cmd := &fakeCommander{}
 
-	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "Fix it"})
+	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "opr", Brief: "Fix it"})
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
 	}
@@ -150,8 +150,8 @@ func TestDelegateTaskResumesNewestExitedOrchestratorBeforeRequestingTitle(t *tes
 
 func TestDelegateTaskStartsMissingOrchestratorBeforeRequestingTitle(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
-	st.sessions["orch-dead"] = domain.SessionRecord{ID: "orch-dead", ProjectID: "ao", Kind: domain.KindOrchestrator, IsTerminated: true}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
+	st.sessions["orch-dead"] = domain.SessionRecord{ID: "orch-dead", ProjectID: "opr", Kind: domain.KindOrchestrator, IsTerminated: true}
 	cmd := &fakeCommander{spawnFunc: func(cfg ports.SpawnConfig) domain.SessionRecord {
 		if cfg.Kind == domain.KindOrchestrator {
 			return domain.SessionRecord{ID: "orch-new", ProjectID: cfg.ProjectID, Kind: cfg.Kind}
@@ -159,7 +159,7 @@ func TestDelegateTaskStartsMissingOrchestratorBeforeRequestingTitle(t *testing.T
 		return domain.SessionRecord{ID: "worker-new", ProjectID: cfg.ProjectID, Kind: cfg.Kind}
 	}}
 
-	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "Fix it"})
+	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "opr", Brief: "Fix it"})
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
 	}
@@ -179,11 +179,11 @@ func TestDelegateTaskStartsMissingOrchestratorBeforeRequestingTitle(t *testing.T
 
 func TestDelegateTaskKeepsSpawnSuccessWhenTitleOrchestratorNeverBecomesReady(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
-	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "opr", Kind: domain.KindOrchestrator}
 	cmd := &fakeCommander{readyErr: errors.New("readiness timed out")}
 
-	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "Fix it"})
+	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "opr", Brief: "Fix it"})
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
 	}
@@ -200,11 +200,11 @@ func TestDelegateTaskKeepsSpawnSuccessWhenTitleOrchestratorNeverBecomesReady(t *
 
 func TestDelegateTaskKeepsSpawnSuccessWhenTitleRequestFails(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
-	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "opr", Kind: domain.KindOrchestrator}
 	cmd := &fakeCommander{sendErr: errors.New("orchestrator exited")}
 
-	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "Fix it"})
+	out, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "opr", Brief: "Fix it"})
 	if err != nil {
 		t.Fatalf("DelegateTask: %v", err)
 	}
@@ -218,8 +218,8 @@ func TestDelegateTaskKeepsSpawnSuccessWhenTitleRequestFails(t *testing.T) {
 
 func TestDelegateTaskReturnsBeforeTitleRequestCompletes(t *testing.T) {
 	st := newFakeStore()
-	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
-	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	st.projects["opr"] = domain.ProjectRecord{ID: "opr"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "opr", Kind: domain.KindOrchestrator}
 	titleStarted := make(chan struct{})
 	releaseTitle := make(chan struct{})
 	titleFinished := make(chan struct{})
@@ -244,7 +244,7 @@ func TestDelegateTaskReturnsBeforeTitleRequestCompletes(t *testing.T) {
 	}
 	resultCh := make(chan result, 1)
 	go func() {
-		out, err := svc.DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "Fix it"})
+		out, err := svc.DelegateTask(context.Background(), DelegateTaskInput{ProjectID: "opr", Brief: "Fix it"})
 		resultCh <- result{out: out, err: err}
 	}()
 

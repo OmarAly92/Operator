@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { appI18n, coerceLocale, DEFAULT_LOCALE, documentLang, type AppLocale } from "../i18n";
 
 type LocaleState = {
@@ -38,7 +38,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
 		pendingLoad = (async () => {
 			let locale = DEFAULT_LOCALE;
 			try {
-				const settings = await aoBridge.uiSettings.get();
+				const settings = await operatorBridge.uiSettings.get();
 				locale = coerceLocale(settings.locale);
 			} catch {
 				// A missing bridge or unreadable setting must not prevent the UI from starting.
@@ -58,7 +58,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
 		const revision = ++localeRevision;
 		set({ saving: true, saveError: false });
 		try {
-			await aoBridge.uiSettings.set({ locale });
+			await operatorBridge.uiSettings.set({ locale });
 			await applyLocale(locale);
 			if (revision === localeRevision) set({ locale, loaded: true, saving: false });
 		} catch {

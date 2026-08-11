@@ -3,8 +3,8 @@
 -- Per-conversation provider choices: model, reasoning effort, approval posture.
 --
 -- These live on the conversation rather than in the renderer because the choice
--- has to survive a restart and has to apply to turns AO dispatches itself — the
--- send queue draining after a crash, `ao send` relaying from an orchestrator.
+-- has to survive a restart and has to apply to turns Operator dispatches itself — the
+-- send queue draining after a crash, `opr send` relaying from an orchestrator.
 -- A value held only in the client would silently stop applying the moment the
 -- user was not the one sending.
 --
@@ -23,7 +23,7 @@ ALTER TABLE conversations ADD COLUMN approval_mode TEXT;
 
 -- +goose Down
 -- +goose StatementBegin
--- SQLite cannot drop a column in the versions AO supports, and a rebuild would
+-- SQLite cannot drop a column in the versions Operator supports, and a rebuild would
 -- have to re-declare the table plus its two partial indexes. The columns are
 -- nullable and unread by older code, so leaving them is safe on a downgrade.
 SELECT 1;

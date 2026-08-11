@@ -15,7 +15,7 @@ import {
 	type ShortcutBinding,
 } from "../../../shared/shortcuts";
 import { isMacPlatform } from "../../lib/platform";
-import { aoBridge } from "../../lib/bridge";
+import { operatorBridge } from "../../lib/bridge";
 import { cn } from "../../lib/utils";
 import { useKeybindingsStore } from "../../stores/keybindings-store";
 import { Button } from "../ui/button";
@@ -121,7 +121,7 @@ export function KeyboardShortcutsSettingsDialog({
 			openRef.current = false;
 			recordingRequestRef.current += 1;
 			if (toastTimerRef.current !== undefined) window.clearTimeout(toastTimerRef.current);
-			void aoBridge.keybindings.setRecording(false);
+			void operatorBridge.keybindings.setRecording(false);
 		},
 		[],
 	);
@@ -129,14 +129,14 @@ export function KeyboardShortcutsSettingsDialog({
 	useEffect(() => {
 		if (open) return;
 		setRecordingState(null);
-		void aoBridge.keybindings.setRecording(false);
+		void operatorBridge.keybindings.setRecording(false);
 	}, [open]);
 
 	useEffect(() => {
 		if (!recording) return;
 		const handleBlur = () => {
 			setRecordingState(null);
-			void aoBridge.keybindings.setRecording(false);
+			void operatorBridge.keybindings.setRecording(false);
 		};
 		window.addEventListener("blur", handleBlur);
 		return () => window.removeEventListener("blur", handleBlur);
@@ -146,9 +146,9 @@ export function KeyboardShortcutsSettingsDialog({
 		const request = recordingRequestRef.current + 1;
 		recordingRequestRef.current = request;
 		try {
-			await aoBridge.keybindings.setRecording(true);
+			await operatorBridge.keybindings.setRecording(true);
 			if (!openRef.current || request !== recordingRequestRef.current) {
-				await aoBridge.keybindings.setRecording(false);
+				await operatorBridge.keybindings.setRecording(false);
 				return;
 			}
 			setRecordingState(next);
@@ -163,7 +163,7 @@ export function KeyboardShortcutsSettingsDialog({
 	const endRecording = () => {
 		recordingRequestRef.current += 1;
 		setRecordingState(null);
-		void aoBridge.keybindings.setRecording(false);
+		void operatorBridge.keybindings.setRecording(false);
 	};
 
 	const filteredShortcuts = useMemo(() => {

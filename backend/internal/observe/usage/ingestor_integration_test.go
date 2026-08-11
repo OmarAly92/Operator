@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 func TestIngestorPersistsVersionedCodexParserStateAcrossChunks(t *testing.T) {
@@ -382,7 +382,7 @@ func seedCodexIngestionSource(t *testing.T, dataDir string) (*sqlite.Store, doma
 
 func readParserStateJSON(t *testing.T, dataDir string, sourceID int64) string {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "ao.db"))
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "opr.db"))
 	mustNoError(t, err)
 	defer func() { _ = db.Close() }()
 	var state string
@@ -392,7 +392,7 @@ func readParserStateJSON(t *testing.T, dataDir string, sourceID int64) string {
 
 func writeParserStateJSON(t *testing.T, dataDir string, sourceID int64, state string) {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "ao.db"))
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "opr.db"))
 	mustNoError(t, err)
 	defer func() { _ = db.Close() }()
 	if _, err := db.Exec("UPDATE usage_sources SET parser_state_json = ? WHERE id = ?", state, sourceID); err != nil {

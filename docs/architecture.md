@@ -1,6 +1,6 @@
-# Agent Orchestrator Architecture
+# Operator Architecture
 
-Agent Orchestrator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a tmux/conpty runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
+Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a tmux/conpty runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
 
 ## Table of Contents
 
@@ -55,7 +55,7 @@ graph TB
     subgraph Frontend
         FE[Electron + React UI]
         Mobile[Expo + React Native UI]
-        CLI[ao CLI]
+        CLI[opr CLI]
     end
 
     subgraph HTTP["HTTP Daemon (127.0.0.1)"]
@@ -315,7 +315,7 @@ flowchart TD
 
 ### Session Interface Handoff
 
-An interface switch is a controller replacement inside the existing AO session,
+An interface switch is a controller replacement inside the existing Operator session,
 not a new session. The session id, project, worktree, branch, lifecycle facts,
 PR ownership, and provider-native conversation id stay the same. Only the
 mode-owned controller changes.
@@ -366,10 +366,10 @@ launch id.
 `interrupt` sends the provider's cancellation first, allows a short transcript
 flush, and then stops the source. Files and completed provider context survive.
 There is no provider-neutral way to migrate a currently executing tool call or a
-detached background process, and AO does not synthesize terminal screen output
+detached background process, and Operator does not synthesize terminal screen output
 into structured Chat history.
 
-For TUI drains, AO gates new terminal input before checking quiescence. It accepts
+For TUI drains, Operator gates new terminal input before checking quiescence. It accepts
 either an idle fact newer than the last accepted input or an adapter-confirmed
 idle terminal held across the settle window. A contradictory stale-idle fact has
 a bounded proof window and fails without stopping the source; activity reported
@@ -852,7 +852,7 @@ flowchart TD
 The daemon runs two independent HTTP listeners sharing the same chi router:
 
 1. **Primary (Loopback) Listener** — binds `127.0.0.1:3001` with no authentication. All existing daemon operations (CLI, desktop app) use this listener.
-2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3011` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.ao/mobile/config.json` and restored on daemon boot.
+2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3011` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.operator/mobile/config.json` and restored on daemon boot.
 
 The mobile app is a second thin renderer over those same session resources. It
 branches on the session's persisted `mode`: TUI attaches the existing mux PTY,
@@ -978,20 +978,20 @@ sequenceDiagram
 ## Browser Runtime Bridge
 
 Browser automation uses a dedicated local socket (`browser.sock` on Unix,
-`ao-browser[-dev]` named pipe on Windows) between the daemon and Electron. The
+`opr-browser[-dev]` named pipe on Windows) between the daemon and Electron. The
 daemon owns command authorization/correlation; Electron owns the actual browser
 targets. Commands never use the supervisor liveness socket and never enable an
 unauthenticated remote-debugging port.
 
 Electron attaches its debugger directly to the selected session's
 `WebContentsView`, so the protocol transport cannot enumerate or attach to the
-AO renderer or a different session. The loopback `/api/v1/browser` surface is
+Operator renderer or a different session. The loopback `/api/v1/browser` surface is
 blocked entirely on the opt-in LAN listener.
 
 Request observation is an explicit, temporary browser command rather than a
 standing debugger feature. Capture is off by default, bound to the active tab
 that starts it, limited to 200 in-memory metadata entries, and automatically
-expires within at most five minutes. AO never requests or stores request or
+expires within at most five minutes. Operator never requests or stores request or
 response bodies; it allowlists safe headers and redacts URL credentials,
 fragments, and query values. Closing the tab, ending the session, or shutting
 down Electron disables and discards the capture.
@@ -1005,7 +1005,7 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 1. **Never store display status** — Status is derived from durable facts at read time
 2. **Never treat failed probes as death** — A failed probe is a fact, not a termination signal
 3. **Never force-delete dirty worktrees** — User data safety over cleanup convenience
-4. **All app state under ~/.ao** — No OS-default app-data locations
+4. **All app state under ~/.operator** — No OS-default app-data locations
 5. **Daemon binds to 127.0.0.1 only** — No network exposure, ever
 6. **CLI is thin** — All logic lives in the daemon, CLI is just an HTTP client
 7. **CDC is source-truth for events** — DB triggers write to change_log, poller fans out
@@ -1017,7 +1017,7 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 
 ## Summary
 
-Agent Orchestrator's architecture is designed around:
+Operator's architecture is designed around:
 
 - **Separation of concerns** — Observation, persistence, and display are distinct layers
 - **Port-based design** — Core code depends on interfaces, not implementations

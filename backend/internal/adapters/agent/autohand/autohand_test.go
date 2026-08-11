@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitystate"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/activitystate"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestManifestIDMatchesHarness(t *testing.T) {
@@ -342,7 +342,7 @@ func TestContextCancellationIsRespected(t *testing.T) {
 }
 
 // TestGetAgentHooksPreservesUnknownEntryFields locks the round-trip behavior:
-// keys AO does not model on a user hook entry (here "async") must survive a
+// keys Operator does not model on a user hook entry (here "async") must survive a
 // GetAgentHooks rewrite instead of being silently dropped.
 func TestGetAgentHooksPreservesUnknownEntryFields(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "autohand"}
@@ -456,7 +456,7 @@ func TestGetAgentHooksInstallsAndPreservesConfig(t *testing.T) {
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Operator hook commands.
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -498,7 +498,7 @@ func TestGetAgentHooksInstallsAndPreservesConfig(t *testing.T) {
 	}
 }
 
-func TestUninstallHooksRemovesOnlyAOHooks(t *testing.T) {
+func TestUninstallHooksRemovesOnlyOperatorHooks(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "autohand"}
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	t.Setenv("AUTOHAND_CONFIG", configPath)

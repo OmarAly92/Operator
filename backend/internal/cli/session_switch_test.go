@@ -63,9 +63,9 @@ func agentSwitchFixtureWithPrivateFields(id, state string) string {
 	value["idempotencyKey"] = "private-key"
 	value["requestFingerprint"] = "v1:private-fingerprint"
 	value["targetNativeSessionRef"] = "native-target"
-	value["agentHandoffPath"] = "/private/ao/handoff.json"
+	value["agentHandoffPath"] = "/private/opr/handoff.json"
 	value["agentHandoffHash"] = "private-hash"
-	value["finalHandoffPath"] = "/private/ao/final-handoff.json"
+	value["finalHandoffPath"] = "/private/opr/final-handoff.json"
 	value["finalHandoffHash"] = "private-final-hash"
 	value["sourceGenerationId"] = "generation-1"
 	value["targetGenerationId"] = "generation-2"
@@ -294,7 +294,7 @@ func TestSessionHandoffSubmitChoosesSessionAndEmbedsRawJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := setConfigEnv(t)
-			t.Setenv("AO_SESSION_ID", tt.environmentID)
+			t.Setenv("OPERATOR_SESSION_ID", tt.environmentID)
 			handoffPath := filepath.Join(t.TempDir(), "handoff.json")
 			if err := os.WriteFile(handoffPath, tt.handoff, 0o600); err != nil {
 				t.Fatalf("write handoff fixture: %v", err)
@@ -380,7 +380,7 @@ func TestSessionHandoffSubmitValidatesInputsBeforeDaemonCall(t *testing.T) {
 		{
 			name:    "missing session",
 			args:    []string{"session", "handoff", "submit", "--switch", "switch-1", "--source-generation", "generation-1", "--file", invalidJSONPath},
-			wantErr: "pass --session or set AO_SESSION_ID",
+			wantErr: "pass --session or set OPERATOR_SESSION_ID",
 		},
 		{
 			name:    "missing switch",
@@ -415,7 +415,7 @@ func TestSessionHandoffSubmitValidatesInputsBeforeDaemonCall(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("AO_SESSION_ID", tc.envID)
+			t.Setenv("OPERATOR_SESSION_ID", tc.envID)
 			_, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("err = %v, want containing %q", err, tc.wantErr)

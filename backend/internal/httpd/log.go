@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
 )
 
 // requestLogger emits one structured access-log line per request via the
@@ -67,7 +67,7 @@ func requestLogger(log *slog.Logger, sink ports.EventSink) func(http.Handler) ht
 						payload["fingerprint"] = telemetrymeta.Fingerprint("httpd", "http_request", r.Method, path, strconv.Itoa(ww.Status()), errorKind, errorCode)
 					}
 					sink.Emit(r.Context(), ports.TelemetryEvent{
-						Name:       "ao.http.5xx",
+						Name:       "opr.http.5xx",
 						Source:     "http",
 						OccurredAt: time.Now().UTC(),
 						Level:      ports.TelemetryLevelError,

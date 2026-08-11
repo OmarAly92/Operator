@@ -5,15 +5,15 @@
 ── Voice input (⌥ + v to start) ──────────────────────────────────────────────
 ⟩
 ──────────────────────────────────────────────────────────────────────────────
-  muse-spark-1.2-contributor · high · …/agent-orchestrator-108 · YOLO
+  muse-spark-1.2-contributor · high · …/operator-108 · YOLO
 
-  AO Muse Fix Demo — Continue with the demo?
+  Operator Muse Fix Demo — Continue with the demo?
 
-  › 1. Continue           Proceed with the AO Muse fix demo workflow.
+  › 1. Continue           Proceed with the Operator Muse fix demo workflow.
 
-    2. Cancel             Stop the AO Muse fix demo workflow.
+    2. Cancel             Stop the Operator Muse fix demo workflow.
 
 ── Voice input (⌥ + v to start) ──────────────────────────────────────────────
 ──────────────────────────────────────────────────────────────────────────────
-  muse-spark-1.2-contributor · high · …/agent-orchestrator-108 · YOLO
-◆ Request user input AO Muse Fix  1m 02s)
+  muse-spark-1.2-contributor · high · …/operator-108 · YOLO
+◆ Request user input Operator Muse Fix  1m 02s)

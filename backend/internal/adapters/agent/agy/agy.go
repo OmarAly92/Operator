@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const adapterID = "agy"

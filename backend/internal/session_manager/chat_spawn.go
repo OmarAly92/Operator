@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // The chat-mode controller launch.
@@ -35,8 +35,8 @@ type ChatLauncher interface {
 	// paste-and-Enter equivalent in chat mode: the provider either accepts the
 	// turn or reports why.
 	StartChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)
-	// RelayChatTurn delivers a message AO is carrying on someone else's behalf —
-	// `ao send`, an orchestrator writing to a worker, an automation — as a turn
+	// RelayChatTurn delivers a message Operator is carrying on someone else's behalf —
+	// `opr send`, an orchestrator writing to a worker, an automation — as a turn
 	// attributed to automation rather than to the human at the keyboard.
 	RelayChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)
 	// RelayChatTurnWithID is the durable-retry form. Implementations must pass
@@ -61,7 +61,7 @@ type ChatStart struct {
 	DataDir       string
 	WorkspacePath string
 	// Env carries the HookPATH-pinned PATH, which is how the agent's own shell
-	// commands find `ao`. An orchestrator delegates by running `ao spawn`, so
+	// commands find `opr`. An orchestrator delegates by running `opr spawn`, so
 	// without this a chat orchestrator could talk but not work.
 	Env                   map[string]string
 	Model                 string
@@ -108,7 +108,7 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 
 	// The same env the terminal path builds, including the HookPATH pin. The
 	// provider passes its environment through to the shell commands it runs, so
-	// this is what makes `ao` resolvable to the agent.
+	// this is what makes `opr` resolvable to the agent.
 	env := m.runtimeEnv(id, in.cfg.ProjectID, in.cfg.IssueID, in.project.Config.Env)
 	var diffBaseSHA, diffBaseRef string
 	if in.projectKind == domain.ProjectKindSingleRepo {

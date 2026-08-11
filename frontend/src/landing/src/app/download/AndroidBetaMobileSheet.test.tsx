@@ -18,16 +18,16 @@ describe("AndroidBetaMobileSheet", () => {
       "android-beta-sheet-title",
     );
     expect($("#android-beta-sheet-title").text()).toBe(
-      "Get AO on this Android",
+      "Get Operator on this Android",
     );
     expect($("ol li p.font-semibold").map((_, el) => $(el).text()).get()).toEqual([
       "Join the tester group",
       "Become a tester",
-      "Install AO Mobile",
+      "Install Operator Mobile",
     ]);
     expect($("ol a").map((_, el) => $(el).attr("href")).get()).toEqual([
-      "https://groups.google.com/g/ao-mobile-testers/about",
-      "https://play.google.com/apps/testing/aoagents.dev",
+      "https://groups.google.com/g/opr-mobile-testers/about",
+      "https://play.google.com/apps/testing/operator.example.com",
     ]);
     expect($.html()).toContain("up to an hour");
     expect($.html()).not.toContain("14 continuous days");

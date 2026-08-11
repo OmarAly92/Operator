@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug. Fill this in so we can reproduce it quickly.
-        For realtime help, join [Discord](https://discord.com/invite/UZv7JjxbwG).
+        For questions, use [Discussions](https://github.com/OmarAly92/operator/discussions).
 
   - type: textarea
     id: summary
@@ -45,11 +45,11 @@ body:
       required: true
 
   - type: input
-    id: ao-version
+    id: opr-version
     attributes:
-      label: AO version
-      description: Output of `ao --version` (or how you installed / which commit).
-      placeholder: e.g. ao 0.x.x / commit abc1234
+      label: Operator version
+      description: Output of `opr --version` (or how you installed / which commit).
+      placeholder: e.g. opr 0.x.x / commit abc1234
     validations:
       required: true
 
@@ -66,7 +66,7 @@ body:
     id: logs
     attributes:
       label: Logs / extra context
-      description: Relevant daemon logs, terminal output, or notes from `~/.ao` (redact secrets).
+      description: Relevant daemon logs, terminal output, or notes from `~/.operator` (redact secrets).
       render: shell
     validations:
       required: false

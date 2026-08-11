@@ -3,17 +3,17 @@
 // is known.
 //
 // Kimi CLI (binary "kimi") is Moonshot AI's terminal-native agentic coding
-// agent. AO launches Kimi sessions interactively as `kimi [--auto|-y]` and
+// agent. Operator launches Kimi sessions interactively as `kimi [--auto|-y]` and
 // delivers prompted worker tasks after startup through the runtime pane. Kimi's
-// `-p/--prompt` mode is intentionally avoided for AO workers because it is
+// `-p/--prompt` mode is intentionally avoided for Operator workers because it is
 // non-interactive and streams transcript output without opening the TUI.
 // Sessions are resumed by id with `kimi --session <id>`.
 //
-// Kimi exposes no system-prompt launch flag, so AO injects standing
+// Kimi exposes no system-prompt launch flag, so Operator injects standing
 // instructions through Kimi's documented project instruction file
-// (.kimi-code/AGENTS.md) in the per-session worktree. AO also installs Kimi
+// (.kimi-code/AGENTS.md) in the per-session worktree. Operator also installs Kimi
 // lifecycle hooks into Kimi's config so native session metadata and activity can
-// flow back through `ao hooks`.
+// flow back through `opr hooks`.
 package kimi
 
 import (
@@ -23,10 +23,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
@@ -55,8 +55,8 @@ func kimiCodeHomeDir(dataDir string) string {
 	return filepath.Join(dataDir, kimiDataDirName)
 }
 
-// AugmentRuntimeEnv points Kimi at AO's isolated Kimi home so session hooks and
-// other managed state stay under AO_DATA_DIR instead of the user's profile.
+// AugmentRuntimeEnv points Kimi at Operator's isolated Kimi home so session hooks and
+// other managed state stay under OPERATOR_DATA_DIR instead of the user's profile.
 func (p *Plugin) AugmentRuntimeEnv(env map[string]string, dataDir string) {
 	if strings.TrimSpace(dataDir) == "" {
 		return
@@ -114,7 +114,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Kimi tasks
+// GetPromptDeliveryStrategy reports that Operator should inject prompted Kimi tasks
 // into the interactive terminal after startup. Kimi's `-p/--prompt` mode is
 // non-interactive and does not open the TUI.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
@@ -124,7 +124,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 	return ports.PromptDeliveryAfterStart, nil
 }
 
-// PromptReadinessHints waits for Kimi's interactive prompt before AO injects
+// PromptReadinessHints waits for Kimi's interactive prompt before Operator injects
 // the worker's first task.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {
@@ -169,7 +169,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	return cmd, true, nil
 }
 
-// appendApprovalFlags maps AO's permission modes onto Kimi's approval flags
+// appendApprovalFlags maps Operator's permission modes onto Kimi's approval flags
 // for interactive launches. Per Kimi docs these flags cannot be combined with
 // `--prompt`, `--session`, or `--continue`, so callers on those paths must
 // skip this mapping.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func testReviewer(help, version string) *Reviewer {
@@ -37,27 +37,27 @@ func TestReviewCommandLaunchesHostTrustedInteractiveTUI(t *testing.T) {
 	spec, err := testReviewer(strings.Join(requiredFlags, "\n"), "1.1.9").ReviewCommand(context.Background(), ports.ReviewInvocation{
 		DataDir:          dataDir,
 		ReviewerID:       "review-worker-1",
-		TaskPromptRoot:   "/ao/prompts/worker/reviewer",
+		TaskPromptRoot:   "/opr/prompts/worker/reviewer",
 		WorkspacePath:    "/worker",
-		SystemPromptFile: "/ao/prompts/worker/reviewer/system.md",
-		Prompt:           "Read and follow `/ao/task.md`.",
+		SystemPromptFile: "/opr/prompts/worker/reviewer/system.md",
+		Prompt:           "Read and follow `/opr/task.md`.",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantPrompt := "Read and follow the reviewer system instructions at `/ao/prompts/worker/reviewer/system.md`, then Read and follow `/ao/task.md`."
-	want := []string{"/opt/agy/bin/agy", "--sandbox", "--add-dir", "/worker", "--add-dir", "/ao/prompts/worker/reviewer", "--prompt-interactive", wantPrompt}
+	wantPrompt := "Read and follow the reviewer system instructions at `/opr/prompts/worker/reviewer/system.md`, then Read and follow `/opr/task.md`."
+	want := []string{"/opt/agy/bin/agy", "--sandbox", "--add-dir", "/worker", "--add-dir", "/opr/prompts/worker/reviewer", "--prompt-interactive", wantPrompt}
 	if !slices.Equal(spec.Argv, want) || spec.WorkingDirectory != "/worker" {
 		t.Fatalf("spec = %+v, want argv %#v", spec, want)
 	}
-	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["AO_DATA_DIR"] != dataDir {
-		t.Fatalf("AO-owned environment = %#v", spec.Env)
+	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["OPERATOR_DATA_DIR"] != dataDir {
+		t.Fatalf("Operator-owned environment = %#v", spec.Env)
 	}
 }
 
 func TestInteractiveArgvIsPermanentTUIOnly(t *testing.T) {
-	argv := interactiveArgv("agy", "/worker", "/ao/prompts", "Read and follow `/ao/task.md`.")
-	want := []string{"agy", "--sandbox", "--add-dir", "/worker", "--add-dir", "/ao/prompts", "--prompt-interactive", "Read and follow `/ao/task.md`."}
+	argv := interactiveArgv("agy", "/worker", "/opr/prompts", "Read and follow `/opr/task.md`.")
+	want := []string{"agy", "--sandbox", "--add-dir", "/worker", "--add-dir", "/opr/prompts", "--prompt-interactive", "Read and follow `/opr/task.md`."}
 	if !slices.Equal(argv, want) {
 		t.Fatalf("argv = %#v, want %#v", argv, want)
 	}
@@ -71,7 +71,7 @@ func TestInteractiveArgvIsPermanentTUIOnly(t *testing.T) {
 func TestCompatibilityProbeRequiresCurrentInteractiveSurface(t *testing.T) {
 	help := strings.Join(requiredFlags, "\n")
 	r := testReviewer(help, "1.1.9")
-	if err := r.verifyCompatibility(context.Background(), "/opt/agy/bin/agy", map[string]string{"HOME": "/ao/profile"}); err != nil {
+	if err := r.verifyCompatibility(context.Background(), "/opt/agy/bin/agy", map[string]string{"HOME": "/opr/profile"}); err != nil {
 		t.Fatalf("verifyCompatibility: %v", err)
 	}
 

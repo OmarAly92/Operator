@@ -1,6 +1,6 @@
 "use client";
 
-import { TESTFLIGHT_APP_URL, TESTFLIGHT_URL } from "@ao/shared/constants";
+import { TESTFLIGHT_APP_URL, TESTFLIGHT_URL } from "@operator/shared/constants";
 import { AnimatePresence, motion } from "motion/react";
 import { ExternalLink, X } from "lucide-react";
 import { useEffect } from "react";
@@ -78,7 +78,7 @@ export function TestFlightMobileSheet({
               id="testflight-sheet-title"
               className="pr-8 text-xl font-semibold text-foreground"
             >
-              Get AO on this {deviceName}
+              Get Operator on this {deviceName}
             </h2>
             <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
               Two taps, about a minute. The beta is free while it lasts.
@@ -125,10 +125,10 @@ export function TestFlightMobileSheet({
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">
-                      Open the AO invite
+                      Open the Operator invite
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      TestFlight opens on the AO beta. Tap Accept, then Install.
+                      TestFlight opens on the Operator beta. Tap Accept, then Install.
                     </p>
                   </div>
                 </div>

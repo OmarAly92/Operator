@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestWorkspaceIntegrationCreateRestoreDestroy(t *testing.T) {
@@ -115,7 +115,7 @@ func TestWorkspaceIntegrationDestroyDirtyWorktree(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// AO-managed hook files behind a self-ignoring .gitignore: invisible to git
+	// Operator-managed hook files behind a self-ignoring .gitignore: invisible to git
 	// status, so they must not block teardown.
 	hookDir := filepath.Join(info.Path, ".codex")
 	if err := os.MkdirAll(hookDir, 0o750); err != nil {
@@ -141,7 +141,7 @@ func TestWorkspaceIntegrationDestroyDirtyWorktree(t *testing.T) {
 		t.Fatalf("dirty worktree was not preserved: %v", statErr)
 	}
 
-	// With the real work gone, only the ignored AO files remain — git considers
+	// With the real work gone, only the ignored Operator files remain — git considers
 	// the worktree clean and Destroy succeeds without --force.
 	if err := os.Remove(wip); err != nil {
 		t.Fatalf("remove wip: %v", err)
@@ -190,7 +190,7 @@ func TestWorkspaceIntegrationRestoreRecreatesSiblingsIndependently(t *testing.T)
 	}
 
 	// Simulate the out-of-band deletion #2775 hit: the directory is gone, the
-	// git registration (and, in production, AO's DB row) is not.
+	// git registration (and, in production, Operator's DB row) is not.
 	if err := os.RemoveAll(infoA.Path); err != nil {
 		t.Fatalf("remove A dir: %v", err)
 	}
@@ -430,7 +430,7 @@ func TestWorkspaceIntegrationCreateInRemotelessRepo(t *testing.T) {
 	repo := filepath.Join(tmp, "repo")
 	run(t, git, "init", repo)
 	runGit(t, git, repo, "config", "core.autocrlf", "false")
-	runGit(t, git, repo, "config", "user.email", "ao@example.com")
+	runGit(t, git, repo, "config", "user.email", "opr@example.com")
 	runGit(t, git, repo, "config", "user.name", "Ao Agents")
 	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatalf("write seed: %v", err)
@@ -473,7 +473,7 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 		ProjectID:    "proj",
 		SessionID:    "sess",
 		Kind:         "worker",
-		Branch:       "ao/proj-1",
+		Branch:       "opr/proj-1",
 		RootRepoPath: rootRepo,
 		BaseBranch:   "main",
 		Repos: []ports.WorkspaceProjectRepoConfig{
@@ -499,17 +499,17 @@ func TestWorkspaceIntegrationWorkspaceProjectInfersChildDefaultBranches(t *testi
 	if _, err := os.Stat(filepath.Join(devChildPath, "README.md")); err != nil {
 		t.Fatalf("dev child worktree missing seed file: %v", err)
 	}
-	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/ao/proj-1")
+	devChildHead := gitOutput(t, git, devChildRepo, "rev-parse", "refs/heads/opr/proj-1")
 	devChildBase := gitOutput(t, git, devChildRepo, "rev-parse", "origin/dev")
 	if devChildHead != devChildBase {
 		t.Fatalf("dev child branch base = %s, want origin/dev %s", devChildHead, devChildBase)
 	}
-	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/ao/proj-1")
+	mainChildHead := gitOutput(t, git, mainChildRepo, "rev-parse", "refs/heads/opr/proj-1")
 	mainChildBase := gitOutput(t, git, mainChildRepo, "rev-parse", "origin/main")
 	if mainChildHead != mainChildBase {
 		t.Fatalf("main child branch base = %s, want origin/main %s", mainChildHead, mainChildBase)
 	}
-	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/ao/proj-1")
+	rootHead := gitOutput(t, git, rootRepo, "rev-parse", "refs/heads/opr/proj-1")
 	rootBase := gitOutput(t, git, rootRepo, "rev-parse", "origin/main")
 	if rootHead != rootBase {
 		t.Fatalf("root branch base = %s, want origin/main %s", rootHead, rootBase)
@@ -536,7 +536,7 @@ func setupOriginClone(t *testing.T, git, tmp string) string {
 	run(t, git, "init", "--bare", origin)
 	run(t, git, "init", seed)
 	runGit(t, git, seed, "config", "core.autocrlf", "false")
-	runGit(t, git, seed, "config", "user.email", "ao@example.com")
+	runGit(t, git, seed, "config", "user.email", "opr@example.com")
 	runGit(t, git, seed, "config", "user.name", "Ao Agents")
 	if err := os.WriteFile(filepath.Join(seed, "README.md"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatalf("write seed: %v", err)
@@ -552,7 +552,7 @@ func setupOriginClone(t *testing.T, git, tmp string) string {
 	// global git identity to fall back on, so commit/commit-tree in this repo's
 	// worktrees would fail with "empty ident name". Set it on the clone; worktrees
 	// inherit the common dir config.
-	runGit(t, git, repo, "config", "user.email", "ao@example.com")
+	runGit(t, git, repo, "config", "user.email", "opr@example.com")
 	runGit(t, git, repo, "config", "user.name", "Ao Agents")
 	runGit(t, git, repo, "checkout", "main")
 	runGit(t, git, repo, "reset", "--hard", "HEAD")

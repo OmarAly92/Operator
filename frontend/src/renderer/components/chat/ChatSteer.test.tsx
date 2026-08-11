@@ -22,7 +22,7 @@ describe("ChatComposer steering", () => {
 		expect(screen.getByRole("button", { name: "Queue for next" })).toBeInTheDocument();
 	});
 
-	it("defaults Enter to the durable queue path used by ao send", () => {
+	it("defaults Enter to the durable queue path used by opr send", () => {
 		composer();
 		expect(screen.getByText("Enter to queue")).toBeInTheDocument();
 	});

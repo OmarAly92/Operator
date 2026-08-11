@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const (

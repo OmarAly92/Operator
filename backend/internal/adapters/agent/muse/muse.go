@@ -5,7 +5,7 @@
 // it opens the interactive TUI, and an optional positional prompt starts the
 // first turn without leaving that TUI.
 //
-// AO's standing instructions and activity hooks are passed through Muse's
+// Operator's standing instructions and activity hooks are passed through Muse's
 // process-local environment, so launching a session never modifies project
 // files.
 package muse
@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const adapterID = "muse"
@@ -31,7 +31,7 @@ const adapterID = "muse"
 // Muse's own launcher forwards this process-local override to the runtime.
 // Unlike AGENTS.md, it applies only to this process and cannot dirty the
 // project. Muse's base-instructions override is rejected by the Meta provider,
-// so AO's standing instructions must ride the developer-prompt channel.
+// so Operator's standing instructions must ride the developer-prompt channel.
 const museDeveloperPromptEnvVar = "TBH_EVAL_APPEND_DEVELOPER_PROMPT"
 
 // Plugin is the Muse Code CLI agent adapter. It is safe for concurrent use;
@@ -114,7 +114,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 //
 //	[env TBH_EVAL_APPEND_DEVELOPER_PROMPT=<instructions> TBH_MANAGED_HOOKS_PATH=<path>] muse --trust-workspace [--approval-mode never|--yolo] [--model <model>] resume <agentSessionId>
 //
-// ok is false when Muse has not emitted its native session id through AO hooks.
+// ok is false when Muse has not emitted its native session id through Operator hooks.
 func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig) (cmd []string, ok bool, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
@@ -192,7 +192,7 @@ var museBinarySpec = binaryutil.BinarySpec{
 
 // ResolveMuseBinary finds the official Meta Muse Code launcher. The `muse`
 // command name is shared by unrelated tools, so a version-signature check keeps
-// those shims from being reported as an installed AO harness.
+// those shims from being reported as an installed Operator harness.
 func ResolveMuseBinary(ctx context.Context) (string, error) {
 	return resolveMuseBinary(ctx, museBinarySpec)
 }

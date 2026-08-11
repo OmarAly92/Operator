@@ -12,10 +12,10 @@ const COMMAND_TIMEOUT_MS = 60_000;
 const CLOSE_TIMEOUT_MS = 10_000;
 const BRIDGE_CLOSE_TIMEOUT_MS = 5_000;
 export const BROWSER_RUNTIME_RECLAIM_GRACE_MS = 15 * 60_000;
-const RUNTIME_OWNER_MARKER = "AO_BROWSER_RUNTIME_V1";
+const RUNTIME_OWNER_MARKER = "OPERATOR_BROWSER_RUNTIME_V1";
 const RUNTIME_OWNER_FILE = "owner.json";
 const RUNTIME_ROOT_PATTERN = /^(?:run-(\d+)-[0-9a-f]{12}|r-[0-9a-f]{10})$/;
-const SOCKET_ALIAS_PATTERN = /^ao-br-(\d+)-[0-9a-f]{12}$/;
+const SOCKET_ALIAS_PATTERN = /^opr-br-(\d+)-[0-9a-f]{12}$/;
 const STREAM_ALREADY_DISABLED_MESSAGE = "Streaming is not enabled for this session";
 /** Agent Browser's Unix preflight uses the macOS-sized 103-byte limit on all Unix builds. */
 export const AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES = 103;
@@ -187,7 +187,7 @@ export class AgentBrowserRuntime {
 		await this.touchRuntimeRoot();
 		const environment = this.environment(runtime);
 		// The native daemon can expire and be recreated independently while this
-		// AO session runtime remains alive. Its replacement starts streaming by
+		// Operator session runtime remains alive. Its replacement starts streaming by
 		// default, so reassert the input-surface policy immediately before every
 		// command. agent-browser reports "already disabled" as a non-zero result;
 		// that state is the policy we need, while every other failure remains fatal.
@@ -238,7 +238,7 @@ export class AgentBrowserRuntime {
 			await this.run(sessionId, ["screenshot", target, "--json"], provider, signal);
 			const image = await readFile(target);
 			if (image.length > MAX_SCREENSHOT_BYTES) {
-				throw runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "Browser screenshot exceeded AO's size limit");
+				throw runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "Browser screenshot exceeded Operator's size limit");
 			}
 			const { width, height } = pngDimensions(image);
 			return { data: image.toString("base64"), width, height, untrustedExternalContent: true };
@@ -385,10 +385,10 @@ export class AgentBrowserRuntime {
 				let socketDirAlias: string | null = null;
 				if (!this.socketDirOverride && process.platform !== "win32") {
 					// agent-browser applies the macOS 103-byte Unix socket limit on
-					// every Unix build. Keep the real runtime state under ~/.ao, but
+					// every Unix build. Keep the real runtime state under ~/.operator, but
 					// hand the native process a short symlink path whose length does
 					// not depend on the user's home directory or username.
-					socketDirAlias = path.join("/tmp", `ao-br-${process.pid}-${randomBytes(6).toString("hex")}`);
+					socketDirAlias = path.join("/tmp", `opr-br-${process.pid}-${randomBytes(6).toString("hex")}`);
 					await symlink(actualSocketDir, socketDirAlias, "dir");
 					socketDir = socketDirAlias;
 				}
@@ -438,7 +438,7 @@ export class AgentBrowserRuntime {
 		// The native runtime is a third-party executable. Inheriting Electron's
 		// complete environment would expose shell credentials, cloud/API tokens,
 		// proxy credentials, and runtime injection flags to it. Keep only process
-		// execution/locale essentials and add AO's explicitly scoped contract below.
+		// execution/locale essentials and add Operator's explicitly scoped contract below.
 		const environment: NodeJS.ProcessEnv = {};
 		for (const [name, value] of Object.entries(process.env)) {
 			if (value !== undefined && NATIVE_ENV_ALLOWLIST.has(name.toLowerCase())) environment[name] = value;
@@ -470,7 +470,7 @@ export class AgentBrowserRuntime {
 		} catch {
 			throw runtimeError(
 				"AGENT_BROWSER_NOT_INSTALLED",
-				`AO's browser automation component was not found at ${this.options.binaryPath}. Reinstall or rebuild the desktop app.`,
+				`Operator's browser automation component was not found at ${this.options.binaryPath}. Reinstall or rebuild the desktop app.`,
 			);
 		}
 	}
@@ -523,7 +523,7 @@ function streamAlreadyDisabled(result: NativeProcessResult): boolean {
 	return result.stderr.includes(STREAM_ALREADY_DISABLED_MESSAGE) || result.stdout.includes(STREAM_ALREADY_DISABLED_MESSAGE);
 }
 
-/** Remove only confirmed-dead frontend aliases owned by this AO data root. */
+/** Remove only confirmed-dead frontend aliases owned by this Operator data root. */
 export async function scavengeBrowserSocketAliases(
 	dataDir: string,
 	processAlive: (pid: number) => boolean = defaultProcessAlive,
@@ -803,22 +803,22 @@ export function validateAgentBrowserArguments(args: string[]): void {
 	}
 	const command = args[0].toLowerCase();
 	if (!ALLOWED_COMMANDS.has(command)) {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser command is not enabled in AO: ${command}`);
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser command is not enabled in Operator: ${command}`);
 	}
 	for (const arg of args) {
 		const lower = arg.toLowerCase();
 		if (FORBIDDEN_FLAGS.some((flag) => lower === flag || lower.startsWith(`${flag}=`))) {
-			throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser flag is managed by AO: ${arg}`);
+			throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser flag is managed by Operator: ${arg}`);
 		}
 	}
 	if (command === "open" && args[1] && !args[1].startsWith("-")) {
 		assertHTTPURL(args[1]);
 	}
 	if (command === "diff" && args[1]?.toLowerCase() !== "snapshot") {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "Only snapshot diff is enabled in AO");
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "Only snapshot diff is enabled in Operator");
 	}
 	if (command === "get" && args[1]?.toLowerCase() === "cdp-url") {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "The private AO CDP endpoint cannot be displayed");
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "The private Operator CDP endpoint cannot be displayed");
 	}
 }
 
@@ -857,7 +857,7 @@ async function runNativeProcess(
 		): Buffer<ArrayBufferLike> => {
 			if (current.length + chunk.length > MAX_OUTPUT_BYTES) {
 				child.kill();
-				finish(runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "agent-browser output exceeded AO's limit"));
+				finish(runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "agent-browser output exceeded Operator's limit"));
 				return current;
 			}
 			return Buffer.concat([current, chunk]);
@@ -902,7 +902,7 @@ function assertHTTPURL(raw: string): void {
 }
 
 function sessionNamespace(sessionId: string): string {
-	return `ao-${createHash("sha256").update(sessionId).digest("hex").slice(0, 4)}`;
+	return `opr-${createHash("sha256").update(sessionId).digest("hex").slice(0, 4)}`;
 }
 
 export function agentBrowserSocketPath(socketDir: string, namespace: string): string {
@@ -916,7 +916,7 @@ function assertAgentBrowserSocketPath(socketDir: string, namespace: string, plat
 	if (byteLength > AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES) {
 		throw runtimeError(
 			"AGENT_BROWSER_START_FAILED",
-			`Agent Browser socket path is ${byteLength} bytes; Unix supports at most ${AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES}. AO needs a shorter socket directory.`,
+			`Agent Browser socket path is ${byteLength} bytes; Unix supports at most ${AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES}. Operator needs a shorter socket directory.`,
 		);
 	}
 }

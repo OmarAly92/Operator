@@ -59,7 +59,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		app: { getVersion, openExternal },
 		clipboard: { writeText },
 		daemon: { getStatus: getDaemonStatus },
@@ -328,16 +328,16 @@ describe("GlobalSettingsForm", () => {
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
 		const copied = writeText.mock.calls[0][0] as string;
 		expect(copied).toContain("Create project fails");
-		expect(copied).toContain("AO version: 9.9.9-test");
+		expect(copied).toContain("Operator version: 9.9.9-test");
 		expect(copied).toContain("Daemon: ready");
 		expect(copied).toContain("[redacted-local-path]");
 		expect(copied).toContain("[redacted-local-url]");
 		expect(copied).not.toContain("/Users/alice");
 		expect(copied).not.toContain("local-secret");
 		expect(copied).not.toContain("## Type");
-		expect(copied).not.toContain("Generated locally by AO");
+		expect(copied).not.toContain("Generated locally by Operator");
 		expect(openExternal).toHaveBeenCalledWith(
-			expect.stringContaining("https://github.com/Untrivial-ai/agent-orchestrator/issues/new"),
+			expect.stringContaining("https://github.com/OmarAly92/operator/issues/new"),
 		);
 		expect(open).not.toHaveBeenCalled();
 		expect(screen.getByLabelText("Title")).toHaveValue("");
@@ -361,7 +361,7 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.queryByRole("button", { name: /copy & open email/i })).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /copy & open discord/i }));
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-		expect(writeText.mock.calls[0][0]).toContain("**AO feedback**");
+		expect(writeText.mock.calls[0][0]).toContain("**Operator feedback**");
 		expect(screen.getByText("Discord draft copied.")).toBeInTheDocument();
 		expect(screen.getByLabelText("Title")).toHaveValue("");
 		expect(screen.getByLabelText("What happened?")).toHaveValue("");
@@ -377,10 +377,10 @@ describe("GlobalSettingsForm", () => {
 
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
 		expect(writeText.mock.calls[0][0]).toContain("Daemon: unknown");
-		expect(writeText.mock.calls[1][0]).toContain("To: prateek@untrivial.ai");
-		expect(writeText.mock.calls[1][0]).toContain("AO feedback");
-		expect(openExternal).toHaveBeenCalledWith("https://discord.com/invite/UZv7JjxbwG");
-		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:prateek@untrivial.ai"));
+		expect(writeText.mock.calls[1][0]).toContain("To: support@operator.example.com");
+		expect(writeText.mock.calls[1][0]).toContain("Operator feedback");
+		expect(openExternal).toHaveBeenCalledWith("https://github.com/OmarAly92/operator/discussions");
+		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:support@operator.example.com"));
 		expect(open).not.toHaveBeenCalled();
 	});
 

@@ -4,12 +4,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 var museTerminalEscape = regexp.MustCompile(`\x1b(?:\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\][^\x07]*(?:\x07|\x1b\\))`)
 
-// DeriveActivityState maps Muse's AO hook callbacks onto activity states.
+// DeriveActivityState maps Muse's Operator hook callbacks onto activity states.
 func DeriveActivityState(event string, _ []byte) (domain.ActivityState, bool) {
 	switch event {
 	case "user-prompt-submit":

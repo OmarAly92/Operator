@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
 )
 
 // PushRegistry is the controller-facing push-device registry contract, satisfied

@@ -10,7 +10,7 @@ import (
 )
 
 func TestMigration0085AgentSwitchIntegrityAndCDC(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -47,7 +47,7 @@ INSERT INTO agent_switches (
 	if _, err := db.Exec(`
 UPDATE agent_switches
 SET agent_handoff_status = 'received',
-    agent_handoff_path = '/ao/handoffs/switch-1/agent-handoff.json',
+    agent_handoff_path = '/opr/handoffs/switch-1/agent-handoff.json',
     agent_handoff_hash = 'BAD',
     updated_at = ?
 WHERE id = 'switch-1';

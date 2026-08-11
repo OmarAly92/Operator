@@ -65,7 +65,7 @@ const FRAME_H = SCREEN_H + BEZEL * 2;
 
 type Zone = "action" | "working" | "merge" | "done";
 type Tab = "Agents" | "Orchestrator" | "PRs" | "Settings";
-type ProjectId = "all" | "agent-orchestrator-mo" | "meetyou" | "adorable";
+type ProjectId = "all" | "operator-mo" | "meetyou" | "adorable";
 
 type Session = {
   id: number;
@@ -89,10 +89,10 @@ type Session = {
 const sessions: Session[] = [
   {
     id: 16,
-    project: "agent-orchestrator-mo",
+    project: "operator-mo",
     projectLabel: "agent-orch…trator-mo",
     title: "auth migration",
-    branch: "ao/agent-orchestrator-mo-16/root",
+    branch: "opr/operator-mo-16/root",
     zone: "action",
     status: "Needs input",
     statusColor: t.amber,
@@ -101,10 +101,10 @@ const sessions: Session[] = [
   },
   {
     id: 17,
-    project: "agent-orchestrator-mo",
+    project: "operator-mo",
     projectLabel: "agent-orch…trator-mo",
     title: "mobile revamp",
-    branch: "ao/agent-orchestrator-mo-17/root",
+    branch: "opr/operator-mo-17/root",
     zone: "working",
     status: "Working",
     statusColor: t.orange,
@@ -114,10 +114,10 @@ const sessions: Session[] = [
   },
   {
     id: 18,
-    project: "agent-orchestrator-mo",
+    project: "operator-mo",
     projectLabel: "agent-orch…trator-mo",
     title: "onboarding",
-    branch: "ao/agent-orchestrator-mo-18/root",
+    branch: "opr/operator-mo-18/root",
     zone: "working",
     status: "No signal",
     statusColor: t.textTertiary,
@@ -129,7 +129,7 @@ const sessions: Session[] = [
     project: "meetyou",
     projectLabel: "meetyou",
     title: "push notifications",
-    branch: "ao/meetyou-9/root",
+    branch: "opr/meetyou-9/root",
     zone: "working",
     status: "Working",
     statusColor: t.orange,
@@ -143,7 +143,7 @@ const sessions: Session[] = [
     project: "meetyou",
     projectLabel: "meetyou",
     title: "fix-pin-unpin",
-    branch: "ao/meetyou-6/pin-fix-and-restore",
+    branch: "opr/meetyou-6/pin-fix-and-restore",
     zone: "merge",
     status: "Merged",
     statusColor: t.green,
@@ -156,7 +156,7 @@ const sessions: Session[] = [
     project: "adorable",
     projectLabel: "adorable",
     title: "landing copy pass",
-    branch: "ao/adorable-2/root",
+    branch: "opr/adorable-2/root",
     zone: "working",
     status: "Working",
     statusColor: t.orange,
@@ -177,8 +177,8 @@ const zoneMeta: Record<Zone, { label: string; color: string }> = {
 const projects: { id: ProjectId; name: string; hint?: string }[] = [
   { id: "all", name: "All projects" },
   {
-    id: "agent-orchestrator-mo",
-    name: "agent-orchestrator-mo",
+    id: "operator-mo",
+    name: "operator-mo",
     hint: "agent-orches",
   },
   { id: "meetyou", name: "meetyou", hint: "meetyou" },
@@ -394,7 +394,7 @@ function ScreenHeader({
           {/* The mascot's wand tip doubles as the connection lamp, exactly as in
               the app's ScreenHeader. */}
           <span className="relative block size-[22px]">
-            <img src="/ao-logo.svg" alt="" className="size-full" draggable="false" />
+            <img src="/opr-logo.svg" alt="" className="size-full" draggable="false" />
             <span
               className="absolute -right-[1px] -top-[2px] size-[5px] rounded-full"
               style={{
@@ -877,7 +877,7 @@ const orchestrators: {
   workers: number;
 }[] = [
   {
-    project: "agent-orchestrator-mo",
+    project: "operator-mo",
     harness: "claude-code",
     icon: "/app-icons/coverage-claude-code.svg",
     zones: [
@@ -1045,7 +1045,7 @@ const pullRequests: {
     color: t.green,
     repo: "Prasad-D-W…/pinpoint",
     title: "feat(mobile): push-to-talk dictation",
-    meta: "ao/precision-market-4/dictation → main · Prasad-D-Ware",
+    meta: "opr/precision-market-4/dictation → main · Prasad-D-Ware",
     status: "CI passing · Mergeable",
     statusColor: t.green,
     buckets: ["Open", "All"],
@@ -1056,7 +1056,7 @@ const pullRequests: {
     color: t.purple,
     repo: "Zerith-Stu…on-market",
     title: "feat(web): settlement-tx link on closed markets",
-    meta: "ao/prediction-market-12/settle-tx → main · Prasad-D-…",
+    meta: "opr/prediction-market-12/settle-tx → main · Prasad-D-…",
     files: 7,
     added: 322,
     removed: 39,
@@ -1070,7 +1070,7 @@ const pullRequests: {
     color: t.purple,
     repo: "Zerith-Stu…on-market",
     title: "docs: clean up docs-site into a standalone reference",
-    meta: "ao/prediction-market-11/docs-cleanup → main · Prasad…",
+    meta: "opr/prediction-market-11/docs-cleanup → main · Prasad…",
     files: 11,
     added: 72,
     removed: 141,
@@ -1205,7 +1205,7 @@ function SettingsScreen({
         >
           <SettingsRow
             icon={Link2}
-            label="Connect AO"
+            label="Connect Operator"
             value="192.168.88.3:3011"
             lamp
             chevron

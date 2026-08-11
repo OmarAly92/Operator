@@ -15,18 +15,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/processenv"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/processenv"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// clientName identifies AO to the provider. It shows up in the app-server's
+// clientName identifies Operator to the provider. It shows up in the app-server's
 // reported user agent, which makes a stray process attributable.
 const (
-	clientName    = "agent-orchestrator"
-	clientTitle   = "Agent Orchestrator"
+	clientName    = "operator"
+	clientTitle   = "Operator"
 	clientVersion = "0.1.0"
-	// This is the oldest Codex build whose complete Chat surface AO exercised:
+	// This is the oldest Codex build whose complete Chat surface Operator exercised:
 	// thread start/resume, turn start/interrupt, approvals, and every advertised
 	// extension. initialize plus model/list alone cannot prove those mutating
 	// methods without creating provider state during preflight.
@@ -37,7 +37,7 @@ const (
 // that normally settle in well under a second.
 const handshakeTimeout = 60 * time.Second
 
-// codexPlugin is the subset of AO's existing Codex agent plugin that the Chat
+// codexPlugin is the subset of Operator's existing Codex agent plugin that the Chat
 // driver reuses. Binary resolution and local auth probing already live there and
 // must not be reimplemented: a second copy would drift from what TUI sessions do.
 type codexPlugin interface {
@@ -129,14 +129,14 @@ func capabilities() ports.ChatCapabilities {
 }
 
 // Probe reports what this install can do without creating a conversation, so an
-// unsupported request can be refused before AO commits a session or worktree.
+// unsupported request can be refused before Operator commits a session or worktree.
 func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	bin, err := d.plugin.ResolveBinary(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ports.ErrChatDriverUnavailable, err)
 	}
 
-	// An unknown auth result is not proof of failure — the same rule AO already
+	// An unknown auth result is not proof of failure — the same rule Operator already
 	// applies to runtime probes. Only an explicit unauthorized blocks creation.
 	status, err := d.plugin.AuthStatus(ctx)
 	if err == nil && status == ports.AgentAuthStatusUnauthorized {
@@ -157,18 +157,18 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	}
 	installed, ok := parseCodexVersion(versionOutput)
 	if !ok {
-		return nil, fmt.Errorf("%w: unrecognized Codex version %q (AO requires %s or newer)",
+		return nil, fmt.Errorf("%w: unrecognized Codex version %q (Operator requires %s or newer)",
 			ports.ErrChatDriverIncompatible, strings.TrimSpace(versionOutput), minimumCodexVersion)
 	}
 	minimum, _ := parseCodexVersion(minimumCodexVersion)
 	if installed.less(minimum) {
-		return nil, fmt.Errorf("%w: Codex %s is older than AO's tested minimum %s",
+		return nil, fmt.Errorf("%w: Codex %s is older than Operator's tested minimum %s",
 			ports.ErrChatDriverIncompatible, installed, minimumCodexVersion)
 	}
 
 	// Binary presence is not protocol compatibility. Complete the same initialize
 	// handshake a real controller uses, then exercise model/list: it is part of
-	// the surface AO advertises and a harmless read that catches older app-server
+	// the surface Operator advertises and a harmless read that catches older app-server
 	// builds before a session row or worktree exists.
 	workdir, err := os.Getwd()
 	if err != nil || !filepath.IsAbs(workdir) {
@@ -303,7 +303,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		"sandbox":        sandbox,
 	}
 	// Developer instructions are launch context, not durable conversation
-	// history. Reapply AO's current standing role when app-server reconstructs a
+	// history. Reapply Operator's current standing role when app-server reconstructs a
 	// native thread, just as the TUI adapter does with its resume command.
 	if cfg.SystemPrompt != "" {
 		params["developerInstructions"] = cfg.SystemPrompt
@@ -354,7 +354,7 @@ func (d *Driver) connect(ctx context.Context, workdir string, env map[string]str
 		},
 	}, nil); err != nil {
 		_ = conv.Close()
-		// A handshake the provider rejects means a protocol AO cannot speak.
+		// A handshake the provider rejects means a protocol Operator cannot speak.
 		return nil, fmt.Errorf("%w: initialize: %w", ports.ErrChatDriverIncompatible, err)
 	}
 
@@ -365,11 +365,11 @@ func (d *Driver) connect(ctx context.Context, workdir string, env map[string]str
 	return conv, nil
 }
 
-// approvalSettings maps AO's existing per-session permission mode onto Codex's
+// approvalSettings maps Operator's existing per-session permission mode onto Codex's
 // approval policy and sandbox.
 //
-// The default matches what AO already passes a Codex TUI session
-// (--dangerously-bypass-approvals-and-sandbox): AO sessions run in isolated
+// The default matches what Operator already passes a Codex TUI session
+// (--dangerously-bypass-approvals-and-sandbox): Operator sessions run in isolated
 // worktrees and are expected to work without prompting. Chat does not quietly
 // become stricter than the terminal path for the same setting.
 func approvalSettings(mode ports.PermissionMode) (policy, sandbox string) {
@@ -377,7 +377,7 @@ func approvalSettings(mode ports.PermissionMode) (policy, sandbox string) {
 	case ports.PermissionModeAcceptEdits, ports.PermissionModeAuto:
 		// on-request lets the provider decide when to ask; workspace-write keeps
 		// edits inside the worktree. approvalsReviewer is deliberately not set:
-		// AO has no tested value for it here, and sending an unknown one would
+		// Operator has no tested value for it here, and sending an unknown one would
 		// fail thread/start outright.
 		return "on-request", "workspace-write"
 	default:
@@ -436,11 +436,11 @@ func spawnAppServer(ctx context.Context, bin, workdir string, env []string) (*pr
 	}, nil
 }
 
-// envSlice merges AO's session env OVER the daemon's own, in the KEY=VALUE form
+// envSlice merges Operator's session env OVER the daemon's own, in the KEY=VALUE form
 // exec wants. Sorted so a relaunch is byte-identical, which makes process diffs
 // readable.
 //
-// The merge is the point. AO's map is an OVERLAY -- session id, project id, the
+// The merge is the point. Operator's map is an OVERLAY -- session id, project id, the
 // HookPATH-pinned PATH -- not a whole environment; the terminal path gets away
 // with treating it as one only because tmux inherits the daemon's env underneath.
 // Using it as a replacement launched the provider with eight variables and no

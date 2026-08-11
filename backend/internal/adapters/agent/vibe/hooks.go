@@ -8,21 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	vibeDirName       = ".vibe"
 	vibeHooksFileName = "hooks.toml"
 
-	vibeHooksSentinelStart = "# managed by agent-orchestrator: vibe hooks"
-	vibeHooksSentinelEnd   = "# /managed by agent-orchestrator: vibe hooks"
+	vibeHooksSentinelStart = "# managed by operator: vibe hooks"
+	vibeHooksSentinelEnd   = "# /managed by operator: vibe hooks"
 )
 
 // GetAgentHooks installs Vibe callbacks that capture the native session id.
 // Vibe enables interaction logging by default, which is required for
-// --resume. AO deliberately leaves the user-owned .vibe/config.toml untouched;
+// --resume. Operator deliberately leaves the user-owned .vibe/config.toml untouched;
 // users who disable log_interactions also disable native session restore.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -45,7 +45,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes only AO's managed Vibe hook block.
+// UninstallHooks removes only Operator's managed Vibe hook block.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -68,7 +68,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	return nil
 }
 
-// AreHooksInstalled reports whether AO's managed Vibe hook block is present.
+// AreHooksInstalled reports whether Operator's managed Vibe hook block is present.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -102,11 +102,11 @@ func mergeVibeHooksFile(path string) error {
 func vibeHooksBlock() string {
 	// Vibe's hooks.toml contract uses [[hooks]] entries with name, type,
 	// optional match, command, and a floating-point timeout measured in seconds.
-	// Native event names use underscores; AO's hook CLI uses hyphenated tokens.
+	// Native event names use underscores; Operator's hook CLI uses hyphenated tokens.
 	return vibeHooksSentinelStart + "\n\n" +
-		vibeHookEntry("ao-session-metadata", "post_agent", "", "ao hooks vibe post-agent") +
-		vibeHookEntry("ao-pre-tool", "pre_tool", "*", "ao hooks vibe pre-tool") +
-		vibeHookEntry("ao-post-tool", "post_tool", "*", "ao hooks vibe post-tool") +
+		vibeHookEntry("opr-session-metadata", "post_agent", "", "opr hooks vibe post-agent") +
+		vibeHookEntry("opr-pre-tool", "pre_tool", "*", "opr hooks vibe pre-tool") +
+		vibeHookEntry("opr-post-tool", "post_tool", "*", "opr hooks vibe post-tool") +
 		vibeHooksSentinelEnd + "\n"
 }
 

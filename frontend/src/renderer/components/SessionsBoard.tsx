@@ -55,7 +55,7 @@ import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
 import { formatTimeCompact } from "../lib/format-time";
 import { formatTokenCount } from "../lib/format-token-count";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
 import { isLinuxPlatform, isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
@@ -1129,7 +1129,7 @@ function CopyActionButton({ label, value }: { label: string; value: string }) {
 	const copyValue = async (event: MouseEvent<HTMLButtonElement>) => {
 		event.stopPropagation();
 		try {
-			await aoBridge.clipboard.writeText(value);
+			await operatorBridge.clipboard.writeText(value);
 		} catch {
 			return;
 		}

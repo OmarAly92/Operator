@@ -174,7 +174,7 @@ title = "gitleaks config"
     '''(go.mod|go.sum)$''']
     # Ignore false positives on the public company URL (rule matches brand name + nearby alnum).
     regexes = [
-        '''(?i)linkedin\.com/company/agent-orchestrator''',
+        '''(?i)linkedin\.com/company/operator''',
     ]
     # Historical false positives from the ReverbCode rewrite graft (#2166).
     # All offenders are example secret-patterns in security docs and

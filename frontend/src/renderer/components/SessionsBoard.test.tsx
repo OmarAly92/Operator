@@ -40,7 +40,7 @@ vi.mock("../lib/api-client", () => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		clipboard: {
 			writeText: vi.fn(),
 		},
@@ -84,7 +84,7 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
-	window.localStorage.removeItem("ao.board.archive.layout");
+	window.localStorage.removeItem("opr.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 });
 
@@ -147,7 +147,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "solkit-ui",
 							title: "test",
 							provider: "codex",
-							branch: "ao/dev/solkit-ui-5/root",
+							branch: "opr/dev/solkit-ui-5/root",
 							status: "running",
 							activity: { state: "working", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -242,7 +242,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "brand-font-pipeline",
 							provider: "claude-code",
-							branch: "ao/radic-5",
+							branch: "opr/radic-5",
 							status: "idle",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -381,7 +381,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "idle-card-task",
 							provider: "claude-code",
-							branch: "ao/radic-5",
+							branch: "opr/radic-5",
 							status: "idle",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -393,7 +393,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "no-signal-card-task",
 							provider: "claude-code",
-							branch: "ao/radic-6",
+							branch: "opr/radic-6",
 							status: "no_signal",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -405,7 +405,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "draft-card-task",
 							provider: "claude-code",
-							branch: "ao/radic-7",
+							branch: "opr/radic-7",
 							status: "draft",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -437,7 +437,7 @@ describe("SessionsBoard", () => {
 						workspaceName: "radic",
 						title: "agent-exited-task",
 						provider: "codex",
-						branch: "ao/exited",
+						branch: "opr/exited",
 						status: "exited",
 						activity: { state: "exited", lastActivityAt: "2026-01-01T00:00:00Z" },
 						updatedAt: "2026-01-01T00:00:00Z",
@@ -654,7 +654,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "p1 active",
 							provider: "claude-code",
-							branch: "ao/radic-active",
+							branch: "opr/radic-active",
 							status: "working",
 							activity: { state: "active", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -666,7 +666,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "radic",
 							title: "p1 idle",
 							provider: "claude-code",
-							branch: "ao/radic-idle",
+							branch: "opr/radic-idle",
 							status: "idle",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -685,7 +685,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "other",
 							title: "p2 active",
 							provider: "claude-code",
-							branch: "ao/other-active",
+							branch: "opr/other-active",
 							status: "working",
 							activity: { state: "active", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -697,7 +697,7 @@ describe("SessionsBoard", () => {
 							workspaceName: "other",
 							title: "p2 idle",
 							provider: "claude-code",
-							branch: "ao/other-idle",
+							branch: "opr/other-idle",
 							status: "idle",
 							activity: { state: "idle", lastActivityAt: "2026-01-01T00:00:00Z" },
 							updatedAt: "2026-01-01T00:00:00Z",
@@ -763,7 +763,7 @@ describe("SessionsBoard", () => {
 		expect(within(terminatedCard!).getByText("Terminated")).toBeInTheDocument();
 		// Agent shown as its brand logo with an accessible name (not a text label).
 		expect(within(terminatedCard!).getByRole("img", { name: "claude-code" })).toBeInTheDocument();
-		expect(screen.getByText("ao/dead-worker")).toBeInTheDocument();
+		expect(screen.getByText("opr/dead-worker")).toBeInTheDocument();
 		expect(screen.getByText("github:INT-17")).toBeInTheDocument();
 		const prStatus = screen.getByLabelText("#42 merged");
 		expect(prStatus).toHaveTextContent("PR#42merged");
@@ -775,12 +775,12 @@ describe("SessionsBoard", () => {
 			"href",
 			"https://github.com/example/radic/pull/42",
 		);
-		expect(within(terminatedCard!).getByRole("button", { name: "Copy branch ao/dead-worker" })).toBeInTheDocument();
+		expect(within(terminatedCard!).getByRole("button", { name: "Copy branch opr/dead-worker" })).toBeInTheDocument();
 		const divider = terminatedCard!.querySelector("div[aria-hidden='true'].h-px.bg-border");
 		expect(divider).not.toBeNull();
 		expect(divider!.compareDocumentPosition(prStatus) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 		expect(
-			screen.getByText("ao/dead-worker").compareDocumentPosition(divider!) & Node.DOCUMENT_POSITION_FOLLOWING,
+			screen.getByText("opr/dead-worker").compareDocumentPosition(divider!) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).not.toBe(0);
 		expect(screen.getByRole("button", { name: "Restore dead worker" })).toBeInTheDocument();
 
@@ -788,7 +788,7 @@ describe("SessionsBoard", () => {
 	});
 
 	it("renders archived sessions as a grid even when rows were previously saved", async () => {
-		window.localStorage.setItem("ao.board.archive.layout", "rows");
+		window.localStorage.setItem("opr.board.archive.layout", "rows");
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([terminatedSession()])],
 			isError: false,
@@ -1258,7 +1258,7 @@ function boardSession(
 		workspaceId: "p1",
 		workspaceName: "radic",
 		provider: "claude-code",
-		branch: `ao/${overrides.id}`,
+		branch: `opr/${overrides.id}`,
 		updatedAt: "2026-01-01T00:00:00Z",
 		prs: [],
 		...overrides,
@@ -1274,7 +1274,7 @@ function terminatedSession(overrides: Partial<WorkspaceSession> = {}): Workspace
 		issueId: "github:INT-17",
 		provider: "claude-code",
 		kind: "worker",
-		branch: "ao/dead-worker",
+		branch: "opr/dead-worker",
 		status: "terminated",
 		isTerminated: true,
 		updatedAt: "2026-01-01T00:00:00Z",

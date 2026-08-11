@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 var ctx = context.Background()
@@ -1108,11 +1108,11 @@ func TestActivity_SourceUpdateBeforeInternalHandoffRequestRemainsUserFacing(t *t
 			m := New(store, &fakeMessenger{})
 
 			if err := m.ApplyActivitySignal(ctx, rec.ID, ports.ActivitySignal{
-				LaunchID: "source-generation", LatestAssistantUpdate: "real turn completed before AO requested a handoff",
+				LaunchID: "source-generation", LatestAssistantUpdate: "real turn completed before Operator requested a handoff",
 			}); err != nil {
 				t.Fatalf("ApplyActivitySignal: %v", err)
 			}
-			if got := store.session(rec.ID).Metadata.LatestAssistantUpdate; got != "real turn completed before AO requested a handoff" {
+			if got := store.session(rec.ID).Metadata.LatestAssistantUpdate; got != "real turn completed before Operator requested a handoff" {
 				t.Fatalf("latest assistant update = %q, want legitimate pre-request update", got)
 			}
 		})
@@ -1248,7 +1248,7 @@ func TestActivity_ReleaseLaunchUnblocksTargetHookAfterAtomicOwnershipTransfer(t 
 	store := newFakeAgentSwitchLifecycleStore()
 	targetNativeRef := domain.AgentNativeSessionID("native-target")
 	store.native[targetNativeRef] = domain.AgentNativeSession{
-		ID: targetNativeRef, AOSessionID: "mer-1", Harness: domain.HarnessCodex,
+		ID: targetNativeRef, OperatorSessionID: "mer-1", Harness: domain.HarnessCodex,
 		LastGenerationID: "target-generation",
 		CreatedAt:        activatedAt.Add(-time.Second), LastUsedAt: activatedAt.Add(-time.Second),
 	}
@@ -1570,7 +1570,7 @@ func TestCommitControllerEpochAllowsExplicitFreshHandoff(t *testing.T) {
 
 // TestMarkSpawned_StampsUTCActivity locks the lifecycle clock to UTC so
 // activity-driven timestamps match the session manager's spawn timestamps. A
-// local clock here left `ao session get` showing created in UTC but updated in
+// local clock here left `opr session get` showing created in UTC but updated in
 // local time.
 func TestMarkSpawned_StampsUTCActivity(t *testing.T) {
 	m, st, _ := newManager()
@@ -1606,7 +1606,7 @@ func TestActivity_WaitingInputEntryAndExitEmitTelemetry(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want waiting_input entered/exited", sink.events)
 	}
-	if sink.events[0].Name != "ao.session.waiting_input_entered" || sink.events[1].Name != "ao.session.waiting_input_exited" {
+	if sink.events[0].Name != "opr.session.waiting_input_entered" || sink.events[1].Name != "opr.session.waiting_input_exited" {
 		t.Fatalf("event names = %#v", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 	if got := sink.events[1].Payload["dwell_ms"]; got != int64(3000) {
@@ -2191,8 +2191,8 @@ func TestPRObservation_StackedChildConflictSuppressed(t *testing.T) {
 	m, st, msg := newManager()
 	st.sessions["mer-1"] = working("mer-1")
 	st.prs["mer-1"] = []domain.PullRequest{
-		{URL: "parent", SourceBranch: "ao/x", TargetBranch: "main"},
-		{URL: "child", SourceBranch: "ao/x/auth", TargetBranch: "ao/x"},
+		{URL: "parent", SourceBranch: "opr/x", TargetBranch: "main"},
+		{URL: "child", SourceBranch: "opr/x/auth", TargetBranch: "opr/x"},
 	}
 	o := ports.PRObservation{Fetched: true, URL: "child", Mergeability: domain.MergeConflicting}
 	if err := m.ApplyPRObservation(ctx, "mer-1", o); err != nil {
@@ -2209,8 +2209,8 @@ func TestPRObservation_BottomOfStackConflictNudges(t *testing.T) {
 	m, st, msg := newManager()
 	st.sessions["mer-1"] = working("mer-1")
 	st.prs["mer-1"] = []domain.PullRequest{
-		{URL: "parent", SourceBranch: "ao/x", TargetBranch: "main"},
-		{URL: "child", SourceBranch: "ao/x/auth", TargetBranch: "ao/x"},
+		{URL: "parent", SourceBranch: "opr/x", TargetBranch: "main"},
+		{URL: "child", SourceBranch: "opr/x/auth", TargetBranch: "opr/x"},
 	}
 	o := ports.PRObservation{Fetched: true, URL: "parent", Mergeability: domain.MergeConflicting}
 	if err := m.ApplyPRObservation(ctx, "mer-1", o); err != nil {
@@ -2892,7 +2892,7 @@ func TestActivity_BlockedEntryAndExitEmitTelemetry(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want entered/exited", sink.events)
 	}
-	if sink.events[0].Name != "ao.session.waiting_input_entered" || sink.events[1].Name != "ao.session.waiting_input_exited" {
+	if sink.events[0].Name != "opr.session.waiting_input_entered" || sink.events[1].Name != "opr.session.waiting_input_exited" {
 		t.Fatalf("event names = %#v (family events keep the waiting_input_* names)", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 	if got := sink.events[0].Payload["state"]; got != "blocked" {
@@ -3232,7 +3232,7 @@ func newManagerWithContainerReaper(cr ports.ContainerReaper, pl projectConfigLoa
 // shared teardown path: MarkTerminated must reap the terminated session's
 // containers, covering every terminal-state path (Kill, daemon shutdown,
 // Cleanup, RetireForReplacement, tracker-driven termination) through this one
-// choke point rather than only explicit ao session kill.
+// choke point rather than only explicit opr session kill.
 func TestMarkTerminated_ReapsContainers(t *testing.T) {
 	cr := &fakeLifecycleContainerReaper{removed: 2}
 	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
@@ -3270,7 +3270,7 @@ func TestMarkTerminated_ReapsContainersAgainWhenAlreadyTerminated(t *testing.T) 
 
 // TestMarkTerminated_ContainerReapFailureDoesNotFailTermination asserts the
 // best-effort contract: a container reaper error must never fail
-// MarkTerminated, matching every other best-effort teardown step in AO.
+// MarkTerminated, matching every other best-effort teardown step in Operator.
 func TestMarkTerminated_ContainerReapFailureDoesNotFailTermination(t *testing.T) {
 	cr := &fakeLifecycleContainerReaper{err: errors.New("docker rm: permission denied")}
 	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
@@ -3335,7 +3335,7 @@ func TestMarkTerminated_ProjectLoadErrorSkipsRatherThanReaps(t *testing.T) {
 }
 
 // TestMarkTerminated_NilReaperSkipsWithoutProjectLookup confirms nil wiring
-// (the common case — most AO installs run without Docker) skips reaping
+// (the common case — most Operator installs run without Docker) skips reaping
 // cleanly without even attempting a project lookup.
 func TestMarkTerminated_NilReaperSkipsWithoutProjectLookup(t *testing.T) {
 	m, st, _ := newManager() // newManager wires no container reaper at all
@@ -3351,7 +3351,7 @@ func TestMarkTerminated_NilReaperSkipsWithoutProjectLookup(t *testing.T) {
 
 // TestMarkTerminated_MissingProjectSkipsRatherThanReaps is the regression for
 // failing open on a missing project record: GetProject returning ok=false,
-// err=nil is ambiguity (AO cannot know whether ContainerReap.Disabled would
+// err=nil is ambiguity (Operator cannot know whether ContainerReap.Disabled would
 // have applied), not a green light to reap. Must be treated the same as the
 // error path.
 func TestMarkTerminated_MissingProjectSkipsRatherThanReaps(t *testing.T) {
@@ -3426,7 +3426,7 @@ func TestRuntimeObservation_WorkloadDeathAloneDoesNotReap(t *testing.T) {
 // mergeMetadata is an explicit allowlist, so a field added to SessionMetadata
 // without a line here is silently dropped on every spawn and restore. That
 // happened to the chat resume handle: the provider still held the conversation,
-// but AO forgot its id, so no restart could ever resume it — and nothing failed
+// but Operator forgot its id, so no restart could ever resume it — and nothing failed
 // loudly, the column was just empty.
 func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	ctx := context.Background()

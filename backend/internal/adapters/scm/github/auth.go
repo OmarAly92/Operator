@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 // TokenSource yields a GitHub bearer token on demand. Production wires this
@@ -42,7 +42,7 @@ func (s StaticTokenSource) Token(context.Context) (string, error) {
 
 // EnvTokenSource reads the first non-empty value from the listed env vars,
 // falling back to GITHUB_TOKEN. Order matters: a project-scoped variable
-// (AO_GITHUB_TOKEN) should win over the global default.
+// (OPERATOR_GITHUB_TOKEN) should win over the global default.
 type EnvTokenSource struct {
 	EnvVars []string
 }

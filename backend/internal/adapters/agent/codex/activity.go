@@ -1,11 +1,11 @@
 package codex
 
-import "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+import "github.com/OmarAly92/operator/backend/internal/domain"
 
-// DeriveActivityState maps a Codex hook event onto an AO activity state. The
+// DeriveActivityState maps a Codex hook event onto an Operator activity state. The
 // bool is false when the event carries no activity signal.
 //
-// event is the AO hook sub-command name installed in codexManagedHooks
+// event is the Operator hook sub-command name installed in codexManagedHooks
 // ("user-prompt-submit", "permission-request", "stop", ...), not the native
 // Codex event name. Codex currently has no SessionEnd/Notification equivalent
 // in the adapter, so runtime exit still falls back to the reaper.

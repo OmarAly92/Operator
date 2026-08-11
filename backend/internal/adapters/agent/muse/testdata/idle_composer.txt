@@ -3,4 +3,4 @@
 ── Voice input (⌥ + v to start) ──────────────────────────────────────────────
 ⟩
 ──────────────────────────────────────────────────────────────────────────────
-  muse-spark-1.2-contributor · high · …/agent-orchestrator-103 · YOLO
+  muse-spark-1.2-contributor · high · …/operator-103 · YOLO

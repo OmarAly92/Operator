@@ -1,22 +1,22 @@
 import type { Page } from "@playwright/test";
 
-import type { AoBridge } from "../../src/preload";
+import type { OperatorBridge } from "../../src/preload";
 import type { DaemonStatus } from "../../src/shared/daemon-status";
 
 // The e2e suite runs the renderer under `dev:web` (VITE_NO_ELECTRON=1) with no
-// Electron preload, so `window.ao` is undefined and lib/bridge.ts falls back to
+// Electron preload, so `window.operator` is undefined and lib/bridge.ts falls back to
 // a browser stub that reports the daemon as permanently "stopped" and the app
 // version as "0.0.0-preview". The daemon/version smoke cases (DMN-*, INS-004)
 // need a deterministic *ready* daemon and a known version string, so we inject
-// a complete `window.ao` before any page script runs — the same seam the real
+// a complete `window.operator` before any page script runs — the same seam the real
 // Electron preload fills. This is a fake *bridge*, not a fake agent: no worker
 // process and no GitHub repo are involved, matching the T0 POD constraints.
 //
-// In a real Linux pod running the packaged Electron build, `window.ao` is the
+// In a real Linux pod running the packaged Electron build, `window.operator` is the
 // live preload; the injected bridge is only the deterministic stand-in for the
 // browser harness.
 //
-// SCOPE / CAVEAT — renderer smoke, not full e2e. Because `window.ao`,
+// SCOPE / CAVEAT — renderer smoke, not full e2e. Because `window.operator`,
 // `EventSource`, and the workspace snapshot are all faked here, this harness
 // CANNOT catch daemon, storage, API, preload, PTY, or filesystem regressions —
 // those are the packaged-app pod gate's job (#2697). In particular,
@@ -54,10 +54,10 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 				isLoading: false,
 			});
 
-			// Full AoBridge surface (mirrors src/preload.ts) so any renderer call
+			// Full OperatorBridge surface (mirrors src/preload.ts) so any renderer call
 			// resolves — an incomplete object would throw the moment the app touched
 			// a missing method.
-			const ao = {
+			const opr = {
 				app: {
 					getVersion: async () => version,
 					chooseDirectory: async () => null,
@@ -135,7 +135,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					devtools: async (input: { viewId: string }) => ({ viewId: input.viewId, open: false, activeTabId: "" }),
 					destroy: () => undefined,
 					// Annotation contract (mirrors src/preload.ts): useBrowserView subscribes
-					// to these whenever SessionView mounts with window.ao.browser present, so
+					// to these whenever SessionView mounts with window.operator.browser present, so
 					// an incomplete browser shape would crash the session-detail/preview specs.
 					setAnnotationMode: async () => undefined,
 					onAnnotationSubmit: unsubscribe,
@@ -187,8 +187,8 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					list: async () => [],
 					getActive: async () => null,
 				},
-			} satisfies AoBridge;
-			(window as unknown as { ao: unknown }).ao = ao;
+			} satisfies OperatorBridge;
+			(window as unknown as { operator: unknown }).operator = opr;
 		},
 		{ version, daemonState, daemonPort },
 	);
@@ -201,7 +201,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 // raise a needs-input notification). Under the browser harness there is no Go
 // daemon and no agent, so we simulate that timeline at the bridge:
 //
-//   1. A `window.ao` whose daemon is ready on a port — so the renderer sets its
+//   1. A `window.operator` whose daemon is ready on a port — so the renderer sets its
 //      REST base URL and opens its SSE streams (the same seam the packaged app
 //      fills). The `browser.*` IPC is driven off a shared in-page state so the
 //      preview surface is controllable.
@@ -473,13 +473,13 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 			const navState = (viewId: string, url = "", error?: string) => ({
 				viewId,
 				url,
-				title: url ? "AO preview" : "",
+				title: url ? "Operator preview" : "",
 				canGoBack: false,
 				canGoForward: false,
 				isLoading: false,
 				...(error ? { error } : {}),
 			});
-			const ao = {
+			const opr = {
 				app: {
 					getVersion: async () => version,
 					chooseDirectory: async () => null,
@@ -553,7 +553,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					devtools: async (input: { viewId: string }) => ({ viewId: input.viewId, open: false, activeTabId: "" }),
 					destroy: () => undefined,
 					// Annotation contract (mirrors src/preload.ts): useBrowserView subscribes
-					// to these whenever SessionView mounts with window.ao.browser present, so
+					// to these whenever SessionView mounts with window.operator.browser present, so
 					// an incomplete browser shape would crash the session-detail/preview specs.
 					setAnnotationMode: async () => undefined,
 					onAnnotationSubmit: unsubscribe,
@@ -599,8 +599,8 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					list: async () => [],
 					getActive: async () => null,
 				},
-			} satisfies AoBridge;
-			(window as unknown as { ao: unknown }).ao = ao;
+			} satisfies OperatorBridge;
+			(window as unknown as { operator: unknown }).operator = opr;
 		},
 		{ version, daemonPort, projectId, projectName, platform, workers },
 	);

@@ -4,14 +4,14 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hooksjson"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	claudeSettingsDirName   = ".claude"
 	claudeSettingsFileName  = "settings.local.json"
-	claudeHookCommandPrefix = "ao hooks claude-code "
+	claudeHookCommandPrefix = "opr hooks claude-code "
 	claudeHookTimeout       = 30
 )
 
@@ -19,11 +19,11 @@ const (
 // its required "startup" matcher.
 var claudeStartupMatcher = "startup"
 
-// claudeManagedHooks is the source of truth for the hooks AO installs:
+// claudeManagedHooks is the source of truth for the hooks Operator installs:
 // SessionStart (under the "startup" matcher), UserPromptSubmit, the tool-use
 // trio (PreToolUse, PostToolUse, PostToolUseFailure), PermissionRequest,
 // Stop, Notification, and SessionEnd. They report normalized session metadata
-// and activity-state signals back into AO's store (see DeriveActivityState).
+// and activity-state signals back into Operator's store (see DeriveActivityState).
 // Notification and SessionEnd carry no matcher: each installs once and fires
 // for every sub-type, and the handler filters on the payload's
 // notification_type / reason field. The tool-use hooks also carry no matcher
@@ -32,7 +32,7 @@ var claudeStartupMatcher = "startup"
 // approved tool finishes — the daemon-side precedence rule is what makes these
 // signals safe against parallel-subagent traffic (the naive mapping without it
 // was reverted in PR #5's review). PermissionRequest fires when a permission
-// dialog appears and carries the blocking tool_name; `ao hooks` writes nothing
+// dialog appears and carries the blocking tool_name; `opr hooks` writes nothing
 // to stdout, so installing it never injects a permission decision.
 var claudeManagedHooks = []hooksjson.HookSpec{
 	{Event: "SessionStart", Matcher: &claudeStartupMatcher, Command: claudeHookCommandPrefix + "session-start"},
@@ -47,7 +47,7 @@ var claudeManagedHooks = []hooksjson.HookSpec{
 	{Event: "SessionEnd", Command: claudeHookCommandPrefix + "session-end"},
 }
 
-// claudeHooks manages AO's hooks in the workspace-local
+// claudeHooks manages Operator's hooks in the workspace-local
 // .claude/settings.local.json file.
 var claudeHooks = hooksjson.Manager{
 	Label:         "claude-code",
@@ -61,17 +61,17 @@ func claudeSettingsPath(workspacePath string) string {
 	return filepath.Join(workspacePath, claudeSettingsDirName, claudeSettingsFileName)
 }
 
-// GetAgentHooks installs AO's Claude Code hooks, preserving user-defined hooks and unrelated settings.
+// GetAgentHooks installs Operator's Claude Code hooks, preserving user-defined hooks and unrelated settings.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	return claudeHooks.Install(ctx, cfg.WorkspacePath)
 }
 
-// UninstallHooks removes AO's Claude Code hooks, leaving user-defined hooks untouched.
+// UninstallHooks removes Operator's Claude Code hooks, leaving user-defined hooks untouched.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	return claudeHooks.Uninstall(ctx, workspacePath)
 }
 
-// AreHooksInstalled reports whether any AO Claude Code hook is present.
+// AreHooksInstalled reports whether any Operator Claude Code hook is present.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	return claudeHooks.AreInstalled(ctx, workspacePath)
 }

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // TestRequestLoggerRecords5xxCause: the wire envelope collapses unrecognized
@@ -54,8 +54,8 @@ func TestRequestLoggerRecords5xxCause(t *testing.T) {
 			if !strings.Contains(got, tc.wantInLog) {
 				t.Fatalf("log line missing %q:\n%s", tc.wantInLog, got)
 			}
-			if len(sink.events) != 1 || sink.events[0].Name != "ao.http.5xx" {
-				t.Fatalf("telemetry events = %#v, want one ao.http.5xx event", sink.events)
+			if len(sink.events) != 1 || sink.events[0].Name != "opr.http.5xx" {
+				t.Fatalf("telemetry events = %#v, want one opr.http.5xx event", sink.events)
 			}
 			payload := sink.events[0].Payload
 			if got := payload["component"]; got != "httpd" {

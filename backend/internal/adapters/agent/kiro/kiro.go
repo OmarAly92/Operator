@@ -3,18 +3,18 @@
 // and reading hook-derived session info.
 //
 // Kiro is AWS's agentic coding assistant. Its terminal CLI ships as the
-// `kiro-cli` binary. AO launches Kiro with a workspace-local custom agent so
+// `kiro-cli` binary. Operator launches Kiro with a workspace-local custom agent so
 // both worker and orchestrator sessions can use Kiro's normal interactive
 // approval flow. See https://kiro.dev/docs/cli/headless/ and
 // https://kiro.dev/docs/cli/reference/cli-commands/.
 //
-// Worker prompts are delivered after startup so AO keeps Kiro's interactive
+// Worker prompts are delivered after startup so Operator keeps Kiro's interactive
 // TUI. Permission/approval modes map onto Kiro's tool-trust flags
 // (`--trust-all-tools`, `--trust-tools=<categories>`).
 // Restore uses `kiro-cli chat --resume-id <UUID>` with the native session id
 // captured from a Kiro hook payload.
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Operator-managed sessions derive native session identity and display metadata from
 // Kiro's native hooks (see hooks.go) rather than transcript scans.
 package kiro
 
@@ -24,11 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Plugin is the Kiro agent adapter. It is safe for concurrent use; the binary
@@ -81,15 +81,15 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 }
 
 // GetLaunchCommand builds the argv to start a new Kiro session:
-// `kiro-cli chat [--agent ao] --agent ao [trust flags] [-- <prompt>]`.
+// `kiro-cli chat [--agent opr] --agent opr [trust flags] [-- <prompt>]`.
 //
 // The prompt is passed as a positional argument after `--` so a leading "-" is
 // not read as a flag for non-worker launches. Worker prompts are sent after
-// startup so AO keeps the interactive TUI and avoids Kiro's current positional
+// startup so Operator keeps the interactive TUI and avoids Kiro's current positional
 // input submission gap. Kiro runs interactively for both workers and
 // orchestrators; standing instructions come from the generated custom agent.
-// AO standing instructions are installed during workspace preparation through
-// the AO-managed workspace-local agent config, then selected here with --agent.
+// Operator standing instructions are installed during workspace preparation through
+// the Operator-managed workspace-local agent config, then selected here with --agent.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.kiroBinary(ctx)
 	if err != nil {
@@ -128,7 +128,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, cfg ports.Launch
 	return ports.PromptDeliveryInCommand, nil
 }
 
-// PromptReadinessHints waits for Kiro's interactive prompt before AO injects
+// PromptReadinessHints waits for Kiro's interactive prompt before Operator injects
 // the worker's first task.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {
@@ -217,7 +217,7 @@ func (p *Plugin) kiroBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// appendApprovalFlags maps AO's permission modes onto Kiro's tool-trust flags.
+// appendApprovalFlags maps Operator's permission modes onto Kiro's tool-trust flags.
 // Default emits no flag so Kiro uses its normal interactive approval flow.
 // accept-edits grants the write-capable built-in tools; auto/bypass grant all
 // tools.

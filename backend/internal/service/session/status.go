@@ -3,7 +3,7 @@ package session
 import (
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 // noSignalGrace is how long after spawn/restore a session may stay silent
@@ -49,9 +49,9 @@ func deriveStatus(rec domain.SessionRecord, prs []domain.PRFacts, now time.Time,
 	// harness has a hook pipeline. The seeded LastActivityAt marks the launch,
 	// so once the grace passes the honest status is "no signal", not "idle".
 	//
-	// Chat sessions are exempt regardless of harness. no_signal means "AO cannot
+	// Chat sessions are exempt regardless of harness. no_signal means "Operator cannot
 	// tell what this agent is doing", which is inferred from silence because a TUI
-	// agent reports through a hook pipeline AO does not own. In chat mode AO holds
+	// agent reports through a hook pipeline Operator does not own. In chat mode Operator holds
 	// the provider connection itself: it knows the controller's state directly, and
 	// a controller that dies is reported as exited rather than guessed at from
 	// silence. An idle chat session waiting on the user emits nothing by design, so

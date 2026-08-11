@@ -99,29 +99,29 @@ process.stdout.on("error", ignoreStdStreamError);
 process.stderr.on("error", ignoreStdStreamError);
 
 // Must run before app ready so the About panel and default-menu role labels use it.
-app.setName("Agent Orchestrator");
+app.setName("Operator");
 
 // Windows shows native toasts only when the app declares an AppUserModelID that
 // matches its installer shortcut (the NSIS maker's appId). Without it,
 // Notification.isSupported() still returns true but show() silently drops the
 // toast, so notifications never appear. No-op on macOS/Linux.
 if (process.platform === "win32") {
-	app.setAppUserModelId("dev.agent-orchestrator.desktop");
+	app.setAppUserModelId("dev.operator.desktop");
 }
 
 // Pin ALL Electron-owned state (Chromium cache, cookies, local/session storage,
-// crash dumps) under the canonical AO home at ~/.ao instead of Electron's macOS
+// crash dumps) under the canonical Operator home at ~/.operator instead of Electron's macOS
 // default ~/Library/Application Support/<name>. Keeps the app's entire footprint
-// inside ~/.ao alongside the daemon's data dir and running.json. sessionData and
+// inside ~/.operator alongside the daemon's data dir and running.json. sessionData and
 // crashDumps derive from userData, so this one override reparents them all.
 // Must run before app ready.
-// Dev runs get their own profile under the same ~/.ao root: the packaged app
+// Dev runs get their own profile under the same ~/.operator root: the packaged app
 // keeps this directory open, and two Chromium instances sharing one profile
 // corrupt its LevelDB stores. Mirrors how dev already isolates running.json and
-// the daemon data dir into ~/.ao/dev.
+// the daemon data dir into ~/.operator/dev.
 app.setPath(
 	"userData",
-	app.isPackaged ? path.join(os.homedir(), ".ao", "electron") : path.join(os.homedir(), ".ao", "dev", "electron"),
+	app.isPackaged ? path.join(os.homedir(), ".operator", "electron") : path.join(os.homedir(), ".operator", "dev", "electron"),
 );
 
 let mainWindow: BaseWindow | null = null;
@@ -163,7 +163,7 @@ const isDev = !app.isPackaged;
 // on Unix (backend derives it as dir(RunFilePath)/supervise.sock) and the named pipe
 // on Windows (supervisorPipeFromRunFile derives it from the same dir basename).
 const DEV_DAEMON_PORT = 3002;
-const DEV_STATE_SUBDIR = "dev"; // ~/.ao/dev/
+const DEV_STATE_SUBDIR = "dev"; // ~/.operator/dev/
 
 // Height (px) of the custom Windows title bar. Must stay in sync with
 // --size-window-titlebar (tokens.css) and .window-titlebar, plus the Window
@@ -299,7 +299,7 @@ function appendDaemonOutput(text: string): void {
 
 // Menu installed on Windows where the native menu bar is hidden. The bar stays
 // out of sight, but the roles keep their accelerators alive (Reload, zoom, full
-// screen, edit commands). DevTools uses the AO browser toggle so the focused
+// screen, edit commands). DevTools uses the Operator browser toggle so the focused
 // Browser panel opens the same native Chromium surface as the toolbar.
 function buildWindowsAppMenu(): Menu {
 	return Menu.buildFromTemplate(
@@ -344,9 +344,9 @@ async function createWindowInternal(): Promise<void> {
 		binaryPath: resolveAgentBrowserBinaryPath(),
 		// Agent Browser creates Unix sockets below each run root. Keep this base
 		// deliberately short so the namespace/session suffix stays below macOS's
-		// 103-byte sockaddr_un limit; all AO state remains under ~/.ao.
-		dataDir: path.join(os.homedir(), ".ao", ...(app.isPackaged ? ["br"] : ["dev", "br"])),
-		log: (message) => console.log(`AO: ${message}`),
+		// 103-byte sockaddr_un limit; all Operator state remains under ~/.operator.
+		dataDir: path.join(os.homedir(), ".operator", ...(app.isPackaged ? ["br"] : ["dev", "br"])),
+		log: (message) => console.log(`Operator: ${message}`),
 	});
 	await agentBrowserRuntime.prepare();
 	if (browserQuitRequested) {
@@ -358,7 +358,7 @@ async function createWindowInternal(): Promise<void> {
 		height: 860,
 		minWidth: 960,
 		minHeight: 640,
-		title: "Agent Orchestrator",
+		title: "Operator",
 		icon: windowIconPath(),
 		backgroundColor: NATIVE_WINDOW_BACKGROUND_DARK,
 		// Windows goes frameless with a Window Controls Overlay: Electron still draws
@@ -389,7 +389,7 @@ async function createWindowInternal(): Promise<void> {
 	windowComposition = composition;
 	syncNativeWindowBackground();
 	const shellWebContents = getShellWebContents();
-	if (!shellWebContents) throw new Error("AO shell WebContents was not created");
+	if (!shellWebContents) throw new Error("Operator shell WebContents was not created");
 
 	// On Windows the app paints its own title bar (WindowTitlebar), so the native
 	// menu bar is hidden (autoHideMenuBar above). The role-based menu is still
@@ -453,7 +453,7 @@ async function createWindowInternal(): Promise<void> {
 
 	void shellWebContents.loadURL(rendererUrl());
 
-	if (isDev && process.env.AO_OPEN_DEVTOOLS === "1") {
+	if (isDev && process.env.OPERATOR_OPEN_DEVTOOLS === "1") {
 		shellWebContents.once("did-frame-finish-load", () => {
 			shellWebContents.openDevTools({ mode: "detach" });
 		});
@@ -505,7 +505,7 @@ function createWindow(): Promise<void> {
 }
 
 function resolveAgentBrowserBinaryPath(): string {
-	const override = process.env.AO_AGENT_BROWSER_PATH?.trim();
+	const override = process.env.OPERATOR_AGENT_BROWSER_PATH?.trim();
 	if (override) return path.resolve(override);
 	const binary = process.platform === "win32" ? "agent-browser.exe" : "agent-browser";
 	return app.isPackaged
@@ -526,8 +526,8 @@ const RUN_FILE_FRESHNESS_SKEW_MS = 2_000;
 const DAEMON_PROBE_TIMEOUT_MS = 2_000;
 
 function runFilePath(): string | null {
-	if (process.env.AO_RUN_FILE) return process.env.AO_RUN_FILE;
-	if (isDev) return path.join(os.homedir(), ".ao", DEV_STATE_SUBDIR, "running.json");
+	if (process.env.OPERATOR_RUN_FILE) return process.env.OPERATOR_RUN_FILE;
+	if (isDev) return path.join(os.homedir(), ".operator", DEV_STATE_SUBDIR, "running.json");
 	return defaultRunFilePath(process.platform, process.env, os.homedir());
 }
 
@@ -547,21 +547,21 @@ let shellEnvPromise: Promise<void> | null = null;
 //
 // Unpackaged builds keep local event recording but never export to PostHog: a
 // dev loop or a CI job driving the real app would otherwise bill production
-// events and inflate install/DAU counts. Set AO_TELEMETRY_REMOTE explicitly to
+// events and inflate install/DAU counts. Set OPERATOR_TELEMETRY_REMOTE explicitly to
 // exercise the export path from a dev build.
 function telemetryOverrides(): Record<string, string> {
 	return {
-		AO_TELEMETRY_EVENTS: process.env.AO_TELEMETRY_EVENTS ?? "on",
-		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
-		AO_TELEMETRY_POSTHOG_KEY: process.env.AO_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
-		AO_TELEMETRY_POSTHOG_HOST: process.env.AO_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
+		OPERATOR_TELEMETRY_EVENTS: process.env.OPERATOR_TELEMETRY_EVENTS ?? "on",
+		OPERATOR_TELEMETRY_REMOTE: process.env.OPERATOR_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
+		OPERATOR_TELEMETRY_POSTHOG_KEY: process.env.OPERATOR_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
+		OPERATOR_TELEMETRY_POSTHOG_HOST: process.env.OPERATOR_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
 		// The daemon binary has no version of its own that release tooling sets,
 		// so without this every daemon event lands unattributable to a release.
-		AO_TELEMETRY_APP_VERSION: process.env.AO_TELEMETRY_APP_VERSION ?? app.getVersion(),
+		OPERATOR_TELEMETRY_APP_VERSION: process.env.OPERATOR_TELEMETRY_APP_VERSION ?? app.getVersion(),
 		// Kill switch: forwarded so a noisy stream can be silenced by env on an
 		// install that already exists, without shipping a new build.
-		...(process.env.AO_TELEMETRY_DISABLED_EVENTS
-			? { AO_TELEMETRY_DISABLED_EVENTS: process.env.AO_TELEMETRY_DISABLED_EVENTS }
+		...(process.env.OPERATOR_TELEMETRY_DISABLED_EVENTS
+			? { OPERATOR_TELEMETRY_DISABLED_EVENTS: process.env.OPERATOR_TELEMETRY_DISABLED_EVENTS }
 			: {}),
 	};
 }
@@ -613,7 +613,7 @@ function ensureShellEnv(): Promise<void> {
 		shellEnvPromise = resolveShellEnv(process.env, runLoginShell).then((resolved) => {
 			cachedShellEnv = resolved;
 			if (!resolved) {
-				console.error("AO: could not read the login-shell environment; falling back to a static PATH floor.");
+				console.error("Operator: could not read the login-shell environment; falling back to a static PATH floor.");
 			}
 		});
 	}
@@ -622,37 +622,37 @@ function ensureShellEnv(): Promise<void> {
 
 // One id per app launch, minted eagerly so every daemon spawn in this process
 // (including supervisor restarts) reports the same run. An explicit
-// AO_APP_RUN_ID in the environment wins, which lets a test or a wrapper pin it.
-const appRunId = process.env.AO_APP_RUN_ID ?? `apprun-${randomUUID()}`;
+// OPERATOR_APP_RUN_ID in the environment wins, which lets a test or a wrapper pin it.
+const appRunId = process.env.OPERATOR_APP_RUN_ID ?? `apprun-${randomUUID()}`;
 const browserRuntimeToken = randomBytes(32).toString("base64url");
 
 function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv {
-	// AO_OWNER is the daemon's durable spawn-mode record: the daemon writes it
+	// OPERATOR_OWNER is the daemon's durable spawn-mode record: the daemon writes it
 	// into running.json and the attach path reads it to decide the supervisor
 	// link from the daemon's own state (not this Electron process's env, which
 	// differs across launches). A keep-alive daemon is "persistent" (never
 	// re-linked, survives app quit); a normal app-owned daemon is "app";
-	// headless `ao start` sets none (stays unlinked, persistent by default).
+	// headless `opr start` sets none (stays unlinked, persistent by default).
 	//
-	// AO_APP_RUN_ID identifies THIS app launch. It is constant for the process
+	// OPERATOR_APP_RUN_ID identifies THIS app launch. It is constant for the process
 	// lifetime, so a daemon the supervisor restarts inherits the same id and its
 	// standalone shell terminals survive; a later app launch gets a new id, which
 	// is how the daemon recognises the previous run's shells as orphans and
 	// destroys them (see internal/service/shellterm).
-	const AO_OWNER = forceKeep ? "persistent" : "app";
+	const OPERATOR_OWNER = forceKeep ? "persistent" : "app";
 	const ownerTag = {
-		AO_OWNER,
-		AO_APP_RUN_ID: appRunId,
+		OPERATOR_OWNER,
+		OPERATOR_APP_RUN_ID: appRunId,
 		// The browser runtime token is handed over through the child's private
 		// stdin pipe below. Never put it in the daemon environment, where a
 		// same-UID worker could inspect the parent process.
-		AO_BROWSER_RUNTIME_TOKEN: "",
-		AO_BROWSER_RUNTIME_TOKEN_STDIN: "1",
-		// Claude Code Chat uses AO's packaged ACP adapter + Node runtime. The
+		OPERATOR_BROWSER_RUNTIME_TOKEN: "",
+		OPERATOR_BROWSER_RUNTIME_TOKEN_STDIN: "1",
+		// Claude Code Chat uses Operator's packaged ACP adapter + Node runtime. The
 		// provider executable itself is resolved by the daemon from the user's PATH
 		// and passed through CLAUDE_CODE_EXECUTABLE; it is not part of this resource.
-		AO_ACP_RUNTIME_DIR:
-			process.env.AO_ACP_RUNTIME_DIR ??
+		OPERATOR_ACP_RUNTIME_DIR:
+			process.env.OPERATOR_ACP_RUNTIME_DIR ??
 			(app.isPackaged
 				? path.join(process.resourcesPath, "acp-runtime")
 				: path.join(app.getAppPath(), "resources", "acp-runtime")),
@@ -661,9 +661,9 @@ function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv 
 	// the installed app. User-set env vars take priority (checked first).
 	const devExtras: Record<string, string> = {};
 	if (isDev) {
-		if (!process.env.AO_PORT) devExtras.AO_PORT = String(DEV_DAEMON_PORT);
-		if (!process.env.AO_RUN_FILE) devExtras.AO_RUN_FILE = runFilePath() ?? "";
-		if (!process.env.AO_DATA_DIR) devExtras.AO_DATA_DIR = path.join(os.homedir(), ".ao", DEV_STATE_SUBDIR, "data");
+		if (!process.env.OPERATOR_PORT) devExtras.OPERATOR_PORT = String(DEV_DAEMON_PORT);
+		if (!process.env.OPERATOR_RUN_FILE) devExtras.OPERATOR_RUN_FILE = runFilePath() ?? "";
+		if (!process.env.OPERATOR_DATA_DIR) devExtras.OPERATOR_DATA_DIR = path.join(os.homedir(), ".operator", DEV_STATE_SUBDIR, "data");
 	}
 	// Windows keeps the old behavior exactly: no shell probe, no unix PATH floor.
 	if (process.platform === "win32") {
@@ -719,22 +719,22 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
 			: false;
 		const executableMatches = probe.executablePath ? pathInside(probe.executablePath, launch.cwd) : false;
 		if (!probe.workingDirectory && !probe.startupWorkingDirectory && !probe.executablePath) {
-			return "An older AO daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
+			return "An older Operator daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
 		}
 		if (!cwdMatches && !startupCwdMatches && !executableMatches) {
 			const actual =
 				probe.startupWorkingDirectory ?? probe.workingDirectory ?? probe.executablePath ?? "an unknown location";
-			return `Another AO daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
+			return `Another Operator daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
 		}
 		return null;
 	}
 
 	if (launch.source === "bundled") {
 		if (!probe.executablePath) {
-			return "An older AO daemon is already running, but it does not report its binary path. Stop it and restart this app.";
+			return "An older Operator daemon is already running, but it does not report its binary path. Stop it and restart this app.";
 		}
 		if (!samePath(probe.executablePath, launch.command)) {
-			return `Another AO daemon is already running from ${probe.executablePath}; expected ${launch.command}. Stop the other daemon before using this app.`;
+			return `Another Operator daemon is already running from ${probe.executablePath}; expected ${launch.command}. Stop the other daemon before using this app.`;
 		}
 	}
 	return null;
@@ -748,14 +748,14 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
  *
  * Called unconditionally on the spawn path (we always own that daemon).
  * Called on the attach path only when the daemon is app-owned (owner === "app");
- * headless `ao start` daemons stay unlinked so they remain persistent after
+ * headless `opr start` daemons stay unlinked so they remain persistent after
  * app quit.
  */
 function supervisorPipeFromRunFile(rfp: string | null): string {
-	if (!rfp) return "\\\\.\\pipe\\ao-supervise";
+	if (!rfp) return "\\\\.\\pipe\\opr-supervise";
 	const dir = path.basename(path.dirname(rfp));
-	if (dir === ".ao" || dir === "." || dir === "") return "\\\\.\\pipe\\ao-supervise";
-	return "\\\\.\\pipe\\ao-supervise-" + dir.replace(/[^a-zA-Z0-9-]/g, "-");
+	if (dir === ".operator" || dir === "." || dir === "") return "\\\\.\\pipe\\opr-supervise";
+	return "\\\\.\\pipe\\opr-supervise-" + dir.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
 function disposeBrowserRuntimeLink(): void {
@@ -768,7 +768,7 @@ function establishBrowserRuntimeLink(): void {
 	if (!browserViewHost) return;
 	const rfp = runFilePath();
 	if (!rfp) {
-		console.warn("AO: browser runtime link skipped; run-file path unavailable");
+		console.warn("Operator: browser runtime link skipped; run-file path unavailable");
 		return;
 	}
 	let runInfo: ReturnType<typeof parseRunFile> = null;
@@ -779,7 +779,7 @@ function establishBrowserRuntimeLink(): void {
 	}
 	const address = runInfo?.browserRuntimeAddress;
 	if (!address) {
-		console.warn("AO: browser runtime link skipped; daemon did not publish an address");
+		console.warn("Operator: browser runtime link skipped; daemon did not publish an address");
 		return;
 	}
 	const token = browserRuntimeToken;
@@ -804,7 +804,7 @@ function establishBrowserRuntimeLink(): void {
 			}
 			return host.execute(command.sessionId, command.action, command.args, signal);
 		},
-		log: (message) => console.log(`AO: ${message}`),
+		log: (message) => console.log(`Operator: ${message}`),
 	});
 	browserRuntimeLinkIdentity = identity;
 }
@@ -820,10 +820,10 @@ function establishSupervisorLink(): void {
 	if (addr) {
 		supervisorLink?.dispose();
 		supervisorLink = connectSupervisor(addr, {
-			log: (msg) => console.log(`AO: ${msg}`),
+			log: (msg) => console.log(`Operator: ${msg}`),
 		});
 	} else {
-		console.warn("AO: supervisor link skipped; run-file path unavailable");
+		console.warn("Operator: supervisor link skipped; run-file path unavailable");
 	}
 }
 
@@ -888,7 +888,7 @@ async function refreshDaemonStatus(): Promise<DaemonStatus> {
 	) {
 		setDaemonStatus({
 			state: "stopped",
-			message: "AO daemon is no longer reachable.",
+			message: "Operator daemon is no longer reachable.",
 			code: "daemon_unreachable",
 		});
 	}
@@ -911,9 +911,9 @@ async function startDaemon(): Promise<DaemonStatus> {
 
 // The port this Electron instance expects the daemon to bind. In dev mode a
 // separate port isolates the dev daemon from the installed-app daemon.
-// AO_PORT always wins if set explicitly.
+// OPERATOR_PORT always wins if set explicitly.
 function resolvedDaemonPort(): number {
-	return isDev && !process.env.AO_PORT ? DEV_DAEMON_PORT : expectedDaemonPort(process.env);
+	return isDev && !process.env.OPERATOR_PORT ? DEV_DAEMON_PORT : expectedDaemonPort(process.env);
 }
 
 async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
@@ -937,7 +937,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (!launch) {
 		setDaemonStatus({
 			state: "stopped",
-			message: "AO_DAEMON_COMMAND is not configured; renderer uses loopback REST when available.",
+			message: "OPERATOR_DAEMON_COMMAND is not configured; renderer uses loopback REST when available.",
 			code: "not_configured",
 		});
 		return daemonStatus;
@@ -965,7 +965,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		} else {
 			setDaemonStatus(existing.status);
 			// Re-link the supervisor only when attaching to an app-owned daemon (one we
-			// previously spawned). Headless `ao start` daemons (owner unset) stay unlinked
+			// previously spawned). Headless `opr start` daemons (owner unset) stay unlinked
 			// so they remain persistent after app quit.
 			if (shouldLinkOnAttach(existing.owner)) {
 				establishSupervisorLink();
@@ -979,9 +979,9 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// health.pid mismatch) makes it return null — yet a daemon may still be serving
 	// the port. Spawning then would just make the Go child refuse and exit 1. Probe
 	// the expected port directly, independent of the run-file, and attach if a
-	// daemon answers. The expected port (AO_PORT or the default) is exactly the
+	// daemon answers. The expected port (OPERATOR_PORT or the default) is exactly the
 	// port the Go child would bind and collide on — probing a hardcoded 3001 would
-	// miss an AO_PORT override.
+	// miss an OPERATOR_PORT override.
 	const directDaemon = await resolveDaemonFromPort({
 		expectedPort: resolvedDaemonPort(),
 		probe: readDaemonProbe,
@@ -1037,9 +1037,9 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// may still be holding the port. The only reachable case here is a hung/wedged
 	// holder whose run-file PID is still alive but is not answering /healthz (e.g.
 	// our own daemon that bound the port and then deadlocked). Two cases are
-	// intentionally NOT handled: an identity-mismatched but healthy AO daemon is
+	// intentionally NOT handled: an identity-mismatched but healthy Operator daemon is
 	// already surfaced as an error status upstream by resolveDaemonFromPort (not
-	// killed here), and a foreign non-AO process holding the port with a dead
+	// killed here), and a foreign non-Operator process holding the port with a dead
 	// run-file PID is not replaced (out of scope). When no holder is detectable,
 	// skip straight to spawn.
 	const orphanProbe = await readDaemonProbe(resolvedDaemonPort(), "healthz");
@@ -1095,7 +1095,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (launch.source === "bundled" && !existsSync(launch.command)) {
 		setDaemonStatus({
 			state: "error",
-			message: `Bundled AO daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
+			message: `Bundled Operator daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
 			code: "binary_missing",
 		});
 		return daemonStatus;
@@ -1113,7 +1113,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 			// and leave the UI stuck on "starting". Report it as a failure instead.
 			setDaemonStatus({
 				state: "error",
-				message: `Could not create the AO data directory at ${launch.cwd}: ${(err as Error).message}`,
+				message: `Could not create the Operator data directory at ${launch.cwd}: ${(err as Error).message}`,
 				code: "datadir_unwritable",
 			});
 			return daemonStatus;
@@ -1129,25 +1129,25 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// wrapper and orphan the real daemon (which keeps holding the port). Killing
 	// the whole group via killDaemon() reaches the daemon and any PTY children.
 	//
-	// AO_KEEP_DAEMON: the daemon must survive this app, so it cannot inherit
+	// OPERATOR_KEEP_DAEMON: the daemon must survive this app, so it cannot inherit
 	// Electron-owned stdout/stderr pipes — when Electron exits, the pipe read
 	// ends close and the daemon's next stderr log write (SIGPIPE/EPIPE) kills it,
-	// defeating the keep-alive. Redirect stdio to ~/.ao/daemon.log and unref the
+	// defeating the keep-alive. Redirect stdio to ~/.operator/daemon.log and unref the
 	// child so the parent does not wait on it. Port discovery then relies on the
 	// running.json handshake (the log pipe scan is skipped).
 	const keep = replacementKeepAlive ?? keepDaemonAlive(process.env);
 	let keepDaemonLogFd: number | undefined;
 	let stdio: "pipe" | "ignore" | ["pipe", number | "ignore", number | "ignore"] = "pipe";
 	if (keep) {
-		const logPath = path.join(os.homedir(), ".ao", "daemon.log");
+		const logPath = path.join(os.homedir(), ".operator", "daemon.log");
 		try {
 			keepDaemonLogFd = openSync(logPath, "a");
 			stdio = ["pipe", keepDaemonLogFd, keepDaemonLogFd];
 		} catch {
-			// Log redirect failed (e.g. ~/.ao not creatable, permission denied):
+			// Log redirect failed (e.g. ~/.operator not creatable, permission denied):
 			// fall back to "ignore" so the daemon still runs, but warn — otherwise
 			// a long-lived keep-alive daemon would run with zero log output.
-			console.warn(`AO: keep-daemon log redirect failed; daemon will run with stdio disabled: ${logPath}`);
+			console.warn(`Operator: keep-daemon log redirect failed; daemon will run with stdio disabled: ${logPath}`);
 			keepDaemonLogFd = undefined;
 			stdio = ["pipe", "ignore", "ignore"];
 		}
@@ -1192,12 +1192,12 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		child.stdin.on("error", () => undefined);
 		child.stdin.end(`${browserRuntimeToken}\n`);
 	} else {
-		console.warn("AO: browser runtime token handoff pipe was unavailable");
+		console.warn("Operator: browser runtime token handoff pipe was unavailable");
 	}
 	if (keep) child.unref();
 	daemonProcess = child;
 
-	// Discover the port the daemon ACTUALLY bound rather than trusting AO_PORT:
+	// Discover the port the daemon ACTUALLY bound rather than trusting OPERATOR_PORT:
 	// the daemon may fall back to a different port than the one requested. Two
 	// confirmed sources race — the "daemon listening" slog line (stderr, but both
 	// streams are scanned) and the running.json handshake — first one wins.
@@ -1224,16 +1224,16 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		// exits for any reason, the OS closes the fd and the daemon detects EOF,
 		// then self-stops after its ~5s grace period. The attach paths link only
 		// when the daemon is app-owned (see establishSupervisorLink +
-		// shouldLinkOnAttach); headless `ao start` daemons stay unlinked so they
+		// shouldLinkOnAttach); headless `opr start` daemons stay unlinked so they
 		// remain persistent across app quit.
 		//
-		// AO_KEEP_DAEMON opts out of the link entirely: the daemon is spawned but
-		// survives the window closing, stopping only on an explicit `ao stop`.
+		// OPERATOR_KEEP_DAEMON opts out of the link entirely: the daemon is spawned but
+		// survives the window closing, stopping only on an explicit `opr stop`.
 		// Reuse the `keep` captured at spawn rather than re-reading process.env
 		// here: the flag is a property of this spawn, not a value that should be
 		// able to flip between spawn and port-confirmation. (The process.on("exit")
 		// orphan-cleanup below re-reads process.env because this `keep` is scoped
-		// to the spawn function — AO_KEEP_DAEMON is set once at startup and never
+		// to the spawn function — OPERATOR_KEEP_DAEMON is set once at startup and never
 		// mutated, so both reads agree.)
 		if (!keep) {
 			establishSupervisorLink();
@@ -1241,7 +1241,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	};
 
 	// One scanner per stream: each keeps its own partial-line buffer.
-	// Skipped under AO_KEEP_DAEMON: stdio is redirected to a log file (no pipes
+	// Skipped under OPERATOR_KEEP_DAEMON: stdio is redirected to a log file (no pipes
 	// to scan), so port discovery falls back to the running.json handshake below.
 	if (!keep) {
 		const scanStdout = createListenPortScanner(reportBoundPort);
@@ -1289,7 +1289,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		fallbackTimer = undefined;
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon did not finish starting within 30 seconds.",
+			message: "Operator daemon did not finish starting within 30 seconds.",
 			details:
 				daemonOutput.trim() ||
 				[
@@ -1323,7 +1323,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		daemonProcess = null;
 		// An explicit stopDaemon() already set a clean `{ state: "stopped" }`.
 		// daemon-telemetry reports any status carrying a `code` as
-		// ao.renderer.daemon_failure, so don't stamp `code: "exited"` on a stop
+		// opr.renderer.daemon_failure, so don't stamp `code: "exited"` on a stop
 		// the user or app asked for — that would count intentional stops as
 		// failures. Preserve the clean stopped status instead.
 		if (daemonStoppingProcess === child) {
@@ -1388,7 +1388,7 @@ function stopDaemon(): DaemonStatus {
 function reportDaemonRestartFailure(error: unknown): DaemonStatus {
 	setDaemonStatus({
 		state: "error",
-		message: `Could not restart the AO daemon: ${error instanceof Error ? error.message : String(error)}`,
+		message: `Could not restart the Operator daemon: ${error instanceof Error ? error.message : String(error)}`,
 		details: daemonOutput.trim() || undefined,
 		code: "spawn_failed",
 	});
@@ -1432,7 +1432,7 @@ async function restartDaemon(): Promise<DaemonStatus> {
 		// a replacement instead of collapsing back to a code-less stopped state.
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon is still stopping. It will restart automatically when shutdown completes.",
+			message: "Operator daemon is still stopping. It will restart automatically when shutdown completes.",
 			details: daemonOutput.trim() || undefined,
 			code: "not_ready",
 		});
@@ -1546,8 +1546,8 @@ ipcMain.handle("menu:action", (_event, action: string) => {
 		case "help.about":
 			void dialog.showMessageBox(win, {
 				type: "info",
-				title: "About Agent Orchestrator",
-				message: "Agent Orchestrator",
+				title: "About Operator",
+				message: "Operator",
 				detail: `Version ${app.getVersion()}`,
 				buttons: ["OK"],
 			});
@@ -1685,9 +1685,9 @@ ipcMain.handle(
 			const toast = new ElectronNotification({
 				title: notification.title,
 				body: notification.body,
-				// AO logo as the notification icon on Windows/Linux. Omitted on macOS,
+				// Operator logo as the notification icon on Windows/Linux. Omitted on macOS,
 				// where a custom icon renders only as a redundant right-side content image —
-				// macOS uses the app-bundle icon (the AO logo in a packaged build) as the
+				// macOS uses the app-bundle icon (the Operator logo in a packaged build) as the
 				// single main icon.
 				icon: process.platform === "darwin" ? undefined : windowIconPath(),
 			});
@@ -1787,9 +1787,9 @@ function initAutoUpdates(): void {
 	void ensureUpdatePrefs(stateDir).then(() => startAutoUpdates(stateDir));
 }
 
-// Resolve the bundle path `ao start` will later `open` and stat as a usable app.
-// On macOS process.execPath is .../Agent Orchestrator.app/Contents/MacOS/<exe>;
-// the thing `ao start` opens is the enclosing `.app` directory, so walk up three
+// Resolve the bundle path `opr start` will later `open` and stat as a usable app.
+// On macOS process.execPath is .../Operator.app/Contents/MacOS/<exe>;
+// the thing `opr start` opens is the enclosing `.app` directory, so walk up three
 // levels (MacOS -> Contents -> .app). app.getAppPath() is WRONG here: it returns
 // the app.asar archive path inside the bundle, not the bundle itself.
 // On win32/linux there is no .app wrapper, so record execPath; a richer
@@ -1801,7 +1801,7 @@ function resolveBundlePath(): string {
 	return process.execPath;
 }
 
-// `ao start` opens the app with `--installed-via=<value>` so the app can record
+// `opr start` opens the app with `--installed-via=<value>` so the app can record
 // how it arrived on first marker creation. Parse it out of argv; absent => the
 // marker defaults installSource to "unknown".
 function parseInstalledVia(argv: string[]): string | undefined {
@@ -1809,18 +1809,18 @@ function parseInstalledVia(argv: string[]): string | undefined {
 	return flag ? flag.slice("--installed-via=".length) : undefined;
 }
 
-// Write ~/.ao/app-state.json so `ao start`'s resolveApp() can find this bundle
+// Write ~/.operator/app-state.json so `opr start`'s resolveApp() can find this bundle
 // (spec §7.1). The app is the sole writer (invariant 3) and writes every launch.
 // A failure here must NOT block startup, so the caller wraps this in try/catch;
 // we still surface it via the log.
 async function writeAppStateOnLaunch(): Promise<void> {
-	// Reuse the same ~/.ao resolution as running.json; the marker lives beside it
+	// Reuse the same ~/.operator resolution as running.json; the marker lives beside it
 	// (the Go side computes its dir as dirname(RunFilePath)). runFilePath() returns
 	// null only when the home dir is unresolvable, in which case we cannot place
 	// the marker; the caller's try/catch logs it.
 	const runFile = runFilePath();
 	if (!runFile) {
-		throw new Error("cannot resolve ~/.ao run-file path; skipping app-state marker");
+		throw new Error("cannot resolve ~/.operator run-file path; skipping app-state marker");
 	}
 	const stateDir = path.dirname(runFile);
 	await writeAppStateMarker({
@@ -1943,7 +1943,7 @@ app.on("before-quit", (event) => {
 // When the link IS connected we do nothing here and rely on the OS closing the
 // fd on exit, which covers crash and SIGKILL uniformly.
 //
-// AO_KEEP_DAEMON opts out entirely: the daemon is deliberately spawned without a
+// OPERATOR_KEEP_DAEMON opts out entirely: the daemon is deliberately spawned without a
 // supervisor link so it persists across app quit, so this orphan-cleanup kill
 // must be skipped — otherwise it would defeat the whole point on quit.
 process.on("exit", () => {

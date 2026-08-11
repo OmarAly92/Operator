@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -77,7 +77,7 @@ func TestEnsureDevinWorkspaceTrustedCreatesEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	work := "/Users/me/.ao/worktrees/01ABC"
+	work := "/Users/me/.operator/worktrees/01ABC"
 	if err := ensureDevinWorkspaceTrusted(cfgPath, work); err != nil {
 		t.Fatalf("ensureDevinWorkspaceTrusted: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestEnsureDevinNativeWorkspaceTrustedCreatesEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	work := "/Users/me/.ao/worktrees/01ABC"
+	work := "/Users/me/.operator/worktrees/01ABC"
 	if err := ensureDevinNativeWorkspaceTrusted(cfgPath, work); err != nil {
 		t.Fatalf("ensureDevinNativeWorkspaceTrusted: %v", err)
 	}
@@ -432,10 +432,10 @@ func TestGetAgentHooksInstallsLocalDevinConfig(t *testing.T) {
 	}
 	sessionStart := config.Hooks["SessionStart"]
 	if len(sessionStart) != 1 || len(sessionStart[0].Hooks) != 1 {
-		t.Fatalf("SessionStart hooks = %#v, want one AO command", sessionStart)
+		t.Fatalf("SessionStart hooks = %#v, want one Operator command", sessionStart)
 	}
 	hook := sessionStart[0].Hooks[0]
-	if hook.Type != "command" || hook.Command != "ao hooks devin session-start" || hook.Timeout != 30 {
+	if hook.Type != "command" || hook.Command != "opr hooks devin session-start" || hook.Timeout != 30 {
 		t.Fatalf("SessionStart hook = %#v", hook)
 	}
 	gitignore, err := os.ReadFile(filepath.Join(ws, ".devin", ".gitignore"))

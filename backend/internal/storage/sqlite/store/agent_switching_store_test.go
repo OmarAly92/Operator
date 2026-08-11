@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 type agentSwitchFixtureUpdater interface {
@@ -39,13 +39,13 @@ func TestAgentNativeSessionsRetainMultipleConversationsNewestFirst(t *testing.T)
 	seedProject(t, s, "switch-native")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-native"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
 	first := domain.AgentNativeSession{
-		ID: "native-codex-1", AOSessionID: session.ID, Harness: domain.HarnessCodex,
-		ConfigDir: "/ao/codex/a", NativeSessionID: "codex-thread-1",
+		ID: "native-codex-1", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
+		ConfigDir: "/opr/codex/a", NativeSessionID: "codex-thread-1",
 		TranscriptPath:   "/transcripts/codex-1.jsonl",
 		LastGenerationID: "generation-1",
 		CreatedAt:        now, LastUsedAt: now,
@@ -66,7 +66,7 @@ func TestAgentNativeSessionsRetainMultipleConversationsNewestFirst(t *testing.T)
 		t.Fatalf("create second same-harness conversation: created=%v err=%v", created, err)
 	}
 
-	// A retry with a new AO id but the same concrete native identity resolves
+	// A retry with a new Operator id but the same concrete native identity resolves
 	// to the durable original instead of adding a duplicate conversation.
 	duplicate := second
 	duplicate.ID = "retry-generated-id"
@@ -102,12 +102,12 @@ func TestAgentNativeSessionGenerationFence(t *testing.T) {
 	seedProject(t, s, "native-fence")
 	session, err := s.CreateSession(ctx, sampleRecord("native-fence"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	rec := domain.AgentNativeSession{
-		ID: "native-claude", AOSessionID: session.ID, Harness: domain.HarnessClaudeCode,
-		ConfigDir: "/ao/claude", LastGenerationID: "source-generation",
+		ID: "native-claude", OperatorSessionID: session.ID, Harness: domain.HarnessClaudeCode,
+		ConfigDir: "/opr/claude", LastGenerationID: "source-generation",
 		CreatedAt: now, LastUsedAt: now,
 	}
 	if _, _, err := s.CreateAgentNativeSession(ctx, rec); err != nil {
@@ -140,7 +140,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 	seedProject(t, s, "switch-saga")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-saga"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	switchRec := domain.AgentSwitch{
@@ -158,7 +158,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 		prepopulated.IdempotencyKey = string(prepopulated.ID)
 		prepopulated.AgentHandoffStatus = status
 		if status == domain.AgentHandoffReceived {
-			prepopulated.AgentHandoffPath = "/ao/handoffs/prepopulated/agent-handoff.json"
+			prepopulated.AgentHandoffPath = "/opr/handoffs/prepopulated/agent-handoff.json"
 			prepopulated.AgentHandoffHash = strings.Repeat("a", 64)
 		}
 		if _, created, err := s.CreateAgentSwitch(ctx, prepopulated); err == nil || created || !strings.Contains(err.Error(), "without target launch or handoff facts") {
@@ -193,7 +193,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 		t.Fatalf("second active switch: active=%+v created=%v err=%v", active, created, err)
 	}
 
-	handoffPath := "/ao/handoffs/switch-1/agent-handoff.json"
+	handoffPath := "/opr/handoffs/switch-1/agent-handoff.json"
 	handoffHash := strings.Repeat("a", 64)
 	if ok, err := s.RecordAgentHandoff(ctx, switchRec.ID, "stale-source", domain.AgentHandoffReceived, handoffPath, handoffHash, now.Add(time.Second)); err != nil || ok {
 		t.Fatalf("stale semantic handoff: ok=%v err=%v", ok, err)
@@ -229,7 +229,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 	}
 
 	targetNative := domain.AgentNativeSession{
-		ID: "native-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+		ID: "native-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 		NativeSessionID:  "codex-1",
 		LastGenerationID: "target-generation", CreatedAt: now, LastUsedAt: now,
 	}
@@ -243,7 +243,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 		sw.TargetGenerationID = "target-generation"
 	})
 	advanceAgentSwitchFixture(ctx, t, s, &current, domain.AgentSwitchSourceStopped, now.Add(4*time.Second))
-	finalPath := "/ao/handoffs/switch-1/handoff.json"
+	finalPath := "/opr/handoffs/switch-1/handoff.json"
 	finalHash := strings.Repeat("b", 64)
 	if finalized, err := s.FinalizeAgentSwitchHandoff(
 		ctx, current.ID, current.SessionID, current.SourceGenerationID, current.TargetGenerationID,
@@ -303,10 +303,10 @@ func TestAgentSwitchTargetStartUnconfirmedMarkerIsNonTerminalAndMonotonic(t *tes
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	target := domain.AgentNativeSession{
-		ID: "recovery-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+		ID: "recovery-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 		NativeSessionID: "codex-recovery", LastGenerationID: "target-generation",
 		CreatedAt: now, LastUsedAt: now,
 	}
@@ -383,7 +383,7 @@ func TestAgentHandoffOutcomeIsMonotonicWhenTimeoutWins(t *testing.T) {
 	seedProject(t, s, "handoff-timeout")
 	session, err := s.CreateSession(ctx, sampleRecord("handoff-timeout"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	switchRec := domain.AgentSwitch{
@@ -403,7 +403,7 @@ func TestAgentHandoffOutcomeIsMonotonicWhenTimeoutWins(t *testing.T) {
 	if ok, err := s.RecordAgentHandoff(ctx, switchRec.ID, "source-generation", domain.AgentHandoffTimedOut, "", "", now.Add(2*time.Second)); err != nil || !ok {
 		t.Fatalf("record timeout: ok=%v err=%v", ok, err)
 	}
-	if ok, err := s.RecordAgentHandoff(ctx, switchRec.ID, "source-generation", domain.AgentHandoffReceived, "/ao/handoffs/switch-timeout/agent-handoff.json", strings.Repeat("b", 64), now.Add(3*time.Second)); err != nil || ok {
+	if ok, err := s.RecordAgentHandoff(ctx, switchRec.ID, "source-generation", domain.AgentHandoffReceived, "/opr/handoffs/switch-timeout/agent-handoff.json", strings.Repeat("b", 64), now.Add(3*time.Second)); err != nil || ok {
 		t.Fatalf("late response overwrote timeout: ok=%v err=%v", ok, err)
 	}
 	got, ok, err := s.GetAgentSwitch(ctx, switchRec.ID)
@@ -468,13 +468,13 @@ func TestAgentHandoffReferenceMatchesOutcome(t *testing.T) {
 		hash   string
 	}{
 		{name: "received without path", status: domain.AgentHandoffReceived, hash: strings.Repeat("a", 64)},
-		{name: "received without hash", status: domain.AgentHandoffReceived, path: "/ao/handoffs/switch/agent-handoff.json"},
-		{name: "received with padded path", status: domain.AgentHandoffReceived, path: " /ao/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 64)},
-		{name: "received with prefixed hash", status: domain.AgentHandoffReceived, path: "/ao/handoffs/switch/agent-handoff.json", hash: "sha256:" + strings.Repeat("a", 64)},
-		{name: "received with short hash", status: domain.AgentHandoffReceived, path: "/ao/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 63)},
-		{name: "received with uppercase hash", status: domain.AgentHandoffReceived, path: "/ao/handoffs/switch/agent-handoff.json", hash: strings.Repeat("A", 64)},
-		{name: "received with nonhex hash", status: domain.AgentHandoffReceived, path: "/ao/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 63) + "g"},
-		{name: "non-received with reference", status: domain.AgentHandoffTimedOut, path: "/ao/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 64)},
+		{name: "received without hash", status: domain.AgentHandoffReceived, path: "/opr/handoffs/switch/agent-handoff.json"},
+		{name: "received with padded path", status: domain.AgentHandoffReceived, path: " /opr/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 64)},
+		{name: "received with prefixed hash", status: domain.AgentHandoffReceived, path: "/opr/handoffs/switch/agent-handoff.json", hash: "sha256:" + strings.Repeat("a", 64)},
+		{name: "received with short hash", status: domain.AgentHandoffReceived, path: "/opr/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 63)},
+		{name: "received with uppercase hash", status: domain.AgentHandoffReceived, path: "/opr/handoffs/switch/agent-handoff.json", hash: strings.Repeat("A", 64)},
+		{name: "received with nonhex hash", status: domain.AgentHandoffReceived, path: "/opr/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 63) + "g"},
+		{name: "non-received with reference", status: domain.AgentHandoffTimedOut, path: "/opr/handoffs/switch/agent-handoff.json", hash: strings.Repeat("a", 64)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -485,7 +485,7 @@ func TestAgentHandoffReferenceMatchesOutcome(t *testing.T) {
 	}
 }
 
-func TestAgentSwitchRejectsNativeReferenceFromAnotherAOSession(t *testing.T) {
+func TestAgentSwitchRejectsNativeReferenceFromAnotherOperatorSession(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "switch-owner")
@@ -499,7 +499,7 @@ func TestAgentSwitchRejectsNativeReferenceFromAnotherAOSession(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	foreign := domain.AgentNativeSession{
-		ID: "foreign-native", AOSessionID: second.ID, Harness: domain.HarnessCodex,
+		ID: "foreign-native", OperatorSessionID: second.ID, Harness: domain.HarnessCodex,
 		NativeSessionID:  "codex-foreign",
 		LastGenerationID: "foreign-generation", CreatedAt: now, LastUsedAt: now,
 	}
@@ -537,7 +537,7 @@ func TestAgentSwitchRejectsTargetNativeReferenceWithWrongHarness(t *testing.T) {
 	seedProject(t, s, "switch-harness")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-harness"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -555,7 +555,7 @@ func TestAgentSwitchRejectsTargetNativeReferenceWithWrongHarness(t *testing.T) {
 		t.Fatalf("create switch without source reference: created=%v err=%v", created, err)
 	}
 	wrongTarget := domain.AgentNativeSession{
-		ID: "wrong-target-harness", AOSessionID: session.ID, Harness: domain.HarnessClaudeCode,
+		ID: "wrong-target-harness", OperatorSessionID: session.ID, Harness: domain.HarnessClaudeCode,
 		NativeSessionID:  "claude-target",
 		LastGenerationID: "target-generation", CreatedAt: now, LastUsedAt: now,
 	}
@@ -581,11 +581,11 @@ func TestAgentSwitchTargetAcknowledgementIsGenerationFencedAndWriteOnce(t *testi
 	seedProject(t, s, "switch-ack")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-ack"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	target := domain.AgentNativeSession{
-		ID: "ack-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+		ID: "ack-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 		NativeSessionID:  "codex-ack",
 		LastGenerationID: "target-generation", CreatedAt: now, LastUsedAt: now,
 	}
@@ -659,11 +659,11 @@ func TestAgentSwitchDeliveryFailureIsAtomicWithAcknowledgement(t *testing.T) {
 			seedProject(t, s, "switch-delivery-outcome")
 			session, err := s.CreateSession(ctx, sampleRecord("switch-delivery-outcome"))
 			if err != nil {
-				t.Fatalf("create AO session: %v", err)
+				t.Fatalf("create Operator session: %v", err)
 			}
 			now := time.Now().UTC().Truncate(time.Second)
 			target := domain.AgentNativeSession{
-				ID: "delivery-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+				ID: "delivery-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 				NativeSessionID:  "codex-delivery",
 				LastGenerationID: "target-generation", CreatedAt: now, LastUsedAt: now,
 			}
@@ -766,10 +766,10 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 	rec.Metadata.PreviewURL = "http://localhost:3000"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	target := domain.AgentNativeSession{
-		ID: "activation-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+		ID: "activation-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 		NativeSessionID: "codex-native-id",
 		TranscriptPath:  "/codex/target.jsonl", LastGenerationID: "target-generation",
 		CreatedAt: now, LastUsedAt: now,
@@ -841,7 +841,7 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 	if err != nil || !ok || stored.State != domain.AgentSwitchSourceStopped {
 		t.Fatalf("switch after source stop = %+v, ok=%v err=%v", stored, ok, err)
 	}
-	finalPath := "/ao/handoffs/switch-source-stop/handoff.json"
+	finalPath := "/opr/handoffs/switch-source-stop/handoff.json"
 	finalHash := strings.Repeat("a", 64)
 	if finalized, finalizeErr := s.FinalizeAgentSwitchHandoff(
 		ctx, stored.ID, stored.SessionID, stored.SourceGenerationID, stored.TargetGenerationID,
@@ -962,10 +962,10 @@ func TestAgentSwitchOwnershipTransactionsRejectTerminatedSession(t *testing.T) {
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create terminated AO session: %v", err)
+		t.Fatalf("create terminated Operator session: %v", err)
 	}
 	target := domain.AgentNativeSession{
-		ID: "terminated-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
+		ID: "terminated-target", OperatorSessionID: session.ID, Harness: domain.HarnessCodex,
 		NativeSessionID:  "codex-terminated",
 		LastGenerationID: "target-generation", CreatedAt: now, LastUsedAt: now,
 	}
@@ -1029,7 +1029,7 @@ func TestAgentSwitchAndOwnerChangesEmitSessionInvalidationCDC(t *testing.T) {
 	seedProject(t, s, "switch-cdc")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-cdc"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Operator session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	baseSeq, _ := s.LatestSeq(ctx)

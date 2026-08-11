@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	codexagent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	codexagent "github.com/OmarAly92/operator/backend/internal/adapters/agent/codex"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type transitionStore struct {
@@ -353,7 +353,7 @@ func newTransitionManager(t *testing.T, mode domain.SessionMode) (*Manager, *tra
 	store := newTransitionStore()
 	store.projects["proj"] = domain.ProjectRecord{ID: "proj", Path: "/repo"}
 	metadata := domain.SessionMetadata{
-		WorkspacePath: "/ws/session-1", Branch: "ao/session-1", AgentSessionID: "native-1",
+		WorkspacePath: "/ws/session-1", Branch: "opr/session-1", AgentSessionID: "native-1",
 	}
 	if mode == domain.SessionModeChat {
 		metadata.ProviderConversationID = "native-1"

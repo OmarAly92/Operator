@@ -13,7 +13,7 @@ const demoPr = (
 	review: PullRequestFacts["review"] = "none",
 	mergeability: PullRequestFacts["mergeability"] = "mergeable",
 ): PullRequestFacts => ({
-	url: `https://github.com/acme-inc/ao-demo/pull/${number}`,
+	url: `https://github.com/acme-inc/opr-demo/pull/${number}`,
 	number,
 	state,
 	ci,
@@ -29,27 +29,27 @@ const demoPr = (
 export const mockShellTerminals: ShellTerminal[] = [
 	{
 		handleId: "shellterm-demo-1",
-		projectId: "ao-demo",
-		workingDir: "/Users/demo/Projects/ao-demo",
-		title: "ao-demo",
+		projectId: "opr-demo",
+		workingDir: "/Users/demo/Projects/opr-demo",
+		title: "opr-demo",
 		createdAt: now,
 	},
 ];
 
 export const mockWorkspaces: WorkspaceSummary[] = [
 	{
-		id: "ao-demo",
-		name: "ao-demo",
-		path: "/demo/ao-demo",
+		id: "opr-demo",
+		name: "opr-demo",
+		path: "/demo/opr-demo",
 		type: "main",
 		orchestratorAgent: "codex",
 		accentColor: "var(--color-project-accent-mint)",
 		sessions: [
 			{
-				id: "ao-demo-orchestrator",
-				terminalHandleId: "ao-demo-orchestrator/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				id: "opr-demo-orchestrator",
+				terminalHandleId: "opr-demo-orchestrator/terminal_0",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Project orchestrator",
 				provider: "codex",
 				kind: "orchestrator",
@@ -63,8 +63,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-working",
 				terminalHandleId: "demo-working/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Build screenshot-ready dashboard data",
 				provider: "cursor",
 				branch: "demo/dashboard-screenshot",
@@ -82,8 +82,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-needs-input",
 				terminalHandleId: "demo-needs-input/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Resolve reviewer feedback on terminal polish",
 				provider: "claude-code",
 				branch: "demo/terminal-polish",
@@ -101,8 +101,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-review-stack",
 				terminalHandleId: "demo-review-stack/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Review stacked browser preview flow",
 				provider: "copilot",
 				branch: "demo/browser-preview-stack",
@@ -127,8 +127,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-in-review",
 				terminalHandleId: "demo-in-review/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Wait for CI on project settings copy",
 				provider: "opencode",
 				branch: "demo/project-settings-copy",
@@ -141,8 +141,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-ready",
 				terminalHandleId: "demo-ready/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Merge README screenshot asset update",
 				provider: "aider",
 				branch: "demo/readme-assets",
@@ -159,8 +159,8 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 			{
 				id: "demo-ci-failed",
 				terminalHandleId: "demo-ci-failed/terminal_0",
-				workspaceId: "ao-demo",
-				workspaceName: "ao-demo",
+				workspaceId: "opr-demo",
+				workspaceName: "opr-demo",
 				title: "Fix flaky NewTaskDialog smoke test",
 				provider: "grok",
 				branch: "demo/new-task-flake",
@@ -287,7 +287,7 @@ export const mockSessionScmSummaries: Record<string, SessionPRSummary[]> = {
 						autoInjectReview: true,
 						verdict: "changes_requested",
 						submittedAt: minutesAgo(18),
-						reviewUrl: "https://github.com/acme-inc/ao-demo/pull/318#pullrequestreview-3101",
+						reviewUrl: "https://github.com/acme-inc/opr-demo/pull/318#pullrequestreview-3101",
 						body: "The activity sample is **tighter**, but the toolbar density change needs a second look before this lands.\n\n- Check compact spacing\n- Keep button labels readable",
 					},
 					{
@@ -296,7 +296,7 @@ export const mockSessionScmSummaries: Record<string, SessionPRSummary[]> = {
 						isBot: true,
 						verdict: "approved",
 						submittedAt: minutesAgo(15),
-						reviewUrl: "https://github.com/acme-inc/ao-demo/pull/318#pullrequestreview-3102",
+						reviewUrl: "https://github.com/acme-inc/opr-demo/pull/318#pullrequestreview-3102",
 						body: "No issues found in the terminal pane changes.",
 					},
 				],
@@ -304,7 +304,7 @@ export const mockSessionScmSummaries: Record<string, SessionPRSummary[]> = {
 					{
 						reviewerId: "prateek",
 						count: 2,
-						reviewUrl: "https://github.com/acme-inc/ao-demo/pull/318#pullrequestreview-3101",
+						reviewUrl: "https://github.com/acme-inc/opr-demo/pull/318#pullrequestreview-3101",
 						// Two comments, two separate threads — resolving addresses threads.
 						links: [
 							{ file: "frontend/src/renderer/components/TerminalPane.tsx", line: 84, autoInjectReview: true },
@@ -329,15 +329,15 @@ export const mockSessionScmSummaries: Record<string, SessionPRSummary[]> = {
 			stateChangedAt: hoursAgo(3),
 		}),
 		prSummary("demo-review-stack", 317, {
-			url: "https://github.com/acme-inc/ao-demo/pull/317",
-			htmlUrl: "https://github.com/acme-inc/ao-demo/pull/317",
+			url: "https://github.com/acme-inc/opr-demo/pull/317",
+			htmlUrl: "https://github.com/acme-inc/opr-demo/pull/317",
 			state: "merged",
 			createdAt: hoursAgo(7),
 			stateChangedAt: hoursAgo(1),
 			mergeability: {
 				state: "mergeable",
 				reasons: [],
-				prUrl: "https://github.com/acme-inc/ao-demo/pull/317",
+				prUrl: "https://github.com/acme-inc/opr-demo/pull/317",
 				conflictFiles: [],
 			},
 		}),

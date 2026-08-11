@@ -97,7 +97,7 @@ type reviewListOptions struct {
 func newReviewCommand(ctx *commandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "review",
-		Short: "Manage AO code reviews of a worker's PR",
+		Short: "Manage Operator code reviews of a worker's PR",
 	}
 	cmd.AddCommand(newReviewListCommand(ctx))
 	cmd.AddCommand(newReviewSubmitCommand(ctx))

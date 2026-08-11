@@ -10,7 +10,7 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	// Clear every recognised var so we observe pure defaults regardless of the
 	// surrounding environment.
-	for _, k := range []string{"AO_PORT", "AO_REQUEST_TIMEOUT", "AO_SHUTDOWN_TIMEOUT", "AO_RUN_FILE", "AO_DATA_DIR", "AO_AGENT", "AO_ALLOWED_ORIGINS", "AO_TELEMETRY_EVENTS", "AO_TELEMETRY_METRICS", "AO_TELEMETRY_REMOTE", "AO_TELEMETRY_POSTHOG_KEY", "AO_TELEMETRY_POSTHOG_HOST", "AO_TELEMETRY_DISABLED_EVENTS", "AO_TELEMETRY_APP_VERSION"} {
+	for _, k := range []string{"OPERATOR_PORT", "OPERATOR_REQUEST_TIMEOUT", "OPERATOR_SHUTDOWN_TIMEOUT", "OPERATOR_RUN_FILE", "OPERATOR_DATA_DIR", "OPERATOR_AGENT", "OPERATOR_ALLOWED_ORIGINS", "OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_POSTHOG_KEY", "OPERATOR_TELEMETRY_POSTHOG_HOST", "OPERATOR_TELEMETRY_DISABLED_EVENTS", "OPERATOR_TELEMETRY_APP_VERSION"} {
 		t.Setenv(k, "")
 	}
 
@@ -37,14 +37,14 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UserHomeDir: %v", err)
 	}
-	wantRunFilePath := filepath.Join(homeDir, ".ao", "running.json")
+	wantRunFilePath := filepath.Join(homeDir, ".operator", "running.json")
 	if cfg.RunFilePath != wantRunFilePath {
 		t.Errorf("RunFilePath = %q, want %q", cfg.RunFilePath, wantRunFilePath)
 	}
 	if cfg.DataDir == "" {
 		t.Error("DataDir is empty, want a resolved default path")
 	}
-	wantDataDir := filepath.Join(homeDir, ".ao", "data")
+	wantDataDir := filepath.Join(homeDir, ".operator", "data")
 	if cfg.DataDir != wantDataDir {
 		t.Errorf("DataDir = %q, want %q", cfg.DataDir, wantDataDir)
 	}
@@ -57,8 +57,8 @@ func TestLoadAbsolutizesRelativeOverrides(t *testing.T) {
 	// A relative override must be resolved to absolute at Load time. The daemon
 	// chdir's into its data dir at startup, so a relative path left as-is would
 	// be re-resolved against the new cwd and double-nest state.
-	t.Setenv("AO_RUN_FILE", "rel-running.json")
-	t.Setenv("AO_DATA_DIR", "rel-data")
+	t.Setenv("OPERATOR_RUN_FILE", "rel-running.json")
+	t.Setenv("OPERATOR_DATA_DIR", "rel-data")
 
 	cfg, err := Load()
 	if err != nil {
@@ -84,19 +84,19 @@ func TestLoadAbsolutizesRelativeOverrides(t *testing.T) {
 
 func TestLoadOverrides(t *testing.T) {
 	overrideDir := t.TempDir()
-	runFilePath := filepath.Join(overrideDir, "ao-test-running.json")
-	dataDir := filepath.Join(overrideDir, "ao-test-data")
+	runFilePath := filepath.Join(overrideDir, "opr-test-running.json")
+	dataDir := filepath.Join(overrideDir, "opr-test-data")
 
-	t.Setenv("AO_PORT", "4002")
-	t.Setenv("AO_REQUEST_TIMEOUT", "5s")
-	t.Setenv("AO_SHUTDOWN_TIMEOUT", "3s")
-	t.Setenv("AO_RUN_FILE", runFilePath)
-	t.Setenv("AO_DATA_DIR", dataDir)
-	t.Setenv("AO_TELEMETRY_EVENTS", "on")
-	t.Setenv("AO_TELEMETRY_METRICS", "off")
-	t.Setenv("AO_TELEMETRY_REMOTE", "posthog")
-	t.Setenv("AO_TELEMETRY_POSTHOG_KEY", "phc_test")
-	t.Setenv("AO_TELEMETRY_POSTHOG_HOST", "https://eu.i.posthog.com")
+	t.Setenv("OPERATOR_PORT", "4002")
+	t.Setenv("OPERATOR_REQUEST_TIMEOUT", "5s")
+	t.Setenv("OPERATOR_SHUTDOWN_TIMEOUT", "3s")
+	t.Setenv("OPERATOR_RUN_FILE", runFilePath)
+	t.Setenv("OPERATOR_DATA_DIR", dataDir)
+	t.Setenv("OPERATOR_TELEMETRY_EVENTS", "on")
+	t.Setenv("OPERATOR_TELEMETRY_METRICS", "off")
+	t.Setenv("OPERATOR_TELEMETRY_REMOTE", "posthog")
+	t.Setenv("OPERATOR_TELEMETRY_POSTHOG_KEY", "phc_test")
+	t.Setenv("OPERATOR_TELEMETRY_POSTHOG_HOST", "https://eu.i.posthog.com")
 
 	cfg, err := Load()
 	if err != nil {
@@ -130,19 +130,19 @@ func TestLoadInvalid(t *testing.T) {
 		name string
 		env  map[string]string
 	}{
-		{"non-numeric port", map[string]string{"AO_PORT": "abc"}},
-		{"port out of range", map[string]string{"AO_PORT": "70000"}},
-		{"bad request timeout", map[string]string{"AO_REQUEST_TIMEOUT": "soon"}},
-		{"bad shutdown timeout", map[string]string{"AO_SHUTDOWN_TIMEOUT": "later"}},
-		{"zero request timeout", map[string]string{"AO_REQUEST_TIMEOUT": "0s"}},
-		{"negative request timeout", map[string]string{"AO_REQUEST_TIMEOUT": "-1s"}},
-		{"zero shutdown timeout", map[string]string{"AO_SHUTDOWN_TIMEOUT": "0s"}},
-		{"negative shutdown timeout", map[string]string{"AO_SHUTDOWN_TIMEOUT": "-5s"}},
-		{"null origin", map[string]string{"AO_ALLOWED_ORIGINS": "app://renderer,null"}},
-		{"wildcard origin", map[string]string{"AO_ALLOWED_ORIGINS": "*"}},
-		{"bad telemetry events", map[string]string{"AO_TELEMETRY_EVENTS": "maybe"}},
-		{"bad telemetry metrics", map[string]string{"AO_TELEMETRY_METRICS": "maybe"}},
-		{"bad telemetry remote", map[string]string{"AO_TELEMETRY_REMOTE": "otlp"}},
+		{"non-numeric port", map[string]string{"OPERATOR_PORT": "abc"}},
+		{"port out of range", map[string]string{"OPERATOR_PORT": "70000"}},
+		{"bad request timeout", map[string]string{"OPERATOR_REQUEST_TIMEOUT": "soon"}},
+		{"bad shutdown timeout", map[string]string{"OPERATOR_SHUTDOWN_TIMEOUT": "later"}},
+		{"zero request timeout", map[string]string{"OPERATOR_REQUEST_TIMEOUT": "0s"}},
+		{"negative request timeout", map[string]string{"OPERATOR_REQUEST_TIMEOUT": "-1s"}},
+		{"zero shutdown timeout", map[string]string{"OPERATOR_SHUTDOWN_TIMEOUT": "0s"}},
+		{"negative shutdown timeout", map[string]string{"OPERATOR_SHUTDOWN_TIMEOUT": "-5s"}},
+		{"null origin", map[string]string{"OPERATOR_ALLOWED_ORIGINS": "app://renderer,null"}},
+		{"wildcard origin", map[string]string{"OPERATOR_ALLOWED_ORIGINS": "*"}},
+		{"bad telemetry events", map[string]string{"OPERATOR_TELEMETRY_EVENTS": "maybe"}},
+		{"bad telemetry metrics", map[string]string{"OPERATOR_TELEMETRY_METRICS": "maybe"}},
+		{"bad telemetry remote", map[string]string{"OPERATOR_TELEMETRY_REMOTE": "otlp"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestLoadInvalid(t *testing.T) {
 
 func TestLoadAllowedOrigins(t *testing.T) {
 	t.Run("default includes the packaged renderer origin", func(t *testing.T) {
-		t.Setenv("AO_ALLOWED_ORIGINS", "")
+		t.Setenv("OPERATOR_ALLOWED_ORIGINS", "")
 		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Load: %v", err)
@@ -175,7 +175,7 @@ func TestLoadAllowedOrigins(t *testing.T) {
 	})
 
 	t.Run("override replaces defaults and trims entries", func(t *testing.T) {
-		t.Setenv("AO_ALLOWED_ORIGINS", " app://renderer , http://localhost:9999 ,")
+		t.Setenv("OPERATOR_ALLOWED_ORIGINS", " app://renderer , http://localhost:9999 ,")
 		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Load: %v", err)
@@ -196,14 +196,14 @@ func TestLoadAllowedOrigins(t *testing.T) {
 // boundaries: the daemon reads them from the environment the desktop app hands
 // it, so a parsing regression here silently disables the switch.
 func TestLoadTelemetryDisabledEventsAndAppVersion(t *testing.T) {
-	t.Setenv("AO_TELEMETRY_DISABLED_EVENTS", " ao.v2.app.active , ao.renderer.* ,, ")
-	t.Setenv("AO_TELEMETRY_APP_VERSION", "  0.11.2  ")
+	t.Setenv("OPERATOR_TELEMETRY_DISABLED_EVENTS", " opr.v2.app.active , opr.renderer.* ,, ")
+	t.Setenv("OPERATOR_TELEMETRY_APP_VERSION", "  0.11.2  ")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := []string{"ao.v2.app.active", "ao.renderer.*"}
+	want := []string{"opr.v2.app.active", "opr.renderer.*"}
 	if len(cfg.Telemetry.DisabledEvents) != len(want) {
 		t.Fatalf("DisabledEvents = %#v, want %#v", cfg.Telemetry.DisabledEvents, want)
 	}
@@ -220,8 +220,8 @@ func TestLoadTelemetryDisabledEventsAndAppVersion(t *testing.T) {
 // An unparseable or blank list must never stop the daemon booting: the switch
 // has to be usable in a hurry, so a bad entry is inert rather than fatal.
 func TestLoadTelemetryDisabledEventsBlankIsInert(t *testing.T) {
-	t.Setenv("AO_TELEMETRY_DISABLED_EVENTS", " , , ")
-	t.Setenv("AO_TELEMETRY_APP_VERSION", "")
+	t.Setenv("OPERATOR_TELEMETRY_DISABLED_EVENTS", " , , ")
+	t.Setenv("OPERATOR_TELEMETRY_APP_VERSION", "")
 
 	cfg, err := Load()
 	if err != nil {

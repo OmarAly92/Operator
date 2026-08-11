@@ -33,7 +33,7 @@ export default function OnboardingScreen() {
 			<View style={styles.topBar}>
 				<View style={styles.brand}>
 					<Image source={MASCOT} style={styles.mascot} resizeMode="contain" />
-					<Text style={styles.brandName}>AO</Text>
+					<Text style={styles.brandName}>Operator</Text>
 				</View>
 				<Pressable onPress={skip} hitSlop={12} accessibilityRole="button">
 					<Text style={styles.skip}>Skip</Text>
@@ -48,7 +48,7 @@ export default function OnboardingScreen() {
 				<View style={styles.hero}>
 					<Text style={styles.title}>Connect your desktop</Text>
 					<Text style={styles.lede}>
-						Pair with AO on your computer to check on your agents, jump into any terminal, and drive work from your
+						Pair with Operator on your computer to check on your agents, jump into any terminal, and drive work from your
 						phone.
 					</Text>
 					<Button
@@ -63,7 +63,7 @@ export default function OnboardingScreen() {
 					<Text style={styles.howLabel}>HOW IT WORKS</Text>
 					<NumberedStep
 						n={1}
-						title="Open AO on your computer"
+						title="Open Operator on your computer"
 						hint="Go to Settings → Connect Mobile and turn it on."
 					/>
 					<View style={styles.divider} />

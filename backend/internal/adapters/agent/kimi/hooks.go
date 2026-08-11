@@ -8,25 +8,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	kimiInstructionsDirName  = ".kimi-code"
 	kimiInstructionsFileName = "AGENTS.md"
-	kimiInstructionsSentinel = "<!-- managed by agent-orchestrator: kimi system prompt -->"
-	kimiInstructionsEnd      = "<!-- /managed by agent-orchestrator: kimi system prompt -->"
+	kimiInstructionsSentinel = "<!-- managed by operator: kimi system prompt -->"
+	kimiInstructionsEnd      = "<!-- /managed by operator: kimi system prompt -->"
 
-	kimiHooksSentinelStart = "# managed by agent-orchestrator: kimi hooks"
-	kimiHooksSentinelEnd   = "# /managed by agent-orchestrator: kimi hooks"
+	kimiHooksSentinelStart = "# managed by operator: kimi hooks"
+	kimiHooksSentinelEnd   = "# /managed by operator: kimi hooks"
 )
 
-// GetAgentHooks installs AO's standing system prompt through Kimi's
+// GetAgentHooks installs Operator's standing system prompt through Kimi's
 // project-level instruction file. Kimi has no system-prompt argv flag, and its
-// user-level config lives outside AO's data dir, so a gitignored worktree-local
+// user-level config lives outside Operator's data dir, so a gitignored worktree-local
 // instruction file is the least invasive session-scoped injection point. It
-// also installs Kimi lifecycle hooks into the AO-managed Kimi config so AO can
+// also installs Kimi lifecycle hooks into the Operator-managed Kimi config so Operator can
 // capture Kimi's native session id for true resume without mutating the user's
 // global Kimi profile.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
@@ -75,13 +75,13 @@ func kimiInstructionsPath(workspacePath string) string {
 func installKimiConfigHooks(cfg ports.WorkspaceHookConfig) error {
 	home, ok := kimiCodeHomeFromEnv(cfg.Env)
 	if !ok {
-		return errors.New("kimi: AO-managed Kimi Code home is unavailable")
+		return errors.New("kimi: Operator-managed Kimi Code home is unavailable")
 	}
 	if err := seedKimiCredentials(home); err != nil {
 		return err
 	}
 	path := filepath.Join(home, "config.toml")
-	data, err := os.ReadFile(path) //nolint:gosec // path is the AO-managed Kimi config under KIMI_CODE_HOME.
+	data, err := os.ReadFile(path) //nolint:gosec // path is the Operator-managed Kimi config under KIMI_CODE_HOME.
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
@@ -122,7 +122,7 @@ func seedKimiCredentials(targetHome string) error {
 	if !ok || status != ports.AgentAuthStatusAuthorized {
 		return nil
 	}
-	data, err := os.ReadFile(sourcePath) //nolint:gosec // user Kimi credentials copied into AO's isolated Kimi home.
+	data, err := os.ReadFile(sourcePath) //nolint:gosec // user Kimi credentials copied into Operator's isolated Kimi home.
 	if err != nil {
 		return fmt.Errorf("read source Kimi credentials %s: %w", sourcePath, err)
 	}
@@ -159,7 +159,7 @@ func kimiSeedConfig(targetPath string, existing []byte) ([]byte, bool, error) {
 	if sameKimiConfigPath(sourcePath, targetPath) {
 		return nil, false, nil
 	}
-	source, err := os.ReadFile(sourcePath) //nolint:gosec // user/process Kimi config used only as a seed for AO-managed home.
+	source, err := os.ReadFile(sourcePath) //nolint:gosec // user/process Kimi config used only as a seed for Operator-managed home.
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
@@ -231,10 +231,10 @@ func mergeKimiHooksConfig(existing string) string {
 
 func kimiHooksConfigBlock() string {
 	return kimiHooksSentinelStart + "\n\n" +
-		kimiHookEntry("SessionStart", "startup", "ao hooks kimi session-start") +
-		kimiHookEntry("UserPromptSubmit", "", "ao hooks kimi user-prompt-submit") +
-		kimiHookEntry("PermissionRequest", "", "ao hooks kimi permission-request") +
-		kimiHookEntry("Stop", "", "ao hooks kimi stop") +
+		kimiHookEntry("SessionStart", "startup", "opr hooks kimi session-start") +
+		kimiHookEntry("UserPromptSubmit", "", "opr hooks kimi user-prompt-submit") +
+		kimiHookEntry("PermissionRequest", "", "opr hooks kimi permission-request") +
+		kimiHookEntry("Stop", "", "opr hooks kimi stop") +
 		kimiHooksSentinelEnd + "\n"
 }
 
@@ -283,7 +283,7 @@ func kimiSystemPromptText(inline, file string) (string, error) {
 	if strings.TrimSpace(file) == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Operator-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("read system prompt file: %w", err)
 	}
@@ -292,7 +292,7 @@ func kimiSystemPromptText(inline, file string) (string, error) {
 
 func kimiInstructionFile(systemPrompt string) string {
 	return kimiInstructionsSentinel + "\n\n" +
-		"# Agent Orchestrator Session Instructions\n\n" +
+		"# Operator Session Instructions\n\n" +
 		strings.TrimRight(systemPrompt, "\n") + "\n\n" +
 		kimiInstructionsEnd + "\n"
 }
@@ -307,8 +307,8 @@ func mergeKimiInstructionFile(existing, systemPrompt string) string {
 	afterStart := existing[start+len(kimiInstructionsSentinel):]
 	endRel := strings.Index(afterStart, kimiInstructionsEnd)
 	if endRel < 0 {
-		// Older AO-managed files did not have an end marker. Treat the marker as
-		// owning the rest of the file so stale AO instructions are replaced.
+		// Older Operator-managed files did not have an end marker. Treat the marker as
+		// owning the rest of the file so stale Operator instructions are replaced.
 		return joinKimiInstructionParts(existing[:start], block, "")
 	}
 

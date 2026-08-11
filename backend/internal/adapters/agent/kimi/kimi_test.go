@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -147,7 +147,7 @@ func TestPromptReadinessHints(t *testing.T) {
 	}
 }
 
-// Kimi prompt mode is non-interactive, so AO launches the TUI and lets the
+// Kimi prompt mode is non-interactive, so Operator launches the TUI and lets the
 // session manager inject the task after startup. Because the prompt is not
 // carried with `-p`, approval flags remain valid for prompted workers.
 func TestGetLaunchCommandInteractiveMapsPermissionModes(t *testing.T) {
@@ -210,7 +210,7 @@ func TestGetLaunchCommandIgnoresSystemPrompt(t *testing.T) {
 // Kimi docs: `--yolo` and `--auto` cannot be used together with `--continue`
 // or `--session` — resumed sessions inherit the approval settings of the
 // original session — so the restore path must not emit approval flags
-// regardless of the requested AO PermissionMode.
+// regardless of the requested Operator PermissionMode.
 func TestGetRestoreCommand(t *testing.T) {
 	modes := []ports.PermissionMode{
 		ports.PermissionModeDefault,
@@ -283,7 +283,7 @@ func TestGetAgentHooksInstallsSystemPromptInstructions(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "follow AO rules\n",
+		SystemPrompt:  "follow Operator rules\n",
 		Env:           map[string]string{"KIMI_CODE_HOME": kimiHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -297,8 +297,8 @@ func TestGetAgentHooksInstallsSystemPromptInstructions(t *testing.T) {
 	text := string(data)
 	for _, want := range []string{
 		kimiInstructionsSentinel,
-		"# Agent Orchestrator Session Instructions",
-		"follow AO rules",
+		"# Operator Session Instructions",
+		"follow Operator rules",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("instructions missing %q:\n%s", want, text)
@@ -348,13 +348,13 @@ timeout = 7
 		kimiHooksSentinelStart,
 		`event = "SessionStart"`,
 		`matcher = "startup"`,
-		`command = "ao hooks kimi session-start"`,
+		`command = "opr hooks kimi session-start"`,
 		`event = "UserPromptSubmit"`,
-		`command = "ao hooks kimi user-prompt-submit"`,
+		`command = "opr hooks kimi user-prompt-submit"`,
 		`event = "PermissionRequest"`,
-		`command = "ao hooks kimi permission-request"`,
+		`command = "opr hooks kimi permission-request"`,
 		`event = "Stop"`,
-		`command = "ao hooks kimi stop"`,
+		`command = "opr hooks kimi stop"`,
 		kimiHooksSentinelEnd,
 	} {
 		if !strings.Contains(text, want) {
@@ -366,10 +366,10 @@ timeout = 7
 	}
 }
 
-func TestGetAgentHooksSeedsAOManagedConfigFromUserKimiConfig(t *testing.T) {
+func TestGetAgentHooksSeedsOperatorManagedConfigFromUserKimiConfig(t *testing.T) {
 	workspace := t.TempDir()
 	userHome := t.TempDir()
-	aoHome := t.TempDir()
+	operatorHome := t.TempDir()
 	t.Setenv(kimiCodeHomeEnv, userHome)
 	userConfig := `api_key = "user-key"
 default_model = "kimi-code/kimi-for-coding"
@@ -380,23 +380,23 @@ default_model = "kimi-code/kimi-for-coding"
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		Env:           map[string]string{kimiCodeHomeEnv: aoHome},
+		Env:           map[string]string{kimiCodeHomeEnv: operatorHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(aoHome, "config.toml"))
+	data, err := os.ReadFile(filepath.Join(operatorHome, "config.toml"))
 	if err != nil {
-		t.Fatalf("read AO config: %v", err)
+		t.Fatalf("read Operator config: %v", err)
 	}
 	text := string(data)
 	for _, want := range []string{
 		`api_key = "user-key"`,
 		`default_model = "kimi-code/kimi-for-coding"`,
-		`command = "ao hooks kimi session-start"`,
+		`command = "opr hooks kimi session-start"`,
 	} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("AO config missing %q:\n%s", want, text)
+			t.Fatalf("Operator config missing %q:\n%s", want, text)
 		}
 	}
 	source, err := os.ReadFile(filepath.Join(userHome, "config.toml"))
@@ -408,10 +408,10 @@ default_model = "kimi-code/kimi-for-coding"
 	}
 }
 
-func TestGetAgentHooksSeedsAOManagedCredentialsFromUserKimiHome(t *testing.T) {
+func TestGetAgentHooksSeedsOperatorManagedCredentialsFromUserKimiHome(t *testing.T) {
 	workspace := t.TempDir()
 	userHome := t.TempDir()
-	aoHome := t.TempDir()
+	operatorHome := t.TempDir()
 	t.Setenv(kimiCodeHomeEnv, userHome)
 	userCredentials := []byte(`{"access_token":"user-token","refresh_token":"refresh-token"}`)
 	userCredentialsPath := filepath.Join(userHome, "credentials", "kimi-code.json")
@@ -424,36 +424,36 @@ func TestGetAgentHooksSeedsAOManagedCredentialsFromUserKimiHome(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		Env:           map[string]string{kimiCodeHomeEnv: aoHome},
+		Env:           map[string]string{kimiCodeHomeEnv: operatorHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
 
-	targetPath := filepath.Join(aoHome, "credentials", "kimi-code.json")
+	targetPath := filepath.Join(operatorHome, "credentials", "kimi-code.json")
 	got, err := os.ReadFile(targetPath)
 	if err != nil {
-		t.Fatalf("read AO credentials: %v", err)
+		t.Fatalf("read Operator credentials: %v", err)
 	}
 	if string(got) != string(userCredentials) {
-		t.Fatalf("AO credentials = %s, want %s", got, userCredentials)
+		t.Fatalf("Operator credentials = %s, want %s", got, userCredentials)
 	}
 	info, err := os.Stat(targetPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
-		t.Fatalf("AO credentials permissions = %o, want %o", got, want)
+		t.Fatalf("Operator credentials permissions = %o, want %o", got, want)
 	}
 }
 
-func TestGetAgentHooksPreservesExistingAOManagedCredentials(t *testing.T) {
+func TestGetAgentHooksPreservesExistingOperatorManagedCredentials(t *testing.T) {
 	workspace := t.TempDir()
 	userHome := t.TempDir()
-	aoHome := t.TempDir()
+	operatorHome := t.TempDir()
 	t.Setenv(kimiCodeHomeEnv, userHome)
 	for path, data := range map[string][]byte{
-		filepath.Join(userHome, "credentials", "kimi-code.json"): []byte(`{"access_token":"user-token"}`),
-		filepath.Join(aoHome, "credentials", "kimi-code.json"):   []byte(`{"access_token":"ao-token"}`),
+		filepath.Join(userHome, "credentials", "kimi-code.json"):     []byte(`{"access_token":"user-token"}`),
+		filepath.Join(operatorHome, "credentials", "kimi-code.json"): []byte(`{"access_token":"opr-token"}`),
 	} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
@@ -465,48 +465,48 @@ func TestGetAgentHooksPreservesExistingAOManagedCredentials(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		Env:           map[string]string{kimiCodeHomeEnv: aoHome},
+		Env:           map[string]string{kimiCodeHomeEnv: operatorHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
 
-	targetPath := filepath.Join(aoHome, "credentials", "kimi-code.json")
+	targetPath := filepath.Join(operatorHome, "credentials", "kimi-code.json")
 	got, err := os.ReadFile(targetPath)
 	if err != nil {
-		t.Fatalf("read AO credentials: %v", err)
+		t.Fatalf("read Operator credentials: %v", err)
 	}
-	if want := `{"access_token":"ao-token"}`; string(got) != want {
-		t.Fatalf("AO credentials = %s, want %s", got, want)
+	if want := `{"access_token":"opr-token"}`; string(got) != want {
+		t.Fatalf("Operator credentials = %s, want %s", got, want)
 	}
 }
 
-func TestGetAgentHooksReseedsAOManagedConfigWithoutAuth(t *testing.T) {
+func TestGetAgentHooksReseedsOperatorManagedConfigWithoutAuth(t *testing.T) {
 	workspace := t.TempDir()
 	userHome := t.TempDir()
-	aoHome := t.TempDir()
+	operatorHome := t.TempDir()
 	t.Setenv(kimiCodeHomeEnv, userHome)
 	if err := os.WriteFile(filepath.Join(userHome, "config.toml"), []byte(`api_key = "user-key"`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(aoHome, "config.toml"), []byte(kimiHooksConfigBlock()), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(operatorHome, "config.toml"), []byte(kimiHooksConfigBlock()), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		Env:           map[string]string{kimiCodeHomeEnv: aoHome},
+		Env:           map[string]string{kimiCodeHomeEnv: operatorHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(aoHome, "config.toml"))
+	data, err := os.ReadFile(filepath.Join(operatorHome, "config.toml"))
 	if err != nil {
-		t.Fatalf("read AO config: %v", err)
+		t.Fatalf("read Operator config: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{`api_key = "user-key"`, `command = "ao hooks kimi session-start"`} {
+	for _, want := range []string{`api_key = "user-key"`, `command = "opr hooks kimi session-start"`} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("AO config missing %q:\n%s", want, text)
+			t.Fatalf("Operator config missing %q:\n%s", want, text)
 		}
 	}
 	if strings.Count(text, kimiHooksSentinelStart) != 1 {
@@ -542,7 +542,7 @@ func TestGetAgentHooksRewritesManagedKimiConfigBlock(t *testing.T) {
 		t.Fatalf("read config: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"before = true", "after = true", `command = "ao hooks kimi session-start"`} {
+	for _, want := range []string{"before = true", "after = true", `command = "opr hooks kimi session-start"`} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config missing %q:\n%s", want, text)
 		}
@@ -555,9 +555,9 @@ func TestGetAgentHooksRewritesManagedKimiConfigBlock(t *testing.T) {
 	}
 }
 
-func TestAugmentRuntimeEnvUsesAODataDir(t *testing.T) {
-	env := map[string]string{kimiCodeHomeEnv: "/outside-ao"}
-	dataDir := filepath.Join(t.TempDir(), "ao")
+func TestAugmentRuntimeEnvUsesOperatorDataDir(t *testing.T) {
+	env := map[string]string{kimiCodeHomeEnv: "/outside-opr"}
+	dataDir := filepath.Join(t.TempDir(), "opr")
 
 	(&Plugin{}).AugmentRuntimeEnv(env, dataDir)
 
@@ -566,15 +566,15 @@ func TestAugmentRuntimeEnvUsesAODataDir(t *testing.T) {
 	}
 }
 
-func TestGetAgentHooksRequiresAOManagedKimiHome(t *testing.T) {
+func TestGetAgentHooksRequiresOperatorManagedKimiHome(t *testing.T) {
 	t.Setenv(kimiCodeHomeEnv, t.TempDir())
 
 	err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: t.TempDir(),
 	})
 
-	if err == nil || !strings.Contains(err.Error(), "AO-managed Kimi Code home is unavailable") {
-		t.Fatalf("GetAgentHooks err = %v, want AO-managed Kimi home requirement", err)
+	if err == nil || !strings.Contains(err.Error(), "Operator-managed Kimi Code home is unavailable") {
+		t.Fatalf("GetAgentHooks err = %v, want Operator-managed Kimi home requirement", err)
 	}
 }
 
@@ -616,7 +616,7 @@ func TestGetAgentHooksPreservesUserInstructions(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO rules",
+		SystemPrompt:  "Operator rules",
 		Env:           map[string]string{"KIMI_CODE_HOME": kimiHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -630,14 +630,14 @@ func TestGetAgentHooksPreservesUserInstructions(t *testing.T) {
 	for _, want := range []string{
 		"user instructions",
 		kimiInstructionsSentinel,
-		"AO rules",
+		"Operator rules",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("instructions missing %q:\n%s", want, text)
 		}
 	}
 	if strings.Index(text, "user instructions") > strings.Index(text, kimiInstructionsSentinel) {
-		t.Fatalf("user instructions should stay before AO-managed block:\n%s", text)
+		t.Fatalf("user instructions should stay before Operator-managed block:\n%s", text)
 	}
 }
 

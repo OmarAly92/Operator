@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
 )
 
 // ErrInvalid and ErrNotFound re-export the engine sentinels so the HTTP
@@ -157,7 +157,7 @@ func (s *Service) Trigger(
 ) (reviewcore.TriggerResult, error) {
 	result, err := s.engine.Trigger(ctx, workerID, harness)
 	if err != nil {
-		s.emit("ao.review.trigger_failed", workerID, map[string]any{
+		s.emit("opr.review.trigger_failed", workerID, map[string]any{
 			"error_kind": reviewErrorKind(err),
 		})
 		return result, err
@@ -166,7 +166,7 @@ func (s *Service) Trigger(
 	// or up-to-date one, which the engine also reports as success. harness is the
 	// one actually used, resolved by the engine, not the caller's override, which
 	// may be empty.
-	s.emit("ao.review.triggered", workerID, map[string]any{
+	s.emit("opr.review.triggered", workerID, map[string]any{
 		"harness":      string(result.Run.Harness),
 		"created_runs": len(result.CreatedRuns),
 		"reused":       len(result.CreatedRuns) == 0,
@@ -180,7 +180,7 @@ func (s *Service) Cancel(ctx context.Context, workerID domain.SessionID) (review
 	if err != nil {
 		return result, err
 	}
-	s.emit("ao.review.cancelled", workerID, map[string]any{
+	s.emit("opr.review.cancelled", workerID, map[string]any{
 		"cancelled_runs": len(result.CancelledRuns),
 	})
 	return result, nil
@@ -357,7 +357,7 @@ func (s *Service) submitOne(ctx context.Context, workerID domain.SessionID, revi
 		// Only on the real running -> complete transition. Re-submitting an
 		// already-complete run returns early below, so telemetry stays idempotent
 		// the same way the store does.
-		s.emit("ao.review.submitted", workerID, map[string]any{
+		s.emit("opr.review.submitted", workerID, map[string]any{
 			"harness":            string(run.Harness),
 			"verdict":            string(verdict),
 			"duration_ms":        s.clock().Sub(run.CreatedAt).Milliseconds(),

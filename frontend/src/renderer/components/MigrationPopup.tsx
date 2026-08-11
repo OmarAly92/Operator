@@ -4,7 +4,7 @@ import { Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { migrationOfferQueryKey, useMigrationOffer } from "../hooks/useMigrationOffer";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { Button } from "./ui/button";
@@ -15,7 +15,7 @@ import {
 	settingsDialogHeaderClass,
 } from "./ui/dialog";
 
-// MigrationPopup is the first-run legacy-AO import offer. It shows only when the
+// MigrationPopup is the first-run legacy-Operator import offer. It shows only when the
 // app marker is non-terminal (pending/failed) AND the daemon reports legacy data
 // available. Proceed runs the idempotent import through the daemon; Skip dismisses
 // for this launch (re-prompts next launch); {t("migration.dontMigrate")} declines permanently
@@ -31,7 +31,7 @@ export function MigrationPopup() {
 	const open = (offer.data?.show ?? false) && !skipped;
 	if (!open) return null;
 
-	const legacyRoot = offer.data?.legacyRoot || "your earlier AO";
+	const legacyRoot = offer.data?.legacyRoot || "your earlier Operator";
 	const nowIso = () => new Date().toISOString();
 
 	const proceed = async () => {
@@ -41,12 +41,12 @@ export function MigrationPopup() {
 		if (apiErr) {
 			const msg = apiErrorMessage(apiErr);
 			setError(msg);
-			await aoBridge.appState.setMigration({ status: "failed", lastAttemptAt: nowIso(), error: msg });
+			await operatorBridge.appState.setMigration({ status: "failed", lastAttemptAt: nowIso(), error: msg });
 			setBusy(false);
 			return;
 		}
 		const report = data?.report;
-		await aoBridge.appState.setMigration({
+		await operatorBridge.appState.setMigration({
 			status: "completed",
 			lastAttemptAt: nowIso(),
 			completedAt: nowIso(),
@@ -61,7 +61,7 @@ export function MigrationPopup() {
 	};
 
 	const dontMigrate = async () => {
-		await aoBridge.appState.setMigration({ status: "declined", lastAttemptAt: nowIso() });
+		await operatorBridge.appState.setMigration({ status: "declined", lastAttemptAt: nowIso() });
 		await queryClient.invalidateQueries({ queryKey: migrationOfferQueryKey });
 	};
 

@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/legacyimport"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/legacyimport"
+	"github.com/OmarAly92/operator/backend/internal/runfile"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 type importOptions struct {
@@ -27,9 +27,9 @@ func newImportCommand(ctx *commandContext) *cobra.Command {
 	var opts importOptions
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Import projects from a legacy AO install",
-		Long: "Import reads the legacy Agent Orchestrator flat-file store " +
-			"(~/.agent-orchestrator) read-only and ports its projects and per-project " +
+		Short: "Import projects from a legacy Operator install",
+		Long: "Import reads the legacy Operator flat-file store " +
+			"(~/.operator) read-only and ports its projects and per-project " +
 			"settings into the rewrite database. Legacy files are never modified, and " +
 			"a re-run skips rows that already exist, so it is safe to run more than once.\n\n" +
 			"The daemon must be stopped: it is the sole writer of the database.",
@@ -38,7 +38,7 @@ func newImportCommand(ctx *commandContext) *cobra.Command {
 			return ctx.runImport(cmd, opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.from, "from", "", "Legacy AO root to read (default ~/.agent-orchestrator)")
+	cmd.Flags().StringVar(&opts.from, "from", "", "Legacy Operator root to read (default ~/.operator)")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Parse and report the planned import without writing")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip the confirmation prompt (for non-interactive use)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output the import report as JSON")
@@ -56,7 +56,7 @@ func (c *commandContext) runImport(cmd *cobra.Command, opts importOptions) error
 	if live, err := runfile.CheckStale(cfg.RunFilePath); err != nil {
 		return fmt.Errorf("inspect run-file: %w", err)
 	} else if live != nil {
-		return usageError{fmt.Errorf("the AO daemon is running (pid %d); stop it first with `ao stop` before importing", live.PID)}
+		return usageError{fmt.Errorf("the Operator daemon is running (pid %d); stop it first with `opr stop` before importing", live.PID)}
 	}
 
 	root := opts.from
@@ -65,13 +65,13 @@ func (c *commandContext) runImport(cmd *cobra.Command, opts importOptions) error
 	}
 	// Surface a parse error instead of masking it as "no data" (issue #2186):
 	// a broken legacy store is distinct from an absent or empty one. Return the
-	// error so cmd/ao/main.go renders it once; printing here too would duplicate
+	// error so cmd/opr/main.go renders it once; printing here too would duplicate
 	// it on stderr.
 	if parseErr := legacyimport.LegacyConfigError(cmd.Context(), root); parseErr != nil {
 		return fmt.Errorf("legacy config at %s: %w", root, parseErr)
 	}
 	if !legacyimport.HasLegacyData(root) {
-		_, err := fmt.Fprintf(cmd.OutOrStdout(), "No legacy AO projects found at %s. Nothing to import.\n", root)
+		_, err := fmt.Fprintf(cmd.OutOrStdout(), "No legacy Operator projects found at %s. Nothing to import.\n", root)
 		return err
 	}
 

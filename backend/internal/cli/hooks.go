@@ -14,17 +14,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitydispatch"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/activitydispatch"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
-// sessionIDPattern bounds the AO_SESSION_ID we will place in a request path to
+// sessionIDPattern bounds the OPERATOR_SESSION_ID we will place in a request path to
 // the id alphabet the daemon issues. Validating the externally-set env value
 // before it reaches the loopback URL keeps it from steering the request.
 var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 const (
-	// hooksLogName is the file under AO_DATA_DIR where hook delivery failures
+	// hooksLogName is the file under OPERATOR_DATA_DIR where hook delivery failures
 	// are appended. Agent hook runners swallow stderr, so without a durable
 	// sink a dead activity feed (e.g. an unreachable daemon) stays invisible.
 	hooksLogName = "hooks.log"
@@ -36,7 +36,7 @@ const (
 
 // setActivityAPIRequest mirrors the daemon's SetActivityRequest body for
 // POST /api/v1/sessions/{id}/activity. The CLI keeps its own copy so it need
-// not import httpd. Event carries the AO hook sub-command that produced the
+// not import httpd. Event carries the Operator hook sub-command that produced the
 // state; ToolName/ToolUseID are the tool-use correlation facts lifted from the
 // native payload when present. All four are optional: an old daemon decodes
 // the body leniently and simply ignores them.
@@ -181,13 +181,13 @@ func hookConversationFacts(payload []byte) hookConversationSnapshot {
 	_ = json.Unmarshal(payload, &p)
 	userPrompt := firstHookValue(p.Prompt, p.UserPrompt, p.UserPromptCamel)
 	assistant := firstHookValue(p.LastAssistantMessage, p.LastAssistantMessageCamel, p.AssistantMessage, p.AssistantMessageCamel)
-	// AO's own handoff request and continuation kickoff are coordination turns,
+	// Operator's own handoff request and continuation kickoff are coordination turns,
 	// not the latest real user instruction. They remain in provider history but
 	// must not overwrite deterministic user intent.
-	if strings.HasPrefix(strings.TrimSpace(userPrompt), "<ao-handoff-request") {
+	if strings.HasPrefix(strings.TrimSpace(userPrompt), "<opr-handoff-request") {
 		assistant = ""
 	}
-	if isAOCoordinationMessage(userPrompt) {
+	if isOperatorCoordinationMessage(userPrompt) {
 		userPrompt = ""
 	}
 	return hookConversationSnapshot{
@@ -206,10 +206,10 @@ func firstHookValue(values ...string) string {
 	return ""
 }
 
-func isAOCoordinationMessage(value string) bool {
+func isOperatorCoordinationMessage(value string) bool {
 	value = strings.TrimSpace(value)
-	return strings.HasPrefix(value, "<ao-handoff-request") ||
-		strings.HasPrefix(value, "AO transferred the previous agent's context in hidden system instructions.")
+	return strings.HasPrefix(value, "<opr-handoff-request") ||
+		strings.HasPrefix(value, "Operator transferred the previous agent's context in hidden system instructions.")
 }
 
 func capHookText(value string, limit int) string {
@@ -217,7 +217,7 @@ func capHookText(value string, limit int) string {
 	if limit <= 0 || len(value) <= limit {
 		return value
 	}
-	const marker = "\n[... truncated by AO ...]\n"
+	const marker = "\n[... truncated by Operator ...]\n"
 	budget := limit - len(marker)
 	if budget <= 0 {
 		return ""
@@ -234,13 +234,13 @@ type sessionStartHookOutput struct {
 	} `json:"hookSpecificOutput"`
 }
 
-// newHooksCommand builds the hidden `ao hooks <agent> <event>` command that
+// newHooksCommand builds the hidden `opr hooks <agent> <event>` command that
 // agent CLIs invoke from their workspace-local hook config. It reads the native
-// hook payload from stdin and the AO session id from AO_SESSION_ID, derives an
+// hook payload from stdin and the Operator session id from OPERATOR_SESSION_ID, derives an
 // activity state for the event, and reports it to the daemon.
 //
 // It is best-effort by design: a hook must never break the user's agent, so a
-// non-AO session (no AO_SESSION_ID), an event that carries no activity signal,
+// non-Operator session (no OPERATOR_SESSION_ID), an event that carries no activity signal,
 // or an unreachable daemon all exit 0 rather than erroring.
 func newHooksCommand(ctx *commandContext) *cobra.Command {
 	return &cobra.Command{
@@ -255,16 +255,16 @@ func newHooksCommand(ctx *commandContext) *cobra.Command {
 }
 
 func (c *commandContext) runHook(ctx context.Context, agent, event string) error {
-	reviewSessionID := strings.TrimSpace(os.Getenv("AO_REVIEW_SESSION_ID"))
+	reviewSessionID := strings.TrimSpace(os.Getenv("OPERATOR_REVIEW_SESSION_ID"))
 	if reviewSessionID != "" {
 		if !sessionIDPattern.MatchString(reviewSessionID) {
 			return nil
 		}
 		return c.runReviewHook(ctx, agent, event, reviewSessionID)
 	}
-	sessionID := strings.TrimSpace(os.Getenv("AO_SESSION_ID"))
+	sessionID := strings.TrimSpace(os.Getenv("OPERATOR_SESSION_ID"))
 	if !sessionIDPattern.MatchString(sessionID) {
-		// Not an AO-managed session (unset/empty), or an id we won't put in a
+		// Not an Operator-managed session (unset/empty), or an id we won't put in a
 		// request path. Return before reading stdin so a manual invocation
 		// without a piped payload can't block on EOF.
 		return nil
@@ -307,7 +307,7 @@ func (c *commandContext) runHook(ctx context.Context, agent, event string) error
 		LatestUserPrompt:      conversation.LatestUserPrompt,
 		LatestAssistantUpdate: conversation.LatestAssistantUpdate,
 		TranscriptPath:        conversation.TranscriptPath,
-		LaunchID:              validLaunchID(os.Getenv("AO_RUNTIME_LAUNCH_ID")),
+		LaunchID:              validLaunchID(os.Getenv("OPERATOR_RUNTIME_LAUNCH_ID")),
 		Usage:                 usage,
 	}
 	if hasActivity {
@@ -338,7 +338,7 @@ func (c *commandContext) runReviewHook(ctx context.Context, agent, event, review
 	req := setReviewActivityAPIRequest{
 		Event:          event,
 		AgentSessionID: agentSessionID,
-		LaunchID:       validLaunchID(os.Getenv("AO_RUNTIME_LAUNCH_ID")),
+		LaunchID:       validLaunchID(os.Getenv("OPERATOR_RUNTIME_LAUNCH_ID")),
 	}
 	if hasActivity {
 		req.State = string(state)
@@ -370,7 +370,7 @@ func shouldEmitSessionStartContext(agent, event string) bool {
 }
 
 func (c *commandContext) emitSessionStartContext(agent, event, sessionID string) {
-	dataDir := strings.TrimSpace(os.Getenv("AO_DATA_DIR"))
+	dataDir := strings.TrimSpace(os.Getenv("OPERATOR_DATA_DIR"))
 	if dataDir == "" {
 		return
 	}
@@ -394,11 +394,11 @@ func (c *commandContext) emitSessionStartContext(agent, event, sessionID string)
 
 // reportHookFailure surfaces a hook delivery failure without breaking the
 // agent: stderr for the agent's hook runner, plus a best-effort append to
-// $AO_DATA_DIR/hooks.log so the failure can be diagnosed after the fact.
+// $OPERATOR_DATA_DIR/hooks.log so the failure can be diagnosed after the fact.
 func (c *commandContext) reportHookFailure(agent, event, sessionID string, cause error) {
-	msg := fmt.Sprintf("ao hooks %s %s: %v", agent, event, cause)
+	msg := fmt.Sprintf("opr hooks %s %s: %v", agent, event, cause)
 	_, _ = fmt.Fprintln(c.deps.Err, msg)
-	dataDir := strings.TrimSpace(os.Getenv("AO_DATA_DIR"))
+	dataDir := strings.TrimSpace(os.Getenv("OPERATOR_DATA_DIR"))
 	if dataDir == "" {
 		return
 	}
@@ -418,7 +418,7 @@ func appendHooksLog(dataDir, line string) {
 	if info, err := os.Stat(path); err == nil && info.Size() > maxHooksLogBytes {
 		flags = os.O_TRUNC | os.O_CREATE | os.O_WRONLY
 	}
-	f, err := os.OpenFile(path, flags, 0o600) //nolint:gosec // path is rooted in AO's own data dir
+	f, err := os.OpenFile(path, flags, 0o600) //nolint:gosec // path is rooted in Operator's own data dir
 	if err != nil {
 		return
 	}

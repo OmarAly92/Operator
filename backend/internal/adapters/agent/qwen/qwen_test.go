@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hooksjson"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestGetLaunchCommandBuildsArgv(t *testing.T) {
@@ -380,7 +380,7 @@ func TestGetAgentHooksInstallsQwenHooks(t *testing.T) {
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Operator hook commands.
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestGetAgentHooksMigratesSessionStartMatcher(t *testing.T) {
 		t.Fatal(err)
 	}
 	settingsPath := filepath.Join(settingsDir, "settings.json")
-	existing := `{"hooks":{"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"ao hooks qwen session-start","timeout":30000},{"type":"command","command":"custom startup hook","timeout":3}]}]}}`
+	existing := `{"hooks":{"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"opr hooks qwen session-start","timeout":30000},{"type":"command","command":"custom startup hook","timeout":3}]}]}}`
 	if err := os.WriteFile(settingsPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}

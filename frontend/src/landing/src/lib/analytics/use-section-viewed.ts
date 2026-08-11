@@ -30,7 +30,7 @@ export const SECTION_VIEWED_OBSERVER_OPTIONS: IntersectionObserverInit = {
  * renderer. An IntersectionObserver re-fires every time an element re-enters
  * view, so without the disconnect a visitor scrolling up and down a long page
  * would emit the same event repeatedly, which is the shape of stream that
- * produced AO's original PostHog bill.
+ * produced Operator's original PostHog bill.
  */
 export function attachSectionObserver(
   node: HTMLElement,

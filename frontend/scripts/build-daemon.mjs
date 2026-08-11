@@ -9,7 +9,7 @@ const frontendRoot = resolve(scriptsDir, "..");
 const repoRoot = resolve(frontendRoot, "..");
 const backendRoot = join(repoRoot, "backend");
 const outDir = join(frontendRoot, "daemon");
-const outPath = join(outDir, process.platform === "win32" ? "ao.exe" : "ao");
+const outPath = join(outDir, process.platform === "win32" ? "opr.exe" : "opr");
 const minimumGoVersion = parseMinimumGoVersion(readFileSync(join(backendRoot, "go.mod"), "utf8"));
 
 if (!minimumGoVersion) {
@@ -34,7 +34,7 @@ if (versionResult.status !== 0 || !actualGoVersion || !meetsMinimumVersion(actua
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
-const result = spawnSync("go", ["build", "-o", outPath, "./cmd/ao"], {
+const result = spawnSync("go", ["build", "-o", outPath, "./cmd/opr"], {
 	cwd: backendRoot,
 	stdio: "inherit",
 });

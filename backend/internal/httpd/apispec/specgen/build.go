@@ -15,9 +15,9 @@ import (
 	openapi "github.com/swaggest/openapi-go"
 	"github.com/swaggest/openapi-go/openapi31"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 )
 
 // Build reflects the Go contract types and the operation registry below into
@@ -47,7 +47,7 @@ func Build() ([]byte, error) {
 		jsonschema.InterceptDefName(schemaName),
 	)
 
-	r.Spec.SetTitle("Agent Orchestrator HTTP daemon")
+	r.Spec.SetTitle("Operator HTTP daemon")
 	r.Spec.SetVersion("0.1.0-route-shell")
 	r.Spec.SetDescription("Loopback-only HTTP surface served by the Go daemon. " +
 		"Generated from Go (code-first) — do not edit by hand; run `go generate ./...`.")
@@ -68,13 +68,13 @@ func Build() ([]byte, error) {
 		*(&openapi31.Tag{Name: "notifications"}).WithDescription(
 			"Durable dashboard notifications"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
-			"Token usage telemetry for AO sessions"),
+			"Token usage telemetry for Operator sessions"),
 		*(&openapi31.Tag{Name: "push"}).WithDescription(
 			"Mobile push-device registration for OS push notifications"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
 		*(&openapi31.Tag{Name: "import"}).WithDescription(
-			"Legacy AO project import (availability probe and run)"),
+			"Legacy Operator project import (availability probe and run)"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
 			"Developer-only maintenance operations"),
 		*(&openapi31.Tag{Name: "mobile"}).WithDescription(
@@ -905,7 +905,7 @@ func importOperations() []operation {
 	return []operation{
 		{
 			method: http.MethodGet, path: "/api/v1/import", id: "getImportStatus", tag: "import",
-			summary: "Check whether a legacy AO install is available to import",
+			summary: "Check whether a legacy Operator install is available to import",
 			resps: []respUnit{
 				{http.StatusOK, controllers.ImportStatusResponse{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
@@ -914,7 +914,7 @@ func importOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/import", id: "runImport", tag: "import",
-			summary: "Run the legacy AO project import through the daemon store",
+			summary: "Run the legacy Operator project import through the daemon store",
 			resps: []respUnit{
 				{http.StatusOK, controllers.ImportRunResponse{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
@@ -1321,7 +1321,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/preview/server", id: "startSessionPreviewServer", tag: "sessions",
-			summary:    "Start a session-owned server from .ao/launch.json and open its application preview",
+			summary:    "Start a session-owned server from .operator/launch.json and open its application preview",
 			pathParams: []any{controllers.SessionIDParam{}, controllers.BrowserCapabilityHeader{}},
 			reqBody:    controllers.StartPreviewServerRequest{},
 			resps: []respUnit{
@@ -1523,7 +1523,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/switch-agent", id: "switchSessionAgent", tag: "sessions",
-			summary:    "Switch a logical AO session to another agent harness",
+			summary:    "Switch a logical Operator session to another agent harness",
 			pathParams: []any{controllers.SessionIDParam{}},
 			reqBody:    controllers.SwitchAgentRequest{},
 			resps: []respUnit{

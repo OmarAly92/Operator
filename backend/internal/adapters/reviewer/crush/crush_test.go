@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestReviewCommandKeepsNativeApprovalsEnabled(t *testing.T) {
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/crush", nil }}
 	spec, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		TaskPromptRoot: "/ao/prompts", SystemPromptFile: "/ao/prompts/system.md", WorkspacePath: "/worker", Prompt: "read task",
+		TaskPromptRoot: "/opr/prompts", SystemPromptFile: "/opr/prompts/system.md", WorkspacePath: "/worker", Prompt: "read task",
 	})
 	if err != nil {
 		t.Fatal(err)

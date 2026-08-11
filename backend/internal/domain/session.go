@@ -35,7 +35,7 @@ type SessionMetadata struct {
 	AgentSessionID    string `json:"agentSessionId,omitempty"`
 	Prompt            string `json:"prompt,omitempty"`
 	// LatestUserPrompt is the latest real user-authored task direction observed
-	// for this AO session. Internal AO coordination messages (for example an
+	// for this Operator session. Internal Operator coordination messages (for example an
 	// agent-switch handoff request) must not replace it.
 	LatestUserPrompt string `json:"latestUserPrompt,omitempty"`
 	// LatestAssistantUpdate is the latest user-facing assistant update observed
@@ -58,12 +58,12 @@ type SessionMetadata struct {
 	// the same fence as RuntimeLaunchID, which covers terminal runtimes.
 	ControllerGeneration string `json:"controllerGeneration,omitempty"`
 	// PreviewURL is the browser preview target the desktop app opens for this
-	// session. Set via `ao preview` (POST /sessions/{id}/preview); persisted so
+	// session. Set via `opr preview` (POST /sessions/{id}/preview); persisted so
 	// it survives a daemon restart. Empty means no preview has been requested.
 	PreviewURL string `json:"previewUrl,omitempty"`
-	// PreviewRevision is a monotonic counter bumped on every `ao preview` call,
+	// PreviewRevision is a monotonic counter bumped on every `opr preview` call,
 	// even when PreviewURL is unchanged. The desktop browser panel keys
-	// navigation on it so a repeated `ao preview <same-url>` still refreshes.
+	// navigation on it so a repeated `opr preview <same-url>` still refreshes.
 	PreviewRevision int64 `json:"previewRevision,omitempty"`
 	// BrowserCapabilityVerifier is a one-way verifier for the random browser
 	// capability held by this session's worker process. The bearer token itself

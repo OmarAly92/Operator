@@ -26,7 +26,7 @@ type MenuKey = "file" | "edit" | "view" | "window" | "help";
 
 // Dispatch a native-menu action to the main process (see menu:action in main.ts).
 const act = (action: string) => () => {
-	void window.ao?.menu?.action(action);
+	void window.operator?.menu?.action(action);
 };
 
 // One top-level menu (File/Edit/…). Declared at module scope, not inside
@@ -89,7 +89,7 @@ export function WindowTitlebar({
 		// that colour, so the native buttons must match it.
 		const overlay =
 			theme === "light" ? { color: "#fcfcfc", symbolColor: "#3f444c" } : { color: "#17181c", symbolColor: "#c7ccd4" };
-		void window.ao?.window?.setOverlay(overlay);
+		void window.operator?.window?.setOverlay(overlay);
 	}, [theme]);
 
 	// Tell main to forget the last-focused panel whenever real shell UI (not this menu) gets focus, so its fallback target doesn't go stale.
@@ -98,7 +98,7 @@ export function WindowTitlebar({
 		const onFocusIn = (event: FocusEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (target?.closest('[class*="window-titlebar"]')) return;
-			void window.ao?.menu?.notifyShellFocus();
+			void window.operator?.menu?.notifyShellFocus();
 		};
 		document.addEventListener("focusin", onFocusIn);
 		return () => document.removeEventListener("focusin", onFocusIn);

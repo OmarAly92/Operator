@@ -1,4 +1,4 @@
-import { POSTHOG_COOKIE_NAME } from "@ao/shared/constants";
+import { POSTHOG_COOKIE_NAME } from "@operator/shared/constants";
 import type { PostHogConfig } from "posthog-js";
 
 /** Host to send to when nothing is configured at build time. */
@@ -23,7 +23,7 @@ export function resolveMarketingPostHogHost(
 /**
  * PostHog options for the marketing site.
  *
- * Session replay is off, everywhere, by product decision: AO records no
+ * Session replay is off, everywhere, by product decision: Operator records no
  * sessions on the desktop app or on this site. The masking config below is kept
  * deliberately, so that if replay is ever enabled for a narrow case such as a
  * design-partner page, it starts from masked inputs rather than someone

@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import {
 	buildCommands,
 	buildSessionActions,
@@ -267,7 +267,7 @@ export function CommandPalette() {
 						closePalette();
 						break;
 					case "copy-branch":
-						await aoBridge.clipboard.writeText(action.branch);
+						await operatorBridge.clipboard.writeText(action.branch);
 						closePalette();
 						break;
 					case "open-session-actions":

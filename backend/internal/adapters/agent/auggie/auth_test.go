@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/authprobe"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/authprobe"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestAuthStatusUsesAuggieAccountStatus(t *testing.T) {

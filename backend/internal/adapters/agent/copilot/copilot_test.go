@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestManifestID(t *testing.T) {
@@ -49,14 +49,14 @@ func TestGetLaunchCommandUsesSessionCustomAgentForSystemPrompt(t *testing.T) {
 		Permissions:      ports.PermissionModeBypassPermissions,
 		Prompt:           "-fix this",
 		SessionID:        "mer-1",
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Operator rules",
 		SystemPromptFile: promptFile,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := []string{"copilot", "--allow-all", "--agent=ao-mer-1", "--interactive", "-fix this"}
+	want := []string{"copilot", "--allow-all", "--agent=opr-mer-1", "--interactive", "-fix this"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
@@ -159,7 +159,7 @@ func TestGetLaunchCommandDoesNotUseUnsupportedSystemPromptFlags(t *testing.T) {
 	promptFile := filepath.Join(t.TempDir(), "system.md")
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Operator rules",
 		SystemPromptFile: promptFile,
 	})
 	if err != nil {
@@ -185,7 +185,7 @@ func TestGetLaunchCommandSelectsSessionCustomAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !contains(cmd, "--agent=ao-mer-1") {
+	if !contains(cmd, "--agent=opr-mer-1") {
 		t.Fatalf("command %#v does not select session custom agent", cmd)
 	}
 }
@@ -502,7 +502,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 func TestGetRestoreCommandSelectsSessionCustomAgent(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "copilot"}
 	promptFile := filepath.Join(t.TempDir(), "system.md")
-	if err := os.WriteFile(promptFile, []byte("restore AO rules"), 0o600); err != nil {
+	if err := os.WriteFile(promptFile, []byte("restore Operator rules"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -519,7 +519,7 @@ func TestGetRestoreCommandSelectsSessionCustomAgent(t *testing.T) {
 	if !ok {
 		t.Fatal("ok = false, want true")
 	}
-	want := []string{"copilot", "--agent=ao-mer-1", "--resume", "uuid-123"}
+	want := []string{"copilot", "--agent=opr-mer-1", "--resume", "uuid-123"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("restore cmd\nwant: %#v\n got: %#v", want, cmd)
 	}
@@ -545,7 +545,7 @@ func TestGetRestoreCommandSelectsSessionCustomAgentFromPromptFile(t *testing.T) 
 	if !ok {
 		t.Fatal("ok = false, want true")
 	}
-	if !contains(cmd, "--agent=ao-mer-1") {
+	if !contains(cmd, "--agent=opr-mer-1") {
 		t.Fatalf("restore command %#v does not select session custom agent", cmd)
 	}
 }
@@ -657,7 +657,7 @@ func TestGetAgentHooksInstallsCopilotHooks(t *testing.T) {
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Operator hook commands.
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -711,7 +711,7 @@ func TestInstallAgentProfileInstallsSessionCopilotAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agentPath := filepath.Join(workspace, ".github", "agents", "ao-sess-1.agent.md")
+	agentPath := filepath.Join(workspace, ".github", "agents", "opr-sess-1.agent.md")
 	agentData, err := os.ReadFile(agentPath)
 	if err != nil {
 		t.Fatal(err)
@@ -722,7 +722,7 @@ func TestInstallAgentProfileInstallsSessionCopilotAgent(t *testing.T) {
 	}
 	for _, want := range []string{
 		copilotAgentSentinel,
-		"name: ao-sess-1",
+		"name: opr-sess-1",
 		"target: github-copilot",
 		"orchestrator must spawn workers",
 	} {
@@ -730,7 +730,7 @@ func TestInstallAgentProfileInstallsSessionCopilotAgent(t *testing.T) {
 			t.Fatalf("agent profile missing %q:\n%s", want, agentText)
 		}
 	}
-	if !strings.Contains(string(exclude), "/.github/agents/ao-sess-1.agent.md\n") {
+	if !strings.Contains(string(exclude), "/.github/agents/opr-sess-1.agent.md\n") {
 		t.Fatalf("git exclude does not ignore custom agent:\n%s", exclude)
 	}
 }
@@ -755,7 +755,7 @@ func TestInstallAgentProfileDoesNotInstallLifecycleHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InstallAgentProfile: %v", err)
 	}
-	profilePath := filepath.Join(workspace, ".github", "agents", "ao-review-sess-1.agent.md")
+	profilePath := filepath.Join(workspace, ".github", "agents", "opr-review-sess-1.agent.md")
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
 		t.Fatal(err)
@@ -770,7 +770,7 @@ func TestInstallAgentProfileDoesNotInstallLifecycleHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(exclude), "/.github/agents/ao-review-sess-1.agent.md\n") {
+	if !strings.Contains(string(exclude), "/.github/agents/opr-review-sess-1.agent.md\n") {
 		t.Fatalf("profile is not git-excluded:\n%s", exclude)
 	}
 }
@@ -778,7 +778,7 @@ func TestInstallAgentProfileDoesNotInstallLifecycleHooks(t *testing.T) {
 func TestInstallAgentProfilePreservesUserOwnedProfile(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "copilot"}
 	workspace := t.TempDir()
-	profilePath := filepath.Join(workspace, ".github", "agents", "ao-review-sess-1.agent.md")
+	profilePath := filepath.Join(workspace, ".github", "agents", "opr-review-sess-1.agent.md")
 	if err := os.MkdirAll(filepath.Dir(profilePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -789,7 +789,7 @@ func TestInstallAgentProfilePreservesUserOwnedProfile(t *testing.T) {
 
 	err := plugin.InstallAgentProfile(context.Background(), ports.WorkspaceHookConfig{
 		SessionID:     "review-sess-1",
-		SystemPrompt:  "AO replacement",
+		SystemPrompt:  "Operator replacement",
 		WorkspacePath: workspace,
 	})
 	if err != nil {
@@ -837,7 +837,7 @@ func TestGetAgentHooksIgnoresSessionCopilotAgentInLinkedWorktreeCommonExclude(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(exclude), "/.github/agents/ao-sess-1.agent.md\n") {
+	if !strings.Contains(string(exclude), "/.github/agents/opr-sess-1.agent.md\n") {
 		t.Fatalf("common git exclude does not ignore custom agent:\n%s", exclude)
 	}
 	if _, err := os.Stat(filepath.Join(worktreeGitDir, "info", "exclude")); !errors.Is(err, os.ErrNotExist) {
@@ -861,7 +861,7 @@ func TestInstallAgentProfileUpdatesManagedSessionCopilotAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(workspace, ".github", "agents", "ao-sess-1.agent.md"))
+	data, err := os.ReadFile(filepath.Join(workspace, ".github", "agents", "opr-sess-1.agent.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -881,7 +881,7 @@ func TestGetAgentHooksDoesNotOverwriteProjectCopilotInstructions(t *testing.T) {
 	cfg := ports.WorkspaceHookConfig{
 		DataDir:       t.TempDir(),
 		SessionID:     "sess-1",
-		SystemPrompt:  "ao rules",
+		SystemPrompt:  "opr rules",
 		WorkspacePath: workspace,
 	}
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
@@ -973,8 +973,8 @@ func TestHookMethodsRequireWorkspacePath(t *testing.T) {
 	}
 }
 
-// TestCopilotManagedHooksUseDocumentedEventNames pins the JSON keys AO writes
-// into .github/hooks/ao.json to the camelCase names Copilot CLI documents
+// TestCopilotManagedHooksUseDocumentedEventNames pins the JSON keys Operator writes
+// into .github/hooks/opr.json to the camelCase names Copilot CLI documents
 // (https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks).
 // Drifting back to lowercase-dashed or any other casing silently disables the
 // hooks, so this is a tripwire for that class of regression.
@@ -991,7 +991,7 @@ func TestCopilotManagedHooksUseDocumentedEventNames(t *testing.T) {
 	for _, spec := range copilotManagedHooks {
 		want, ok := wantEventByCommand[spec.Command]
 		if !ok {
-			t.Fatalf("unexpected AO sub-command %q in copilotManagedHooks", spec.Command)
+			t.Fatalf("unexpected Operator sub-command %q in copilotManagedHooks", spec.Command)
 		}
 		if spec.Event != want {
 			t.Fatalf("command %q event = %q, want %q (Copilot CLI documented camelCase)", spec.Command, spec.Event, want)

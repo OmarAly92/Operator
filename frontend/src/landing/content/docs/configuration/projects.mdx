@@ -3,7 +3,7 @@ title: Projects
 description: Configure a registered project, its worker and orchestrator agents, setup, rules, reviews, and intake.
 ---
 
-A project is a repository, a multi-repository workspace, or an AO-managed Scratch directory. AO stores project identity and typed configuration in its database; there is no current `agent-orchestrator.yaml` lookup or global YAML registry.
+A project is a repository, a multi-repository workspace, or an Operator-managed Scratch directory. Operator stores project identity and typed configuration in its database; there is no current `operator.yaml` lookup or global YAML registry.
 
 ## Project kinds
 
@@ -16,16 +16,16 @@ A project is a repository, a multi-repository workspace, or an AO-managed Scratc
 Add and manage projects from the desktop sidebar. The equivalent CLI commands are:
 
 ```bash
-ao project add --path /absolute/path/to/repo
-ao project add --path /absolute/path/to/workspace --as-workspace
-ao project ls
-ao project get <project-id>
-ao project rm <project-id>
+opr project add --path /absolute/path/to/repo
+opr project add --path /absolute/path/to/workspace --as-workspace
+opr project ls
+opr project get <project-id>
+opr project rm <project-id>
 ```
 
 ## Current configuration fields
 
-Project settings expose the fields that AO consumes at spawn time:
+Project settings expose the fields that Operator consumes at spawn time:
 
 | Field | Purpose |
 | --- | --- |
@@ -40,11 +40,11 @@ Project settings expose the fields that AO consumes at spawn time:
 | `agentRules` | Inline standing instructions for workers |
 | `agentRulesFile` | Repo-relative rules file appended to worker instructions |
 | `orchestratorRules` | Standing instructions for orchestrator sessions |
-| `reviewers` | Reviewer harnesses used for AO review runs |
+| `reviewers` | Reviewer harnesses used for Operator review runs |
 | `trackerIntake` | Opt-in, read-only issue intake that can spawn workers |
-| `containerReap` | Project-wide opt-out from AO's session-container cleanup |
+| `containerReap` | Project-wide opt-out from Operator's session-container cleanup |
 
-`symlinks` and `agentRulesFile` must remain inside the repository. AO rejects absolute paths and traversal. Scratch rejects Git-only fields such as `defaultBranch` and symlinks.
+`symlinks` and `agentRulesFile` must remain inside the repository. Operator rejects absolute paths and traversal. Scratch rejects Git-only fields such as `defaultBranch` and symlinks.
 
 ## Worker and orchestrator roles
 
@@ -63,7 +63,7 @@ Workers implement tasks and own code changes. Orchestrators supervise a project 
 }
 ```
 
-The exact model names come from the installed provider. AO reuses the provider CLI and its existing authentication; it does not store provider tokens in project configuration.
+The exact model names come from the installed provider. Operator reuses the provider CLI and its existing authentication; it does not store provider tokens in project configuration.
 
 ## Session interface
 
@@ -71,7 +71,7 @@ The role selects what a session does; the interface selects how you interact wit
 
 - Chat is available when the installed harness advertises native Chat support. Current drivers cover Codex, Claude Code, OpenCode, and Droid.
 - Terminal UI remains available across the wider agent adapter catalog.
-- Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while keeping their AO session and worktree.
+- Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while keeping their Operator session and worktree.
 
 Choose the default interface in desktop project settings. Override it for a single CLI spawn with `--mode chat` or `--mode tui`.
 
@@ -79,17 +79,17 @@ Choose the default interface in desktop project settings. Override it for a sing
 
 Use `env`, `symlinks`, and `postCreate` for repeatable workspace setup. A failing `postCreate` command prevents the agent from starting, so keep setup deterministic.
 
-Use `agentRules` or `agentRulesFile` for worker instructions and `orchestratorRules` for supervision-specific guidance. AO combines inline and file-based worker rules when both are present.
+Use `agentRules` or `agentRulesFile` for worker instructions and `orchestratorRules` for supervision-specific guidance. Operator combines inline and file-based worker rules when both are present.
 
 ## Reviewer agents
 
-Reviewer harnesses are configured separately from workers. AO currently supports Claude Code, Codex, and OpenCode reviewers. If none is configured, AO reuses the worker harness when it is review-capable, otherwise it falls back to Claude Code.
+Reviewer harnesses are configured separately from workers. Operator currently supports Claude Code, Codex, and OpenCode reviewers. If none is configured, Operator reuses the worker harness when it is review-capable, otherwise it falls back to Claude Code.
 
 Review runs are available in the desktop inspector and through:
 
 ```bash
-ao review trigger <worker-session-id>
-ao review ls <worker-session-id>
+opr review trigger <worker-session-id>
+opr review ls <worker-session-id>
 ```
 
 ## Update from the CLI
@@ -97,11 +97,11 @@ ao review ls <worker-session-id>
 For a complete replacement, pass the project config as a JSON object string:
 
 ```bash
-ao project set-config <project-id> \
+opr project set-config <project-id> \
   --config-json '{"worker":{"agent":"codex"}}'
 ```
 
-Run `ao project set-config --help` for focused flags and `--clear`. Because replacement is atomic, inspect the existing project first when scripting updates.
+Run `opr project set-config --help` for focused flags and `--clear`. Because replacement is atomic, inspect the existing project first when scripting updates.
 
 <Cards>
 	<Card title="Per-role agents" href="/docs/guides/per-role-agents" description="Choose worker and orchestrator harnesses." />

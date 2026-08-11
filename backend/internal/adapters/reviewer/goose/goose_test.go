@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const pinnedSessionHelp = `Start or resume interactive chat sessions
@@ -75,7 +75,7 @@ Options:
 func testReviewer(t *testing.T, version, help string) (*Reviewer, *[][]string) {
 	t.Helper()
 	calls := &[][]string{}
-	return &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/ao/bin/goose", nil }, run: func(_ context.Context, _ map[string]string, binary string, args ...string) ([]byte, error) {
+	return &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/opr/bin/goose", nil }, run: func(_ context.Context, _ map[string]string, binary string, args ...string) ([]byte, error) {
 		*calls = append(*calls, append([]string{binary}, args...))
 		if slices.Equal(args, []string{"--version"}) {
 			return []byte(version), nil
@@ -93,24 +93,24 @@ func TestReviewCommandLaunchesHostTrustedInteractiveRun(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("XDG_STATE_HOME", "")
 	t.Setenv("XDG_CACHE_HOME", "")
-	taskPromptFile := "/host/ao/prompts/reviewer/requests/batch-1/run-1/task.md"
+	taskPromptFile := "/host/opr/prompts/reviewer/requests/batch-1/run-1/task.md"
 	spec, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
 		DataDir:          dataDir,
 		ReviewerID:       "review-worker-1",
 		WorkspacePath:    "/host/worktree",
-		TaskPromptRoot:   "/host/ao/prompts/reviewer",
+		TaskPromptRoot:   "/host/opr/prompts/reviewer",
 		TaskPromptFile:   taskPromptFile,
-		SystemPromptFile: "/host/ao/prompts/reviewer/system.md",
-		Prompt:           "Read AO task ref 4f09.",
+		SystemPromptFile: "/host/opr/prompts/reviewer/system.md",
+		Prompt:           "Read Operator task ref 4f09.",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/opt/ao/bin/goose", "run", "--instructions", taskPromptFile, "--interactive"}
+	want := []string{"/opt/opr/bin/goose", "run", "--instructions", taskPromptFile, "--interactive"}
 	if !reflect.DeepEqual(spec.Argv, want) || spec.InitialMessage != "" || spec.WorkingDirectory != "/host/worktree" {
 		t.Fatalf("ReviewCommand spec = %+v", spec)
 	}
-	if spec.Env["GOOSE_MODE"] != "smart_approve" || spec.Env["GOOSE_SYSTEM_PROMPT_FILE_PATH"] != "/host/ao/prompts/reviewer/system.md" {
+	if spec.Env["GOOSE_MODE"] != "smart_approve" || spec.Env["GOOSE_SYSTEM_PROMPT_FILE_PATH"] != "/host/opr/prompts/reviewer/system.md" {
 		t.Fatalf("ReviewCommand env = %#v", spec.Env)
 	}
 	if spec.Env["HOME"] != hostHome || spec.Env["XDG_CONFIG_HOME"] != filepath.Join(hostHome, ".config") || spec.Env["XDG_DATA_HOME"] != filepath.Join(hostHome, ".local", "share") || spec.Env["XDG_STATE_HOME"] != filepath.Join(hostHome, ".local", "state") {
@@ -130,8 +130,8 @@ func TestReviewCommandRejectsMissingTaskPromptFile(t *testing.T) {
 		DataDir:        t.TempDir(),
 		ReviewerID:     "review-worker-1",
 		WorkspacePath:  "/host/worktree",
-		TaskPromptRoot: "/host/ao/prompts/reviewer",
-		Prompt:         "Read AO task ref 4f09.",
+		TaskPromptRoot: "/host/opr/prompts/reviewer",
+		Prompt:         "Read Operator task ref 4f09.",
 	})
 	if err == nil || !strings.Contains(err.Error(), "task prompt file") {
 		t.Fatalf("ReviewCommand error = %v, want task prompt file", err)
@@ -156,9 +156,9 @@ func TestReviewCommandPreservesExplicitHostGooseXDGProfile(t *testing.T) {
 		DataDir:        dataDir,
 		ReviewerID:     "review-worker-1",
 		WorkspacePath:  "/host/worktree",
-		TaskPromptRoot: "/host/ao/prompts/reviewer",
-		TaskPromptFile: "/host/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
-		Prompt:         "Read AO task ref 4f09.",
+		TaskPromptRoot: "/host/opr/prompts/reviewer",
+		TaskPromptFile: "/host/opr/prompts/reviewer/requests/batch-1/run-1/task.md",
+		Prompt:         "Read Operator task ref 4f09.",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -176,9 +176,9 @@ func TestReviewCommandAliasesZhipuAPIKeyForGooseProvider(t *testing.T) {
 		DataDir:        t.TempDir(),
 		ReviewerID:     "review-worker-1",
 		WorkspacePath:  "/host/worktree",
-		TaskPromptRoot: "/host/ao/prompts/reviewer",
-		TaskPromptFile: "/host/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
-		Prompt:         "Read AO task ref 4f09.",
+		TaskPromptRoot: "/host/opr/prompts/reviewer",
+		TaskPromptFile: "/host/opr/prompts/reviewer/requests/batch-1/run-1/task.md",
+		Prompt:         "Read Operator task ref 4f09.",
 	}
 
 	r, _ := testReviewer(t, pinnedVersion, pinnedSessionHelp)
@@ -193,7 +193,7 @@ func TestReviewCommandAliasesZhipuAPIKeyForGooseProvider(t *testing.T) {
 
 func TestCompatibilityProbePinsExactVersionAndHelp(t *testing.T) {
 	r, calls := testReviewer(t, " 1.38.0\n", pinnedSessionHelp)
-	if err := r.verifyCompatibility(context.Background(), gooseBinary, map[string]string{"HOME": "/ao/profile"}); err != nil {
+	if err := r.verifyCompatibility(context.Background(), gooseBinary, map[string]string{"HOME": "/opr/profile"}); err != nil {
 		t.Fatalf("verifyCompatibility error = %v", err)
 	}
 	wantCalls := [][]string{
@@ -228,11 +228,11 @@ func TestCompatibilityProbeFailsClosedOnVersionOrHelpDrift(t *testing.T) {
 }
 
 func TestContainedCommandIsOnlyPinnedLongLivedTUI(t *testing.T) {
-	const taskRef = "Read AO review task ref 4f09."
+	const taskRef = "Read Operator review task ref 4f09."
 	spec := containedCommand(taskRef)
 	wantArgv := []string{
-		"/opt/ao/bin/goose", "session", "--no-profile",
-		"--with-extension", "/opt/ao/bin/ao-review-gateway-mcp",
+		"/opt/opr/bin/goose", "session", "--no-profile",
+		"--with-extension", "/opt/opr/bin/opr-review-gateway-mcp",
 	}
 	if !reflect.DeepEqual(spec.Argv, wantArgv) {
 		t.Fatalf("argv = %#v, want %#v", spec.Argv, wantArgv)
@@ -304,14 +304,14 @@ func TestReplacementEnvironmentBlocksHostProfileCredentialsAndDiscovery(t *testi
 	if env["GOOSE_DISABLE_KEYRING"] != "1" || env["CONTEXT_FILE_NAMES"] != "[]" {
 		t.Fatalf("keyring/project hints not disabled: %#v", env)
 	}
-	if env["GOOSE_PROVIDER"] != "openai" || env["GOOSE_MODEL"] != "ao-reviewer" || env["OPENAI_BASE_URL"] != modelBrokerHost {
+	if env["GOOSE_PROVIDER"] != "openai" || env["GOOSE_MODEL"] != "opr-reviewer" || env["OPENAI_BASE_URL"] != modelBrokerHost {
 		t.Fatalf("model is not broker-only: %#v", env)
 	}
-	if got := strings.TrimRight(env["OPENAI_BASE_URL"], "/") + "/chat/completions"; got != "http://ao-review-model-broker/v1/chat/completions" || strings.Count(got, "/v1/") != 1 {
+	if got := strings.TrimRight(env["OPENAI_BASE_URL"], "/") + "/chat/completions"; got != "http://opr-review-model-broker/v1/chat/completions" || strings.Count(got, "/v1/") != 1 {
 		t.Fatalf("broker request URL = %q, want exactly one /v1 segment", got)
 	}
 	if env["GOOSE_SYSTEM_PROMPT_FILE_PATH"] != systemPromptPath || !strings.HasPrefix(systemPromptPath, containedRoot+"/") || !slices.Equal(spec.ReadOnlyFiles, []string{systemPromptPath}) {
-		t.Fatalf("system prompt is not the contained AO-owned path: %#v", env)
+		t.Fatalf("system prompt is not the contained Operator-owned path: %#v", env)
 	}
 	if env["GOOSE_MODE"] != "auto" || env["GOOSE_TELEMETRY_OFF"] != "1" || env["GOOSE_DISABLE_SESSION_NAMING"] != "true" {
 		t.Fatalf("Goose contained controls are not pinned: %#v", env)

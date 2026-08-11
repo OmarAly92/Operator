@@ -18,7 +18,7 @@ vi.mock("../../lib/telemetry", async (importOriginal) => ({
 	captureRendererEvent,
 }));
 vi.mock("../../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		clipboard: { writeText },
 		// getVersion and getStatus back the diagnostics block the dialog collects
 		// on open; without them the open effect rejects.
@@ -65,8 +65,8 @@ describe("Report a problem telemetry", () => {
 
 	it("reports the open once, with no properties", async () => {
 		await renderOpen();
-		expect(events("ao.renderer.support_opened")).toHaveLength(1);
-		expect(events("ao.renderer.support_opened")[0][1]).toBeUndefined();
+		expect(events("opr.renderer.support_opened")).toHaveLength(1);
+		expect(events("opr.renderer.support_opened")[0][1]).toBeUndefined();
 	});
 
 	it("reports nothing while closed", async () => {
@@ -78,8 +78,8 @@ describe("Report a problem telemetry", () => {
 		await renderOpen();
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toEqual({
+		await waitFor(() => expect(events("opr.renderer.support_submitted")).toHaveLength(1));
+		expect(events("opr.renderer.support_submitted")[0][1]).toEqual({
 			destination: "github",
 			outcome: "succeeded",
 		});
@@ -99,8 +99,8 @@ describe("Report a problem telemetry", () => {
 		await renderOpen();
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toEqual({
+		await waitFor(() => expect(events("opr.renderer.support_submitted")).toHaveLength(1));
+		expect(events("opr.renderer.support_submitted")[0][1]).toEqual({
 			destination: "github",
 			outcome: "failed",
 		});
@@ -113,7 +113,7 @@ describe("Report a problem telemetry", () => {
 		fireEvent.click(screen.getByRole("radio", { name: /discord/i }));
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toMatchObject({ destination: "discord" });
+		await waitFor(() => expect(events("opr.renderer.support_submitted")).toHaveLength(1));
+		expect(events("opr.renderer.support_submitted")[0][1]).toMatchObject({ destination: "discord" });
 	});
 });

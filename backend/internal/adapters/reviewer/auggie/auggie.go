@@ -1,17 +1,17 @@
-// Package auggie adapts Auggie's one-shot review mode for AO reviews.
+// Package auggie adapts Auggie's one-shot review mode for Operator reviews.
 package auggie
 
 import (
 	"context"
 	"strings"
 
-	workerauggie "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/auggie"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workerauggie "github.com/OmarAly92/operator/backend/internal/adapters/agent/auggie"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // HostTrustWarning documents that Auggie permissions remain user-controlled.
-const HostTrustWarning = "experimental user-approved reviewer: Auggie uses the user's granular CLI permission configuration rather than an AO-enforced sandbox"
+const HostTrustWarning = "experimental user-approved reviewer: Auggie uses the user's granular CLI permission configuration rather than an Operator-enforced sandbox"
 
 // Reviewer builds Auggie's reviewer command.
 type Reviewer struct {
@@ -28,7 +28,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 var _ ports.ReviewerReusePolicy = (*Reviewer)(nil)
 
-// ReviewCommand launches Auggie with AO's system rules and task prompt. AO
+// ReviewCommand launches Auggie with Operator's system rules and task prompt. Operator
 // emits no blanket approval flag; users answer requests in the reviewer pane.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	binary, err := r.resolveBinary(ctx)
@@ -51,7 +51,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Operator-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }
@@ -63,5 +63,5 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 
 // ReviewProcessReusable reports false because Auggie's review task is sent as
 // launch-time input to a one-shot review process. Each pass needs a fresh
-// process with the current AO task context.
+// process with the current Operator task context.
 func (*Reviewer) ReviewProcessReusable() bool { return false }

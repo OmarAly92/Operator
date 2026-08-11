@@ -90,7 +90,7 @@ function dispatchPageEvent(element: Element, type: string): Event {
 }
 
 function overlayRoot(): ShadowRoot {
-	const host = document.querySelector<HTMLDivElement>("[data-ao-annotation-root]");
+	const host = document.querySelector<HTMLDivElement>("[data-opr-annotation-root]");
 	if (!host?.shadowRoot) throw new Error("annotation overlay was not rendered");
 	return host.shadowRoot;
 }
@@ -221,7 +221,7 @@ describe("annotate preload", () => {
 		expect(textarea).toHaveAttribute("rows", "1");
 		expect(textarea).toHaveAttribute("placeholder", "Describe the change…");
 		expect(root.querySelector("style")?.textContent).toContain(
-			"max-height: var(--ao-prompt-textarea-max-height, 350px)",
+			"max-height: var(--opr-prompt-textarea-max-height, 350px)",
 		);
 
 		textarea!.value = "Make this button easier to notice.";
@@ -251,7 +251,7 @@ describe("annotate preload", () => {
 		expect(form).toHaveClass("prompt--expanded");
 		expect(textarea.style.height).toBe("312px");
 		expect(textarea.style.overflowY).toBe("auto");
-		expect(form.style.getPropertyValue("--ao-prompt-textarea-max-height")).toBe("312px");
+		expect(form.style.getPropertyValue("--opr-prompt-textarea-max-height")).toBe("312px");
 		expect(root.querySelector("style")?.textContent).toContain("padding: 6px 9px");
 		expect(root.querySelector("style")?.textContent).toContain("padding: 5px 5px 43px");
 		expect(root.querySelector("style")?.textContent).toContain(".prompt::after");
@@ -286,7 +286,7 @@ describe("annotate preload", () => {
 		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
 
 		expect(electronMocks.send).toHaveBeenCalledWith("browser:annotation:cancel", { reason: "escape" });
-		expect(document.querySelector("[data-ao-annotation-root]")).toBeNull();
+		expect(document.querySelector("[data-opr-annotation-root]")).toBeNull();
 	});
 
 	it("reflows and repositions an open prompt when the browser viewport narrows", () => {
@@ -373,6 +373,6 @@ describe("annotate preload", () => {
 		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
 
 		expect(electronMocks.send).toHaveBeenCalledWith("browser:annotation:cancel", { reason: "escape" });
-		expect(document.querySelector("[data-ao-annotation-root]")).toBeNull();
+		expect(document.querySelector("[data-opr-annotation-root]")).toBeNull();
 	});
 });

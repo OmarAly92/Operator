@@ -13,13 +13,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemonmeta"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
-	"github.com/aoagents/agent-orchestrator/backend/internal/terminal"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/daemonmeta"
+	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/terminal"
 )
 
 // ControlDeps carries the daemon-control hooks the router exposes, such as the
@@ -154,9 +154,9 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 	if sink == nil {
 		return
 	}
-	// CLI telemetry is capped to bounded uniques: ao.app.active once per UTC day
+	// CLI telemetry is capped to bounded uniques: opr.app.active once per UTC day
 	// for user-context CLI activity (matching the renderer
-	// heartbeat) and ao.cli.invoked once per actor type + command path per UTC
+	// heartbeat) and opr.cli.invoked once per actor type + command path per UTC
 	// day. Scripts and agent sessions invoke read-only commands (status, ls,
 	// get) in polling loops, so raw invocation counts measure automation, not
 	// usage; bounded uniques keep the "which commands, how many users" signal
@@ -196,7 +196,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 
 		if now := time.Now(); cliTelemetry.reserveInvoked(now, actorType, commandPath) {
 			sink.Emit(req.Context(), ports.TelemetryEvent{
-				Name:       "ao.cli.invoked",
+				Name:       "opr.cli.invoked",
 				Source:     "cli",
 				OccurredAt: now.UTC(),
 				Level:      ports.TelemetryLevelInfo,
@@ -211,7 +211,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 		if actorType == "user" {
 			if now := time.Now(); cliTelemetry.reserveActive(now) {
 				sink.Emit(req.Context(), ports.TelemetryEvent{
-					Name:       "ao.app.active",
+					Name:       "opr.app.active",
 					Source:     "cli",
 					OccurredAt: now.UTC(),
 					Level:      ports.TelemetryLevelInfo,
@@ -249,7 +249,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 		}
 
 		sink.Emit(req.Context(), ports.TelemetryEvent{
-			Name:       "ao.cli.usage_errors",
+			Name:       "opr.cli.usage_errors",
 			Source:     "cli",
 			OccurredAt: time.Now().UTC(),
 			Level:      ports.TelemetryLevelWarn,

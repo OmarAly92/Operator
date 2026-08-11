@@ -9,7 +9,7 @@ import {
 	type ReportProblemDiagnostics,
 	type ReportProblemOutput,
 } from "../../lib/report-problem";
-import { aoBridge } from "../../lib/bridge";
+import { operatorBridge } from "../../lib/bridge";
 import { captureRendererEvent } from "../../lib/telemetry";
 import { Button } from "../ui/button";
 import {
@@ -103,7 +103,7 @@ export function ReportProblemDialog({ open, onOpenChange }: ReportProblemDialogP
 		}
 		// Reported here rather than on the settings row so any future entry point
 		// into this dialog is counted too.
-		void captureRendererEvent("ao.renderer.support_opened");
+		void captureRendererEvent("opr.renderer.support_opened");
 		let active = true;
 		void collectReportProblemDiagnostics().then((nextDiagnostics) => {
 			if (active) setDiagnostics(nextDiagnostics);
@@ -128,10 +128,10 @@ export function ReportProblemDialog({ open, onOpenChange }: ReportProblemDialogP
 		setCopyError(null);
 		const output = selectedOutput;
 		try {
-			await aoBridge.clipboard.writeText(draft);
+			await operatorBridge.clipboard.writeText(draft);
 			const destinationUrl = reportProblemDestinationUrl(input, diagnostics, output);
 			if (destinationUrl) {
-				await aoBridge.app.openExternal(destinationUrl);
+				await operatorBridge.app.openExternal(destinationUrl);
 			}
 			setCopiedOutput(output);
 			setSummary("");
@@ -140,11 +140,11 @@ export function ReportProblemDialog({ open, onOpenChange }: ReportProblemDialogP
 			// Only which destination was chosen. The summary, details, and the
 			// diagnostics block are the user's own words and machine state, and
 			// none of them may be reported.
-			void captureRendererEvent("ao.renderer.support_submitted", { destination: output, outcome: "succeeded" });
+			void captureRendererEvent("opr.renderer.support_submitted", { destination: output, outcome: "succeeded" });
 		} catch (err) {
 			setCopyError(err instanceof Error ? err.message : t("report.copyFailed"));
 			setCopiedOutput(null);
-			void captureRendererEvent("ao.renderer.support_submitted", { destination: output, outcome: "failed" });
+			void captureRendererEvent("opr.renderer.support_submitted", { destination: output, outcome: "failed" });
 		}
 	};
 

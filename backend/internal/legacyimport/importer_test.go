@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 // fakeStore is an in-memory Store with the importer's idempotency semantics.
@@ -33,7 +33,7 @@ func (f *fakeStore) UpsertProject(_ context.Context, r domain.ProjectRecord) err
 // legacy root.
 func writeLegacyRoot(t *testing.T) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), ".agent-orchestrator")
+	root := filepath.Join(t.TempDir(), ".operator")
 	mustMkdir(t, filepath.Join(root, "projects", "alpha", "sessions"))
 	mustMkdir(t, filepath.Join(root, "projects", "beta", "sessions"))
 
@@ -135,7 +135,7 @@ func TestHasLegacyData(t *testing.T) {
 // HasLegacyData collapses to false today. HasLegacyData's bool contract for the
 // migration-probe service layer must stay intact (still false on a broken store).
 func TestLegacyConfigError_SurfacesParseFailure(t *testing.T) {
-	root := filepath.Join(t.TempDir(), ".agent-orchestrator")
+	root := filepath.Join(t.TempDir(), ".operator")
 	mustMkdir(t, root)
 	mustWrite(t, filepath.Join(root, "config.yaml"), "projects:\n\talpha:\n  path: /repos/alpha\n")
 

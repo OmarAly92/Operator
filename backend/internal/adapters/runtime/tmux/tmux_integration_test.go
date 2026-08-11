@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestRuntimeIntegration(t *testing.T) {
@@ -37,7 +37,7 @@ func TestRuntimeIntegration(t *testing.T) {
 		// exec is added by buildLaunchCommand, but we also verify here that output
 		// appears).
 		Argv: []string{"sh", "-c", "echo hello-from-tmux"},
-		Env:  map[string]string{"AO_SESSION_ID": id},
+		Env:  map[string]string{"OPERATOR_SESSION_ID": id},
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -143,13 +143,13 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 	t.Cleanup(func() { _ = r.Destroy(context.Background(), ports.RuntimeHandle{ID: tmuxID}) })
 
 	// Re-run this test binary as a long-lived helper with the same controlled
-	// command-line identity as AO's supervisor. The CLI package separately tests
+	// command-line identity as Operator's supervisor. The CLI package separately tests
 	// that the real supervisor waits for and reports its child.
 	h, err := r.Create(ctx, ports.RuntimeConfig{
 		SessionID:     domain.SessionID(id),
 		WorkspacePath: workspace,
 		Argv:          []string{os.Args[0], "-test.run=TestSupervisorProcessHelper", "--", "agent-process", "supervise", "--session", id, "--launch", launchID, "--"},
-		Env:           map[string]string{"AO_TMUX_SUPERVISOR_HELPER": "1"},
+		Env:           map[string]string{"OPERATOR_TMUX_SUPERVISOR_HELPER": "1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 	}
 
 	// The helper exits normally, matching Codex /exit or EOF. The launch shell
-	// must then execute AO's keep-alive interactive shell.
+	// must then execute Operator's keep-alive interactive shell.
 	deadline = time.Now().Add(5 * time.Second)
 	for {
 		alive, probeErr := r.IsSupervisedProcessAlive(ctx, h, ref)
@@ -222,7 +222,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 }
 
 func TestSupervisorProcessHelper(t *testing.T) {
-	if os.Getenv("AO_TMUX_SUPERVISOR_HELPER") != "1" {
+	if os.Getenv("OPERATOR_TMUX_SUPERVISOR_HELPER") != "1" {
 		return
 	}
 	time.Sleep(2 * time.Second)

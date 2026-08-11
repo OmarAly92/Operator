@@ -41,7 +41,7 @@ import { useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-s
 
 const INSPECTOR_MIN_PERCENT = 30;
 const INSPECTOR_MAX_PERCENT = 45;
-const inspectorSplitStorageKey = "ao.inspector.split";
+const inspectorSplitStorageKey = "opr.inspector.split";
 const shellTopbarHiddenByPlatform = hidesShellTopbar();
 
 type ReviewsResponse = components["schemas"]["ListReviewsResponse"];
@@ -124,7 +124,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
-			window.ao && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
+			window.operator && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
 		),
 		refetchInterval: (query) => {
 			const data = query.state.data as ReviewsResponse | undefined;
@@ -462,7 +462,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 		terminated,
 	]);
 
-	// `ao preview` is authoritative browser work, including a same-URL rerun
+	// `opr preview` is authoritative browser work, including a same-URL rerun
 	// whose revision advances. The first target is handled by the lifecycle
 	// effect above; later targets glow only while Browser is not visible.
 	useEffect(() => {

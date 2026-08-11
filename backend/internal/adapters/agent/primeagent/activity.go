@@ -3,11 +3,11 @@ package primeagent
 import (
 	"encoding/json"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
-// DeriveActivityState maps the normalized events emitted by the AO-managed
-// Prime Agent extension to durable AO activity state.
+// DeriveActivityState maps the normalized events emitted by the Operator-managed
+// Prime Agent extension to durable Operator activity state.
 func DeriveActivityState(event string, payload []byte) (domain.ActivityState, bool) {
 	switch event {
 	case "session-start":

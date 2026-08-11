@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Folder, FolderPlus, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ImportFolderScan } from "../../preload";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { cn } from "../lib/utils";
 import type { ProjectKind } from "../types/workspace";
 import { CreateProjectAgentSheet, type CreateProjectAgentSelection } from "./CreateProjectAgentSheet";
@@ -69,7 +69,7 @@ export function CreateProjectFlow({
 		setSelectedKind(kind);
 		setIsChoosingPath(true);
 		try {
-			const path = await aoBridge.app.chooseDirectory(
+			const path = await operatorBridge.app.chooseDirectory(
 				kind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo"),
 			);
 			if (path && kind === "single_repo") {
@@ -86,7 +86,7 @@ export function CreateProjectFlow({
 			}
 			if (path && kind === "workspace") {
 				try {
-					const warning = await aoBridge.app.checkAncestorRepo(path);
+					const warning = await operatorBridge.app.checkAncestorRepo(path);
 					if (warning) {
 						setRepositorySetupWarning(warning);
 						setRepositorySetup("NOT_A_GIT_REPO");
@@ -148,7 +148,7 @@ export function CreateProjectFlow({
 			if (hasModePicker) {
 				if (shouldScanCreateFailure(message)) {
 					try {
-						const scan = await aoBridge.app.scanImportFolder({
+						const scan = await operatorBridge.app.scanImportFolder({
 							path: selectedPath,
 							mode: selectedKind === "workspace" ? "workspace" : "project",
 						});
@@ -275,9 +275,9 @@ type ProjectRepositoryPreflight = {
 
 async function projectRepositoryPreflight(path: string): Promise<ProjectRepositoryPreflight> {
 	try {
-		const scan = await aoBridge.app.scanImportFolder({ path, mode: "project" });
+		const scan = await operatorBridge.app.scanImportFolder({ path, mode: "project" });
 		const reason = scan.repos[0]?.reason ?? "";
-		if (reason.startsWith("Selected folder is inside AO's internal data directory.")) {
+		if (reason.startsWith("Selected folder is inside Operator's internal data directory.")) {
 			return {
 				blockingError: reason,
 				scan,

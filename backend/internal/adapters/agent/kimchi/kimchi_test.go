@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -684,14 +684,14 @@ func TestGetAgentHooksWritesSettingsFile(t *testing.T) {
 
 	content := string(data)
 	for _, cmd := range []string{
-		"ao hooks kimchi session-start",
-		"ao hooks kimchi user-prompt-submit",
-		"ao hooks kimchi stop",
-		"ao hooks kimchi notification",
-		"ao hooks kimchi session-end",
-		"ao hooks kimchi pre-tool-use",
-		"ao hooks kimchi post-tool-use",
-		"ao hooks kimchi post-tool-use-failure",
+		"opr hooks kimchi session-start",
+		"opr hooks kimchi user-prompt-submit",
+		"opr hooks kimchi stop",
+		"opr hooks kimchi notification",
+		"opr hooks kimchi session-end",
+		"opr hooks kimchi pre-tool-use",
+		"opr hooks kimchi post-tool-use",
+		"opr hooks kimchi post-tool-use-failure",
 	} {
 		if !contains(content, cmd) {
 			t.Errorf("settings missing hook command %q", cmd)
@@ -723,7 +723,7 @@ func TestGetAgentHooksIdempotent(t *testing.T) {
 	}
 
 	content := string(data)
-	count := countOccurrences(content, "ao hooks kimchi session-start")
+	count := countOccurrences(content, "opr hooks kimchi session-start")
 	if count != 1 {
 		t.Fatalf("session-start hook duplicated: found %d occurrences", count)
 	}
@@ -746,7 +746,7 @@ func TestUninstallHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(string(data), "ao hooks kimchi") {
+	if contains(string(data), "opr hooks kimchi") {
 		t.Fatal("hooks not removed after uninstall")
 	}
 }

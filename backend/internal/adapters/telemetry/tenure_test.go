@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestTenureBucketBoundaries(t *testing.T) {
@@ -163,7 +163,7 @@ func TestPostHogSinkStampsDefaultAgentAndTenure(t *testing.T) {
 		t.Fatalf("new sink: %v", err)
 	}
 	sink.Emit(context.Background(), ports.TelemetryEvent{
-		Name: "ao.daemon.started", Source: "daemon", OccurredAt: time.Now().UTC(),
+		Name: "opr.daemon.started", Source: "daemon", OccurredAt: time.Now().UTC(),
 		Level: ports.TelemetryLevelInfo,
 	})
 	_ = sink.Close(context.Background())
@@ -178,7 +178,7 @@ func TestPostHogSinkStampsDefaultAgentAndTenure(t *testing.T) {
 		t.Errorf("tenure = %v, want d0", got["tenure"])
 	}
 	// The classifier: every daemon/CLI event must carry client="cli" so a
-	// shared event like ao.app.active splits by client across desktop/mobile/cli.
+	// shared event like opr.app.active splits by client across desktop/mobile/cli.
 	if got["client"] != "cli" {
 		t.Errorf("client = %v, want cli", got["client"])
 	}
@@ -213,7 +213,7 @@ func TestSafeAgentSlug(t *testing.T) {
 		}
 	}
 	// A path, whitespace, uppercase, or an over-long value must be dropped so it
-	// cannot leak on ao.daemon.started before the resolver rejects it.
+	// cannot leak on opr.daemon.started before the resolver rejects it.
 	drop := []string{
 		"/Users/me/bin/agent", "../codex", "claude code", "Claude-Code",
 		"agent;rm -rf", strings.Repeat("x", 60), "", "   ",

@@ -39,7 +39,7 @@ func (c AgentConfig) IsZero() bool {
 	return c == AgentConfig{}
 }
 
-// Valid reports whether the mode is one AO knows. Empty counts as valid: it means
+// Valid reports whether the mode is one Operator knows. Empty counts as valid: it means
 // "the adapter's own baseline", which is a legitimate choice rather than a missing
 // one.
 func (m PermissionMode) Valid() bool {

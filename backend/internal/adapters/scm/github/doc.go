@@ -1,4 +1,4 @@
-// Package github observes GitHub pull requests for AO's SCM integrations.
+// Package github observes GitHub pull requests for Operator's SCM integrations.
 //
 // The compatibility exported surface is:
 //

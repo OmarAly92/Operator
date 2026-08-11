@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -50,14 +50,14 @@ func TestReviewCommandUsesMuseNoWriteSandbox(t *testing.T) {
 	got, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
-		Prompt:           "Read the AO review task.",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
-		DataDir:          "/ao/data",
+		Prompt:           "Read the Operator review task.",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
+		DataDir:          "/opr/data",
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	want := []string{"muse", "--trust-workspace", "--approval-mode", "never", "--disable-write", "Read the AO review task."}
+	want := []string{"muse", "--trust-workspace", "--approval-mode", "never", "--disable-write", "Read the Operator review task."}
 	if !slices.Equal(got.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", got.Argv, want)
 	}
@@ -67,11 +67,11 @@ func TestReviewCommandUsesMuseNoWriteSandbox(t *testing.T) {
 	if agent.got.Permissions != ports.PermissionModeAuto {
 		t.Fatalf("permissions = %q, want auto", agent.got.Permissions)
 	}
-	if agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.SystemPromptFile != "/opr/prompts/reviewer/system.md" {
 		t.Fatalf("system prompt file = %q", agent.got.SystemPromptFile)
 	}
-	if agent.got.DataDir != "/ao/data" {
-		t.Fatalf("data dir = %q, want /ao/data", agent.got.DataDir)
+	if agent.got.DataDir != "/opr/data" {
+		t.Fatalf("data dir = %q, want /opr/data", agent.got.DataDir)
 	}
 }
 
@@ -83,8 +83,8 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndNoWriteSandbox(t *testing.T) 
 		ReviewerID:       "review-w1",
 		AgentSessionID:   "muse-native-1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
-		DataDir:          "/ao/data",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
+		DataDir:          "/opr/data",
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)

@@ -1,5 +1,5 @@
 {
-  "name": "@ao/auth",
+  "name": "@operator/auth",
   "version": "0.1.0",
   "private": true,
   "type": "module",

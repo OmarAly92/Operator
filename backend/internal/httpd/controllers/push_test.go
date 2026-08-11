@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/httpd"
+	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
 )
 
 type fakePushRegistry struct {

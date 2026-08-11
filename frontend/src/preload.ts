@@ -34,7 +34,7 @@ if (typeof document !== "undefined") {
 		const root = document.documentElement;
 		if (root) {
 			root.dataset.nativeBrowserComposition = "true";
-			root.dataset.aoPlatform = process.platform;
+			root.dataset.operatorPlatform = process.platform;
 		}
 	};
 	if (document.readyState === "loading") {
@@ -346,6 +346,6 @@ const api = {
 	},
 };
 
-contextBridge.exposeInMainWorld("ao", api);
+contextBridge.exposeInMainWorld("operator", api);
 
-export type AoBridge = typeof api;
+export type OperatorBridge = typeof api;

@@ -11,11 +11,11 @@ describe("AndroidBetaInstructions", () => {
     expect($("ol h3").map((_, element) => $(element).text()).get()).toEqual([
       "Join the tester group",
       "Become a tester",
-      "Install AO Mobile",
+      "Install Operator Mobile",
     ]);
     expect($("a").map((_, element) => $(element).attr("href")).get()).toEqual([
-      "https://groups.google.com/g/ao-mobile-testers/about",
-      "https://play.google.com/apps/testing/aoagents.dev",
+      "https://groups.google.com/g/opr-mobile-testers/about",
+      "https://play.google.com/apps/testing/operator.example.com",
     ]);
   });
 

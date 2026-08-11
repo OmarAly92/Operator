@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestReviewCommandBuildsReadOnlyInteractiveTUI(t *testing.T) {
 	promptRoot := t.TempDir()
 	systemPath := filepath.Join(promptRoot, "system.md")
-	if err := os.WriteFile(systemPath, []byte("AO reviewer role\n"), 0o600); err != nil {
+	if err := os.WriteFile(systemPath, []byte("Operator reviewer role\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "kiro-cli", nil }}
@@ -23,7 +23,7 @@ func TestReviewCommandBuildsReadOnlyInteractiveTUI(t *testing.T) {
 	spec, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
 		WorkerSessionID:  "worker-1",
 		WorkspacePath:    "/worktrees/worker-1",
-		Prompt:           "Read and follow /ao/task.md",
+		Prompt:           "Read and follow /opr/task.md",
 		SystemPromptFile: systemPath,
 		TaskPromptRoot:   promptRoot,
 	})
@@ -39,11 +39,11 @@ func TestReviewCommandBuildsReadOnlyInteractiveTUI(t *testing.T) {
 			t.Fatalf("interactive argv contains %q: %#v", forbidden, spec.Argv)
 		}
 	}
-	if spec.InitialMessage != "Read and follow /ao/task.md" {
+	if spec.InitialMessage != "Read and follow /opr/task.md" {
 		t.Fatalf("initial message = %q", spec.InitialMessage)
 	}
 	if spec.WorkingDirectory == "" || spec.WorkingDirectory == "/worktrees/worker-1" || !strings.HasPrefix(spec.WorkingDirectory, promptRoot) {
-		t.Fatalf("working directory = %q, want AO-owned directory", spec.WorkingDirectory)
+		t.Fatalf("working directory = %q, want Operator-owned directory", spec.WorkingDirectory)
 	}
 
 	data, err := os.ReadFile(filepath.Join(spec.WorkingDirectory, ".kiro", "agents", reviewerAgentName+".json"))

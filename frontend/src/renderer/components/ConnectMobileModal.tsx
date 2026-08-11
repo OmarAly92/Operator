@@ -90,7 +90,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		}
 		if (initialEnabled === undefined || reportedOpen.current) return;
 		reportedOpen.current = true;
-		void captureRendererEvent("ao.renderer.mobile_connect_opened", { bridge_enabled: initialEnabled });
+		void captureRendererEvent("opr.renderer.mobile_connect_opened", { bridge_enabled: initialEnabled });
 	}, [open, initialEnabled]);
 
 	const invalidate = () => {
@@ -150,11 +150,11 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		if (busy) return;
 		clearActionErrors();
 		// Enabling is the step that starts the bridge and reveals the QR, so this
-		// paired with ao.mobile.device_connected (emitted by the daemon when a
+		// paired with opr.mobile.device_connected (emitted by the daemon when a
 		// phone actually authenticates) is what shows how many people who set this
 		// up ever finish the scan.
 		const report = (outcome: "succeeded" | "failed") => {
-			void captureRendererEvent("ao.renderer.mobile_bridge_toggled", { enabled: next, outcome });
+			void captureRendererEvent("opr.renderer.mobile_bridge_toggled", { enabled: next, outcome });
 		};
 		const mutation = next ? enable : disable;
 		mutation.mutate(undefined, { onSuccess: () => report("succeeded"), onError: () => report("failed") });

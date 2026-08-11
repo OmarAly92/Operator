@@ -5,7 +5,7 @@ import { defaultShortcutBindings, shortcutBindingLabel } from "../../shared/shor
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import { useCloseShellTerminal, useRenameShellTerminal, useShellTerminals } from "../hooks/useShellTerminals";
 import { useShell } from "../lib/shell-context";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { isMacPlatform } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
@@ -61,15 +61,15 @@ export function ShellTerminalsView() {
 
 	useEffect(
 		() =>
-			aoBridge.app.onCloseShellTerminalShortcut(() => {
+			operatorBridge.app.onCloseShellTerminalShortcut(() => {
 				if (active) closeShellTerminal.mutate(active.handleId);
 			}),
 		[active, closeShellTerminal],
 	);
 
 	useEffect(() => {
-		const disposePrevious = aoBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
-		const disposeNext = aoBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
+		const disposePrevious = operatorBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
+		const disposeNext = operatorBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
 		return () => {
 			disposePrevious();
 			disposeNext();
@@ -77,8 +77,8 @@ export function ShellTerminalsView() {
 	}, [selectAdjacentTab]);
 
 	useEffect(() => {
-		aoBridge.app.setCloseShellTerminalShortcutEnabled(Boolean(active));
-		return () => aoBridge.app.setCloseShellTerminalShortcutEnabled(false);
+		operatorBridge.app.setCloseShellTerminalShortcutEnabled(Boolean(active));
+		return () => operatorBridge.app.setCloseShellTerminalShortcutEnabled(false);
 	}, [active]);
 
 	return (

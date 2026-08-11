@@ -1,8 +1,8 @@
-// Package claudeacp binds Claude Code to AO's generic ACP Chat driver.
+// Package claudeacp binds Claude Code to Operator's generic ACP Chat driver.
 //
-// AO ships the protocol adapter and its Node runtime, not Claude Code. The
+// Operator ships the protocol adapter and its Node runtime, not Claude Code. The
 // adapter receives CLAUDE_CODE_EXECUTABLE pointing at the same user-installed
-// binary used by AO's existing TUI adapter, so login, subscription, settings,
+// binary used by Operator's existing TUI adapter, so login, subscription, settings,
 // MCP configuration, hooks, and project instructions remain the user's own.
 package claudeacp
 
@@ -18,9 +18,9 @@ import (
 	"strconv"
 	"strings"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/acp"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const minimumNodeMajor = 22
@@ -58,7 +58,7 @@ func New(plugin claudePlugin, log *slog.Logger) ports.ChatDriver {
 				return ports.ErrChatAuthRequired
 			}
 			if err != nil && log != nil {
-				// Unknown is not unauthorized. Match AO's runtime probe rule: an
+				// Unknown is not unauthorized. Match Operator's runtime probe rule: an
 				// inconclusive local probe is not proof the session cannot run.
 				log.Debug("Claude auth probe inconclusive; continuing", "error", err)
 			}
@@ -78,7 +78,7 @@ func New(plugin claudePlugin, log *slog.Logger) ports.ChatDriver {
 				env[key] = value
 			}
 			// This is the line that prevents the adapter's optional native Claude
-			// package from becoming a second installation managed by AO.
+			// package from becoming a second installation managed by Operator.
 			env["CLAUDE_CODE_EXECUTABLE"] = claudeBinary
 			return acpdriver.Launch{
 				Command: runtimeLaunch.command,
@@ -96,7 +96,7 @@ func claudeSessionMeta(cfg acpdriver.LaunchConfig) map[string]any {
 	if strings.TrimSpace(cfg.SystemPrompt) == "" {
 		return nil
 	}
-	// Append AO's standing instructions to Claude Code's own prompt. Replacing
+	// Append Operator's standing instructions to Claude Code's own prompt. Replacing
 	// the preset would discard Claude's native coding/tool instructions.
 	return map[string]any{
 		"systemPrompt": map[string]any{
@@ -134,27 +134,27 @@ type runtimeLaunch struct {
 	args    []string
 }
 
-// resolveRuntime finds AO's packaged ACP runtime. Explicit command and path
+// resolveRuntime finds Operator's packaged ACP runtime. Explicit command and path
 // overrides keep headless development/test installs usable without coupling the
 // backend to Electron's directory layout.
 func resolveRuntime(ctx context.Context) (runtimeLaunch, error) {
 	if err := ctx.Err(); err != nil {
 		return runtimeLaunch{}, err
 	}
-	if command := strings.TrimSpace(os.Getenv("AO_CLAUDE_ACP_COMMAND")); command != "" {
+	if command := strings.TrimSpace(os.Getenv("OPERATOR_CLAUDE_ACP_COMMAND")); command != "" {
 		resolved, err := exec.LookPath(command)
 		if err != nil {
-			return runtimeLaunch{}, fmt.Errorf("resolve AO_CLAUDE_ACP_COMMAND %q: %w", command, err)
+			return runtimeLaunch{}, fmt.Errorf("resolve OPERATOR_CLAUDE_ACP_COMMAND %q: %w", command, err)
 		}
 		return runtimeLaunch{command: resolved}, nil
 	}
 
-	runtimeDir := strings.TrimSpace(os.Getenv("AO_ACP_RUNTIME_DIR"))
+	runtimeDir := strings.TrimSpace(os.Getenv("OPERATOR_ACP_RUNTIME_DIR"))
 	if runtimeDir == "" {
 		runtimeDir = runtimeDirectoryBesideExecutable()
 	}
 	if runtimeDir == "" {
-		return runtimeLaunch{}, errors.New("AO ACP runtime is not installed")
+		return runtimeLaunch{}, errors.New("ACP runtime is not installed")
 	}
 	node := filepath.Join(runtimeDir, "node", "bin", "node")
 	if runtime.GOOS == "windows" {
@@ -202,7 +202,7 @@ func requireFile(path, label string) error {
 }
 
 func requireNodeVersion(ctx context.Context, node string) error {
-	// node is the explicit AO override or the validated executable inside AO's
+	// node is the explicit Operator override or the validated executable inside Operator's
 	// packaged resources, never prompt/provider input.
 	out, err := exec.CommandContext(ctx, node, "--version").Output() //nolint:gosec // Resolved local executable, not provider input.
 	if err != nil {

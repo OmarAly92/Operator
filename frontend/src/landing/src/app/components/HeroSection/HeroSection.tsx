@@ -1,6 +1,6 @@
 "use client";
 
-import { COMPANY, HERO_SUBHEADLINE, TAGLINE } from "@ao/shared/constants";
+import { COMPANY, HERO_SUBHEADLINE, TAGLINE } from "@operator/shared/constants";
 import { Star } from "lucide-react";
 import { useState } from "react";
 import { FaGithub } from "react-icons/fa";
@@ -8,7 +8,7 @@ import { track } from "@/lib/analytics";
 import { DownloadButton } from "../DownloadButton";
 import { ProductDemo } from "./components/ProductDemo";
 
-const INSTALL_COMMAND = "brew install agentwrapper/tap/agent-orchestrator";
+const INSTALL_COMMAND = "brew install omaraly92/tap/operator";
 // Wraps at the path separators instead of mid-word once the pill goes two-line.
 const INSTALL_COMMAND_PARTS = INSTALL_COMMAND.split("/");
 

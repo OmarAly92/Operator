@@ -8,10 +8,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 	delegatedTaskTitleRefinementTimeout = time.Minute
 )
 
-// DelegateTaskInput describes a task AO should spawn as a worker session. Brief
+// DelegateTaskInput describes a task Operator should spawn as a worker session. Brief
 // may be empty to open an idle worker that the user can instruct later. Empty
 // RequestedAgent means the spawn uses the project's worker-agent default.
 type DelegateTaskInput struct {
@@ -40,8 +40,8 @@ type DelegateTaskOutcome struct {
 	WorkerID       domain.SessionID
 }
 
-// DelegateTask spawns the worker directly, matching `ao spawn`, with a
-// provisional display name derived from the task brief. AO then best-effort
+// DelegateTask spawns the worker directly, matching `opr spawn`, with a
+// provisional display name derived from the task brief. Operator then best-effort
 // refines that title in the background through the project orchestrator,
 // resuming or creating the coordinator when necessary.
 func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (DelegateTaskOutcome, error) {
@@ -170,10 +170,10 @@ func delegatedTaskDisplayName(brief string) string {
 
 func taskTitleDelegationMessage(workerID domain.SessionID, in DelegateTaskInput) string {
 	var b strings.Builder
-	b.WriteString("AO TASK TITLE UPDATE\n")
+	b.WriteString("Operator TASK TITLE UPDATE\n")
 	b.WriteString("A worker was already spawned directly with the user's task. Do not spawn another worker or orchestrator, and do not implement the task in this orchestrator session.\n")
 	b.WriteString("Choose a concise task title from the brief and run:\n\n")
-	b.WriteString("ao session rename ")
+	b.WriteString("opr session rename ")
 	b.WriteString(string(workerID))
 	b.WriteString(" \"<title, max 20 chars>\"\n\n")
 	b.WriteString("Worker session id: ")

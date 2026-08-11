@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -42,9 +42,9 @@ func (a *captureAgent) SessionInfo(context.Context, ports.SessionRef) (ports.Ses
 func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	agent := &captureAgent{argv: []string{
 		"env",
-		`KILO_CONFIG_CONTENT={"agent":{"ao-review-w1":{"prompt":"review only"}}}`,
+		`KILO_CONFIG_CONTENT={"agent":{"opr-review-w1":{"prompt":"review only"}}}`,
 		"kilocode",
-		"--agent", "ao-review-w1",
+		"--agent", "opr-review-w1",
 		"--prompt", "review it",
 	}}
 	r := &Reviewer{agent: agent}
@@ -54,7 +54,7 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 		WorkspacePath:  "/ws/w1",
 		Prompt:         "review it",
 		SystemPrompt:   "review only",
-		TaskPromptRoot: filepath.Join("ao", "prompts", "reviewer"),
+		TaskPromptRoot: filepath.Join("opr", "prompts", "reviewer"),
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
@@ -83,7 +83,7 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &config); err != nil {
 		t.Fatalf("reviewer config: %v", err)
 	}
-	if _, ok := config.Agent["ao-review-w1"]; !ok {
+	if _, ok := config.Agent["opr-review-w1"]; !ok {
 		t.Fatalf("generated reviewer agent was lost: %s", raw)
 	}
 	if config.Permission.CatchAll != "deny" || config.Permission.Read != "allow" {
@@ -91,11 +91,11 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	}
 	if config.Permission.Bash["*"] != "deny" ||
 		config.Permission.Bash["gh api *"] != "allow" ||
-		config.Permission.Bash["ao review submit *"] != "allow" ||
+		config.Permission.Bash["opr review submit *"] != "allow" ||
 		config.Permission.Bash["printf *"] != "allow" {
 		t.Fatalf("bash policy = %#v", config.Permission.Bash)
 	}
-	wantPromptPattern := filepath.ToSlash(filepath.Join("ao", "prompts", "reviewer", "**"))
+	wantPromptPattern := filepath.ToSlash(filepath.Join("opr", "prompts", "reviewer", "**"))
 	if !reflect.DeepEqual(config.Permission.ExternalDirectory, map[string]string{wantPromptPattern: "allow"}) {
 		t.Fatalf("external directory = %#v", config.Permission.ExternalDirectory)
 	}
@@ -123,7 +123,7 @@ func TestReviewCommandBuildsKiloCodeArgvWithHiddenPrompts(t *testing.T) {
 	spec, err := New().ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    t.TempDir(),
-		Prompt:           "Read the AO review task.",
+		Prompt:           "Read the Operator review task.",
 		SystemPromptFile: systemPath,
 		TaskPromptRoot:   promptRoot,
 	})
@@ -133,8 +133,8 @@ func TestReviewCommandBuildsKiloCodeArgvWithHiddenPrompts(t *testing.T) {
 	joinedArgv := strings.Join(spec.Argv, "\n")
 	for _, want := range []string{
 		"KILO_CONFIG_CONTENT=",
-		"--agent\nao-review-w1",
-		"--prompt\nRead the AO review task.",
+		"--agent\nopr-review-w1",
+		"--prompt\nRead the Operator review task.",
 	} {
 		if !strings.Contains(joinedArgv, want) {
 			t.Fatalf("argv missing %q: %#v", want, spec.Argv)
@@ -159,10 +159,10 @@ func TestBashPolicyAllowsEveryParsedReportingPipelineStage(t *testing.T) {
 			},
 		},
 		{
-			name: "AO bookkeeping",
+			name: "Operator bookkeeping",
 			stages: []string{
 				`printf '%s' '{ "reviews": [] }'`,
-				`ao review submit --session sess-1 --reviews -`,
+				`opr review submit --session sess-1 --reviews -`,
 			},
 		},
 	}

@@ -1,10 +1,10 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import type { Metadata } from "next";
 
 const LAST_UPDATED = "30 July 2026";
 
 const description =
-  "How Agent Orchestrator handles data in AO Mobile, the desktop app and CLI, and aoagents.dev: local-first operation, optional analytics, and waitlist email processing.";
+  "How Operator handles data in Operator Mobile, the desktop app and CLI, and operator.example.com: local-first operation, optional analytics, and waitlist email processing.";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    site: "@aoagents",
+    site: "@operator-dev",
     title: `Privacy Policy | ${COMPANY.NAME}`,
     description,
     images: [`${COMPANY.MARKETING_URL}/og-image.png`],
@@ -102,7 +102,7 @@ function Code({ children }: { children: React.ReactNode }) {
 
 const toc = [
   { id: "scope", label: "What this covers" },
-  { id: "mobile", label: "AO Mobile app" },
+  { id: "mobile", label: "Operator Mobile app" },
   { id: "desktop", label: "Desktop app & CLI" },
   { id: "website", label: "This website" },
   { id: "not-collected", label: "Data we do not collect" },
@@ -132,8 +132,8 @@ export default function PrivacyPage() {
 
           <div className="mt-8 rounded-[8px] border border-border bg-card/50 p-6 sm:p-7">
             <p className="text-[15px] leading-[1.75] text-muted-foreground sm:text-[16px]">
-              <Strong>The short version.</Strong> Agent Orchestrator runs on your
-              own machine. No account is required, and no hosted AO service stores
+              <Strong>The short version.</Strong> Operator runs on your
+              own machine. No account is required, and no hosted Operator service stores
               your work. We never see your source code, prompts, agent output,
               terminal contents, repository names, or file paths, and we never
               sell or rent data to anyone. The desktop app sends{" "}
@@ -171,41 +171,41 @@ export default function PrivacyPage() {
         <div className="mt-14 space-y-10">
           <Section id="scope" title="What this policy covers">
             <p>
-              Agent Orchestrator ("AO") is open-source software published by the
-              Untrivial-ai project. This policy applies to:
+              Operator ("Operator") is open-source software published by the
+              OmarAly92 project. This policy applies to:
             </p>
             <Bullets>
               <Bullet>
-                <Strong>AO Mobile</Strong> — the companion app for iOS and
-                Android that connects to an AO daemon you run yourself.
+                <Strong>Operator Mobile</Strong> — the companion app for iOS and
+                Android that connects to an Operator daemon you run yourself.
               </Bullet>
               <Bullet>
-                <Strong>The AO desktop app and CLI</Strong> — the local
+                <Strong>The Operator desktop app and CLI</Strong> — the local
                 orchestrator that supervises coding agents in git worktrees on
                 your computer.
               </Bullet>
               <Bullet>
-                <Strong>aoagents.dev</Strong> — this website and the
+                <Strong>operator.example.com</Strong> — this website and the
                 documentation hosted on it.
               </Bullet>
             </Bullets>
             <p>
-              AO is not a hosted service. There is no AO account system and no
-              AO server that stores your work. Everything AO orchestrates —
+              Operator is not a hosted service. There is no Operator account system and no
+              Operator server that stores your work. Everything Operator orchestrates —
               repositories, worktrees, sessions, terminals, agent output — lives
               on hardware you control.
             </p>
             <p>
-              The AI coding agents you run inside AO (Claude Code, Codex,
+              The AI coding agents you run inside Operator (Claude Code, Codex,
               Cursor, and others) are separate third-party tools with their own
-              privacy policies. AO launches them locally; it does not intercept,
+              privacy policies. Operator launches them locally; it does not intercept,
               store, or forward what they send to their own providers.
             </p>
           </Section>
 
-          <Section id="mobile" title="AO Mobile (iOS and Android)">
+          <Section id="mobile" title="Operator Mobile (iOS and Android)">
             <p>
-              AO Mobile lets you monitor and control an AO daemon that{" "}
+              Operator Mobile lets you monitor and control an Operator daemon that{" "}
               <Strong>you run yourself</Strong>, over your local network or a
               private network such as Tailscale. The app has no backend of its
               own; it talks only to the server you configure.
@@ -217,7 +217,7 @@ export default function PrivacyPage() {
             <Bullets>
               <Bullet>
                 <Strong>Server connection details.</Strong> The host or address
-                and port of your AO server, plus the connection password. The
+                and port of your Operator server, plus the connection password. The
                 address and port are stored in the app's local storage; the
                 password is stored in the device's secure keychain (iOS Keychain
                 / Android Keystore). Both are sent only to the server you
@@ -265,7 +265,7 @@ export default function PrivacyPage() {
             </p>
 
             <p>
-              AO Mobile contains{" "}
+              Operator Mobile contains{" "}
               <Strong>no analytics, advertising, or tracking SDKs</Strong>, and
               collects no usage telemetry whatsoever. Nothing in the app is used
               for tracking across apps or websites owned by other companies.
@@ -276,7 +276,7 @@ export default function PrivacyPage() {
             <p>
               The desktop app and CLI run entirely on your machine. All
               application state — projects, worktrees, sessions, terminal
-              history, settings — is written under <Code>~/.ao</Code> on your
+              history, settings — is written under <Code>~/.operator</Code> on your
               own disk and is never uploaded to us.
             </p>
             <p>
@@ -303,7 +303,7 @@ export default function PrivacyPage() {
                 coarse context label.
               </Bullet>
               <Bullet>
-                AO version, operating system platform, and build mode.
+                Operator version, operating system platform, and build mode.
               </Bullet>
             </Bullets>
             <p>Before anything leaves your machine:</p>
@@ -332,29 +332,29 @@ export default function PrivacyPage() {
               person profiles are created and the app never calls{" "}
               <Code>identify()</Code>. A random install identifier generated on
               first run and stored at{" "}
-              <Code>~/.ao/data/telemetry_install_id</Code> is used to
+              <Code>~/.operator/data/telemetry_install_id</Code> is used to
               deduplicate counts. It is not linked to any account, email, or
               name. Approximate country is derived by PostHog from the
-              connection's IP address; AO itself never sends location data.
+              connection's IP address; Operator itself never sends location data.
             </p>
             <p>
               The desktop app does <Strong>not</Strong> currently send PostHog{" "}
               <Strong>session recordings</Strong>. Session recording is disabled
               by default; if a time-boxed investigation enables it, local paths,
               local URLs, and network request names are masked before
-              transmission. It would cover the AO interface only — never other
+              transmission. It would cover the Operator interface only — never other
               applications, never your desktop, and never keystroke content.
             </p>
 
             <div className="rounded-[8px] border border-border bg-card/50 p-5">
               <p className="text-[15px] leading-[1.75] text-muted-foreground">
                 <Strong>Turning telemetry off.</Strong> Set{" "}
-                <Code>AO_TELEMETRY_EVENTS=off</Code> and{" "}
-                <Code>AO_TELEMETRY_REMOTE=off</Code> in the daemon's environment
-                to stop daemon events. Because AO is open source, you can also
-                build it yourself with an empty <Code>VITE_AO_POSTHOG_KEY</Code>
+                <Code>OPERATOR_TELEMETRY_EVENTS=off</Code> and{" "}
+                <Code>OPERATOR_TELEMETRY_REMOTE=off</Code> in the daemon's environment
+                to stop daemon events. Because Operator is open source, you can also
+                build it yourself with an empty <Code>VITE_OPERATOR_POSTHOG_KEY</Code>
                 , which removes transmission entirely. See{" "}
-                <Ext href="https://github.com/Untrivial-ai/agent-orchestrator/blob/main/docs/telemetry.md">
+                <Ext href="https://github.com/OmarAly92/operator/blob/main/docs/telemetry.md">
                   docs/telemetry.md
                 </Ext>{" "}
                 for the full, source-level detail.
@@ -363,7 +363,7 @@ export default function PrivacyPage() {
 
             <p>
               If you connect a GitHub account for pull-request and CI awareness,
-              AO uses your existing local GitHub credentials to talk to GitHub
+              Operator uses your existing local GitHub credentials to talk to GitHub
               directly from your machine. Those credentials stay on your machine
               and are never transmitted to us.
             </p>
@@ -371,7 +371,7 @@ export default function PrivacyPage() {
 
           <Section id="website" title="This website">
             <p>
-              aoagents.dev is a static site and runs no advertising. It uses
+              operator.example.com is a static site and runs no advertising. It uses
               PostHog analytics cookies to understand site usage and improve the
               experience, but analytics collection is disabled by default until
               you select <Strong>Accept</Strong>. Selecting opt-out keeps
@@ -443,7 +443,7 @@ export default function PrivacyPage() {
 
           <Section id="third-parties" title="Third-party services">
             <p>
-              AO relies on a small number of services, each only to make a
+              Operator relies on a small number of services, each only to make a
               specific feature work:
             </p>
             <Bullets>
@@ -491,14 +491,14 @@ export default function PrivacyPage() {
 
           <Section id="security" title="Storage and security">
             <p>
-              On desktop, all AO state is stored under <Code>~/.ao</Code> on
+              On desktop, all Operator state is stored under <Code>~/.operator</Code> on
               your own machine, protected by your operating system's file
               permissions. On mobile, configuration is stored in app-local
               storage and the connection password is held in the platform secure
               keychain rather than in plaintext.
             </p>
             <p>
-              AO Mobile connects over the address and transport (HTTP or HTTPS)
+              Operator Mobile connects over the address and transport (HTTP or HTTPS)
               you configure. The optional LAN listener that serves the mobile
               app binds to your network only while you explicitly enable it, and
               always requires the connection password. Because the server is one{" "}
@@ -508,8 +508,8 @@ export default function PrivacyPage() {
               to the public internet.
             </p>
             <p>
-              No system is perfectly secure, but because AO holds no central
-              store of your data, there is no AO-side database of user content
+              No system is perfectly secure, but because Operator holds no central
+              store of your data, there is no Operator-side database of user content
               that could be breached.
             </p>
           </Section>
@@ -520,7 +520,7 @@ export default function PrivacyPage() {
                 <Strong>On your devices.</Strong> Data stays until you delete
                 it. Uninstalling the mobile app, or clearing its data, removes
                 stored settings and the keychain entry and invalidates the push
-                token registered with your server. Deleting <Code>~/.ao</Code>{" "}
+                token registered with your server. Deleting <Code>~/.operator</Code>{" "}
                 removes all desktop state.
               </Bullet>
               <Bullet>
@@ -550,8 +550,8 @@ export default function PrivacyPage() {
               CCPA/CPRA.
             </p>
             <p>
-              In practice, nearly all data AO touches is already in your own
-              hands: delete the app, delete <Code>~/.ao</Code>, and it is gone.
+              In practice, nearly all data Operator touches is already in your own
+              hands: delete the app, delete <Code>~/.operator</Code>, and it is gone.
               For the anonymous telemetry, the most direct way to exercise
               control is to turn it off using the settings described above. If
               you submitted a waitlist email or believe we hold other data about
@@ -564,7 +564,7 @@ export default function PrivacyPage() {
 
           <Section id="children" title="Children">
             <p>
-              AO is a developer tool intended for professional and hobbyist
+              Operator is a developer tool intended for professional and hobbyist
               software developers. It is not directed to children under 13, and
               we do not knowingly collect personal information from children.
             </p>
@@ -572,7 +572,7 @@ export default function PrivacyPage() {
 
           <Section id="changes" title="Changes to this policy">
             <p>
-              We may update this policy as AO evolves. Material changes will be
+              We may update this policy as Operator evolves. Material changes will be
               reflected here with a new "last updated" date, and the history of
               every revision is public in the project's git repository.
             </p>
@@ -597,7 +597,7 @@ export default function PrivacyPage() {
               </Bullet>
             </Bullets>
             <p className="text-muted-foreground">
-              Agent Orchestrator is open-source software released under Apache
+              Operator is open-source software released under Apache
               2.0 and provided as-is. If this policy and the source code ever
               disagree, the source code is the truth — and you are welcome to
               read it.

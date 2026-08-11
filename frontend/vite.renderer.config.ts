@@ -10,7 +10,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { DEFAULT_POSTHOG_HOST } from "./src/shared/posthog-config";
 
 const POSTHOG_ORIGINS = (() => {
-	const configured = process.env.VITE_AO_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
+	const configured = process.env.VITE_OPERATOR_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
 	if (!configured) return [];
 	let url: URL;
 	try {
@@ -21,7 +21,7 @@ const POSTHOG_ORIGINS = (() => {
 	// posthog-js serves capture from api_host but fetches remote config from a
 	// sibling "-assets" host it derives from the same name, so a CSP built only
 	// from api_host blocks that request and logs a console error on every launch
-	// of a packaged build. Capture is unaffected (it uses api_host), and AO
+	// of a packaged build. Capture is unaffected (it uses api_host), and Operator
 	// ignores what remote config offers, since replay, flags, and surveys are all
 	// disabled in the client. Allowing the origin only silences the error; the
 	// client settings still win over anything the server would say.
@@ -85,11 +85,11 @@ export default defineConfig({
 	server: {
 		proxy: {
 			"/api": {
-				target: process.env.AO_DEV_API_TARGET ?? "http://127.0.0.1:3001",
+				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
 			},
 			"/mux": {
-				target: process.env.AO_DEV_API_TARGET ?? "http://127.0.0.1:3001",
+				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
 				ws: true,
 			},

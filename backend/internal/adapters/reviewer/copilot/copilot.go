@@ -1,13 +1,13 @@
 // Package copilot adapts the GitHub Copilot CLI worker for persistent,
-// restricted AO code-review sessions.
+// restricted Operator code-review sessions.
 package copilot
 
 import (
 	"context"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/copilot"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/OmarAly92/operator/backend/internal/adapters/agent/copilot"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const availableTools = "bash,view,grep,glob"
@@ -20,7 +20,7 @@ var allowedTools = []string{
 	"shell(git status:*)",
 	"shell(printf:*)",
 	"shell(gh api:*)",
-	"shell(ao review submit:*)",
+	"shell(opr review submit:*)",
 }
 
 var deniedTools = []string{
@@ -59,8 +59,8 @@ func (r *Reviewer) Harness() domain.ReviewerHarness {
 var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
-// PreLaunch installs only the AO-owned custom-agent profile. Reviewer panes do
-// not use worker lifecycle hooks, so this must not create .github/hooks/ao.json.
+// PreLaunch installs only the Operator-owned custom-agent profile. Reviewer panes do
+// not use worker lifecycle hooks, so this must not create .github/hooks/opr.json.
 func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) error {
 	return r.agent.InstallAgentProfile(ctx, ports.WorkspaceHookConfig{
 		DataDir:          inv.DataDir,

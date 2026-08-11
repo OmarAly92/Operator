@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func testReviewer() *Reviewer {
@@ -29,7 +29,7 @@ func TestReviewCommandLaunchesReadonlyHostTrustedTUI(t *testing.T) {
 		t.Fatalf("ReviewCommand spec = %+v", spec)
 	}
 	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["CONTINUE_CLI_ENABLE_TELEMETRY"] != "0" {
-		t.Fatalf("AO-owned environment = %#v", spec.Env)
+		t.Fatalf("Operator-owned environment = %#v", spec.Env)
 	}
 }
 
@@ -96,11 +96,11 @@ func TestReviewPreflightAcceptsResolvedBinary(t *testing.T) {
 
 func TestContainedTUIContractIsExact(t *testing.T) {
 	launch := containedCommand(ports.ReviewInvocation{Prompt: "task-ref:opaque-7"})
-	wantArgv := []string{"cn", "--config", "/ao/config/continue/config.yaml", "--readonly"}
+	wantArgv := []string{"cn", "--config", "/opr/config/continue/config.yaml", "--readonly"}
 	if !slices.Equal(launch.Command.Argv, wantArgv) {
 		t.Fatalf("argv = %#v, want %#v", launch.Command.Argv, wantArgv)
 	}
-	if launch.Command.WorkingDirectory != "/ao/empty" {
+	if launch.Command.WorkingDirectory != "/opr/empty" {
 		t.Fatalf("cwd = %q, want neutral container directory", launch.Command.WorkingDirectory)
 	}
 	if !launch.ReplaceEnvironment {
@@ -129,9 +129,9 @@ func TestContainedEnvironmentReplacesHostDiscoveryState(t *testing.T) {
 
 	launch := containedCommand(ports.ReviewInvocation{})
 	want := map[string]string{
-		"HOME": "/ao/home", "XDG_CONFIG_HOME": "/ao/config",
-		"XDG_STATE_HOME": "/ao/state", "XDG_CACHE_HOME": "/ao/cache",
-		"TMPDIR": "/ao/tmp", "TMP": "/ao/tmp", "TEMP": "/ao/tmp",
+		"HOME": "/opr/home", "XDG_CONFIG_HOME": "/opr/config",
+		"XDG_STATE_HOME": "/opr/state", "XDG_CACHE_HOME": "/opr/cache",
+		"TMPDIR": "/opr/tmp", "TMP": "/opr/tmp", "TEMP": "/opr/tmp",
 		"PATH": "/usr/local/bin:/usr/bin:/bin", "CONTINUE_CLI_ENABLE_TELEMETRY": "0",
 	}
 	if len(launch.Command.Env) != len(want) {
@@ -142,7 +142,7 @@ func TestContainedEnvironmentReplacesHostDiscoveryState(t *testing.T) {
 			t.Errorf("env[%s] = %q, want %q", key, launch.Command.Env[key], value)
 		}
 	}
-	for _, forbidden := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AO_DATA_DIR", "AO_RUN_FILE", "GITHUB_TOKEN", "GH_TOKEN"} {
+	for _, forbidden := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPERATOR_DATA_DIR", "OPERATOR_RUN_FILE", "GITHUB_TOKEN", "GH_TOKEN"} {
 		if _, ok := launch.Command.Env[forbidden]; ok {
 			t.Errorf("replacement env leaks %s", forbidden)
 		}

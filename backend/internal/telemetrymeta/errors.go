@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
 
 // ErrorKindAndCode extracts a telemetry-safe error category and optional code.

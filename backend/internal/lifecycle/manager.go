@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/sessionguard"
 )
 
 type sessionStore interface {
@@ -126,7 +126,7 @@ func WithTelemetry(sink ports.EventSink) Option {
 }
 
 // WithContainerReaper wires the container leg of #2652: MarkTerminated will
-// force-remove the terminated session's ao.session-labeled Docker containers,
+// force-remove the terminated session's opr.session-labeled Docker containers,
 // unless the project opts out via ProjectConfig.ContainerReap.Disabled.
 func WithContainerReaper(reaper ports.ContainerReaper, projects projectConfigLoader) Option {
 	return func(m *Manager) {
@@ -193,7 +193,7 @@ type Manager struct {
 func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Manager {
 	// UTC so activity-driven LastActivityAt/UpdatedAt match spawn-stamped
 	// timestamps (the session manager clock is UTC too); a local clock here left
-	// `ao session get` showing created in UTC but updated in local time. A
+	// `opr session get` showing created in UTC but updated in local time. A
 	// WithClock option may still override this in tests.
 	clock := func() time.Time { return time.Now().UTC() }
 	m := &Manager{
@@ -241,7 +241,7 @@ func (m *Manager) SetSessionInputLease(lease sessionguard.InputLease) {
 }
 
 // SetSessionOperationGate prevents observation-driven terminal facts from
-// racing AO's deliberate provider replacement/relaunch operations.
+// racing Operator's deliberate provider replacement/relaunch operations.
 func (m *Manager) SetSessionOperationGate(gate sessionOperationGate) {
 	m.operationGateMu.Lock()
 	m.operationGate = gate
@@ -436,7 +436,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	s.TranscriptPath = strings.TrimSpace(s.TranscriptPath)
 	s.LaunchID = strings.TrimSpace(s.LaunchID)
 	s.ControllerGeneration = strings.TrimSpace(s.ControllerGeneration)
-	// A response or Stop hook produced by AO's optional source handoff request
+	// A response or Stop hook produced by Operator's optional source handoff request
 	// may contain last_assistant_message without echoing the internal prompt.
 	// From collection through source teardown, do not let that coordination
 	// response replace the latest user-facing assistant update used by the
@@ -652,7 +652,7 @@ func (m *Manager) stagePendingAgentSwitchNativeMetadata(ctx context.Context, id 
 	if err != nil {
 		return err
 	}
-	if !found || native.AOSessionID != id || native.Harness != sw.TargetHarness || native.LastGenerationID != sw.TargetGenerationID {
+	if !found || native.OperatorSessionID != id || native.Harness != sw.TargetHarness || native.LastGenerationID != sw.TargetGenerationID {
 		return nil
 	}
 	changed := false
@@ -731,7 +731,7 @@ type toolFlight struct {
 // turn-boundary clearing (fail-safe).
 const maxInflightTools = 128
 
-// isToolUseEvent reports whether the AO hook event is one of the tool-use
+// isToolUseEvent reports whether the Operator hook event is one of the tool-use
 // trio whose signals must not demote a sticky state on their own.
 func isToolUseEvent(event string) bool {
 	return event == "pre-tool-use" || isPostToolUseEvent(event)
@@ -739,7 +739,7 @@ func isToolUseEvent(event string) bool {
 
 func isPostToolUseEvent(event string) bool {
 	// post-tool-use-fail is retained for Kimchi hook files installed before the
-	// adapter switched to AO's canonical failure event name.
+	// adapter switched to Operator's canonical failure event name.
 	return event == "post-tool-use" || event == "post-tool-use-failure" || event == "post-tool-use-fail"
 }
 
@@ -886,7 +886,7 @@ func (m *Manager) waitingInputEvents(next domain.SessionRecord, prevState domain
 	// transition emits neither event so dwell covers the whole pause.
 	if !prevState.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated {
 		events = append(events, ports.TelemetryEvent{
-			Name:       "ao.session.waiting_input_entered",
+			Name:       "opr.session.waiting_input_entered",
 			Source:     "lifecycle",
 			OccurredAt: now.UTC(),
 			Level:      ports.TelemetryLevelInfo,
@@ -904,7 +904,7 @@ func (m *Manager) waitingInputEvents(next domain.SessionRecord, prevState domain
 			"exited_to": string(next.Activity.State),
 		}
 		events = append(events, ports.TelemetryEvent{
-			Name:       "ao.session.waiting_input_exited",
+			Name:       "opr.session.waiting_input_exited",
 			Source:     "lifecycle",
 			OccurredAt: now.UTC(),
 			Level:      ports.TelemetryLevelInfo,
@@ -1168,8 +1168,8 @@ func (m *Manager) MarkTerminated(ctx context.Context, id domain.SessionID) error
 // MarkTerminated call - Kill, daemon-shutdown teardown, Cleanup,
 // RetireForReplacement, and tracker-driven termination - funnels through
 // here, so this single hook covers every terminal-state path rather than
-// only explicit ao session kill. Best-effort: logged on failure, never
-// returned, matching the rest of AO's terminal-state teardown. A project-load
+// only explicit opr session kill. Best-effort: logged on failure, never
+// returned, matching the rest of Operator's terminal-state teardown. A project-load
 // error skips reaping rather than guessing - the package's stated bias is to
 // spare on ambiguity, not to reap on it.
 func (m *Manager) reapSessionContainers(ctx context.Context, id domain.SessionID) {
@@ -1258,7 +1258,7 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 	set(&base.BrowserCapabilityVerifier, in.BrowserCapabilityVerifier)
 	// The chat controller's resume handle. Without this a restart has no thread to
 	// resume and the conversation is stranded — the provider still holds it, but
-	// AO no longer knows its id.
+	// Operator no longer knows its id.
 	set(&base.ProviderConversationID, in.ProviderConversationID)
 	// Assigned rather than set: a relaunch rotates the generation, and the whole
 	// point is that the new value replaces the old one so events from the

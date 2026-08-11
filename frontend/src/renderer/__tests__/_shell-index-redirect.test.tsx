@@ -47,7 +47,7 @@ describe("shell index route", () => {
 				id: "scratch",
 				name: "Scratch",
 				kind: "scratch",
-				path: "/home/me/.ao/scratch/default",
+				path: "/home/me/.operator/scratch/default",
 				sessions: [],
 			},
 		];

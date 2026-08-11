@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 backend_dir="${repo_root}/backend"
-build_dir="${XDG_CACHE_HOME:-${HOME}/.cache}/aoagents/agent-orchestrator/bin"
+build_dir="${XDG_CACHE_HOME:-${HOME}/.cache}/OmarAly92/operator/bin"
 
 can_write_dir() {
   local dir="$1"
@@ -17,9 +17,9 @@ can_write_dir() {
 resolve_ao() {
   local resolved
 
-  resolved="$(command -v ao || true)"
+  resolved="$(command -v opr || true)"
   if [[ -z "${resolved}" && -n "${goexe:-}" ]]; then
-    resolved="$(command -v "ao${goexe}" || true)"
+    resolved="$(command -v "opr${goexe}" || true)"
   fi
 
   printf '%s\n' "${resolved}"
@@ -88,14 +88,14 @@ select_install_dir() {
 
 command -v go >/dev/null
 goexe="$(go env GOEXE)"
-binary_name="ao${goexe}"
+binary_name="opr${goexe}"
 binary_path="${build_dir}/${binary_name}"
 
 mkdir -p "${build_dir}"
-(cd "${backend_dir}" && go build -o "${binary_path}" ./cmd/ao)
+(cd "${backend_dir}" && go build -o "${binary_path}" ./cmd/opr)
 
 if ! install_dir="$(select_install_dir)"; then
-  printf 'Could not find a writable directory on PATH for ao\n' >&2
+  printf 'Could not find a writable directory on PATH for opr\n' >&2
   exit 1
 fi
 install_path="${install_dir}/${binary_name}"
@@ -104,17 +104,17 @@ shim_path=""
 install_file "${binary_path}" "${install_path}"
 
 if [[ -n "${goexe}" ]]; then
-  shim_path="${install_dir}/ao"
+  shim_path="${install_dir}/opr"
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' \
-    'exec "${script_dir}/ao.exe" "$@"' > "${shim_path}"
+    'exec "${script_dir}/opr.exe" "$@"' > "${shim_path}"
   chmod +x "${shim_path}"
 fi
 
 resolved="$(resolve_ao)"
 if [[ -z "${resolved}" ]]; then
-  printf 'ao did not resolve on PATH after installing %s\n' "${install_path}" >&2
+  printf 'opr did not resolve on PATH after installing %s\n' "${install_path}" >&2
   exit 1
 fi
 resolved_path="$(absolute_path "${resolved}")"
@@ -124,7 +124,7 @@ if [[ -n "${shim_path}" ]]; then
   shim_abs_path="$(absolute_path "${shim_path}")"
 fi
 if [[ "${resolved_path}" != "${install_abs_path}" && "${resolved_path}" != "${shim_abs_path}" ]]; then
-  printf 'ao resolves to %s, expected %s\n' "${resolved}" "${install_path}" >&2
+  printf 'opr resolves to %s, expected %s\n' "${resolved}" "${install_path}" >&2
   exit 1
 fi
 

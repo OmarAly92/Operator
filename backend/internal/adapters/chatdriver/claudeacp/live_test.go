@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/claudecode"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_CLAUDE_ACP=1. It spends two very small real turns
+// Run explicitly with OPERATOR_LIVE_CLAUDE_ACP=1. It spends two very small real turns
 // against the user's existing Claude Code login and proves the complete boundary,
 // including standing-context replacement on resume: packaged Node ->
-// claude-agent-acp -> user-installed Claude -> normalized AO events. CI never
+// claude-agent-acp -> user-installed Claude -> normalized Operator events. CI never
 // depends on credentials or the network.
 func TestLiveClaudeACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_CLAUDE_ACP") != "1" {
-		t.Skip("set AO_LIVE_CLAUDE_ACP=1 to run against the local Claude Code account")
+	if os.Getenv("OPERATOR_LIVE_CLAUDE_ACP") != "1" {
+		t.Skip("set OPERATOR_LIVE_CLAUDE_ACP=1 to run against the local Claude Code account")
 	}
 
 	driver := New(claudecode.New(), nil)
@@ -31,14 +31,14 @@ func TestLiveClaudeACP(t *testing.T) {
 	workspace := t.TempDir()
 	conversation, err := driver.Start(ctx, ports.ChatStartConfig{
 		SessionID: domain.SessionID("live-claude-acp"), WorkspacePath: workspace,
-		SystemPrompt: "For this live integration test, your role name is AO ACP standing context works. " +
+		SystemPrompt: "For this live integration test, your role name is Operator ACP standing context works. " +
 			"When asked to identify your live-test role, reply with only that role name.",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	answer := sendLiveTurn(ctx, t, conversation, "live-1", "Identify your live-test role.")
-	if strings.TrimSpace(answer) != "AO ACP standing context works" {
+	if strings.TrimSpace(answer) != "Operator ACP standing context works" {
 		t.Fatalf("new-session answer = %q", answer)
 	}
 	providerID := conversation.ProviderConversationID()
@@ -49,7 +49,7 @@ func TestLiveClaudeACP(t *testing.T) {
 	conversation, err = driver.Resume(ctx, ports.ChatResumeConfig{
 		SessionID: domain.SessionID("live-claude-acp"), ProviderConversationID: providerID,
 		WorkspacePath: workspace,
-		SystemPrompt: "For this resumed live integration test, your role name is AO ACP resumed context works. " +
+		SystemPrompt: "For this resumed live integration test, your role name is Operator ACP resumed context works. " +
 			"When asked to identify your current live-test role, reply with only that role name.",
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestLiveClaudeACP(t *testing.T) {
 	}
 	defer conversation.Close()
 	answer = sendLiveTurn(ctx, t, conversation, "live-2", "Identify your current live-test role.")
-	if strings.TrimSpace(answer) != "AO ACP resumed context works" {
+	if strings.TrimSpace(answer) != "Operator ACP resumed context works" {
 		t.Fatalf("resumed-session answer = %q", answer)
 	}
 }

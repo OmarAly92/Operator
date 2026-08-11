@@ -4,7 +4,7 @@ import type { AgentCatalog } from "../hooks/useAgentsQuery";
  * How many agents an install actually has available.
  *
  * The open product question is whether most people ever configure more than one
- * agent. Nothing answered it: `ao.session.spawned` carries the harness that ran,
+ * agent. Nothing answered it: `opr.session.spawned` carries the harness that ran,
  * so it shows which agents get *used*, not how many were available to choose
  * from. An install with six authorized agents that always picks one looks
  * identical to an install that only has one.
@@ -20,7 +20,7 @@ export type AgentInventory = {
   /**
    * Sorted, comma-joined authorized agent ids.
    *
-   * Safe because agent ids are a fixed vocabulary from AO's own registry
+   * Safe because agent ids are a fixed vocabulary from Operator's own registry
    * (`claude-code`, `codex`, …), not user-supplied text. Sorted so the same set
    * produces the same value and can be grouped in analysis.
    */

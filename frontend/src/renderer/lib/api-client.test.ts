@@ -125,7 +125,7 @@ describe("apiClient runtime base URL", () => {
 
 		const { error } = await apiClient.GET("/api/v1/projects");
 
-		expect(error).toEqual({ message: "AO daemon is not ready." });
+		expect(error).toEqual({ message: "Operator daemon is not ready." });
 		expect(getApiBaseUrl()).toBe("");
 		expect(hasTrustedApiBaseUrl()).toBe(false);
 		expect(fetchSpy).not.toHaveBeenCalled();
@@ -136,12 +136,12 @@ describe("apiClient runtime base URL", () => {
 		setApiDaemonStatus({
 			state: "error",
 			code: "exited",
-			message: "AO daemon exited with code 1",
+			message: "Operator daemon exited with code 1",
 		});
 
 		const { error } = await apiClient.GET("/api/v1/projects");
 
-		expect(error).toEqual({ code: "exited", message: "AO daemon exited with code 1" });
+		expect(error).toEqual({ code: "exited", message: "Operator daemon exited with code 1" });
 	});
 });
 
@@ -188,7 +188,7 @@ describe("subscribeApiBaseUrl", () => {
 describe("normalizeApiOperation", () => {
 	it("replaces identifier segments after resource collections", () => {
 		expect(normalizeApiOperation("get", "/api/v1/projects/my project id")).toBe("GET /api/v1/projects/:id");
-		expect(normalizeApiOperation("POST", "/api/v1/sessions/ao-42/kill")).toBe("POST /api/v1/sessions/:id/kill");
+		expect(normalizeApiOperation("POST", "/api/v1/sessions/opr-42/kill")).toBe("POST /api/v1/sessions/:id/kill");
 		expect(normalizeApiOperation("PUT", "/api/v1/projects/p1/config")).toBe("PUT /api/v1/projects/:id/config");
 		expect(normalizeApiOperation("GET", "/api/v1/agents/claude-code/models")).toBe(
 			"GET /api/v1/agents/:id/models",
@@ -211,13 +211,13 @@ describe("normalizeApiOperation", () => {
 	});
 
 	it("keeps workspace file routes aligned with the generated API schema", () => {
-		expect(normalizeApiOperation("GET", "/api/v1/sessions/ao-42/workspace/files")).toBe(
+		expect(normalizeApiOperation("GET", "/api/v1/sessions/opr-42/workspace/files")).toBe(
 			"GET /api/v1/sessions/:id/workspace/files",
 		);
-		expect(normalizeApiOperation("GET", "/api/v1/sessions/ao-42/workspace/file")).toBe(
+		expect(normalizeApiOperation("GET", "/api/v1/sessions/opr-42/workspace/file")).toBe(
 			"GET /api/v1/sessions/:id/workspace/file",
 		);
-		expect(normalizeApiOperation("POST", "/api/v1/sessions/ao-42/preview/server")).toBe(
+		expect(normalizeApiOperation("POST", "/api/v1/sessions/opr-42/preview/server")).toBe(
 			"POST /api/v1/sessions/:id/preview/server",
 		);
 	});
@@ -251,7 +251,7 @@ describe("api error telemetry", () => {
 
 		await apiClient.GET("/api/v1/projects");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "http_5xx",
 			status: 500,
@@ -263,10 +263,10 @@ describe("api error telemetry", () => {
 		setApiBaseUrl("http://127.0.0.1:3037");
 
 		await apiClient.POST("/api/v1/sessions/{sessionId}/kill", {
-			params: { path: { sessionId: "ao-raw-id" } },
+			params: { path: { sessionId: "opr-raw-id" } },
 		});
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.api_error", {
 			operation: "POST /api/v1/sessions/:id/kill",
 			error_category: "http_4xx",
 			status: 404,
@@ -279,7 +279,7 @@ describe("api error telemetry", () => {
 
 		await expect(apiClient.GET("/api/v1/projects")).rejects.toThrow("Failed to fetch");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "network_error",
 			status: undefined,
@@ -300,7 +300,7 @@ describe("api error telemetry", () => {
 
 		await apiClient.GET("/api/v1/projects");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "daemon_unavailable",
 			status: 503,

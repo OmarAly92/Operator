@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/gen"
 )
 
 // UpsertReview inserts the per-worker, per-harness review row, or reuses the
@@ -192,7 +192,7 @@ func (s *Store) CancelRunningReviewRunsBySessionAndHarness(ctx context.Context, 
 }
 
 // MarkReviewRunDelivered records that lifecycle delivered the worker nudge for
-// a completed AO-internal review pass.
+// a completed Operator-internal review pass.
 func (s *Store) MarkReviewRunDelivered(ctx context.Context, id string, deliveredAt time.Time) (bool, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()

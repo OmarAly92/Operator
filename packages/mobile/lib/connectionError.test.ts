@@ -88,7 +88,7 @@ describe("describeConnectionFailure", () => {
 	// The board's empty state shows the title on its own line, so a 401 must not
 	// be labelled "disconnected" — the connection worked, the password didn't.
 	it("gives every cause a distinct, non-empty title", () => {
-		const titles = (["not-ao-qr", "unreachable", "auth", "rate-limited", "server-error"] as const).map(
+		const titles = (["not-opr-qr", "unreachable", "auth", "rate-limited", "server-error"] as const).map(
 			(r) => describeConnectionFailure(r, target()).title,
 		);
 		expect(titles.every((t) => t.length > 0)).toBe(true);
@@ -105,12 +105,12 @@ describe("describeConnectionFailure", () => {
 
 	it("points at the desktop logs on a server error", () => {
 		const d = describeConnectionFailure("server-error", target());
-		expect(d.message).toContain("AO logs");
+		expect(d.message).toContain("Operator logs");
 	});
 
-	it("rejects a non-AO QR code without mentioning the network", () => {
-		const d = describeConnectionFailure("not-ao-qr", target());
-		expect(d.message).toContain("isn't an AO pairing code");
+	it("rejects a non-Operator QR code without mentioning the network", () => {
+		const d = describeConnectionFailure("not-opr-qr", target());
+		expect(d.message).toContain("isn't an Operator pairing code");
 		expect(d.showLocalNetworkHint).toBe(false);
 	});
 

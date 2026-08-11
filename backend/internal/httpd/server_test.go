@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/runfile"
 )
 
 func discardLogger() *slog.Logger {

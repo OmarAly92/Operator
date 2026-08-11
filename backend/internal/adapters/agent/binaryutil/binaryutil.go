@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // BinarySpec describes where one agent's CLI binary can live. ResolveBinary

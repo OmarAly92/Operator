@@ -1,7 +1,7 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
--- Widen conversation_activities.kind for two timeline entries AO could not
+-- Widen conversation_activities.kind for two timeline entries Operator could not
 -- previously write.
 --
 --   mcp_tool     an MCP tool call. It was being recorded as 'command', which made

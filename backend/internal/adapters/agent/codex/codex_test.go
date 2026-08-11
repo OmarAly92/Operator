@@ -10,19 +10,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestNativeConversationIDRequiresCapturedCodexThreadForTUI(t *testing.T) {
 	p := &Plugin{}
 	if id, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "ao-session-1", Metadata: map[string]string{},
+		ID: "opr-session-1", Metadata: map[string]string{},
 	}, domain.SessionModeTUI, ""); err != nil || ok || id != "" {
 		t.Fatalf("uncaptured TUI native id = %q ok=%v err=%v", id, ok, err)
 	}
 	tuiID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID:       "ao-session-1",
+		ID:       "opr-session-1",
 		Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "codex-thread-1"},
 	}, domain.SessionModeTUI, "")
 	if err != nil || !ok || tuiID != "codex-thread-1" {
@@ -135,7 +135,7 @@ func canonicalTempDir(t *testing.T) string {
 
 // sessionHookFlags mirrors the `-c` hook config appendSessionHookFlags emits,
 // asserted literally so accidental format drift fails loudly: Codex parses
-// these values as TOML. The absolute AO executable is load-bearing because
+// these values as TOML. The absolute Operator executable is load-bearing because
 // Codex invokes hooks through a login shell, which may replace PATH.
 func sessionHookFlags(t *testing.T) []string {
 	t.Helper()
@@ -163,7 +163,7 @@ func sessionHookFlags(t *testing.T) []string {
 	}
 }
 
-func TestExitDetectionUsesAOProcessSupervisor(t *testing.T) {
+func TestExitDetectionUsesOperatorProcessSupervisor(t *testing.T) {
 	plugin := &Plugin{}
 	if got := plugin.ExitDetectionMode(); got != ports.AgentExitDetectionSupervisor {
 		t.Fatalf("exit detection mode = %q, want %q", got, ports.AgentExitDetectionSupervisor)
@@ -345,7 +345,7 @@ func TestGetLaunchCommandUsesSystemPromptFile(t *testing.T) {
 	}
 }
 
-func TestGetLaunchCommandWithoutAODataRootFallsBackToInlineSystemPrompt(t *testing.T) {
+func TestGetLaunchCommandWithoutOperatorDataRootFallsBackToInlineSystemPrompt(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "codex"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		SessionID:    "review-session",
@@ -620,20 +620,20 @@ func TestGetConfigSpecReportsModelField(t *testing.T) {
 	}
 }
 
-// legacyHooksJSON builds a hooks.json in the shape older AO versions wrote:
-// AO-managed entries plus one user-defined Stop hook.
+// legacyHooksJSON builds a hooks.json in the shape older Operator versions wrote:
+// Operator-managed entries plus one user-defined Stop hook.
 func legacyHooksJSON() string {
 	return `{
   "hooks": {
     "Stop": [
       {"matcher": null, "hooks": [
         {"type": "command", "command": "custom stop hook", "timeout": 3},
-        {"type": "command", "command": "ao hooks codex stop", "timeout": 30}
+        {"type": "command", "command": "opr hooks codex stop", "timeout": 30}
       ]}
     ],
     "UserPromptSubmit": [
       {"matcher": null, "hooks": [
-        {"type": "command", "command": "ao hooks codex user-prompt-submit", "timeout": 30}
+        {"type": "command", "command": "opr hooks codex user-prompt-submit", "timeout": 30}
       ]}
     ]
   },
@@ -667,7 +667,7 @@ func TestGetAgentHooksRequiresWorkspacePath(t *testing.T) {
 	}
 }
 
-func TestGetAgentHooksStripsLegacyAOEntries(t *testing.T) {
+func TestGetAgentHooksStripsLegacyOperatorEntries(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "codex"}
 	workspace := t.TempDir()
 	hooksPath := filepath.Join(workspace, codexHooksDirName, codexHooksFileName)
@@ -704,14 +704,14 @@ func TestGetAgentHooksStripsLegacyAOEntries(t *testing.T) {
 		t.Fatalf("user Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
 	if _, ok := config.Hooks["UserPromptSubmit"]; ok {
-		t.Fatalf("UserPromptSubmit left behind after its only entry was AO's: %#v", config.Hooks)
+		t.Fatalf("UserPromptSubmit left behind after its only entry was Operator's: %#v", config.Hooks)
 	}
 	if !strings.Contains(string(data), "unmanagedKey") {
-		t.Fatalf("top-level keys AO doesn't manage were dropped: %s", data)
+		t.Fatalf("top-level keys Operator doesn't manage were dropped: %s", data)
 	}
 }
 
-func TestGetAgentHooksLeavesFilesWithoutAOEntriesUntouched(t *testing.T) {
+func TestGetAgentHooksLeavesFilesWithoutOperatorEntriesUntouched(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "codex"}
 	workspace := t.TempDir()
 	hooksPath := filepath.Join(workspace, codexHooksDirName, codexHooksFileName)
@@ -796,7 +796,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions:      ports.PermissionModeAuto,
-		Prompt:           "continue from AO",
+		Prompt:           "continue from Operator",
 		SystemPrompt:     "restore inline fallback",
 		SystemPromptFile: systemFile,
 		Session: ports.SessionRef{
@@ -828,7 +828,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 		"-c", `projects={`+codexTOMLConfigString(workspace)+`={trust_level="trusted"}}`,
 		"-c", "model_instructions_file="+systemFile,
 		"thread-123",
-		"--", "continue from AO",
+		"--", "continue from Operator",
 	)
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("restore cmd\nwant: %#v\n got: %#v", want, cmd)
@@ -852,7 +852,7 @@ func TestGetRestoreCommandUsesSystemPromptFile(t *testing.T) {
 	}
 }
 
-func TestGetRestoreCommandWithoutAODataRootFallsBackToInlineSystemPrompt(t *testing.T) {
+func TestGetRestoreCommandWithoutOperatorDataRootFallsBackToInlineSystemPrompt(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "codex"}
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		SystemPrompt: "restore inline instructions",

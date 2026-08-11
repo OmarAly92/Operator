@@ -1,20 +1,20 @@
 // Package opencode implements the opencode (sst/opencode) agent adapter:
 // launching new TUI sessions, resuming sessions by native id, installing a
-// workspace-local activity plugin plus the using-ao skill, and reading
+// workspace-local activity plugin plus the using-opr skill, and reading
 // plugin-derived session info.
 //
-// opencode differs from Claude Code and Codex in two ways AO has to bridge:
+// opencode differs from Claude Code and Codex in two ways Operator has to bridge:
 //   - It has no native command-hook config (no settings.local.json / hooks.json
 //     equivalent). Its only lifecycle-extensibility surface is a JS/TS plugin
-//     loaded from .opencode/plugins/, so GetAgentHooks installs an AO-owned
+//     loaded from .opencode/plugins/, so GetAgentHooks installs an Operator-owned
 //     plugin file (see hooks.go) instead of merging JSON. The same install also
-//     materializes using-ao under .opencode/skills/ so opencode's skill tool
+//     materializes using-opr under .opencode/skills/ so opencode's skill tool
 //     can discover it (the data-dir skill path alone is invisible to opencode).
 //   - Its CLI exposes only one approval flag (--dangerously-skip-permissions)
-//     and no system-prompt flag, so AO injects standing instructions by writing
-//     an AO-owned per-session config and selecting the generated agent.
+//     and no system-prompt flag, so Operator injects standing instructions by writing
+//     an Operator-owned per-session config and selecting the generated agent.
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Operator-managed sessions derive native session identity and display metadata from
 // the opencode plugin's reported events, mirroring the Codex adapter.
 package opencode
 
@@ -31,19 +31,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 
 	_ "modernc.org/sqlite" // register sqlite driver for opencode session metadata probes
 )
 
 const (
 	// adapterID is the registry id and the value users pass to
-	// `ao spawn --agent`. It matches domain.HarnessOpenCode.
+	// `opr spawn --agent`. It matches domain.HarnessOpenCode.
 	adapterID = "opencode"
 
 	// opencodeAgentSessionIDMetadataKey is the session-metadata key the opencode
@@ -97,11 +97,11 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // GetLaunchCommand builds the argv to start a new interactive opencode session.
 // Shape:
 //
-//	[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] [--prompt <prompt>]
+//	[env OPENCODE_CONFIG=<opr-config>] opencode [--dangerously-skip-permissions] [--agent <opr-agent>] [--prompt <prompt>]
 //
 // The session runs in the worktree (cwd is set by the runtime, as for Claude
-// Code and Codex). opencode has no CLI flag to set a system prompt, so AO writes
-// an opencode config into the AO prompt artifact directory, points OPENCODE_CONFIG
+// Code and Codex). opencode has no CLI flag to set a system prompt, so Operator writes
+// an opencode config into the Operator prompt artifact directory, points OPENCODE_CONFIG
 // at it, and selects the generated agent with --agent. The initial task prompt
 // is delivered via --prompt (its argument, so a leading "-" is not read as a flag).
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -128,8 +128,8 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 }
 
 // GetRestoreCommand rebuilds the argv that continues an existing opencode
-// session: `[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] --session <agentSessionId>`.
-// It re-applies the permission flag and the generated AO agent config (resume
+// session: `[env OPENCODE_CONFIG=<opr-config>] opencode [--dangerously-skip-permissions] [--agent <opr-agent>] --session <agentSessionId>`.
+// It re-applies the permission flag and the generated Operator agent config (resume
 // otherwise reverts to configured defaults). ok is false when the plugin-derived
 // native session id has not landed yet, so callers fall back to fresh launch
 // behavior — mirroring the Codex adapter.
@@ -355,7 +355,7 @@ func opencodeDBCount(ctx context.Context, db *sql.DB, query string) (int, error)
 	return count, nil
 }
 
-// appendPermissionFlags maps AO's permission modes onto opencode's single
+// appendPermissionFlags maps Operator's permission modes onto opencode's single
 // approval flag. opencode exposes only --dangerously-skip-permissions (no
 // graduated accept-edits/auto modes), so:
 //   - bypass-permissions → --dangerously-skip-permissions
@@ -386,7 +386,7 @@ func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]stri
 	if promptFile == "" {
 		return nil, "", fmt.Errorf("opencode: system prompt file required to build agent config")
 	}
-	agentName := opencodeAOAgentName(sessionID)
+	agentName := opencodeOperatorAgentName(sessionID)
 	prompt := inlinePrompt
 	if prompt == "" {
 		prompt = "{file:./" + filepath.Base(promptFile) + "}"
@@ -416,7 +416,7 @@ func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]stri
 	return []string{"env", opencodeConfigEnvVar + "=" + configPath}, agentName, nil
 }
 
-// PrepareACPConfigContent merges AO's standing instructions and any explicit
+// PrepareACPConfigContent merges Operator's standing instructions and any explicit
 // bypass-permissions choice into OpenCode's inline runtime overlay. The user's
 // OPENCODE_CONFIG path remains untouched, preserving its normal global, custom,
 // project, provider, and credential configuration.
@@ -445,14 +445,14 @@ func PrepareACPConfigContent(
 		if agents == nil {
 			agents = map[string]any{}
 		}
-		agentName := opencodeAOAgentName(sessionID)
+		agentName := opencodeOperatorAgentName(sessionID)
 		agents[agentName] = opencodeAgentSettings{Mode: "primary", Prompt: systemPrompt}
 		config["agent"] = agents
 		config["default_agent"] = agentName
 	}
 	if allowAll {
 		// This is the native config equivalent of OpenCode's TUI auto-approval
-		// flag. Other AO permission modes preserve the user's granular rules.
+		// flag. Other Operator permission modes preserve the user's granular rules.
 		config["permission"] = "allow"
 	}
 	data, err := json.Marshal(config)
@@ -462,8 +462,8 @@ func PrepareACPConfigContent(
 	return string(data), nil
 }
 
-func opencodeAOAgentName(sessionID string) string {
-	const fallback = "ao-system-prompt"
+func opencodeOperatorAgentName(sessionID string) string {
+	const fallback = "opr-system-prompt"
 	trimmed := strings.TrimSpace(sessionID)
 	if trimmed == "" {
 		return fallback
@@ -485,7 +485,7 @@ func opencodeAOAgentName(sessionID string) string {
 	if name == "" {
 		return fallback
 	}
-	return "ao-" + name
+	return "opr-" + name
 }
 
 // ResolveOpenCodeBinary returns the path to the opencode binary on this machine,

@@ -1,7 +1,7 @@
 import {
   ANDROID_TESTER_GROUP_URL,
   ANDROID_TEST_OPT_IN_URL,
-} from "@ao/shared/constants";
+} from "@operator/shared/constants";
 import { ExternalLink } from "lucide-react";
 
 const STEPS = [
@@ -18,7 +18,7 @@ const STEPS = [
     action: "Open the testing invite",
   },
   {
-    title: "Install AO Mobile",
+    title: "Install Operator Mobile",
     body: "After opting in, use the Google Play link on that page to install the app.",
   },
 ] as const;

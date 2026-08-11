@@ -148,7 +148,7 @@ graph TD
 - sqlc generated rows
 - External system payloads (GitHub, tmux, agent-specific)
 
-**Rule of thumb:** If AO would still use the concept after replacing HTTP, CLI, SQLite, GitHub, tmux, and every agent adapter, it belongs in domain.
+**Rule of thumb:** If Operator would still use the concept after replacing HTTP, CLI, SQLite, GitHub, tmux, and every agent adapter, it belongs in domain.
 
 ---
 
@@ -559,7 +559,7 @@ graph TD
 
 ### `internal/cli`
 
-**Purpose:** User-facing `ao` command. Thin client over the daemon HTTP API.
+**Purpose:** User-facing `opr` command. Thin client over the daemon HTTP API.
 
 ```mermaid
 graph LR
@@ -617,7 +617,7 @@ graph TD
 **Adapter principles:**
 
 - Adapters are leaves in the import graph
-- Adapters translate external behavior into AO ports/domain concepts
+- Adapters translate external behavior into Operator ports/domain concepts
 - Adapters should not own product workflows
 - All adapter-written files must be gitignored
 
@@ -688,22 +688,22 @@ graph LR
 
     Config -->|provides| Settings[Settings]
 
-    Settings --> Port[AO_PORT]
-    Settings --> Timeout[AO_REQUEST_TIMEOUT]
-    Settings --> DataDir[AO_DATA_DIR]
-    Settings --> RunFile[AO_RUN_FILE]
-    Settings --> Agent[AO_AGENT]
+    Settings --> Port[OPERATOR_PORT]
+    Settings --> Timeout[OPERATOR_REQUEST_TIMEOUT]
+    Settings --> DataDir[OPERATOR_DATA_DIR]
+    Settings --> RunFile[OPERATOR_RUN_FILE]
+    Settings --> Agent[OPERATOR_AGENT]
 
 ```
 
 **Key environment variables:**
 
-- `AO_PORT` — HTTP bind port (default: 3001)
-- `AO_REQUEST_TIMEOUT` — Per-request timeout (default: 60s)
-- `AO_SHUTDOWN_TIMEOUT` — Graceful shutdown cap (default: 10s)
-- `AO_RUN_FILE` — PID/port handshake (default: ~/.ao/running.json)
-- `AO_DATA_DIR` — SQLite data directory (default: ~/.ao/data)
-- `AO_AGENT` — Compatibility agent adapter (default: claude-code)
+- `OPERATOR_PORT` — HTTP bind port (default: 3001)
+- `OPERATOR_REQUEST_TIMEOUT` — Per-request timeout (default: 60s)
+- `OPERATOR_SHUTDOWN_TIMEOUT` — Graceful shutdown cap (default: 10s)
+- `OPERATOR_RUN_FILE` — PID/port handshake (default: ~/.operator/running.json)
+- `OPERATOR_DATA_DIR` — SQLite data directory (default: ~/.operator/data)
+- `OPERATOR_AGENT` — Compatibility agent adapter (default: claude-code)
 - `GITHUB_TOKEN` — GitHub authentication
 
 ---
@@ -902,7 +902,7 @@ type MyFeature interface {
 // In internal/adapters/myfeature/impl.go
 package impl
 
-import "github.com/aoagents/agent-orchestrator/backend/internal/ports"
+import "github.com/OmarAly92/operator/backend/internal/ports"
 
 type Impl struct { ... }
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // captureAgent is a stub ports.Agent that records the LaunchConfig the reviewer
@@ -78,7 +78,7 @@ func TestReviewCommandLaunchesReadOnlyOffBypass(t *testing.T) {
 	if spec.AgentSessionID != agent.got.SessionID {
 		t.Fatalf("persisted agent session id = %q, launched session id = %q", spec.AgentSessionID, agent.got.SessionID)
 	}
-	if !contains(agent.got.AllowedTools, "Read") || !contains(agent.got.AllowedTools, "Bash(ao review submit:*)") {
+	if !contains(agent.got.AllowedTools, "Read") || !contains(agent.got.AllowedTools, "Bash(opr review submit:*)") {
 		t.Fatalf("allowlist missing read-only review tools: %#v", agent.got.AllowedTools)
 	}
 	for _, denied := range []string{"Edit", "Write", "Bash(git push:*)", "Bash(git commit:*)"} {
@@ -125,7 +125,7 @@ func TestAllowlistCoversPromptRequiredPipedCommands(t *testing.T) {
 
 	for _, cmd := range []string{
 		"printf '%s' '{ \"event\": \"COMMENT\", \"body\": \"x\" }' | gh api --method POST repos/o/r/pulls/1/reviews --input - --jq '.id'",
-		"printf '%s' '{ \"reviews\": [] }' | ao review submit --session sess-1 --reviews -",
+		"printf '%s' '{ \"reviews\": [] }' | opr review submit --session sess-1 --reviews -",
 	} {
 		if !compoundCommandCovered(agent.got.AllowedTools, cmd) {
 			t.Fatalf("allowlist does not cover prompt-required command %q with tools %#v", cmd, agent.got.AllowedTools)
@@ -143,12 +143,12 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 	r := &Reviewer{agent: agent}
 
 	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		Prompt:           "Start the AO review task.",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		Prompt:           "Start the Operator review task.",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	}); err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if agent.got.Prompt != "Start the AO review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.Prompt != "Start the Operator review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/opr/prompts/reviewer/system.md" {
 		t.Fatalf("launch config = %+v", agent.got)
 	}
 }
@@ -161,7 +161,7 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlyPolicy(t *testing.T) 
 		ReviewerID:       "review-w1",
 		AgentSessionID:   "claude-native-1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)
@@ -190,7 +190,7 @@ func TestReviewRestoreCommandAllowsAdapterFallbackWithoutNativeSessionID(t *test
 	got, ok, err := r.ReviewRestoreCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)

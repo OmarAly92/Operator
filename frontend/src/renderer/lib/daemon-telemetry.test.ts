@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonStatus } from "../../shared/daemon-status";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { startDaemonFailureTelemetry } from "./daemon-telemetry";
 import { captureRendererEvent } from "./telemetry";
 
@@ -9,7 +9,7 @@ vi.mock("./telemetry", () => ({
 }));
 
 vi.mock("./bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		daemon: {
 			getStatus: vi.fn(),
 			onStatus: vi.fn(),
@@ -18,8 +18,8 @@ vi.mock("./bridge", () => ({
 }));
 
 const captureMock = vi.mocked(captureRendererEvent);
-const getStatusMock = vi.mocked(aoBridge.daemon.getStatus);
-const onStatusMock = vi.mocked(aoBridge.daemon.onStatus);
+const getStatusMock = vi.mocked(operatorBridge.daemon.getStatus);
+const onStatusMock = vi.mocked(operatorBridge.daemon.onStatus);
 
 describe("daemon failure telemetry", () => {
 	let pushStatus!: (status: DaemonStatus) => void;
@@ -42,10 +42,10 @@ describe("daemon failure telemetry", () => {
 	it("reports a failing status with coarse fields only", () => {
 		stop = startDaemonFailureTelemetry();
 
-		pushStatus({ state: "error", message: "spawn /Users/alice/ao failed", code: "spawn_failed" });
+		pushStatus({ state: "error", message: "spawn /Users/alice/opr failed", code: "spawn_failed" });
 
 		expect(captureMock).toHaveBeenCalledTimes(1);
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.daemon_failure", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.daemon_failure", {
 			daemon_state: "error",
 			code: "spawn_failed",
 			exit_code: undefined,
@@ -58,7 +58,7 @@ describe("daemon failure telemetry", () => {
 
 		pushStatus({ state: "stopped", code: "exited", exitCode: 1, signal: "SIGKILL" });
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.daemon_failure", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.daemon_failure", {
 			daemon_state: "stopped",
 			code: "exited",
 			exit_code: 1,
@@ -106,7 +106,7 @@ describe("daemon failure telemetry", () => {
 		stop = startDaemonFailureTelemetry();
 		await vi.waitFor(() => expect(captureMock).toHaveBeenCalledTimes(1));
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.daemon_failure", {
+		expect(captureMock).toHaveBeenCalledWith("opr.renderer.daemon_failure", {
 			daemon_state: "error",
 			code: "binary_missing",
 			exit_code: undefined,

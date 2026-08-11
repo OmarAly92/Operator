@@ -19,7 +19,7 @@ vi.mock("../lib/navigate-to-session", () => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		tray: {
 			setAttentionState: h.setAttentionState,
 			onOpenSession: (listener: (target: { projectId: string; sessionId: string }) => void) => {

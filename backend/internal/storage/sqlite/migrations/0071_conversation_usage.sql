@@ -24,7 +24,7 @@
 -- Rate limits are percentages in 0..100, not token counts, and the reset columns
 -- are remaining seconds rather than the absolute instant the provider sends. A
 -- duration is what survives being read back later: an absolute timestamp from a
--- provider whose clock AO cannot verify would render as already-refilled the
+-- provider whose clock Operator cannot verify would render as already-refilled the
 -- moment it went stale. NULL throughout means the provider never reported, which
 -- is deliberately distinct from reporting zero.
 ALTER TABLE conversations ADD COLUMN context_used INTEGER;
@@ -42,7 +42,7 @@ ALTER TABLE conversations ADD COLUMN rate_limit_plan TEXT;
 
 -- +goose Down
 -- +goose StatementBegin
--- SQLite cannot drop a column in the versions AO supports, and a rebuild would
+-- SQLite cannot drop a column in the versions Operator supports, and a rebuild would
 -- have to re-declare the table plus its two partial indexes. The columns are
 -- nullable and unread by older code, so leaving them is safe on a downgrade.
 SELECT 1;

@@ -20,7 +20,7 @@ import { useTabScrollToTop } from "../../lib/useTabScrollToTop";
 import { Dot, ScreenHeader, SettingsGroup, SettingsRow, SettingsToggle } from "../../lib/ui";
 import { useTheme, useThemedStyles, useThemeState } from "../../lib/ThemeProvider";
 
-const ISSUES_URL = "https://github.com/AgentWrapper/agent-orchestrator/issues/new";
+const ISSUES_URL = "https://github.com/OmarAly92/operator/issues/new";
 
 export default function SettingsScreen() {
 	const t = useTheme();
@@ -167,7 +167,7 @@ function ConnectionSection({
 		>
 			<SettingsRow
 				icon="link"
-				label="Connect AO"
+				label="Connect Operator"
 				value={paired ? `${cfg.host}:${cfg.httpPort}` : "Not connected"}
 				leading={paired ? <Dot color={dotColor} size={7} breathing={connection === "connecting"} /> : undefined}
 				onPress={() => router.navigate("/pair")}
@@ -215,7 +215,7 @@ function NotificationsSection() {
 		if (toggle.blocked) {
 			Alert.alert(
 				"Notifications are blocked",
-				"Allow notifications for AO in your system settings, then come back.",
+				"Allow notifications for Operator in your system settings, then come back.",
 				[{ text: "Not now", style: "cancel" }, { text: "Open settings", onPress: openNotificationSettings }],
 			);
 			return;

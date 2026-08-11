@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
@@ -57,7 +57,7 @@ var commandSpecs = map[string]commandSpec{
 	"kiro":     {args: []string{"chat", "--list-models", "--format", "json"}, parser: parseJSONModels},
 }
 
-// Base returns the picker behavior AO can provide without executing a CLI.
+// Base returns the picker behavior Operator can provide without executing a CLI.
 func Base(agentID string) ports.AgentModelCatalog {
 	now := time.Now().UTC()
 	switch agentID {
@@ -108,7 +108,7 @@ func Base(agentID string) ports.AgentModelCatalog {
 }
 
 // Manual returns the free-text fallback used when an adapter has no reliable
-// catalog or when discovery fails before AO has a successful cached catalog.
+// catalog or when discovery fails before Operator has a successful cached catalog.
 func Manual(agentID string) ports.AgentModelCatalog {
 	return ports.AgentModelCatalog{
 		AgentID:       agentID,
@@ -174,16 +174,16 @@ func Discover(ctx context.Context, agentID, binary, workingDir string, env map[s
 	return base, nil
 }
 
-// claudeCodeSettingsReadLimit bounds how much of a settings file AO parses. The
+// claudeCodeSettingsReadLimit bounds how much of a settings file Operator parses. The
 // documented files are small; a pathological one must not stall discovery.
 const claudeCodeSettingsReadLimit = 1 << 20
 
 // withClaudeCodeDefault flags the model Claude Code will actually run with.
 // Claude Code exposes no non-interactive command that reports its resolved
-// model, but the value it resolves is readable: AO passes no --model, so the
+// model, but the value it resolves is readable: Operator passes no --model, so the
 // choice comes from ANTHROPIC_MODEL or the "model" key in the settings files,
 // nearest scope first. When none of them set a model the CLI picks internally
-// and AO must not guess, so the catalog keeps no default and the picker keeps
+// and Operator must not guess, so the catalog keeps no default and the picker keeps
 // showing "Agent default".
 func withClaudeCodeDefault(base ports.AgentModelCatalog, workingDir string, env map[string]string) ports.AgentModelCatalog {
 	resolved := claudeCodeResolvedModel(workingDir, env)
@@ -208,7 +208,7 @@ func withClaudeCodeDefault(base ports.AgentModelCatalog, workingDir string, env 
 
 // claudeCodeResolvedModel returns the configured Claude Code model, or "" when
 // no scope sets one. Order mirrors Claude Code's own precedence, narrowed to the
-// sources AO can read without running the CLI.
+// sources Operator can read without running the CLI.
 func claudeCodeResolvedModel(workingDir string, env map[string]string) string {
 	if fromEnv := strings.TrimSpace(env["ANTHROPIC_MODEL"]); fromEnv != "" {
 		return fromEnv
@@ -332,7 +332,7 @@ func BinaryVersion(ctx context.Context, binary string) string {
 
 // CatalogFingerprint hashes every discovery input for an agent: the resolved
 // executable, plus the configuration values the adapter reads. A cached catalog
-// stays valid only while this is unchanged, so configuration AO reads during
+// stays valid only while this is unchanged, so configuration Operator reads during
 // discovery must be represented here or an edit would never take effect.
 func CatalogFingerprint(ctx context.Context, agentID, binary, workingDir string, env map[string]string) string {
 	binaryVersion := BinaryVersion(ctx, binary)

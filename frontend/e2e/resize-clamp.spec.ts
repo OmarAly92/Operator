@@ -35,19 +35,19 @@ test("sidebar drag stops at its minimum width instead of collapsing", async ({ p
 
 	await expect(sidebar).toHaveAttribute("data-state", "expanded");
 	const width = await page.evaluate(() =>
-		document.documentElement.style.getPropertyValue("--ao-sidebar-w"),
+		document.documentElement.style.getPropertyValue("--opr-sidebar-w"),
 	);
 	expect(width).toBe("200px");
 
 	// The explicit toggle still collapses (and the drag-clamped width persisted).
 	await page.keyboard.press("ControlOrMeta+b");
 	await expect(sidebar).toHaveAttribute("data-state", "collapsed");
-	expect(await page.evaluate(() => window.localStorage.getItem("ao-sidebar-w"))).toBe("200");
+	expect(await page.evaluate(() => window.localStorage.getItem("opr-sidebar-w"))).toBe("200");
 });
 
 test("inspector drag stops at minSize instead of collapsing; buttons still toggle", async ({ page }) => {
 	// A worker session from the dev:web mock dataset (lib/mock-data.ts).
-	await page.goto("/#/projects/ao-demo/sessions/demo-working");
+	await page.goto("/#/projects/opr-demo/sessions/demo-working");
 
 	const inspector = page.locator("#inspector");
 	await expect(inspector).toBeVisible();

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -37,9 +37,9 @@ func (a *captureAgent) SessionInfo(context.Context, ports.SessionRef) (ports.Ses
 }
 
 func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
-	t.Setenv("AO_PORT", "3103")
-	t.Setenv("AO_DATA_DIR", "/tmp/ao data")
-	t.Setenv("AO_RUN_FILE", "/tmp/ao data/running.json")
+	t.Setenv("OPERATOR_PORT", "3103")
+	t.Setenv("OPERATOR_DATA_DIR", "/tmp/opr data")
+	t.Setenv("OPERATOR_RUN_FILE", "/tmp/opr data/running.json")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -56,9 +56,9 @@ func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
 	want := []string{
 		"agent",
 		"--sandbox", "read-only",
-		"-c", `shell_environment_policy.set.AO_PORT="3103"`,
-		"-c", `shell_environment_policy.set.AO_DATA_DIR="/tmp/ao data"`,
-		"-c", `shell_environment_policy.set.AO_RUN_FILE="/tmp/ao data/running.json"`,
+		"-c", `shell_environment_policy.set.OPERATOR_PORT="3103"`,
+		"-c", `shell_environment_policy.set.OPERATOR_DATA_DIR="/tmp/opr data"`,
+		"-c", `shell_environment_policy.set.OPERATOR_RUN_FILE="/tmp/opr data/running.json"`,
 		"--", "review it",
 	}
 	if !slices.Equal(got.Argv, want) {
@@ -100,20 +100,20 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 	r := &Reviewer{agent: agent}
 
 	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		Prompt:           "Start the AO review task.",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		Prompt:           "Start the Operator review task.",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	}); err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if agent.got.Prompt != "Start the AO review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.Prompt != "Start the Operator review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/opr/prompts/reviewer/system.md" {
 		t.Fatalf("launch config = %+v", agent.got)
 	}
 }
 
 func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T) {
-	t.Setenv("AO_PORT", "3103")
-	t.Setenv("AO_DATA_DIR", "")
-	t.Setenv("AO_RUN_FILE", "")
+	t.Setenv("OPERATOR_PORT", "3103")
+	t.Setenv("OPERATOR_DATA_DIR", "")
+	t.Setenv("OPERATOR_RUN_FILE", "")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -121,7 +121,7 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T)
 		ReviewerID:       "review-w1",
 		AgentSessionID:   "codex-native-1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)
@@ -129,7 +129,7 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T)
 	if !ok {
 		t.Fatal("ReviewRestoreCommand ok = false, want true")
 	}
-	want := []string{"agent", "resume", "--sandbox", "read-only", "-c", `shell_environment_policy.set.AO_PORT="3103"`, "codex-native-1"}
+	want := []string{"agent", "resume", "--sandbox", "read-only", "-c", `shell_environment_policy.set.OPERATOR_PORT="3103"`, "codex-native-1"}
 	if !slices.Equal(got.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", got.Argv, want)
 	}

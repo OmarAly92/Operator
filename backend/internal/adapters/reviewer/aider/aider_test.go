@@ -6,12 +6,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestReviewCommandUsesAskModeAndReadOnlyPromptContext(t *testing.T) {
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/aider", nil }}
-	inv := ports.ReviewInvocation{SystemPromptFile: "/ao/system.md", TaskPromptFile: "/ao/task.md"}
+	inv := ports.ReviewInvocation{SystemPromptFile: "/opr/system.md", TaskPromptFile: "/opr/task.md"}
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
 		t.Fatal(err)
@@ -19,7 +19,7 @@ func TestReviewCommandUsesAskModeAndReadOnlyPromptContext(t *testing.T) {
 	want := []string{
 		"/opt/aider", "--chat-mode", "ask", "--dry-run", "--no-auto-commits",
 		"--no-dirty-commits", "--no-gitignore", "--no-check-update", "--no-stream",
-		"--no-pretty", "--read", "/ao/system.md", "--read", "/ao/task.md",
+		"--no-pretty", "--read", "/opr/system.md", "--read", "/opr/task.md",
 	}
 	if !slices.Equal(spec.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", spec.Argv, want)

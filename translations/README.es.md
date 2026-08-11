@@ -1,36 +1,34 @@
 <div align="center">
-  <img src="../assets/ao-logo.svg" alt="Agent Orchestrator" width="160" height="160" />
+  <img src="../assets/opr-logo.svg" alt="Operator" width="160" height="160" />
 
-# Agent Orchestrator
+# Operator
 
 **La capa de orquestación para agentes de codificación con IA en paralelo**
 
-[![Stars](https://img.shields.io/github/stars/Untrivial-ai/agent-orchestrator)](https://github.com/Untrivial-ai/agent-orchestrator/stargazers)
-[![Contributors](https://img.shields.io/github/contributors/Untrivial-ai/agent-orchestrator)](https://github.com/Untrivial-ai/agent-orchestrator/graphs/contributors)
-[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?logo=twitter&logoColor=white)](https://x.com/aoagents)
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.com/invite/UZv7JjxbwG)
+[![Stars](https://img.shields.io/github/stars/OmarAly92/operator)](https://github.com/OmarAly92/operator/stargazers)
+[![Contributors](https://img.shields.io/github/contributors/OmarAly92/operator)](https://github.com/OmarAly92/operator/graphs/contributors)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](../LICENSE)
 
 [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (Brasil)](README.pt-BR.md)
 
 Un IDE agéntico que supervisa agentes de codificación con IA en paralelo en espacios de trabajo aislados, con control total y bucles de feedback automáticos a partir de fallos de CI, comentarios de revisión y conflictos de fusión.
 
-<img src="../docs/assets/readme/dashboard.png" alt="Panel de Agent Orchestrator con sesiones paralelas de agentes de codificación" width="100%" />
+<img src="../docs/assets/readme/dashboard.png" alt="Panel de Operator con sesiones paralelas de agentes de codificación" width="100%" />
 </div>
 
 ---
 
-## ¿Qué es Agent Orchestrator?
+## ¿Qué es Operator?
 
-Agent Orchestrator es un IDE de agentes tipo meta-harness para ejecutar agentes de codificación con IA en paralelo. Ofrece a agentes basados en terminal como Claude Code, Codex, Cursor, Kimi Code, opencode y otros un espacio de trabajo compartido donde sus sesiones, terminales, ramas, pull requests y bucles de feedback pueden supervisarse desde un solo lugar.
+Operator es un IDE de agentes tipo meta-harness para ejecutar agentes de codificación con IA en paralelo. Ofrece a agentes basados en terminal como Claude Code, Codex, Cursor, Kimi Code, opencode y otros un espacio de trabajo compartido donde sus sesiones, terminales, ramas, pull requests y bucles de feedback pueden supervisarse desde un solo lugar.
 
-Los agentes siguen escribiendo el código. AO proporciona el harness a su alrededor: espacios de trabajo aislados, acceso en vivo al terminal, estado de sesión, conciencia de PR y bucles automáticos que devuelven fallos de CI, comentarios de revisión y conflictos de fusión al agente correcto. En lugar de coordinar manualmente un montón de terminales de agentes, AO convierte el trabajo paralelo de agentes en un flujo de trabajo gestionado.
+Los agentes siguen escribiendo el código. Operator proporciona el harness a su alrededor: espacios de trabajo aislados, acceso en vivo al terminal, estado de sesión, conciencia de PR y bucles automáticos que devuelven fallos de CI, comentarios de revisión y conflictos de fusión al agente correcto. En lugar de coordinar manualmente un montón de terminales de agentes, Operator convierte el trabajo paralelo de agentes en un flujo de trabajo gestionado.
 
-## ¿Por qué Agent Orchestrator?
+## ¿Por qué Operator?
 
 Los agentes de codificación con IA son mucho más útiles cuando pueden trabajar en paralelo, pero el trabajo paralelo se desordena rápido. Las ramas se solapan, se pierden terminales, los fallos de CI necesitan seguimiento, los comentarios de revisión requieren respuesta y los conflictos de fusión deben llegar al worker correcto.
 
-Agent Orchestrator está pensado para mantener ese bucle visible y manejable. Te ayuda a:
+Operator está pensado para mantener ese bucle visible y manejable. Te ayuda a:
 
 - Iniciar varios agentes desde el mismo proyecto sin mezclar su trabajo
 - Mantener cada sesión en un git worktree separado
@@ -40,16 +38,16 @@ Agent Orchestrator está pensado para mantener ese bucle visible y manejable. Te
 
 ## Cómo funciona
 
-A alto nivel, Agent Orchestrator sigue un bucle sencillo:
+A alto nivel, Operator sigue un bucle sencillo:
 
 1. Añade un proyecto en el que quieras que trabajen los agentes.
 2. Inicia una o más sesiones desde la app de escritorio o la CLI.
-3. AO crea un git worktree aislado para cada sesión.
-4. AO lanza el agente de codificación seleccionado en el runtime de terminal de esa sesión.
+3. Operator crea un git worktree aislado para cada sesión.
+4. Operator lanza el agente de codificación seleccionado en el runtime de terminal de esa sesión.
 5. El daemon local observa el estado de la sesión, la actividad del terminal, los pull requests, la CI y el feedback de revisión.
 6. La app de escritorio y la CLI muestran el estado actual y te permiten enviar instrucciones de seguimiento a la sesión correcta.
 
-El resultado es una capa de control local para la codificación agéntica: los agentes siguen codificando, mientras Agent Orchestrator organiza sus espacios de trabajo, estados, terminales y bucles de feedback.
+El resultado es una capa de control local para la codificación agéntica: los agentes siguen codificando, mientras Operator organiza sus espacios de trabajo, estados, terminales y bucles de feedback.
 
 ## Funciones
 
@@ -62,7 +60,7 @@ La app de escritorio es la superficie de control principal: proyectos a la izqui
       <p>Inicia varios agentes de codificación desde el mismo proyecto sin mezclar archivos, ramas, terminales ni el estado de los pull requests.</p>
     </td>
     <td width="64%">
-      <img src="../docs/assets/readme/dashboard.png" alt="Tablero de Agent Orchestrator con varias sesiones en paralelo" />
+      <img src="../docs/assets/readme/dashboard.png" alt="Tablero de Operator con varias sesiones en paralelo" />
     </td>
   </tr>
   <tr>
@@ -71,7 +69,7 @@ La app de escritorio es la superficie de control principal: proyectos a la izqui
       <p>Abre cualquier sesión y conéctate al terminal del worker manteniendo a la vista el resumen de la sesión, el estado del PR y las acciones de seguimiento.</p>
     </td>
     <td width="64%">
-      <img src="../docs/assets/readme/session-terminal.png" alt="Terminal de sesión dentro de Agent Orchestrator" />
+      <img src="../docs/assets/readme/session-terminal.png" alt="Terminal de sesión dentro de Operator" />
     </td>
   </tr>
   <tr>
@@ -96,43 +94,43 @@ La app de escritorio es la superficie de control principal: proyectos a la izqui
 
 ## Agentes compatibles
 
-AO incluye adaptadores para 23 harnesses de agentes worker:
+Operator incluye adaptadores para 23 harnesses de agentes worker:
 
 <p>
-  <a href="https://aoagents.dev/docs/plugins/agents/claude-code"><img src="../frontend/src/renderer/assets/agents/claude-code.svg" alt="" width="16" height="16" valign="middle" /> <code>claude-code</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/codex"><img src="../frontend/src/renderer/assets/agents/codex.svg" alt="" width="16" height="16" valign="middle" /> <code>codex</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/aider"><img src="../frontend/src/renderer/assets/agents/aider.png" alt="" width="16" height="16" valign="middle" /> <code>aider</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/opencode"><img src="../frontend/src/renderer/assets/agents/opencode.svg" alt="" width="16" height="16" valign="middle" /> <code>opencode</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/grok.png" alt="" width="16" height="16" valign="middle" /> <code>grok</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/droid.png" alt="" width="16" height="16" valign="middle" /> <code>droid</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/amp.svg" alt="" width="16" height="16" valign="middle" /> <code>amp</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/agy.png" alt="" width="16" height="16" valign="middle" /> <code>agy</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/crush.png" alt="" width="16" height="16" valign="middle" /> <code>crush</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/cursor"><img src="../frontend/src/renderer/assets/agents/cursor.svg" alt="" width="16" height="16" valign="middle" /> <code>cursor</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/qwen.png" alt="" width="16" height="16" valign="middle" /> <code>qwen</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/copilot.svg" alt="" width="16" height="16" valign="middle" /> <code>copilot</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/goose.svg" alt="" width="16" height="16" valign="middle" /> <code>goose</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/auggie.svg" alt="" width="16" height="16" valign="middle" /> <code>auggie</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/continue.png" alt="" width="16" height="16" valign="middle" /> <code>continue</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/devin.png" alt="" width="16" height="16" valign="middle" /> <code>devin</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/cline.svg" alt="" width="16" height="16" valign="middle" /> <code>cline</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kimi.png" alt="" width="16" height="16" valign="middle" /> <code>kimi</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kiro.png" alt="" width="16" height="16" valign="middle" /> <code>kiro</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kilocode.svg" alt="" width="16" height="16" valign="middle" /> <code>kilocode</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/vibe.png" alt="" width="16" height="16" valign="middle" /> <code>vibe</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/pi.png" alt="" width="16" height="16" valign="middle" /> <code>pi</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/autohand.svg" alt="" width="16" height="16" valign="middle" /> <code>autohand</code></a>
+  <a href="https://operator.example.com/docs/plugins/agents/claude-code"><img src="../frontend/src/renderer/assets/agents/claude-code.svg" alt="" width="16" height="16" valign="middle" /> <code>claude-code</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/codex"><img src="../frontend/src/renderer/assets/agents/codex.svg" alt="" width="16" height="16" valign="middle" /> <code>codex</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/aider"><img src="../frontend/src/renderer/assets/agents/aider.png" alt="" width="16" height="16" valign="middle" /> <code>aider</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/opencode"><img src="../frontend/src/renderer/assets/agents/opencode.svg" alt="" width="16" height="16" valign="middle" /> <code>opencode</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/grok.png" alt="" width="16" height="16" valign="middle" /> <code>grok</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/droid.png" alt="" width="16" height="16" valign="middle" /> <code>droid</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/amp.svg" alt="" width="16" height="16" valign="middle" /> <code>amp</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/agy.png" alt="" width="16" height="16" valign="middle" /> <code>agy</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/crush.png" alt="" width="16" height="16" valign="middle" /> <code>crush</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/cursor"><img src="../frontend/src/renderer/assets/agents/cursor.svg" alt="" width="16" height="16" valign="middle" /> <code>cursor</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/qwen.png" alt="" width="16" height="16" valign="middle" /> <code>qwen</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/copilot.svg" alt="" width="16" height="16" valign="middle" /> <code>copilot</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/goose.svg" alt="" width="16" height="16" valign="middle" /> <code>goose</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/auggie.svg" alt="" width="16" height="16" valign="middle" /> <code>auggie</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/continue.png" alt="" width="16" height="16" valign="middle" /> <code>continue</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/devin.png" alt="" width="16" height="16" valign="middle" /> <code>devin</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/cline.svg" alt="" width="16" height="16" valign="middle" /> <code>cline</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kimi.png" alt="" width="16" height="16" valign="middle" /> <code>kimi</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kiro.png" alt="" width="16" height="16" valign="middle" /> <code>kiro</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/kilocode.svg" alt="" width="16" height="16" valign="middle" /> <code>kilocode</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/vibe.png" alt="" width="16" height="16" valign="middle" /> <code>vibe</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/pi.png" alt="" width="16" height="16" valign="middle" /> <code>pi</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents"><img src="../frontend/src/renderer/assets/agents/autohand.svg" alt="" width="16" height="16" valign="middle" /> <code>autohand</code></a>
 </p>
 
 Los agentes revisores se configuran por separado. Los harnesses de revisor actuales son:
 
 <p>
-  <a href="https://aoagents.dev/docs/plugins/agents/claude-code"><img src="../frontend/src/renderer/assets/agents/claude-code.svg" alt="" width="16" height="16" valign="middle" /> <code>claude-code</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/codex"><img src="../frontend/src/renderer/assets/agents/codex.svg" alt="" width="16" height="16" valign="middle" /> <code>codex</code></a> ·
-  <a href="https://aoagents.dev/docs/plugins/agents/opencode"><img src="../frontend/src/renderer/assets/agents/opencode.svg" alt="" width="16" height="16" valign="middle" /> <code>opencode</code></a>
+  <a href="https://operator.example.com/docs/plugins/agents/claude-code"><img src="../frontend/src/renderer/assets/agents/claude-code.svg" alt="" width="16" height="16" valign="middle" /> <code>claude-code</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/codex"><img src="../frontend/src/renderer/assets/agents/codex.svg" alt="" width="16" height="16" valign="middle" /> <code>codex</code></a> ·
+  <a href="https://operator.example.com/docs/plugins/agents/opencode"><img src="../frontend/src/renderer/assets/agents/opencode.svg" alt="" width="16" height="16" valign="middle" /> <code>opencode</code></a>
 </p>
 
-**Si se ejecuta en un terminal, se ejecuta en Agent Orchestrator.**
+**Si se ejecuta en un terminal, se ejecuta en Operator.**
 
 ## Instalación
 
@@ -140,43 +138,26 @@ Descarga la última build de escritorio para tu plataforma:
 
 | Plataforma            | Descarga                                                                                                                      |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| macOS (Apple silicon) | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-darwin-arm64.dmg)   |
-| macOS (Intel)         | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-darwin-x64.dmg)     |
-| Windows               | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-win32-x64.exe)      |
-| Linux (AppImage)      | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-linux-x64.AppImage) |
-| Linux (Debian/Ubuntu) | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-linux-x64.deb)      |
-| Linux (Fedora/RHEL)   | [Download](https://github.com/Untrivial-ai/agent-orchestrator/releases/latest/download/agent-orchestrator-linux-x64.rpm)      |
+| macOS (Apple silicon) | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-darwin-arm64.dmg)   |
+| macOS (Intel)         | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-darwin-x64.dmg)     |
+| Windows               | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-win32-x64.exe)      |
+| Linux (AppImage)      | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-linux-x64.AppImage) |
+| Linux (Debian/Ubuntu) | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-linux-x64.deb)      |
+| Linux (Fedora/RHEL)   | [Download](https://github.com/OmarAly92/operator/releases/latest/download/operator-linux-x64.rpm)      |
 
-Tras instalar, abre Agent Orchestrator y apúntalo al repositorio que quieras que AO gestione. La app de escritorio ejecuta el daemon por ti, así que no se requiere CLI. Las builds de escritorio instaladas comprueban actualizaciones al iniciar y periódicamente mientras la app está en ejecución. Consulta la [guía de instalación](https://aoagents.dev/docs/installation) para la configuración de CLI de agentes y la resolución de problemas.
+Tras instalar, abre Operator y apúntalo al repositorio que quieras que Operator gestione. La app de escritorio ejecuta el daemon por ti, así que no se requiere CLI. Las builds de escritorio instaladas comprueban actualizaciones al iniciar y periódicamente mientras la app está en ejecución. Consulta la [guía de instalación](https://operator.example.com/docs/installation) para la configuración de CLI de agentes y la resolución de problemas.
 
 <details>
 <summary>Instalar vía npm (CLI legacy, ya no recomendado)</summary>
 
-npm sigue funcionando, pero ya no se recomienda. `0.10.0` es la versión final publicada en npm y el paquete `@aoagents/ao` está congelado y no recibirá más actualizaciones. Sigue disponible para usuarios existentes que tengan la CLI `ao` en su PATH; `ao start` descarga y abre la misma build de escritorio enlazada arriba. Para cualquier instalación nueva, prefiere la descarga de escritorio.
+npm sigue funcionando, pero ya no se recomienda. `0.10.0` es la versión final publicada en npm y el paquete `@operator-dev/opr` está congelado y no recibirá más actualizaciones. Sigue disponible para usuarios existentes que tengan la CLI `opr` en su PATH; `opr start` descarga y abre la misma build de escritorio enlazada arriba. Para cualquier instalación nueva, prefiere la descarga de escritorio.
 
 ```bash
-npm install -g @aoagents/ao
-ao start
+npm install -g @operator-dev/opr
+opr start
 ```
 
 </details>
-
-## Sigue el recorrido de AO en X
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <a href="https://x.com/agent_wrapper/status/2026329204405723180">
-        <img src="../assets/tweet2.png" height="330" alt="Captura uno del recorrido de Agent Orchestrator" />
-      </a>
-    </td>
-    <td width="50%" align="center">
-      <a href="https://x.com/agent_wrapper/status/2025986105485733945">
-        <img src="../assets/tweet1.png" height="330" alt="Captura dos del recorrido de Agent Orchestrator" />
-      </a>
-    </td>
-  </tr>
-</table>
 
 ## Documentación
 
@@ -191,7 +172,7 @@ ao start
 
 ## Telemetría anónima
 
-AO utiliza métricas de uso y fiabilidad que protegen la privacidad —diseñadas para excluir PII y contenido de proyectos— para conocer la adopción y mejorar el producto. [Más información sobre telemetría y privacidad](../docs/telemetry.md).
+Operator utiliza métricas de uso y fiabilidad que protegen la privacidad —diseñadas para excluir PII y contenido de proyectos— para conocer la adopción y mejorar el producto. [Más información sobre telemetría y privacidad](../docs/telemetry.md).
 
 ## Licencia
 

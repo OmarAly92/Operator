@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Discord community
-    url: https://discord.com/invite/UZv7JjxbwG
-    about: Questions, mentoring, and the daily contributor sync (10:00 PM IST).
+  - name: Discussions
+    url: https://github.com/OmarAly92/operator/discussions
+    about: Questions and ideas.
   - name: Contributing guide
-    url: https://github.com/AgentWrapper/agent-orchestrator/blob/main/CONTRIBUTING.md
+    url: https://github.com/OmarAly92/operator/blob/main/CONTRIBUTING.md
     about: How to claim issues, open PRs, and work with maintainers.

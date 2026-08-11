@@ -9,20 +9,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	extensionDirName  = "agent-runtime"
-	extensionFileName = "ao-activity.ts"
+	extensionFileName = "opr-activity.ts"
 )
 
-//go:embed assets/ao-activity.ts
+//go:embed assets/opr-activity.ts
 var primeAgentExtensionSource string
 
-// GetAgentHooks installs the AO-managed extension at a stable path under
-// AO_DATA_DIR. Prime receives this exact path through --extension. The install
+// GetAgentHooks installs the Operator-managed extension at a stable path under
+// OPERATOR_DATA_DIR. Prime receives this exact path through --extension. The install
 // is atomic and skips rewriting identical content.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -38,7 +38,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	existing, err := os.ReadFile(path) //nolint:gosec // stable AO-owned path under DataDir
+	existing, err := os.ReadFile(path) //nolint:gosec // stable Operator-owned path under DataDir
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}

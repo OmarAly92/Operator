@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     title: COMPANY.NAME,
     description: siteDescription,
     images: ["/og-image.png"],
-    creator: "@aoagents",
+    creator: "@operator-dev",
   },
   robots: {
     index: true,

@@ -1,9 +1,9 @@
-import type { AoBridge } from "../../preload";
+import type { OperatorBridge } from "../../preload";
 import { coerceLocale } from "../../shared/ui-locale";
 export type { FeatureBuild } from "../../main/feature-builds";
 
-export const aoBridge: AoBridge =
-	window.ao ??
+export const operatorBridge: OperatorBridge =
+	window.operator ??
 	({
 		app: {
 			getVersion: async () => "0.0.0-preview",
@@ -179,4 +179,4 @@ export const aoBridge: AoBridge =
 			list: async () => [],
 			getActive: async () => null,
 		},
-	} satisfies AoBridge);
+	} satisfies OperatorBridge);

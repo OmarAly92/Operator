@@ -158,7 +158,7 @@ function SettingsBody({
 
 	const mutation = useMutation({
 		mutationFn: async () => {
-			void captureRendererEvent("ao.renderer.settings_save_requested", { project_id: projectId });
+			void captureRendererEvent("opr.renderer.settings_save_requested", { project_id: projectId });
 			const displayName = form.displayName.trim();
 			const {
 				model: _legacyModel,
@@ -233,7 +233,7 @@ function SettingsBody({
 			return { replacementError: null };
 		},
 		onSuccess: (result) => {
-			void captureRendererEvent("ao.renderer.settings_save_succeeded", { project_id: projectId });
+			void captureRendererEvent("opr.renderer.settings_save_succeeded", { project_id: projectId });
 			setSavedAt(Date.now());
 			setReplacementError(result.replacementError);
 			setValidationError(null);
@@ -241,7 +241,7 @@ function SettingsBody({
 			onSaved();
 		},
 		onError: () => {
-			void captureRendererEvent("ao.renderer.settings_save_failed", { project_id: projectId });
+			void captureRendererEvent("opr.renderer.settings_save_failed", { project_id: projectId });
 		},
 	});
 
@@ -434,7 +434,7 @@ function SettingsBody({
 									label={t("settings.project.sessionPrefix")}
 									id="sessionPrefix"
 									value={form.sessionPrefix}
-									placeholder="ao"
+									placeholder="opr"
 									onChange={(value) => setForm((f) => ({ ...f, sessionPrefix: value }))}
 								/>
 							</SettingsSection>

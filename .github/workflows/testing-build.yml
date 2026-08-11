@@ -10,9 +10,9 @@ name: Testing build (all platforms)
 #   macOS   -> .zip (arm64; dmg + signing are follow-ups)
 #
 # Unsigned: macOS is quarantined/Gatekeeper-blocked once downloaded
-# (xattr -dr com.apple.quarantine "Agent Orchestrator.app"); Windows SmartScreen
+# (xattr -dr com.apple.quarantine "Operator.app"); Windows SmartScreen
 # warns ("More info" -> "Run anyway"). Each OS builds on its own native runner so
-# build-daemon.mjs compiles the bundled ao for that platform (host == target).
+# build-daemon.mjs compiles the bundled opr for that platform (host == target).
 
 on:
   workflow_dispatch:
@@ -60,7 +60,7 @@ jobs:
         run: npm run browser-runtime:prepare -- --quiet
       - name: Verify native agent-browser compatibility
         env:
-          AO_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/${{ runner.os == 'Windows' && 'agent-browser.exe' || 'agent-browser' }}
+          OPERATOR_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/${{ runner.os == 'Windows' && 'agent-browser.exe' || 'agent-browser' }}
         run: npx vitest run --config vite.renderer.config.ts src/main/agent-browser-runtime.test.ts
       - name: Build (unsigned)
         # `npm run make` keeps the premake daemon build; --targets restricts to this
@@ -90,8 +90,8 @@ jobs:
           # Per-user assisted install lands under %LOCALAPPDATA%\Programs; a
           # per-machine install would land under Program Files.
           $installDir = @(
-            (Join-Path $env:LOCALAPPDATA 'Programs\Agent Orchestrator'),
-            (Join-Path ${env:ProgramFiles} 'Agent Orchestrator')
+            (Join-Path $env:LOCALAPPDATA 'Programs\Operator'),
+            (Join-Path ${env:ProgramFiles} 'Operator')
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           if ($installDir) {
             Write-Host "INSTALL OK: $installDir created"
@@ -117,7 +117,7 @@ jobs:
           gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "$TAG" \
             --notes "Unsigned testing build (Linux .deb / Windows NSIS .exe / macOS .zip). Not signed; for testing only." \
             || true
-          # NUL-delimited to survive spaces in the app name ("Agent Orchestrator-...").
+          # NUL-delimited to survive spaces in the app name ("Operator-...").
           find out/make -type f -print0 | while IFS= read -r -d '' f; do
             echo "uploading: $f"
             gh release upload "$TAG" "$f" --clobber

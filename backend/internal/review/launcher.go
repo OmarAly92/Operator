@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 const cancelInterruptDelay = 150 * time.Millisecond
 
 const defaultReviewerInitialDelay = 500 * time.Millisecond
 
-const reviewerTaskMessagePrefix = "Read and follow the AO review task in `"
+const reviewerTaskMessagePrefix = "Read and follow the Operator review task in `"
 
 // Launcher spawns, re-notifies, and probes a reviewer over a worker's worktree.
 // It is the side of the engine that talks to the reviewer registry and runtime;
@@ -258,7 +258,7 @@ func (l *agentLauncher) prepareInvocation(ctx context.Context, spec LaunchSpec) 
 	}
 	systemPath := filepath.Join(promptRoot, "system.md")
 	systemPrompt := strings.TrimRight(inv.SystemPrompt, "\n") + "\n\n" +
-		"AO stores each review task in an immutable file. Whenever AO asks you to start a review task, " +
+		"Operator stores each review task in an immutable file. Whenever Operator asks you to start a review task, " +
 		"read the exact file path in that request first and follow it completely.\n"
 	if err := os.WriteFile(systemPath, []byte(systemPrompt), 0o600); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("write reviewer system prompt: %w", err)
@@ -278,14 +278,14 @@ func (l *agentLauncher) prepareIdleInvocation(spec LaunchSpec) (ports.ReviewInvo
 	promptRoot := filepath.Join(l.dataDir, "prompts", string(spec.WorkerID), "reviewer")
 	systemPath := filepath.Join(promptRoot, "system.md")
 	systemPrompt := reviewSystemPrompt() + "\n\n" +
-		"AO may restore your terminal before a new review task exists. In that state, wait for AO to send a review task file path before reviewing or submitting results.\n"
+		"Operator may restore your terminal before a new review task exists. In that state, wait for Operator to send a review task file path before reviewing or submitting results.\n"
 	if err := os.MkdirAll(promptRoot, 0o700); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("create reviewer prompt directory: %w", err)
 	}
 	if err := os.WriteFile(systemPath, []byte(systemPrompt), 0o600); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("write reviewer system prompt: %w", err)
 	}
-	prompt := fmt.Sprintf("Reviewer terminal restored for worker session %s.\n\n%s\n\nWait for AO to send the next review task file path before submitting a new review.", spec.WorkerID, previousReviewHistoryText(spec.PreviousRuns))
+	prompt := fmt.Sprintf("Reviewer terminal restored for worker session %s.\n\n%s\n\nWait for Operator to send the next review task file path before submitting a new review.", spec.WorkerID, previousReviewHistoryText(spec.PreviousRuns))
 	return ports.ReviewInvocation{
 		ReviewerID:       reviewerHandleID(spec.WorkerID),
 		WorkerSessionID:  spec.WorkerID,
@@ -492,9 +492,9 @@ func (l *agentLauncher) runtimeEnv(ctx context.Context, spec LaunchSpec, argv []
 		env[k] = v
 	}
 	delete(env, sessionmanager.EnvSessionID)
-	env["AO_REVIEW_SESSION_ID"] = spec.ReviewSessionID
-	env["AO_REVIEW_WORKER_SESSION_ID"] = string(spec.WorkerID)
-	env["AO_REVIEW_HARNESS"] = string(spec.Harness)
+	env["OPERATOR_REVIEW_SESSION_ID"] = spec.ReviewSessionID
+	env["OPERATOR_REVIEW_WORKER_SESSION_ID"] = string(spec.WorkerID)
+	env["OPERATOR_REVIEW_HARNESS"] = string(spec.Harness)
 	env[sessionmanager.EnvProjectID] = string(spec.ProjectID)
 	env[sessionmanager.EnvDataDir] = l.dataDir
 	path, err := sessionmanager.HookPATH(os.Executable, os.Getenv, env)

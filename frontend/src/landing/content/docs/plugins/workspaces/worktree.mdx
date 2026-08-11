@@ -6,8 +6,8 @@ description: Isolated branches and files for sessions in Git projects.
 Each Git-backed session receives a worktree and branch created from the project's configured default branch. Worktrees share the repository's object database while keeping checked-out files separate.
 
 ```bash
-ao project add --path /path/to/repo --worker-agent codex
-ao spawn --project my-repo --name fix-auth
+opr project add --path /path/to/repo --worker-agent codex
+opr spawn --project my-repo --name fix-auth
 ```
 
 ## Typed project settings
@@ -22,8 +22,8 @@ The daemon stores project configuration as validated JSON in SQLite. Relevant fi
 | `postCreate` | Commands run after workspace creation. |
 | `agentRules`, `agentRulesFile` | Standing worker instructions. |
 
-Use `ao project set-config <id> --help` for flags or pass the complete typed object with `--config-json`.
+Use `opr project set-config <id> --help` for flags or pass the complete typed object with `--config-json`.
 
 ## Cleanup safety
 
-`ao session kill` terminates the runtime, but preserves a worktree when cleanup cannot safely remove it. `ao session cleanup` reclaims eligible terminated workspaces and skips dirty ones; run with `--dry-run` first when you want to inspect the candidates.
+`opr session kill` terminates the runtime, but preserves a worktree when cleanup cannot safely remove it. `opr session cleanup` reclaims eligible terminated workspaces and skips dirty ones; run with `--dry-run` first when you want to inspect the candidates.

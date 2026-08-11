@@ -1,8 +1,8 @@
 [1m◆ Request user input Verify[0m
 
-  Ready to continue the AO activity verification?
+  Ready to continue the Operator activity verification?
 
-  › 1. Confirm            Confirm AO activity verification is active.
+  › 1. Confirm            Confirm Operator activity verification is active.
     2. Cancel             Cancel or postpone verification.
     3. None of the above  Optionally, add details in notes (tab).
 
@@ -11,4 +11,4 @@
 ── Voice input (⌥ + v to start) ──────────────────────────────────────────────
 ⟩
 ──────────────────────────────────────────────────────────────────────────────
-  muse-spark-1.2-contributor · high · …/agent-orchestrator-103 · YOLO
+  muse-spark-1.2-contributor · high · …/operator-103 · YOLO

@@ -50,7 +50,7 @@ vi.mock("../lib/notifications", async (importOriginal) => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		notifications: {
 			setBadge,
 			show: vi.fn(),

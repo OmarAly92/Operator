@@ -15,7 +15,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	sqlitestore "github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	sqlitestore "github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 
 	// modernc.org/sqlite is the pure-Go (CGO-free) SQLite driver — chosen so the
 	// daemon cross-compiles and ships as a static binary with no libsqlite/CGO
@@ -59,7 +59,7 @@ func Open(dataDir string) (*Store, error) {
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
-	dsn := "file:" + filepath.Join(dataDir, "ao.db") + pragmas
+	dsn := "file:" + filepath.Join(dataDir, "opr.db") + pragmas
 
 	writeDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -86,7 +86,7 @@ func Open(dataDir string) (*Store, error) {
 // OpenReadOnly opens an existing SQLite database under dataDir without creating
 // the directory, opening a writable connection, or running migrations.
 func OpenReadOnly(ctx context.Context, dataDir string) (*Store, error) {
-	dsn := "file:" + filepath.Join(dataDir, "ao.db") + readOnlyPragmas
+	dsn := "file:" + filepath.Join(dataDir, "opr.db") + readOnlyPragmas
 
 	writeDB, err := sql.Open("sqlite", dsn)
 	if err != nil {

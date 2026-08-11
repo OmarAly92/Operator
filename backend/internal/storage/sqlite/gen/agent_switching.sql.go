@@ -10,7 +10,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const acknowledgeAgentSwitchTarget = `-- name: AcknowledgeAgentSwitchTarget :execrows
@@ -208,15 +208,15 @@ WHERE ao_session_id = ?
 `
 
 type FindAgentNativeSessionParams struct {
-	AoSessionID     domain.SessionID
-	Harness         domain.AgentHarness
-	ConfigDir       string
-	NativeSessionID string
+	OperatorSessionID domain.SessionID
+	Harness           domain.AgentHarness
+	ConfigDir         string
+	NativeSessionID   string
 }
 
 func (q *Queries) FindAgentNativeSession(ctx context.Context, arg FindAgentNativeSessionParams) (AgentNativeSession, error) {
 	row := q.db.QueryRowContext(ctx, findAgentNativeSession,
-		arg.AoSessionID,
+		arg.OperatorSessionID,
 		arg.Harness,
 		arg.ConfigDir,
 		arg.NativeSessionID,
@@ -224,7 +224,7 @@ func (q *Queries) FindAgentNativeSession(ctx context.Context, arg FindAgentNativ
 	var i AgentNativeSession
 	err := row.Scan(
 		&i.ID,
-		&i.AoSessionID,
+		&i.OperatorSessionID,
 		&i.Harness,
 		&i.ConfigDir,
 		&i.NativeSessionID,
@@ -295,7 +295,7 @@ func (q *Queries) GetAgentNativeSession(ctx context.Context, id domain.AgentNati
 	var i AgentNativeSession
 	err := row.Scan(
 		&i.ID,
-		&i.AoSessionID,
+		&i.OperatorSessionID,
 		&i.Harness,
 		&i.ConfigDir,
 		&i.NativeSessionID,
@@ -412,21 +412,21 @@ ON CONFLICT DO NOTHING
 `
 
 type InsertAgentNativeSessionParams struct {
-	ID               domain.AgentNativeSessionID
-	AoSessionID      domain.SessionID
-	Harness          domain.AgentHarness
-	ConfigDir        string
-	NativeSessionID  string
-	TranscriptPath   string
-	LastGenerationID domain.AgentGenerationID
-	CreatedAt        time.Time
-	LastUsedAt       time.Time
+	ID                domain.AgentNativeSessionID
+	OperatorSessionID domain.SessionID
+	Harness           domain.AgentHarness
+	ConfigDir         string
+	NativeSessionID   string
+	TranscriptPath    string
+	LastGenerationID  domain.AgentGenerationID
+	CreatedAt         time.Time
+	LastUsedAt        time.Time
 }
 
 func (q *Queries) InsertAgentNativeSession(ctx context.Context, arg InsertAgentNativeSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertAgentNativeSession,
 		arg.ID,
-		arg.AoSessionID,
+		arg.OperatorSessionID,
 		arg.Harness,
 		arg.ConfigDir,
 		arg.NativeSessionID,
@@ -525,8 +525,8 @@ WHERE ao_session_id = ?
 ORDER BY last_used_at DESC, created_at DESC, id DESC
 `
 
-func (q *Queries) ListAgentNativeSessions(ctx context.Context, aoSessionID domain.SessionID) ([]AgentNativeSession, error) {
-	rows, err := q.db.QueryContext(ctx, listAgentNativeSessions, aoSessionID)
+func (q *Queries) ListAgentNativeSessions(ctx context.Context, operatorSessionID domain.SessionID) ([]AgentNativeSession, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentNativeSessions, operatorSessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +536,7 @@ func (q *Queries) ListAgentNativeSessions(ctx context.Context, aoSessionID domai
 		var i AgentNativeSession
 		if err := rows.Scan(
 			&i.ID,
-			&i.AoSessionID,
+			&i.OperatorSessionID,
 			&i.Harness,
 			&i.ConfigDir,
 			&i.NativeSessionID,
@@ -851,7 +851,7 @@ type UpdateAgentNativeSessionParams struct {
 	NextGenerationID     domain.AgentGenerationID
 	LastUsedAt           time.Time
 	ID                   domain.AgentNativeSessionID
-	AoSessionID          domain.SessionID
+	OperatorSessionID    domain.SessionID
 	ExpectedGenerationID domain.AgentGenerationID
 }
 
@@ -863,7 +863,7 @@ func (q *Queries) UpdateAgentNativeSession(ctx context.Context, arg UpdateAgentN
 		arg.NextGenerationID,
 		arg.LastUsedAt,
 		arg.ID,
-		arg.AoSessionID,
+		arg.OperatorSessionID,
 		arg.ExpectedGenerationID,
 	)
 	if err != nil {

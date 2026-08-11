@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 )
 
 const (

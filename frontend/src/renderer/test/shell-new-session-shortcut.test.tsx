@@ -97,7 +97,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		app: {
 			onNewSessionShortcut: shellMocks.onNewSessionShortcut,
 			onKeyboardShortcutsHelp: shellMocks.onKeyboardShortcutsHelp,

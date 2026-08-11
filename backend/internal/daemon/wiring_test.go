@@ -11,18 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/tmux"
-	telemetryadapter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/telemetry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/tmux"
+	telemetryadapter "github.com/OmarAly92/operator/backend/internal/adapters/telemetry"
+	"github.com/OmarAly92/operator/backend/internal/cdc"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // TestWiring_WriteFlowsToBroadcaster exercises the real boot path end to end:
@@ -281,10 +281,10 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 // issue #2685: when no GitHub token is configured, startSession must wire a
 // true-nil ports.Tracker so Spawn's issue-context guard fires instead of
 // dereferencing a typed-nil *github.Tracker. The pre-fix wiring assigned the
-// typed-nil return of newGitHubTracker directly, and `ao spawn --issue` panicked
+// typed-nil return of newGitHubTracker directly, and `opr spawn --issue` panicked
 // on the first lookup.
 func TestStartSession_SpawnDoesNotPanicWhenNoTrackerToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "")
+	t.Setenv("OPERATOR_GITHUB_TOKEN", "")
 	t.Setenv("GITHUB_TOKEN", "")
 
 	ctx := context.Background()
@@ -388,15 +388,15 @@ func TestStartTrackerIntake_RunsEvenWithoutEnabledProjects(t *testing.T) {
 	}
 }
 
-func TestTrackerTokenSourcePrefersAOGitHubToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "ao-token")
+func TestTrackerTokenSourcePrefersOperatorGitHubToken(t *testing.T) {
+	t.Setenv("OPERATOR_GITHUB_TOKEN", "opr-token")
 	t.Setenv("GITHUB_TOKEN", "github-token")
 	token, err := (&trackerTokenSource{}).Token(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if token != "ao-token" {
-		t.Fatalf("token = %q, want AO_GITHUB_TOKEN", token)
+	if token != "opr-token" {
+		t.Fatalf("token = %q, want OPERATOR_GITHUB_TOKEN", token)
 	}
 }
 
@@ -411,7 +411,7 @@ func (c *captureRuntimeSender) SendMessage(_ context.Context, handle ports.Runti
 	return nil
 }
 
-// TestWiring_SessionMessengerSendsToRuntimePane asserts the daemon wires ao
+// TestWiring_SessionMessengerSendsToRuntimePane asserts the daemon wires opr
 // send to the live runtime pane and resolves the handle from the shared store.
 func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	store, err := sqlitetest.Open(t.TempDir())
@@ -430,7 +430,7 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata: domain.SessionMetadata{RuntimeHandleID: "ao-1/terminal_0"},
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -438,8 +438,8 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	if err := messenger.Send(ctx, rec.ID, "hello agent"); err != nil {
 		t.Fatalf("messenger.Send: %v", err)
 	}
-	if runtime.handle.ID != "ao-1/terminal_0" {
-		t.Fatalf("handle = %q, want ao-1/terminal_0", runtime.handle.ID)
+	if runtime.handle.ID != "opr-1/terminal_0" {
+		t.Fatalf("handle = %q, want opr-1/terminal_0", runtime.handle.ID)
 	}
 	if runtime.message != "hello agent" {
 		t.Fatalf("message = %q, want hello agent", runtime.message)
@@ -500,7 +500,7 @@ func TestWiring_SessionMessengerRejectsTerminatedSession(t *testing.T) {
 		ProjectID: "p", Kind: domain.KindWorker,
 		IsTerminated: true,
 		Activity:     domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata:     domain.SessionMetadata{RuntimeHandleID: "ao-1/terminal_0"},
+		Metadata:     domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0"},
 	})
 	if err != nil {
 		t.Fatal(err)

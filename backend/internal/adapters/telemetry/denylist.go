@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // DenylistSink drops named event streams before they reach the sink it wraps.
@@ -25,7 +25,7 @@ type DenylistSink struct {
 }
 
 // NewDenylistSink wraps next, dropping any event whose name matches an entry in
-// names. An entry ending in "*" matches by prefix, so "ao.renderer.*" silences a
+// names. An entry ending in "*" matches by prefix, so "opr.renderer.*" silences a
 // whole family without enumerating it. Matching is case-insensitive because
 // these values are typed by a human under time pressure.
 //
@@ -71,8 +71,8 @@ func (s *DenylistSink) Close(ctx context.Context) error {
 
 // blocks reports whether an event name is silenced. Both the internal name and
 // the exported PostHog alias are checked, so an operator can type either the
-// name they see in PostHog ("ao.v2.app.active") or the one in the source
-// ("ao.app.active") and get the result they expect.
+// name they see in PostHog ("opr.v2.app.active") or the one in the source
+// ("opr.app.active") and get the result they expect.
 func (s *DenylistSink) blocks(name string) bool {
 	for _, candidate := range []string{name, remoteEventName(name)} {
 		lowered := strings.ToLower(strings.TrimSpace(candidate))

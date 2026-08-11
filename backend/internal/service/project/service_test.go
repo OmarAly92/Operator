@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/service/project"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // newManager builds a Manager over a real, isolated sqlite store cloned from a
@@ -95,7 +95,7 @@ func gitRepoWithOriginHead(t *testing.T, defaultBranch, featureBranch string) st
 
 func commitEmpty(t *testing.T, dir string) {
 	t.Helper()
-	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=AO Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=opr@example.com", "-c", "user.name=Operator Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
 		t.Fatalf("git commit: %v (%s)", err, out)
 	}
 }
@@ -142,41 +142,41 @@ func TestManager_AddListGetRemove(t *testing.T) {
 		t.Fatalf("List() = %v, %v; want empty", got, err)
 	}
 
-	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao"), Name: ptr("Agent Orchestrator")})
+	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr"), Name: ptr("Operator")})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if proj.ID != "ao" || proj.Name != "Agent Orchestrator" || proj.Path != repo || proj.DefaultBranch != "main" {
+	if proj.ID != "opr" || proj.Name != "Operator" || proj.Path != repo || proj.DefaultBranch != "main" {
 		t.Fatalf("Add returned %#v", proj)
 	}
 
 	list, err := m.List(ctx)
-	if err != nil || len(list) != 1 || list[0].ID != "ao" {
-		t.Fatalf("List() = %v, %v; want [ao]", list, err)
+	if err != nil || len(list) != 1 || list[0].ID != "opr" {
+		t.Fatalf("List() = %v, %v; want [opr]", list, err)
 	}
 
-	res, err := m.Get(ctx, "ao")
+	res, err := m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if res.Status != "ok" || res.Project == nil || res.Project.ID != "ao" {
+	if res.Status != "ok" || res.Project == nil || res.Project.ID != "opr" {
 		t.Fatalf("Get = %#v", res)
 	}
 
-	rm, err := m.Remove(ctx, "ao")
+	rm, err := m.Remove(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	if rm.ProjectID != "ao" || rm.RemovedStorageDir {
+	if rm.ProjectID != "opr" || rm.RemovedStorageDir {
 		t.Fatalf("Remove = %#v", rm)
 	}
 	if list, _ := m.List(ctx); len(list) != 0 {
 		t.Fatalf("active list after remove = %d, want 0", len(list))
 	}
-	_, err = m.Get(ctx, "ao")
+	_, err = m.Get(ctx, "opr")
 	wantCode(t, err, "PROJECT_NOT_FOUND")
 
-	_, err = m.Remove(ctx, "ao")
+	_, err = m.Remove(ctx, "opr")
 	wantCode(t, err, "PROJECT_NOT_FOUND")
 }
 
@@ -190,13 +190,13 @@ func TestManager_AddEmitsProjectAndFirstProjectTelemetry(t *testing.T) {
 	sink := &captureSink{}
 	m := project.NewWithDeps(project.Deps{Store: store, Telemetry: sink})
 
-	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want projects.created + first_project_added", sink.events)
 	}
-	if sink.events[0].Name != "ao.projects.created" || sink.events[1].Name != "ao.onboarding.first_project_added" {
+	if sink.events[0].Name != "opr.projects.created" || sink.events[1].Name != "opr.onboarding.first_project_added" {
 		t.Fatalf("event names = %#v", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 }
@@ -211,7 +211,7 @@ func TestManager_AddDoesNotRepeatFirstProjectTelemetry(t *testing.T) {
 	sink := &captureSink{}
 	m := project.NewWithDeps(project.Deps{Store: store, Telemetry: sink})
 
-	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add first: %v", err)
 	}
 	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("ao2")}); err != nil {
@@ -219,7 +219,7 @@ func TestManager_AddDoesNotRepeatFirstProjectTelemetry(t *testing.T) {
 	}
 	var firstProjectCount int
 	for _, ev := range sink.events {
-		if ev.Name == "ao.onboarding.first_project_added" {
+		if ev.Name == "opr.onboarding.first_project_added" {
 			firstProjectCount++
 		}
 	}
@@ -381,16 +381,16 @@ func TestManager_RemoveTeardownsBeforeArchive(t *testing.T) {
 	teardown := &fakeProjectTeardowner{}
 	m := project.NewWithDeps(project.Deps{Store: store, Sessions: teardown})
 
-	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := m.Remove(ctx, "ao"); err != nil {
+	if _, err := m.Remove(ctx, "opr"); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	if len(teardown.projects) != 1 || teardown.projects[0] != "ao" {
-		t.Fatalf("teardown projects = %#v, want [ao]", teardown.projects)
+	if len(teardown.projects) != 1 || teardown.projects[0] != "opr" {
+		t.Fatalf("teardown projects = %#v, want [opr]", teardown.projects)
 	}
-	_, err = m.Get(ctx, "ao")
+	_, err = m.Get(ctx, "opr")
 	wantCode(t, err, "PROJECT_NOT_FOUND")
 }
 
@@ -404,13 +404,13 @@ func TestManager_RemoveDoesNotArchiveWhenTeardownFails(t *testing.T) {
 	boom := errors.New("teardown failed")
 	m := project.NewWithDeps(project.Deps{Store: store, Sessions: &fakeProjectTeardowner{err: boom}})
 
-	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := m.Remove(ctx, "ao"); !errors.Is(err, boom) {
+	if _, err := m.Remove(ctx, "opr"); !errors.Is(err, boom) {
 		t.Fatalf("Remove err = %v, want teardown failure", err)
 	}
-	if got, err := m.Get(ctx, "ao"); err != nil || got.Project == nil || got.Project.ID != "ao" {
+	if got, err := m.Get(ctx, "opr"); err != nil || got.Project == nil || got.Project.ID != "opr" {
 		t.Fatalf("project after failed remove = %#v, %v; want still active", got, err)
 	}
 }
@@ -420,13 +420,13 @@ func TestManager_DefaultsWhenUnconfigured(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepo(t)
 
-	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
 	// Get on a project that set no config still reports the default branch and a
 	// derived session prefix, and omits the (empty) config object.
-	got, err := m.Get(ctx, "ao")
+	got, err := m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -447,8 +447,8 @@ func TestManager_DefaultsWhenUnconfigured(t *testing.T) {
 	if err != nil || len(list) != 1 {
 		t.Fatalf("List = %v, %v", list, err)
 	}
-	if list[0].SessionPrefix != "ao" {
-		t.Fatalf("default session prefix = %q, want derived 'ao'", list[0].SessionPrefix)
+	if list[0].SessionPrefix != "opr" {
+		t.Fatalf("default session prefix = %q, want derived 'opr'", list[0].SessionPrefix)
 	}
 }
 
@@ -462,11 +462,11 @@ func TestManager_GetUsesConfiguredDefaultHarness(t *testing.T) {
 	m := project.NewWithDeps(project.Deps{Store: store, DefaultHarness: domain.HarnessCodex})
 	repo := gitRepo(t)
 
-	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
-	got, err := m.Get(ctx, "ao")
+	got, err := m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestManager_AddDetectsNonMainDefaultBranch(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepoOnBranch(t, "master")
 
-	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")})
+	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestManager_AddDetectsNonMainDefaultBranch(t *testing.T) {
 		t.Fatalf("DefaultBranch = %q, want master", proj.DefaultBranch)
 	}
 
-	got, err := m.Get(ctx, "ao")
+	got, err := m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -525,7 +525,7 @@ func TestManager_AddPrefersOriginHeadOverCheckedOutBranch(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepoWithOriginHead(t, "main", "fix/pr-attachment")
 
-	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")})
+	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestManager_AddPrefersOriginHeadNonMain(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepoWithOriginHead(t, "master", "fix/pr-attachment")
 
-	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")})
+	proj, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -558,7 +558,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepo(t)
 
-	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
@@ -569,14 +569,14 @@ func TestManager_UpdateSettings(t *testing.T) {
 		OrchestratorRules: "Delegate implementation.",
 		AgentConfig:       domain.AgentConfig{Model: "claude-opus-4-5"},
 	}
-	proj, err := m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{
-		DisplayName: "  AO Project  ",
+	proj, err := m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{
+		DisplayName: "  Operator Project  ",
 		Config:      cfg,
 	})
 	if err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	if proj.Name != "AO Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if proj.Name != "Operator Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("returned project = %#v", proj)
 	}
 	if proj.DefaultBranch != "develop" {
@@ -584,11 +584,11 @@ func TestManager_UpdateSettings(t *testing.T) {
 	}
 
 	// Both values persist and show up together on a fresh Get.
-	got, err := m.Get(ctx, "ao")
+	got, err := m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
+	if got.Project == nil || got.Project.Name != "Operator Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
 		t.Fatalf("Get project = %#v", got.Project)
 	}
 	if got.Project.Config.AgentRules != "Run focused tests." || got.Project.Config.OrchestratorRules != "Delegate implementation." {
@@ -596,22 +596,22 @@ func TestManager_UpdateSettings(t *testing.T) {
 	}
 
 	// Invalid fields are rejected before either value is persisted.
-	_, err = m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{
+	_, err = m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{
 		DisplayName: "Should Not Persist",
 		Config:      domain.ProjectConfig{AgentConfig: domain.AgentConfig{Permissions: "yolo"}},
 	})
 	wantCode(t, err, "INVALID_PROJECT_CONFIG")
-	got, err = m.Get(ctx, "ao")
+	got, err = m.Get(ctx, "opr")
 	if err != nil {
 		t.Fatalf("Get after rejected update: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if got.Project == nil || got.Project.Name != "Operator Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("project changed after rejected update = %#v", got.Project)
 	}
-	_, err = m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{DisplayName: "  ", Config: cfg})
+	_, err = m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{DisplayName: "  ", Config: cfg})
 	wantCode(t, err, "DISPLAY_NAME_REQUIRED")
 
-	_, err = m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{
+	_, err = m.UpdateSettings(ctx, "opr", project.UpdateSettingsInput{
 		DisplayName: strings.Repeat("x", 21),
 		Config:      cfg,
 	})
@@ -631,7 +631,7 @@ func TestManager_ListIncludesOnlySummarySafeProjectConfig(t *testing.T) {
 		Env:           map[string]string{"GITHUB_TOKEN": "secret"},
 		Orchestrator:  domain.RoleOverride{Harness: domain.HarnessCodex},
 	}
-	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao"), Config: &cfg}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr"), Config: &cfg}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
@@ -652,10 +652,10 @@ func TestManager_ReaddAfterRemove(t *testing.T) {
 	m := newManager(t)
 	repo := gitRepo(t)
 
-	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao")}); err != nil {
+	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("opr")}); err != nil {
 		t.Fatalf("first Add: %v", err)
 	}
-	if _, err := m.Remove(ctx, "ao"); err != nil {
+	if _, err := m.Remove(ctx, "opr"); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
 	if _, err := m.Add(ctx, project.AddInput{Path: repo, ProjectID: ptr("ao2")}); err != nil {
@@ -807,8 +807,8 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 			filepath.Join(home, "Desktop"),
 			filepath.Join(home, "Documents"),
 			filepath.Join(home, "Downloads"),
-			filepath.Join(home, ".ao"),
-			filepath.Join(home, ".ao", "data"),
+			filepath.Join(home, ".operator"),
+			filepath.Join(home, ".operator", "data"),
 		}
 		for _, path := range paths {
 			if err := os.MkdirAll(path, 0o755); err != nil {
@@ -822,11 +822,11 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("folder inside AO-managed worktrees is rejected before init", func(t *testing.T) {
+	t.Run("folder inside Operator-managed worktrees is rejected before init", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		t.Setenv("USERPROFILE", home)
-		dir := filepath.Join(home, ".ao", "data", "worktrees", "project", "session")
+		dir := filepath.Join(home, ".operator", "data", "worktrees", "project", "session")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -834,7 +834,7 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 		_, err := m.InitializeRepository(ctx, project.InitializeRepositoryInput{Path: dir})
 		wantCode(t, err, "PROJECT_SETUP_PATH_UNSAFE")
 		if _, statErr := os.Lstat(filepath.Join(dir, ".git")); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("unexpected .git after rejected AO worktree setup: %v", statErr)
+			t.Fatalf("unexpected .git after rejected Operator worktree setup: %v", statErr)
 		}
 	})
 
@@ -922,7 +922,7 @@ func TestManager_AddValidationAndConflicts(t *testing.T) {
 	_, err = m.Add(ctx, project.AddInput{Path: unborn})
 	wantCode(t, err, "PROJECT_UNBORN")
 	// An embedded ".." passes the id pattern but would yield an invalid git
-	// branch (ao/a..b-1) at spawn time; reject it up front as a clear 400.
+	// branch (opr/a..b-1) at spawn time; reject it up front as a clear 400.
 	_, err = m.Add(ctx, project.AddInput{Path: gitRepo(t), ProjectID: ptr("a..b")})
 	wantCode(t, err, "INVALID_PROJECT_ID")
 
@@ -1002,10 +1002,10 @@ func TestManager_GetUpdateRemoveErrors(t *testing.T) {
 
 func configureCommitter(t *testing.T) {
 	t.Helper()
-	t.Setenv("GIT_AUTHOR_NAME", "AO Test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "ao@example.com")
-	t.Setenv("GIT_COMMITTER_NAME", "AO Test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "ao@example.com")
+	t.Setenv("GIT_AUTHOR_NAME", "Operator Test")
+	t.Setenv("GIT_AUTHOR_EMAIL", "opr@example.com")
+	t.Setenv("GIT_COMMITTER_NAME", "Operator Test")
+	t.Setenv("GIT_COMMITTER_EMAIL", "opr@example.com")
 }
 
 func gitRepoWithCommit(t *testing.T, dir string) string {
@@ -1232,7 +1232,7 @@ func TestManager_AddWorkspaceAdoptsExistingParent(t *testing.T) {
 		t.Fatalf("git log: %v (%s)", err, logOut)
 	}
 	lines := strings.Split(strings.TrimSpace(string(logOut)), "\n")
-	// Expect: AO workspace commit + "add gitignore" + "initial" = 3 commits.
+	// Expect: Operator workspace commit + "add gitignore" + "initial" = 3 commits.
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 commits, got %d:\n%s", len(lines), logOut)
 	}

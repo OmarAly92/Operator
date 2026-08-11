@@ -11,16 +11,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/conpty/ptyregistry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty/ptyregistry"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-const runtimeLaunchIDEnv = "AO_RUNTIME_LAUNCH_ID"
+const runtimeLaunchIDEnv = "OPERATOR_RUNTIME_LAUNCH_ID"
 
 // Ensure Runtime satisfies the port at compile time (Attach in attach.go).
 var _ ports.Runtime = (*Runtime)(nil)
 
-// validSessionID matches agent-orchestrator's assertValidSessionId.
+// validSessionID matches operator's assertValidSessionId.
 var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // hostSession is the in-memory state for a live pty-host connection.
@@ -215,7 +215,7 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 }
 
 // IsSupervisedProcessAlive uses the pty-host's child status. For a supervised
-// launch that child is the AO supervisor, whose lifetime matches the managed
+// launch that child is the Operator supervisor, whose lifetime matches the managed
 // agent process. When a generation ref is supplied, the launch id captured at
 // Create (and persisted in the recovery registry) must match exactly.
 func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.RuntimeHandle, ref ports.SupervisedProcessRef) (bool, error) {

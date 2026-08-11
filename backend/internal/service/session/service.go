@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
 )
 
 // Store is the read-only persistence surface needed to assemble controller-facing session read models.
@@ -109,13 +109,13 @@ const (
 	RestoreModeViewFresh RestoreModeView = "fresh"
 )
 
-// RestoreOutcome reports the restored read model and how AO relaunched it.
+// RestoreOutcome reports the restored read model and how Operator relaunched it.
 type RestoreOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"restoreMode"`
 }
 
-// ResumeAgentOutcome reports the resumed read model and how AO relaunched it.
+// ResumeAgentOutcome reports the resumed read model and how Operator relaunched it.
 type ResumeAgentOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"resumeMode"`
@@ -274,7 +274,7 @@ func (s *Service) requireProject(ctx context.Context, id domain.ProjectID) (doma
 		return domain.ProjectRecord{}, fmt.Errorf("get project %s: %w", id, err)
 	}
 	if !ok {
-		return domain.ProjectRecord{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project. Register it with `ao project add`")
+		return domain.ProjectRecord{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project. Register it with `opr project add`")
 	}
 	return rec, nil
 }
@@ -297,7 +297,7 @@ func (s *Service) emitSpawned(rec domain.SessionRecord, durationMs int64) {
 	projectID := rec.ProjectID
 	sessionID := rec.ID
 	s.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.session.spawned",
+		Name:       "opr.session.spawned",
 		Source:     "session_service",
 		OccurredAt: s.now(),
 		Level:      ports.TelemetryLevelInfo,
@@ -325,7 +325,7 @@ func (s *Service) emitFirstSessionSpawned(rec domain.SessionRecord, project doma
 		payload["since_first_project_ms"] = s.now().Sub(project.RegisteredAt).Milliseconds()
 	}
 	s.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.onboarding.first_session_spawned",
+		Name:       "opr.onboarding.first_session_spawned",
 		Source:     "session_service",
 		OccurredAt: s.now(),
 		Level:      ports.TelemetryLevelInfo,
@@ -355,7 +355,7 @@ func (s *Service) emitSpawnFailed(cfg ports.SpawnConfig, err error, durationMs i
 		payload["error_code"] = errorCode
 	}
 	s.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.session.spawn_failed",
+		Name:       "opr.session.spawn_failed",
 		Source:     "session_service",
 		OccurredAt: s.now(),
 		Level:      ports.TelemetryLevelError,
@@ -430,7 +430,7 @@ func (s *Service) activeOrchestrators(ctx context.Context, projectID domain.Proj
 	return s.List(ctx, ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
 }
 
-const orchestratorRetireNotice = "AO is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
+const orchestratorRetireNotice = "Operator is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
 
 func (s *Service) sendRetireNotice(ctx context.Context, id domain.SessionID) error {
 	if err := s.manager.Send(ctx, id, orchestratorRetireNotice, nil); err != nil {
@@ -668,7 +668,7 @@ func (s *Service) SetTerminateOnPRMerge(ctx context.Context, id domain.SessionID
 	return s.Get(ctx, id)
 }
 
-// SetAutoInjectReview persists whether new SCM and AO review feedback should be sent to the session.
+// SetAutoInjectReview persists whether new SCM and Operator review feedback should be sent to the session.
 func (s *Service) SetAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool) (domain.Session, error) {
 	updated, err := s.store.SetSessionAutoInjectReview(ctx, id, autoInject, time.Now().UTC())
 	if err != nil {
@@ -851,7 +851,7 @@ func toAPIError(err error) error {
 			"The agent has not exposed a native conversation that can resume in the other interface", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceTransitionNotCancellable):
 		return apierr.Conflict("INTERFACE_TRANSITION_NOT_CANCELLABLE",
-			"The source controller has already stopped; AO must finish or recover the switch", nil)
+			"The source controller has already stopped; Operator must finish or recover the switch", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceAlreadySelected):
 		return apierr.Conflict("INTERFACE_ALREADY_SELECTED",
 			"The session is already using the requested interface", nil)
@@ -866,7 +866,7 @@ func toAPIError(err error) error {
 		return apierr.Conflict("SESSION_NOT_RESUMABLE",
 			"This session has no saved agent session or prompt to resume from", nil)
 	case errors.Is(err, sessionmanager.ErrProjectNotResolvable):
-		return apierr.Invalid("PROJECT_NOT_RESOLVABLE", "Project is not registered or has no repo. Register it with `ao project add`", nil)
+		return apierr.Invalid("PROJECT_NOT_RESOLVABLE", "Project is not registered or has no repo. Register it with `opr project add`", nil)
 	case errors.Is(err, sessionmanager.ErrUnknownHarness):
 		return apierr.Invalid("UNKNOWN_HARNESS", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrMissingHarness):
@@ -890,10 +890,10 @@ func toAPIError(err error) error {
 			"The handoff is stale or its collection window has closed", nil)
 	case errors.Is(err, sessionmanager.ErrInvalidAgentHandoff):
 		return apierr.Invalid("INVALID_AGENT_HANDOFF",
-			"The handoff does not satisfy AO's semantic handoff schema", nil)
+			"The handoff does not satisfy Operator's semantic handoff schema", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchDeliveryUnconfirmed):
 		return apierr.Conflict("AGENT_SWITCH_DELIVERY_UNCONFIRMED",
-			"The target agent started, but AO could not confirm that it accepted the continuation", nil)
+			"The target agent started, but Operator could not confirm that it accepted the continuation", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchInProgress):
 		return apierr.Conflict("AGENT_SWITCH_IN_PROGRESS",
 			"This session already has an agent switch in progress", nil)

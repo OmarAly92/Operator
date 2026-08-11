@@ -47,7 +47,7 @@ export async function spawnOrchestrator(
 	clean = false,
 	mode?: SessionMode,
 ): Promise<string> {
-	void captureRendererEvent("ao.renderer.orchestrator_spawn_requested", { project_id: projectId, source });
+	void captureRendererEvent("opr.renderer.orchestrator_spawn_requested", { project_id: projectId, source });
 	try {
 		const { data, error, response } = await apiClient.POST("/api/v1/orchestrators", {
 			body: { projectId, clean, ...(mode ? { mode } : {}) },
@@ -65,10 +65,10 @@ export async function spawnOrchestrator(
 			);
 		}
 
-		void captureRendererEvent("ao.renderer.orchestrator_spawn_succeeded", { project_id: projectId, source });
+		void captureRendererEvent("opr.renderer.orchestrator_spawn_succeeded", { project_id: projectId, source });
 		return data.orchestrator.id;
 	} catch (err) {
-		void captureRendererEvent("ao.renderer.orchestrator_spawn_failed", { project_id: projectId, source });
+		void captureRendererEvent("opr.renderer.orchestrator_spawn_failed", { project_id: projectId, source });
 		throw err;
 	}
 }

@@ -8,21 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	ampPluginDirName  = ".amp"
 	ampPluginSubDir   = "plugins"
-	ampPluginFileName = "ao-system-prompt.ts"
-	ampPluginSentinel = "agent-orchestrator: managed amp system prompt plugin"
+	ampPluginFileName = "opr-system-prompt.ts"
+	ampPluginSentinel = "operator: managed amp system prompt plugin"
 )
 
-// GetAgentHooks installs AO's Amp system-prompt plugin into the worktree-local
+// GetAgentHooks installs Operator's Amp system-prompt plugin into the worktree-local
 // .amp/plugins directory. Amp has no documented system-prompt argv flag, but
-// its plugin agent.start hook can add hidden context at turn start. AO owns only
-// ao-system-prompt.ts; other user plugin files are preserved.
+// its plugin agent.start hook can add hidden context at turn start. Operator owns only
+// opr-system-prompt.ts; other user plugin files are preserved.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -33,12 +33,12 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 
 	pluginPath := ampPluginPath(cfg.WorkspacePath)
 	if _, err := os.Stat(pluginPath); err == nil {
-		managed, err := isAOManagedAmpPlugin(pluginPath)
+		managed, err := isOperatorManagedAmpPlugin(pluginPath)
 		if err != nil {
 			return fmt.Errorf("amp.GetAgentHooks: %w", err)
 		}
 		if !managed {
-			return fmt.Errorf("amp.GetAgentHooks: refusing to overwrite non-AO file at %s", pluginPath)
+			return fmt.Errorf("amp.GetAgentHooks: refusing to overwrite non-Operator file at %s", pluginPath)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("amp.GetAgentHooks: stat plugin: %w", err)
@@ -61,7 +61,7 @@ func ampPluginPath(workspacePath string) string {
 	return filepath.Join(workspacePath, ampPluginDirName, ampPluginSubDir, ampPluginFileName)
 }
 
-func isAOManagedAmpPlugin(path string) (bool, error) {
+func isOperatorManagedAmpPlugin(path string) (bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -98,9 +98,9 @@ func ampSystemPromptPluginSource(inline, file string) string {
 	b.WriteString("      const content = await readFile(systemPromptFile, \"utf8\");\n")
 	b.WriteString("      const trimmed = content.trim();\n")
 	b.WriteString("      if (trimmed) return trimmed;\n")
-	b.WriteString("      amp.logger.log(\"AO system prompt file is empty\", { systemPromptFile });\n")
+	b.WriteString("      amp.logger.log(\"Operator system prompt file is empty\", { systemPromptFile });\n")
 	b.WriteString("    } catch (error) {\n")
-	b.WriteString("      amp.logger.log(\"AO system prompt file is unavailable\", { systemPromptFile, error });\n")
+	b.WriteString("      amp.logger.log(\"Operator system prompt file is unavailable\", { systemPromptFile, error });\n")
 	b.WriteString("    }\n")
 	b.WriteString("  }\n")
 	b.WriteString("  return inlineSystemPrompt.trim();\n")

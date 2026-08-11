@@ -9,11 +9,11 @@ export type TelemetryBootstrap = {
 	platform: NodeJS.Platform;
 	/**
 	 * Event streams the renderer must not send, from
-	 * `AO_TELEMETRY_DISABLED_EVENTS`.
+	 * `OPERATOR_TELEMETRY_DISABLED_EVENTS`.
 	 *
 	 * The daemon enforces the same list on its own billed sink, but renderer
 	 * events go straight to PostHog and never pass through it. Without carrying
-	 * the policy across the boundary, denying `ao.v2.app.active` would silence
+	 * the policy across the boundary, denying `opr.v2.app.active` would silence
 	 * the CLI producer while the renderer kept sending under the same exported
 	 * name, which is a kill switch that only half works.
 	 */
@@ -34,13 +34,13 @@ export function parseDisabledEvents(raw: string | undefined): string[] {
  *
  * Unpackaged builds are off by default so a developer's ordinary session does
  * not land in the production project as a real install. Setting
- * `AO_TELEMETRY_RENDERER=on` opts a dev build back in for deliberate testing.
+ * `OPERATOR_TELEMETRY_RENDERER=on` opts a dev build back in for deliberate testing.
  */
 export function rendererTelemetryEnabled(
 	env: Record<string, string | undefined>,
 	isPackaged: boolean,
 ): boolean {
-	const explicit = env.AO_TELEMETRY_RENDERER?.trim().toLowerCase();
+	const explicit = env.OPERATOR_TELEMETRY_RENDERER?.trim().toLowerCase();
 	if (explicit === "on") return true;
 	if (explicit === "off") return false;
 	return isPackaged;
@@ -52,9 +52,9 @@ export function defaultDataDir(
 	homeDir: string,
 ): string | null {
 	void platform;
-	if (env.AO_DATA_DIR) return env.AO_DATA_DIR;
+	if (env.OPERATOR_DATA_DIR) return env.OPERATOR_DATA_DIR;
 	if (!homeDir) return null;
-	return path.join(homeDir, ".ao", "data");
+	return path.join(homeDir, ".operator", "data");
 }
 
 export async function loadOrCreateTelemetryInstallId(dataDir: string): Promise<string> {
@@ -89,6 +89,6 @@ export async function buildTelemetryBootstrap(
 		distinctId: await loadOrCreateTelemetryInstallId(dataDir),
 		appVersion,
 		platform,
-		disabledEvents: parseDisabledEvents(env.AO_TELEMETRY_DISABLED_EVENTS),
+		disabledEvents: parseDisabledEvents(env.OPERATOR_TELEMETRY_DISABLED_EVENTS),
 	};
 }

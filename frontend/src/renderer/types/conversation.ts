@@ -10,7 +10,7 @@
  * lifecycle decisions all belong to the daemon. Nothing here recomputes them.
  */
 
-/** Which controller currently owns the AO session. */
+/** Which controller currently owns the Operator session. */
 export type SessionMode = "chat" | "tui";
 
 /** One request and the agent work that followed it. */
@@ -52,8 +52,8 @@ export type ActivityKind =
 export type ActivityStatus = "running" | "completed" | "failed" | "cancelled" | "pending" | "resolved";
 
 /**
- * Delivery state for a message AO sent. `uncertain` is deliberately not merged
- * into `failed`: the provider may have accepted the turn while AO lost the
+ * Delivery state for a message Operator sent. `uncertain` is deliberately not merged
+ * into `failed`: the provider may have accepted the turn while Operator lost the
  * connection, and silently retrying would run the work twice.
  */
 export type DeliveryState = "queued" | "sending" | "accepted" | "uncertain" | "failed";
@@ -231,7 +231,7 @@ export interface CommandDetail {
 	signal?: string;
 }
 
-/** ACP form/URL elicitation projected into a durable AO activity. */
+/** ACP form/URL elicitation projected into a durable Operator activity. */
 export interface UserInputDetail {
 	inputMode?: "form" | "url";
 	message?: string;
@@ -393,7 +393,7 @@ export function isCompaction(item: ConversationItem): boolean {
  *
  * Read by the `event` discriminator and not by the kind, the same convention a
  * compaction follows. A steer has to be an activity rather than a message because it
- * joins a turn in flight, and AO's only durable write that can attach to one is the
+ * joins a turn in flight, and Operator's only durable write that can attach to one is the
  * activity row — but it is still something a person said, and the timeline shows it
  * that way.
  */
@@ -474,7 +474,7 @@ export interface ConversationActivity {
 /** One ordered entry in the timeline. */
 export type ConversationItem = ConversationMessage | ConversationActivity;
 
-/** AO's permission vocabulary, applied per turn in chat mode. */
+/** Operator's permission vocabulary, applied per turn in chat mode. */
 export type ApprovalMode = "default" | "accept-edits" | "auto" | "bypass-permissions";
 
 /**
@@ -608,7 +608,7 @@ export interface ConversationAccount {
 	authMode?: string;
 	planLabel?: string;
 	/**
-	 * When the provider last demanded credentials AO does not hold. Present means the
+	 * When the provider last demanded credentials Operator does not hold. Present means the
 	 * session has stopped working for a reason no retry will fix.
 	 */
 	reauthRequiredAt?: string;
@@ -619,7 +619,7 @@ export interface ConversationAccount {
 export type ThreadStatus = "active" | "idle" | "not_loaded" | "system_error" | "closed";
 
 /**
- * The provider's thread lifecycle, which is NOT AO's controller state.
+ * The provider's thread lifecycle, which is NOT Operator's controller state.
  *
  * The controller banner reports the daemon's connection to the agent process. This
  * reports what the provider says about the thread behind it, and the two disagree
@@ -660,7 +660,7 @@ export interface ConversationSnapshot {
 	branchedFromEarlierMessage?: boolean;
 	branchPoints?: ConversationBranchPoint[];
 	/** What the next turn will be sent with. Daemon-owned, so it survives a
-	 *  restart and applies to turns AO dispatches on the user's behalf. */
+	 *  restart and applies to turns Operator dispatches on the user's behalf. */
 	settings: TurnSettings;
 	/** Undefined until the provider reports. Distinct from a conversation using
 	 *  nothing, so the meter is withheld rather than drawn empty. */

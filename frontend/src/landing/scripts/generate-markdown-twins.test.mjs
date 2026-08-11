@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function createWorkspace() {
-  const workspace = await mkdtemp(path.join(tmpdir(), "ao-markdown-twins-"));
+  const workspace = await mkdtemp(path.join(tmpdir(), "opr-markdown-twins-"));
   workspaces.add(workspace);
   await mkdir(path.join(workspace, "out", "docs"), { recursive: true });
   return workspace;
@@ -40,7 +40,7 @@ test("generates Markdown with every tab panel and without tab controls", async (
     "installation",
     `
       <h1 data-doc-title>Installation</h1>
-      <p data-doc-description>Install AO on your platform.</p>
+      <p data-doc-description>Install Operator on your platform.</p>
       <article data-doc-content>
         <div data-doc-tab-list><button>Tab controls only</button></div>
         <section data-doc-tab-panel data-doc-tab-label="Claude Code">
@@ -58,7 +58,7 @@ test("generates Markdown with every tab panel and without tab controls", async (
   expect(result.error).toBeUndefined();
   expect(result.status).toBe(0);
   const markdown = await readFile(`${htmlPath}.md`, "utf8");
-  expect(markdown).toMatch(/^# Installation\n\nInstall AO on your platform\./);
+  expect(markdown).toMatch(/^# Installation\n\nInstall Operator on your platform\./);
   expect(markdown).toMatch(/\*\*Claude Code\*\*[\s\S]*Run Claude Code\./);
   expect(markdown).toMatch(/\*\*Codex\*\*[\s\S]*Run Codex\./);
   expect(markdown).not.toMatch(/Tab controls only/);

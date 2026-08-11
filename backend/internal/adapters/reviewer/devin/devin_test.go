@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestReviewCommandUsesVisibleInteractiveTUI(t *testing.T) {
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/devin", nil }}
 	inv := ports.ReviewInvocation{
-		TaskPromptRoot: "/ao/prompts", SystemPromptFile: "/ao/prompts/system.md", Prompt: "Read task.md.",
+		TaskPromptRoot: "/opr/prompts", SystemPromptFile: "/opr/prompts/system.md", Prompt: "Read task.md.",
 	}
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
@@ -23,7 +23,7 @@ func TestReviewCommandUsesVisibleInteractiveTUI(t *testing.T) {
 	if !slices.Equal(spec.Argv, []string{"/opt/devin", "--permission-mode", "auto"}) {
 		t.Fatalf("argv = %#v", spec.Argv)
 	}
-	if !strings.Contains(spec.InitialMessage, "/ao/prompts/system.md") || !strings.Contains(spec.InitialMessage, "Read task.md.") {
+	if !strings.Contains(spec.InitialMessage, "/opr/prompts/system.md") || !strings.Contains(spec.InitialMessage, "Read task.md.") {
 		t.Fatalf("initial message = %q", spec.InitialMessage)
 	}
 	for _, forbidden := range []string{"--sandbox", "--print", "--prompt"} {
@@ -49,7 +49,7 @@ func TestReviewCommandRejectsUnsafeInputs(t *testing.T) {
 		t.Fatal("expected relative binary rejection")
 	}
 	r.resolveBinary = func(context.Context) (string, error) { return "/opt/devin", nil }
-	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{TaskPromptRoot: "/ao"}); err == nil {
+	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{TaskPromptRoot: "/opr"}); err == nil {
 		t.Fatal("expected missing system prompt rejection")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

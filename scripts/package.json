@@ -1,5 +1,5 @@
 {
-	"name": "ao-e2e-pod-gate",
+	"name": "opr-e2e-pod-gate",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",

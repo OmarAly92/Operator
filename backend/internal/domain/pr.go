@@ -37,7 +37,7 @@ type PullRequest struct {
 	Mergeability Mergeability
 	UpdatedAt    time.Time
 	// StateChangedAt is when the current normalized PR lifecycle state became
-	// active. It is seeded from provider timestamps and updated when AO observes
+	// active. It is seeded from provider timestamps and updated when Operator observes
 	// a draft/open/merged/closed transition.
 	StateChangedAt time.Time
 
@@ -201,7 +201,7 @@ type MergeReadiness struct {
 }
 
 // ReadyToMerge reports whether the PR has no known blocker left. An unknown or
-// still-running CI result is treated as a blocker: AO only claims readiness it
+// still-running CI result is treated as a blocker: Operator only claims readiness it
 // can actually prove.
 func (r MergeReadiness) ReadyToMerge() bool {
 	if r.Merged || r.Closed || r.Draft {
@@ -222,7 +222,7 @@ func (r MergeReadiness) ReadyToMerge() bool {
 }
 
 // MergeReadinessOf projects stored PR facts into the shared readiness rule.
-// hasUnresolvedComments comes from the pr_comment rows AO keeps for the PR,
+// hasUnresolvedComments comes from the pr_comment rows Operator keeps for the PR,
 // which only ever hold unresolved human threads.
 func MergeReadinessOf(pr PullRequest, hasUnresolvedComments bool) MergeReadiness {
 	return MergeReadiness{

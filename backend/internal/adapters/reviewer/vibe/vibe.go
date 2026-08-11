@@ -1,4 +1,4 @@
-// Package vibe contains AO's experimental host-trusted Mistral Vibe reviewer.
+// Package vibe contains Operator's experimental host-trusted Mistral Vibe reviewer.
 package vibe
 
 import (
@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	agentvibe "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/vibe"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	agentvibe "github.com/OmarAly92/operator/backend/internal/adapters/agent/vibe"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/reviewgateway"
 )
 
 const (
@@ -96,10 +96,10 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	env, err := reviewgateway.PrepareHostTrustedEnvironment(inv.DataDir, inv.ReviewerID)
 	if err != nil {
-		return ports.ReviewCommandSpec{}, fmt.Errorf("vibe reviewer: prepare AO-owned profile: %w", err)
+		return ports.ReviewCommandSpec{}, fmt.Errorf("vibe reviewer: prepare Operator-owned profile: %w", err)
 	}
 	envVars := env.TUIEnvironment()
-	envVars["AO_DATA_DIR"] = env.DataDir
+	envVars["OPERATOR_DATA_DIR"] = env.DataDir
 	envVars["VIBE_HOME"] = env.ConfigRoot
 	if err := seedHostVibeProfile(env.ConfigRoot); err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -122,7 +122,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand restores a recorded Vibe reviewer pane by relaunching
-// with the AO-owned profile and current task context.
+// with the Operator-owned profile and current task context.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, err := r.ReviewCommand(ctx, inv)
 	return cmd, true, err
@@ -134,7 +134,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 func (*Reviewer) ReviewProcessReusable() bool { return false }
 
 // ReviewPreflight verifies that the Vibe executable is available. The pinned
-// CLI probe runs later with AO-owned state roots in ReviewCommand.
+// CLI probe runs later with Operator-owned state roots in ReviewCommand.
 func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 	_, err := r.resolveBinary(ctx)
 	return err
@@ -206,7 +206,7 @@ func appendEnvironment(base []string, overrides map[string]string) []string {
 	return result
 }
 
-// ReviewMessage reuses the live TUI and injects only AO's opaque task
+// ReviewMessage reuses the live TUI and injects only Operator's opaque task
 // reference; the task body never enters argv or inherited process state.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
@@ -217,7 +217,7 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 	return ports.ReviewCancelSpec{Mode: ports.ReviewCancelInput, Interrupts: 1, Input: "\x1b"}, nil
 }
 
-// containedInteractiveSpec models the only future launch shape AO may use.
+// containedInteractiveSpec models the only future launch shape Operator may use.
 // The initial task is deliberately delivered through InitialMessage after the
 // TUI is ready, never as Vibe's positional prompt or programmatic -p input.
 func (r *Reviewer) containedInteractiveSpec(ctx context.Context, inv ports.ReviewInvocation) (stagedCommandSpec, error) {
@@ -249,7 +249,7 @@ func (r *Reviewer) containedInteractiveSpec(ctx context.Context, inv ports.Revie
 
 func (r *Reviewer) prepareNeutralEnvironment(reviewerID string) (string, map[string]string, error) {
 	if strings.TrimSpace(r.dataDir) == "" || !filepath.IsAbs(r.dataDir) {
-		return "", nil, errors.New("vibe reviewer: absolute AO data directory is required")
+		return "", nil, errors.New("vibe reviewer: absolute Operator data directory is required")
 	}
 	if !safeID.MatchString(reviewerID) {
 		return "", nil, errors.New("vibe reviewer: invalid reviewer id")

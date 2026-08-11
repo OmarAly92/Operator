@@ -16,8 +16,8 @@ import (
 	"time"
 )
 
-// writeMarker writes a ~/.ao/app-state.json marker pointing at appPath into the
-// configured state dir (AO_RUN_FILE's directory).
+// writeMarker writes a ~/.operator/app-state.json marker pointing at appPath into the
+// configured state dir (OPERATOR_RUN_FILE's directory).
 func writeMarker(t *testing.T, cfg testConfig, appPath string) {
 	t.Helper()
 	st := appState{SchemaVersion: 1, AppPath: appPath, InstallSource: "npm-bootstrap"}
@@ -70,7 +70,7 @@ func TestResolveApp_MarkerHit(t *testing.T) {
 }
 
 // The downgrade the marker used to re-propagate: a stale copy that got
-// launched leaves the marker pointing at itself, and `ao start` would reopen
+// launched leaves the marker pointing at itself, and `opr start` would reopen
 // that copy forever instead of the install the updater maintains.
 func TestResolveApp_PreferredOutranksMarker(t *testing.T) {
 	cfg := setConfigEnv(t)
@@ -173,16 +173,16 @@ func TestAssetName_PerOS(t *testing.T) {
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		if got != "agent-orchestrator-darwin-arm64.zip" && got != "agent-orchestrator-darwin-x64.zip" {
+		if got != "operator-darwin-arm64.zip" && got != "operator-darwin-x64.zip" {
 			t.Fatalf("darwin assetName = %q", got)
 		}
 	case "windows":
-		if got != "agent-orchestrator-win32-x64.exe" {
-			t.Fatalf("windows assetName = %q, want agent-orchestrator-win32-x64.exe", got)
+		if got != "operator-win32-x64.exe" {
+			t.Fatalf("windows assetName = %q, want operator-win32-x64.exe", got)
 		}
 	case "linux":
-		if got != "agent-orchestrator-linux-x64.AppImage" {
-			t.Fatalf("linux assetName = %q, want agent-orchestrator-linux-x64.AppImage", got)
+		if got != "operator-linux-x64.AppImage" {
+			t.Fatalf("linux assetName = %q, want operator-linux-x64.AppImage", got)
 		}
 	}
 }
@@ -202,7 +202,7 @@ func TestRequireAMD64(t *testing.T) {
 
 func TestWindowsInstalledExe(t *testing.T) {
 	got := windowsInstalledExe("C:\\Users\\me\\AppData\\Local")
-	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Agent Orchestrator", "agent-orchestrator.exe")
+	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Operator", "operator.exe")
 	if got != want {
 		t.Fatalf("windowsInstalledExe = %q, want %q", got, want)
 	}
@@ -225,11 +225,11 @@ func TestKnownAppLocations_HostOS(t *testing.T) {
 
 func TestIsUsableBundle_RegularFileVsDir(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "agent-orchestrator.AppImage")
+	file := filepath.Join(dir, "operator.AppImage")
 	if err := os.WriteFile(file, []byte("x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	subdir := filepath.Join(dir, "Agent Orchestrator.app")
+	subdir := filepath.Join(dir, "Operator.app")
 	if err := os.MkdirAll(subdir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -259,8 +259,8 @@ func TestDownloadURLUsesReleaseRepo(t *testing.T) {
 	releaseRepo = "owner/repo"
 	t.Cleanup(func() { releaseRepo = orig })
 
-	got := downloadURL("agent-orchestrator-darwin-arm64.zip")
-	want := "https://github.com/owner/repo/releases/latest/download/agent-orchestrator-darwin-arm64.zip"
+	got := downloadURL("operator-darwin-arm64.zip")
+	want := "https://github.com/owner/repo/releases/latest/download/operator-darwin-arm64.zip"
 	if got != want {
 		t.Fatalf("downloadURL = %q, want %q", got, want)
 	}
@@ -280,7 +280,7 @@ func TestOpenApp_ArgConstruction(t *testing.T) {
 		},
 	}.withDefaults()}
 
-	opened, err := c.openApp(context.Background(), "/Applications/Agent Orchestrator.app")
+	opened, err := c.openApp(context.Background(), "/Applications/Operator.app")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +290,7 @@ func TestOpenApp_ArgConstruction(t *testing.T) {
 	if gotName != "open" {
 		t.Fatalf("command = %q, want open", gotName)
 	}
-	wantArgs := []string{"/Applications/Agent Orchestrator.app", "--args", "--installed-via=npm-bootstrap"}
+	wantArgs := []string{"/Applications/Operator.app", "--args", "--installed-via=npm-bootstrap"}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("args = %v, want %v", gotArgs, wantArgs)
 	}
@@ -308,7 +308,7 @@ func TestOpenApp_DetachedSpawnOnWinLinux(t *testing.T) {
 		},
 	}.withDefaults()}
 
-	appPath := "/some/agent-orchestrator.AppImage"
+	appPath := "/some/operator.AppImage"
 	opened, err := c.openApp(context.Background(), appPath)
 	if err != nil {
 		t.Fatal(err)
@@ -390,7 +390,7 @@ func TestDownload_NonTTYProgress(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "out.zip")
 
 	var buf bytes.Buffer
-	if err := c.download(context.Background(), &buf, srv.URL, "agent-orchestrator.zip", dst); err != nil {
+	if err := c.download(context.Background(), &buf, srv.URL, "operator.zip", dst); err != nil {
 		t.Fatalf("download failed: %v", err)
 	}
 
@@ -408,7 +408,7 @@ func TestDownload_NonTTYProgress(t *testing.T) {
 		t.Fatalf("non-TTY progress must not emit carriage returns, got %q", out)
 	}
 	// Start line: asset name, size, and repo are all present.
-	if !strings.Contains(out, "Downloading Agent Orchestrator (agent-orchestrator.zip, ") {
+	if !strings.Contains(out, "Downloading Operator (operator.zip, ") {
 		t.Fatalf("missing start line in %q", out)
 	}
 	if !strings.Contains(out, "from owner/repo...") {
@@ -447,7 +447,7 @@ func TestDownload_NoContentLengthOmitsSize(t *testing.T) {
 	if strings.Contains(out, "~") {
 		t.Fatalf("size segment should be omitted without Content-Length, got %q", out)
 	}
-	if !strings.Contains(out, "Downloading Agent Orchestrator (asset.bin) from") {
+	if !strings.Contains(out, "Downloading Operator (asset.bin) from") {
 		t.Fatalf("unexpected start line in %q", out)
 	}
 	if !strings.Contains(out, "Downloaded ") {

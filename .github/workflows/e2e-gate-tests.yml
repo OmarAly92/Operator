@@ -1,7 +1,7 @@
 name: e2e-gate tests
 
 # Runs the stable e2e-gate verdict-contract tests (the pure functions in
-# scripts/ao-e2e-pod-gate.mjs: deriveGateOutcome, parsePodVerdict, parseArgs,
+# scripts/opr-e2e-pod-gate.mjs: deriveGateOutcome, parsePodVerdict, parseArgs,
 # validateGateArgs) on every PR that touches the gate runner or its tests.
 #
 # Without a job these tests were dead — exactly the failure mode that left the
@@ -14,11 +14,11 @@ on:
     branches: [main]
   pull_request:
     paths:
-      - "scripts/ao-e2e-pod-gate.mjs"
-      - "scripts/ao-e2e-pod-gate.test.mjs"
+      - "scripts/opr-e2e-pod-gate.mjs"
+      - "scripts/opr-e2e-pod-gate.test.mjs"
       - ".github/workflows/e2e-gate-tests.yml"
       # The gate runner's verdict parser is a contract against what the pod
-      # harness emits (AO_VERDICT lines from boot-real.sh) and what the release
+      # harness emits (OPERATOR_VERDICT lines from boot-real.sh) and what the release
       # workflow invokes. Re-run the contract tests when either boundary moves,
       # so a harness/consumer change that breaks the contract can't slip past.
       - "test/e2e-pod/**"
@@ -36,4 +36,4 @@ jobs:
         with:
           node-version: 20
       - name: Run verdict-contract tests
-        run: node --test scripts/ao-e2e-pod-gate.test.mjs
+        run: node --test scripts/opr-e2e-pod-gate.test.mjs

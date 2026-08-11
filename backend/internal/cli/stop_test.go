@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/OmarAly92/operator/backend/internal/runfile"
 )
 
 // TestWaitForStoppedKeepsRunFileFromConcurrentStart guards against deleting a
-// fresh daemon's handshake: if a concurrent `ao start` replaces running.json
+// fresh daemon's handshake: if a concurrent `opr start` replaces running.json
 // with a new live PID while we are polling the PID we stopped, waitForStopped
 // must report stopped but leave the new run-file intact.
 func TestWaitForStoppedKeepsRunFileFromConcurrentStart(t *testing.T) {

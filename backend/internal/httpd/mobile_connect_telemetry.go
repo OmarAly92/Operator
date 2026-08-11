@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // A phone that has paired is indistinguishable from one that has not, from the
@@ -18,13 +18,13 @@ import (
 //
 // Everything the renderer can see stops at intent — the modal was opened, the
 // bridge was switched on. Both happen whether or not anyone ever scans the QR.
-const mobileDeviceConnectedEvent = "ao.mobile.device_connected"
+const mobileDeviceConnectedEvent = "opr.mobile.device_connected"
 
 // connectedReportWindow is why this type exists rather than an Emit call inside
 // authMiddleware. Every request from a paired phone passes that middleware,
 // including each image, stylesheet, and script of a preview page (those
 // authenticate by cookie). Reporting per request would emit thousands of events
-// per phone per minute, which is the exact shape of stream that produced AO's
+// per phone per minute, which is the exact shape of stream that produced Operator's
 // PostHog bill.
 //
 // One event per transport per day answers the question that was asked — how

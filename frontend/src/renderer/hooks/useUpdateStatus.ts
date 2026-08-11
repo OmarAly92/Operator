@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { UpdateStatus } from "../../main/update-settings";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 
 /**
  * Live desktop update status: seeded from updates.getStatus, then streamed via
@@ -16,10 +16,10 @@ export function useUpdateStatus(): UpdateStatus {
 	const [status, setStatus] = useState<UpdateStatus>({ state: "idle" });
 	useEffect(() => {
 		let live = true;
-		void aoBridge.updates.getStatus().then((s) => {
+		void operatorBridge.updates.getStatus().then((s) => {
 			if (live) setStatus(s);
 		});
-		const off = aoBridge.updates.onStatus(setStatus);
+		const off = operatorBridge.updates.onStatus(setStatus);
 		return () => {
 			live = false;
 			off?.();

@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 
 
 export const dynamic = "force-static";

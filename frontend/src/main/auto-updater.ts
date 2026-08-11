@@ -440,7 +440,7 @@ function wireUpdaterEvents(): void {
   });
   autoUpdater.on("update-downloaded", (info) => {
     emitUpdateOutcome({
-      event: "ao.renderer.update_downloaded",
+      event: "opr.renderer.update_downloaded",
       phase: "download",
       trigger: activeUpdateTrigger(),
       ...(info?.version ? { to_version: info.version } : {}),
@@ -581,7 +581,7 @@ async function requestAutomaticUpdateCheck(
   }
 }
 
-// startAutoUpdates configures electron-updater from the user's ~/.ao settings.
+// startAutoUpdates configures electron-updater from the user's ~/.operator settings.
 // It is a thin shell: all policy (channel, opt-in) comes from update-settings.
 // Caller guards on app.isPackaged.
 export async function startAutoUpdates(stateDir: string): Promise<void> {
@@ -627,7 +627,7 @@ export async function checkForUpdatesNow(
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "opr.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",
@@ -692,7 +692,7 @@ export async function returnToHome(
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "opr.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",
@@ -735,7 +735,7 @@ export async function downloadUpdateNow(requestId?: string): Promise<void> {
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "opr.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",
@@ -792,7 +792,7 @@ export async function downloadUpdateNow(requestId?: string): Promise<void> {
 // with nothing yet installed in /Applications.
 export function getMacInstallBlocker(): string | undefined {
   if (process.platform !== "darwin") return undefined;
-  // .../Agent Orchestrator.app/Contents/MacOS/<binary> -> the .app bundle root
+  // .../Operator.app/Contents/MacOS/<binary> -> the .app bundle root
   const bundle = path.resolve(process.execPath, "..", "..", "..");
   // Everything below assumes that shape. Under `npm start`, and in tests,
   // execPath is a bare node/electron binary and this resolves to some unrelated
@@ -801,9 +801,9 @@ export function getMacInstallBlocker(): string | undefined {
   if (!bundle.endsWith(".app")) return undefined;
   if (bundle.includes("/AppTranslocation/")) {
     return (
-      "macOS is running Agent Orchestrator from a temporary read-only location " +
+      "macOS is running Operator from a temporary read-only location " +
       "because it was opened straight from where it was downloaded. Quit the app, " +
-      "move Agent Orchestrator.app into /Applications, reopen it from there, and " +
+      "move Operator.app into /Applications, reopen it from there, and " +
       "then restart to update."
     );
   }
@@ -816,9 +816,9 @@ export function getMacInstallBlocker(): string | undefined {
     // Deliberately does NOT say "move it to /Applications": the app may already
     // be there, and telling someone to do what they have done reads as a bug.
     return (
-      "The update can't be installed because Agent Orchestrator's location isn't " +
+      "The update can't be installed because Operator's location isn't " +
       `writable: ${path.dirname(bundle)}. Fix that folder's permissions, or move ` +
-      "Agent Orchestrator.app somewhere you can write to, reopen it, and then " +
+      "Operator.app somewhere you can write to, reopen it, and then " +
       "restart to update."
     );
   }
@@ -875,7 +875,7 @@ export async function ensureUpdatePrefs(stateDir: string): Promise<void> {
     buttons: ["Enable auto-updates", "Not now"],
     defaultId: 0,
     cancelId: 1,
-    message: "Keep Agent Orchestrator up to date automatically?",
+    message: "Keep Operator up to date automatically?",
     detail: "You can change this later in Settings.",
   });
   if (optIn.response !== 0) {

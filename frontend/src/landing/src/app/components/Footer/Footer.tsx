@@ -1,6 +1,6 @@
 "use client";
 
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -78,9 +78,7 @@ export function Footer() {
                 title="Community"
                 links={[
                   { href: COMPANY.GITHUB_URL, label: "GitHub", external: true },
-                  { href: COMPANY.DISCORD_URL, label: "Discord", external: true },
-                  { href: COMPANY.LINKEDIN_URL, label: "LinkedIn", external: true },
-                  { href: COMPANY.X_URL, label: "X", external: true },
+                  { href: COMPANY.DISCORD_URL, label: "Discussions", external: true },
                 ]}
               />
             </div>

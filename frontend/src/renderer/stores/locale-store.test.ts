@@ -5,7 +5,7 @@ const getUiSettings = vi.fn();
 const setUiSettings = vi.fn();
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		uiSettings: {
 			get: (...args: unknown[]) => getUiSettings(...args),
 			set: (...args: unknown[]) => setUiSettings(...args),

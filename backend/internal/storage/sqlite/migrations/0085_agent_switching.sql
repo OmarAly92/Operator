@@ -1,7 +1,7 @@
 -- Migration 0085: durable provider-native session registry and agent-switch saga.
 --
 -- The registry is operational resume state and deliberately remains separate
--- from usage telemetry. A single AO session may retain several conversations
+-- from usage telemetry. A single Operator session may retain several conversations
 -- for the same harness; only a concrete native identity is unique.
 
 -- +goose Up
@@ -86,7 +86,7 @@ CREATE UNIQUE INDEX idx_agent_native_sessions_native_identity
 -- +goose StatementEnd
 
 -- Supports listing retained conversations newest-first. Resume availability is
--- always revalidated against live provider evidence before AO selects one.
+-- always revalidated against live provider evidence before Operator selects one.
 -- +goose StatementBegin
 CREATE INDEX idx_agent_native_sessions_resume_candidate
     ON agent_native_sessions (
@@ -173,7 +173,7 @@ CREATE TABLE agent_switches (
 -- +goose StatementEnd
 
 -- Foreign keys prove that a referenced native row exists; these triggers also
--- bind it to the switch's AO session and target harness. Keep the
+-- bind it to the switch's Operator session and target harness. Keep the
 -- invariant in SQLite so direct SQL and future store paths cannot bypass it.
 -- +goose StatementBegin
 CREATE TRIGGER agent_switches_target_native_scope_insert

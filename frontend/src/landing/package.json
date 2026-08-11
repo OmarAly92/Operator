@@ -1,5 +1,5 @@
 {
-  "name": "aoagents-landing",
+  "name": "operator-landing",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,10 +13,10 @@
     "packages/*"
   ],
   "dependencies": {
-    "@ao/auth": "workspace:*",
-    "@ao/email": "workspace:*",
-    "@ao/shared": "workspace:*",
-    "@ao/ui": "workspace:*",
+    "@operator/auth": "workspace:*",
+    "@operator/email": "workspace:*",
+    "@operator/shared": "workspace:*",
+    "@operator/ui": "workspace:*",
     "@mux/mux-player-react": "^3.13.2",
     "@paper-design/shaders-react": "workspace:*",
     "@sentry/nextjs": "10.46.0",
@@ -45,7 +45,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@ao/typescript": "workspace:*",
+    "@operator/typescript": "workspace:*",
     "@tailwindcss/postcss": "4.2.2",
     "@tailwindcss/typography": "0.5.19",
     "@types/mdx": "2.0.13",

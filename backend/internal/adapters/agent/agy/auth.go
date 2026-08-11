@@ -3,7 +3,7 @@ package agy
 import (
 	"context"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 var _ ports.AgentAuthChecker = (*Plugin)(nil)

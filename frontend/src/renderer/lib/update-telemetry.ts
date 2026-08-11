@@ -1,5 +1,5 @@
 import type { UpdateOutcome } from "../../shared/update-telemetry";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { captureRendererEvent } from "./telemetry";
 
 /**
@@ -16,7 +16,7 @@ import { captureRendererEvent } from "./telemetry";
  * version it was fetching.
  */
 export function startUpdateTelemetry(): () => void {
-	const off = aoBridge.updates.onTelemetry?.((outcome: UpdateOutcome) => {
+	const off = operatorBridge.updates.onTelemetry?.((outcome: UpdateOutcome) => {
 		void captureRendererEvent(outcome.event, {
 			phase: outcome.phase,
 			trigger: outcome.trigger,

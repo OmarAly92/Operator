@@ -32,7 +32,7 @@ import type {
 	AttachableTerminal,
 	TerminalUserInputSource,
 } from "../hooks/useTerminalSession";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { TERMINAL_FONT_SIZE_DEFAULT } from "../lib/design-tokens";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { applyDocumentTheme, applyDocumentThemeStyle } from "../lib/theme";
@@ -205,7 +205,7 @@ type TerminalContextMenuState = {
 	x: number;
 	y: number;
 	// The web link under the cursor when the menu opened, if any — enables the
-	// "Open in system browser" item (left-click opens it in the AO Browser).
+	// "Open in system browser" item (left-click opens it in the Operator Browser).
 	link: string | null;
 };
 
@@ -314,7 +314,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 		const host = hostRef.current;
 		if (!host) return undefined;
 		const activateLink = (event: MouseEvent, uri: string) => {
-			// Left-click on a web link opens it inside the AO Browser panel (the
+			// Left-click on a web link opens it inside the Operator Browser panel (the
 			// parent decides how). Non-web schemes (mailto:, etc.) still go to the OS
 			// via the main process's window-open handler. Right-click to open a web
 			// link in the system browser instead — see the context menu below.
@@ -412,7 +412,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			const selection = term.getSelection();
 			if (!selection || (options?.dedupe && selection === lastCopiedSelection)) return false;
 			options?.clipboardData?.setData("text/plain", selection);
-			void aoBridge.clipboard
+			void operatorBridge.clipboard
 				.writeText(selection)
 				.then(() => {
 					lastCopiedSelection = selection;
@@ -450,7 +450,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			suppressPasteTimer = window.setTimeout(clearSuppressNativePaste, SUPPRESS_NATIVE_PASTE_MS);
 		};
 		const pasteFromClipboard = () => {
-			void aoBridge.clipboard
+			void operatorBridge.clipboard
 				.readText()
 				.then(pasteText)
 				.catch((error) => {
@@ -791,7 +791,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				for (const file of files) {
 					try {
 						const bytes = new Uint8Array(await file.arrayBuffer());
-						const saved = await aoBridge.terminal.saveDroppedFile({ name: file.name, bytes });
+						const saved = await operatorBridge.terminal.saveDroppedFile({ name: file.name, bytes });
 						if (saved) paths.push(saved);
 					} catch (error) {
 						console.warn("Unable to attach dropped file", error);
@@ -982,7 +982,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 								onSelect={() => {
 									const { link } = contextMenu;
 									setContextMenuOpen(false);
-									if (link) void aoBridge.app.openExternal(link);
+									if (link) void operatorBridge.app.openExternal(link);
 								}}
 							>
 								{t("terminal.openSystemBrowser")}

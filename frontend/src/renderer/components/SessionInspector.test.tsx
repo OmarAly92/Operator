@@ -944,22 +944,22 @@ describe("SessionInspector summary reviews", () => {
 		await openReviewsSection();
 
 		expect(await screen.findByRole("button", { name: "Run review" })).toBeInTheDocument();
-		expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+		expect(screen.queryByText("Operator code reviews")).not.toBeInTheDocument();
 		expect(screen.queryByText("Reviews on the pull request")).not.toBeInTheDocument();
 	});
 
-	it("hides AO code reviews until a review run has been triggered", async () => {
+	it("hides Operator code reviews until a review run has been triggered", async () => {
 		mockCommonGets([], "", [reviewState(3, "needs_review", "abc123")]);
 
 		renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
 		await openReviewsSection();
 
 		expect(await screen.findByRole("button", { name: "Run review" })).toBeInTheDocument();
-		expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+		expect(screen.queryByText("Operator code reviews")).not.toBeInTheDocument();
 		expect(screen.queryByText("Reviewable change 3")).not.toBeInTheDocument();
 	});
 
-	it("shows AO code reviews for verdict-only review states", async () => {
+	it("shows Operator code reviews for verdict-only review states", async () => {
 		mockCommonGets([], "reviewer-pane", [reviewState(3, "changes_requested", "abc123")]);
 
 		renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
@@ -1044,7 +1044,7 @@ describe("SessionInspector summary reviews", () => {
 		expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
 	});
 
-	it("renders AO review summaries as Markdown", async () => {
+	it("renders Operator review summaries as Markdown", async () => {
 		mockCommonGets([], "reviewer-pane", [
 			{
 				...reviewState(3, "up_to_date", "abc123"),
@@ -1061,7 +1061,7 @@ describe("SessionInspector summary reviews", () => {
 		expect(summary).not.toHaveTextContent("**auth validation**");
 	});
 
-	// An AO pass only gets a review-comment anchor once it is submitted to
+	// An Operator pass only gets a review-comment anchor once it is submitted to
 	// GitHub, so without a fallback an unsubmitted pass is a dead end.
 	it("links a run to its GitHub review, falling back to the PR when it has none", async () => {
 		mockCommonGets([], "reviewer-pane", [
@@ -1090,7 +1090,7 @@ describe("SessionInspector summary reviews", () => {
 		["needs_review", "changes_requested", "Not run", "Run review"],
 		["running", "approved", "Reviewing...", "Stop review"],
 	] as const)(
-		"keeps the current AO review state clear while the current head is %s",
+		"keeps the current Operator review state clear while the current head is %s",
 		async (status, previousVerdict, runLabel, actionLabel) => {
 			const current = {
 				...reviewState(3, status, "sha-current"),
@@ -1192,11 +1192,11 @@ describe("SessionInspector summary reviews", () => {
 		expect(screen.getAllByText(/2 unresolved/)).toHaveLength(2);
 		expect(screen.getByTestId("github-inline-comments")).toHaveTextContent("a.ts:3");
 		expect(screen.getByTestId("github-inline-comments")).toHaveTextContent("a.ts:9");
-		// AO's runs and the PR's own reviews share one section keyed by PR, so the
-		// unresolved count rides the same row as the AO verdict.
+		// Operator's runs and the PR's own reviews share one section keyed by PR, so the
+		// unresolved count rides the same row as the Operator verdict.
 		expect(screen.getByText("Review summary")).toBeInTheDocument();
 		expect(screen.queryByText("Reviews on the pull request")).not.toBeInTheDocument();
-		expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+		expect(screen.queryByText("Operator code reviews")).not.toBeInTheDocument();
 		expect(screen.queryByText("No unresolved threads.")).not.toBeInTheDocument();
 	});
 
@@ -1307,7 +1307,7 @@ describe("SessionInspector summary reviews", () => {
 		expect(screen.getByText("External reviews")).toBeInTheDocument();
 	});
 
-	it("marks an AO review using its stored injection decision", async () => {
+	it("marks an Operator review using its stored injection decision", async () => {
 		mockCommonGets(
 			[],
 			"reviewer-pane",
@@ -1454,7 +1454,7 @@ describe("SessionInspector summary reviews", () => {
 		renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
 		await openReviewsSection();
 
-		// AO runs one reviewer per worker, so a second harness cannot start
+		// Operator runs one reviewer per worker, so a second harness cannot start
 		// alongside it. Say so rather than silently ignoring the choice.
 		expect(screen.getByText("Review in progress · codex")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: /Select reviewer agent/ })).toBeDisabled();

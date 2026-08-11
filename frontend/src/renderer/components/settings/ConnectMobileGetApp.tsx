@@ -2,11 +2,11 @@ import { QrCode } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { aoBridge } from "../../lib/bridge";
+import { operatorBridge } from "../../lib/bridge";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 
-/** TestFlight beta for the Agent Orchestrator iOS app. */
+/** TestFlight beta for the Operator iOS app. */
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/t4U3fu2H";
 
 /** Android internal-testing signup form. */
@@ -42,7 +42,7 @@ export function ConnectMobileGetApp() {
 						variant="footer"
 						className="rounded-md"
 						aria-label={t("mobile.joinTestFlightAria")}
-						onClick={() => void aoBridge.app.openExternal(TESTFLIGHT_URL)}
+						onClick={() => void operatorBridge.app.openExternal(TESTFLIGHT_URL)}
 					>
 						{t("mobile.joinBeta")}
 					</Button>
@@ -97,7 +97,7 @@ export function ConnectMobileGetApp() {
 					variant="footer"
 					className="rounded-md"
 					aria-label={t("mobile.androidSignupAria")}
-					onClick={() => void aoBridge.app.openExternal(ANDROID_SIGNUP_URL)}
+					onClick={() => void operatorBridge.app.openExternal(ANDROID_SIGNUP_URL)}
 				>
 					{t("mobile.joinWaitlist")}
 				</Button>

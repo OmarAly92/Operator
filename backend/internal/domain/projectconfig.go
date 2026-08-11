@@ -8,7 +8,7 @@ import (
 )
 
 // ProjectConfig is the typed per-project configuration — the SQLite twin of the
-// legacy agent-orchestrator.yaml `projects.<id>` block. It is persisted as one
+// legacy operator.yaml `projects.<id>` block. It is persisted as one
 // JSON blob per project and resolved at spawn. Each field is typed and
 // validated; there is no free-form map.
 //
@@ -24,7 +24,7 @@ type ProjectConfig struct {
 	SessionPrefix string `json:"sessionPrefix,omitempty"`
 
 	// Env are extra environment variables forwarded into worker session
-	// runtimes. AO-internal vars (AO_SESSION, AO_PROJECT_ID, …) always win.
+	// runtimes. Operator-internal vars (OPERATOR_SESSION, OPERATOR_PROJECT_ID, …) always win.
 	Env map[string]string `json:"env,omitempty"`
 	// Symlinks are repo-relative paths symlinked into each session workspace.
 	Symlinks []string `json:"symlinks,omitempty"`
@@ -56,10 +56,10 @@ type ProjectConfig struct {
 	// tracker is not commented on or transitioned.
 	TrackerIntake TrackerIntakeConfig `json:"trackerIntake,omitempty"`
 
-	// ContainerReap controls whether AO reaps a worker session's ao.session-
+	// ContainerReap controls whether Operator reaps a worker session's opr.session-
 	// labeled Docker containers on terminal state / kill. Enabled by default;
 	// set Disabled to opt a project out entirely. Per-container sparing uses
-	// the ao.spare=true label instead (see dockerreap.SpareLabel) so the
+	// the opr.spare=true label instead (see dockerreap.SpareLabel) so the
 	// opt-out travels with the container at `docker run` time rather than
 	// drifting out of sync with a project-config list.
 	ContainerReap ContainerReapConfig `json:"containerReap,omitempty"`
@@ -69,7 +69,7 @@ type ProjectConfig struct {
 // container reaping on session terminal state.
 type ContainerReapConfig struct {
 	// Disabled turns off container reaping for every session in this project.
-	// Per-container sparing (ao.spare=true) is unaffected either way.
+	// Per-container sparing (opr.spare=true) is unaffected either way.
 	Disabled bool `json:"disabled,omitempty"`
 }
 

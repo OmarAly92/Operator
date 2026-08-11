@@ -1,8 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
--- AO's first daemon-owned user preference.
+-- Operator's first daemon-owned user preference.
 --
--- It has to live here rather than in the renderer: desktop, mobile, `ao spawn`,
+-- It has to live here rather than in the renderer: desktop, mobile, `opr spawn`,
 -- and headless spawns all resolve the default session interface, and a
 -- localStorage value would look correct in Settings while silently disagreeing
 -- with the CLI. One row, one source of truth.

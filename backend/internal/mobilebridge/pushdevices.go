@@ -38,7 +38,7 @@ func ValidPushToken(tok string) bool {
 }
 
 // PushDevicesPath returns the push-device registry location under the data dir
-// (~/.ao/mobile/push-devices.json), co-located with the Connect Mobile config.
+// (~/.operator/mobile/push-devices.json), co-located with the Connect Mobile config.
 func PushDevicesPath(dataDir string) string {
 	return filepath.Join(dataDir, "mobile", "push-devices.json")
 }

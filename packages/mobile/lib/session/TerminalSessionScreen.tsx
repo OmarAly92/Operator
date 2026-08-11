@@ -277,7 +277,7 @@ const TERMINAL_ENHANCE_JS = `
     // Taps on the scroll-to-top button are handled by the button itself; don't
     // let this capture-phase listener consume them as a terminal tap/long-press.
     var _tt = e.target;
-    if (_tt && _tt.closest && _tt.closest('#ao-scrolltop')) return;
+    if (_tt && _tt.closest && _tt.closest('#opr-scrolltop')) return;
     if (e.touches && e.touches.length >= 2) {
       // Second finger down -> pinch. Cancel any pending tap/long-press/scroll.
       clearLP(); mode = 'pinch';
@@ -412,7 +412,7 @@ const TERMINAL_ENHANCE_JS = `
   //    the button always shows there and the jump is a generous burst.
   (function scrollTopBtn() {
     var btn = document.createElement('div');
-    btn.id = 'ao-scrolltop';
+    btn.id = 'opr-scrolltop';
     btn.setAttribute('aria-label', 'Scroll to top');
     btn.innerHTML = '↑'; // up arrow
     var s = btn.style;
@@ -513,7 +513,7 @@ const statusColorFor = (t: Theme): Record<MuxStatus, string> => ({
 function terminalInterfacePhaseLabel(phase?: string): string {
 	switch (phase) {
 		case "draining":
-			return "Waiting for the current terminal turn to finish. New AO messages are queued safely.";
+			return "Waiting for the current terminal turn to finish. New Operator messages are queued safely.";
 		case "source_stopping":
 			return "Stopping the terminal controller before Chat starts.";
 		case "source_stopped":
@@ -850,7 +850,7 @@ export default function TerminalScreen() {
 	// Send the composed text to the selected route. The agent route can still
 	// auto-engage the terminal route when the daemon reports a blocked prompt.
 	//
-	// AO's /send is the right route for a message: the daemon hands it to the
+	// Operator's /send is the right route for a message: the daemon hands it to the
 	// harness and submits it. But it sanitises control characters and refuses
 	// outright while a session is paused on a permission prompt — answering 409
 	// SESSION_AWAITING_DECISION with the advice "answer it in the session
@@ -979,7 +979,7 @@ export default function TerminalScreen() {
 			"Switch to Chat?",
 			known?.activity === "waiting_input" || known?.activity === "blocked"
 				? "This turn is waiting for your input. Finish waits for your answer; stop cancels it and switches now."
-				: "Keep the same AO session, worktree, and native agent conversation.",
+				: "Keep the same Operator session, worktree, and native agent conversation.",
 			[
 				{ text: "Keep Terminal UI", style: "cancel" },
 				{ text: "Finish, then switch", onPress: () => void startInterfaceSwitch("drain") },

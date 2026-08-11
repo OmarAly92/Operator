@@ -1,16 +1,12 @@
 # Contributing
 
 We love contributions — code, docs, triage, examples, and tests.
-Start on Discord so scope is clear before you invest time.
+Open an issue first so scope is clear before you invest time.
 
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white&logoSize=auto)](https://discord.com/invite/UZv7JjxbwG)
+- **[Issues](https://github.com/OmarAly92/operator/issues)** → bugs, proposals, design threads
+- **[Discussions](https://github.com/OmarAly92/operator/discussions)** → questions and ideas
 
-**Daily contributor sync:** every day at **10:00 PM IST**
-
-- **Discord** → questions, mentoring, sync, realtime unblocking
-- **GitHub** → bugs, proposals, design threads, review
-
-Non-trivial work? Comment on the issue or ping Discord first. Get a thumbs-up, then build.
+Non-trivial work? Comment on the issue first. Get a thumbs-up, then build.
 
 ## Ways to contribute
 
@@ -23,9 +19,9 @@ Non-trivial work? Comment on the issue or ping Discord first. Get a thumbs-up, t
 
 ## Quick start
 
-1. **Join Discord** — say hi and get guidance
+1. **Open or find an issue** — say what you plan to do and get guidance
 2. **Read the contract** — [AGENTS.md](AGENTS.md) (layout, commands, hard rules, PR hygiene)
-3. **Pick something focused** — [open issues](https://github.com/AgentWrapper/agent-orchestrator/issues); prefer `good-first-issue` / `help wanted`
+3. **Pick something focused** — [open issues](https://github.com/OmarAly92/operator/issues); prefer `good-first-issue` / `help wanted`
 4. **Claim it** — comment `I'd like to work on this` and wait for assignment
 5. **Open a clear PR** — narrow change, link the issue, user-visible impact, tests
 6. **Iterate** — address review; maintainers merge
@@ -42,7 +38,7 @@ Two onboarding notes matter on current `main`:
 ### Bugs and features
 
 Use the GitHub issue forms (**Bug report** / **Feature request**) so reports stay reproducible.
-Bug reports should include AO version, environment, repro steps, and expected vs actual behavior.
+Bug reports should include Operator version, environment, repro steps, and expected vs actual behavior.
 
 ### Pull requests
 
@@ -51,6 +47,6 @@ Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `main`, one is
 
 ## Code of Conduct
 
-Be respectful, constructive, and assume good intent. Report problems to maintainers via Discord DM.
+Be respectful, constructive, and assume good intent. Report problems to the maintainers by opening an issue.
 
-Thanks for making agent-orchestrator better for the next person who shows up.
+Thanks for making Operator better for the next person who shows up.

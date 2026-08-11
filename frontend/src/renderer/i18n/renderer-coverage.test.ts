@@ -10,10 +10,10 @@ const displayAttributes = new Set(["alt", "aria-label", "placeholder", "title"])
 // English UI copy. Keeping this allowlist exact makes newly introduced chrome fail.
 const approvedLiterals: Record<string, readonly string[]> = {
 	"components/BrowserPanel.tsx": [
-		"AO Preview",
+		"Operator Preview",
 		"Demo app preview",
 		"The worker exposed a local Vite app with",
-		"ao preview",
+		"opr preview",
 		"Loaded",
 		"$ npm run dev -- --host 127.0.0.1",
 		"ready in 418 ms",
@@ -21,15 +21,15 @@ const approvedLiterals: Record<string, readonly string[]> = {
 	],
 	"components/CenterPane.tsx": ["px"],
 	"components/CreateProjectFlow.tsx": ["my-workspace/", "web-app", "main"],
-	"components/DaemonStartupLoader.tsx": ["Agent Orchestrator"],
+	"components/DaemonStartupLoader.tsx": ["Operator"],
 	"components/ProjectSettingsForm.tsx": [
-		"main", "ao",
+		"main", "opr",
 		"No workflow settings for scratch projects.",
 		"Tracker intake is not available for scratch projects.",
 	],
 	"components/SessionFilesView.tsx": ["-&gt;"],
 	"components/SessionInspector.tsx": ["PR #"],
-	"components/Sidebar.tsx": ["Agent Orchestrator", "daemon"],
+	"components/Sidebar.tsx": ["Operator", "daemon"],
 	"components/WindowTitlebar.tsx": [
 		"Alt+F4",
 		"Ctrl+Z",

@@ -1,13 +1,13 @@
 // Package agentrestore contains shared restore plumbing for reviewer adapters
-// that wrap an AO agent adapter.
+// that wrap an Operator agent adapter.
 package agentrestore
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Options carries reviewer policy that must be reapplied when resuming a native

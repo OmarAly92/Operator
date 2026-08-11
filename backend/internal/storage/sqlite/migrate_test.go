@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 var expectedUsageTableColumns = map[string][]string{
@@ -41,7 +41,7 @@ func TestUsageTablesKeepOnlyDurableCollectionState(t *testing.T) {
 }
 
 func TestUsageSchemaUpgradePreservesEarlierPRData(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -137,7 +137,7 @@ VALUES (1, 1, 1, 'gpt-test', 120, 100, 20, 0, 30, 'event-1');
 
 func openMigratedTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestMigrateAllowsEveryShippedHarness(t *testing.T) {
 }
 
 func TestMigrateRepairsSkippedMuseHarnessConstraint(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -228,16 +228,16 @@ func TestMigrateRepairsSkippedMuseHarnessConstraint(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('operator', '/repo/operator', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'muse', ?, ?, ?);
+VALUES ('operator-1', 'operator', 1, 'muse', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("insert muse session after repair: %v", err)
 	}
 }
 
 func TestMigrateRepairsSkippedMuseHarnessConstraintWithLegacyQM(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -290,7 +290,7 @@ WHERE type = 'table' AND name = 'sessions'`,
 // the constraint. Without the QM pair, the replace() source string omits 'qm'
 // and no-ops, leaving Kimchi inserts to fail with a CHECK violation.
 func TestMigration0054AddsKimchiToLegacyQMConstraint(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -338,7 +338,7 @@ WHERE type = 'table' AND name = 'sessions'`,
 // without retaining Kimchi. Startup must converge the known constraint without
 // dropping either existing harness or rejecting existing Prime Agent rows.
 func TestMigrateRepairsKimchiConstraintWithPrimeAgentAndLegacyQM(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -365,9 +365,9 @@ WHERE type = 'table' AND name = 'sessions'`,
 
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('operator', '/repo/operator', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'prime-agent', ?, ?, ?);
+VALUES ('operator-1', 'operator', 1, 'prime-agent', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("seed prime-agent session: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestOpenReadOnlyDoesNotCreateDatabase(t *testing.T) {
 
 func TestOpenReadOnlyDoesNotMigrate(t *testing.T) {
 	dataDir := t.TempDir()
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -447,7 +447,7 @@ INSERT INTO projects (id, path, registered_at) VALUES ('alpha', '/repos/alpha', 
 		t.Fatalf("ListProjects err = %v, want old-schema column failure", err)
 	}
 
-	checkDB, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "ao.db")+pragmas)
+	checkDB, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open check db: %v", err)
 	}

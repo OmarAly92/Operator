@@ -13,7 +13,7 @@
  * cannot be relied on here.
  */
 
-const CAMPAIGN_STORAGE_KEY = "ao.campaign";
+const CAMPAIGN_STORAGE_KEY = "opr.campaign";
 
 /** The standard five. Kept closed so a crafted query cannot add arbitrary keys. */
 const UTM_KEYS = [

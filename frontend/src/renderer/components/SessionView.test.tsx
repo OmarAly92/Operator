@@ -80,7 +80,7 @@ const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hois
 		title: "do the thing",
 		provider: "claude-code",
 		kind: "worker",
-		branch: "ao/sess-1",
+		branch: "opr/sess-1",
 		status: "working",
 		updatedAt: "2026-06-10T00:00:00Z",
 		prs: [],
@@ -89,7 +89,7 @@ const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hois
 		...worker,
 		id: "sess-2",
 		title: "do the other thing",
-		branch: "ao/sess-2",
+		branch: "opr/sess-2",
 	} satisfies WorkspaceSession;
 	const orchestrator = {
 		...worker,
@@ -103,7 +103,7 @@ const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hois
 		workspaceId: "proj-2",
 		workspaceName: "other-app",
 		title: "cross-project task",
-		branch: "ao/cross-project",
+		branch: "opr/cross-project",
 	} satisfies WorkspaceSession;
 	const workspaces: WorkspaceSummary[] = [
 		{ id: "proj-1", name: "my-app", path: "/p", type: "main", sessions: [worker, secondWorker, orchestrator] },
@@ -912,14 +912,14 @@ describe("SessionView", () => {
 		// Dragging persists the width.
 		act(() => entry.onResize?.({ asPercentage: 31.5, inPixels: 400 }));
 		expect(inspectorOpen("sess-1")).toBe(true);
-		expect(window.localStorage.getItem("ao.inspector.split")).toBe("31.5");
+		expect(window.localStorage.getItem("opr.inspector.split")).toBe("31.5");
 
 		// A drag can never auto-collapse the rail: even if a 0-size frame arrives
 		// mid-drag, the store stays open — collapse belongs to the explicit
 		// controls (topbar button / ⌘⇧B) only.
 		act(() => entry.onResize?.({ asPercentage: 0, inPixels: 0 }));
 		expect(inspectorOpen("sess-1")).toBe(true);
-		expect(window.localStorage.getItem("ao.inspector.split")).toBe("31.5");
+		expect(window.localStorage.getItem("opr.inspector.split")).toBe("31.5");
 	});
 
 	it("reopens the store when a drag pulls the collapsed rail back open", () => {
@@ -931,7 +931,7 @@ describe("SessionView", () => {
 		act(() => entry.onResize?.({ asPercentage: 25, inPixels: 320 }));
 
 		expect(useUiStore.getState().inspectorSessions["sess-1"]).toMatchObject({ isOpen: true });
-		expect(window.localStorage.getItem("ao.inspector.split")).toBe("25");
+		expect(window.localStorage.getItem("opr.inspector.split")).toBe("25");
 	});
 
 	// Regression: rrp v4 reports observed DOM sizes, so the flex-grow
@@ -953,11 +953,11 @@ describe("SessionView", () => {
 		act(() => useUiStore.getState().toggleInspector("sess-1"));
 		act(() => entry.onResize?.({ asPercentage: 12.4, inPixels: 160 }));
 		expect(inspectorOpen("sess-1")).toBe(false);
-		expect(window.localStorage.getItem("ao.inspector.split")).toBeNull();
+		expect(window.localStorage.getItem("opr.inspector.split")).toBeNull();
 	});
 
 	it("restores the persisted split width", () => {
-		window.localStorage.setItem("ao.inspector.split", "40");
+		window.localStorage.setItem("opr.inspector.split", "40");
 		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
 		expect(panelSizes("inspector")[0]).toBe("40%");
@@ -1101,7 +1101,7 @@ describe("SessionView", () => {
 		expect(document.querySelector(".files-popout-overlay")).not.toHaveClass("files-popout-overlay--mac-windowed");
 	});
 
-	it("opens the Browser tab for a new `ao preview` target without replacing the terminal", () => {
+	it("opens the Browser tab for a new `opr preview` target without replacing the terminal", () => {
 		const worker = workerSession("sess-1");
 		const { rerender } = render(<SessionView sessionId="sess-1" />);
 
@@ -1246,7 +1246,7 @@ describe("SessionView", () => {
 		expect(inspectorButton()).toHaveAttribute("data-view", "summary");
 	});
 
-	it("does not open Browser when `ao preview clear` removes the target", () => {
+	it("does not open Browser when `opr preview clear` removes the target", () => {
 		const worker = workerSession("sess-1");
 		const { rerender } = render(<SessionView sessionId="sess-1" />);
 

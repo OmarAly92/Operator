@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 // PRWriter records the PR facts a PR observation carries. The pr table's own DB
@@ -118,7 +118,7 @@ type RuntimeHandle struct {
 	ID string
 }
 
-// SupervisedProcessRef identifies the AO-owned supervisor belonging to one
+// SupervisedProcessRef identifies the Operator-owned supervisor belonging to one
 // managed agent launch. LaunchID fences process observations from older
 // spawn/restore generations of the same session.
 type SupervisedProcessRef struct {
@@ -138,16 +138,16 @@ type SupervisedProcessInspector interface {
 // ExactSupervisedProcessInspector is the strict launch-generation probe used
 // at agent-switch ownership boundaries. Unlike SupervisedProcessInspector it
 // must never treat an arbitrary child of a preserved shell as the requested
-// AO supervisor. A true result proves the exact session/launch pair and the
+// Operator supervisor. A true result proves the exact session/launch pair and the
 // supervisor's managed agent child are both alive.
 type ExactSupervisedProcessInspector interface {
 	IsExactSupervisedProcessAlive(ctx context.Context, handle RuntimeHandle, ref SupervisedProcessRef) (bool, error)
 }
 
 // ContainerReaper removes Docker containers a worker session owns, identified
-// by the ao.session=<id> label convention (see EnvSessionID). It is an
+// by the opr.session=<id> label convention (see EnvSessionID). It is an
 // optional capability: nil wiring means container reaping is a no-op, not an
-// error. Implementations MUST treat a container's ao.spare=true label as an
+// error. Implementations MUST treat a container's opr.spare=true label as an
 // unconditional skip, and MUST bias toward sparing on any ambiguity (e.g. a
 // docker CLI probe failure reaps nothing rather than guessing) -- a wrongly
 // reaped container can cost a live worker its database.
@@ -186,7 +186,7 @@ type Workspace interface {
 	// Never call it from interactive teardown paths.
 	ForceDestroy(ctx context.Context, info WorkspaceInfo) error
 	// StashUncommitted captures all uncommitted work in the worktree as a git
-	// commit object stored at refs/ao/preserved/<session-id>, WITHOUT mutating
+	// commit object stored at refs/opr/preserved/<session-id>, WITHOUT mutating
 	// the working tree or the global stash stack. Tracked edits and new
 	// non-ignored files are captured; .gitignore-d files are skipped (the count
 	// of skipped ignored paths is logged). Returns the ref name on success, or
@@ -270,7 +270,7 @@ var (
 	// it holds uncommitted changes or untracked files. Teardown is never
 	// forced; callers treat the workspace as intentionally preserved.
 	ErrWorkspaceDirty = errors.New("workspace: uncommitted changes present")
-	// ErrWorkspaceStale reports an AO-managed workspace path no longer points
+	// ErrWorkspaceStale reports an Operator-managed workspace path no longer points
 	// at a registered git worktree. Replacement paths may skip preservation for
 	// this state after path-safety checks, while real preserve failures remain
 	// fatal.

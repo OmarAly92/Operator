@@ -58,7 +58,7 @@ const worker: WorkspaceSession = {
 	title: "do the thing",
 	provider: "claude-code",
 	kind: "worker",
-	branch: "ao/sess-1",
+	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",
 	prs: [],
@@ -68,7 +68,7 @@ const secondWorker: WorkspaceSession = {
 	...worker,
 	id: "sess-2",
 	title: "do the other thing",
-	branch: "ao/sess-2",
+	branch: "opr/sess-2",
 };
 
 const orchestrator: WorkspaceSession = {
@@ -165,7 +165,7 @@ describe("ShellTopbar status pill", () => {
 	it("renders only session actions when embedded in the terminal bar", () => {
 		renderTopbar(sessionWith(), true);
 
-		expect(screen.queryByText("ao/sess-1")).not.toBeInTheDocument();
+		expect(screen.queryByText("opr/sess-1")).not.toBeInTheDocument();
 		expect(screen.queryByText("Working")).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Kill session" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Open orchestrator" })).toBeInTheDocument();

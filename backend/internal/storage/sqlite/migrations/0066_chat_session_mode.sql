@@ -42,7 +42,7 @@ CREATE TABLE conversations (
 	session_id      TEXT REFERENCES sessions(id) ON DELETE CASCADE,
 	-- The controller currently responsible for the narrative. For workers this
 	-- equals session_id. For project-scoped orchestrators it is rebound whenever
-	-- AO creates a clean replacement, while session_id remains NULL by scope.
+	-- Operator creates a clean replacement, while session_id remains NULL by scope.
 	current_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
     latest_sequence INTEGER NOT NULL DEFAULT 0,
     created_at      TIMESTAMP NOT NULL,
@@ -63,7 +63,7 @@ CREATE INDEX idx_conversations_current_session ON conversations(current_session_
 -- +goose StatementBegin
 -- One user or automation request plus the agent work it caused.
 --
--- handled_by_session_id is which AO session's controller ran the turn. For a
+-- handled_by_session_id is which Operator session's controller ran the turn. For a
 -- project-scoped conversation this changes when the orchestrator is replaced,
 -- while the conversation identity does not.
 CREATE TABLE conversation_turns (
@@ -73,7 +73,7 @@ CREATE TABLE conversation_turns (
     provider_turn_id       TEXT NOT NULL DEFAULT '',
     controller_generation  TEXT NOT NULL DEFAULT '',
     -- 'interrupted' is distinct from 'failed': the provider reports a cancelled
-    -- turn with its own terminal status and AO must not relabel it as an error.
+    -- turn with its own terminal status and Operator must not relabel it as an error.
     state                  TEXT NOT NULL CHECK (state IN ('queued', 'running', 'completed', 'interrupted', 'failed')),
     error_message          TEXT NOT NULL DEFAULT '',
     requested_at           TIMESTAMP NOT NULL,
@@ -171,7 +171,7 @@ CREATE INDEX idx_conversation_activities_pending
 -- Two jobs. First, deduplication: a provider can report the same event twice
 -- across a reconnect, and provider_event_id makes that cheap to detect. Second,
 -- and the reason it keeps the payload: it is the only way to answer "what did the
--- provider actually say" after AO's own projection turns out to be wrong. Without
+-- provider actually say" after Operator's own projection turns out to be wrong. Without
 -- it, a projection bug is unrecoverable — the evidence is gone. It is not a
 -- second transcript and is never model context.
 CREATE TABLE conversation_provider_events (

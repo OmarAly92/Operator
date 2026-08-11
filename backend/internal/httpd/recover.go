@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/telemetrymeta"
 )
 
 func recoverTelemetry(log *slog.Logger, sink ports.EventSink) func(http.Handler) http.Handler {
@@ -33,7 +33,7 @@ func recoverTelemetry(log *slog.Logger, sink ports.EventSink) func(http.Handler)
 						path := telemetrymeta.RoutePattern(r)
 						panicKind := telemetrymeta.PanicKind(rec)
 						sink.Emit(r.Context(), ports.TelemetryEvent{
-							Name:       "ao.daemon.panic",
+							Name:       "opr.daemon.panic",
 							Source:     "http",
 							OccurredAt: time.Now().UTC(),
 							Level:      ports.TelemetryLevelError,

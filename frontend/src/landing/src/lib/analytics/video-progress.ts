@@ -5,7 +5,7 @@ import { track } from "./index";
  *
  * Four fixed points, not a continuous stream. `timeupdate` fires roughly four
  * times a second, so reporting it directly would be ~240 events per minute of
- * watching per visitor, which is the repeating-stream shape that produced AO's
+ * watching per visitor, which is the repeating-stream shape that produced Operator's
  * PostHog bill. A whole view costs at most four events instead.
  */
 export const VIDEO_MILESTONES = [25, 50, 75, 100] as const;

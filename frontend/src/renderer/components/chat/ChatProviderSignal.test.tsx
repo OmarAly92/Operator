@@ -63,7 +63,7 @@ describe("reasoning", () => {
 				})}
 			/>,
 		);
-		expect(screen.getByText(/longer than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/longer than Operator stores/i)).toBeInTheDocument();
 	});
 
 	// The default install sends the item with no body. A labelled empty row teaches
@@ -83,7 +83,7 @@ describe("MCP tool call", () => {
 		detail: {
 			server: "github",
 			toolName: "search_issues",
-			arguments: { repo: "aoagents/ao", state: "open" },
+			arguments: { repo: "operator-dev/opr", state: "open" },
 			result: { total: 2 },
 			success: true,
 		},
@@ -102,7 +102,7 @@ describe("MCP tool call", () => {
 		await userEvent.click(screen.getByRole("button"));
 		expect(screen.getByText("Arguments")).toBeInTheDocument();
 		expect(screen.getByText("Result")).toBeInTheDocument();
-		expect(screen.getByText(/aoagents\/ao/)).toBeInTheDocument();
+		expect(screen.getByText(/operator-dev\/opr/)).toBeInTheDocument();
 	});
 
 	it("reports a failed call as failed", () => {
@@ -147,7 +147,7 @@ describe("MCP tool call", () => {
 			/>,
 		);
 		await userEvent.click(screen.getByRole("button"));
-		expect(screen.getByText(/larger than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/larger than Operator stores/i)).toBeInTheDocument();
 		expect(screen.getByText(/2\.0 MB/)).toBeInTheDocument();
 	});
 
@@ -395,7 +395,7 @@ describe("file changes", () => {
 		// The row's own header names the single file too, so the file's disclosure is
 		// the last of the two.
 		await userEvent.click(screen.getAllByRole("button", { name: /src\/big\.ts/ }).at(-1)!);
-		expect(screen.getByText(/longer than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/longer than Operator stores/i)).toBeInTheDocument();
 	});
 
 	// Rows written by earlier builds carry no status. The file is still drawn, as a

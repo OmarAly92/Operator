@@ -505,7 +505,7 @@ describe("browser:clear", () => {
 });
 
 describe("native browser visibility", () => {
-	it("shows AO's empty state while keeping an initialized blank target alive", async () => {
+	it("shows Operator's empty state while keeping an initialized blank target alive", async () => {
 		const { emit, invoke, view } = setupHost();
 		await invoke("browser:ensure", "sess-1");
 
@@ -767,7 +767,7 @@ describe("agent browser runtime", () => {
 		await host.execute("sess-2", "tabs");
 
 		const firstPartition = constructorOptions[0].webPreferences.partition;
-		expect(firstPartition).toMatch(/^ao-browser-/);
+		expect(firstPartition).toMatch(/^opr-browser-/);
 		expect(firstPartition).not.toMatch(/^persist:/);
 		expect(constructorOptions[1].webPreferences.partition).toBe(firstPartition);
 		expect(constructorOptions[2].webPreferences.partition).not.toBe(firstPartition);

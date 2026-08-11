@@ -1,5 +1,5 @@
-// Package nativeacp binds a user-installed AO agent plugin to the reusable ACP
-// transport. It contains the invariant shared by native ACP harnesses: AO never
+// Package nativeacp binds a user-installed Operator agent plugin to the reusable ACP
+// transport. It contains the invariant shared by native ACP harnesses: Operator never
 // downloads, packages, or substitutes the provider CLI.
 package nativeacp
 
@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/acp"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Plugin is the existing agent-plugin surface native ACP bindings reuse for

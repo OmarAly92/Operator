@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const scmBatchCheckContextLimit = 20
@@ -64,7 +64,7 @@ func (p *Provider) RepoPRListGuard(ctx context.Context, repo ports.SCMRepo, etag
 
 // ListOpenPRsByRepo lists every open pull request in the repository so the
 // observer can attribute each to a session by head-branch prefix. It paginates
-// the REST pulls endpoint; AO repos are not expected to carry thousands of
+// the REST pulls endpoint; Operator repos are not expected to carry thousands of
 // concurrent open PRs, and the observer only calls this when the repo PR-list
 // ETag guard reports a change.
 func (p *Provider) ListOpenPRsByRepo(ctx context.Context, repo ports.SCMRepo) ([]ports.SCMPRObservation, error) {
@@ -119,7 +119,7 @@ type restCommitCheckRun struct {
 // item: GitHub's ETag for a per_page=1 response only reflects that one run, so
 // a different workflow finishing (or failing, or going pending) can leave the
 // returned item unchanged and GitHub answers 304 even though the aggregate CI
-// state AO displays has changed. Requesting the full page makes the guard
+// state Operator displays has changed. Requesting the full page makes the guard
 // represent all runs that contribute to the state, and paginating plus
 // fingerprinting stays correct when a commit carries more than one page of
 // runs. DefaultPRMaxAge remains the safety backstop for PR metadata changes not

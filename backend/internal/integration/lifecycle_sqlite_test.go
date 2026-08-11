@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/OmarAly92/operator/backend/internal/cdc"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
+	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
 )
 
 type stubRuntime struct {
@@ -282,7 +282,7 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux(t *testing.T) {
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: false,
 		Metadata: domain.SessionMetadata{
-			Branch:          "ao/mer-a/root",
+			Branch:          "opr/mer-a/root",
 			WorkspacePath:   "/ws/mer-a",
 			RuntimeHandleID: "hdl-A",
 		},
@@ -302,7 +302,7 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux(t *testing.T) {
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: true,
 		Metadata: domain.SessionMetadata{
-			Branch:          "ao/mer-b/root",
+			Branch:          "opr/mer-b/root",
 			WorkspacePath:   "/ws/mer-b",
 			RuntimeHandleID: "hdl-B",
 		},

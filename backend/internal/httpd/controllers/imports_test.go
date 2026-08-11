@@ -9,11 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/legacyimport"
-	importsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/importer"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/httpd"
+	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
+	"github.com/OmarAly92/operator/backend/internal/legacyimport"
+	importsvc "github.com/OmarAly92/operator/backend/internal/service/importer"
 )
 
 // fakeImportService is a test double for controllers.ImportService.
@@ -41,7 +41,7 @@ func newImportTestServer(t *testing.T, svc controllers.ImportService) *httptest.
 }
 
 func TestImportAPI_Status(t *testing.T) {
-	svc := &fakeImportService{statusResult: importsvc.Status{Available: true, LegacyRoot: "/home/u/.agent-orchestrator"}}
+	svc := &fakeImportService{statusResult: importsvc.Status{Available: true, LegacyRoot: "/home/u/.operator"}}
 	srv := newImportTestServer(t, svc)
 	body, status, headers := doRequest(t, srv, "GET", "/api/v1/import", "")
 	if status != http.StatusOK {
@@ -50,7 +50,7 @@ func TestImportAPI_Status(t *testing.T) {
 	assertJSON(t, headers)
 	var resp controllers.ImportStatusResponse
 	mustJSON(t, body, &resp)
-	if !resp.Available || resp.LegacyRoot != "/home/u/.agent-orchestrator" {
+	if !resp.Available || resp.LegacyRoot != "/home/u/.operator" {
 		t.Fatalf("status = %+v", resp)
 	}
 }

@@ -6,16 +6,16 @@
 // "copilot", installed via npm "@github/copilot"), NOT the older `gh copilot`
 // suggest/explain extension.
 //
-// Launch runs the CLI in interactive mode so AO can keep a durable terminal
-// pane attached to the session. When AO has an initial task, it uses Copilot's
+// Launch runs the CLI in interactive mode so Operator can keep a durable terminal
+// pane attached to the session. When Operator has an initial task, it uses Copilot's
 // `--interactive <prompt>` mode so the task executes immediately instead of
 // waiting in the terminal input buffer. Permission modes map onto the CLI's allow
 // flags (`--allow-tool`, `--allow-all-tools`, `--allow-all`).
 // Restore continues an existing session via `--resume <agentSessionId>`; the
 // native session id (a UUID under ~/.copilot/session-state/) is captured by the
-// SessionStart hook AO installs (see hooks.go).
+// SessionStart hook Operator installs (see hooks.go).
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Operator-managed sessions derive native session identity and display metadata from
 // Copilot hooks instead of transcript/cache scans.
 package copilot
 
@@ -29,11 +29,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const adapterID = "copilot"
@@ -91,12 +91,12 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 
 // GetLaunchCommand builds the argv to start a new interactive Copilot session:
 //
-//	copilot [permission flags] [--agent ao-<session>] [--interactive <prompt>]
+//	copilot [permission flags] [--agent opr-<session>] [--interactive <prompt>]
 //
 // `--interactive <prompt>` keeps the durable Copilot terminal session open while
 // automatically submitting the initial task. `-p` is deliberately avoided
 // because it runs Copilot in programmatic mode and exits when done. Copilot CLI
-// does not expose a system-prompt flag, so AO installs a per-session custom
+// does not expose a system-prompt flag, so Operator installs a per-session custom
 // agent profile in GetAgentHooks and selects it here.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.copilotBinary(ctx)
@@ -295,7 +295,7 @@ func copilotSystemPromptText(inline, file string) (string, error) {
 	if strings.TrimSpace(file) == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Operator-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("copilot: read system prompt file: %w", err)
 	}
@@ -309,7 +309,7 @@ func copilotAgentName(sessionID, inlinePrompt, promptFile string) string {
 	if strings.TrimSpace(inlinePrompt) == "" && strings.TrimSpace(promptFile) == "" {
 		return ""
 	}
-	return "ao-" + copilotAgentNameReplacer.Replace(strings.TrimSpace(sessionID))
+	return "opr-" + copilotAgentNameReplacer.Replace(strings.TrimSpace(sessionID))
 }
 
 var copilotAgentNameReplacer = strings.NewReplacer(
@@ -321,7 +321,7 @@ var copilotAgentNameReplacer = strings.NewReplacer(
 	":", "-",
 )
 
-// appendApprovalFlags maps AO's 4 permission modes onto Copilot CLI approval
+// appendApprovalFlags maps Operator's 4 permission modes onto Copilot CLI approval
 // flags (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference):
 //
 //	default            -> no flag (defer to ~/.copilot config / per-tool prompts)

@@ -10,60 +10,60 @@ import (
 
 	_ "embed"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	// Kilo Code scans each config dir for `{plugin,plugins}/*.{ts,js}` (verified
 	// in the @kilocode/cli binary). Its config-dir suffixes are `.kilo`,
-	// `.kilocode`, and `.opencode` (it is an opencode fork). AO writes the
-	// branded `.kilocode/plugins/` so the AO plugin lands in Kilo's own dir and
+	// `.kilocode`, and `.opencode` (it is an opencode fork). Operator writes the
+	// branded `.kilocode/plugins/` so the Operator plugin lands in Kilo's own dir and
 	// never collides with a sibling opencode adapter's `.opencode/` install.
 	kilocodePluginDirName = ".kilocode"
 	kilocodePluginSubDir  = "plugins"
 
-	// kilocodePluginFileName is the AO-owned plugin file. AO fully owns this
+	// kilocodePluginFileName is the Operator-owned plugin file. Operator fully owns this
 	// filename: install overwrites it and uninstall deletes it (guarded by the
 	// sentinel), so user-authored plugins in other files are never touched.
 	// It is TypeScript (Kilo runs on Bun); the file's only import is a type-only
 	// import, which Bun erases at runtime.
-	kilocodePluginFileName = "ao-activity.ts"
+	kilocodePluginFileName = "opr-activity.ts"
 
-	// kilocodePluginSentinel marks the file as AO-managed. AreHooksInstalled and
-	// UninstallHooks key off it so AO never deletes a user file that happens to
+	// kilocodePluginSentinel marks the file as Operator-managed. AreHooksInstalled and
+	// UninstallHooks key off it so Operator never deletes a user file that happens to
 	// share the name. It must appear verbatim in the embedded plugin source.
-	kilocodePluginSentinel = "agent-orchestrator: managed kilocode activity plugin"
+	kilocodePluginSentinel = "operator: managed kilocode activity plugin"
 
-	// kilocodeHookCommandPrefix identifies the hook commands AO owns. The
-	// embedded plugin shells `ao hooks kilocode <event>`; this prefix is the
-	// shared contract with the `ao hooks` CLI dispatcher and is asserted by tests
+	// kilocodeHookCommandPrefix identifies the hook commands Operator owns. The
+	// embedded plugin shells `opr hooks kilocode <event>`; this prefix is the
+	// shared contract with the `opr hooks` CLI dispatcher and is asserted by tests
 	// so the plugin can't silently drift away from it.
-	kilocodeHookCommandPrefix = "ao hooks kilocode "
+	kilocodeHookCommandPrefix = "opr hooks kilocode "
 )
 
-// kilocodePluginSource is the AO-managed Kilo Code plugin, embedded so it ships
+// kilocodePluginSource is the Operator-managed Kilo Code plugin, embedded so it ships
 // inside the binary and is written verbatim into a session's worktree on hook
 // install. It is a real, lintable source file under assets/ rather than a Go
-// string literal because it is plugin source code, not a data structure AO
+// string literal because it is plugin source code, not a data structure Operator
 // assembles (the way it builds Codex/Claude hook JSON).
 //
-//go:embed assets/ao-activity.ts
+//go:embed assets/opr-activity.ts
 var kilocodePluginSource string
 
 // kilocodeManagedEvents are the normalized activity events the embedded plugin
 // reports. They are defined here (not parsed from the file) so tests can assert
-// the plugin wires every one via the `ao hooks kilocode <event>` command, and
+// the plugin wires every one via the `opr hooks kilocode <event>` command, and
 // they mirror exactly the events kilocode.DeriveActivityState switches on.
 var kilocodeManagedEvents = []string{"session-start", "user-prompt-submit", "permission-request", "stop"}
 
-// GetAgentHooks installs AO's Kilo Code activity plugin into the worktree-local
+// GetAgentHooks installs Operator's Kilo Code activity plugin into the worktree-local
 // .kilocode/plugins/ directory. Unlike Claude Code and Codex, Kilo Code has no
 // native command-hook config to merge into; its only lifecycle-extensibility
-// surface is a JS/TS plugin. AO therefore writes a dedicated, AO-owned plugin
-// file. The write is atomic and idempotent: re-installing overwrites AO's own
+// surface is a JS/TS plugin. Operator therefore writes a dedicated, Operator-owned plugin
+// file. The write is atomic and idempotent: re-installing overwrites Operator's own
 // file with identical content. It refuses to overwrite a file that is NOT
-// AO-managed (no sentinel), so a user plugin that happens to occupy our path is
+// Operator-managed (no sentinel), so a user plugin that happens to occupy our path is
 // never silently destroyed — install fails loudly instead.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -75,15 +75,15 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 
 	pluginPath := kilocodePluginPath(cfg.WorkspacePath)
 	// Guard against clobbering a user file at our path: overwrite only when the
-	// target is absent or already AO-managed. A foreign file is a loud error,
+	// target is absent or already Operator-managed. A foreign file is a loud error,
 	// not silent data loss (uninstall is sentinel-guarded the same way).
 	if _, err := os.Stat(pluginPath); err == nil {
-		managed, err := isAOManagedPlugin(pluginPath)
+		managed, err := isOperatorManagedPlugin(pluginPath)
 		if err != nil {
 			return fmt.Errorf("kilocode.GetAgentHooks: %w", err)
 		}
 		if !managed {
-			return fmt.Errorf("kilocode.GetAgentHooks: refusing to overwrite non-AO file at %s — move it so AO can install its plugin", pluginPath)
+			return fmt.Errorf("kilocode.GetAgentHooks: refusing to overwrite non-Operator file at %s — move it so Operator can install its plugin", pluginPath)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("kilocode.GetAgentHooks: stat plugin: %w", err)
@@ -101,8 +101,8 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes AO's Kilo Code plugin from the workspace-local
-// .kilocode/plugins/ directory. It deletes the file only when it carries the AO
+// UninstallHooks removes Operator's Kilo Code plugin from the workspace-local
+// .kilocode/plugins/ directory. It deletes the file only when it carries the Operator
 // sentinel, so a user file that happens to share the name is left in place. A
 // missing file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
@@ -114,7 +114,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	}
 
 	pluginPath := kilocodePluginPath(workspacePath)
-	managed, err := isAOManagedPlugin(pluginPath)
+	managed, err := isOperatorManagedPlugin(pluginPath)
 	if err != nil {
 		return fmt.Errorf("kilocode.UninstallHooks: %w", err)
 	}
@@ -127,9 +127,9 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	return nil
 }
 
-// AreHooksInstalled reports whether AO's Kilo Code plugin is present in the
+// AreHooksInstalled reports whether Operator's Kilo Code plugin is present in the
 // workspace-local plugin dir. A missing file, or a same-named file without the
-// AO sentinel, means none are installed.
+// Operator sentinel, means none are installed.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -137,7 +137,7 @@ func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (b
 	if strings.TrimSpace(workspacePath) == "" {
 		return false, errors.New("kilocode.AreHooksInstalled: workspacePath is required")
 	}
-	managed, err := isAOManagedPlugin(kilocodePluginPath(workspacePath))
+	managed, err := isOperatorManagedPlugin(kilocodePluginPath(workspacePath))
 	if err != nil {
 		return false, fmt.Errorf("kilocode.AreHooksInstalled: %w", err)
 	}
@@ -148,9 +148,9 @@ func kilocodePluginPath(workspacePath string) string {
 	return filepath.Join(workspacePath, kilocodePluginDirName, kilocodePluginSubDir, kilocodePluginFileName)
 }
 
-// isAOManagedPlugin reports whether the file at path exists and carries the AO
+// isOperatorManagedPlugin reports whether the file at path exists and carries the Operator
 // sentinel. A missing file yields (false, nil).
-func isAOManagedPlugin(path string) (bool, error) {
+func isOperatorManagedPlugin(path string) (bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { migrationOfferQueryKey } from "../hooks/useMigrationOffer";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import type { MigrationState, MigrationStatus } from "../../main/app-state";
@@ -23,7 +23,7 @@ interface MigrationView {
 // user who declined or already completed can re-run. A 501/unreachable daemon
 // resolves to "not available", never an error.
 async function fetchMigrationSettings(): Promise<MigrationView> {
-	const migration = await aoBridge.appState.getMigration();
+	const migration = await operatorBridge.appState.getMigration();
 	const { data, error } = await apiClient.GET("/api/v1/import");
 	return {
 		migration,
@@ -56,7 +56,7 @@ function formatTime(iso: string | undefined, locale: string | undefined): string
 	return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(locale);
 }
 
-// MigrationSection is a drop-in Settings card for re-running the legacy-AO
+// MigrationSection is a drop-in Settings card for re-running the legacy-Operator
 // import. It reads the persisted migration decision + the daemon's availability,
 // shows the last report/error, and exposes a Run / Re-run button that calls the
 // idempotent POST /api/v1/import (safe even when completed/declined/failed).
@@ -75,11 +75,11 @@ export function MigrationSection() {
 			const { data, error } = await apiClient.POST("/api/v1/import");
 			if (error) {
 				const msg = apiErrorMessage(error);
-				await aoBridge.appState.setMigration({ status: "failed", lastAttemptAt: nowIso(), error: msg });
+				await operatorBridge.appState.setMigration({ status: "failed", lastAttemptAt: nowIso(), error: msg });
 				throw new Error(msg);
 			}
 			const report = data?.report;
-			await aoBridge.appState.setMigration({
+			await operatorBridge.appState.setMigration({
 				status: "completed",
 				lastAttemptAt: nowIso(),
 				completedAt: nowIso(),

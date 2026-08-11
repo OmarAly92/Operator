@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 // SwitchAgentInput is the controller-facing command for replacing the active
-// provider while retaining the logical AO session.
+// provider while retaining the logical Operator session.
 type SwitchAgentInput struct {
 	TargetHarness  domain.AgentHarness
 	Note           string

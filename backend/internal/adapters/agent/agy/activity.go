@@ -1,13 +1,13 @@
 package agy
 
 import (
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
-// DeriveActivityState maps an Agy hook event onto an AO activity state. The
+// DeriveActivityState maps an Agy hook event onto an Operator activity state. The
 // bool is false when the event carries no activity signal.
 //
-// event is the AO hook sub-command name installed in agyManagedHooks:
+// event is the Operator hook sub-command name installed in agyManagedHooks:
 // "session-start", "session-end", "before-agent", "after-agent", "after-tool".
 func DeriveActivityState(event string, _ []byte) (domain.ActivityState, bool) {
 	switch event {

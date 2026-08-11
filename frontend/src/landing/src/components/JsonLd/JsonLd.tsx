@@ -1,10 +1,10 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 
 const ORGANIZATION_ID = `${COMPANY.MARKETING_URL}/#organization`;
 const WEBSITE_ID = `${COMPANY.MARKETING_URL}/#website`;
 const SOFTWARE_ID = `${COMPANY.MARKETING_URL}/#software`;
 const PRODUCT_DESCRIPTION =
-	"Open-source desktop application and local CLI (ao) to run 10+ parallel AI coding agents in isolated Git worktrees without file conflicts or API proxying.";
+	"Open-source desktop application and local CLI (opr) to run 10+ parallel AI coding agents in isolated Git worktrees without file conflicts or API proxying.";
 
 function serializeJsonLd(schema: unknown): string {
 	const json = JSON.stringify(schema);
@@ -43,7 +43,7 @@ export function OrganizationJsonLd() {
 		"@id": ORGANIZATION_ID,
 		name: COMPANY.NAME,
 		url: COMPANY.MARKETING_URL,
-		logo: `${COMPANY.MARKETING_URL}/ao-logo.svg`,
+		logo: `${COMPANY.MARKETING_URL}/opr-logo.svg`,
 		description: PRODUCT_DESCRIPTION,
 		email: supportEmail,
 		contactPoint: {
@@ -60,7 +60,7 @@ export function OrganizationJsonLd() {
 		},
 		sameAs: [
 			COMPANY.GITHUB_URL,
-			"https://github.com/Untrivial-ai",
+			"https://github.com/OmarAly92",
 			COMPANY.X_URL,
 			COMPANY.LINKEDIN_URL,
 		],
@@ -134,7 +134,7 @@ export function ArticleJsonLd({
 			name: COMPANY.NAME,
 			logo: {
 				"@type": "ImageObject",
-				url: `${COMPANY.MARKETING_URL}/ao-logo.svg`,
+				url: `${COMPANY.MARKETING_URL}/opr-logo.svg`,
 			},
 		},
 		datePublished: publishedTime,
@@ -188,7 +188,7 @@ export function ComparisonJsonLd({
 			name: COMPANY.NAME,
 			logo: {
 				"@type": "ImageObject",
-				url: `${COMPANY.MARKETING_URL}/ao-logo.svg`,
+				url: `${COMPANY.MARKETING_URL}/opr-logo.svg`,
 			},
 		},
 		datePublished: publishedTime,

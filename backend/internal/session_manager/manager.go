@@ -19,11 +19,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
-	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/sessionguard"
+	"github.com/OmarAly92/operator/backend/internal/skillassets"
 )
 
 // Sentinel errors returned by the Session Manager; callers match them with
@@ -63,7 +63,7 @@ var (
 	// keeps deliberately narrow embedders and tests from panicking.
 	ErrSwitchUnavailable = errors.New("session: agent switching unavailable")
 	// ErrUnsupportedSwitchHarness keeps the first release deliberately bounded
-	// to providers whose standing-instruction and native-resume behavior AO has
+	// to providers whose standing-instruction and native-resume behavior Operator has
 	// verified end to end.
 	ErrUnsupportedSwitchHarness = errors.New("session: harness does not support agent switching")
 	// ErrUnsupportedSwitchKind keeps the first implementation scoped to worker
@@ -74,25 +74,25 @@ var (
 	// local auth probe conclusively reports missing or invalid credentials.
 	// Unknown/probe failures remain advisory and are allowed to reach launch.
 	ErrTargetAgentUnauthorized = errors.New("session: target agent is not authenticated")
-	// ErrSwitchDeliveryUnconfirmed means AO wrote the continuation turn but did
+	// ErrSwitchDeliveryUnconfirmed means Operator wrote the continuation turn but did
 	// not receive the target generation's prompt-submit hook before the bounded
-	// acknowledgement window expired. AO never resends this ambiguous turn.
+	// acknowledgement window expired. Operator never resends this ambiguous turn.
 	ErrSwitchDeliveryUnconfirmed = errors.New("session: target continuation delivery was not acknowledged")
 	// ErrSwitchSourceStopUnconfirmed means runtime teardown returned an error and
-	// AO could not prove whether the source still owns the session. No target is
+	// Operator could not prove whether the source still owns the session. No target is
 	// launched in this case.
 	ErrSwitchSourceStopUnconfirmed = errors.New("session: source agent stop could not be confirmed")
 	// ErrAlreadyUsingHarness rejects a no-op replacement that would otherwise
 	// create a misleading switch record and restart the same process.
 	ErrAlreadyUsingHarness = errors.New("session: already using requested harness")
-	// ErrSwitchNotFound is returned for a switch id outside the requested AO
+	// ErrSwitchNotFound is returned for a switch id outside the requested Operator
 	// session (the same response is used for absent and cross-session ids).
 	ErrSwitchNotFound = errors.New("session: agent switch not found")
 	// ErrStaleHandoff rejects semantic handoff submissions from an old provider
 	// generation or after the collection window has closed.
 	ErrStaleHandoff = errors.New("session: stale agent handoff")
 	// ErrInvalidAgentHandoff reports a generation-valid semantic report that did
-	// not satisfy AO's bounded provider-neutral schema. Collection is settled as
+	// not satisfy Operator's bounded provider-neutral schema. Collection is settled as
 	// rejected before this error is returned.
 	ErrInvalidAgentHandoff = errors.New("session: invalid agent handoff")
 	// ErrInterfaceHandoffUnsupported means the harness has not proven that its
@@ -126,37 +126,37 @@ var (
 
 // Env vars a spawned process reads to learn who it is. A worker that starts
 // its own Docker containers (a database, a queue, any ad-hoc service) should
-// label them `--label ao.session=$AO_SESSION_ID` so AO's container reaper
+// label them `--label opr.session=$OPERATOR_SESSION_ID` so Operator's container reaper
 // (dockerreap) removes them on session kill/terminal state — see #2652. Add
-// `--label ao.spare=true` to a deliberately shared container that must
+// `--label opr.spare=true` to a deliberately shared container that must
 // survive past this session.
 const (
-	EnvSessionID = "AO_SESSION_ID"
-	EnvProjectID = "AO_PROJECT_ID"
-	EnvIssueID   = "AO_ISSUE_ID"
+	EnvSessionID = "OPERATOR_SESSION_ID"
+	EnvProjectID = "OPERATOR_PROJECT_ID"
+	EnvIssueID   = "OPERATOR_ISSUE_ID"
 	// EnvRuntimeLaunchID identifies the current supervised agent generation.
-	EnvRuntimeLaunchID = "AO_RUNTIME_LAUNCH_ID"
-	// EnvSupervisedProcess tells terminal runtimes that the AO supervisor owns
+	EnvRuntimeLaunchID = "OPERATOR_RUNTIME_LAUNCH_ID"
+	// EnvSupervisedProcess tells terminal runtimes that the Operator supervisor owns
 	// this launch. When it exits, tmux must park on a non-interpreting input sink
 	// instead of exposing its historical interactive-shell fallback.
-	EnvSupervisedProcess = "AO_SUPERVISED_PROCESS"
-	// EnvDataDir tells a spawned agent's AO hook commands where the store lives.
-	EnvDataDir = "AO_DATA_DIR"
+	EnvSupervisedProcess = "OPERATOR_SUPERVISED_PROCESS"
+	// EnvDataDir tells a spawned agent's Operator hook commands where the store lives.
+	EnvDataDir = "OPERATOR_DATA_DIR"
 	// EnvBrowserCapability proves ownership of the session's browser target.
-	EnvBrowserCapability = "AO_BROWSER_CAPABILITY"
+	EnvBrowserCapability = "OPERATOR_BROWSER_CAPABILITY"
 	// EnvBrowserRuntimeToken must never be inherited by a worker. It authenticates
 	// the privileged Electron runtime, not session-scoped browser callers.
-	EnvBrowserRuntimeToken = "AO_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
+	EnvBrowserRuntimeToken = "OPERATOR_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
 	// EnvBrowserRuntimeTokenStdin is the daemon-only token handoff marker and
 	// must be cleared before a worker process is spawned.
-	EnvBrowserRuntimeTokenStdin = "AO_BROWSER_RUNTIME_TOKEN_STDIN" //nolint:gosec // Environment variable name, not a credential.
+	EnvBrowserRuntimeTokenStdin = "OPERATOR_BROWSER_RUNTIME_TOKEN_STDIN" //nolint:gosec // Environment variable name, not a credential.
 )
 
 // hookBinaryName is the executable name the workspace hook commands invoke:
-// every agent adapter installs a bare `ao hooks <agent> <event>`. The session
+// every agent adapter installs a bare `opr hooks <agent> <event>`. The session
 // PATH pin (hookPATH) only works when the daemon's own executable carries this
-// name, since prepending its directory must change what `ao` resolves to.
-const hookBinaryName = "ao"
+// name, since prepending its directory must change what `opr` resolves to.
+const hookBinaryName = "opr"
 
 type lifecycleRecorder interface {
 	PrepareLaunch(id domain.SessionID, launchID string) error
@@ -223,15 +223,15 @@ type runtimeController interface {
 }
 
 // RestoreMode reports whether a restore continued an agent-native transcript or
-// relaunched from AO's saved task prompt.
+// relaunched from Operator's saved task prompt.
 type RestoreMode string
 
 const (
-	// RestoreModeNative means AO relaunched through the agent's native transcript resume command.
+	// RestoreModeNative means Operator relaunched through the agent's native transcript resume command.
 	RestoreModeNative RestoreMode = "native"
-	// RestoreModeSavedPrompt means AO relaunched a new conversation from the saved task prompt.
+	// RestoreModeSavedPrompt means Operator relaunched a new conversation from the saved task prompt.
 	RestoreModeSavedPrompt RestoreMode = "saved_prompt"
-	// RestoreModeFresh means AO relaunched without a saved task prompt.
+	// RestoreModeFresh means Operator relaunched without a saved task prompt.
 	RestoreModeFresh RestoreMode = "fresh"
 )
 
@@ -325,7 +325,7 @@ type Manager struct {
 	retainedSwitches map[domain.SessionID]struct{}
 	inputLeases      map[domain.SessionID]int
 	inputDrained     map[domain.SessionID]chan struct{}
-	// handoffWait bounds optional source-agent enrichment. Deterministic AO
+	// handoffWait bounds optional source-agent enrichment. Deterministic Operator
 	// context is sufficient, so expiry never prevents the actual switch.
 	handoffWait time.Duration
 	// switchPermissionDecisionWait is a separate human-response budget used only
@@ -489,7 +489,7 @@ type BrowserCapabilityIssuer interface {
 }
 
 // sendConfirmConfig bounds the best-effort activity-confirmation loop run after
-// Send. AO has no delivery ack: ao send returns 200 the moment tmux send-keys
+// Send. Operator has no delivery ack: opr send returns 200 the moment tmux send-keys
 // exits 0, and for a large multiline paste the single Enter may not submit the
 // prompt — so UserPromptSubmit never fires and the orchestrator cannot tell the
 // worker started. confirmActive observes the durable Activity.State (written by
@@ -540,7 +540,7 @@ type Deps struct {
 	Preview             PreviewLifecycle
 	Browser             BrowserLifecycle
 	BrowserCapabilities BrowserCapabilityIssuer
-	// DataDir is exported to spawned agents as AO_DATA_DIR so their hook
+	// DataDir is exported to spawned agents as OPERATOR_DATA_DIR so their hook
 	// commands can open the same store.
 	DataDir string
 	Clock   func() time.Time
@@ -609,7 +609,7 @@ func New(d Deps) *Manager {
 	if m.clock == nil {
 		// UTC so spawn-stamped CreatedAt/UpdatedAt match every other session
 		// write (rename, activity) — all of which use time.Now().UTC(). A local
-		// default produced mixed-timezone timestamps in `ao session get`.
+		// default produced mixed-timezone timestamps in `opr session get`.
 		m.clock = func() time.Time { return time.Now().UTC() }
 	}
 	if m.lookPath == nil {
@@ -659,7 +659,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	// Resolve the controller mode here, before anything durable is created, for
-	// the same reason an unknown harness is rejected above: a chat request AO
+	// the same reason an unknown harness is rejected above: a chat request Operator
 	// cannot honor should cost nothing, not leave a terminated row and a worktree
 	// behind. It never falls back to TUI — that would put the user in a terminal
 	// they deliberately did not ask for.
@@ -1476,7 +1476,7 @@ func (m *Manager) retireWorkspaceProjectForReplacement(ctx context.Context, rec 
 	return nil
 }
 
-// RestoreWithMode relaunches a torn-down session and reports whether AO used
+// RestoreWithMode relaunches a torn-down session and reports whether Operator used
 // native resume, a saved-prompt fallback, or a fresh launch. The fallible I/O
 // runs before any durable session write, so a failure never resurrects the row
 // or destroys the worktree (it may hold the agent's prior work).
@@ -2467,7 +2467,7 @@ func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []por
 // it. The guard refuses delivery into a session that is gone, terminated, has
 // an exited agent, or is paused on a permission decision;
 // those refusals surface as typed sentinels so the API reports why instead of
-// silently dropping the message. AO has no delivery ack: the messenger returns
+// silently dropping the message. Operator has no delivery ack: the messenger returns
 // nil the moment the runtime paste + Enter commands exit 0, and for a large
 // multiline prompt a single Enter may not submit (claude-code leaves it as an
 // unsubmitted draft). confirmActive observes the durable Activity.State
@@ -2505,7 +2505,7 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 	// Chat mode has no pane to type into, so it does not go through the messenger
 	// at all. Without this branch the send reached the runtime guard and was
 	// refused as "missing runtime handles" — true of the handles, wrong about the
-	// session, and it left `ao send` and orchestrator-to-worker relay unable to
+	// session, and it left `opr send` and orchestrator-to-worker relay unable to
 	// reach a chat worker.
 	if handled, err := m.sendChat(ctx, id, message, clientMessageID); handled {
 		return err
@@ -2585,15 +2585,15 @@ func copilotOrchestratorMessage(projectID domain.ProjectID, message string) stri
 	if project == "" {
 		project = "<project>"
 	}
-	return fmt.Sprintf(`AO ORCHESTRATOR DIRECTIVE
+	return fmt.Sprintf(`Operator ORCHESTRATOR DIRECTIVE
 
-You are acting as the AO orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
+You are acting as the Operator orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
 
 Your next action for any implementation, fix, UI change, test, PR, or code-review task must be to spawn or redirect a worker session. Use:
 
-ao spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
+opr spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
 
-If a suitable worker already exists, use ao send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
+If a suitable worker already exists, use opr send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
 
 USER MESSAGE:
 %s`, project, project, message)
@@ -2894,16 +2894,16 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 
 func defaultSessionBranch(id domain.SessionID, kind domain.SessionKind, prefix, branchNamespace string) string {
 	if kind == domain.KindOrchestrator {
-		return aoBranch(branchNamespace, prefix+"-orchestrator")
+		return operatorBranch(branchNamespace, prefix+"-orchestrator")
 	}
 	// A fresh, unique branch per worker session: gitworktree can't add a worktree
 	// on a branch already checked out elsewhere (e.g. main). Put the root work
 	// branch under a session namespace so sibling PR branches such as
-	// ao/<session>/<topic> remain valid Git refs.
-	return aoBranch(branchNamespace, string(id), "root")
+	// opr/<session>/<topic> remain valid Git refs.
+	return operatorBranch(branchNamespace, string(id), "root")
 }
 
-// DefaultSpawnBranch returns AO's generated work branch for a spawn. Explicit
+// DefaultSpawnBranch returns Operator's generated work branch for a spawn. Explicit
 // user-provided branches bypass this helper.
 func DefaultSpawnBranch(id domain.SessionID, kind domain.SessionKind, prefix string, projectKind domain.ProjectKind, dataDir string) string {
 	if projectKind == domain.ProjectKindScratch {
@@ -2911,7 +2911,7 @@ func DefaultSpawnBranch(id domain.SessionID, kind domain.SessionKind, prefix str
 	}
 	branchNamespace := generatedBranchNamespace(dataDir)
 	if projectKind == domain.ProjectKindWorkspace {
-		return aoBranch(branchNamespace, string(id))
+		return operatorBranch(branchNamespace, string(id))
 	}
 	return defaultSessionBranch(id, kind, prefix, branchNamespace)
 }
@@ -2922,8 +2922,8 @@ func DefaultOrchestratorBranch(prefix, dataDir string) string {
 	return defaultSessionBranch("", domain.KindOrchestrator, prefix, generatedBranchNamespace(dataDir))
 }
 
-func aoBranch(namespace string, parts ...string) string {
-	all := []string{"ao"}
+func operatorBranch(namespace string, parts ...string) string {
+	all := []string{"opr"}
 	if namespace != "" {
 		all = append(all, namespace)
 	}
@@ -2946,7 +2946,7 @@ func isDefaultDevDataDir(dataDir string) bool {
 	if err != nil {
 		return false
 	}
-	want, err := filepath.Abs(filepath.Join(home, ".ao", "dev", "data"))
+	want, err := filepath.Abs(filepath.Join(home, ".operator", "dev", "data"))
 	if err != nil {
 		return false
 	}
@@ -2997,7 +2997,7 @@ func promptProjectContext(projectID domain.ProjectID, project domain.ProjectReco
 
 // attachmentsDir is the worktree-relative directory where spawn file
 // attachments are written.
-const attachmentsDir = ".ao/attachments"
+const attachmentsDir = ".operator/attachments"
 
 // writeSpawnAttachments writes each attachment into the worktree under
 // attachmentsDir as attachment-1<ext>, attachment-2<ext>, ... and returns the
@@ -3103,31 +3103,31 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind
 	if workspacePrompt != "" {
 		cfg.AdditionalSections = append(cfg.AdditionalSections, workspacePrompt)
 	}
-	if pointer := strings.TrimSpace(m.aoSkillPointer()); pointer != "" {
+	if pointer := strings.TrimSpace(m.operatorSkillPointer()); pointer != "" {
 		cfg.AdditionalSections = append(cfg.AdditionalSections, pointer)
 	}
 	return buildSystemPromptText(cfg), nil
 }
 
-// aoSkillPointer is appended to every agent system prompt. It points the agent
-// at the using-ao skill the daemon installs under the data dir, rather than
+// operatorSkillPointer is appended to every agent system prompt. It points the agent
+// at the using-opr skill the daemon installs under the data dir, rather than
 // inlining the whole CLI catalog. The path is absolute so it resolves from any
-// project's worktree, not just the AO repo (the only place a repo-relative
+// project's worktree, not just the Operator repo (the only place a repo-relative
 // skills/ path would exist). The skill file carries exact flags and examples,
 // so the standing prompt stays a short pointer rather than a command dump.
-func (m *Manager) aoSkillPointer() string {
+func (m *Manager) operatorSkillPointer() string {
 	dir := skillassets.Dir(m.dataDir)
 	skillFile := filepath.ToSlash(filepath.Join(dir, "SKILL.md"))
 	commandsGlob := filepath.ToSlash(filepath.Join(dir, "commands", "*.md"))
 	browserFile := filepath.ToSlash(filepath.Join(dir, "commands", "browser.md"))
 	previewFile := filepath.ToSlash(filepath.Join(dir, "commands", "preview.md"))
-	return "\n\n" + "## Using the ao CLI\n\n" +
-		"When using `ao`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
-		"## AO desktop Browser panel\n\n" +
-		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.ao/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
-		"For page inspection or interaction, read `" + browserFile + "` and use `ao browser` from this AO session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
-		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the AO Browser panel: those are separate browser runtimes and cannot see or control AO's session-owned page. " +
-		"`ao browser` operates the same live page the user sees in that panel."
+	return "\n\n" + "## Using the opr CLI\n\n" +
+		"When using `opr`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
+		"## Operator desktop Browser panel\n\n" +
+		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.operator/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
+		"For page inspection or interaction, read `" + browserFile + "` and use `opr browser` from this Operator session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
+		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the Operator Browser panel: those are separate browser runtimes and cannot see or control Operator's session-owned page. " +
+		"`opr browser` operates the same live page the user sees in that panel."
 }
 
 func (m *Manager) workspaceProjectPrompt(ctx context.Context, kind domain.SessionKind, projectID domain.ProjectID) (string, error) {
@@ -3255,8 +3255,8 @@ func workspaceRepoList(repos []domain.WorkspaceRepoRecord) string {
 }
 
 // spawnEnv builds the runtime environment: the per-project env vars first, then
-// the AO-internal vars last so they always win (a project cannot override
-// AO_SESSION_ID and friends).
+// the Operator-internal vars last so they always win (a project cannot override
+// OPERATOR_SESSION_ID and friends).
 func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, dataDir string, projectEnv map[string]string) map[string]string {
 	env := make(map[string]string, len(projectEnv)+4)
 	for k, v := range projectEnv {
@@ -3270,9 +3270,9 @@ func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueI
 }
 
 // runtimeEnv is spawnEnv plus the hook PATH pin: the session's PATH puts the
-// running daemon's own directory first, so the bare `ao` in workspace hook
+// running daemon's own directory first, so the bare `opr` in workspace hook
 // commands resolves to the daemon that installed them rather than whatever
-// `ao` is first on the inherited PATH (e.g. a legacy CLI without the hooks
+// `opr` is first on the inherited PATH (e.g. a legacy CLI without the hooks
 // command, which fails every callback and silently kills activity tracking).
 // When the pin cannot be applied the inherited PATH is kept and a warning is
 // logged so the degradation isn't silent.
@@ -3283,7 +3283,7 @@ func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issu
 	env[EnvBrowserRuntimeTokenStdin] = ""
 	path, err := HookPATH(m.executable, os.Getenv, projectEnv)
 	if err != nil {
-		m.logger.Warn("session PATH not pinned to the daemon binary; `ao hooks` callbacks may resolve to a different ao and activity tracking will stall",
+		m.logger.Warn("session PATH not pinned to the daemon binary; `opr hooks` callbacks may resolve to a different opr and activity tracking will stall",
 			"session", id, "error", err)
 		return env
 	}
@@ -3327,8 +3327,8 @@ func (m *Manager) persistBrowserCapabilityVerifier(ctx context.Context, rec doma
 // executable's directory prepended to the base PATH (the project's PATH
 // override when set, else the daemon's inherited PATH — matching what the
 // runtime would have exported anyway). An error means the pin cannot be
-// applied: the executable is unresolvable, or is not named "ao", in which case
-// prepending its directory would not change what `ao` resolves to. Exported so
+// applied: the executable is unresolvable, or is not named "opr", in which case
+// prepending its directory would not change what `opr` resolves to. Exported so
 // the reviewer launcher can pin its pane's PATH the same way.
 func HookPATH(executable func() (string, error), getenv func(string) string, projectEnv map[string]string) (string, error) {
 	exe, err := executable()
@@ -3448,7 +3448,7 @@ type preLauncher interface {
 }
 
 // workspaceCleaner is an optional Agent capability for durable agent-side state
-// that should be released only after AO has actually removed the workspace.
+// that should be released only after Operator has actually removed the workspace.
 type workspaceCleaner interface {
 	CleanupWorkspace(ctx context.Context, cfg ports.WorkspaceHookConfig) error
 }
@@ -3525,7 +3525,7 @@ func (m *Manager) cleanupAgentWorkspace(ctx context.Context, rec domain.SessionR
 	if project, err := m.loadProject(ctx, rec.ProjectID); err == nil {
 		env = m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
 	} else {
-		m.logger.Warn("workspace cleanup: project env unavailable; agent cleanup using AO env only",
+		m.logger.Warn("workspace cleanup: project env unavailable; agent cleanup using Operator env only",
 			"sessionID", rec.ID, "projectID", rec.ProjectID, "error", err)
 	}
 	if strings.TrimSpace(workspacePath) != "" {
@@ -3973,7 +3973,7 @@ func (m *Manager) superviseAgentProcess(agent ports.Agent, id domain.SessionID, 
 	return m.superviseAgentProcessMode(agent, id, env, argv, switchingCapable)
 }
 
-// superviseAgentProcessForSwitch always installs AO's generation-bearing
+// superviseAgentProcessForSwitch always installs Operator's generation-bearing
 // wrapper. Native hooks still report activity, while the wrapper gives crash
 // recovery a process-level proof that a surviving workload belongs to the
 // target generation rather than the provider that was stopped.
@@ -4013,7 +4013,7 @@ func (m *Manager) wrapAgentProcessWithLaunchID(agent ports.Agent, id domain.Sess
 	env[EnvSupervisedProcess] = "1"
 	executable, err := m.executable()
 	if err != nil {
-		return nil, fmt.Errorf("resolve AO executable: %w", err)
+		return nil, fmt.Errorf("resolve Operator executable: %w", err)
 	}
 	wrapped := make([]string, 0, 8+len(argv))
 	wrapped = append(wrapped, executable, "agent-process", "supervise", "--session", string(id), "--launch", launchID, "--")

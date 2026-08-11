@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 )
 
 // Steering scenarios.
@@ -365,7 +365,7 @@ func TestSteerWaitsForTheProviderToAcknowledgeTheTurn(t *testing.T) {
 	}
 }
 
-// The provider names the turn its guidance joined, and AO attributes the row to
+// The provider names the turn its guidance joined, and Operator attributes the row to
 // that turn rather than to the one it asked about. Same id in practice; asserted so
 // a provider that answered differently could not be silently misfiled.
 func TestSteerRecordsTheTurnTheProviderNames(t *testing.T) {

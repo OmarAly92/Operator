@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../lib/api-client";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import type { MigrationState } from "../../main/app-state";
 
 export const migrationOfferQueryKey = ["migration-offer"] as const;
@@ -17,7 +17,7 @@ export interface MigrationOffer {
 // short-circuits before any daemon call. A 501/unreachable daemon resolves to
 // "no offer", never an error.
 async function fetchMigrationOffer(): Promise<MigrationOffer> {
-	const migration = await aoBridge.appState.getMigration();
+	const migration = await operatorBridge.appState.getMigration();
 	if (migration.status === "completed" || migration.status === "declined") {
 		return { show: false, legacyRoot: "", migration };
 	}

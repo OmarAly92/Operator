@@ -3,7 +3,7 @@
 import {
 	CodeBlock,
 	CodeBlockCopyButton,
-} from "@ao/ui/ai-elements/code-block";
+} from "@operator/ui/ai-elements/code-block";
 import type { BundledLanguage } from "shiki";
 
 interface BlogCodeBlockProps {

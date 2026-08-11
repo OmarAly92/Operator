@@ -1,4 +1,4 @@
-# agent-orchestrator status
+# operator status
 
 Current `main` ships a working single-user local loop: the Go daemon and the
 Electron/React frontend both drive a live daemon over HTTP/SSE/WebSocket. The
@@ -40,7 +40,7 @@ surface (`npm run sqlc`, `npm run api`).
   persist provider conversation identity, and dispatch lifecycle reactions
   through the same mode-aware session manager. A durable, capability-gated
   drain/interrupt handoff can move the same Claude Code or Codex native
-  conversation between TUI and Chat without changing the AO session/worktree;
+  conversation between TUI and Chat without changing the Operator session/worktree;
   rollback, restart recovery, controller-generation fencing, and a transition
   message outbox preserve the one-controller invariant.
 - Durable Chat conversations with project-scoped orchestrator continuity,
@@ -48,7 +48,7 @@ surface (`npm run sqlc`, `npm run api`).
   archive/projection, controller-generation fencing, turns, messages,
   activities, approvals, structured input, usage, compaction, and rollback.
 - Chat drivers for the user's installed Codex (native app-server), Claude Code
-  (claude-agent-acp), OpenCode, and Droid. AO reuses each harness's existing
+  (claude-agent-acp), OpenCode, and Droid. Operator reuses each harness's existing
   binary/auth resolution and does not bundle provider CLIs.
 - Project CRUD plus per-project config (`PUT /projects/{id}/config`).
 - PR action engine wired into the API: `POST /prs/{id}/merge` and
@@ -57,14 +57,14 @@ surface (`npm run sqlc`, `npm run api`).
   `POST /reviews/{id}/send`.
 - Interactive reviewer panes for Aider, Agy, Amp, Auggie, Autohand,
   Claude Code, Cline, Codex, Continue, GitHub Copilot, Crush, Cursor, Devin,
-  Droid, Goose, Grok, Kilo Code, Kimchi, Kiro, Kimi, OpenCode, Pi, Qwen, and Vibe. Pi uses an AO-data-owned extension with built-in/project
+  Droid, Goose, Grok, Kilo Code, Kimchi, Kiro, Kimi, OpenCode, Pi, Qwen, and Vibe. Pi uses an Operator-data-owned extension with built-in/project
   resources disabled, structured read-only inspection/reporting tools, and
   Escape-based turn cancellation. Kiro also uses its native Escape
   cancellation. Continue, Qwen, and Vibe also use Escape cancellation. Agy,
   Continue, Devin, Droid, Goose, Kimchi, Kimi, Qwen, and Vibe are explicitly experimental and host-trusted. Grok, Crush, Auggie, Cline, and Autohand are experimental user-approved reviewers that retain their native approval prompts instead of receiving broad unattended flags:
   native modes, autonomous settings, and prompts are not OS or network containment.
 - The provider-neutral interactive-reviewer capability gateway and neutral
-  AO-owned working-directory contract are available. The experimental
+  Operator-owned working-directory contract are available. The experimental
   host-trusted adapters remain candidates for future contained execution once
   their documented sandbox, environment-replacement, broker, and gateway
   prerequisites are implemented.
@@ -76,14 +76,14 @@ surface (`npm run sqlc`, `npm run api`).
   lazy/non-blocking auth, per-PR polling with ETag guards and semantic diffing,
   feeding PR facts into lifecycle, which sends agent nudges for CI failures,
   review feedback, and merge conflicts
-  ([#75](https://github.com/aoagents/agent-orchestrator/issues/75),
-  [#108](https://github.com/aoagents/agent-orchestrator/issues/108),
-  [#109](https://github.com/aoagents/agent-orchestrator/issues/109)).
+  ([#75](https://github.com/OmarAly92/operator/issues/75),
+  [#108](https://github.com/OmarAly92/operator/issues/108),
+  [#109](https://github.com/OmarAly92/operator/issues/109)).
 - Terminal mux over WebSocket (`/mux`): per-client `tmux attach` PTY on
   Darwin/Linux; conpty loopback pty-host on Windows.
 - Lifecycle reducer plus reaper (`internal/observe/reaper`).
 - Agent adapter platform under `internal/adapters/agent/` (25 adapters) with a
-  registry and `ao hooks` activity dispatch.
+  registry and `opr hooks` activity dispatch.
 - OpenAPI spec generated from Go DTOs; frontend TS types generated from it and
   drift-checked in CI.
 
@@ -92,7 +92,7 @@ surface (`npm run sqlc`, `npm run api`).
 - Electron + React 19 + TanStack Router/Query + Tailwind + shadcn primitives.
 - Target-isolated per-session browser-control spike: a dedicated local
   daemon↔Electron bridge drives only the selected session's `WebContentsView`
-  through Electron's bound debugger transport. `ao browser` supports open,
+  through Electron's bound debugger transport. `opr browser` supports open,
   compact accessibility snapshots and refs, click/fill/type, keyboard input,
   hover and non-mutating element highlighting, scrolling, selection and checked
   state, property reads, stable logical tabs and captured popups, a compact
@@ -108,14 +108,14 @@ surface (`npm run sqlc`, `npm run api`).
   successful-delivery confirmation clears automatically.
 - Chromium's official DevTools frontend is available from the direct Browser
   toolbar button, `Ctrl+Shift+I` (Cmd+Option+I on macOS), the titlebar View menu,
-  and `ao browser devtools`. It opens in a detached desktop window with normal
+  and `opr browser devtools`. It opens in a detached desktop window with normal
   OS close controls and is attached through the same worker-scoped CDP
   multiplexer as the agent, so Elements, Console, Network, Sources, and other
   DevTools panels can remain open while agent automation continues. The
   user-facing DevTools connection is unrestricted; agent CDP commands remain
   policy-limited.
-- Preview targets are explicit: `ao preview`, `ao preview <target>`, or
-  `ao preview start` selects what the panel shows. The desktop poller no longer
+- Preview targets are explicit: `opr preview`, `opr preview <target>`, or
+  `opr preview start` selects what the panel shows. The desktop poller no longer
   auto-discovers a static entry point merely because a fresh worker exists.
 - Real daemon wiring via the generated `openapi-fetch` typed client
   (`src/api/schema.ts`); mock data only in `VITE_NO_ELECTRON` web-preview mode.
@@ -171,19 +171,19 @@ surface (`npm run sqlc`, `npm run api`).
 ## In flight / not yet a runtime feature
 
 - **Browser automation acceptance**: the runtime implementation is complete.
-  AO packages one
+  Operator packages one
   checksum-pinned Vercel `agent-browser` Rust binary and routes a deliberately
   limited semantic command set through an authenticated, worker-scoped CDP
-  bridge to the existing AO Preview. The binary is prepared automatically for
+  bridge to the existing Operator Preview. The binary is prepared automatically for
   desktop development and releases and is the single engine behind ordinary
-  `ao browser` inspection and interaction commands. AO retains only its
+  `opr browser` inspection and interaction commands. Operator retains only its
   sanitized network observer and temporary highlight cleanup as safety/UI
   plumbing. Focused checks and a fresh Windows x64 package pass; macOS/Linux
   packaging and manual lifecycle acceptance remain release verification work.
 - **Cross-interface visual history import**: provider-native context continues
-  across a compatible handoff, and Chat history already recorded by AO remains
+  across a compatible handoff, and Chat history already recorded by Operator remains
   durable. A first TUI→Chat switch does not reconstruct terminal screen output
-  as structured AO messages/tool cards; doing so requires a provider history
+  as structured Operator messages/tool cards; doing so requires a provider history
   import contract with stable identities and deduplication.
 - **In-flight tool portability**: drain can finish accepted work and interrupt
   can cancel it, but no common provider protocol serializes a currently executing
@@ -191,13 +191,13 @@ surface (`npm run sqlc`, `npm run api`).
 
 - **Tracker lane**: GitHub tracker adapter exists, but there is no daemon
   observer loop or agent-lifecycle→issue mirroring yet, so the tracker does
-  nothing at runtime ([#112](https://github.com/aoagents/agent-orchestrator/issues/112)).
+  nothing at runtime ([#112](https://github.com/OmarAly92/operator/issues/112)).
 - **Full raw PR/tracker fact surfacing**: the SCM observer writes facts and the
   desktop consumes concise PR summaries, but exposing the full raw `pr_*` /
   `tracker_*` CDC events to live consumers
-  ([#110](https://github.com/aoagents/agent-orchestrator/issues/110)) and in
-  `ao session get` ([#111](https://github.com/aoagents/agent-orchestrator/issues/111))
+  ([#110](https://github.com/OmarAly92/operator/issues/110)) and in
+  `opr session get` ([#111](https://github.com/OmarAly92/operator/issues/111))
   is still open.
 
 Tracking milestone:
-[`rewrite`](https://github.com/aoagents/agent-orchestrator/milestone/1).
+[`rewrite`](https://github.com/OmarAly92/operator/milestone/1).

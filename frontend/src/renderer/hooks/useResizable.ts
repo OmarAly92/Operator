@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 
 interface UseResizableOptions {
-	/** CSS custom property to drive (set on :root), e.g. "--ao-sidebar-w". */
+	/** CSS custom property to drive (set on :root), e.g. "--opr-sidebar-w". */
 	cssVar: string;
 	/** localStorage key to persist the width. */
 	storageKey: string;
@@ -21,7 +21,7 @@ interface UseResizableOptions {
 }
 
 /**
- * Pointer-driven panel resize, cloned from agent-orchestrator's useResizable.
+ * Pointer-driven panel resize, cloned from operator's useResizable.
  * Persists the width to localStorage and applies it via a CSS custom property
  * on :root (so the consuming layout reads it with `width: var(--cssVar, default)`),
  * avoiding any inline `style=`.

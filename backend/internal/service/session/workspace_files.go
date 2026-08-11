@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 const (
@@ -45,7 +45,7 @@ type WorkspaceCompareMode string
 const (
 	// WorkspaceCompareBase means diffs are against the session's recorded base.
 	WorkspaceCompareBase WorkspaceCompareMode = "base"
-	// WorkspaceCompareHeadFallback means AO could not resolve a base and used the
+	// WorkspaceCompareHeadFallback means Operator could not resolve a base and used the
 	// previous HEAD-only behavior.
 	WorkspaceCompareHeadFallback WorkspaceCompareMode = "head_fallback"
 )

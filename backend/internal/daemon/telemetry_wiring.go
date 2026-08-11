@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"time"
 
-	telemetryadapter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/telemetry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	telemetryadapter "github.com/OmarAly92/operator/backend/internal/adapters/telemetry"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 // aggregatedEventNames are the event names prone to bursts (crash loops,
@@ -19,16 +19,16 @@ import (
 // httpd/log.go) exactly, including underscores - there is no compile-time
 // check tying this list to the emit sites.
 //
-// Deliberately does NOT include ao.cli.invoked or ao.app.active: those are
-// already deduped to at most once per command-path/day (ao.cli.invoked) or
-// once per day (ao.app.active) at the httpd layer before they ever reach a
-// sink, including for ao hooks/ao pty-host and high-frequency polling
-// commands like ao status/ao session ls - adding them here would double up
+// Deliberately does NOT include opr.cli.invoked or opr.app.active: those are
+// already deduped to at most once per command-path/day (opr.cli.invoked) or
+// once per day (opr.app.active) at the httpd layer before they ever reach a
+// sink, including for opr hooks/opr pty-host and high-frequency polling
+// commands like opr status/opr session ls - adding them here would double up
 // on dedup logic that already owns that job and gains nothing.
 var aggregatedEventNames = []string{
-	"ao.http.5xx",
-	"ao.daemon.panic",
-	"ao.cli.usage_errors",
+	"opr.http.5xx",
+	"opr.daemon.panic",
+	"opr.cli.usage_errors",
 }
 
 func newTelemetrySink(cfg config.Config, store *sqlite.Store, log *slog.Logger) ports.EventSink {

@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestPreLaunchSeedsWorkspaceTrust(t *testing.T) {
 	dataDir := t.TempDir()
-	workspace := filepath.Join(t.TempDir(), "agent-orchestrator-351")
+	workspace := filepath.Join(t.TempDir(), "operator-351")
 
 	p := &Plugin{}
 	if err := p.PreLaunch(context.Background(), ports.LaunchConfig{
 		DataDir:       dataDir,
-		SessionID:     "agent-orchestrator-351",
+		SessionID:     "operator-351",
 		WorkspacePath: workspace,
 	}); err != nil {
 		t.Fatalf("PreLaunch: %v", err)
@@ -86,7 +86,9 @@ func TestPreLaunchSkipsBlankInputs(t *testing.T) {
 }
 
 func TestKimiWorkdirKeyMatchesKimiCodeLayout(t *testing.T) {
-	// Vectors captured from Kimi Code 0.34.0 trust records on this machine.
+	// Vectors captured from Kimi Code 0.34.0 trust records. The paths are the
+	// literal ones the hashes were captured against; do not rebrand them or the
+	// expectations stop verifying anything but our own output.
 	cases := []struct {
 		workspace string
 		want      string
@@ -112,7 +114,7 @@ func TestKimiWorkdirSlug(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "agent-orchestrator-351", want: "agent-orchestrator-351"},
+		{name: "operator-351", want: "operator-351"},
 		{name: "My Project!", want: "my-project"},
 		{name: "--lead-trail--", want: "lead-trail"},
 		{name: "", want: "workspace"},

@@ -8,7 +8,7 @@
 // debug the wrong thing.
 
 export type ConnectionFailure =
-	| "not-ao-qr" // the scanned code wasn't an AO pairing payload
+	| "not-opr-qr" // the scanned code wasn't an Operator pairing payload
 	| "unreachable" // nothing answered (DNS failure, refused, timeout)
 	| "auth" // 401/403 — the password is wrong or was rotated
 	| "rate-limited" // 429 — the daemon's failed-attempt lockout
@@ -74,7 +74,7 @@ export type ConnectionErrorCopy = {
 	title: string;
 	message: string;
 	// When true the screen appends the Local Network hint and offers a button
-	// that opens the OS settings page for AO.
+	// that opens the OS settings page for Operator.
 	showLocalNetworkHint: boolean;
 };
 
@@ -92,10 +92,10 @@ export function describeConnectionFailure(
 		reason === "unreachable" && target.platform === "ios" && isLocalNetworkHost(target.host);
 
 	switch (reason) {
-		case "not-ao-qr":
+		case "not-opr-qr":
 			return {
-				title: "Not an AO pairing code",
-				message: "That QR code isn't an AO pairing code.",
+				title: "Not an Operator pairing code",
+				message: "That QR code isn't an Operator pairing code.",
 				showLocalNetworkHint: false,
 			};
 		case "unreachable":
@@ -128,7 +128,7 @@ export function describeConnectionFailure(
 		case "server-error":
 			return {
 				title: "Your desktop returned an error",
-				message: `${target.host}:${target.port} answered, but with an error. Check the AO logs on your computer.`,
+				message: `${target.host}:${target.port} answered, but with an error. Check the Operator logs on your computer.`,
 				showLocalNetworkHint: false,
 			};
 	}
@@ -136,4 +136,4 @@ export function describeConnectionFailure(
 
 /** The extra line shown when {@link ConnectionErrorCopy.showLocalNetworkHint} is set. */
 export const LOCAL_NETWORK_HINT =
-	"If you denied the Local Network prompt, enable it in Settings › Privacy & Security › Local Network › AO.";
+	"If you denied the Local Network prompt, enable it in Settings › Privacy & Security › Local Network › Operator.";

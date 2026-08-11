@@ -1,7 +1,7 @@
 {
 	"expo": {
-		"name": "AO",
-		"slug": "ao-mobile",
+		"name": "Operator",
+		"slug": "opr-mobile",
 		"version": "1.1.0",
 		"orientation": "portrait",
 		"icon": "./assets/icon.png",
@@ -14,15 +14,15 @@
 			"backgroundColor": "#0a0b0d"
 		},
 		"ios": {
-			"icon": "./assets/AO.icon",
+			"icon": "./assets/Operator.icon",
 			"supportsTablet": true,
-			"bundleIdentifier": "aoagents.ao",
+			"bundleIdentifier": "operator-dev.operator",
 			"config": {
 				"usesNonExemptEncryption": false
 			},
 			"infoPlist": {
-				"NSLocalNetworkUsageDescription": "AO connects to Agent Orchestrator running on your computer over your local network.",
-				"NSPhotoLibraryUsageDescription": "AO uses camera-related system features to help pair with your desktop.",
+				"NSLocalNetworkUsageDescription": "Operator connects to Operator running on your computer over your local network.",
+				"NSPhotoLibraryUsageDescription": "Operator uses camera-related system features to help pair with your desktop.",
 				"NSAppTransportSecurity": {
 					"NSAllowsLocalNetworking": true
 				},
@@ -30,7 +30,7 @@
 			}
 		},
 		"android": {
-			"package": "aoagents.dev",
+			"package": "operator.example.com",
 			"googleServicesFile": "./google-services.json",
 			"adaptiveIcon": {
 				"backgroundColor": "#0a0b0d",
@@ -58,22 +58,22 @@
 			[
 				"expo-camera",
 				{
-					"cameraPermission": "Allow AO to scan the pairing QR code.",
+					"cameraPermission": "Allow Operator to scan the pairing QR code.",
 					"recordAudioAndroid": false
 				}
 			],
 			[
 				"expo-image-picker",
 				{
-					"photosPermission": "Allow AO to attach images to agent conversations."
+					"photosPermission": "Allow Operator to attach images to agent conversations."
 				}
 			],
 			"expo-document-picker",
 			[
 				"expo-speech-recognition",
 				{
-					"microphonePermission": "Allow AO to use the microphone so you can dictate prompts to an agent.",
-					"speechRecognitionPermission": "Allow AO to transcribe your speech into prompts for an agent."
+					"microphonePermission": "Allow Operator to use the microphone so you can dictate prompts to an agent.",
+					"speechRecognitionPermission": "Allow Operator to transcribe your speech into prompts for an agent."
 				}
 			],
 			[
@@ -90,6 +90,6 @@
 				"projectId": "2d7dec61-2206-4943-8582-a37e160907ea"
 			}
 		},
-		"owner": "untrivial"
+		"owner": "omaraly92"
 	}
 }

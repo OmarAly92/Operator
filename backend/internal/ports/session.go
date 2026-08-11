@@ -3,7 +3,7 @@ package ports
 import (
 	"errors"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 // ErrSessionNotFound reports an observation for an unknown session id.
@@ -28,7 +28,7 @@ type SpawnConfig struct {
 	// RequestedMode is the caller's explicit session mode, or empty to let the
 	// daemon resolve its default. It is validated and persisted before any
 	// controller launches. A later explicit interface transition may replace that
-	// controller while preserving the AO session. An unsupported explicit request
+	// controller while preserving the Operator session. An unsupported explicit request
 	// fails the spawn rather than falling back to the other mode.
 	RequestedMode domain.SessionMode
 

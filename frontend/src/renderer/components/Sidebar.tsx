@@ -26,7 +26,7 @@ import {
 	workerSessions,
 } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
@@ -68,7 +68,7 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { OrchestratorIcon } from "./icons";
-import aoLogo from "../../../assets/ao-logo.svg";
+import operatorLogo from "../../../assets/opr-logo.svg";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store"
 import { useKeybindingsStore } from "../stores/keybindings-store";
@@ -211,13 +211,13 @@ export function Sidebar({
 	// (the setting can be changed mid-session; the binary cannot).
 	const { data: appVersion } = useQuery({
 		queryKey: ["app-version"],
-		queryFn: () => aoBridge.app.getVersion(),
+		queryFn: () => operatorBridge.app.getVersion(),
 		staleTime: Infinity,
 	});
 	const isNightly = typeof appVersion === "string" && appVersion.includes("-nightly.");
 
-	// agent-orchestrator's sidebar resize: drag the right edge (200-420px,
-	// persisted), double-click to reset to 240px. Drives --ao-sidebar-w on :root,
+	// operator's sidebar resize: drag the right edge (200-420px,
+	// persisted), double-click to reset to 240px. Drives --opr-sidebar-w on :root,
 	// which the provider forwards into shadcn's --sidebar-width. Dragging clamps
 	// at SIDEBAR_MIN_WIDTH — collapsing stays on the explicit toggle (⌘B /
 	// titlebar button), never on a drag.
@@ -226,8 +226,8 @@ export function Sidebar({
 		onCollapsedPointerDown: onCollapsedResizePointerDown,
 		onDoubleClick: onResizeDoubleClick,
 	} = useResizable({
-		cssVar: "--ao-sidebar-w",
-		storageKey: "ao-sidebar-w",
+		cssVar: "--opr-sidebar-w",
+		storageKey: "opr-sidebar-w",
 		defaultWidth: SIDEBAR_DEFAULT_WIDTH,
 		min: SIDEBAR_MIN_WIDTH,
 		max: SIDEBAR_MAX_WIDTH,
@@ -291,7 +291,7 @@ export function Sidebar({
 								onClick={selection.goHome}
 								type="button"
 							>
-								<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
+								<img src={operatorLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right" hidden={state !== "collapsed"}>
@@ -299,7 +299,7 @@ export function Sidebar({
 						</TooltipContent>
 					</Tooltip>
 					<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden">
-						Agent Orchestrator
+						Operator
 					</span>
 					{isNightly && (
 						<span className="sidebar-expanded-chrome shrink-0 rounded-full bg-purple-subtle px-1.5 py-0.5 text-micro font-semibold leading-none text-purple-accent group-data-[collapsible=icon]:hidden">
@@ -1026,7 +1026,7 @@ function RestartToUpdateRow({ status, tabIndex }: { status: UpdateStatus; tabInd
 					? "border border-working/35 bg-working/12 text-working hover:bg-working/18 [&_svg]:text-working"
 					: "text-passive hover:bg-interactive-hover hover:text-foreground [&_svg]:text-passive",
 			)}
-			onClick={() => void aoBridge.updates.install()}
+			onClick={() => void operatorBridge.updates.install()}
 			tabIndex={tabIndex}
 			type="button"
 		>
@@ -1068,7 +1068,7 @@ function RestartToUpdateRailButton({ status, tabIndex }: { status: UpdateStatus;
 							? "bg-working/12 text-working hover:bg-working/18"
 							: "text-passive hover:bg-interactive-hover hover:text-foreground",
 					)}
-					onClick={() => void aoBridge.updates.install()}
+					onClick={() => void operatorBridge.updates.install()}
 					tabIndex={tabIndex}
 					type="button"
 				>

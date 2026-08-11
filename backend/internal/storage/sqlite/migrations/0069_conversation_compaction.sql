@@ -32,7 +32,7 @@ ALTER TABLE conversations ADD COLUMN compacted_at TIMESTAMP;
 
 -- +goose Down
 -- +goose StatementBegin
--- SQLite cannot drop a column in the versions AO supports, and rebuilding
+-- SQLite cannot drop a column in the versions Operator supports, and rebuilding
 -- conversations would mean re-declaring its two partial unique indexes. The
 -- column is nullable and unread by older code, so leaving it is safe.
 SELECT 1;

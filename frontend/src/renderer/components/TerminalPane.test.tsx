@@ -106,7 +106,7 @@ const worker = {
 	title: "do the thing",
 	provider: "claude-code",
 	kind: "worker",
-	branch: "ao/sess-1",
+	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",
 	prs: [],
@@ -138,8 +138,8 @@ beforeEach(() => {
 
 function renderPane(session?: WorkspaceSession) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	const previousAO = window.ao;
-	window.ao = {} as typeof window.ao;
+	const previousAO = window.operator;
+	window.operator = {} as typeof window.operator;
 	const result = render(
 		<QueryClientProvider client={queryClient}>
 			<TerminalPane daemonReady fontSize={12} session={session} theme="dark" />
@@ -149,7 +149,7 @@ function renderPane(session?: WorkspaceSession) {
 		...result,
 		queryClient,
 		restore: () => {
-			window.ao = previousAO;
+			window.operator = previousAO;
 		},
 	};
 }
@@ -181,8 +181,8 @@ function renderCachedPane({
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	queryClient.setQueryData(workspaceQueryKey, workspaceWithSessions(sessions));
 	queryClient.setQueryData(shellTerminalsQueryKey, shellTerminals);
-	const previousAO = window.ao;
-	window.ao = {} as typeof window.ao;
+	const previousAO = window.operator;
+	window.operator = {} as typeof window.operator;
 
 	const tree = (nextSession?: WorkspaceSession, nextTarget?: TerminalTarget, showPane = true) => (
 		<QueryClientProvider client={queryClient}>
@@ -208,7 +208,7 @@ function renderCachedPane({
 		show: (nextSession?: WorkspaceSession, nextTarget?: TerminalTarget) =>
 			result.rerender(tree(nextSession, nextTarget)),
 		restore: () => {
-			window.ao = previousAO;
+			window.operator = previousAO;
 		},
 	};
 }
@@ -231,7 +231,7 @@ describe("TerminalPane empty states", () => {
 	it("shows a no-selection message when no session is selected", () => {
 		const view = renderPane();
 		try {
-			expect(screen.getByText("Agent Orchestrator")).toBeInTheDocument();
+			expect(screen.getByText("Operator")).toBeInTheDocument();
 			expect(screen.getByText("No session selected. Pick a worker to attach its terminal.")).toBeInTheDocument();
 		} finally {
 			view.restore();
@@ -244,7 +244,7 @@ describe("TerminalPane empty states", () => {
 			expect(screen.getByText("Starting session")).toBeInTheDocument();
 			expect(
 				screen.getByText(
-					"Preparing the worker terminal. This can take a moment while AO creates the workspace and starts the agent.",
+					"Preparing the worker terminal. This can take a moment while Operator creates the workspace and starts the agent.",
 				),
 			).toBeInTheDocument();
 			expect(screen.queryByText("No session selected. Pick a worker to attach its terminal.")).not.toBeInTheDocument();
@@ -259,7 +259,7 @@ describe("TerminalPane empty states", () => {
 			expect(screen.getByText("Starting session")).toBeInTheDocument();
 			expect(
 				screen.getByText(
-					"Preparing the orchestrator terminal. This can take a moment while AO creates the workspace and starts the agent.",
+					"Preparing the orchestrator terminal. This can take a moment while Operator creates the workspace and starts the agent.",
 				),
 			).toBeInTheDocument();
 			expect(screen.queryByText(/worker terminal/i)).not.toBeInTheDocument();

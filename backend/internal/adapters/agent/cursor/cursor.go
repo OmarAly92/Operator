@@ -2,7 +2,7 @@
 // sessions, resuming hook-tracked sessions, installing workspace-local hooks,
 // and reading hook-derived session info.
 //
-// AO-managed sessions derive native session identity and display
+// Operator-managed sessions derive native session identity and display
 // metadata from Cursor hooks instead of transcript/cache scans. The driven
 // binary is `cursor-agent` (not the `cursor` editor binary).
 package cursor
@@ -17,10 +17,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Plugin is the Cursor agent adapter. It is safe for concurrent use; the binary
@@ -39,14 +39,14 @@ func New() *Plugin {
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 
-// cursorDataDir returns the isolated Cursor profile AO uses for managed Cursor
-// sessions. This keeps Cursor's trust/cache state under AO_DATA_DIR instead of
+// cursorDataDir returns the isolated Cursor profile Operator uses for managed Cursor
+// sessions. This keeps Cursor's trust/cache state under OPERATOR_DATA_DIR instead of
 // the user's normal ~/.cursor profile.
 func cursorDataDir(dataDir string) string {
 	return filepath.Join(dataDir, "cursor")
 }
 
-// AugmentRuntimeEnv points cursor-agent at AO's isolated Cursor profile so
+// AugmentRuntimeEnv points cursor-agent at Operator's isolated Cursor profile so
 // workspace trust seeded during hook installation is read by the launched
 // process without modifying the user's normal Cursor state.
 func (p *Plugin) AugmentRuntimeEnv(env map[string]string, dataDir string) {

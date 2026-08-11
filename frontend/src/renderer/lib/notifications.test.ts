@@ -28,7 +28,7 @@ vi.mock("./api-client", () => ({
 }));
 
 vi.mock("./bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		daemon: { onStatus: onStatusMock },
 		notifications: { show: showNotificationMock },
 	},
@@ -410,7 +410,7 @@ describe("createNotificationsTransport", () => {
 		});
 	});
 
-	it("patches resolvedAt on live unread/all caches when AO closes the issue", () => {
+	it("patches resolvedAt on live unread/all caches when Operator closes the issue", () => {
 		const qc = queryClient();
 		createNotificationsTransport(qc).connect();
 		const source = EventSourceStub.instances[0];

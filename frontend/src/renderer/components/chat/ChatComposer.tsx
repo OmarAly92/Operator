@@ -143,7 +143,7 @@ export function ChatComposer({
 	/**
 	 * What Enter does while the agent is working.
 	 *
-	 * Queueing is the safe default and matches `ao send`: the daemon records the
+	 * Queueing is the safe default and matches `opr send`: the daemon records the
 	 * message durably and dispatches it when the current turn finishes. Steering is
 	 * timing-sensitive and changes the running turn, so it stays an explicit choice.
 	 * The send hint names whichever destination is armed.

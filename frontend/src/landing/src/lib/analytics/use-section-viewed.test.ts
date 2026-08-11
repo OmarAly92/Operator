@@ -32,7 +32,7 @@ describe("reporting once per section", () => {
   /**
    * An IntersectionObserver re-fires every time an element re-enters view, so
    * without the disconnect a visitor scrolling up and down a long page would
-   * emit the same event repeatedly. That repeating shape is what produced AO's
+   * emit the same event repeatedly. That repeating shape is what produced Operator's
    * original PostHog bill, so it is worth pinning.
    */
   it("disconnects after the first intersection", async () => {

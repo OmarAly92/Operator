@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 )
 
 // These run against a real SQLite store rather than a mock, because the point is
@@ -293,13 +293,13 @@ func TestServicePassesRecomputedSystemPromptToResume(t *testing.T) {
 	_, err := svc.Start(context.Background(), chatsvc.StartConfig{
 		SessionID: testSession, ProjectID: testProject, Harness: domain.HarnessCodex,
 		DataDir: dataDir, WorkspacePath: workspace, ProviderConversationID: "thread-1",
-		SystemPrompt: "Recomputed AO orchestrator instructions",
+		SystemPrompt: "Recomputed Operator orchestrator instructions",
 	})
 	if err != nil {
 		t.Fatalf("Start resume: %v", err)
 	}
 	if resumed.ProviderConversationID != "thread-1" || resumed.DataDir != dataDir || resumed.WorkspacePath != workspace ||
-		resumed.SystemPrompt != "Recomputed AO orchestrator instructions" {
+		resumed.SystemPrompt != "Recomputed Operator orchestrator instructions" {
 		t.Fatalf("resume config = %#v", resumed)
 	}
 }
@@ -416,7 +416,7 @@ func TestResumeImportsNativeHistoryBeforeTheChatControllerStarts(t *testing.T) {
 	// persisted item ids, so the replay uses synthetic item ids even though the
 	// live assistant message used native-answer-1. Stable turn identity and the
 	// settled content keep the replay from duplicating either message, while the
-	// command AO already knew is deduplicated too, while the new command that AO
+	// command Operator already knew is deduplicated too, while the new command that Operator
 	// had not seen yet is still imported.
 	if len(snapshot.Messages) != 2 || snapshot.Messages[0].Text != "What changed?" || snapshot.Messages[1].Text != "Nothing is dirty." {
 		t.Fatalf("imported messages = %#v", snapshot.Messages)
@@ -556,7 +556,7 @@ func TestFreshProjectControllerRecordsNativeContextBoundary(t *testing.T) {
 		t.Fatalf("activities = %#v, want old history plus context boundary", snapshot.Activities)
 	}
 	boundary := snapshot.Activities[1]
-	if boundary.Kind != domain.ActivityKindSystem || boundary.ProviderItemID != "ao-context-reset:p1-2" {
+	if boundary.Kind != domain.ActivityKindSystem || boundary.ProviderItemID != "opr-context-reset:p1-2" {
 		t.Fatalf("boundary = %#v", boundary)
 	}
 	var detail map[string]string
@@ -876,7 +876,7 @@ func TestApprovalIsStoredPendingWithProviderDecisions(t *testing.T) {
 		RequestID:      "0",
 		ActivityKind:   domain.ActivityKindCommand,
 		ActivityStatus: domain.ActivityStatusPending,
-		Summary:        "Run ao spawn",
+		Summary:        "Run opr spawn",
 		Decisions: []ports.ChatDecisionOption{
 			{ID: "accept", Label: "Approve"},
 			{ID: "acceptWithExecpolicyAmendment", Label: "Approve and remember this command"},
@@ -1465,7 +1465,7 @@ func TestInitialPromptIsAttributedToTheUser(t *testing.T) {
 	}
 }
 
-// A relayed message is AO carrying someone else's words: `ao send`, or an
+// A relayed message is Operator carrying someone else's words: `opr send`, or an
 // orchestrator writing to a worker. It must be attributed to automation, not
 // passed off as something the user typed here — the timeline distinguishes the
 // two structurally, and a reader should never have to infer it from a prefix.
@@ -1556,7 +1556,7 @@ func TestInterruptWaitsForTheProviderToAcknowledgeTheTurn(t *testing.T) {
 }
 
 // A provider that refuses because the turn is genuinely gone must reach the client
-// as the same typed "nothing to interrupt" answer AO produces itself — not as a
+// as the same typed "nothing to interrupt" answer Operator produces itself — not as a
 // protocol error that renders as an internal failure.
 func TestProviderRefusalBecomesTheTypedNoActiveTurnError(t *testing.T) {
 	conv := newInterruptRecorder() // never marks anything active
@@ -1849,7 +1849,7 @@ func TestCompactionIsProjectedAsATimelineFact(t *testing.T) {
 	if activity.ProviderItemID != "cc-1" {
 		t.Errorf("provider item id = %q, want cc-1 so a replay updates this row", activity.ProviderItemID)
 	}
-	// Not attached to a turn: the provider ran the compaction in a turn AO never
+	// Not attached to a turn: the provider ran the compaction in a turn Operator never
 	// dispatched, so filing the row under it would attribute the entry to work the
 	// user never asked for.
 	if activity.TurnID != "" {
@@ -1946,7 +1946,7 @@ func TestCompactOnAProviderThatCannotIsTyped(t *testing.T) {
 // Measured twice against a live app-server: thread/compact/start mid-turn silently
 // interrupts the running turn and reports it as interrupted, then compacts. Losing
 // work the user is waiting on as a side effect of housekeeping is not something to
-// discover afterwards from the timeline, so AO refuses and makes them stop it.
+// discover afterwards from the timeline, so Operator refuses and makes them stop it.
 func TestCompactRefusesWhileATurnIsInFlight(t *testing.T) {
 	conv := newCompactingConversation()
 	h := newHarnessWithConversation(t, conv)
@@ -1978,7 +1978,7 @@ func TestCompactRefusesWhileATurnIsInFlight(t *testing.T) {
 	}
 }
 
-// A provider can start a turn AO never dispatched: a compaction runs as its own
+// A provider can start a turn Operator never dispatched: a compaction runs as its own
 // turn, and so does work the provider resumes from its own history. Without a row
 // for it, every item that turn emits correlates to no turn — the activities arrive
 // with an empty turn id and the timeline silently stops grouping them, which reads

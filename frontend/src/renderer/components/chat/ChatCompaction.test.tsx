@@ -80,7 +80,7 @@ describe("compaction in the timeline", () => {
 	});
 
 	// A compaction right after a daemon restart genuinely does not know what it
-	// saved, because AO has seen no token report yet. Showing "0 freed" would be a
+	// saved, because Operator has seen no token report yet. Showing "0 freed" would be a
 	// lie rather than a gap.
 	it("claims no figures when the provider never reported any", () => {
 		render(

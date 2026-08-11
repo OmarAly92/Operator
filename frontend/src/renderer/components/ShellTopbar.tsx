@@ -135,7 +135,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 			surface: isSessionRoute ? "session_detail" : "project_board",
 			project_id: projectId,
 		});
-		void captureRendererEvent("ao.renderer.orchestrator_open_requested", { project_id: projectId });
+		void captureRendererEvent("opr.renderer.orchestrator_open_requested", { project_id: projectId });
 		if (orchestrator) {
 			void navigate({
 				to: "/projects/$projectId/sessions/$sessionId",

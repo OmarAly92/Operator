@@ -23,7 +23,7 @@ import { collectPRs } from "./prView";
 import { MOBILE_EVENTS } from "./telemetry/events";
 import { mobileTelemetry, trackFeature } from "./telemetry/runtime";
 
-const ACTIVE_PROJECT_KEY = "ao.activeProject";
+const ACTIVE_PROJECT_KEY = "opr.activeProject";
 const POLL_INTERVAL_MS = 8000;
 
 // Board-level connection state is derived from the REST poll. The session screen

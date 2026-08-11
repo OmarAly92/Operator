@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/droid"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_DROID_ACP=1. It uses the user's existing Droid
+// Run explicitly with OPERATOR_LIVE_DROID_ACP=1. It uses the user's existing Droid
 // executable, settings, and account; CI never depends on any of them.
 func TestLiveDroidACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_DROID_ACP") != "1" {
-		t.Skip("set AO_LIVE_DROID_ACP=1 to run against the local Droid account")
+	if os.Getenv("OPERATOR_LIVE_DROID_ACP") != "1" {
+		t.Skip("set OPERATOR_LIVE_DROID_ACP=1 to run against the local Droid account")
 	}
 
 	driver := New(droid.New(), nil)
@@ -35,7 +35,7 @@ func TestLiveDroidACP(t *testing.T) {
 	defer conversation.Close()
 
 	ref, err := conversation.SendTurn(ctx, ports.ChatUserMessage{
-		Text: "Reply with exactly: AO Droid ACP works", ClientMessageID: "live-1",
+		Text: "Reply with exactly: Operator Droid ACP works", ClientMessageID: "live-1",
 		Origin: domain.MessageOriginHuman,
 	})
 	if err != nil {
@@ -59,7 +59,7 @@ func TestLiveDroidACP(t *testing.T) {
 				if event.TurnState != domain.TurnStateCompleted {
 					t.Fatalf("turn state = %q; answer=%q", event.TurnState, answer.String())
 				}
-				if !strings.Contains(answer.String(), "AO Droid ACP works") {
+				if !strings.Contains(answer.String(), "Operator Droid ACP works") {
 					t.Fatalf("answer = %q", answer.String())
 				}
 				return

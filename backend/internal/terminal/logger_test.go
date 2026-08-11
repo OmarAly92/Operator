@@ -3,7 +3,7 @@ package terminal
 import (
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestNilLoggerFallsBackToDefault(t *testing.T) {

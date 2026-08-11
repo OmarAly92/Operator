@@ -31,8 +31,8 @@ const t = (minute: number, second = 0): string =>
 	new Date(CONVERSATION_START + (minute - 31) * 60_000 + second * 1000).toISOString();
 
 export const chatFixture: ConversationSnapshot = {
-	conversationId: "conv-ao-14",
-	sessionId: "ao-14",
+	conversationId: "conv-opr-14",
+	sessionId: "opr-14",
 	harness: "codex",
 	mode: "chat",
 	controller: { state: "busy" },
@@ -171,7 +171,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				command: "git status --short",
 				rawCommand: "/bin/zsh -lc 'git status --short'",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				cwd: "/Users/dhruv/.operator/data/worktrees/operator-1/opr-14",
 				output: " M backend/internal/session_manager/manager.go\n M backend/internal/ports/chat.go\n",
 				outputMayBePartial: true,
 				outputSource: "aggregate",
@@ -219,7 +219,7 @@ export const chatFixture: ConversationSnapshot = {
 						// A new file's patch is its contents, with no hunk header.
 						patch:
 							"package ports\n\n" +
-							"// ChatDriver is one provider's conversation, in AO's vocabulary.\n" +
+							"// ChatDriver is one provider's conversation, in Operator's vocabulary.\n" +
 							"type ChatDriver interface {\n" +
 							"\tSend(ctx context.Context, msg ChatUserMessage) (ChatTurnRef, error)\n" +
 							"}\n",
@@ -264,11 +264,11 @@ export const chatFixture: ConversationSnapshot = {
 				"```\n\n" +
 				"One line you will want to wrap rather than scroll:\n\n" +
 				"```sh\n" +
-				"AO_DATA_DIR=~/.ao go test ./internal/... -run 'TestConversation|TestSpawn' -count=1 -race -timeout 300s -coverprofile=/tmp/ao-cover.out && go tool cover -func=/tmp/ao-cover.out | tail -1\n" +
+				"OPERATOR_DATA_DIR=~/.operator go test ./internal/... -run 'TestConversation|TestSpawn' -count=1 -race -timeout 300s -coverprofile=/tmp/opr-cover.out && go tool cover -func=/tmp/opr-cover.out | tail -1\n" +
 				"```\n\n" +
 				"A fence with no language is still a block, not inline code:\n\n" +
 				"```\n" +
-				"ok  \tgithub.com/aoagents/ao/internal/domain\t0.412s\n" +
+				"ok  \tgithub.com/operator-dev/opr/internal/domain\t0.412s\n" +
 				"```",
 			streaming: false,
 			createdAt: t(32, 30),
@@ -307,7 +307,7 @@ export const chatFixture: ConversationSnapshot = {
 			revision: 0,
 			role: "user",
 			origin: "automation",
-			senderLabel: "CI · agent-orchestrator #3431",
+			senderLabel: "CI · operator #3431",
 			text: "Checks failed on the base branch: lint (golangci-lint) exited 1.",
 			streaming: false,
 			delivery: "accepted",
@@ -325,7 +325,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				command: "go test ./internal/...",
 				rawCommand: "/bin/sh -c 'go test ./internal/...'",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				cwd: "/Users/dhruv/.operator/data/worktrees/operator-1/opr-14",
 				// A command still running, already printing. Before output deltas were
 				// accumulated there was nothing to show here until it finished, because
 				// the provider's aggregate does not exist until completion.
@@ -338,10 +338,10 @@ export const chatFixture: ConversationSnapshot = {
 				// copied ansi-regex omits `@` from its CSI final-byte class.
 				output:
 					"\u001b[?25l\u001b[2K\u001b[@\u001b[0m" +
-					"\u001b[32mok\u001b[0m  \tgithub.com/aoagents/agent-orchestrator/backend/internal/domain\t0.412s\n" +
-					"\u001b[32mok\u001b[0m  \tgithub.com/aoagents/agent-orchestrator/backend/internal/ports\t0.286s\n" +
+					"\u001b[32mok\u001b[0m  \tgithub.com/OmarAly92/operator/backend/internal/domain\t0.412s\n" +
+					"\u001b[32mok\u001b[0m  \tgithub.com/OmarAly92/operator/backend/internal/ports\t0.286s\n" +
 					"downloading modules  12%\rdownloading modules  57%\rdownloading modules 100%\n" +
-					"\u001b[32mok\u001b[0m  \tgithub.com/aoagents/agent-orchestrator/backend/internal/service/chat\t11.554s\n",
+					"\u001b[32mok\u001b[0m  \tgithub.com/OmarAly92/operator/backend/internal/service/chat\t11.554s\n",
 				outputSource: "stream",
 				outputMayBePartial: true,
 				// What the agent typed at the running command, not what the command
@@ -365,7 +365,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				server: "github",
 				toolName: "search_issues",
-				arguments: { repo: "aoagents/agent-orchestrator", state: "open", labels: ["chat-mode"] },
+				arguments: { repo: "OmarAly92/operator", state: "open", labels: ["chat-mode"] },
 				result: {
 					total: 2,
 					issues: [
@@ -385,7 +385,7 @@ export const chatFixture: ConversationSnapshot = {
 			revision: 0,
 			activityKind: "approval",
 			status: "pending",
-			summary: "Run ao spawn --project agent-orchestrator-1 --name http-layer",
+			summary: "Run opr spawn --project operator-1 --name http-layer",
 			requestId: "0",
 			// Exactly what the provider offered in the captured session: no decline,
 			// and one object-shaped decision carrying a policy amendment.
@@ -395,10 +395,10 @@ export const chatFixture: ConversationSnapshot = {
 				{ id: "cancel", label: "Cancel" },
 			],
 			detail: {
-				command: "ao spawn --project agent-orchestrator-1 --name http-layer --prompt '…'",
+				command: "opr spawn --project operator-1 --name http-layer --prompt '…'",
 				rawCommand:
-					"/bin/zsh -lc \"ao spawn --project agent-orchestrator-1 --name http-layer --prompt '…'\"",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+					"/bin/zsh -lc \"opr spawn --project operator-1 --name http-layer --prompt '…'\"",
+				cwd: "/Users/dhruv/.operator/data/worktrees/operator-1/opr-14",
 				reason: "Delegate the conversation HTTP layer to a new worker",
 			},
 			createdAt: t(39, 18),
@@ -421,7 +421,7 @@ export const chatFixture: ConversationSnapshot = {
 			turnId: "turn-2",
 			sequence: 13,
 			revision: 0,
-			// A `system` activity by storage and the user's own words by meaning. AO
+			// A `system` activity by storage and the user's own words by meaning. Operator
 			// records a steer as an activity because a message would have opened a second
 			// turn; the timeline reads the `event` discriminator, not the kind.
 			activityKind: "system",
@@ -451,8 +451,8 @@ export const chatFixture: ConversationSnapshot = {
 				targetItemId: "item-91",
 				actionType: "command",
 				status: "approved",
-				command: "curl -s https://proxy.golang.org/github.com/aoagents/ao/@v/list",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				command: "curl -s https://proxy.golang.org/github.com/operator-dev/opr/@v/list",
+				cwd: "/Users/dhruv/.operator/data/worktrees/operator-1/opr-14",
 				riskLevel: "low",
 				rationale:
 					"Read-only request to the Go module proxy. It fetches a version list, writes nothing, and the host is on the allow list.",
@@ -591,8 +591,8 @@ export function chatFixtureLongHistory(turns: number): ConversationSnapshot {
 	}
 
 	return {
-		conversationId: "conv-ao-long",
-		sessionId: "ao-long",
+		conversationId: "conv-opr-long",
+		sessionId: "opr-long",
 		harness: "codex",
 		mode: "chat",
 		controller: { state: "ready" },
@@ -633,13 +633,13 @@ const SUBJECTS = ["conversation", "session_manager", "httpd", "ports"];
  * reasoning item per tool call whether or not summaries are configured, and writes a
  * body only when the user's own `~/.codex/config.toml` asks for one — measured on
  * codex-cli 0.146.0 as six empty items by default against ten items with nine bodies
- * once the setting was on. AO does not rewrite that file, so the UI has to explain
+ * once the setting was on. Operator does not rewrite that file, so the UI has to explain
  * the emptiness rather than look broken.
  */
 export const chatFixtureReasoningEmpty: ConversationSnapshot = {
 	...chatFixtureSettled,
-	conversationId: "conv-ao-16",
-	sessionId: "ao-16",
+	conversationId: "conv-opr-16",
+	sessionId: "opr-16",
 	items: chatFixtureSettled.items.map((item) =>
 		item.kind === "activity" && item.activityKind === "reasoning"
 			? { ...item, detail: undefined }
@@ -656,8 +656,8 @@ export const chatFixtureReasoningEmpty: ConversationSnapshot = {
  */
 export const chatFixtureMcpFailed: ConversationSnapshot = {
 	...chatFixture,
-	conversationId: "conv-ao-17",
-	sessionId: "ao-17",
+	conversationId: "conv-opr-17",
+	sessionId: "opr-17",
 	mcpServers: [
 		{ name: "github", status: "ready" },
 		{
@@ -679,8 +679,8 @@ export const chatFixtureMcpFailed: ConversationSnapshot = {
  */
 export const chatFixtureRerouted: ConversationSnapshot = {
 	...chatFixtureSettled,
-	conversationId: "conv-ao-18",
-	sessionId: "ao-18",
+	conversationId: "conv-opr-18",
+	sessionId: "opr-18",
 	modelReroute: {
 		fromModel: "gpt-5.6-terra",
 		toModel: "gpt-5.6-terra-mini",
@@ -714,14 +714,14 @@ export const chatFixtureRerouted: ConversationSnapshot = {
 /**
  * The provider wants credentials the daemon does not hold.
  *
- * Nothing the user does inside AO will help, and every turn they send until they fix
+ * Nothing the user does inside Operator will help, and every turn they send until they fix
  * it will fail — which is why this is the loudest thing the surface can say, and why
  * it names the command instead of telling them to re-authenticate.
  */
 export const chatFixtureReauth: ConversationSnapshot = {
 	...chatFixtureSettled,
-	conversationId: "conv-ao-19",
-	sessionId: "ao-19",
+	conversationId: "conv-opr-19",
+	sessionId: "opr-19",
 	account: {
 		authMode: "chatgpt",
 		planLabel: "Pro",
@@ -749,16 +749,16 @@ export const chatFixtureReauth: ConversationSnapshot = {
 };
 
 /**
- * The provider's own thread is broken while AO's controller is fine.
+ * The provider's own thread is broken while Operator's controller is fine.
  *
  * The combination is the point: the controller banner says nothing, because from
- * AO's side the connection is healthy. Only the provider knows the thread behind it
+ * Operator's side the connection is healthy. Only the provider knows the thread behind it
  * has faulted, and without this the session reads as an agent that went quiet.
  */
 export const chatFixtureThreadError: ConversationSnapshot = {
 	...chatFixtureSettled,
-	conversationId: "conv-ao-20",
-	sessionId: "ao-20",
+	conversationId: "conv-opr-20",
+	sessionId: "opr-20",
 	controller: { state: "ready" },
 	threadState: {
 		status: "system_error",
@@ -768,8 +768,8 @@ export const chatFixtureThreadError: ConversationSnapshot = {
 
 /** A third: an empty conversation, the first thing a new session shows. */
 export const chatFixtureEmpty: ConversationSnapshot = {
-	conversationId: "conv-ao-15",
-	sessionId: "ao-15",
+	conversationId: "conv-opr-15",
+	sessionId: "opr-15",
 	harness: "codex",
 	mode: "chat",
 	controller: { state: "ready" },

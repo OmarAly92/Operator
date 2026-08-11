@@ -274,16 +274,16 @@ describe("sessionPRDisplaySummaries", () => {
 	it("deduplicates transferred GitHub repository aliases", () => {
 		const got = sessionPRDisplaySummaries(session([]), [
 			summary({
-				url: "https://github.com/AgentWrapper/agent-orchestrator/pull/3193",
-				htmlUrl: "https://github.com/AgentWrapper/agent-orchestrator/pull/3193",
-				repo: "AgentWrapper/agent-orchestrator",
+				url: "https://github.com/OmarAly92/operator/pull/3193",
+				htmlUrl: "https://github.com/OmarAly92/operator/pull/3193",
+				repo: "OmarAly92/operator",
 				number: 3193,
 				title: "first observed alias",
 			}),
 			summary({
-				url: "https://github.com/Untrivial-ai/agent-orchestrator/pull/3193",
-				htmlUrl: "https://github.com/Untrivial-ai/agent-orchestrator/pull/3193",
-				repo: "Untrivial-ai/agent-orchestrator",
+				url: "https://github.com/OmarAly92/operator/pull/3193",
+				htmlUrl: "https://github.com/OmarAly92/operator/pull/3193",
+				repo: "OmarAly92/operator",
 				number: 3193,
 				title: "duplicate transferred alias",
 			}),

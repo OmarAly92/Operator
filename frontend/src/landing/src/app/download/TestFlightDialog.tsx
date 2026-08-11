@@ -1,6 +1,6 @@
 "use client";
 
-import { TESTFLIGHT_APP_URL, TESTFLIGHT_URL } from "@ao/shared/constants";
+import { TESTFLIGHT_APP_URL, TESTFLIGHT_URL } from "@operator/shared/constants";
 import { AnimatePresence, motion } from "motion/react";
 import { ExternalLink, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -13,8 +13,8 @@ const STEPS = [
     body: "Apple distributes betas through its TestFlight app. Get it from the App Store first — the invite link does nothing without it.",
   },
   {
-    title: "Scan to install AO Mobile",
-    body: "Point your iPhone camera at the code. TestFlight opens on the AO beta; tap Accept, then Install.",
+    title: "Scan to install Operator Mobile",
+    body: "Point your iPhone camera at the code. TestFlight opens on the Operator beta; tap Accept, then Install.",
   },
 ] as const;
 
@@ -90,7 +90,7 @@ export function TestFlightDialog() {
                 id="testflight-dialog-title"
                 className="pr-8 text-xl font-semibold text-foreground"
               >
-                Get AO Mobile on iOS
+                Get Operator Mobile on iOS
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Two steps, about a minute. The beta is free while it lasts.

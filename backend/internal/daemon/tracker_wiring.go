@@ -4,12 +4,12 @@ import (
 	"errors"
 	"log/slog"
 
-	trackergithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/github"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	trackergithub "github.com/OmarAly92/operator/backend/internal/adapters/tracker/github"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func newGitHubTracker() (ports.Tracker, error) {
-	return trackergithub.New(trackergithub.Options{Token: trackergithub.EnvTokenSource{EnvVars: []string{"AO_GITHUB_TOKEN"}}})
+	return trackergithub.New(trackergithub.Options{Token: trackergithub.EnvTokenSource{EnvVars: []string{"OPERATOR_GITHUB_TOKEN"}}})
 }
 
 func logTrackerDisabled(logger *slog.Logger, err error) {

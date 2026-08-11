@@ -1,10 +1,10 @@
-# Agent Orchestrator — Mobile
+# Operator — Mobile
 
-Expo (expo-router) mobile supervisor for Agent Orchestrator. Four tabs — Kanban, PRs,
+Expo (expo-router) mobile supervisor for Operator. Four tabs — Kanban, PRs,
 Orchestrator, Settings — plus a Chat-first spawn flow, a native conversation surface,
 the existing live terminal, and a preview browser. Chat sessions expose durable history,
 streaming activity, approvals, provider controls, attachments, voice input, and a plain
-worktree-shell escape hatch. It is a **thin client**: it talks to the AO daemon running on your
+worktree-shell escape hatch. It is a **thin client**: it talks to the Operator daemon running on your
 computer over your local network (or Tailscale). It never runs agents itself.
 
 > **Development builds only — Expo Go is not supported.** The app depends on native modules,
@@ -46,7 +46,7 @@ name. Background: [`docs/adr/0001-lan-listener-for-mobile.md`](../../docs/adr/00
 
 | For             | You need                                                                              |
 | --------------- | ------------------------------------------------------------------------------------- |
-| Everything      | Node 20+, and AO running on your machine (desktop app, or the daemon from source)     |
+| Everything      | Node 20+, and Operator running on your machine (desktop app, or the daemon from source)     |
 | Phone ↔ machine | Same Wi-Fi network, or both on the same Tailnet                                       |
 | iOS build       | macOS, Xcode 16+, an Apple ID (a free one gives a 7-day signing profile), a USB cable |
 | Android build   | Android Studio (SDK + platform-tools for `adb`), a USB cable                          |
@@ -71,7 +71,7 @@ Two rules worth knowing before you fight an install:
 
 Nothing on the phone works until the desktop opens the LAN bridge. Do this first.
 
-**1. Start the desktop app.** Either launch the packaged AO app, or run it from source
+**1. Start the desktop app.** Either launch the packaged Operator app, or run it from source
 (it starts its own daemon):
 
 ```bash
@@ -122,8 +122,8 @@ gitignored** — the run commands prebuild them for you.
    npx expo run:ios --device      # pick your iPhone from the list
    ```
 
-   If Xcode rejects the bundle identifier or team, open `ios/AO.xcworkspace`, select the
-   **AO** target → **Signing & Capabilities**, choose your personal team and let Xcode manage
+   If Xcode rejects the bundle identifier or team, open `ios/Operator.xcworkspace`, select the
+   **Operator** target → **Signing & Capabilities**, choose your personal team and let Xcode manage
    signing, then re-run the command.
 
 4. On first launch iOS asks for **Local Network** access. Allow it, or the app cannot reach
@@ -218,7 +218,7 @@ surgery, regenerate the native projects from scratch with `npx expo prebuild --c
 | Locked out after repeated failures                | The bridge locks out a source after 5 failed attempts. Wait it out, or toggle Connect Mobile off and on.                                                     |
 | `adb devices` shows `unauthorized`                | Re-accept the USB debugging prompt on the phone.                                                                                                             |
 | iOS app installs, then closes immediately         | Untrusted developer profile: **Settings → General → VPN & Device Management → trust your Apple ID**.                                                         |
-| App runs but can't reach the daemon (iOS)         | The Local Network prompt was denied: **Settings → Privacy & Security → Local Network → AO** → on.                                                            |
+| App runs but can't reach the daemon (iOS)         | The Local Network prompt was denied: **Settings → Privacy & Security → Local Network → Operator** → on.                                                            |
 | Phone can't reach Metro                           | `adb reverse tcp:8081 tcp:8081` (Android), or `npx expo start --tunnel` (either platform).                                                                   |
 | Terminal renders blank                            | The xterm WebView is patched via `patch-package`; confirm `postinstall` ran (`npx patch-package`).                                                           |
 
@@ -241,7 +241,7 @@ lib/
   pairing.ts         pairing-QR payload parser
   store.tsx          app state + connection polling
   theme.ts, ui.tsx   design primitives
-scripts/             ao-phone-proxy.js — superseded by Connect Mobile, kept for reference
+scripts/             opr-phone-proxy.js — superseded by Connect Mobile, kept for reference
 ```
 
 ## Verify

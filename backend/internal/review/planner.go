@@ -3,20 +3,20 @@ package review
 import (
 	"sort"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 // StateStatus is the per-PR review planning state.
 type StateStatus string
 
 const (
-	// ReviewStateNeedsReview means an eligible PR has no current AO approval or running pass.
+	// ReviewStateNeedsReview means an eligible PR has no current Operator approval or running pass.
 	ReviewStateNeedsReview StateStatus = "needs_review"
 	// ReviewStateRunning means a review run is already active for the PR's current head.
 	ReviewStateRunning StateStatus = "running"
-	// ReviewStateUpToDate means AO approved the PR's current head.
+	// ReviewStateUpToDate means Operator approved the PR's current head.
 	ReviewStateUpToDate StateStatus = "up_to_date"
-	// ReviewStateChangesRequested means AO requested changes on the PR's current head.
+	// ReviewStateChangesRequested means Operator requested changes on the PR's current head.
 	ReviewStateChangesRequested StateStatus = "changes_requested"
 	// ReviewStateIneligible means the PR is draft, closed, merged, or missing required facts.
 	ReviewStateIneligible StateStatus = "ineligible"

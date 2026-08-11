@@ -215,7 +215,7 @@ export type BrowserViewHost = {
 	execute: (sessionId: string, action: string, args?: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
 	// webContents of the most recently focused browser panel (or null); the titlebar menu targets it for Edit/Reload/Zoom/DevTools.
 	getLastFocusedPanelContents: () => WebContents | null;
-	/** Toggle Chromium DevTools for the last focused AO browser panel. */
+	/** Toggle Chromium DevTools for the last focused Operator browser panel. */
 	toggleDevToolsForLastFocused: () => Promise<BrowserDevToolsState | null>;
 	// Drop the remembered panel; call when the shell gains focus for a real reason so a stale panel stops absorbing menu actions.
 	forgetLastFocusedPanel: () => void;
@@ -562,7 +562,7 @@ export function createBrowserViewHost(options: BrowserViewHostOptions): BrowserV
 				// A non-persist: Electron partition is memory-only. Every tab in
 				// this worker shares it, while a fresh worker runtime receives a
 				// different partition even if a session ID is ever reused.
-				profilePartition: `ao-browser-${randomUUID()}`,
+				profilePartition: `opr-browser-${randomUUID()}`,
 				tabs: new Map(),
 				activeTabId: "",
 				nextTabNumber: 1,
@@ -854,7 +854,7 @@ export function createBrowserViewHost(options: BrowserViewHostOptions): BrowserV
 			return;
 		}
 		// Keep the initialized blank target available to automation, but let the
-		// renderer show AO's empty-page UI instead of Chromium's white about:blank.
+		// renderer show Operator's empty-page UI instead of Chromium's white about:blank.
 		const currentURL = entry.view.webContents.getURL();
 		if (!currentURL || currentURL === "about:blank") {
 			applyBrowserViewBounds(entry.view, session.bounds, false);
@@ -926,7 +926,7 @@ export function createBrowserViewHost(options: BrowserViewHostOptions): BrowserV
 		return pushNavState(options, entry);
 	};
 
-	// clear resets the view to a blank page (`ao preview clear`). about:blank is
+	// clear resets the view to a blank page (`opr preview clear`). about:blank is
 	// loaded directly, bypassing the URL allowlist — it carries no content and
 	// readNavState normalizes it back to an empty url so the panel shows its
 	// empty state.
@@ -2013,7 +2013,7 @@ function normalizeAgentBrowserURL(input: string): string {
 		throw browserError("BROWSER_URL_FORBIDDEN", "Agent browser commands cannot open local files");
 	}
 	if (!/^https?:\/\//i.test(raw) && !isLocalhostLike(raw) && !looksLikeHost(raw)) {
-		throw browserError("INVALID_URL", "ao browser open requires an explicit http(s) URL or hostname");
+		throw browserError("INVALID_URL", "opr browser open requires an explicit http(s) URL or hostname");
 	}
 	const normalized = normalizeBrowserURL(raw);
 	if (normalized.protocol !== "http:" && normalized.protocol !== "https:") {

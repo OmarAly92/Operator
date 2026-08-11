@@ -14,20 +14,20 @@
 -- not reported an account" from "this conversation has no account".
 --
 --   model_reroute_json  the provider answering with a model other than the one
---                       asked for. This is a correction to a claim AO has already
+--                       asked for. This is a correction to a claim Operator has already
 --                       made: the composer names the model it sends to, so an
 --                       unrecorded substitution leaves every later reading of that
 --                       turn attributing the answer to the wrong model.
 --
 --   account_json        the auth mode, the plan, and the moment the provider last
---                       asked for credentials AO does not hold. The last of those
+--                       asked for credentials Operator does not hold. The last of those
 --                       is why this exists: a long-lived chat session outlives its
 --                       credentials, and a turn that fails for that reason is
 --                       indistinguishable from any other failure unless the demand
 --                       for re-authentication is written down.
 --
 --   thread_state_json   the provider's own lifecycle view: working, idle,
---                       archived, closed, and what it is blocked on. NOT AO's
+--                       archived, closed, and what it is blocked on. NOT Operator's
 --                       session status, which stays derived from durable facts at
 --                       read time. This is one more such fact, not a second answer.
 --
@@ -98,7 +98,7 @@ ALTER TABLE conversation_turns DROP COLUMN plan_json;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
--- SQLite in the versions AO supports cannot drop a column from a table carrying
+-- SQLite in the versions Operator supports cannot drop a column from a table carrying
 -- partial indexes without a full rebuild, and conversations has two. All four
 -- columns are nullable and unread by older code, so leaving them is safe on a
 -- downgrade.

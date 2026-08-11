@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/gen"
 )
 
-// UpsertUsageBinding records or refreshes the association between an AO
+// UpsertUsageBinding records or refreshes the association between an Operator
 // session and a native root session/thread.
 func (s *Store) UpsertUsageBinding(ctx context.Context, rec domain.UsageBindingRecord) (domain.UsageBindingRecord, error) {
 	s.writeMu.Lock()

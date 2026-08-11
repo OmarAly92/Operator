@@ -10,16 +10,16 @@ package registry
 import (
 	"log/slog"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/opencode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/claudeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/droidacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/opencodeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/claudecode"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/codex"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/droid"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/opencode"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/claudeacp"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/codexappserver"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/droidacp"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/opencodeacp"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Registry maps a harness to its Chat driver.
@@ -44,9 +44,9 @@ func New(drivers ...ports.ChatDriver) *Registry {
 
 // Build returns the drivers the daemon ships.
 //
-// Codex uses its native app-server protocol. Claude Code uses AO's reusable ACP
+// Codex uses its native app-server protocol. Claude Code uses Operator's reusable ACP
 // transport plus claude-agent-acp, pointed at the user's own Claude executable.
-// OpenCode and Droid expose ACP themselves, so AO launches the exact executable
+// OpenCode and Droid expose ACP themselves, so Operator launches the exact executable
 // resolved by each existing agent plugin. No path scrapes terminal output or
 // packages a second provider CLI.
 //

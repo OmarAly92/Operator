@@ -161,12 +161,12 @@ export type WorkspaceSession = {
 	/** Raw agent lifecycle activity from the daemon. */
 	activity?: SessionActivity;
 	/**
-	 * Live preview target set by the daemon (via `ao preview`) and streamed over
+	 * Live preview target set by the daemon (via `opr preview`) and streamed over
 	 * CDC. When non-empty, the browser panel opens and navigates here.
 	 */
 	previewUrl?: string;
 	/**
-	 * Monotonic counter the daemon bumps on every `ao preview` call (even when
+	 * Monotonic counter the daemon bumps on every `opr preview` call (even when
 	 * previewUrl is unchanged), so the browser panel can re-navigate / refresh on
 	 * a repeated preview of the same target.
 	 */

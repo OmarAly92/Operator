@@ -73,7 +73,7 @@ export function ChatComposer({
 	const canEmbedFiles = snapshot.capabilities?.includes("embedded_context");
 	const steerEligible = canSteer && delivery === "steer" && attachments.length === 0;
 	const stopped = snapshot.controller.state === "stopped";
-	const draftKey = `ao.chat.draft.${sessionId}`;
+	const draftKey = `opr.chat.draft.${sessionId}`;
 
 	useEffect(() => { let mounted = true; void AsyncStorage.getItem(draftKey).then((value) => { if (mounted && value) setText((current) => current || value); }); return () => { mounted = false; }; }, [draftKey]);
 	useEffect(() => { const timer = setTimeout(() => void (text ? AsyncStorage.setItem(draftKey, text) : AsyncStorage.removeItem(draftKey)), 250); return () => clearTimeout(timer); }, [draftKey, text]);

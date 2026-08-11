@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@ao/ui/utils";
+import { cn } from "@operator/ui/utils";
 import Link from "next/link";
 import {
   type NavLink,

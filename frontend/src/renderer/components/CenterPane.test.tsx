@@ -47,7 +47,7 @@ vi.mock("./TerminalSwitchAgentButton", () => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		app: {
 			setCloseShellTerminalShortcutEnabled: (enabled: boolean) => shortcutMocks.closeableStates.push(enabled),
 			onCloseShellTerminalShortcut: (listener: () => void) => {
@@ -86,7 +86,7 @@ const worker = {
 	title: "do the thing",
 	provider: "claude-code",
 	kind: "worker",
-	branch: "ao/sess-1",
+	branch: "opr/sess-1",
 	status: "working",
 	updatedAt: "2026-06-10T00:00:00Z",
 	activity: { state: "active", lastActivityAt: "2026-06-10T00:00:00Z" },
@@ -118,7 +118,7 @@ describe("CenterPane toolbar session label", () => {
 	const makeShells = (count: number) =>
 		Array.from({ length: count }, (_, i) => ({
 			handleId: `h-${i}`,
-			title: `agent-orchestrator-${i}`,
+			title: `operator-${i}`,
 			workingDir: "/tmp/ws",
 			createdAt: "2026-07-22T00:00:00Z",
 		}));
@@ -555,7 +555,7 @@ describe("CenterPane toolbar session label", () => {
 
 		const sessionTab = screen.getByRole("tab", { name: /^do the thing/ });
 		const firstShellTab = screen.getByRole("tab", {
-			name: "agent-orchestrator-0",
+			name: "operator-0",
 		});
 		expect(sessionTab).toHaveAttribute("tabindex", "0");
 		expect(firstShellTab).toHaveAttribute("tabindex", "-1");

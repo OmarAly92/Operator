@@ -1,4 +1,4 @@
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { routeSurface } from "./telemetry";
 
 export type ReportProblemOutput = "github" | "discord" | "email";
@@ -21,9 +21,9 @@ export type ReportProblemDiagnostics = {
 const REDACTED_LOCAL_PATH = "[redacted-local-path]";
 const REDACTED_LOCAL_URL = "[redacted-local-url]";
 const REDACTED_SECRET = "[redacted-secret]";
-const DISCORD_INVITE_URL = "https://discord.com/invite/UZv7JjxbwG";
-const GITHUB_NEW_ISSUE_URL = "https://github.com/Untrivial-ai/agent-orchestrator/issues/new";
-const SUPPORT_EMAIL = "prateek@untrivial.ai";
+const DISCORD_INVITE_URL = "https://github.com/OmarAly92/operator/discussions";
+const GITHUB_NEW_ISSUE_URL = "https://github.com/OmarAly92/operator/issues/new";
+const SUPPORT_EMAIL = "support@operator.example.com";
 
 const LOCAL_URL_PATTERN =
 	/(?:\bfile:\/\/\/\S+|\bapp:\/\/renderer\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\S*)/gi;
@@ -55,8 +55,8 @@ export function sanitizeReportText(value: string): string {
 
 export async function collectReportProblemDiagnostics(now = new Date()): Promise<ReportProblemDiagnostics> {
 	const [versionResult, daemonResult] = await Promise.allSettled([
-		aoBridge.app.getVersion(),
-		aoBridge.daemon.getStatus(),
+		operatorBridge.app.getVersion(),
+		operatorBridge.daemon.getStatus(),
 	]);
 	const daemonStatus = daemonResult.status === "fulfilled" ? daemonResult.value : undefined;
 
@@ -81,7 +81,7 @@ export function formatReportProblemDraft(
 
 	if (output === "discord") {
 		return [
-			"**AO feedback**",
+			"**Operator feedback**",
 			`Summary: ${fields.summary}`,
 			`Details: ${fields.details}`,
 			"",
@@ -93,14 +93,14 @@ export function formatReportProblemDraft(
 	if (output === "email") {
 		return [
 			`To: ${SUPPORT_EMAIL}`,
-			`Subject: AO feedback: ${fields.summary}`,
+			`Subject: Operator feedback: ${fields.summary}`,
 			"",
 			formatEmailBody(fields, diagnosticsBlock),
 		].join("\n");
 	}
 
 	return [
-		`# ${fields.summary === "Not provided" ? "AO feedback" : fields.summary}`,
+		`# ${fields.summary === "Not provided" ? "Operator feedback" : fields.summary}`,
 		"",
 		"## Summary",
 		fields.summary,
@@ -121,7 +121,7 @@ export function reportProblemDestinationUrl(
 	if (output === "discord") return DISCORD_INVITE_URL;
 	if (output === "email") {
 		const url = new URL(`mailto:${SUPPORT_EMAIL}`);
-		url.searchParams.set("subject", `AO feedback: ${reportTitle(input)}`);
+		url.searchParams.set("subject", `Operator feedback: ${reportTitle(input)}`);
 		url.searchParams.set("body", formatEmailBody(normalizeInput(input), formatDiagnostics(diagnostics)));
 		return url.toString();
 	}
@@ -144,7 +144,7 @@ function normalizeInput(input: ReportProblemInput) {
 
 function formatEmailBody(fields: ReturnType<typeof normalizeInput>, diagnosticsBlock: string): string {
 	return [
-		"AO feedback",
+		"Operator feedback",
 		"",
 		`Summary: ${fields.summary}`,
 		"",
@@ -158,7 +158,7 @@ function formatEmailBody(fields: ReturnType<typeof normalizeInput>, diagnosticsB
 
 function reportTitle(input: ReportProblemInput): string {
 	const summary = valueOrPlaceholder(input.summary);
-	return summary === "Not provided" ? "AO feedback" : summary;
+	return summary === "Not provided" ? "Operator feedback" : summary;
 }
 
 function valueOrPlaceholder(value: string): string {
@@ -168,7 +168,7 @@ function valueOrPlaceholder(value: string): string {
 
 function formatDiagnostics(diagnostics: ReportProblemDiagnostics): string {
 	const lines = [
-		`AO version: ${sanitizeReportText(diagnostics.appVersion) || "unknown"}`,
+		`Operator version: ${sanitizeReportText(diagnostics.appVersion) || "unknown"}`,
 		`Build mode: ${sanitizeReportText(diagnostics.buildMode) || "unknown"}`,
 		`Platform: ${sanitizeReportText(diagnostics.platform) || "unknown"}`,
 		`Route surface: ${sanitizeReportText(diagnostics.routeSurface) || "unknown"}`,

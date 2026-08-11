@@ -1,4 +1,4 @@
-// Package continueagent defines AO's experimental host-trusted Continue reviewer.
+// Package continueagent defines Operator's experimental host-trusted Continue reviewer.
 package continueagent
 
 import (
@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	workercontinue "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/continueagent"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	workercontinue "github.com/OmarAly92/operator/backend/internal/adapters/agent/continueagent"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/reviewgateway"
 )
 
 const (
@@ -20,8 +20,8 @@ const (
 	packageVersion   = "1.5.47"
 	packageIntegrity = "sha512-gtpewV3RoIOD9dyTtKIBi1SY0VOHRu3Ehe7C/mmnswm+j34MPyrcQhQaWj/m+jdfGO4fNIKdrgGIlLso1ULDFw=="
 
-	configPath       = "/ao/config/continue/config.yaml"
-	neutralDirectory = "/ao/empty"
+	configPath       = "/opr/config/continue/config.yaml"
+	neutralDirectory = "/opr/empty"
 )
 
 // HarnessID identifies the Continue reviewer adapter.
@@ -45,7 +45,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
 // ReviewCommand launches Continue in readonly mode and injects the task after
-// readiness. CLI discovery and state are redirected to an AO-owned profile.
+// readiness. CLI discovery and state are redirected to an Operator-owned profile.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -62,13 +62,13 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	env, err := reviewgateway.PrepareHostTrustedEnvironment(inv.DataDir, inv.ReviewerID)
 	if err != nil {
-		return ports.ReviewCommandSpec{}, fmt.Errorf("continue reviewer: prepare AO-owned profile: %w", err)
+		return ports.ReviewCommandSpec{}, fmt.Errorf("continue reviewer: prepare Operator-owned profile: %w", err)
 	}
 	if err := seedHostContinueConfig(env.ConfigRoot); err != nil {
 		return ports.ReviewCommandSpec{}, err
 	}
 	envVars := env.TUIEnvironment()
-	envVars["AO_DATA_DIR"] = env.DataDir
+	envVars["OPERATOR_DATA_DIR"] = env.DataDir
 	envVars["CONTINUE_CLI_ENABLE_TELEMETRY"] = "0"
 	if key := strings.TrimSpace(os.Getenv("CONTINUE_API_KEY")); key != "" {
 		envVars["CONTINUE_API_KEY"] = key
@@ -126,7 +126,7 @@ func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 	return err
 }
 
-// ReviewMessage reuses AO's opaque task reference in the already-running TUI.
+// ReviewMessage reuses Operator's opaque task reference in the already-running TUI.
 // It neither grants new authority through environment nor restores a prior
 // Continue session.
 func (*Reviewer) ReviewMessage(ctx context.Context, inv ports.ReviewInvocation) (string, error) {
@@ -177,13 +177,13 @@ func containedCommand(inv ports.ReviewInvocation) containedLaunch {
 
 func replacementEnvironment() map[string]string {
 	return map[string]string{
-		"HOME":                          "/ao/home",
-		"XDG_CONFIG_HOME":               "/ao/config",
-		"XDG_STATE_HOME":                "/ao/state",
-		"XDG_CACHE_HOME":                "/ao/cache",
-		"TMPDIR":                        "/ao/tmp",
-		"TMP":                           "/ao/tmp",
-		"TEMP":                          "/ao/tmp",
+		"HOME":                          "/opr/home",
+		"XDG_CONFIG_HOME":               "/opr/config",
+		"XDG_STATE_HOME":                "/opr/state",
+		"XDG_CACHE_HOME":                "/opr/cache",
+		"TMPDIR":                        "/opr/tmp",
+		"TMP":                           "/opr/tmp",
+		"TEMP":                          "/opr/tmp",
 		"PATH":                          "/usr/local/bin:/usr/bin:/bin",
 		"CONTINUE_CLI_ENABLE_TELEMETRY": "0",
 	}

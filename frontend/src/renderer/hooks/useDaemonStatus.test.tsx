@@ -22,7 +22,7 @@ const {
 }));
 
 vi.mock("../lib/bridge", () => ({
-	aoBridge: { daemon: { getStatus: getStatusMock, onStatus: onStatusMock } },
+	operatorBridge: { daemon: { getStatus: getStatusMock, onStatus: onStatusMock } },
 }));
 
 vi.mock("../lib/event-transport", () => ({

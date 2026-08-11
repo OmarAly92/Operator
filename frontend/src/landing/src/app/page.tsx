@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import {

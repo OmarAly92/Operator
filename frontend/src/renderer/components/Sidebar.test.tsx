@@ -55,9 +55,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 vi.mock("../lib/bridge", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../lib/bridge")>();
 	return {
-		aoBridge: {
-			...actual.aoBridge,
-			updates: { ...actual.aoBridge.updates, getStatus: updateStatusMock },
+		operatorBridge: {
+			...actual.operatorBridge,
+			updates: { ...actual.operatorBridge.updates, getStatus: updateStatusMock },
 		},
 	};
 });
@@ -203,8 +203,8 @@ async function openCreateProjectDialog(
 	},
 ) {
 	const user = userEvent.setup();
-	window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue(path);
-	window.ao!.app.scanImportFolder = vi.fn().mockResolvedValue(scan);
+	window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue(path);
+	window.operator!.app.scanImportFolder = vi.fn().mockResolvedValue(scan);
 	await user.click(screen.getByLabelText("New project"));
 	await user.click(screen.getByRole("button", { name: /^Project/i }));
 	await screen.findByText(path);
@@ -215,7 +215,7 @@ async function openCreateProjectDialog(
 
 beforeEach(() => {
 	window.localStorage.clear();
-	document.documentElement.style.removeProperty("--ao-sidebar-w");
+	document.documentElement.style.removeProperty("--opr-sidebar-w");
 	commandPaletteEnabled.current = true;
 	useUiStore.setState({ isCommandPaletteOpen: false, settingsModal: null });
 	getMock.mockReset();
@@ -404,7 +404,7 @@ describe("Sidebar", () => {
 			useUiStore.getState().requestCreateProject();
 		});
 
-		expect(await screen.findByRole("dialog", { name: "Import to Agent Orchestrator" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "Import to Operator" })).toBeInTheDocument();
 	});
 
 	it("keeps the create-project shortcut available when there are no projects", async () => {
@@ -414,7 +414,7 @@ describe("Sidebar", () => {
 			useUiStore.getState().requestCreateProject();
 		});
 
-		expect(await screen.findByRole("dialog", { name: "Import to Agent Orchestrator" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "Import to Operator" })).toBeInTheDocument();
 	});
 
 	it("reveals orchestrator and kebab buttons on the project row (no dashboard button)", () => {
@@ -529,16 +529,16 @@ describe("Sidebar", () => {
 	it("defaults worker and orchestrator agents when creating a project", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		expect(screen.getByRole("dialog", { name: "Import to Agent Orchestrator" })).toBeInTheDocument();
-		expect(window.ao!.app.chooseDirectory).not.toHaveBeenCalled();
+		expect(screen.getByRole("dialog", { name: "Import to Operator" })).toBeInTheDocument();
+		expect(window.operator!.app.chooseDirectory).not.toHaveBeenCalled();
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
-		expect(window.ao!.app.chooseDirectory).toHaveBeenCalledWith("Choose a project repository");
+		expect(window.operator!.app.chooseDirectory).toHaveBeenCalledWith("Choose a project repository");
 		const dialog = screen.getByRole("dialog", { name: "Project agents" });
 		expect(dialog).toHaveClass("left-1/2", "top-1/2", "-translate-x-1/2", "-translate-y-1/2");
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
@@ -557,7 +557,7 @@ describe("Sidebar", () => {
 	it("prioritizes authorized project agents by preferred agent order", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
@@ -630,12 +630,12 @@ describe("Sidebar", () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
 		const onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/parent/universe");
-		window.ao!.app.scanImportFolder = vi.fn().mockResolvedValue({
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/parent/universe");
+		window.operator!.app.scanImportFolder = vi.fn().mockResolvedValue({
 			path: "/repo/parent/universe",
 			repos: [],
 			setupWarning:
-				"Selected folder is inside an existing Git repository at /repo/parent. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo/parent. Operator will initialize this folder as a separate repository.",
 		});
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -705,14 +705,14 @@ describe("Sidebar", () => {
 	it("can create a workspace project from the project add flow", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 
 		expect(await screen.findByText("/repo/workspace")).toBeInTheDocument();
-		expect(window.ao!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
+		expect(window.operator!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
 		expect(screen.getByRole("dialog", { name: "Workspace agents" })).toBeInTheDocument();
 		await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
@@ -736,9 +736,9 @@ describe("Sidebar", () => {
 				codedError("This folder is not a Git repository.", "NOT_A_GIT_REPO"),
 			) as unknown as CreateProjectHandler;
 		const onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
-		window.ao!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
-		window.ao!.app.scanImportFolder = vi.fn().mockResolvedValue({ path: "/repo/workspace", repos: [] });
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
+		window.operator!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
+		window.operator!.app.scanImportFolder = vi.fn().mockResolvedValue({ path: "/repo/workspace", repos: [] });
 		renderSidebar({ onCreateProject, onInitializeProject });
 
 		await user.click(screen.getByLabelText("New project"));
@@ -751,8 +751,8 @@ describe("Sidebar", () => {
 		expect(onInitializeProject).not.toHaveBeenCalled();
 		expect(await screen.findByText(/Import failed · workspace not registered/i)).toBeInTheDocument();
 		expect(screen.getByText("Review the error above or choose a different folder")).toBeInTheDocument();
-		expect(window.ao!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");
-		expect(window.ao!.app.scanImportFolder).toHaveBeenCalledWith({
+		expect(window.operator!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");
+		expect(window.operator!.app.scanImportFolder).toHaveBeenCalledWith({
 			path: "/repo/workspace",
 			mode: "workspace",
 		});
@@ -761,9 +761,9 @@ describe("Sidebar", () => {
 	it("shows detected repository validation when workspace import fails", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockRejectedValue(new Error("workspace not registered")) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/Users/test/dev/acme");
-		window.ao!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
-		window.ao!.app.scanImportFolder = vi.fn().mockResolvedValue({
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/Users/test/dev/acme");
+		window.operator!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
+		window.operator!.app.scanImportFolder = vi.fn().mockResolvedValue({
 			path: "/Users/test/dev/acme",
 			repos: [
 				{
@@ -802,8 +802,8 @@ describe("Sidebar", () => {
 		expect(screen.getByText("api")).toBeInTheDocument();
 		expect(screen.getByText("main github.com/acme/api")).toBeInTheDocument();
 		expect(screen.getByText("Resolve 1 failed repository to continue")).toBeInTheDocument();
-		expect(window.ao!.app.checkAncestorRepo).toHaveBeenCalledWith("/Users/test/dev/acme");
-		expect(window.ao!.app.scanImportFolder).toHaveBeenCalledWith({
+		expect(window.operator!.app.checkAncestorRepo).toHaveBeenCalledWith("/Users/test/dev/acme");
+		expect(window.operator!.app.scanImportFolder).toHaveBeenCalledWith({
 			path: "/Users/test/dev/acme",
 			mode: "workspace",
 		});
@@ -811,10 +811,10 @@ describe("Sidebar", () => {
 
 	it("does not rescan folders for non-validation create failures", async () => {
 		const user = userEvent.setup();
-		const onCreateProject = vi.fn().mockRejectedValue(new Error("AO daemon is not ready.")) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
-		window.ao!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
-		window.ao!.app.scanImportFolder = vi.fn();
+		const onCreateProject = vi.fn().mockRejectedValue(new Error("Operator daemon is not ready.")) as CreateProjectHandler;
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
+		window.operator!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
+		window.operator!.app.scanImportFolder = vi.fn();
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
@@ -823,11 +823,11 @@ describe("Sidebar", () => {
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Operator daemon is not ready.")).toBeInTheDocument();
 		// checkAncestorRepo is called once during the preflight (chooseDirectory),
 		// but scanImportFolder is never called (shouldScanCreateFailure returns false for this error)
-		expect(window.ao!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");
-		expect(window.ao!.app.scanImportFolder).not.toHaveBeenCalled();
+		expect(window.operator!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");
+		expect(window.operator!.app.scanImportFolder).not.toHaveBeenCalled();
 	});
 
 	it("shows ancestor repo warning in agent sheet for workspace inside existing repo", async () => {
@@ -837,11 +837,11 @@ describe("Sidebar", () => {
 			error: null,
 		}) as unknown as CreateProjectHandler;
 		const onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/inner");
-		window.ao!.app.checkAncestorRepo = vi
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/inner");
+		window.operator!.app.checkAncestorRepo = vi
 			.fn()
 			.mockResolvedValue(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Operator will initialize this folder as a separate repository.",
 			);
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -850,12 +850,12 @@ describe("Sidebar", () => {
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		expect(
 			screen.getByText(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Operator will initialize this folder as a separate repository.",
 			),
 		).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				"If this folder needs Git setup, AO will initialize it and create the first commit before starting.",
+				"If this folder needs Git setup, Operator will initialize it and create the first commit before starting.",
 			),
 		).toBeInTheDocument();
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Claude Code");
@@ -866,7 +866,7 @@ describe("Sidebar", () => {
 			expect.objectContaining({ path: "/repo/inner", asWorkspace: true }),
 		);
 		expect(onInitializeProject).not.toHaveBeenCalled();
-		expect(window.ao!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/inner");
+		expect(window.operator!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/inner");
 	});
 
 	it("opens global settings from the footer menu when no project is selected", async () => {
@@ -881,7 +881,7 @@ describe("Sidebar", () => {
 	it("shows needs-auth agents as unavailable while keeping authorized agents selectable", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
@@ -924,7 +924,7 @@ describe("Sidebar", () => {
 	it("updates project agent options when the catalog loads after the dialog opens", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
-		window.ao!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
+		window.operator!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		let resolveAgents!: (value: {
 			data: {
 				supported: { id: string; label: string }[];
@@ -1114,7 +1114,7 @@ describe("Sidebar", () => {
 
 		// Sidebar stays expanded; dragging no longer collapses it.
 		expect(document.querySelector('[data-slot="sidebar"][data-state="expanded"]')).toBeInTheDocument();
-		expect(document.documentElement.style.getPropertyValue("--ao-sidebar-w")).toBe(`${SIDEBAR_MIN_WIDTH}px`);
+		expect(document.documentElement.style.getPropertyValue("--opr-sidebar-w")).toBe(`${SIDEBAR_MIN_WIDTH}px`);
 	});
 
 	it("flushes any queued rAF frame on pointer-up and persists the clamped width", async () => {
@@ -1136,11 +1136,11 @@ describe("Sidebar", () => {
 
 			// rAF was queued; pointerUp should flush it via cancelAnimationFrame.
 			expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
-			expect(window.localStorage.getItem("ao-sidebar-w")).toBe(String(SIDEBAR_MIN_WIDTH + 5));
+			expect(window.localStorage.getItem("opr-sidebar-w")).toBe(String(SIDEBAR_MIN_WIDTH + 5));
 
 			// Firing the stale frame after cancellation should not overwrite width.
 			queuedFrame?.(performance.now());
-			expect(window.localStorage.getItem("ao-sidebar-w")).toBe(String(SIDEBAR_MIN_WIDTH + 5));
+			expect(window.localStorage.getItem("opr-sidebar-w")).toBe(String(SIDEBAR_MIN_WIDTH + 5));
 		} finally {
 			requestAnimationFrameSpy.mockRestore();
 			cancelAnimationFrameSpy.mockRestore();

@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/gen"
 )
 
 var _ ports.AgentSwitchStore = (*Store)(nil)
 
 // CreateAgentNativeSession idempotently registers one provider-owned
-// conversation. It deduplicates both AO's internal id and a known concrete
+// conversation. It deduplicates both Operator's internal id and a known concrete
 // config/native identity. An empty native id is intentionally not a
 // dedupe key because providers may report it only after launch.
 func (s *Store) CreateAgentNativeSession(ctx context.Context, rec domain.AgentNativeSession) (domain.AgentNativeSession, bool, error) {
@@ -49,7 +49,7 @@ func (s *Store) CreateAgentNativeSession(ctx context.Context, rec domain.AgentNa
 
 	if rec.NativeSessionID != "" {
 		row, err := s.qw.FindAgentNativeSession(ctx, gen.FindAgentNativeSessionParams{
-			AoSessionID: rec.AOSessionID, Harness: rec.Harness,
+			OperatorSessionID: rec.OperatorSessionID, Harness: rec.Harness,
 			ConfigDir: rec.ConfigDir, NativeSessionID: rec.NativeSessionID,
 		})
 		if err == nil {
@@ -63,7 +63,7 @@ func (s *Store) CreateAgentNativeSession(ctx context.Context, rec domain.AgentNa
 	return domain.AgentNativeSession{}, false, fmt.Errorf("create agent native session %s: conflict row was not found: %w", rec.ID, domain.ErrAgentNativeSessionConflict)
 }
 
-// GetAgentNativeSession returns one retained provider conversation by AO id.
+// GetAgentNativeSession returns one retained provider conversation by Operator id.
 func (s *Store) GetAgentNativeSession(ctx context.Context, id domain.AgentNativeSessionID) (domain.AgentNativeSession, bool, error) {
 	row, err := s.qr.GetAgentNativeSession(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -76,11 +76,11 @@ func (s *Store) GetAgentNativeSession(ctx context.Context, id domain.AgentNative
 }
 
 // ListAgentNativeSessions returns every retained provider conversation for one
-// AO session, newest use first.
+// Operator session, newest use first.
 func (s *Store) ListAgentNativeSessions(ctx context.Context, sessionID domain.SessionID) ([]domain.AgentNativeSession, error) {
 	rows, err := s.qr.ListAgentNativeSessions(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("list native sessions for AO session %s: %w", sessionID, err)
+		return nil, fmt.Errorf("list native sessions for Operator session %s: %w", sessionID, err)
 	}
 	out := make([]domain.AgentNativeSession, 0, len(rows))
 	for _, row := range rows {
@@ -103,7 +103,7 @@ func (s *Store) UpdateAgentNativeSession(ctx context.Context, rec domain.AgentNa
 		ConfigDir: rec.ConfigDir, NativeSessionID: rec.NativeSessionID,
 		TranscriptPath:   rec.TranscriptPath,
 		NextGenerationID: rec.LastGenerationID, LastUsedAt: rec.LastUsedAt,
-		ID: rec.ID, AoSessionID: rec.AOSessionID,
+		ID: rec.ID, OperatorSessionID: rec.OperatorSessionID,
 		ExpectedGenerationID: expectedGenerationID,
 	})
 	if err != nil {
@@ -341,7 +341,7 @@ func (s *Store) RecordAgentHandoff(ctx context.Context, id domain.AgentSwitchID,
 	return n > 0, nil
 }
 
-// FinalizeAgentSwitchHandoff binds the exact AO-owned hidden continuation to
+// FinalizeAgentSwitchHandoff binds the exact Operator-owned hidden continuation to
 // the conclusive source-stop boundary. When a semantic report was received,
 // its public provenance reference is moved to the same final artifact because
 // that artifact embeds the validated report and becomes the sole retained file.
@@ -506,8 +506,8 @@ func (s *Store) ActivateAgentSwitchTarget(ctx context.Context, activation domain
 		return false, fmt.Errorf("activate agent switch target %s: read target native session %s: %w", activation.SwitchID, activation.TargetNativeSessionRef, err)
 	}
 	targetNative := agentNativeSessionFromGen(nativeRow)
-	if targetNative.AOSessionID != activation.SessionID || targetNative.Harness != activation.TargetHarness {
-		return false, fmt.Errorf("activate agent switch target %s: target native session %s has mismatched AO session or harness", activation.SwitchID, activation.TargetNativeSessionRef)
+	if targetNative.OperatorSessionID != activation.SessionID || targetNative.Harness != activation.TargetHarness {
+		return false, fmt.Errorf("activate agent switch target %s: target native session %s has mismatched Operator session or harness", activation.SwitchID, activation.TargetNativeSessionRef)
 	}
 	if targetNative.LastGenerationID != activation.TargetGenerationID {
 		return false, nil
@@ -554,8 +554,8 @@ func (s *Store) ActivateAgentSwitchTarget(ctx context.Context, activation domain
 }
 
 func validateAgentNativeSession(rec domain.AgentNativeSession) error {
-	if rec.ID == "" || rec.AOSessionID == "" {
-		return errors.New("agent native session id and AO session id are required")
+	if rec.ID == "" || rec.OperatorSessionID == "" {
+		return errors.New("agent native session id and Operator session id are required")
 	}
 	if !rec.Harness.IsKnown() {
 		return fmt.Errorf("agent native session %s: unknown harness %q", rec.ID, rec.Harness)
@@ -700,7 +700,7 @@ func validSHA256Hex(value string) bool {
 
 func agentNativeSessionToInsert(rec domain.AgentNativeSession) gen.InsertAgentNativeSessionParams {
 	return gen.InsertAgentNativeSessionParams{
-		ID: rec.ID, AoSessionID: rec.AOSessionID, Harness: rec.Harness, ConfigDir: rec.ConfigDir,
+		ID: rec.ID, OperatorSessionID: rec.OperatorSessionID, Harness: rec.Harness, ConfigDir: rec.ConfigDir,
 		NativeSessionID: rec.NativeSessionID, TranscriptPath: rec.TranscriptPath,
 		LastGenerationID: rec.LastGenerationID, CreatedAt: rec.CreatedAt,
 		LastUsedAt: rec.LastUsedAt,
@@ -709,7 +709,7 @@ func agentNativeSessionToInsert(rec domain.AgentNativeSession) gen.InsertAgentNa
 
 func agentNativeSessionFromGen(row gen.AgentNativeSession) domain.AgentNativeSession {
 	return domain.AgentNativeSession{
-		ID: row.ID, AOSessionID: row.AoSessionID, Harness: row.Harness, ConfigDir: row.ConfigDir,
+		ID: row.ID, OperatorSessionID: row.OperatorSessionID, Harness: row.Harness, ConfigDir: row.ConfigDir,
 		NativeSessionID: row.NativeSessionID, TranscriptPath: row.TranscriptPath,
 		LastGenerationID: row.LastGenerationID, CreatedAt: row.CreatedAt,
 		LastUsedAt: row.LastUsedAt,
@@ -717,7 +717,7 @@ func agentNativeSessionFromGen(row gen.AgentNativeSession) domain.AgentNativeSes
 }
 
 func sameAgentNativeCreateIdentity(a, b domain.AgentNativeSession) bool {
-	if a.ID != b.ID || a.AOSessionID != b.AOSessionID || a.Harness != b.Harness ||
+	if a.ID != b.ID || a.OperatorSessionID != b.OperatorSessionID || a.Harness != b.Harness ||
 		a.ConfigDir != b.ConfigDir {
 		return false
 	}
@@ -781,8 +781,8 @@ func ensureNativeSessionRefBelongsTo(ctx context.Context, q *gen.Queries, sessio
 	if err != nil {
 		return fmt.Errorf("read %s native session %s: %w", role, *ref, err)
 	}
-	if row.AoSessionID != sessionID {
-		return fmt.Errorf("%s native session %s belongs to AO session %s, not %s", role, *ref, row.AoSessionID, sessionID)
+	if row.OperatorSessionID != sessionID {
+		return fmt.Errorf("%s native session %s belongs to Operator session %s, not %s", role, *ref, row.OperatorSessionID, sessionID)
 	}
 	if row.Harness != harness {
 		return fmt.Errorf("%s native session %s belongs to harness %s, not %s", role, *ref, row.Harness, harness)

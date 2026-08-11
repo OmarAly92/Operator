@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/reviewgateway"
 )
 
 func testReviewer(help string) *Reviewer {
@@ -35,8 +35,8 @@ func testInvocation(t *testing.T, runID, prURL, targetSHA string) ports.ReviewIn
 	return ports.ReviewInvocation{
 		ReviewerID: "review-worker-1", RunID: runID, WorkerSessionID: "worker-1",
 		PRURL: prURL, TargetSHA: targetSHA,
-		WorkspacePath: filepath.Join(root, "worktree"), DataDir: filepath.Join(root, "ao-data"),
-		Prompt: "Read and follow the AO review task.", TaskPromptFile: taskPath, TaskPromptRoot: promptRoot,
+		WorkspacePath: filepath.Join(root, "worktree"), DataDir: filepath.Join(root, "opr-data"),
+		Prompt: "Read and follow the Operator review task.", TaskPromptFile: taskPath, TaskPromptRoot: promptRoot,
 	}
 }
 
@@ -63,7 +63,7 @@ func TestExtensionRejectsCommandInjectionSurfaces(t *testing.T) {
 	// only fixed executable names, and every subprocess receives an argv array.
 	runCall := regexp.MustCompile(`run\(pi,\s*([^,]+),`)
 	for _, match := range runCall.FindAllStringSubmatch(text, -1) {
-		if match[1] != `"git"` && match[1] != `"gh"` && match[1] != `"ao"` {
+		if match[1] != `"git"` && match[1] != `"gh"` && match[1] != `"opr"` {
 			t.Fatalf("extension has non-constant executable in %q", match[0])
 		}
 	}
@@ -97,7 +97,7 @@ func TestExtensionRejectsCommandInjectionSurfaces(t *testing.T) {
 func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 	inv := testInvocation(t, "run-1", "https://github.com/acme/widgets/pull/42", "0123456789abcdef")
 	r := testReviewer("")
-	inv.Prompt = "Read and follow the AO review task in `/ao/task.md`."
+	inv.Prompt = "Read and follow the Operator review task in `/opr/task.md`."
 	inv.SystemPromptFile = filepath.Join(inv.TaskPromptRoot, "system.md")
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
@@ -117,10 +117,10 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 	if !strings.Contains(joined, "ao_read,ao_search,git_inspect,github_post_review,ao_review_submit") {
 		t.Fatalf("argv missing exact tool allowlist: %#v", spec.Argv)
 	}
-	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the AO review task in `/ao/task.md`." {
+	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the Operator review task in `/opr/task.md`." {
 		t.Fatalf("terminal-visible prompt = %q", got)
 	}
-	if spec.Env["AO_PI_REVIEW_SESSION"] != "worker-1" || spec.Env["AO_PI_REVIEW_PROMPT_ROOT"] != inv.TaskPromptRoot || spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"] == "" {
+	if spec.Env["OPERATOR_PI_REVIEW_SESSION"] != "worker-1" || spec.Env["OPERATOR_PI_REVIEW_PROMPT_ROOT"] != inv.TaskPromptRoot || spec.Env["OPERATOR_PI_REVIEW_MANIFEST_POINTER"] == "" {
 		t.Fatalf("env = %#v", spec.Env)
 	}
 	wantProfileRoot := filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID)
@@ -129,9 +129,9 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 		spec.Env["XDG_STATE_HOME"] != filepath.Join(wantProfileRoot, "state") ||
 		spec.Env["XDG_CACHE_HOME"] != filepath.Join(wantProfileRoot, "cache") ||
 		spec.Env["TMPDIR"] != filepath.Join(wantProfileRoot, "tmp") {
-		t.Fatalf("Pi reviewer must use AO-owned profile roots, env = %#v", spec.Env)
+		t.Fatalf("Pi reviewer must use Operator-owned profile roots, env = %#v", spec.Env)
 	}
-	manifest := readActiveManifest(t, spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"])
+	manifest := readActiveManifest(t, spec.Env["OPERATOR_PI_REVIEW_MANIFEST_POINTER"])
 	if len(manifest.Tasks) != 1 || manifest.Tasks[0].RunID != inv.RunID || manifest.Tasks[0].PRURL != inv.PRURL || manifest.Tasks[0].TargetSHA != inv.TargetSHA {
 		t.Fatalf("active manifest = %+v", manifest)
 	}
@@ -160,7 +160,7 @@ func TestSequentialReviewMessagesReplaceRatherThanAccumulateAuthority(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	pointer := spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"]
+	pointer := spec.Env["OPERATOR_PI_REVIEW_MANIFEST_POINTER"]
 	if got := readActiveManifest(t, pointer).Tasks; len(got) != 1 || got[0].RunID != "run-1" {
 		t.Fatalf("first active tasks = %+v", got)
 	}

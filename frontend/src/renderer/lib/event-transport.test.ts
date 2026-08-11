@@ -17,7 +17,7 @@ const {
 }));
 
 vi.mock("./bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		daemon: { onStatus: onStatusMock },
 	},
 }));

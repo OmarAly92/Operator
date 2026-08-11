@@ -7,27 +7,27 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitydispatch"
-	agentregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/container/dockerreap"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/gitworktree"
-	workspacerouter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/router"
-	scratchworkspace "github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/scratch"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	activityobserver "github.com/aoagents/agent-orchestrator/backend/internal/observe/activity"
-	"github.com/aoagents/agent-orchestrator/backend/internal/observe/reaper"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	reviewsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/review"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/activitydispatch"
+	agentregistry "github.com/OmarAly92/operator/backend/internal/adapters/agent/registry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/container/dockerreap"
+	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/gitworktree"
+	workspacerouter "github.com/OmarAly92/operator/backend/internal/adapters/workspace/router"
+	scratchworkspace "github.com/OmarAly92/operator/backend/internal/adapters/workspace/scratch"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/lifecycle"
+	activityobserver "github.com/OmarAly92/operator/backend/internal/observe/activity"
+	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
+	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
+	reviewsvc "github.com/OmarAly92/operator/backend/internal/service/review"
+	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 type notificationSink interface {
@@ -72,7 +72,7 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 
 // ReconcileRuntime runs the same conservative runtime/workload observation as
 // the periodic reaper. The daemon calls it after session-manager reconciliation
-// so exits missed while AO was stopped are folded before the API starts serving.
+// so exits missed while Operator was stopped are folded before the API starts serving.
 func (l *lifecycleStack) ReconcileRuntime(ctx context.Context) error {
 	return l.runtimeReaper.Tick(ctx)
 }
@@ -162,7 +162,7 @@ func (m sessionLifecycleMessenger) Send(ctx context.Context, id domain.SessionID
 // the caller can wire Reconcile into the boot sequence.
 func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, chat sessionmanager.ChatLauncher, defaults sessionmanager.SessionModeDefaults, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
 	gitWS, err := gitworktree.New(gitworktree.Options{
-		// Per-session worktrees live under the data dir, so a single AO_DATA_DIR
+		// Per-session worktrees live under the data dir, so a single OPERATOR_DATA_DIR
 		// override moves all durable per-user state together.
 		ManagedRoot: filepath.Join(cfg.DataDir, "worktrees"),
 		// Resolve each project's source repo from the projects table, so a
@@ -252,7 +252,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 }
 
 // runtimeMessageSender is the narrow part of the concrete runtime needed by
-// ao send. Both tmux.Runtime and conpty.Runtime implement this via SendMessage.
+// opr send. Both tmux.Runtime and conpty.Runtime implement this via SendMessage.
 type runtimeMessageSender interface {
 	SendMessage(ctx context.Context, handle ports.RuntimeHandle, message string) error
 }
@@ -283,7 +283,7 @@ func (m runtimeMessenger) Send(ctx context.Context, id domain.SessionID, message
 	return m.runtime.SendMessage(ctx, ports.RuntimeHandle{ID: handleID}, message)
 }
 
-// newSessionMessenger assembles the per-daemon agent messenger. For now, ao
+// newSessionMessenger assembles the per-daemon agent messenger. For now, opr
 // send is intentionally minimal: submit the message to the live runtime pane.
 func newSessionMessenger(store *sqlite.Store, runtime runtimeMessageSender, _ *slog.Logger) ports.AgentMessenger {
 	return runtimeMessenger{store: store, runtime: runtime}
@@ -291,7 +291,7 @@ func newSessionMessenger(store *sqlite.Store, runtime runtimeMessageSender, _ *s
 
 // modeAwareMessenger lets lifecycle start before the session manager while
 // ensuring every reaction crosses the same persisted-mode dispatcher as an
-// explicit `ao send`. A send in the short boot window waits for Bind instead of
+// explicit `opr send`. A send in the short boot window waits for Bind instead of
 // falling through to the terminal runtime, which would be wrong for Chat sessions.
 type modeAwareMessenger struct {
 	mu     sync.RWMutex
@@ -381,7 +381,7 @@ func (r reviewerAgentAuth) AuthStatus(ctx context.Context, harness domain.Review
 
 // buildAgentResolver constructs the per-session agent resolver the Session
 // Manager consumes (sessionmanager.Deps.Agents): a registry of the shipped
-// adapters. It still validates AO_AGENT at startup for compatibility with the
+// adapters. It still validates OPERATOR_AGENT at startup for compatibility with the
 // config surface, but worker/orchestrator spawns must provide a resolved
 // harness before calling Agent.
 func buildAgentResolver(defaultAgent string, log *slog.Logger) (ports.AgentResolver, error) {
@@ -418,7 +418,7 @@ func (r projectRepoResolver) RepoPath(projectID domain.ProjectID) (string, error
 		return "", fmt.Errorf("look up project %q: %w", projectID, err)
 	}
 	if !ok {
-		return "", fmt.Errorf("no project registered with id %q — add one with `ao project add`: %w", projectID, sessionmanager.ErrProjectNotResolvable)
+		return "", fmt.Errorf("no project registered with id %q — add one with `opr project add`: %w", projectID, sessionmanager.ErrProjectNotResolvable)
 	}
 	if !rec.ArchivedAt.IsZero() {
 		return "", fmt.Errorf("project %q is archived: %w", projectID, sessionmanager.ErrProjectNotResolvable)

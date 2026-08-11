@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
@@ -24,7 +24,7 @@ var reviewerAllowedPermissions = []string{
 	"Read(**)",
 	"Shell(git)",
 	"Shell(gh)",
-	"Shell(ao)",
+	"Shell(opr)",
 	"Shell(printf)",
 }
 
@@ -69,7 +69,7 @@ func installReviewerConfig(ctx context.Context, inv ports.ReviewInvocation) erro
 	}
 	profileDir := reviewerProfileDir(inv)
 	if profileDir == "" {
-		return errors.New("cursor reviewer: AO data directory is required")
+		return errors.New("cursor reviewer: Operator data directory is required")
 	}
 	if err := os.MkdirAll(profileDir, 0o700); err != nil {
 		return fmt.Errorf("cursor reviewer: create profile: %w", err)

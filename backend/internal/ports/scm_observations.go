@@ -63,7 +63,7 @@ type SCMObservation struct {
 	Provider string
 	// Host is the SCM host that served this observation.
 	Host string
-	// Repo is the full repository name shown to AO users, usually "owner/name".
+	// Repo is the full repository name shown to Operator users, usually "owner/name".
 	Repo string
 
 	// PR contains pull-request metadata such as branches, title, state, and diff stats.
@@ -72,7 +72,7 @@ type SCMObservation struct {
 	CI SCMCIObservation
 	// Review contains review decision plus normalized review threads/comments.
 	Review SCMReviewObservation
-	// Mergeability contains AO's mergeability verdict and blockers.
+	// Mergeability contains Operator's mergeability verdict and blockers.
 	Mergeability SCMMergeabilityObservation
 
 	// Changed marks which semantic buckets changed compared with the DB snapshot.
@@ -109,7 +109,7 @@ type SCMPRObservation struct {
 	URL string
 	// Number is the provider's PR number in the repository.
 	Number int
-	// State is AO's normalized PR state: draft, open, merged, or closed.
+	// State is Operator's normalized PR state: draft, open, merged, or closed.
 	State string
 	// Draft is true when the PR is marked draft/work-in-progress.
 	Draft bool
@@ -163,7 +163,7 @@ type SCMPRObservation struct {
 
 // SCMCIObservation carries aggregate CI state plus failing-check details.
 type SCMCIObservation struct {
-	// Summary is AO's normalized aggregate CI state: unknown, pending, passing, or failing.
+	// Summary is Operator's normalized aggregate CI state: unknown, pending, passing, or failing.
 	Summary string
 	// HeadSHA is the commit SHA that the check data applies to.
 	HeadSHA string
@@ -183,7 +183,7 @@ type SCMCIObservation struct {
 type SCMCheckObservation struct {
 	// Name is the check run name or commit status context name.
 	Name string
-	// Status is AO's normalized check status.
+	// Status is Operator's normalized check status.
 	Status string
 	// Conclusion is the provider conclusion/state string preserved for detail.
 	Conclusion string
@@ -197,7 +197,7 @@ type SCMCheckObservation struct {
 
 // SCMReviewObservation carries normalized review-decision and review-thread facts.
 type SCMReviewObservation struct {
-	// Decision is AO's normalized review decision.
+	// Decision is Operator's normalized review decision.
 	Decision string
 	// Reviews contains submitted review summaries fetched on the slower review cadence.
 	Reviews []SCMReviewSummaryObservation
@@ -215,7 +215,7 @@ type SCMReviewSummaryObservation struct {
 	ID string
 	// Author is the provider login/name of the reviewer.
 	Author string
-	// State is AO's normalized review decision for this review.
+	// State is Operator's normalized review decision for this review.
 	State string
 	// URL is a provider link to the submitted review summary.
 	URL string
@@ -260,7 +260,7 @@ type SCMReviewCommentObservation struct {
 
 // SCMMergeabilityObservation is the normalized mergeability verdict.
 type SCMMergeabilityObservation struct {
-	// State is AO's normalized mergeability state.
+	// State is Operator's normalized mergeability state.
 	State string
 	// Mergeable is true when the PR is currently mergeable.
 	Mergeable bool

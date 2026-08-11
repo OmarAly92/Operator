@@ -18,7 +18,7 @@ const writeText = vi.fn(async (_text: string) => undefined);
 const menuAction = vi.fn(async (_action: string) => undefined);
 
 vi.mock("../../lib/bridge", () => ({
-	aoBridge: {
+	operatorBridge: {
 		clipboard: { writeText: (text: string) => writeText(text) },
 		menu: { action: (action: string) => menuAction(action) },
 	},
@@ -78,15 +78,15 @@ describe("HumanMessage attachments", () => {
 	function renderImageAttachment(header: string, name: string) {
 		render(
 			<HumanMessage
-				message={humanMessage(`check again\n\n${header}\n- .ao/attachments/${name}`)}
-				sessionId="ao session/1"
+				message={humanMessage(`check again\n\n${header}\n- .operator/attachments/${name}`)}
+				sessionId="opr session/1"
 			/>,
 		);
 
 		const image = screen.getByRole("img", { name });
 		expect(image).toHaveAttribute(
 			"src",
-			`http://127.0.0.1:3001/api/v1/sessions/ao%20session%2F1/preview/files/.ao/attachments/${name}`,
+			`http://127.0.0.1:3001/api/v1/sessions/opr%20session%2F1/preview/files/.operator/attachments/${name}`,
 		);
 		expect(screen.getByText("check again")).toBeInTheDocument();
 		expect(screen.queryByText(/Attached (?:files|images) \(read these files/)).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("HumanMessage attachments", () => {
 			"Attached images (read these files in the workspace for visual context):",
 			"image-a1b2c3d4.webp",
 		],
-	])("renders an AO-generated %s image reference as an image", (_source, header, name) => {
+	])("renders an Operator-generated %s image reference as an image", (_source, header, name) => {
 		renderImageAttachment(header, name);
 	});
 
@@ -119,9 +119,9 @@ describe("HumanMessage attachments", () => {
 		const { container } = render(
 			<HumanMessage
 				message={humanMessage(
-					`${authoredBody}\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-ab12.png`,
+					`${authoredBody}\n\nAttached files (read these files in the workspace):\n- .operator/attachments/attachment-ab12.png`,
 				)}
-				sessionId="ao-1"
+				sessionId="opr-1"
 			/>,
 		);
 
@@ -132,9 +132,9 @@ describe("HumanMessage attachments", () => {
 		render(
 			<HumanMessage
 				message={humanMessage(
-					"inspect these\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-ab12.png\n- .ao/attachments/attachment-cd34.pdf",
+					"inspect these\n\nAttached files (read these files in the workspace):\n- .operator/attachments/attachment-ab12.png\n- .operator/attachments/attachment-cd34.pdf",
 				)}
-				sessionId="ao-1"
+				sessionId="opr-1"
 			/>,
 		);
 
@@ -147,7 +147,7 @@ describe("HumanMessage attachments", () => {
 	it("leaves ordinary user-authored path lists untouched", () => {
 		const text =
 			"Document this example:\n\nAttached files (read these files in the workspace):\n- docs/screenshot.png";
-		render(<HumanMessage message={humanMessage(text)} sessionId="ao-1" />);
+		render(<HumanMessage message={humanMessage(text)} sessionId="opr-1" />);
 
 		expect(screen.queryByRole("img")).not.toBeInTheDocument();
 		expect(document.body.textContent).toContain(text);

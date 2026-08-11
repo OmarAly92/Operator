@@ -230,7 +230,7 @@ function registerFonts(root: ShadowRoot): void {
 function ensureOverlay(): ShadowRoot {
 	if (shadow && host?.isConnected) return shadow;
 	host = document.createElement("div");
-	host.setAttribute("data-ao-annotation-root", "");
+	host.setAttribute("data-opr-annotation-root", "");
 	host.style.position = "fixed";
 	host.style.inset = "0";
 	host.style.zIndex = "2147483647";
@@ -242,22 +242,22 @@ function ensureOverlay(): ShadowRoot {
 		<style>
 			:host {
 				all: initial;
-				--ao-background: oklch(0.185 0.006 285.885);
-				--ao-foreground: oklch(0.985 0 0);
-				--ao-surface: oklch(0.24 0.008 285.885);
-				--ao-muted: oklch(0.274 0.006 286.033);
-				--ao-border: oklch(1 0 0 / 7%);
-				--ao-input: oklch(1 0 0 / 4%);
-				--ao-ring: oklch(0.552 0.016 285.938);
-				--ao-passive: oklch(0.442 0.017 285.786);
-				--ao-primary: oklch(0.92 0.004 286.32);
-				--ao-primary-foreground: oklch(0.21 0.006 285.885);
-				--ao-font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
-				--ao-font-mono: "Geist Mono Variable", "Geist Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "FiraCode Nerd Font Mono", "FiraCode Nerd Font", "MesloLGS NF", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-				--ao-text-xs: 12px;
-				--ao-control-md: 28px;
-				--ao-icon-sm: 13px;
-				--ao-radius-md: 8px;
+				--opr-background: oklch(0.185 0.006 285.885);
+				--opr-foreground: oklch(0.985 0 0);
+				--opr-surface: oklch(0.24 0.008 285.885);
+				--opr-muted: oklch(0.274 0.006 286.033);
+				--opr-border: oklch(1 0 0 / 7%);
+				--opr-input: oklch(1 0 0 / 4%);
+				--opr-ring: oklch(0.552 0.016 285.938);
+				--opr-passive: oklch(0.442 0.017 285.786);
+				--opr-primary: oklch(0.92 0.004 286.32);
+				--opr-primary-foreground: oklch(0.21 0.006 285.885);
+				--opr-font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+				--opr-font-mono: "Geist Mono Variable", "Geist Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "FiraCode Nerd Font Mono", "FiraCode Nerd Font", "MesloLGS NF", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+				--opr-text-xs: 12px;
+				--opr-control-md: 28px;
+				--opr-icon-sm: 13px;
+				--opr-radius-md: 8px;
 			}
 			.highlight {
 				position: fixed;
@@ -289,13 +289,13 @@ function ensureOverlay(): ShadowRoot {
 				position: fixed;
 				width: min(360px, calc(100vw - 28px));
 				box-sizing: border-box;
-				border: 1px solid color-mix(in oklch, var(--ao-border) 85%, transparent);
+				border: 1px solid color-mix(in oklch, var(--opr-border) 85%, transparent);
 				border-radius: 12px;
-				background: var(--ao-surface);
-				color: var(--ao-foreground);
+				background: var(--opr-surface);
+				color: var(--opr-foreground);
 				box-shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
 				padding: 5px 5px 43px;
-				font: 13px/1.5 var(--ao-font-sans);
+				font: 13px/1.5 var(--opr-font-sans);
 				font-weight: 400;
 				pointer-events: auto;
 				animation: prompt-in 140ms ease-out;
@@ -304,9 +304,9 @@ function ensureOverlay(): ShadowRoot {
 					box-shadow 120ms ease;
 			}
 			.prompt:focus-within {
-				border-color: color-mix(in oklch, var(--ao-ring) 80%, transparent);
+				border-color: color-mix(in oklch, var(--opr-ring) 80%, transparent);
 				box-shadow:
-					0 0 0 3px color-mix(in oklch, var(--ao-ring) 24%, transparent),
+					0 0 0 3px color-mix(in oklch, var(--opr-ring) 24%, transparent),
 					0 10px 30px rgba(0, 0, 0, 0.38);
 			}
 			.prompt textarea {
@@ -314,17 +314,17 @@ function ensureOverlay(): ShadowRoot {
 				width: 100%;
 				height: 32px;
 				min-height: 32px;
-				max-height: var(--ao-prompt-textarea-max-height, 350px);
+				max-height: var(--opr-prompt-textarea-max-height, 350px);
 				box-sizing: border-box;
 				resize: none;
 				border: 0;
 				border-radius: 8px;
 				background: transparent;
-				color: var(--ao-foreground);
-				caret-color: var(--ao-foreground);
+				color: var(--opr-foreground);
+				caret-color: var(--opr-foreground);
 				padding: 6px 9px;
-				font-family: var(--ao-font-sans);
-				font-size: var(--ao-text-xs);
+				font-family: var(--opr-font-sans);
+				font-size: var(--opr-text-xs);
 				line-height: 20px;
 				font-weight: 400;
 				outline: none;
@@ -339,14 +339,14 @@ function ensureOverlay(): ShadowRoot {
 				right: 0;
 				bottom: 42px;
 				height: 1px;
-				background: color-mix(in oklch, var(--ao-border) 85%, transparent);
+				background: color-mix(in oklch, var(--opr-border) 85%, transparent);
 				pointer-events: none;
 			}
 			.prompt textarea::-webkit-scrollbar {
 				display: none;
 			}
 			.prompt textarea::placeholder {
-				color: var(--ao-passive);
+				color: var(--opr-passive);
 			}
 			.prompt button[type="submit"] {
 				position: absolute;
@@ -359,8 +359,8 @@ function ensureOverlay(): ShadowRoot {
 				justify-content: center;
 				border-radius: 999px;
 				border: 1px solid transparent;
-				background: var(--ao-primary);
-				color: var(--ao-primary-foreground);
+				background: var(--opr-primary);
+				color: var(--opr-primary-foreground);
 				padding: 0;
 				transition:
 					background 120ms ease,
@@ -368,23 +368,23 @@ function ensureOverlay(): ShadowRoot {
 					transform 120ms ease;
 			}
 			.prompt button[type="submit"]:hover {
-				background: color-mix(in oklch, var(--ao-primary) 82%, transparent);
+				background: color-mix(in oklch, var(--opr-primary) 82%, transparent);
 			}
 			.prompt button[type="submit"]:active {
 				transform: translateY(1px);
 			}
 			.prompt button[type="submit"]:focus-visible {
 				outline: none;
-				border-color: var(--ao-ring);
-				box-shadow: 0 0 0 3px color-mix(in oklch, var(--ao-ring) 30%, transparent);
+				border-color: var(--opr-ring);
+				box-shadow: 0 0 0 3px color-mix(in oklch, var(--opr-ring) 30%, transparent);
 			}
 			.prompt button[type="submit"]:disabled {
 				opacity: 0.32;
 				pointer-events: none;
 			}
 			.prompt button[type="submit"] svg {
-				width: var(--ao-icon-sm);
-				height: var(--ao-icon-sm);
+				width: var(--opr-icon-sm);
+				height: var(--opr-icon-sm);
 				stroke: currentColor;
 				stroke-width: 2;
 				stroke-linecap: round;
@@ -400,7 +400,7 @@ function ensureOverlay(): ShadowRoot {
 				background: #15171b;
 				color: #c9d1d9;
 				padding: 7px 9px;
-				font: 12px/1.3 var(--ao-font-sans);
+				font: 12px/1.3 var(--opr-font-sans);
 				box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 				pointer-events: none;
 				animation: prompt-in 140ms ease-out;
@@ -596,7 +596,7 @@ function setPromptHeightLimit(form: HTMLFormElement, rect: AnnotationRectLike, c
 		Math.min(PROMPT_MAX_HEIGHT, availablePromptHeight),
 	);
 	const textareaMaxHeight = promptMaxHeight - chromeHeight;
-	form.style.setProperty("--ao-prompt-textarea-max-height", `${textareaMaxHeight}px`);
+	form.style.setProperty("--opr-prompt-textarea-max-height", `${textareaMaxHeight}px`);
 	return textareaMaxHeight;
 }
 

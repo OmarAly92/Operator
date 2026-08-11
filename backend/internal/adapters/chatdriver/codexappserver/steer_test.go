@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Scripted replies must be single-line JSON: readFrame is newline-delimited, so a
@@ -130,7 +130,7 @@ func TestSteerWithoutAnyTurnIsTypedAndNeverReachesTheProvider(t *testing.T) {
 		t.Fatalf("err = %v, want ErrChatNoSteerableTurn", err)
 	}
 	if srv.sentMethod(codexproto.MethodTurnSteer) {
-		t.Error("asked the provider to steer a turn AO does not have")
+		t.Error("asked the provider to steer a turn Operator does not have")
 	}
 }
 
@@ -183,7 +183,7 @@ func TestSteerTranslatesNotSteerableRefusalFromItsStructuredPayload(t *testing.T
 	}
 }
 
-// A refusal AO does not model must stay a plain failure rather than being
+// A refusal Operator does not model must stay a plain failure rather than being
 // mistranslated into "nothing to steer", which would tell the user to resend
 // guidance the agent may already have.
 func TestSteerLeavesUnknownProviderErrorsAlone(t *testing.T) {
@@ -218,20 +218,20 @@ func TestSteerFallsBackToTheRequestedTurnWhenTheProviderNamesNone(t *testing.T) 
 }
 
 // TestLiveSteerKeepsTheTurnAndItsWork drives a real `codex app-server`. Skipped
-// unless AO_CODEX_LIVE=1: it needs a local Codex install, working auth, and it makes
+// unless OPERATOR_CODEX_LIVE=1: it needs a local Codex install, working auth, and it makes
 // real model calls.
 //
-//	AO_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run LiveSteer -v
+//	OPERATOR_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run LiveSteer -v
 //
 // This is the test that earns the capability. Steering is advertised only because
 // this passed against codex-cli 0.146.0, and the claim it checks is the one the
 // feature exists for: the turn the user was waiting on survives, keeps its id, and
 // finishes having followed the correction — not interrupted, not restarted.
 func TestLiveSteerKeepsTheTurnAndItsWork(t *testing.T) {
-	if os.Getenv("AO_CODEX_LIVE") != "1" {
-		t.Skip("set AO_CODEX_LIVE=1 to run against a real codex app-server")
+	if os.Getenv("OPERATOR_CODEX_LIVE") != "1" {
+		t.Skip("set OPERATOR_CODEX_LIVE=1 to run against a real codex app-server")
 	}
-	bin := os.Getenv("AO_CODEX_BIN")
+	bin := os.Getenv("OPERATOR_CODEX_BIN")
 	if bin == "" {
 		bin = "codex"
 	}
@@ -247,7 +247,7 @@ func TestLiveSteerKeepsTheTurnAndItsWork(t *testing.T) {
 	defer cancel()
 
 	opened, err := d.Start(ctx, ports.ChatStartConfig{
-		SessionID:     "ao-live-steer",
+		SessionID:     "opr-live-steer",
 		WorkspacePath: workspace,
 		Env:           envMap(),
 		Permissions:   ports.PermissionModeDefault,

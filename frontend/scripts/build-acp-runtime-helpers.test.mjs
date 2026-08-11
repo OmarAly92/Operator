@@ -95,7 +95,7 @@ describe("pruneNodeDistribution", () => {
 });
 
 function temporaryDirectory() {
-	const directory = mkdtempSync(join(tmpdir(), "ao-acp-runtime-test-"));
+	const directory = mkdtempSync(join(tmpdir(), "opr-acp-runtime-test-"));
 	temporaryDirectories.push(directory);
 	return directory;
 }

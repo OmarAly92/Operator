@@ -4,13 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hooksjson"
 )
 
 const (
 	devinConfigDirName     = ".devin"
 	devinConfigFileName    = "config.local.json"
-	devinHookCommandPrefix = "ao hooks devin "
+	devinHookCommandPrefix = "opr hooks devin "
 	devinHookTimeout       = 30
 )
 
@@ -33,12 +33,12 @@ func devinConfigPath(workspacePath string) string {
 	return filepath.Join(workspacePath, devinConfigDirName, devinConfigFileName)
 }
 
-// UninstallHooks removes AO's Devin hooks, leaving user-defined hooks untouched.
+// UninstallHooks removes Operator's Devin hooks, leaving user-defined hooks untouched.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	return devinHooks.Uninstall(ctx, workspacePath)
 }
 
-// AreHooksInstalled reports whether any AO Devin hook is present.
+// AreHooksInstalled reports whether any Operator Devin hook is present.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	return devinHooks.AreInstalled(ctx, workspacePath)
 }

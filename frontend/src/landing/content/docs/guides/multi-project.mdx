@@ -3,26 +3,26 @@ title: Multi-project
 description: Manage repositories, multi-repository workspaces, and Scratch sessions from one desktop.
 ---
 
-AO's daemon owns a durable project registry in SQLite. The desktop sidebar shows every registered project and its sessions; there is no single `agent-orchestrator.yaml` containing a `projects:` map.
+Operator's daemon owns a durable project registry in SQLite. The desktop sidebar shows every registered project and its sessions; there is no single `operator.yaml` containing a `projects:` map.
 
 ## Add projects
 
 Use **Add project** in the desktop app, or register an existing local repository:
 
 ```bash
-ao project add --path /absolute/path/to/web --id web
-ao project add --path /absolute/path/to/api --id api
-ao project ls
+opr project add --path /absolute/path/to/web --id web
+opr project add --path /absolute/path/to/api --id api
+opr project ls
 ```
 
-`ao project add` requires a local path. It does not clone remote URLs. `ao start` only resolves and opens the desktop app; it does not register the current directory.
+`opr project add` requires a local path. It does not clone remote URLs. `opr start` only resolves and opens the desktop app; it does not register the current directory.
 
 ## Workspace and Scratch projects
 
 Register a parent directory containing direct child repositories as one workspace project:
 
 ```bash
-ao project add --path /absolute/path/to/product --as-workspace
+opr project add --path /absolute/path/to/product --as-workspace
 ```
 
 Fresh installations also have Scratch for tasks that do not require Git. Scratch sessions cannot use `--branch` or `--claim-pr`.
@@ -34,30 +34,30 @@ Open each project's settings and choose its worker, orchestrator, model, rules, 
 ## Spawn in the right project
 
 ```bash
-ao spawn --project api --name api-issue --issue 42 --mode chat
-ao spawn --project web --name web-fix --prompt "Fix the header" --mode tui
+opr spawn --project api --name api-issue --issue 42 --mode chat
+opr spawn --project web --name web-fix --prompt "Fix the header" --mode tui
 ```
 
-When `--project` is omitted, AO can resolve `AO_PROJECT_ID`, the current registered repository, or Scratch when it is the only project. Supplying the project explicitly is clearest in scripts.
+When `--project` is omitted, Operator can resolve `OPERATOR_PROJECT_ID`, the current registered repository, or Scratch when it is the only project. Supplying the project explicitly is clearest in scripts.
 
 ## Inspect across projects
 
 The desktop sidebar and sessions board are the live multi-project view. From the CLI:
 
 ```bash
-ao project ls
-ao session ls
-ao session ls --project api
-ao session ls --project api --json
+opr project ls
+opr session ls
+opr session ls --project api
+opr session ls --project api --json
 ```
 
-`ao status` reports daemon health rather than project sessions. It supports `--json`, not `--watch` or a project filter.
+`opr status` reports daemon health rather than project sessions. It supports `--json`, not `--watch` or a project filter.
 
 ## Stop and clean up
 
-Kill one session with `ao session kill <session-id>`. Use `ao session cleanup --dry-run` before reclaiming eligible terminated-session workspaces. Dirty worktrees are preserved.
+Kill one session with `opr session kill <session-id>`. Use `opr session cleanup --dry-run` before reclaiming eligible terminated-session workspaces. Dirty worktrees are preserved.
 
-`ao stop` stops the daemon and takes no project argument. Closing a desktop-owned app normally reaps its linked daemon; a headless daemon remains until explicitly stopped.
+`opr stop` stops the daemon and takes no project argument. Closing a desktop-owned app normally reaps its linked daemon; a headless daemon remains until explicitly stopped.
 
 ## Use mobile across projects
 

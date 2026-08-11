@@ -15,7 +15,7 @@ import { TERMINAL_FONT_SIZE_DEFAULT, TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_
 import { getAgentActivityView } from "../lib/session-presentation";
 import { agentLabel } from "../lib/agent-options";
 import { isLinuxPlatform, isMacPlatform } from "../lib/platform";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
 import { useUiStore, type Theme } from "../stores/ui-store";
@@ -50,7 +50,7 @@ type CenterPaneProps = {
 	agentInputDisabled?: boolean;
 };
 
-const terminalFontSizeStorageKey = "ao.terminal.fontSize";
+const terminalFontSizeStorageKey = "opr.terminal.fontSize";
 const WHEEL_ZOOM_THRESHOLD = 80;
 const WHEEL_ZOOM_RESET_MS = 250;
 const isMac = isMacPlatform();
@@ -155,15 +155,15 @@ export function CenterPane({
 
 	useEffect(
 		() =>
-			aoBridge.app.onCloseShellTerminalShortcut(() => {
+			operatorBridge.app.onCloseShellTerminalShortcut(() => {
 				if (target.kind === "shell") onCloseShellTerminal?.(target.handleId);
 			}),
 		[target, onCloseShellTerminal],
 	);
 
 	useEffect(() => {
-		const disposePrevious = aoBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
-		const disposeNext = aoBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
+		const disposePrevious = operatorBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
+		const disposeNext = operatorBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
 		return () => {
 			disposePrevious();
 			disposeNext();
@@ -171,10 +171,10 @@ export function CenterPane({
 	}, [selectAdjacentTab]);
 
 	useEffect(() => {
-		aoBridge.app.setCloseShellTerminalShortcutEnabled(
+		operatorBridge.app.setCloseShellTerminalShortcutEnabled(
 			target.kind === "shell" && Boolean(onCloseShellTerminal),
 		);
-		return () => aoBridge.app.setCloseShellTerminalShortcutEnabled(false);
+		return () => operatorBridge.app.setCloseShellTerminalShortcutEnabled(false);
 	}, [target.kind, onCloseShellTerminal]);
 
 	useEffect(() => {

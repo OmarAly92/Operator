@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func invocation(t *testing.T) ports.ReviewInvocation {
@@ -26,8 +26,8 @@ func invocation(t *testing.T) ports.ReviewInvocation {
 	return ports.ReviewInvocation{
 		ReviewerID: "review-worker-1", RunID: "run-1", WorkerSessionID: "worker-1",
 		PRURL: "https://github.com/acme/widgets/pull/42", TargetSHA: "0123456789abcdef",
-		WorkspacePath: filepath.Join(root, "checkout"), DataDir: filepath.Join(root, "ao-data"),
-		Prompt: "Read the AO review task reference.", SystemPrompt: "secret system contents",
+		WorkspacePath: filepath.Join(root, "checkout"), DataDir: filepath.Join(root, "opr-data"),
+		Prompt: "Read the Operator review task reference.", SystemPrompt: "secret system contents",
 		TaskPromptFile: task, TaskPromptRoot: prompts,
 	}
 }
@@ -62,13 +62,13 @@ func TestReviewCommandIsExactPermanentTUIWithPostReadinessReference(t *testing.T
 	if spec.WorkingDirectory == inv.WorkspacePath || !strings.HasPrefix(spec.WorkingDirectory, inv.DataDir+string(filepath.Separator)) {
 		t.Fatalf("working directory = %q", spec.WorkingDirectory)
 	}
-	if spec.Env["HOME"] == "" || spec.Env["TMPDIR"] == "" || spec.Env["AO_DATA_DIR"] != inv.DataDir {
+	if spec.Env["HOME"] == "" || spec.Env["TMPDIR"] == "" || spec.Env["OPERATOR_DATA_DIR"] != inv.DataDir {
 		t.Fatalf("neutral environment = %#v", spec.Env)
 	}
 	if strings.HasPrefix(spec.Env["HOME"], inv.WorkspacePath) {
 		t.Fatalf("HOME points into checkout: %q", spec.Env["HOME"])
 	}
-	if _, ok := spec.Env["AO_REVIEW_GATEWAY_MANIFEST"]; ok {
+	if _, ok := spec.Env["OPERATOR_REVIEW_GATEWAY_MANIFEST"]; ok {
 		t.Fatalf("unexpected gateway manifest env = %#v", spec.Env)
 	}
 	for _, path := range []string{spec.WorkingDirectory, spec.Env["HOME"], spec.Env["TMPDIR"]} {
@@ -159,12 +159,12 @@ func TestReviewPromptReadinessHintsWaitForQwenInput(t *testing.T) {
 	}
 }
 
-func TestReviewCommandRequiresAODataDir(t *testing.T) {
+func TestReviewCommandRequiresOperatorDataDir(t *testing.T) {
 	inv := invocation(t)
 	inv.DataDir = ""
 	reviewer := New()
 	reviewer.resolveBinary = func(context.Context) (string, error) { return "/opt/qwen/bin/qwen", nil }
-	if _, err := reviewer.ReviewCommand(context.Background(), inv); err == nil || !strings.Contains(err.Error(), "AO data directory is required") {
+	if _, err := reviewer.ReviewCommand(context.Background(), inv); err == nil || !strings.Contains(err.Error(), "Operator data directory is required") {
 		t.Fatalf("ReviewCommand error = %v", err)
 	}
 }
@@ -191,7 +191,7 @@ func TestReviewCommandRejectsRelativeBinary(t *testing.T) {
 
 func TestReviewMessageReusesPaneInjectionWithoutAddingAuthority(t *testing.T) {
 	inv := invocation(t)
-	inv.Prompt = "Read /ao/task.md"
+	inv.Prompt = "Read /opr/task.md"
 	message, err := New().ReviewMessage(context.Background(), inv)
 	if err != nil || message != inv.Prompt {
 		t.Fatalf("message = %q, %v", message, err)

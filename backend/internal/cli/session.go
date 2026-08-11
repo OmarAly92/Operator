@@ -716,7 +716,7 @@ func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, hiddenTerminate
 		}
 	}
 	if hiddenOrchestratorCount > 0 {
-		_, err := fmt.Fprintf(out, "%d orchestrator session%s hidden. Use --all or `ao orchestrator ls` to show.\n", hiddenOrchestratorCount, pluralS(hiddenOrchestratorCount))
+		_, err := fmt.Fprintf(out, "%d orchestrator session%s hidden. Use --all or `opr orchestrator ls` to show.\n", hiddenOrchestratorCount, pluralS(hiddenOrchestratorCount))
 		return err
 	}
 	return nil

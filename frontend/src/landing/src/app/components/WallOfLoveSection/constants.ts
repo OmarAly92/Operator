@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 
 export interface Testimonial {
   id: string;
@@ -26,7 +26,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: "FacitoO",
     handle: "@facito0",
     content:
-      "Me with @aoagents lately!",
+      "Me with @operator-dev lately!",
     avatar: "https://unavatar.io/x/facito0",
     url: "https://x.com/facito0/status/2036380796475547760",
   },
@@ -35,7 +35,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: "Buchi Reddy B",
     handle: "@buchireddy",
     content:
-      "I really loved the building blocks present in @aoagents, hence we went all-in on that pretty early. Happy to share more details if it helps others.",
+      "I really loved the building blocks present in @operator-dev, hence we went all-in on that pretty early. Happy to share more details if it helps others.",
     avatar: "https://unavatar.io/x/buchireddy",
     url: "https://x.com/buchireddy/status/2064108144607760628",
   },
@@ -44,7 +44,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: "Adi",
     handle: "@addddiiie",
     content:
-      "I just hired a few software devs to work for free cc, @aoagents",
+      "I just hired a few software devs to work for free cc, @operator-dev",
     avatar: "https://unavatar.io/x/addddiiie",
     url: "https://x.com/addddiiie/status/2037174432700211408",
   },
@@ -53,7 +53,7 @@ export const TESTIMONIALS: Testimonial[] = [
     author: "Maria Garcia",
     handle: "@maria_garcia_dev",
     content:
-      "We run 50+ agents a day through AO. The feedback loop, CI fails go back to the agent that wrote the code, saves us hours every week.",
+      "We run 50+ agents a day through Operator. The feedback loop, CI fails go back to the agent that wrote the code, saves us hours every week.",
     url: "#",
   },
   {

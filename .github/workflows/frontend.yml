@@ -48,12 +48,12 @@ jobs:
 
       - name: Run vitest suite
         env:
-          AO_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/agent-browser
+          OPERATOR_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/agent-browser
         run: npx vitest run
 
   renderer-smoke:
     # RENDERER smoke (issue #2483, renderer slice) — the Playwright specs that run
-    # the renderer under `dev:web` with an injected window.ao + fake CDC/snapshot.
+    # the renderer under `dev:web` with an injected window.operator + fake CDC/snapshot.
     # This is fast renderer-regression coverage; it is NOT the canonical T0/P0
     # end-to-end gate. Real daemon/storage/API/preload/PTY/FS boundaries are
     # exercised by the packaged-app pod gate (#2697), not here.
@@ -76,7 +76,7 @@ jobs:
 
       - name: Typecheck e2e suite
         # Playwright transpiles specs without typechecking, so the
-        # `satisfies AoBridge` guard in e2e/support/fake-bridge.ts (the
+        # `satisfies OperatorBridge` guard in e2e/support/fake-bridge.ts (the
         # preload-drift tripwire) is only enforced by this step.
         run: npm run typecheck:e2e
 

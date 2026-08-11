@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func testReviewer(t *testing.T, version, help string) *Reviewer {
@@ -35,13 +35,13 @@ func invocation(t *testing.T) ports.ReviewInvocation {
 	t.Helper()
 	root := t.TempDir()
 	return ports.ReviewInvocation{
-		DataDir:         filepath.Join(root, "ao-data"),
+		DataDir:         filepath.Join(root, "opr-data"),
 		ReviewerID:      "review-worker-1",
 		WorkerSessionID: "worker-1",
 		WorkspacePath:   filepath.Join(root, "checkout"),
 		TaskPromptRoot:  filepath.Join(root, "prompts"),
 		TaskPromptFile:  filepath.Join(root, "prompts", "task.md"),
-		Prompt:          "Open AO task capability `task-ref-7f18`.",
+		Prompt:          "Open Operator task capability `task-ref-7f18`.",
 	}
 }
 
@@ -59,8 +59,8 @@ func TestReviewCommandLaunchesHostTrustedPlanTUI(t *testing.T) {
 	if !reflect.DeepEqual(spec.Argv, want) || spec.InitialMessage != "" || spec.WorkingDirectory != inv.WorkspacePath {
 		t.Fatalf("ReviewCommand spec = %+v, want argv %#v", spec, want)
 	}
-	if spec.Env["VIBE_HOME"] != filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID, "config") || spec.Env["AO_DATA_DIR"] != inv.DataDir {
-		t.Fatalf("AO-owned Vibe profile = %#v", spec.Env)
+	if spec.Env["VIBE_HOME"] != filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID, "config") || spec.Env["OPERATOR_DATA_DIR"] != inv.DataDir {
+		t.Fatalf("Operator-owned Vibe profile = %#v", spec.Env)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -216,7 +216,7 @@ func TestContainedInteractiveSpecModelsShellEditorAndApprovalToggleRisks(t *test
 func TestCompatibilityProbeAcceptsMinimumVibe2232AndInteractiveFlags(t *testing.T) {
 	help := strings.Join(requiredFlags, "\n")
 	for _, version := range []string{"vibe 2.23.2\n", "vibe 2.24.0"} {
-		if err := testReviewer(t, version, help).verifyCompatibility(context.Background(), "/opt/vibe/bin/vibe", map[string]string{"HOME": "/ao/profile"}); err != nil {
+		if err := testReviewer(t, version, help).verifyCompatibility(context.Background(), "/opt/vibe/bin/vibe", map[string]string{"HOME": "/opr/profile"}); err != nil {
 			t.Fatalf("version %q verifyCompatibility: %v", version, err)
 		}
 	}

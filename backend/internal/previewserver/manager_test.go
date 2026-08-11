@@ -15,11 +15,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 func TestPreviewServerHelper(t *testing.T) {
-	if os.Getenv("AO_PREVIEW_TEST_HELPER") != "1" {
+	if os.Getenv("OPERATOR_PREVIEW_TEST_HELPER") != "1" {
 		return
 	}
 	port, err := strconv.Atoi(os.Getenv("PORT"))
@@ -45,7 +45,7 @@ func TestManagerStartsIsolatedConfiguredServerAndStopsIt(t *testing.T) {
 	manager := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(manager.Close)
 
-	status, err := manager.Start(context.Background(), "ao-1", workspace, "")
+	status, err := manager.Start(context.Background(), "opr-1", workspace, "")
 	if err != nil {
 		t.Fatalf("Start: %v\nstatus=%+v", err, status)
 	}
@@ -64,7 +64,7 @@ func TestManagerStartsIsolatedConfiguredServerAndStopsIt(t *testing.T) {
 		t.Fatalf("GET status = %d", resp.StatusCode)
 	}
 
-	stopped, err := manager.Stop(context.Background(), "ao-1")
+	stopped, err := manager.Stop(context.Background(), "opr-1")
 	if err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
@@ -78,18 +78,18 @@ func TestManagerKeepsConcurrentSessionServersIsolated(t *testing.T) {
 	manager := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(manager.Close)
 
-	first, err := manager.Start(context.Background(), domain.SessionID("ao-1"), workspace, "")
+	first, err := manager.Start(context.Background(), domain.SessionID("opr-1"), workspace, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := manager.Start(context.Background(), domain.SessionID("ao-2"), workspace, "")
+	second, err := manager.Start(context.Background(), domain.SessionID("opr-2"), workspace, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.Port == second.Port || first.URL == second.URL {
 		t.Fatalf("session previews collided: first=%+v second=%+v", first, second)
 	}
-	if manager.Status("ao-1").State != StateReady || manager.Status("ao-2").State != StateReady {
+	if manager.Status("opr-1").State != StateReady || manager.Status("opr-2").State != StateReady {
 		t.Fatalf("both session servers should remain ready")
 	}
 }
@@ -102,32 +102,32 @@ func TestManagerRequiresNameWhenConfigurationsAreAmbiguous(t *testing.T) {
 	manager := New(nil)
 	t.Cleanup(manager.Close)
 
-	_, err := manager.Start(context.Background(), "ao-1", workspace, "")
+	_, err := manager.Start(context.Background(), "opr-1", workspace, "")
 	var serviceErr Error
 	if !errors.As(err, &serviceErr) || serviceErr.Code != "PREVIEW_CONFIGURATION_REQUIRED" {
 		t.Fatalf("error = %#v, want PREVIEW_CONFIGURATION_REQUIRED", err)
 	}
 
-	status, err := manager.Start(context.Background(), "ao-1", workspace, "api")
+	status, err := manager.Start(context.Background(), "opr-1", workspace, "api")
 	if err != nil {
 		t.Fatalf("named Start: %v", err)
 	}
 	if status.TargetKind != TargetAPI {
 		t.Fatalf("targetKind = %q, want api", status.TargetKind)
 	}
-	_, _ = manager.Stop(context.Background(), "ao-1")
+	_, _ = manager.Stop(context.Background(), "opr-1")
 }
 
 func TestManagerRejectsMissingConfigAndNonLoopbackURL(t *testing.T) {
 	manager := New(nil)
 	t.Cleanup(manager.Close)
-	_, err := manager.Start(context.Background(), "ao-1", t.TempDir(), "")
+	_, err := manager.Start(context.Background(), "opr-1", t.TempDir(), "")
 	assertPreviewErrorCode(t, err, "PREVIEW_CONFIG_NOT_FOUND")
 
 	cfg := helperConfiguration("web", TargetApp)
 	cfg.URL = "https://example.com:${PORT}/"
 	workspace := writeLaunchFile(t, []Configuration{cfg})
-	_, err = manager.Start(context.Background(), "ao-1", workspace, "")
+	_, err = manager.Start(context.Background(), "opr-1", workspace, "")
 	assertPreviewErrorCode(t, err, "PREVIEW_CONFIG_INVALID")
 }
 
@@ -172,17 +172,17 @@ func TestPreviewEnvironmentDoesNotInheritDaemonCredentials(t *testing.T) {
 			"PATH=/usr/bin",
 			"HOME=/home/test",
 			"GITHUB_TOKEN=secret",
-			"AO_BROWSER_RUNTIME_TOKEN=runtime-secret",
+			"OPERATOR_BROWSER_RUNTIME_TOKEN=runtime-secret",
 		},
 		map[string]string{"PUBLIC_FLAG": "enabled"},
 		"session-1",
 		4173,
 	)
 	joined := strings.Join(env, "\n")
-	if strings.Contains(joined, "GITHUB_TOKEN") || strings.Contains(joined, "AO_BROWSER_RUNTIME_TOKEN") {
+	if strings.Contains(joined, "GITHUB_TOKEN") || strings.Contains(joined, "OPERATOR_BROWSER_RUNTIME_TOKEN") {
 		t.Fatalf("preview inherited daemon credentials: %v", env)
 	}
-	for _, want := range []string{"PATH=/usr/bin", "HOME=/home/test", "PUBLIC_FLAG=enabled", "AO_SESSION_ID=session-1"} {
+	for _, want := range []string{"PATH=/usr/bin", "HOME=/home/test", "PUBLIC_FLAG=enabled", "OPERATOR_SESSION_ID=session-1"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("preview env missing %q: %v", want, env)
 		}
@@ -198,7 +198,7 @@ func helperConfiguration(name string, kind TargetKind) Configuration {
 		AutoPort:           true,
 		URL:                "http://127.0.0.1:${PORT}/",
 		TargetKind:         kind,
-		Env:                map[string]string{"AO_PREVIEW_TEST_HELPER": "1"},
+		Env:                map[string]string{"OPERATOR_PREVIEW_TEST_HELPER": "1"},
 		ReadyTimeoutMillis: 5000,
 	}
 }
@@ -206,7 +206,7 @@ func helperConfiguration(name string, kind TargetKind) Configuration {
 func writeLaunchFile(t *testing.T, configurations []Configuration) string {
 	t.Helper()
 	workspace := t.TempDir()
-	dir := filepath.Join(workspace, ".ao")
+	dir := filepath.Join(workspace, ".operator")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

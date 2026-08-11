@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { getApiBaseUrl, hasTrustedApiBaseUrl, subscribeApiBaseUrl } from "./api-client";
 import { setEventsConnectionState } from "./events-connection";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
@@ -148,7 +148,7 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 				}
 			};
 
-			const removeDaemonListener = aoBridge.daemon.onStatus(() => {
+			const removeDaemonListener = operatorBridge.daemon.onStatus(() => {
 				connectSource();
 				refreshWorkspaces();
 			});

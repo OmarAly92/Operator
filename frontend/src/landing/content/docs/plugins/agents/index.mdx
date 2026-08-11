@@ -1,9 +1,9 @@
 ---
 title: Agent adapters
-description: The terminal harnesses built into AO and the smaller set that also supports structured Chat.
+description: The terminal harnesses built into Operator and the smaller set that also supports structured Chat.
 ---
 
-AO compiles agent adapters into the daemon. It uses your locally installed agent CLI and its existing authentication; it does not bundle provider credentials or install adapters from npm.
+Operator compiles agent adapters into the daemon. It uses your locally installed agent CLI and its existing authentication; it does not bundle provider credentials or install adapters from npm.
 
 ## Shipped terminal harnesses
 
@@ -22,8 +22,8 @@ The daemon registry currently advertises 26 worker harnesses:
 Run the catalog instead of relying on a static page when scripting:
 
 ```bash
-ao agent ls --refresh
-ao agent ls --refresh --json
+opr agent ls --refresh
+opr agent ls --refresh --json
 ```
 
 The readiness probe reports whether a harness is supported, installed, and authenticated. Spawn still performs authoritative validation.
@@ -39,16 +39,16 @@ All advertised harnesses can run through their native terminal interface. Four a
 | `opencode` | Native ACP |
 | `droid` | Native ACP |
 
-Every other harness is Terminal UI-only. Choose the initial interface with `ao spawn --mode chat|tui`. Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while retaining the AO session and worktree.
+Every other harness is Terminal UI-only. Choose the initial interface with `opr spawn --mode chat|tui`. Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while retaining the Operator session and worktree.
 
 ## Choosing and configuring a harness
 
 ```bash
-ao project set-config my-app --worker-agent codex
-ao spawn --project my-app --name auth-fix --agent claude-code --mode chat
+opr project set-config my-app --worker-agent codex
+opr spawn --project my-app --name auth-fix --agent claude-code --mode chat
 ```
 
-`--agent` and `--harness` are aliases. Project configuration may also specify model, permission mode, environment, prompt rules, and separate worker/orchestrator defaults. Use `ao project set-config --help` for the typed fields.
+`--agent` and `--harness` are aliases. Project configuration may also specify model, permission mode, environment, prompt rules, and separate worker/orchestrator defaults. Use `opr project set-config --help` for the typed fields.
 
 <Cards>
 	<Card title="Claude Code" description="Terminal UI and structured Chat." href="/docs/plugins/agents/claude-code" />

@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
+	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 )
 
 const interfaceTransitionPath = "/api/v1/sessions/{sessionId}/interface-transition"

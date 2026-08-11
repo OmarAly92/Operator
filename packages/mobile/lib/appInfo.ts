@@ -28,7 +28,7 @@ export function bugReportBody(info: BuildInfo, platform: string, osVersion: stri
 		"",
 		"",
 		"---",
-		`AO mobile: ${formatVersion(info)}`,
+		`Operator mobile: ${formatVersion(info)}`,
 		`Platform: ${platform} ${osVersion}`,
 	].join("\n");
 }

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DaemonStatus } from "../../shared/daemon-status";
 import { daemonFailureHint, daemonFailureMessage, daemonFailureTitle } from "../lib/daemon-failure";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 
 export function DaemonFailureBanner({ status }: { status: DaemonStatus }) {
 	if (!status.code || status.state === "ready") return null;
@@ -38,7 +38,7 @@ function DaemonFailureContent({ status }: { status: DaemonStatus }) {
 			t("daemon.details.message", { message: daemonFailureMessage(status, t) }),
 			details ? `\n${t("daemon.details.heading", { details })}` : "",
 		];
-		await aoBridge.clipboard.writeText(lines.filter(Boolean).join("\n"));
+		await operatorBridge.clipboard.writeText(lines.filter(Boolean).join("\n"));
 		setCopied(true);
 		if (copiedTimeout.current !== null) clearTimeout(copiedTimeout.current);
 		copiedTimeout.current = setTimeout(() => {
@@ -50,7 +50,7 @@ function DaemonFailureContent({ status }: { status: DaemonStatus }) {
 		setRestarting(true);
 		setRestartError(null);
 		try {
-			const nextStatus = await aoBridge.daemon.restart();
+			const nextStatus = await operatorBridge.daemon.restart();
 			if (nextStatus.state === "error" || nextStatus.state === "stopped") {
 				setRestartError(daemonFailureMessage(nextStatus, t));
 			}

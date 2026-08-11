@@ -1,0 +1,30 @@
+Operator
+Copyright 2026 Omar Aly
+
+This product includes software originally developed by Untrivial under the
+name "Agent Orchestrator", available at:
+
+    https://github.com/Untrivial-ai/agent-orchestrator
+
+The original work is licensed under the Apache License, Version 2.0. A copy of
+that license is included in the LICENSE file at the root of this repository,
+and may also be obtained at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+MODIFICATIONS
+
+This is a fork. The original work has been modified. As of the initial fork
+commit, substantially every file in this repository was changed by a
+project-wide rename from "Agent Orchestrator" to "Operator", covering the
+product name, the command-line executable, package and module identifiers,
+environment variable names, the application data directory, bundle
+identifiers, and documentation.
+
+Further modifications after that point are recorded in this repository's git
+history.
+
+Neither Untrivial nor the Agent Orchestrator project endorses this fork. The
+names "Agent Orchestrator" and "Untrivial", and their logos, are the property
+of their respective owners and are used here only to identify the origin of
+the work, as permitted by Section 6 of the Apache License, Version 2.0.

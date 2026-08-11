@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { aoBridge } from "../../lib/bridge";
+import { operatorBridge } from "../../lib/bridge";
 import { useUpdateStatus } from "../../hooks/useUpdateStatus";
 import type { UpdateChannel, UpdateSettings, UpdateState, UpdateStatus } from "../../../main/update-settings";
 import { Badge } from "../ui/badge";
@@ -30,7 +30,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 	const queryClient = useQueryClient();
 	const query = useQuery({
 		queryKey: updateSettingsQueryKey,
-		queryFn: () => aoBridge.updateSettings.get(),
+		queryFn: () => operatorBridge.updateSettings.get(),
 	});
 
 	const [form, setForm] = useState<UpdateSettings>(DEFAULT_SETTINGS);
@@ -53,9 +53,9 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 		if (handledStatusRef.current === status.state) return;
 		handledStatusRef.current = status.state;
 		if (status.state === "available") {
-			void aoBridge.updates.download(requestId);
+			void operatorBridge.updates.download(requestId);
 		} else if (status.state === "downloaded") {
-			void aoBridge.updates.install();
+			void operatorBridge.updates.install();
 			autoProgressRef.current = null;
 		} else if (status.state === "error" || status.state === "unsupported" || status.state === "not-available") {
 			autoProgressRef.current = null;
@@ -64,7 +64,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 
 	const save = useMutation({
 		mutationFn: async (next: UpdateSettings) => {
-			await aoBridge.updateSettings.set(next);
+			await operatorBridge.updateSettings.set(next);
 			return next;
 		},
 		onSuccess: (next) => {
@@ -111,7 +111,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 			// moves to nightly and does not update yet is on nightly by intent while
 			// still running a stable build.
 			setReleaseChannelContext(to);
-			void captureRendererEvent("ao.renderer.update_channel_changed", { from_channel: from, to_channel: to });
+			void captureRendererEvent("opr.renderer.update_channel_changed", { from_channel: from, to_channel: to });
 		}
 	};
 
@@ -124,7 +124,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 		try {
 			// Single updater-serialized op: clears the pin and checks the home channel
 			// atomically, so a concurrent settings-write cannot restore the pin.
-			await aoBridge.updates.returnHome(requestId);
+			await operatorBridge.updates.returnHome(requestId);
 			void queryClient.invalidateQueries({ queryKey: updateSettingsQueryKey });
 		} catch {
 			if (autoProgressRef.current === requestId) autoProgressRef.current = null;
@@ -135,7 +135,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 
 	const activeQuery = useQuery({
 		queryKey: ["feature-active"],
-		queryFn: () => aoBridge.featureBuilds.getActive(),
+		queryFn: () => operatorBridge.featureBuilds.getActive(),
 	});
 	const activeBuild = activeQuery.data ?? null;
 	// Show the escape hatch whenever a feature build is running or pinned.
@@ -207,7 +207,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 
 function UpdateActions({ status, suppressTopBorder = false }: { status: UpdateStatus; suppressTopBorder?: boolean }) {
 	const { t } = useTranslation();
-	const version = useQuery({ queryKey: ["app-version"], queryFn: () => aoBridge.app.getVersion() });
+	const version = useQuery({ queryKey: ["app-version"], queryFn: () => operatorBridge.app.getVersion() });
 
 	const checking = status.state === "checking";
 	const downloading = status.state === "downloading";
@@ -232,7 +232,7 @@ function UpdateActions({ status, suppressTopBorder = false }: { status: UpdateSt
 						type="button"
 						aria-label={t("settings.updates.check")}
 						className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-settings-muted transition-colors hover:text-settings-label disabled:cursor-not-allowed disabled:opacity-50"
-						onClick={() => void aoBridge.updates.check()}
+						onClick={() => void operatorBridge.updates.check()}
 						disabled={busy}
 					>
 						{checking ? (
@@ -247,12 +247,12 @@ function UpdateActions({ status, suppressTopBorder = false }: { status: UpdateSt
 			{showStatus && (
 				<div className="settings-row-bar h-auto min-h-0 flex-wrap justify-start gap-3 py-3">
 					{status.state === "available" && (
-						<Button type="button" variant="primary" onClick={() => void aoBridge.updates.download()}>
+						<Button type="button" variant="primary" onClick={() => void operatorBridge.updates.download()}>
 							{status.version ? t("settings.updates.updateTo", { version: `v${status.version}` }) : t("settings.updates.updateToLatest")}
 						</Button>
 					)}
 					{status.state === "downloaded" && (
-						<Button type="button" variant="primary" onClick={() => void aoBridge.updates.install()}>
+						<Button type="button" variant="primary" onClick={() => void operatorBridge.updates.install()}>
 							{t("settings.updates.restartInstall")}
 						</Button>
 					)}

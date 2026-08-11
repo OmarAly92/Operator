@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 // DefaultCommands are cheap local auth/status probes common across agent CLIs.

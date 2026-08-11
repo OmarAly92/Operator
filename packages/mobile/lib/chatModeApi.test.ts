@@ -8,7 +8,7 @@ import { ApiError, apiRequest, getPreview, getSettings, launchOrchestrator, mobi
 import { getConversationPage, getWorkspacePaths } from "./chat/api";
 import type { ServerConfig } from "./config";
 
-const cfg: ServerConfig = { host: "ao.test", httpPort: "3011", muxPort: "3011", secure: false, password: "secret12" };
+const cfg: ServerConfig = { host: "opr.test", httpPort: "3011", muxPort: "3011", secure: false, password: "secret12" };
 
 describe("mobile Chat API boundaries", () => {
 	beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
@@ -31,11 +31,11 @@ describe("mobile Chat API boundaries", () => {
 		expect(orchestrator.mode).toBe("tui");
 	});
 
-	it("resumes a stopped Chat controller without restoring the AO session", async () => {
+	it("resumes a stopped Chat controller without restoring the Operator session", async () => {
 		vi.mocked(fetch).mockResolvedValue(response({ ok: true }));
 		await resumeSessionAgent(cfg, "chat-1");
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
-		expect(url).toBe("http://ao.test:3011/api/v1/sessions/chat-1/resume-agent");
+		expect(url).toBe("http://opr.test:3011/api/v1/sessions/chat-1/resume-agent");
 		expect(init?.method).toBe("POST");
 	});
 
@@ -43,7 +43,7 @@ describe("mobile Chat API boundaries", () => {
 		vi.mocked(fetch).mockResolvedValue(response({ ok: true }));
 		await restoreSession(cfg, "chat-terminated");
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
-		expect(url).toBe("http://ao.test:3011/api/v1/sessions/chat-terminated/restore");
+		expect(url).toBe("http://opr.test:3011/api/v1/sessions/chat-terminated/restore");
 		expect(init?.method).toBe("POST");
 	});
 
@@ -80,7 +80,7 @@ describe("mobile Chat API boundaries", () => {
 		vi.mocked(fetch).mockResolvedValueOnce(response({ entry: "README.md" }));
 		expect(await getPreview(cfg, "w-1")).toEqual({
 			entry: "README.md",
-			url: "http://ao.test:3011/api/v1/sessions/w-1/preview/files/README.md",
+			url: "http://opr.test:3011/api/v1/sessions/w-1/preview/files/README.md",
 			authenticated: true,
 		});
 		vi.mocked(fetch).mockResolvedValueOnce(response({}));
@@ -88,10 +88,10 @@ describe("mobile Chat API boundaries", () => {
 			url: "https://example.com/demo",
 			authenticated: false,
 		});
-		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "ao.test")?.href).toBe("http://ao.test:5173/");
+		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "opr.test")?.href).toBe("http://opr.test:5173/");
 		expect(mobileReachablePreviewURL("http://localhost:5173", "2001:db8::5")?.href).toBe("http://[2001:db8::5]:5173/");
 		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "https://macbook.local/")?.href).toBe("http://macbook.local:5173/");
-		expect(mobileReachablePreviewURL("file:///tmp/demo.html", "ao.test")).toBeUndefined();
+		expect(mobileReachablePreviewURL("file:///tmp/demo.html", "opr.test")).toBeUndefined();
 	});
 
 	it("maps the provider-neutral conversation wire model without inventing protocol state", async () => {

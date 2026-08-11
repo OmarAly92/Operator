@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
 )
 
 // fakeLAN is a minimal httpd.LANController fake for exercising

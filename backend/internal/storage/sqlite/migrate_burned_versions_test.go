@@ -8,8 +8,8 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	sqlitestore "github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	sqlitestore "github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 )
 
 // shippedMigrations freezes every migration version that has shipped in a
@@ -163,7 +163,7 @@ func TestMigrationVersionLedger(t *testing.T) {
 // columns. Startup schema reconciliation must repair the physical schema so
 // the session list works instead of returning 500 INTERNAL_ERROR.
 func TestSessionListSucceedsOnBurnedMigrationHistory(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -205,8 +205,8 @@ INSERT INTO projects (
 		Harness:   domain.HarnessClaudeCode,
 		Activity:  domain.Activity{State: domain.ActivityActive},
 		Metadata: domain.SessionMetadata{
-			Branch:        "ao/mer-1/root",
-			WorkspacePath: `C:\Users\mer\.ao\data\worktrees\mer\mer-1`,
+			Branch:        "opr/mer-1/root",
+			WorkspacePath: `C:\Users\mer\.operator\data\worktrees\mer\mer-1`,
 			DiffBaseSHA:   "0f0e0d0c0b0a09080706050403020100ffeeddcc",
 			DiffBaseRef:   "refs/remotes/origin/main",
 		},

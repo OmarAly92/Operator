@@ -4,7 +4,7 @@ import {
   DOWNLOAD_URL_MAC_ARM64,
   DOWNLOAD_URL_MAC_X64,
   DOWNLOAD_URL_WINDOWS,
-} from "@ao/shared/constants";
+} from "@operator/shared/constants";
 
 export interface GitHubReleaseAsset {
   name: string;
@@ -97,12 +97,12 @@ export function getPlatformDownloads(
         build("Mac (Intel)", DOWNLOAD_URL_MAC_X64, "Stable"),
         build(
           "Mac (Apple silicon)",
-          assetUrl(nightly, "agent-orchestrator-darwin-arm64.zip"),
+          assetUrl(nightly, "operator-darwin-arm64.zip"),
           "Nightly",
         ),
         build(
           "Mac (Intel)",
-          assetUrl(nightly, "agent-orchestrator-darwin-x64.zip"),
+          assetUrl(nightly, "operator-darwin-x64.zip"),
           "Nightly",
         ),
       ]),
@@ -113,7 +113,7 @@ export function getPlatformDownloads(
         build("Windows (x64)", DOWNLOAD_URL_WINDOWS, "Stable"),
         build(
           "Windows (x64)",
-          assetUrl(nightly, "agent-orchestrator-win32-x64.exe"),
+          assetUrl(nightly, "operator-win32-x64.exe"),
           "Nightly",
         ),
       ]),
@@ -126,8 +126,8 @@ export function getPlatformDownloads(
           "Linux .deb (x64)",
           assetUrl(
             stable,
-            "agent-orchestrator-linux-x64.deb",
-            /^agent-orchestrator[_-].*(?:amd64|x86_64)\.deb$/i,
+            "operator-linux-x64.deb",
+            /^operator[_-].*(?:amd64|x86_64)\.deb$/i,
           ),
           "Stable",
         ),
@@ -135,19 +135,19 @@ export function getPlatformDownloads(
           "Linux RPM (x64)",
           assetUrl(
             stable,
-            "agent-orchestrator-linux-x64.rpm",
-            /^agent-orchestrator-.*x86_64\.rpm$/i,
+            "operator-linux-x64.rpm",
+            /^operator-.*x86_64\.rpm$/i,
           ),
           "Stable",
         ),
         build(
           "Linux AppImage (x64)",
-          assetUrl(nightly, "agent-orchestrator-linux-x64.AppImage"),
+          assetUrl(nightly, "operator-linux-x64.AppImage"),
           "Nightly",
         ),
         build(
           "Linux .deb (x64)",
-          assetUrl(nightly, "agent-orchestrator-linux-x64.deb"),
+          assetUrl(nightly, "operator-linux-x64.deb"),
           "Nightly",
         ),
       ]),

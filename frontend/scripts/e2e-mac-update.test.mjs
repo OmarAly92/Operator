@@ -10,16 +10,16 @@ import { assertSentinelCapable, launchEnv, parseArgs, removeRunFile, seedUpdateS
 // time rather than half-run an update test and report a confusing timeout.
 
 describe("e2e-mac-update parseArgs", () => {
-	const required = ["--app", "/Applications/Agent Orchestrator.app", "--expect-version", "0.10.4"];
+	const required = ["--app", "/Applications/Operator.app", "--expect-version", "0.10.4"];
 
-	it("parses the required flags and defaults the state dir to ~/.ao", () => {
+	it("parses the required flags and defaults the state dir to ~/.operator", () => {
 		const opts = parseArgs(required);
-		expect(opts.app).toBe("/Applications/Agent Orchestrator.app");
+		expect(opts.app).toBe("/Applications/Operator.app");
 		expect(opts.expectVersion).toBe("0.10.4");
-		expect(opts.appName).toBe("Agent Orchestrator");
-		// All app state lives under ~/.ao only (see AGENTS.md hard rules).
-		expect(opts.stateDir).toBe(join(homedir(), ".ao"));
-		expect(opts.runFile).toBe(join(homedir(), ".ao", "running.json"));
+		expect(opts.appName).toBe("Operator");
+		// All app state lives under ~/.operator only (see AGENTS.md hard rules).
+		expect(opts.stateDir).toBe(join(homedir(), ".operator"));
+		expect(opts.runFile).toBe(join(homedir(), ".operator", "running.json"));
 		expect(opts.channel).toBe("latest");
 	});
 
@@ -55,24 +55,24 @@ describe("e2e-mac-update parseArgs", () => {
 	});
 
 	it("allows overriding the state dir and run file", () => {
-		const opts = parseArgs([...required, "--state-dir", "/tmp/ao-e2e", "--run-file", "/tmp/ao-e2e/run.json"]);
-		expect(opts.stateDir).toBe("/tmp/ao-e2e");
-		expect(opts.runFile).toBe("/tmp/ao-e2e/run.json");
+		const opts = parseArgs([...required, "--state-dir", "/tmp/opr-e2e", "--run-file", "/tmp/opr-e2e/run.json"]);
+		expect(opts.stateDir).toBe("/tmp/opr-e2e");
+		expect(opts.runFile).toBe("/tmp/opr-e2e/run.json");
 	});
 
 	// The app does `stateDir = path.dirname(runFilePath())` and reads
 	// update-settings.json from there (main.ts initAutoUpdates), so the settings
 	// directory follows --run-file, not --state-dir, when the two diverge.
 	it("derives the settings dir from the run file, which is what the app reads", () => {
-		expect(parseArgs(required).settingsDir).toBe(join(homedir(), ".ao"));
-		const moved = parseArgs([...required, "--state-dir", "/tmp/ao-e2e", "--run-file", "/tmp/elsewhere/run.json"]);
+		expect(parseArgs(required).settingsDir).toBe(join(homedir(), ".operator"));
+		const moved = parseArgs([...required, "--state-dir", "/tmp/opr-e2e", "--run-file", "/tmp/elsewhere/run.json"]);
 		expect(moved.settingsDir).toBe("/tmp/elsewhere");
 	});
 
-	// Mirrors backend/internal/config resolveDataDir's default of <ao home>/data,
-	// so an overridden --state-dir keeps the daemon's SQLite out of the real ~/.ao.
+	// Mirrors backend/internal/config resolveDataDir's default of <opr home>/data,
+	// so an overridden --state-dir keeps the daemon's SQLite out of the real ~/.operator.
 	it("derives the daemon data dir under the state dir", () => {
-		expect(parseArgs([...required, "--state-dir", "/tmp/ao-e2e"]).dataDir).toBe(join("/tmp/ao-e2e", "data"));
+		expect(parseArgs([...required, "--state-dir", "/tmp/opr-e2e"]).dataDir).toBe(join("/tmp/opr-e2e", "data"));
 	});
 
 	it("constrains --run-file to an absolute path", () => {
@@ -81,11 +81,11 @@ describe("e2e-mac-update parseArgs", () => {
 	});
 
 	it("refuses to delete an unrelated absolute JSON file passed as --run-file", () => {
-		const dir = mkdtempSync(join(tmpdir(), "ao-e2e-run-file-"));
+		const dir = mkdtempSync(join(tmpdir(), "opr-e2e-run-file-"));
 		const unrelated = join(dir, "package.json");
 		writeFileSync(unrelated, '{"name":"not-a-run-file"}\n');
 		try {
-			expect(() => removeRunFile(unrelated)).toThrow(/not an AO running\.json handshake/);
+			expect(() => removeRunFile(unrelated)).toThrow(/not an Operator running\.json handshake/);
 			expect(readFileSync(unrelated, "utf8")).toContain("not-a-run-file");
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
@@ -94,33 +94,33 @@ describe("e2e-mac-update parseArgs", () => {
 });
 
 // The bug these cover: --state-dir and --run-file were parsed and used by the
-// harness, but neither launch passed AO_DATA_DIR or AO_RUN_FILE to the app. The
+// harness, but neither launch passed OPERATOR_DATA_DIR or OPERATOR_RUN_FILE to the app. The
 // harness seeded and polled paths the app never used, so it could only time out.
 describe("e2e-mac-update launch environment", () => {
 	const opts = parseArgs([
 		"--app",
-		"/Applications/Agent Orchestrator.app",
+		"/Applications/Operator.app",
 		"--expect-version",
 		"0.10.4",
 		"--state-dir",
-		"/tmp/ao-e2e",
+		"/tmp/opr-e2e",
 	]);
 
 	it("hands the app every override the harness itself relies on", () => {
 		const env = launchEnv(opts, "/tmp/sentinel.json", { PATH: "/usr/bin" });
-		expect(env.AO_E2E_UPDATE_SENTINEL).toBe("/tmp/sentinel.json");
-		expect(env.AO_RUN_FILE).toBe(opts.runFile);
-		expect(env.AO_DATA_DIR).toBe(opts.dataDir);
+		expect(env.OPERATOR_E2E_UPDATE_SENTINEL).toBe("/tmp/sentinel.json");
+		expect(env.OPERATOR_RUN_FILE).toBe(opts.runFile);
+		expect(env.OPERATOR_DATA_DIR).toBe(opts.dataDir);
 		// Still an inherited environment, not a replacement one.
 		expect(env.PATH).toBe("/usr/bin");
 	});
 
 	it("seeds update settings where the app will look for them", () => {
-		const dir = mkdtempSync(join(tmpdir(), "ao-e2e-settings-"));
+		const dir = mkdtempSync(join(tmpdir(), "opr-e2e-settings-"));
 		try {
 			const moved = parseArgs([
 				"--app",
-				"/Applications/Agent Orchestrator.app",
+				"/Applications/Operator.app",
 				"--expect-version",
 				"0.10.4",
 				"--run-file",
@@ -137,7 +137,7 @@ describe("e2e-mac-update launch environment", () => {
 	});
 });
 
-// A baseline published before the AO_E2E_UPDATE_SENTINEL listener existed
+// A baseline published before the OPERATOR_E2E_UPDATE_SENTINEL listener existed
 // ignores the env var, so the harness could only ever burn its full download
 // timeout and report a "never staged" failure that looks like a broken update.
 describe("e2e-mac-update assertSentinelCapable", () => {
@@ -150,19 +150,19 @@ describe("e2e-mac-update assertSentinelCapable", () => {
 	};
 
 	beforeAll(() => {
-		dir = mkdtempSync(join(tmpdir(), "ao-e2e-baseline-"));
+		dir = mkdtempSync(join(tmpdir(), "opr-e2e-baseline-"));
 	});
 	afterAll(() => {
 		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it("accepts a bundle whose app.asar carries the sentinel env var", () => {
-		expect(() => assertSentinelCapable(bundle("Capable", 'process.env["AO_E2E_UPDATE_SENTINEL"]'))).not.toThrow();
+		expect(() => assertSentinelCapable(bundle("Capable", 'process.env["OPERATOR_E2E_UPDATE_SENTINEL"]'))).not.toThrow();
 	});
 
 	it("fails fast, naming the cause, on a baseline that predates the listener", () => {
 		expect(() => assertSentinelCapable(bundle("Old", "some older bundle without it"))).toThrow(
-			/no AO_E2E_UPDATE_SENTINEL listener/,
+			/no OPERATOR_E2E_UPDATE_SENTINEL listener/,
 		);
 	});
 

@@ -183,7 +183,7 @@ async function flushMicrotasks(turns = 16): Promise<void> {
 }
 
 describe("startAutoUpdates", () => {
-  const stateDir = "/tmp/ao-state";
+  const stateDir = "/tmp/opr-state";
 
   afterEach(() => {
     vi.useRealTimers();
@@ -308,7 +308,7 @@ describe("startAutoUpdates", () => {
     // installs go silently stale, so suppressing the UI must not lose the signal.
     expect(telemetryMessages().map((m) => m.payload)).toEqual([
       {
-        event: "ao.renderer.update_failed",
+        event: "opr.renderer.update_failed",
         phase: "check",
         trigger: "automatic",
         error_category: "unknown",
@@ -566,7 +566,7 @@ describe("startAutoUpdates", () => {
     expect(statusMessages()).toEqual([]);
     expect(telemetryMessages().map((m) => m.payload)).toEqual([
       {
-        event: "ao.renderer.update_failed",
+        event: "opr.renderer.update_failed",
         phase: "check",
         trigger: "automatic",
         error_category: "unknown",
@@ -621,7 +621,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -638,7 +638,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { module, autoUpdater, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.downloadUpdate.mockImplementationOnce(() => {
       updaterEvents.get("error")?.(err);
@@ -657,7 +657,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, autoUpdater } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.checkForUpdates.mockRejectedValueOnce(err);
 
@@ -674,7 +674,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { module, autoUpdater } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.downloadUpdate.mockRejectedValueOnce(err);
 
@@ -690,7 +690,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -709,7 +709,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, autoUpdater, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -728,7 +728,7 @@ describe("startAutoUpdates", () => {
   it("still surfaces non-manifest 404 errors", async () => {
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'HttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/some-file.png"',
+      'HttpError: 404 "method: GET url: https://github.com/OmarAly92/operator/releases/download/v0.10.1/some-file.png"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -1153,7 +1153,7 @@ describe("startAutoUpdates", () => {
 });
 
 describe("returnToHome", () => {
-  const stateDir = "/tmp/ao-state";
+  const stateDir = "/tmp/opr-state";
 
   it("clears only the feature pin, preserves home channel/prefs, and checks", async () => {
     const { module, autoUpdater, updateUpdateSettings } =
@@ -1252,18 +1252,18 @@ function stubProcess(platform: NodeJS.Platform, execPath: string): () => void {
 // Builds a real bundle-shaped tree so the writability checks run against the
 // filesystem rather than a stub. Returns the exec path inside it.
 function makeBundle(): { root: string; bundle: string; execPath: string } {
-  const root = mkdtempSync(nodePath.join(os.tmpdir(), "ao-updater-perm-"));
-  const bundle = nodePath.join(root, "Agent Orchestrator.app");
+  const root = mkdtempSync(nodePath.join(os.tmpdir(), "opr-updater-perm-"));
+  const bundle = nodePath.join(root, "Operator.app");
   mkdirSync(nodePath.join(bundle, "Contents", "MacOS"), { recursive: true });
   return {
     root,
     bundle,
-    execPath: nodePath.join(bundle, "Contents", "MacOS", "agent-orchestrator"),
+    execPath: nodePath.join(bundle, "Contents", "MacOS", "operator"),
   };
 }
 
 const TRANSLOCATED_EXEC_PATH =
-  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/Agent Orchestrator.app/Contents/MacOS/agent-orchestrator";
+  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/Operator.app/Contents/MacOS/operator";
 
 describe("quitAndInstallUpdate", () => {
   afterEach(() => {
@@ -1325,7 +1325,7 @@ describe("quitAndInstallUpdate", () => {
       const box = dialog.showMessageBox.mock.calls[0][0] as { detail: string };
       expect(box.detail).toContain(root);
       // Must NOT tell a user already sitting in /Applications to move there.
-      expect(box.detail).not.toContain("move Agent Orchestrator.app into /Applications");
+      expect(box.detail).not.toContain("move Operator.app into /Applications");
     } finally {
       restore();
       chmodSync(root, 0o755);
@@ -1353,7 +1353,7 @@ describe("quitAndInstallUpdate", () => {
   it("fails open and installs when the derived bundle path does not exist", async () => {
     const restore = stubProcess(
       "darwin",
-      "/nonexistent-ao-test/Agent Orchestrator.app/Contents/MacOS/agent-orchestrator",
+      "/nonexistent-opr-test/Operator.app/Contents/MacOS/operator",
     );
     try {
       const { module, autoUpdater, dialog } = await importAutoUpdater();
@@ -1432,7 +1432,7 @@ describe("install-on-quit policy", () => {
     try {
       const { module, autoUpdater } = await importAutoUpdater();
 
-      await module.startAutoUpdates("/tmp/ao-state");
+      await module.startAutoUpdates("/tmp/opr-state");
 
       expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
     } finally {
@@ -1446,7 +1446,7 @@ describe("install-on-quit policy", () => {
     try {
       const { module, autoUpdater } = await importAutoUpdater();
 
-      await module.startAutoUpdates("/tmp/ao-state");
+      await module.startAutoUpdates("/tmp/opr-state");
 
       expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
     } finally {

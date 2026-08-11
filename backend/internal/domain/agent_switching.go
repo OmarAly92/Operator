@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// AgentNativeSessionID is AO's stable reference to one provider-owned
+// AgentNativeSessionID is Operator's stable reference to one provider-owned
 // conversation. It is deliberately distinct from the provider's native ID.
 type AgentNativeSessionID string
 
@@ -41,7 +41,7 @@ func ComputeAgentSwitchRequestFingerprint(sessionID SessionID, targetHarness Age
 	return AgentSwitchRequestFingerprint(agentSwitchRequestFingerprintPrefix + hex.EncodeToString(sum[:]))
 }
 
-// Valid reports whether a persisted fingerprint uses AO's current canonical
+// Valid reports whether a persisted fingerprint uses Operator's current canonical
 // encoding. Lowercase hex is required so one digest has one representation.
 func (f AgentSwitchRequestFingerprint) Valid() bool {
 	value := string(f)
@@ -61,16 +61,16 @@ func (f AgentSwitchRequestFingerprint) Valid() bool {
 // native conversation can be used by several generations over its lifetime.
 type AgentGenerationID string
 
-// AgentNativeSession is AO's provider-neutral registry entry for one retained
-// provider conversation. Multiple records with the same AO session and
+// AgentNativeSession is Operator's provider-neutral registry entry for one retained
+// provider conversation. Multiple records with the same Operator session and
 // harness are allowed: failed resumes and fresh fallbacks must not overwrite a
 // previously retained conversation.
 type AgentNativeSession struct {
-	ID          AgentNativeSessionID `json:"id"`
-	AOSessionID SessionID            `json:"aoSessionId"`
-	Harness     AgentHarness         `json:"harness"`
+	ID                AgentNativeSessionID `json:"id"`
+	OperatorSessionID SessionID            `json:"operatorSessionId"`
+	Harness           AgentHarness         `json:"harness"`
 	// ConfigDir is the provider configuration home used for this conversation.
-	// Providers with AO-isolated homes need it to probe or resume the correct
+	// Providers with Operator-isolated homes need it to probe or resume the correct
 	// native session without consulting ambient process configuration.
 	ConfigDir        string            `json:"configDir,omitempty"`
 	NativeSessionID  string            `json:"nativeSessionId,omitempty"`
@@ -153,7 +153,7 @@ func ValidAgentSwitchTransition(from, to AgentSwitchState) bool {
 	}
 }
 
-// AgentSwitchTargetStartMode records whether AO launched a new provider
+// AgentSwitchTargetStartMode records whether Operator launched a new provider
 // conversation or resumed a retained one. The empty value means that target
 // selection has not completed yet.
 type AgentSwitchTargetStartMode string
@@ -161,9 +161,9 @@ type AgentSwitchTargetStartMode string
 const (
 	// AgentSwitchTargetStartPending means target selection has not completed.
 	AgentSwitchTargetStartPending AgentSwitchTargetStartMode = ""
-	// AgentSwitchTargetStartFresh means AO created a new native conversation.
+	// AgentSwitchTargetStartFresh means Operator created a new native conversation.
 	AgentSwitchTargetStartFresh AgentSwitchTargetStartMode = "fresh"
-	// AgentSwitchTargetStartResumed means AO resumed a retained native conversation.
+	// AgentSwitchTargetStartResumed means Operator resumed a retained native conversation.
 	AgentSwitchTargetStartResumed AgentSwitchTargetStartMode = "resumed"
 )
 
@@ -179,7 +179,7 @@ type AgentHandoffStatus string
 const (
 	// AgentHandoffNotAttempted means semantic enrichment has not been requested.
 	AgentHandoffNotAttempted AgentHandoffStatus = "not_attempted"
-	// AgentHandoffRequested means AO asked the exact source generation for context.
+	// AgentHandoffRequested means Operator asked the exact source generation for context.
 	AgentHandoffRequested AgentHandoffStatus = "requested"
 	// AgentHandoffReceived means a generation-fenced JSON handoff was accepted.
 	AgentHandoffReceived AgentHandoffStatus = "received"
@@ -205,7 +205,7 @@ func (s AgentHandoffStatus) Valid() bool {
 	}
 }
 
-// AgentSwitchSourceTranscriptStatus records whether AO could safely retain a
+// AgentSwitchSourceTranscriptStatus records whether Operator could safely retain a
 // provider-owned transcript reference (and, when needed, read its bounded
 // tail) for the finalized switch context. It deliberately carries no path or
 // raw filesystem error.
@@ -218,7 +218,7 @@ const (
 	// AgentSwitchSourceTranscriptAvailable means the provider transcript was
 	// located and, when fallback context was needed, read successfully.
 	AgentSwitchSourceTranscriptAvailable AgentSwitchSourceTranscriptStatus = "available"
-	// AgentSwitchSourceTranscriptUnavailable means AO safely continued without
+	// AgentSwitchSourceTranscriptUnavailable means Operator safely continued without
 	// the provider transcript, using semantic, terminal, or deterministic facts.
 	AgentSwitchSourceTranscriptUnavailable AgentSwitchSourceTranscriptStatus = "unavailable"
 )
@@ -236,7 +236,7 @@ func (s AgentSwitchSourceTranscriptStatus) Valid() bool {
 	}
 }
 
-// Captured reports whether AO has completed transcript observation at the
+// Captured reports whether Operator has completed transcript observation at the
 // final source boundary.
 func (s AgentSwitchSourceTranscriptStatus) Captured() bool {
 	return s == AgentSwitchSourceTranscriptAvailable || s == AgentSwitchSourceTranscriptUnavailable
@@ -286,7 +286,7 @@ func (c AgentSwitchErrorCode) Valid() bool {
 }
 
 // AgentSwitch is one durable switch saga. The optional source-authored handoff
-// is tracked independently from the AO-finalized handoff that was actually
+// is tracked independently from the Operator-finalized handoff that was actually
 // delivered to the target. The finalized artifact also exists for fallback-
 // only switches and is the durable source used to rebuild hidden continuation
 // instructions when the target native session is restored.
@@ -317,7 +317,7 @@ type AgentSwitch struct {
 }
 
 // RequiresRecovery reports the one nonterminal condition currently exposed to
-// clients: target creation may have started, but AO received no durable handle
+// clients: target creation may have started, but Operator received no durable handle
 // with which to prove or clean up ownership.
 func (s AgentSwitch) RequiresRecovery() bool {
 	return s.State == AgentSwitchStartingTarget &&

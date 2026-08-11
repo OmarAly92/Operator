@@ -8,8 +8,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/cdc"
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 type AgentModelCatalog struct {
@@ -22,15 +22,15 @@ type AgentModelCatalog struct {
 }
 
 type AgentNativeSession struct {
-	ID               domain.AgentNativeSessionID
-	AoSessionID      domain.SessionID
-	Harness          domain.AgentHarness
-	ConfigDir        string
-	NativeSessionID  string
-	TranscriptPath   string
-	LastGenerationID domain.AgentGenerationID
-	CreatedAt        time.Time
-	LastUsedAt       time.Time
+	ID                domain.AgentNativeSessionID
+	OperatorSessionID domain.SessionID
+	Harness           domain.AgentHarness
+	ConfigDir         string
+	NativeSessionID   string
+	TranscriptPath    string
+	LastGenerationID  domain.AgentGenerationID
+	CreatedAt         time.Time
+	LastUsedAt        time.Time
 }
 
 type AgentSwitch struct {

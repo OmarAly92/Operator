@@ -6,44 +6,44 @@ trigger: User reports a bug, or asks to triage/file an issue for a reported prob
 
 # Bug Triage Skill
 
-Triage bugs into well-structured GitHub issues on the Agent Orchestrator repo.
+Triage bugs into well-structured GitHub issues on the Operator repo.
 
-> **Agent Orchestrator is Go + Electron.** The backend is a Go daemon (`backend/`)
+> **Operator is Go + Electron.** The backend is a Go daemon (`backend/`)
 > exposing a loopback HTTP API on `127.0.0.1:3001`; the frontend is an Electron +
 > React supervisor (`frontend/`). There is **no** pm2/tmux/Node runtime here —
 > the daemon owns lifecycle and sessions run under the **Zellij** runtime
-> adapter. Triage against _this_ stack, not the old TypeScript agent-orchestrator.
+> adapter. Triage against _this_ stack, not the old TypeScript operator.
 
-## ⚠️ Which `ao` are you running?
+## ⚠️ Which `opr` are you running?
 
-**`Agent Orchestrator` ships no `ao` on your PATH.** A bare `ao` very likely resolves to a
-**different** AO install — e.g. an old npm build at `~/.nvm/.../bin/ao` that talks
+**`Operator` ships no `opr` on your PATH.** A bare `opr` very likely resolves to a
+**different** Operator install — e.g. an old npm build at `~/.nvm/.../bin/opr` that talks
 to port **:3000**. Triaging with the wrong binary produces bugs that don't exist
-in Agent Orchestrator (and miss ones that do).
+in Operator (and miss ones that do).
 
 Before any diagnostics:
 
 ```bash
-which -a ao                      # see every ao on PATH — expect surprises
-ao status 2>/dev/null            # if this shows port 3000, it is NOT Agent Orchestrator
+which -a opr                      # see every opr on PATH — expect surprises
+opr status 2>/dev/null            # if this shows port 3000, it is NOT Operator
 ```
 
-Use an Agent Orchestrator binary explicitly:
+Use an Operator binary explicitly:
 
 ```bash
 # Option A — build from this repo (preferred during triage)
-cd backend && go build -o /tmp/ao ./cmd/ao
-/tmp/ao status                   # must report port: 3001
+cd backend && go build -o /tmp/opr ./cmd/opr
+/tmp/opr status                   # must report port: 3001
 
 # Option B — the packaged app's bundled daemon
-"/Applications/Agent Orchestrator.app/Contents/Resources/daemon/ao" status
+"/Applications/Operator.app/Contents/Resources/daemon/opr" status
 ```
 
-**Confirm `ao status` reports `port: 3001` before trusting any output.** Throughout
-this skill, `ao` means _your verified Agent Orchestrator binary_ (`/tmp/ao` or the bundled
+**Confirm `opr status` reports `port: 3001` before trusting any output.** Throughout
+this skill, `opr` means _your verified Operator binary_ (`/tmp/opr` or the bundled
 one), never a bare PATH lookup.
 
-> Note: spawned sessions get a PATH pin so the _session's_ `ao` resolves to the
+> Note: spawned sessions get a PATH pin so the _session's_ `opr` resolves to the
 > daemon's own executable (see `hookPATH` in
 > `backend/internal/session_manager/manager.go`). That pin only applies inside
 > sessions — your interactive shell is still on its own PATH, so pin it yourself.
@@ -51,9 +51,9 @@ one), never a bare PATH lookup.
 ## 1. Pre-flight
 
 - **Pull latest code:** `git pull origin main`. Stale code = bad triage.
-- **Target repo:** Always file on **`Untrivial-ai/agent-orchestrator`** (the current product repo, not
-  a fork). Agent Orchestrator is the product, not a thin fork of upstream.
-- **Verify your binary:** confirm `ao status` shows port **3001** (see warning above).
+- **Target repo:** Always file on **`OmarAly92/operator`** (the current product repo, not
+  a fork). Operator is the product, not a thin fork of upstream.
+- **Verify your binary:** confirm `opr status` shows port **3001** (see warning above).
 - **Record source:** chat URL, reporter name, attachments.
 
 ## 2. Gather Context
@@ -63,8 +63,8 @@ one), never a bare PATH lookup.
 | Source                   | How to gather                                                                                                                        |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Discord/Slack thread** | Read full thread. Extract: reporter name, original description (the thread starter, not whoever tagged you), screenshots, follow-ups |
-| **GitHub issue**         | `gh issue view <number> --repo Untrivial-ai/agent-orchestrator --json body,comments`                                                             |
-| **Live observation**     | Pull live state via the daemon: `ao status`, `ao session ls`, `ao session get <id>`                                                  |
+| **GitHub issue**         | `gh issue view <number> --repo OmarAly92/operator --json body,comments`                                                             |
+| **Live observation**     | Pull live state via the daemon: `opr status`, `opr session ls`, `opr session get <id>`                                                  |
 
 ### 2b. Minimum viable report gate
 
@@ -72,7 +72,7 @@ Before tracing code, verify the report has enough substance:
 
 **Required (ALL):** what happened, where (page/command/feature), when (after upgrade? first time?)
 
-**Required (2 of 4):** OS/shell, AO version (`ao version`), reproducibility (consistent vs intermittent), reproduction steps
+**Required (2 of 4):** OS/shell, Operator version (`opr version`), reproducibility (consistent vs intermittent), reproduction steps
 
 If insufficient, ask:
 
@@ -81,32 +81,32 @@ If insufficient, ask:
 ### 2c. Local diagnostics (if bug is on same machine)
 
 Gather everything yourself before asking the reporter. Use your **verified**
-Agent Orchestrator binary (`/tmp/ao` here) for every `ao` call:
+Operator binary (`/tmp/opr` here) for every `opr` call:
 
 ```bash
 # Environment
-/tmp/ao version && go version && echo $SHELL && uname -a
-which -a ao                                         # confirm no rogue ao shadows the build
-cat ~/.ao/running.json                              # PID + port handshake (expect port 3001)
+/tmp/opr version && go version && echo $SHELL && uname -a
+which -a opr                                         # confirm no rogue opr shadows the build
+cat ~/.operator/running.json                              # PID + port handshake (expect port 3001)
 
 # Daemon health
-/tmp/ao status                                      # daemon up? port? health/ready probes
-/tmp/ao doctor                                      # local health checks
+/tmp/opr status                                      # daemon up? port? health/ready probes
+/tmp/opr doctor                                      # local health checks
 lsof -i :3001                                       # who's bound to the daemon port
-tail -n 100 ~/.ao/daemon.log                        # daemon log
+tail -n 100 ~/.operator/daemon.log                        # daemon log
 
 # Sessions & runtime
-/tmp/ao session ls                                  # all sessions and their state
-/tmp/ao session get <id>                            # one session: spawn config, runtime, lifecycle
+/tmp/opr session ls                                  # all sessions and their state
+/tmp/opr session get <id>                            # one session: spawn config, runtime, lifecycle
 zellij list-sessions                                # Zellij runtime sessions backing terminals
 
-# Durable state (SQLite at ~/.ao/data)
-sqlite3 ~/.ao/data/ao.db '.tables'                  # inspect schema/rows if state looks wrong
+# Durable state (SQLite at ~/.operator/data)
+sqlite3 ~/.operator/data/opr.db '.tables'                  # inspect schema/rows if state looks wrong
 ```
 
 The daemon owns lifecycle, sessions, storage, and the terminal mux; structured
-state lives in `~/.ao/data/ao.db` (WAL: `ao.db-wal`, `ao.db-shm`). The PID+port
-handshake is `~/.ao/running.json`.
+state lives in `~/.operator/data/opr.db` (WAL: `opr.db-wal`, `opr.db-shm`). The PID+port
+handshake is `~/.operator/running.json`.
 
 **Try the reproduction steps.** Running the actual command against the daemon on
 :3001 is worth 100 lines of code tracing.
@@ -116,11 +116,11 @@ handshake is `~/.ao/running.json`.
 ### 3a. Trace the code path
 
 **Always trace the actual code** — don't surface-level diagnose. A symptom that
-looks like a simple `ao stop` issue is often a lifecycle/session-manager problem
-one layer down. Agent Orchestrator's layers:
+looks like a simple `opr stop` issue is often a lifecycle/session-manager problem
+one layer down. Operator's layers:
 
 - CLI (Cobra, thin client over daemon HTTP): `backend/internal/cli/`, entrypoint
-  `backend/cmd/ao/main.go`
+  `backend/cmd/opr/main.go`
 - Daemon (loopback HTTP on :3001): `backend/internal/daemon/daemon.go`,
   controllers under `backend/internal/httpd/controllers/`
 - Sessions & lifecycle: `backend/internal/session_manager/manager.go`
@@ -143,11 +143,11 @@ git show <sha> -- <file> | grep -B 5 -A 10 'pattern'
 
 **Research dependencies** (Zellij, the agent harness binary, Electron, React, the
 SQLite driver) — check installed vs latest version, search their issue trackers,
-check changelogs. Root cause is sometimes in a dependency, not Agent Orchestrator.
+check changelogs. Root cause is sometimes in a dependency, not Operator.
 
 ### 3b. Cross-platform check
 
-AO targets **macOS, Linux, and Windows**. If env info indicates Windows (or is
+Operator targets **macOS, Linux, and Windows**. If env info indicates Windows (or is
 unknown), check for these patterns:
 
 - **Path separators** — hardcoded `/` or `\`; use `filepath.Join`, not string concat
@@ -177,16 +177,16 @@ Stop and ask for more info if:
 Search with multiple strategies, always using `--state all` (closed bugs regress):
 
 ```bash
-gh issue list --repo Untrivial-ai/agent-orchestrator --state all --search "<symptom>"
-gh issue list --repo Untrivial-ai/agent-orchestrator --state all --search "<component-name>"
-gh issue list --repo Untrivial-ai/agent-orchestrator --state all --search "<error-message>"
-gh pr list --repo Untrivial-ai/agent-orchestrator --state all --search "<keywords>"
+gh issue list --repo OmarAly92/operator --state all --search "<symptom>"
+gh issue list --repo OmarAly92/operator --state all --search "<component-name>"
+gh issue list --repo OmarAly92/operator --state all --search "<error-message>"
+gh pr list --repo OmarAly92/operator --state all --search "<keywords>"
 ```
 
 ### Duplicate found → comment on existing issue
 
 ```bash
-gh issue comment <number> --repo Untrivial-ai/agent-orchestrator --body "$(cat <<'EOF'
+gh issue comment <number> --repo OmarAly92/operator --body "$(cat <<'EOF'
 ## New Report
 **Reported by:** @<reporter> in [chat](<url>)
 **Date:** <YYYY-MM-DD> | **Checkout:** `<commit-hash>`
@@ -203,8 +203,8 @@ EOF
 
 - [ ] Reporter attribution correct (original reporter, not who tagged you)
 - [ ] Commit hash recorded
-- [ ] AO version recorded (`ao version`)
-- [ ] Reproduced against Agent Orchestrator (:3001 / Go code path), not another AO install
+- [ ] Operator version recorded (`opr version`)
+- [ ] Reproduced against Operator (:3001 / Go code path), not another Operator install
 - [ ] Root cause confidence scored (see 5c)
 - [ ] Related issues cross-linked
 - [ ] Reproduction steps are concrete
@@ -217,23 +217,23 @@ EOF
 ```bash
 SLUG="descriptive-slug"
 # Create asset branch
-gh api -X POST repos/Untrivial-ai/agent-orchestrator/git/refs \
+gh api -X POST repos/OmarAly92/operator/git/refs \
   -f ref="refs/heads/issue-assets-${SLUG}" \
   -f sha=$(git rev-parse origin/main)
 
 # Upload (portable base64)
 IMG_B64=$(base64 < /path/to/screenshot.png | tr -d '\n')
-gh api -X PUT "repos/Untrivial-ai/agent-orchestrator/contents/.issue-assets/${SLUG}/name.png" \
+gh api -X PUT "repos/OmarAly92/operator/contents/.issue-assets/${SLUG}/name.png" \
   -f message="chore: upload screenshot" \
   -f content="$IMG_B64" \
   -f branch="issue-assets-${SLUG}"
-# Use: ![screenshot](https://raw.githubusercontent.com/Untrivial-ai/agent-orchestrator/issue-assets-<slug>/.issue-assets/<file>)
+# Use: ![screenshot](https://raw.githubusercontent.com/OmarAly92/operator/issue-assets-<slug>/.issue-assets/<file>)
 ```
 
 ### 5c. Create the issue
 
 ```bash
-gh issue create --repo Untrivial-ai/agent-orchestrator --title "<title>" --body "$(cat <<'EOF'
+gh issue create --repo OmarAly92/operator --title "<title>" --body "$(cat <<'EOF'
 ## Bug
 <summary>
 
@@ -260,8 +260,8 @@ EOF
 **Check which labels actually exist first**, then apply only those:
 
 ```bash
-gh label list --repo Untrivial-ai/agent-orchestrator          # source of truth — apply only these
-gh issue edit <number> --repo Untrivial-ai/agent-orchestrator --add-label "bug"
+gh label list --repo OmarAly92/operator          # source of truth — apply only these
+gh issue edit <number> --repo OmarAly92/operator --add-label "bug"
 ```
 
 The repo currently carries `bug`, `enhancement`, `priority: critical/high/medium/low`,
@@ -292,13 +292,13 @@ Search by subsystem and add a `## Related` section to the issue body:
 
 ```
 ## Related
-- [#20](url) — stale session blocking ao start (same subsystem)
+- [#20](url) — stale session blocking opr start (same subsystem)
 - [#35](url) — same race condition
 ```
 
 ### 5f. Push a fix PR (always attempt)
 
-Agent Orchestrator is a Go repo — fixes go through a local branch, build, and `gh pr create`.
+Operator is a Go repo — fixes go through a local branch, build, and `gh pr create`.
 There is no remote-patch script.
 
 - **Unclear fix:** Don't push a guess. Document and flag in the issue.
@@ -312,7 +312,7 @@ There is no remote-patch script.
 
   Fixes #<n>"
   git push -u origin fix/<slug>
-  gh pr create --repo Untrivial-ai/agent-orchestrator --fill \
+  gh pr create --repo OmarAly92/operator --fill \
     --title "fix(<scope>): <summary>" \
     --body "Fixes #<n>
 
@@ -324,13 +324,13 @@ There is no remote-patch script.
   ```
 
 - **Non-trivial fix** (broad change, needs iteration, or you can't fully verify):
-  spawn an Agent Orchestrator worker session to do the work in its own worktree instead of
+  spawn an Operator worker session to do the work in its own worktree instead of
   pushing a guess:
 
   ```bash
-  ao spawn --project agent-orchestrator --prompt "Fix #<n>: <one-line problem statement>. \
+  opr spawn --project operator --prompt "Fix #<n>: <one-line problem statement>. \
   Root cause: <file:line + mechanism>. Suggested approach: <approach>. \
-  Build with 'cd backend && go build ./... && go test ./...' before opening a PR against Untrivial-ai/agent-orchestrator."
+  Build with 'cd backend && go build ./... && go test ./...' before opening a PR against OmarAly92/operator."
   ```
 
   Note the issue with which path you took (PR or spawned worker).
@@ -348,13 +348,13 @@ any priority/confidence stated in the body), root cause summary.
 
 | Subsystem                       | Collect                                   | Key files                                                                  |
 | ------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
-| **CLI** (`ao start/stop/spawn`) | Version, install method, OS, which binary | `backend/internal/cli/`, `backend/cmd/ao/main.go`                          |
-| **Daemon / HTTP API**           | `ao status`, port, daemon.log             | `backend/internal/daemon/daemon.go`, `backend/internal/httpd/controllers/` |
+| **CLI** (`opr start/stop/spawn`) | Version, install method, OS, which binary | `backend/internal/cli/`, `backend/cmd/opr/main.go`                          |
+| **Daemon / HTTP API**           | `opr status`, port, daemon.log             | `backend/internal/daemon/daemon.go`, `backend/internal/httpd/controllers/` |
 | **Sessions / Lifecycle**        | Session ID, spawn config, runtime, state  | `backend/internal/session_manager/manager.go`                              |
 | **Runtime (Zellij)**            | Zellij version, `zellij list-sessions`    | `backend/internal/adapters/runtime/`                                       |
 | **Terminal mux**                | Runtime type, shell, attach behavior      | `backend/internal/terminal/`                                               |
 | **Agent harness**               | Harness name + version                    | `backend/internal/adapters/agent/<harness>/`                               |
-| **Storage**                     | DB state, migrations                      | `backend/internal/storage/sqlite/`, `~/.ao/data/ao.db`                     |
+| **Storage**                     | DB state, migrations                      | `backend/internal/storage/sqlite/`, `~/.operator/data/opr.db`                     |
 | **Hooks**                       | Hook event, agent, payload                | `backend/internal/cli/hooks.go`                                            |
 | **Frontend (Electron/React)**   | Screenshot, viewport, daemon connectivity | `frontend/src/`                                                            |
 
@@ -365,54 +365,54 @@ any priority/confidence stated in the body), root cause summary.
 - "Session stuck" → lifecycle/session-manager state vs agent harness process vs
   Zellij runtime connection.
 - "Config not saving" → config loading (`backend/internal/config/config.go`) vs
-  project registration vs SQLite write (`~/.ao/data/ao.db`).
-- "Command does nothing / wrong port" → you're on the wrong `ao` binary (:3000 vs
-  :3001). Re-check `which -a ao` and `ao status`.
+  project registration vs SQLite write (`~/.operator/data/opr.db`).
+- "Command does nothing / wrong port" → you're on the wrong `opr` binary (:3000 vs
+  :3001). Re-check `which -a opr` and `opr status`.
 
 ### B. Remote Code Inspection (no local clone)
 
 ```bash
-gh api repos/Untrivial-ai/agent-orchestrator/git/trees/main?recursive=1 --jq '.tree[].path'    # list files
-gh api repos/Untrivial-ai/agent-orchestrator/contents/{path} --jq '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"  # read file
-gh search code "term" --repo Untrivial-ai/agent-orchestrator --json path --jq '.[].path'        # search code
-gh api "repos/Untrivial-ai/agent-orchestrator/commits?path={path}&per_page=10" --jq '.[] | "\(.sha[0:8]) \(.commit.message | split("\n")[0])"'  # file history
+gh api repos/OmarAly92/operator/git/trees/main?recursive=1 --jq '.tree[].path'    # list files
+gh api repos/OmarAly92/operator/contents/{path} --jq '.content' | python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"  # read file
+gh search code "term" --repo OmarAly92/operator --json path --jq '.[].path'        # search code
+gh api "repos/OmarAly92/operator/commits?path={path}&per_page=10" --jq '.[] | "\(.sha[0:8]) \(.commit.message | split("\n")[0])"'  # file history
 ```
 
 ### C. Build / Version Diagnostics
 
-Agent Orchestrator is built from source, not published to npm. Pin the binary under test
+Operator is built from source, not published to npm. Pin the binary under test
 and reproduce against a known build:
 
 ```bash
-cd backend && go build -o /tmp/ao ./cmd/ao    # build the binary under test
-/tmp/ao version                               # record version/commit
+cd backend && go build -o /tmp/opr ./cmd/opr    # build the binary under test
+/tmp/opr version                               # record version/commit
 go version                                    # toolchain (build issues are often here)
 git log --oneline origin/main -1              # the commit you're analyzing against
 ```
 
-To bisect a regression, build `ao` at two commits and compare behavior:
+To bisect a regression, build `opr` at two commits and compare behavior:
 
 ```bash
-git stash; git checkout <good-sha>; (cd backend && go build -o /tmp/ao-good ./cmd/ao)
-git checkout <bad-sha>;             (cd backend && go build -o /tmp/ao-bad  ./cmd/ao)
+git stash; git checkout <good-sha>; (cd backend && go build -o /tmp/opr-good ./cmd/opr)
+git checkout <bad-sha>;             (cd backend && go build -o /tmp/opr-bad  ./cmd/opr)
 git checkout - ; git stash pop
-# run the repro against /tmp/ao-good vs /tmp/ao-bad
+# run the repro against /tmp/opr-good vs /tmp/opr-bad
 ```
 
 ## Formatting Rules
 
-- **Linkify all issue/PR refs:** `[#123](https://github.com/Untrivial-ai/agent-orchestrator/issues/123)`, `[PR #456](url)`. Never bare `#123`.
+- **Linkify all issue/PR refs:** `[#123](https://github.com/OmarAly92/operator/issues/123)`, `[PR #456](url)`. Never bare `#123`.
 
 ## Pitfalls
 
-- **Wrong `ao` binary.** A bare `ao` may be a different AO install (old npm build on
-  :3000). Always pin an Agent Orchestrator binary and confirm `ao status` shows port **3001**.
-- **Verify the bug reproduces against Agent Orchestrator (:3001 / Go code path) before
-  filing** — symptoms first seen in another AO install may not reproduce here.
+- **Wrong `opr` binary.** A bare `opr` may be a different Operator install (old npm build on
+  :3000). Always pin an Operator binary and confirm `opr status` shows port **3001**.
+- **Verify the bug reproduces against Operator (:3001 / Go code path) before
+  filing** — symptoms first seen in another Operator install may not reproduce here.
 - **Reporter ≠ person who tagged you.** Always attribute to the original reporter.
 - **Record the commit hash** you analyzed — code changes fast.
 - **GitHub issue is mandatory** — every triaged bug gets one, even if fix is trivial.
-- **Only apply labels that exist** (`gh label list --repo Untrivial-ai/agent-orchestrator`).
+- **Only apply labels that exist** (`gh label list --repo OmarAly92/operator`).
   State priority/confidence in the body when no matching label exists.
 - **Build before you push.** `cd backend && go build ./... && go test ./...` must
   pass; never open a PR with an unverified Go change.

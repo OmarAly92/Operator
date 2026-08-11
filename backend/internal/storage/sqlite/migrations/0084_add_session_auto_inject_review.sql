@@ -1,5 +1,5 @@
 -- Persist the per-session automatic review-feedback policy and snapshot that
--- policy on AO review runs, provider reviews, and provider comments when each
+-- policy on Operator review runs, provider reviews, and provider comments when each
 -- result is first recorded.
 
 -- +goose Up

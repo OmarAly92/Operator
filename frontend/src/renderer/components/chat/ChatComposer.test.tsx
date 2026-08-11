@@ -74,7 +74,7 @@ describe("send keys", () => {
 		expect(within(actions).getByText("Enter to send")).toBeInTheDocument();
 	});
 
-	it("uses the AO logo palette for the send control", async () => {
+	it("uses the Operator logo palette for the send control", async () => {
 		const { field } = renderComposer();
 		const send = screen.getByRole("button", { name: "Send message" });
 		expect(send).toHaveClass("bg-logo-accent", "text-logo-accent-foreground");
@@ -308,7 +308,7 @@ describe("attachments", () => {
 	// The chip has to mean something: the bytes get written and the message names
 	// the path the agent can open.
 	it("stages the image and names the returned path in the message", async () => {
-		const stage = vi.fn().mockResolvedValue([".ao/attachments/attachment-ab12cd34ef.png"]);
+		const stage = vi.fn().mockResolvedValue([".operator/attachments/attachment-ab12cd34ef.png"]);
 		const { onSend, field } = renderComposer({ onStageAttachments: stage });
 
 		fireEvent.paste(field, { clipboardData: { files: [png()], items: [] } });
@@ -323,7 +323,7 @@ describe("attachments", () => {
 		]);
 		await waitFor(() =>
 			expect(onSend).toHaveBeenCalledWith(
-				"what is wrong here\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-ab12cd34ef.png",
+				"what is wrong here\n\nAttached files (read these files in the workspace):\n- .operator/attachments/attachment-ab12cd34ef.png",
 			),
 		);
 		// Consumed, so the next message does not silently resend them.
@@ -331,7 +331,7 @@ describe("attachments", () => {
 	});
 
 	it("sends an image with no words, since the reference block carries the request", async () => {
-		const stage = vi.fn().mockResolvedValue([".ao/attachments/attachment-1.png"]);
+		const stage = vi.fn().mockResolvedValue([".operator/attachments/attachment-1.png"]);
 		const { onSend, field } = renderComposer({ onStageAttachments: stage });
 
 		fireEvent.paste(field, { clipboardData: { files: [png()], items: [] } });
@@ -341,12 +341,12 @@ describe("attachments", () => {
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
 		expect(onSend.mock.calls[0]?.[0]).toBe(
-			"Attached files (read these files in the workspace):\n- .ao/attachments/attachment-1.png",
+			"Attached files (read these files in the workspace):\n- .operator/attachments/attachment-1.png",
 		);
 	});
 
 	it("also sends native image bytes when the provider negotiated image prompts", async () => {
-		const stage = vi.fn().mockResolvedValue([".ao/attachments/attachment-native.png"]);
+		const stage = vi.fn().mockResolvedValue([".operator/attachments/attachment-native.png"]);
 		const { onSend, field } = renderComposer({ onStageAttachments: stage, nativeImages: true });
 
 		fireEvent.paste(field, { clipboardData: { files: [png()], items: [] } });
@@ -354,7 +354,7 @@ describe("attachments", () => {
 		await userEvent.type(field, "inspect this{Enter}");
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-		expect(onSend.mock.calls[0]?.[0]).toContain(".ao/attachments/attachment-native.png");
+		expect(onSend.mock.calls[0]?.[0]).toContain(".operator/attachments/attachment-native.png");
 		expect(onSend.mock.calls[0]?.[1]).toEqual([
 			{ mimeType: "image/png", data: expect.any(String) },
 		]);
@@ -362,8 +362,8 @@ describe("attachments", () => {
 
 	it("stages non-images by path without sending them as native image blocks", async () => {
 		const stage = vi.fn().mockResolvedValue([
-			".ao/attachments/attachment-native.png",
-			".ao/attachments/notes.txt",
+			".operator/attachments/attachment-native.png",
+			".operator/attachments/notes.txt",
 		]);
 		const { onSend, field } = renderComposer({ onStageAttachments: stage, nativeImages: true });
 
@@ -374,7 +374,7 @@ describe("attachments", () => {
 		await userEvent.type(field, "inspect these{Enter}");
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-		expect(onSend.mock.calls[0]?.[0]).toContain(".ao/attachments/notes.txt");
+		expect(onSend.mock.calls[0]?.[0]).toContain(".operator/attachments/notes.txt");
 		expect(onSend.mock.calls[0]?.[1]).toEqual([
 			{ mimeType: "image/png", data: expect.any(String) },
 		]);
@@ -398,7 +398,7 @@ describe("attachments", () => {
 	});
 
 	it("keeps attachments after a failed send and reuses their staged paths on retry", async () => {
-		const stage = vi.fn().mockResolvedValue([".ao/attachments/attachment-retry.png"]);
+		const stage = vi.fn().mockResolvedValue([".operator/attachments/attachment-retry.png"]);
 		const onSend = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
 		render(<ChatComposer onSend={onSend} onStageAttachments={stage} />);
 		const field = screen.getByLabelText("Message the agent") as HTMLTextAreaElement;

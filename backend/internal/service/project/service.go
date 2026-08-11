@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
 
 // Manager is the controller-facing contract for the /api/v1/projects surface.
@@ -74,7 +74,7 @@ var _ Manager = (*Service)(nil)
 
 // Deps captures optional collaborators for project use-cases.
 type Deps struct {
-	// DefaultHarness is the daemon's configured default agent (AO_AGENT).
+	// DefaultHarness is the daemon's configured default agent (OPERATOR_AGENT).
 	// When empty, the service falls back to config.DefaultAgent.
 	DefaultHarness domain.AgentHarness
 	Store          Store
@@ -235,10 +235,10 @@ func (m *Service) Add(ctx context.Context, in AddInput) (Project, error) {
 		return p, nil
 	}
 	if !isGitRepo(path) {
-		return Project{}, apierr.Invalid("NOT_A_GIT_REPO", "AO needs a Git repository with an initial commit before it can create agent workspaces.", nil)
+		return Project{}, apierr.Invalid("NOT_A_GIT_REPO", "Operator needs a Git repository with an initial commit before it can create agent workspaces.", nil)
 	}
 	if !repoHasCommit(ctx, path) {
-		return Project{}, apierr.Invalid("PROJECT_UNBORN", "AO needs a Git repository with an initial commit before it can create agent workspaces.", map[string]any{
+		return Project{}, apierr.Invalid("PROJECT_UNBORN", "Operator needs a Git repository with an initial commit before it can create agent workspaces.", map[string]any{
 			"path":         path,
 			"suggestedFix": "Run `git commit --allow-empty -m \"initial commit\"` in this folder, then try again.",
 		})
@@ -308,7 +308,7 @@ func (m *Service) InitializeRepository(ctx context.Context, in InitializeReposit
 	if _, err := gitOutput(ctx, path, "add", "-A"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("GIT_ADD_FAILED", "Could not stage files for the initial commit.", map[string]any{"error": err.Error()})
 	}
-	if _, err := gitOutput(ctx, path, "-c", "user.name=Agent Orchestrator", "-c", "user.email=ao@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
+	if _, err := gitOutput(ctx, path, "-c", "user.name=Operator", "-c", "user.email=opr@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("INITIAL_COMMIT_FAILED", "Could not create the initial commit.", map[string]any{"error": err.Error()})
 	}
 	return InitializeRepositoryResult{Path: path}, nil
@@ -318,7 +318,7 @@ func classifyRepositorySetupTarget(ctx context.Context, path string) (repository
 	if isBareGitRepository(ctx, path) {
 		return repositorySetupPlainFolder, apierr.Invalid("PROJECT_BARE_REPOSITORY", "Selected folder must be a non-bare Git repository or a plain folder.", map[string]any{
 			"path":         path,
-			"suggestedFix": "Use a normal checkout, or select a plain folder for AO to initialize.",
+			"suggestedFix": "Use a normal checkout, or select a plain folder for Operator to initialize.",
 		})
 	}
 
@@ -330,7 +330,7 @@ func classifyRepositorySetupTarget(ctx context.Context, path string) (repository
 	}
 
 	if hasGitMetadata(path) {
-		return repositorySetupPlainFolder, apierr.Invalid("UNSUPPORTED_GIT_REPO", "Selected folder contains Git metadata that AO could not inspect.", map[string]any{
+		return repositorySetupPlainFolder, apierr.Invalid("UNSUPPORTED_GIT_REPO", "Selected folder contains Git metadata that Operator could not inspect.", map[string]any{
 			"path":         path,
 			"suggestedFix": "Repair the Git repository or select a plain folder.",
 		})
@@ -360,9 +360,9 @@ func validateRepositorySetupPathSafety(path string) error {
 		}
 	}
 
-	aoState := comparablePath(filepath.Join(home, ".ao"))
-	if samePath(clean, aoState) || isDescendantPath(clean, aoState) {
-		return unsafeRepositorySetupPathError(path, "AO state directory")
+	operatorState := comparablePath(filepath.Join(home, ".operator"))
+	if samePath(clean, operatorState) || isDescendantPath(clean, operatorState) {
+		return unsafeRepositorySetupPathError(path, "Operator state directory")
 	}
 	return nil
 }
@@ -484,7 +484,7 @@ func (m *Service) emitProjectAdded(row domain.ProjectRecord, firstProject bool) 
 		"has_git_remote": row.RepoOriginURL != "",
 	}
 	m.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.projects.created",
+		Name:       "opr.projects.created",
 		Source:     "project_service",
 		OccurredAt: at,
 		Level:      ports.TelemetryLevelInfo,
@@ -495,7 +495,7 @@ func (m *Service) emitProjectAdded(row domain.ProjectRecord, firstProject bool) 
 		return
 	}
 	m.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.onboarding.first_project_added",
+		Name:       "opr.onboarding.first_project_added",
 		Source:     "project_service",
 		OccurredAt: at,
 		Level:      ports.TelemetryLevelInfo,
@@ -547,7 +547,7 @@ func (m *Service) UpdateSettings(ctx context.Context, id domain.ProjectID, in Up
 // EnsureDefaultScratchProject seeds the built-in first-run scratch project when
 // the registry has no active projects. Archived rows do not suppress reseeding:
 // otherwise deleting Scratch can leave first-run users with no non-git path
-// back into AO.
+// back into Operator.
 func (m *Service) EnsureDefaultScratchProject(ctx context.Context, scratchPath string) (Project, error) {
 	scratchPath = strings.TrimSpace(scratchPath)
 	if scratchPath == "" {
@@ -842,7 +842,7 @@ var projectIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 func validateProjectID(id domain.ProjectID) error {
 	raw := string(id)
 	// Reject any "." run: a "." prefix fails the pattern, but an embedded ".."
-	// (e.g. "a..b") passes it yet yields a branch like "ao/a..b-1" that git's
+	// (e.g. "a..b") passes it yet yields a branch like "opr/a..b-1" that git's
 	// check-ref-format rejects — surfacing as an opaque 500 at spawn time.
 	if raw == "" || raw == "." || strings.Contains(raw, "..") || strings.ContainsAny(raw, `/\`) || !projectIDPattern.MatchString(raw) {
 		return apierr.Invalid("INVALID_PROJECT_ID", "Project id failed storage-path validation", nil)
@@ -862,7 +862,7 @@ func resolveSessionPrefix(row domain.ProjectRecord) string {
 
 func sessionPrefix(id string) string {
 	if id == "" {
-		return "ao"
+		return "opr"
 	}
 	if len(id) <= 12 {
 		return id

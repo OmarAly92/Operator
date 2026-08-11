@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Lead with the **problem**, not only the solution.
-        For larger ideas, confirm scope on [Discord](https://discord.com/invite/UZv7JjxbwG) or the daily sync (10:00 PM IST) before building.
+        For larger ideas, confirm scope in [Discussions](https://github.com/OmarAly92/operator/discussions) before building.
 
   - type: textarea
     id: problem

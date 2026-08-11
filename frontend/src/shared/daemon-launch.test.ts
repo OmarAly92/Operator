@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolveDaemonLaunch } from "./daemon-launch";
 
 describe("resolveDaemonLaunch", () => {
-	it("uses AO_DAEMON_COMMAND when configured", () => {
+	it("uses OPERATOR_DAEMON_COMMAND when configured", () => {
 		expect(
-			resolveDaemonLaunch({ AO_DAEMON_COMMAND: "/tmp/ao daemon" }, false, "/resources", "/app", "/home/user", "darwin"),
+			resolveDaemonLaunch({ OPERATOR_DAEMON_COMMAND: "/tmp/opr daemon" }, false, "/resources", "/app", "/home/user", "darwin"),
 		).toEqual({
-			command: "/tmp/ao daemon",
+			command: "/tmp/opr daemon",
 			args: [],
 			cwd: "/app",
 			shell: true,
@@ -17,7 +17,7 @@ describe("resolveDaemonLaunch", () => {
 	it("runs the backend daemon from source in dev without an explicit command", () => {
 		expect(resolveDaemonLaunch({}, false, "/resources", "/repo/frontend", "/home/user", "darwin")).toEqual({
 			command: "go",
-			args: ["run", "./cmd/ao", "daemon"],
+			args: ["run", "./cmd/opr", "daemon"],
 			cwd: "/repo/frontend/../backend",
 			shell: false,
 			source: "dev",
@@ -29,15 +29,15 @@ describe("resolveDaemonLaunch", () => {
 			resolveDaemonLaunch(
 				{},
 				true,
-				"/Applications/Agent Orchestrator.app/Contents/Resources",
+				"/Applications/Operator.app/Contents/Resources",
 				"/app",
 				"/Users/alice",
 				"darwin",
 			),
 		).toEqual({
-			command: "/Applications/Agent Orchestrator.app/Contents/Resources/daemon/ao",
+			command: "/Applications/Operator.app/Contents/Resources/daemon/opr",
 			args: ["daemon"],
-			cwd: "/Users/alice/.ao",
+			cwd: "/Users/alice/.operator",
 			shell: false,
 			source: "bundled",
 		});
@@ -48,15 +48,15 @@ describe("resolveDaemonLaunch", () => {
 			resolveDaemonLaunch(
 				{},
 				true,
-				"C:\\Program Files\\AO\\resources",
-				"C:\\Program Files\\AO\\resources\\app.asar",
+				"C:\\Program Files\\Operator\\resources",
+				"C:\\Program Files\\Operator\\resources\\app.asar",
 				"C:\\Users\\alice",
 				"win32",
 			),
 		).toEqual({
-			command: "C:\\Program Files\\AO\\resources/daemon/ao.exe",
+			command: "C:\\Program Files\\Operator\\resources/daemon/opr.exe",
 			args: ["daemon"],
-			cwd: "C:\\Users\\alice/.ao",
+			cwd: "C:\\Users\\alice/.operator",
 			shell: false,
 			source: "bundled",
 		});

@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // ShellRuntime is the slice of the runtime adapter a shell terminal needs:
@@ -70,7 +70,7 @@ type Service struct {
 	// BeginSessionTeardown/OpenShellTerminal gate acquisition. OpenShellTerminal
 	// validates a session id BEFORE calling sessionGateFor, so an invalid id
 	// never allocates an entry here — only real sessions do, bounding growth to
-	// the shape AO's single-user daemon actually runs.
+	// the shape Operator's single-user daemon actually runs.
 	gates map[domain.SessionID]*sessionGate
 
 	// onSessionGateWait, when set, is called the instant a session-scoped

@@ -127,16 +127,16 @@ describe("showBranch", () => {
 		expect(showBranch("feat/add-login", "Add Login")).toBe(false);
 	});
 
-	// The rule this was narrowed to, twice. AO names worktree branches
-	// `ao/<session-id>/<slug>`; earlier versions normalised that scaffolding away
+	// The rule this was narrowed to, twice. Operator names worktree branches
+	// `opr/<session-id>/<slug>`; earlier versions normalised that scaffolding away
 	// and so hid the branch on every unnamed session. But it IS the worktree, the
 	// card names it nowhere else, and desktop's sameLabel has no knowledge of
-	// `ao/` so desktop shows it.
-	it("keeps AO worktree branches, named session or not", () => {
-		expect(showBranch("ao/agent-orchestrator-mo-17/root", "mobile-ui-revamp")).toBe(true);
-		expect(showBranch("ao/meetyou-2/chat-experience", "chat-ux")).toBe(true);
-		expect(showBranch("ao/meetyou-7/root", "meetyou-7")).toBe(true);
-		expect(showBranch("ao/precision-market-19/root", "precision-market-19")).toBe(true);
+	// `opr/` so desktop shows it.
+	it("keeps Operator worktree branches, named session or not", () => {
+		expect(showBranch("opr/operator-mo-17/root", "mobile-ui-revamp")).toBe(true);
+		expect(showBranch("opr/meetyou-2/chat-experience", "chat-ux")).toBe(true);
+		expect(showBranch("opr/meetyou-7/root", "meetyou-7")).toBe(true);
+		expect(showBranch("opr/precision-market-19/root", "precision-market-19")).toBe(true);
 	});
 
 	it("hides an absent branch", () => {

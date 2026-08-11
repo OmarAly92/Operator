@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import { buildWhenToUseSection, MARKDOWN_HEADERS } from "@/lib/llms";
 
 export const dynamic = "force-static";
@@ -16,19 +16,19 @@ export function GET() {
     "",
     "## Capabilities",
     "",
-    `Inside an ${COMPANY.NAME}-managed session, an agent can use the installed local \`ao\` CLI to:`,
+    `Inside an ${COMPANY.NAME}-managed session, an agent can use the installed local \`opr\` CLI to:`,
     "",
-    "- **Tasks**: create, list, inspect, and update work tracked by the local AO daemon.",
-    "- **Workspaces**: work in branch- or PR-scoped Git worktrees managed by AO.",
+    "- **Tasks**: create, list, inspect, and update work tracked by the local Operator daemon.",
+    "- **Workspaces**: work in branch- or PR-scoped Git worktrees managed by Operator.",
     "- **Agents**: launch and inspect coding-agent sessions in isolated workspaces.",
     "- **Terminals**: open a PTY in a workspace, optionally running a one-off command.",
-    "- **Projects and previews**: inspect registered repositories and open local preview URLs in AO's browser panel.",
+    "- **Projects and previews**: inspect registered repositories and open local preview URLs in Operator's browser panel.",
     "",
     "## How to operate",
     "",
-    "- Run `ao help` or `ao <command> --help` for the commands installed with the current AO version.",
-    "- The CLI is a thin client of the local daemon; do not bypass it by reading AO's SQLite state directly.",
-    "- AO's primary daemon listener is loopback-only. Do not treat this website as an API endpoint.",
+    "- Run `opr help` or `opr <command> --help` for the commands installed with the current Operator version.",
+    "- The CLI is a thin client of the local daemon; do not bypass it by reading Operator's SQLite state directly.",
+    "- Operator's primary daemon listener is loopback-only. Do not treat this website as an API endpoint.",
     "",
     "## Learn more",
     "",

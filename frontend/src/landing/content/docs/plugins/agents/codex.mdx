@@ -3,18 +3,18 @@ title: Codex
 description: Built-in Terminal UI and native app-server Chat support for the user's Codex installation.
 ---
 
-AO uses the locally installed `codex` executable and its existing OpenAI authentication.
+Operator uses the locally installed `codex` executable and its existing OpenAI authentication.
 
 ```bash
-ao agent ls --refresh
-ao spawn --project my-app --name codex-task --agent codex --mode chat
+opr agent ls --refresh
+opr spawn --project my-app --name codex-task --agent codex --mode chat
 ```
 
 ## Interfaces
 
 - **Terminal UI:** runs the native Codex CLI in the session worktree.
-- **Chat:** connects to Codex's native app-server protocol and persists the provider conversation identity with the AO session.
+- **Chat:** connects to Codex's native app-server protocol and persists the provider conversation identity with the Operator session.
 
-Codex supports the same capability-gated Chat/Terminal UI handoff as Claude Code. The AO session and worktree remain stable across a compatible handoff.
+Codex supports the same capability-gated Chat/Terminal UI handoff as Claude Code. The Operator session and worktree remain stable across a compatible handoff.
 
-AO performs bounded installation and authentication probes before spawn. Use `--skip-agent-check` only to bypass that advisory CLI preflight; daemon validation remains authoritative.
+Operator performs bounded installation and authentication probes before spawn. Use `--skip-agent-check` only to bypass that advisory CLI preflight; daemon validation remains authoritative.

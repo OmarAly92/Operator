@@ -48,7 +48,7 @@ describe("useWorkspaceQuery", () => {
 		const { result } = renderHook(() => useWorkspaceQuery(), { wrapper });
 
 		await waitFor(() => expect(result.current.isError).toBe(true));
-		expect(result.current.error).toEqual(new Error("AO daemon API is not ready"));
+		expect(result.current.error).toEqual(new Error("Operator daemon API is not ready"));
 		expect(getMock).not.toHaveBeenCalled();
 	});
 
@@ -138,11 +138,11 @@ describe("useWorkspaceQuery", () => {
 			branch: undefined,
 			autoInjectReview: true,
 		});
-		expect(captureRendererEventMock).toHaveBeenCalledWith("ao.renderer.session_state_unknown", {
+		expect(captureRendererEventMock).toHaveBeenCalledWith("opr.renderer.session_state_unknown", {
 			field: "status",
 			reason: "unrecognized",
 		});
-		expect(captureRendererEventMock).toHaveBeenCalledWith("ao.renderer.session_state_unknown", {
+		expect(captureRendererEventMock).toHaveBeenCalledWith("opr.renderer.session_state_unknown", {
 			field: "activity",
 			reason: "missing",
 		});
@@ -157,7 +157,7 @@ describe("useWorkspaceQuery", () => {
 							id: "scratch",
 							name: "Scratch",
 							kind: "scratch",
-							path: "/home/me/.ao/scratch/default",
+							path: "/home/me/.operator/scratch/default",
 						},
 					],
 				},

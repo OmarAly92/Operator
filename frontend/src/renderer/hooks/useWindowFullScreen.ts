@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { isMacPlatform } from "../lib/platform";
 
 /**
@@ -17,13 +17,13 @@ export function useWindowFullScreen(): boolean {
 		// overwrite a newer enter/leave-full-screen notification.
 		let version = 0;
 
-		const off = aoBridge.window.onFullScreen((value) => {
+		const off = operatorBridge.window.onFullScreen((value) => {
 			version += 1;
 			setFullScreen(value);
 		});
 
 		const seedVersion = version;
-		void aoBridge.window.isFullScreen().then((value) => {
+		void operatorBridge.window.isFullScreen().then((value) => {
 			if (live && seedVersion === version) setFullScreen(value);
 		});
 

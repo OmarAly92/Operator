@@ -1,6 +1,6 @@
 "use client";
 
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 
 interface SocialLinksProps {
 	className?: string;

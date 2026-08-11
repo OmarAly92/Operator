@@ -99,7 +99,7 @@ jobs:
           active=0
           while IFS=$'\t' read -r published_at body; do
             # Extract the JSON payload from the marker line and read .pr from it.
-            json="$(echo "$body" | sed -n 's/.*<!-- ao-feature-build: \(.*\) -->.*/\1/p')"
+            json="$(echo "$body" | sed -n 's/.*<!-- opr-feature-build: \(.*\) -->.*/\1/p')"
             if [ -z "$json" ]; then continue; fi
             pr_num="$(echo "$json" | jq -r '.pr' 2>/dev/null)" || true
             if [ -z "$pr_num" ] || [ "$pr_num" = "null" ]; then continue; fi
@@ -115,7 +115,7 @@ jobs:
               seen[$pr_num]=1
               active=$((active + 1))
             fi
-          done < <(gh api "repos/$REPO/releases?per_page=100" --jq '.[] | select(.prerelease) | select(.body != null) | select(.body | contains("<!-- ao-feature-build:")) | [.published_at, .body] | @tsv')
+          done < <(gh api "repos/$REPO/releases?per_page=100" --jq '.[] | select(.prerelease) | select(.body != null) | select(.body | contains("<!-- opr-feature-build:")) | [.published_at, .body] | @tsv')
           echo "Active feature releases: $active"
           if [ "$active" -ge 5 ]; then
             echo "::error::5 feature releases active - retire one first."
@@ -296,8 +296,8 @@ jobs:
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AO_RELEASE_REPO: ${{ github.repository }}
-          AO_RELEASE_PRERELEASE: "true"
+          OPERATOR_RELEASE_REPO: ${{ github.repository }}
+          OPERATOR_RELEASE_PRERELEASE: "true"
           # macOS signing + notarization env is exported by the "macOS signing
           # setup" step above via $GITHUB_ENV; the cert is in the keychain.
 
@@ -364,8 +364,8 @@ jobs:
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AO_RELEASE_REPO: ${{ github.repository }}
-          AO_RELEASE_PRERELEASE: "true"
+          OPERATOR_RELEASE_REPO: ${{ github.repository }}
+          OPERATOR_RELEASE_PRERELEASE: "true"
 
   # ── publish-feed ──────────────────────────────────────────────────────────
   # Generates the pr<N> electron-updater feed from the versioned prerelease
@@ -486,7 +486,7 @@ jobs:
           # the ubuntu-latest leg of the `release` matrix, which meant it (and
           # the annotate step below) were skipped entirely when
           # platforms=mac/win only - the prior build was never retired and the
-          # new one never got its ao-feature-build marker. publish-feed runs
+          # new one never got its opr-feature-build marker. publish-feed runs
           # exactly once regardless of which platforms were built, so both
           # steps belong here instead.
           matching="$(gh api "repos/$REPO/releases?per_page=100" --jq \
@@ -522,7 +522,7 @@ jobs:
             --arg sha "${SHORT_SHA}" \
             --arg slug "${SLUG}" \
             '{pr: $pr, base: $base, sha: $sha, slug: $slug}')"
-          marker="<!-- ao-feature-build: ${payload} -->"
+          marker="<!-- opr-feature-build: ${payload} -->"
           current_body="$(gh release view "$TAG" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo '')"
           new_body="${current_body}"$'\n'"${marker}"
           gh release edit "$TAG" \

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // captureAgent is a stub ports.Agent that records the configs the reviewer
@@ -60,7 +60,7 @@ func TestReviewCommandAppliesBestEffortPolicyOffBypass(t *testing.T) {
 	if agent.got.Permissions != ports.PermissionModeAuto {
 		t.Fatalf("reviewer must launch in auto permission mode; got %q", agent.got.Permissions)
 	}
-	if !contains(agent.got.AllowedTools, "read") || !contains(agent.got.AllowedTools, "bash(ao review submit:*)") {
+	if !contains(agent.got.AllowedTools, "read") || !contains(agent.got.AllowedTools, "bash(opr review submit:*)") {
 		t.Fatalf("allowlist missing read-only review tools: %#v", agent.got.AllowedTools)
 	}
 	for _, denied := range []string{
@@ -98,12 +98,12 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 	r := &Reviewer{agent: agent}
 
 	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		Prompt:           "Start the AO review task.",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		Prompt:           "Start the Operator review task.",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	}); err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if agent.got.Prompt != "Start the AO review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.Prompt != "Start the Operator review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/opr/prompts/reviewer/system.md" {
 		t.Fatalf("launch config = %+v", agent.got)
 	}
 }
@@ -129,9 +129,9 @@ func TestAllowlistIncludesProtocolToolsAndDeniesDangerousGh(t *testing.T) {
 		}
 	}
 
-	// The reviewer can still submit verdicts via ao review submit.
-	if !contains(agent.got.AllowedTools, "bash(ao review submit:*)") {
-		t.Fatalf("allowlist missing ao review submit: %#v", agent.got.AllowedTools)
+	// The reviewer can still submit verdicts via opr review submit.
+	if !contains(agent.got.AllowedTools, "bash(opr review submit:*)") {
+		t.Fatalf("allowlist missing opr review submit: %#v", agent.got.AllowedTools)
 	}
 
 	// git show must NOT be in the allow list — it can read arbitrary tracked
@@ -173,7 +173,7 @@ func TestReviewRestoreCommandUsesNativeSessionAndReappliesPolicy(t *testing.T) {
 		ReviewerID:       "review-w1",
 		AgentSessionID:   "kimchi-native-1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/reviewer/system.md",
+		SystemPromptFile: "/opr/prompts/reviewer/system.md",
 	})
 	if err != nil {
 		t.Fatalf("ReviewRestoreCommand: %v", err)

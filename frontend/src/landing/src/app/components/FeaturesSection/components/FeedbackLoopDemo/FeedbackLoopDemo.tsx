@@ -414,9 +414,9 @@ export function FeedbackLoopDemo() {
 				style={{ ...sessionPreviewTokens, ...canvasStyle, fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif" }}
 			>
 				<style>{`
-					@keyframes ao-step-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-					.ao-blink { animation: ao-step-blink 1s step-end infinite; }
-					@media (prefers-reduced-motion: reduce) { .ao-blink { animation: none; } }
+					@keyframes opr-step-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+					.operator-blink { animation: opr-step-blink 1s step-end infinite; }
+					@media (prefers-reduced-motion: reduce) { .operator-blink { animation: none; } }
 				`}</style>
 				<div className="flex h-full min-w-0 flex-col">
 					<SessionTopbar phase={phase} />
@@ -597,7 +597,7 @@ function TerminalPane({ lines, typingText, streamingText }: { lines: DisplayLine
 						Opus 4.8 (1M context) · Claude Team
 					</div>
 					<div className="text-[var(--preview-terminal-dim)]">
-						~/ao/solkit-ui/orchestrator
+						~/opr/solkit-ui/orchestrator
 					</div>
 				</div>
 			</div>
@@ -631,7 +631,7 @@ function TerminalPane({ lines, typingText, streamingText }: { lines: DisplayLine
 							<span className="w-[7px] shrink-0">{normalizeMarker(typingText.marker) ?? ""}</span>
 							<span className="min-w-0 whitespace-pre-wrap break-words">
 								{typingText.chars}
-								<span className="inline-block h-[9px] w-[5px] translate-y-[1px] ao-blink bg-[var(--preview-terminal-fg)]" />
+								<span className="inline-block h-[9px] w-[5px] translate-y-[1px] opr-blink bg-[var(--preview-terminal-fg)]" />
 							</span>
 						</div>
 					) : null}
@@ -641,7 +641,7 @@ function TerminalPane({ lines, typingText, streamingText }: { lines: DisplayLine
 							<span className="w-[7px] shrink-0" />
 							<span className="min-w-0 whitespace-pre-wrap break-words">
 								{streamingText}
-								<span className="inline-block h-[9px] w-[5px] translate-y-[1px] ao-blink bg-[var(--preview-terminal-fg)]" />
+								<span className="inline-block h-[9px] w-[5px] translate-y-[1px] opr-blink bg-[var(--preview-terminal-fg)]" />
 							</span>
 						</div>
 					) : null}
@@ -649,7 +649,7 @@ function TerminalPane({ lines, typingText, streamingText }: { lines: DisplayLine
 					{!typingText && streamingText === null ? (
 						<div className="flex min-w-0 items-center gap-1.5" style={{ color: lineToneColor.fg }}>
 							<span className="w-[7px] shrink-0">{PROMPT_MARKER}</span>
-							<span className="inline-block h-[10px] w-[5.5px] ao-blink bg-[var(--preview-terminal-fg)]" />
+							<span className="inline-block h-[10px] w-[5.5px] opr-blink bg-[var(--preview-terminal-fg)]" />
 						</div>
 					) : null}
 				</div>
@@ -847,7 +847,7 @@ function ReviewsSection() {
 	return (
 		<div className="flex flex-col gap-1.5">
 			<div className="flex items-center justify-between">
-				<span className="text-[9px] font-medium text-[var(--preview-foreground)]">AO Code Review</span>
+				<span className="text-[9px] font-medium text-[var(--preview-foreground)]">Operator Code Review</span>
 				<span
 					className="inline-flex h-[18px] items-center rounded-md px-1.5 text-[8px] font-medium text-[var(--preview-muted-foreground)]"
 					style={{ background: "var(--preview-input)" }}

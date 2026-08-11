@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // Steering: guidance delivered into a turn that is already running.
@@ -94,7 +94,7 @@ func (s *Service) Steer(
 // exactly that window, the second after someone realizes they sent the wrong thing,
 // so the same helper Interrupt uses to ride out that gap is used here.
 //
-// The provider is asked first and AO writes second. If the provider declines,
+// The provider is asked first and Operator writes second. If the provider declines,
 // nothing has been recorded — a timeline claiming guidance the agent never received
 // would be worse than the refusal, because the user would stop waiting for it.
 func (c *Controller) Steer(ctx context.Context, msg ports.ChatUserMessage) (SteerResult, error) {
@@ -120,7 +120,7 @@ func (c *Controller) Steer(ctx context.Context, msg ports.ChatUserMessage) (Stee
 	if err != nil {
 		switch {
 		case errors.Is(err, ports.ErrChatNoSteerableTurn):
-			// The turn ended, or was replaced, between AO's check and the provider's.
+			// The turn ended, or was replaced, between Operator's check and the provider's.
 			// The provider is the authority on that, and losing the race is ordinary.
 			return SteerResult{}, ErrNoActiveTurn
 		case errors.Is(err, ports.ErrChatTurnNotSteerable):
@@ -135,7 +135,7 @@ func (c *Controller) Steer(ctx context.Context, msg ports.ChatUserMessage) (Stee
 	}
 	activityID, err := c.recordSteer(ctx, landed, msg)
 	if err != nil {
-		// The guidance IS with the agent; only AO's record of it failed. Reporting the
+		// The guidance IS with the agent; only Operator's record of it failed. Reporting the
 		// error rather than swallowing it, because a steer the timeline never mentions
 		// is a conversation whose next answer has no visible cause.
 		return SteerResult{ProviderTurnID: landed}, err
@@ -146,7 +146,7 @@ func (c *Controller) Steer(ctx context.Context, msg ports.ChatUserMessage) (Stee
 // recordSteer writes the guidance onto the turn that took it.
 //
 // It lands as an activity, not as a message, and the reason is structural rather
-// than semantic: a steer joins a turn that is already running, and AO's only durable
+// than semantic: a steer joins a turn that is already running, and Operator's only durable
 // write that can attach to a turn in flight is the activity row. AppendUserMessage
 // opens a NEW turn — using it here would mint a second turn row that the drain loop
 // would later dispatch as its own turn, sending the user's correction twice. The row
@@ -155,7 +155,7 @@ func (c *Controller) Steer(ctx context.Context, msg ports.ChatUserMessage) (Stee
 // identified by their discriminator instead of by the general `system` kind.
 //
 // The provider's own echo is not the record. It replays the guidance as a
-// `userMessage` item on the turn, but the driver drops those: AO records what the
+// `userMessage` item on the turn, but the driver drops those: Operator records what the
 // user said when it accepts the request, and re-emitting the echo would show it
 // twice.
 func (c *Controller) recordSteer(
@@ -187,7 +187,7 @@ func (c *Controller) recordSteer(
 			Detail:  encoded,
 			// A synthetic item key, so a client retrying with the same idempotency
 			// handle updates this row instead of adding a second one. Prefixed because
-			// this id is AO's, not the provider's, and the two share a column.
+			// this id is Operator's, not the provider's, and the two share a column.
 			ProviderItemID: steerItemID(msg.ClientMessageID),
 		}, c.now()); err != nil {
 		return "", fmt.Errorf("record steer on turn %s: %w", providerTurnID, err)

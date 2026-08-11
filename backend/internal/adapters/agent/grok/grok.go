@@ -2,16 +2,16 @@
 //
 // Grok Build is xAI's terminal coding agent (binary "grok"). It supports
 // Claude Code compatibility for hooks, skills, etc., so we write Claude-shaped
-// hooks into .claude/settings.local.json with Grok-specific AO hook commands.
+// hooks into .claude/settings.local.json with Grok-specific Operator hook commands.
 // Grok will pick them up via its compat layer.
 //
-// Launch starts Grok's interactive TUI without a prompt. AO delivers the
+// Launch starts Grok's interactive TUI without a prompt. Operator delivers the
 // initial task through the terminal after the TUI is ready because Grok's
 // `-p`/`--single` mode is headless and bare positional arguments are parsed as
 // subcommands.
-// AO's standing instructions are appended with `--rules` so Grok's built-in
+// Operator's standing instructions are appended with `--rules` so Grok's built-in
 // coding-agent system prompt is preserved. Permission handling uses
-// `--permission-mode`. We also pass `--no-auto-update` for AO-managed sessions
+// `--permission-mode`. We also pass `--no-auto-update` for Operator-managed sessions
 // (parity with Codex no-update).
 // Restore prefers the hook-captured native session id via `-r <id>`.
 //
@@ -27,11 +27,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hooksjson"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 var grokBinarySpec = binaryutil.BinarySpec{
@@ -51,15 +51,15 @@ var grokBinarySpec = binaryutil.BinarySpec{
 const (
 	grokClaudeSettingsDirName  = ".claude"
 	grokClaudeSettingsFileName = "settings.local.json"
-	grokHookCommandPrefix      = "ao hooks grok "
+	grokHookCommandPrefix      = "opr hooks grok "
 	grokHookTimeout            = 30
 )
 
 var grokStartupMatcher = "startup"
 
-// grokManagedHooks is Claude Code's hook event shape with Grok-specific AO
+// grokManagedHooks is Claude Code's hook event shape with Grok-specific Operator
 // hook commands. Grok reads this file through its Claude compatibility layer,
-// while `ao hooks grok` keeps activity and session metadata attributed to the
+// while `opr hooks grok` keeps activity and session metadata attributed to the
 // Grok harness.
 var grokManagedHooks = []hooksjson.HookSpec{
 	{Event: "SessionStart", Matcher: &grokStartupMatcher, Command: grokHookCommandPrefix + "session-start"},
@@ -115,7 +115,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 }
 
 // GetLaunchCommand builds `grok --no-auto-update [--permission-mode <mode>]`
-// and leaves the prompt for AO's after-start terminal delivery. Grok's
+// and leaves the prompt for Operator's after-start terminal delivery. Grok's
 // `-p`/`--single` flag runs one headless turn and exits, while a bare prompt is
 // parsed as a subcommand by current Grok versions.
 //
@@ -142,7 +142,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Grok tasks
+// GetPromptDeliveryStrategy reports that Operator should inject prompted Grok tasks
 // into the interactive terminal after startup.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
 	if err := ctx.Err(); err != nil {
@@ -151,7 +151,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 	return ports.PromptDeliveryAfterStart, nil
 }
 
-// PromptReadinessHints waits for Grok's interactive UI before AO injects the
+// PromptReadinessHints waits for Grok's interactive UI before Operator injects the
 // worker's first task. Timeout falls back to delivery so a changed startup
 // banner cannot permanently block spawning.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {
@@ -177,18 +177,18 @@ func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig)
 //
 // This means Grok will pick up the .claude/settings.local.json in the
 // worktree. The hook payloads for SessionStart / UserPromptSubmit / Stop etc.
-// are compatible, and the installed commands use the Grok harness token so AO
+// are compatible, and the installed commands use the Grok harness token so Operator
 // persists Grok's native session id under the Grok session.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	return grokHooks.Install(ctx, cfg.WorkspacePath)
 }
 
-// UninstallHooks removes the Claude Code-compatible AO hooks Grok uses.
+// UninstallHooks removes the Claude Code-compatible Operator hooks Grok uses.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	return grokHooks.Uninstall(ctx, workspacePath)
 }
 
-// AreHooksInstalled reports whether the Grok Claude Code-compatible AO
+// AreHooksInstalled reports whether the Grok Claude Code-compatible Operator
 // hooks are present for this Grok workspace.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	return grokHooks.AreInstalled(ctx, workspacePath)
@@ -197,7 +197,7 @@ func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (b
 // GetRestoreCommand resumes a prior grok session by its captured id, building
 // `grok --no-auto-update [--permission-mode <mode>] -r <agentSessionId>`
 // when we have a hook-captured native id. ok=false otherwise, so the restore
-// manager falls back to a fresh launch with AO's saved system prompt.
+// manager falls back to a fresh launch with Operator's saved system prompt.
 func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig) (cmd []string, ok bool, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
@@ -227,7 +227,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	return cmd, true, nil
 }
 
-// SessionInfo reads hook-derived metadata under AO's normalized keys ("title",
+// SessionInfo reads hook-derived metadata under Operator's normalized keys ("title",
 // "summary", "agentSessionId").
 func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (ports.SessionInfo, bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -275,8 +275,8 @@ func appendApprovalFlags(cmd *[]string, permissions ports.PermissionMode) {
 	}
 }
 
-// Grok's --rules flag accepts inline text only. AO usually supplies both inline
-// text and an AO-owned file; read the file only when inline instructions are not
+// Grok's --rules flag accepts inline text only. Operator usually supplies both inline
+// text and an Operator-owned file; read the file only when inline instructions are not
 // available.
 func launchSystemPromptText(cfg ports.LaunchConfig) (string, error) {
 	return systemPromptTextFrom(cfg.SystemPrompt, cfg.SystemPromptFile)
@@ -293,7 +293,7 @@ func systemPromptTextFrom(inline, file string) (string, error) {
 	if file == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Operator-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("grok: read system prompt file: %w", err)
 	}

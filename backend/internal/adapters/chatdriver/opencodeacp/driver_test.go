@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/acp"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestConfigureUsesNativeACPAndMergesSystemPromptConfig(t *testing.T) {
 	args, env, err := configure(acpdriver.LaunchConfig{
-		SessionID: "worker-1", SystemPrompt: "Follow AO worker rules.",
+		SessionID: "worker-1", SystemPrompt: "Follow Operator worker rules.",
 		Permissions: ports.PermissionModeBypassPermissions,
 		Env: map[string]string{
 			"OPENCODE_CONFIG":         "/user/custom.json",
@@ -35,11 +35,11 @@ func TestConfigureUsesNativeACPAndMergesSystemPromptConfig(t *testing.T) {
 	if err := json.Unmarshal([]byte(env["OPENCODE_CONFIG_CONTENT"]), &config); err != nil {
 		t.Fatalf("decode config: %v", err)
 	}
-	if config.DefaultAgent != "ao-worker-1" {
+	if config.DefaultAgent != "opr-worker-1" {
 		t.Fatalf("default agent = %q", config.DefaultAgent)
 	}
-	if got := config.Agent[config.DefaultAgent]; got.Mode != "primary" || got.Prompt != "Follow AO worker rules." {
-		t.Fatalf("AO agent config = %#v", got)
+	if got := config.Agent[config.DefaultAgent]; got.Mode != "primary" || got.Prompt != "Follow Operator worker rules." {
+		t.Fatalf("Operator agent config = %#v", got)
 	}
 	if _, ok := config.Agent["mine"]; !ok || config.Provider["local"] == nil {
 		t.Fatalf("user inline config was not preserved: %#v", config)
@@ -49,7 +49,7 @@ func TestConfigureUsesNativeACPAndMergesSystemPromptConfig(t *testing.T) {
 	}
 }
 
-func TestConfigureWithoutSystemPromptWritesNoAOConfig(t *testing.T) {
+func TestConfigureWithoutSystemPromptWritesNoOperatorConfig(t *testing.T) {
 	args, env, err := configure(acpdriver.LaunchConfig{})
 	if err != nil {
 		t.Fatalf("configure: %v", err)

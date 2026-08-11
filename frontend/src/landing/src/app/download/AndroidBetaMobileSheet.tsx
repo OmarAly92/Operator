@@ -3,7 +3,7 @@
 import {
   ANDROID_TESTER_GROUP_URL,
   ANDROID_TEST_OPT_IN_URL,
-} from "@ao/shared/constants";
+} from "@operator/shared/constants";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ExternalLink, X } from "lucide-react";
 import { useEffect } from "react";
@@ -86,7 +86,7 @@ export function AndroidBetaMobileSheet({
               id="android-beta-sheet-title"
               className="pr-8 text-xl font-semibold text-foreground"
             >
-              Get AO on this Android
+              Get Operator on this Android
             </h2>
             <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
               Three quick steps. Use the Google account linked to Google Play.
@@ -126,7 +126,7 @@ export function AndroidBetaMobileSheet({
               </li>
 
               <li>
-                <Step number={3} title="Install AO Mobile">
+                <Step number={3} title="Install Operator Mobile">
                   After opting in, tap the Google Play install link on that
                   page.
                 </Step>

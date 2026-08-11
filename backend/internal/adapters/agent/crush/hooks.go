@@ -11,33 +11,33 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hookutil"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const (
 	crushConfigDirName      = ".crush"
 	crushConfigFileName     = ".crush.json"
-	crushSystemPromptName   = "ao-system-prompt.md"
+	crushSystemPromptName   = "opr-system-prompt.md"
 	crushSystemPromptPath   = crushConfigDirName + "/" + crushSystemPromptName
-	crushSystemPromptMarker = "agent-orchestrator: managed crush system prompt"
+	crushSystemPromptMarker = "operator: managed crush system prompt"
 
-	// crushModelSeparator splits AO's "<provider>/<model-id>" convention.
+	// crushModelSeparator splits Operator's "<provider>/<model-id>" convention.
 	// Crush's config schema (models.large / models.small) requires both a
-	// provider id and a model id per selection; AO's AgentConfig.Model is a
+	// provider id and a model id per selection; Operator's AgentConfig.Model is a
 	// single string, so Crush is the one adapter that needs a delimiter to
 	// recover both parts (see mergeCrushModel).
 	crushModelSeparator = "/"
 
-	// crushModelType is the model type AO writes overrides into. Crush's
-	// "large" model backs its main coder agent; AO has no equivalent of
+	// crushModelType is the model type Operator writes overrides into. Crush's
+	// "large" model backs its main coder agent; Operator has no equivalent of
 	// Crush's separate "small"/task-agent model, so only large is managed.
 	crushModelType = "large"
 )
 
-// GetAgentHooks installs AO's standing instructions as a Crush context file.
+// GetAgentHooks installs Operator's standing instructions as a Crush context file.
 // Crush has no launch-time system-prompt flag, but it reads context_paths from
-// project config. AO therefore owns one prompt file under .crush/ and merges
+// project config. Operator therefore owns one prompt file under .crush/ and merges
 // only that path into the hidden project-local .crush.json.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -59,12 +59,12 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 
 	promptPath := crushSystemPromptFile(cfg.WorkspacePath)
 	if _, err := os.Stat(promptPath); err == nil {
-		managed, err := isAOManagedCrushSystemPrompt(promptPath)
+		managed, err := isOperatorManagedCrushSystemPrompt(promptPath)
 		if err != nil {
 			return fmt.Errorf("crush.GetAgentHooks: %w", err)
 		}
 		if !managed {
-			return fmt.Errorf("crush.GetAgentHooks: refusing to overwrite non-AO file at %s", promptPath)
+			return fmt.Errorf("crush.GetAgentHooks: refusing to overwrite non-Operator file at %s", promptPath)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("crush.GetAgentHooks: stat system prompt: %w", err)
@@ -86,9 +86,9 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes AO's Crush context file and context_paths entry. User
-// config is preserved; AO removes only its exact path and only deletes the
-// prompt file when it carries the AO marker.
+// UninstallHooks removes Operator's Crush context file and context_paths entry. User
+// config is preserved; Operator removes only its exact path and only deletes the
+// prompt file when it carries the Operator marker.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -97,7 +97,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 		return errors.New("crush.UninstallHooks: workspacePath is required")
 	}
 	promptPath := crushSystemPromptFile(workspacePath)
-	managed, err := isAOManagedCrushSystemPrompt(promptPath)
+	managed, err := isOperatorManagedCrushSystemPrompt(promptPath)
 	if err != nil {
 		return fmt.Errorf("crush.UninstallHooks: %w", err)
 	}
@@ -145,9 +145,9 @@ func applyCrushModelOverride(workspacePath, modelOverride string) error {
 	return mergeCrushModel(crushConfigFile(workspacePath), existingProvider, model)
 }
 
-// AreHooksInstalled reports whether AO's Crush system-prompt context file is
+// AreHooksInstalled reports whether Operator's Crush system-prompt context file is
 // present. Crush still lacks activity hooks; this reports only the prompt
-// injection hook surface AO manages for Crush.
+// injection hook surface Operator manages for Crush.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -155,7 +155,7 @@ func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (b
 	if strings.TrimSpace(workspacePath) == "" {
 		return false, errors.New("crush.AreHooksInstalled: workspacePath is required")
 	}
-	managed, err := isAOManagedCrushSystemPrompt(crushSystemPromptFile(workspacePath))
+	managed, err := isOperatorManagedCrushSystemPrompt(crushSystemPromptFile(workspacePath))
 	if err != nil {
 		return false, fmt.Errorf("crush.AreHooksInstalled: %w", err)
 	}
@@ -172,7 +172,7 @@ func crushConfigFile(workspacePath string) string {
 
 func crushSystemPromptText(inline, file string) (string, error) {
 	if strings.TrimSpace(file) != "" {
-		data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+		data, err := os.ReadFile(file) //nolint:gosec // path is Operator-owned launch config
 		if err != nil {
 			return "", fmt.Errorf("read system prompt file: %w", err)
 		}
@@ -181,7 +181,7 @@ func crushSystemPromptText(inline, file string) (string, error) {
 	return strings.TrimRight(inline, "\n"), nil
 }
 
-func isAOManagedCrushSystemPrompt(path string) (bool, error) {
+func isOperatorManagedCrushSystemPrompt(path string) (bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -210,7 +210,7 @@ func mergeCrushContextPath(configPath, contextPath string) error {
 // mergeCrushModel sets models.large.{model,provider} in the project's
 // .crush.json, preserving any other keys already set on that selection (e.g.
 // a user's max_tokens or temperature override) and any other top-level config
-// (providers, options, other model type). AO owns only the model/provider
+// (providers, options, other model type). Operator owns only the model/provider
 // identity fields it writes here.
 func mergeCrushModel(configPath, provider, modelID string) error {
 	cfg, err := readCrushConfig(configPath)

@@ -100,7 +100,7 @@ export function TaskComposer({
 	} = useFileAttachments();
 	const createTask = useCallback(
 		async (input: CreateTaskInput): Promise<string> => {
-			void captureRendererEvent("ao.renderer.task_create_requested", { project_id: input.projectId });
+			void captureRendererEvent("opr.renderer.task_create_requested", { project_id: input.projectId });
 			try {
 				const { data, error } = await apiClient.POST("/api/v1/orchestrators/delegate", {
 					body: {
@@ -119,10 +119,10 @@ export function TaskComposer({
 					);
 				}
 				if (!data?.workerId) throw new Error(t("newTask.noSession"));
-				void captureRendererEvent("ao.renderer.task_create_succeeded", { project_id: input.projectId });
+				void captureRendererEvent("opr.renderer.task_create_succeeded", { project_id: input.projectId });
 				return data.workerId;
 			} catch (err) {
-				void captureRendererEvent("ao.renderer.task_create_failed", { project_id: input.projectId });
+				void captureRendererEvent("opr.renderer.task_create_failed", { project_id: input.projectId });
 				void queryClient.invalidateQueries({ queryKey: agentsQueryKey });
 				throw err instanceof Error ? err : new Error(t("newTask.unableToStart"));
 			}

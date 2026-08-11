@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	trackergithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/github"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	trackerintake "github.com/aoagents/agent-orchestrator/backend/internal/observe/trackerintake"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	trackergithub "github.com/OmarAly92/operator/backend/internal/adapters/tracker/github"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	trackerintake "github.com/OmarAly92/operator/backend/internal/observe/trackerintake"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
+	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
 // startTrackerIntake wires the opt-in GitHub issue-intake loop. The observer
@@ -103,7 +103,7 @@ type trackerTokenSource struct {
 }
 
 func (s *trackerTokenSource) Token(ctx context.Context) (string, error) {
-	env := trackergithub.EnvTokenSource{EnvVars: []string{"AO_GITHUB_TOKEN"}}
+	env := trackergithub.EnvTokenSource{EnvVars: []string{"OPERATOR_GITHUB_TOKEN"}}
 	if tok, err := env.Token(ctx); err == nil {
 		return tok, nil
 	} else if !errors.Is(err, trackergithub.ErrNoToken) {

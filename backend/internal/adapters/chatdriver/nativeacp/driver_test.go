@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/acp"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type fakePlugin struct {
@@ -29,7 +29,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 		Harness: domain.HarnessOpenCode,
 		Configure: func(in acpdriver.LaunchConfig) ([]string, map[string]string, error) {
 			configured = in
-			return []string{"acp"}, map[string]string{"PROVIDER_CONFIG": "/ao/config.json"}, nil
+			return []string{"acp"}, map[string]string{"PROVIDER_CONFIG": "/opr/config.json"}, nil
 		},
 	}, nil)
 
@@ -37,9 +37,9 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 		t.Fatalf("Probe: %v", err)
 	}
 	launch, err := cfg.Launch(context.Background(), acpdriver.LaunchConfig{
-		SessionID: "session-1", DataDir: "/ao", WorkspacePath: "/worktree",
+		SessionID: "session-1", DataDir: "/opr", WorkspacePath: "/worktree",
 		Env: map[string]string{"PATH": "/user/bin", "KEEP": "yes"}, Model: "provider/model",
-		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "AO rules",
+		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "Operator rules",
 	})
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
@@ -51,12 +51,12 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 		t.Fatalf("args = %#v", launch.Args)
 	}
 	if launch.Env["PATH"] != "/user/bin" || launch.Env["KEEP"] != "yes" ||
-		launch.Env["PROVIDER_CONFIG"] != "/ao/config.json" {
+		launch.Env["PROVIDER_CONFIG"] != "/opr/config.json" {
 		t.Fatalf("merged env = %#v", launch.Env)
 	}
-	if configured.DataDir != "/ao" || configured.WorkspacePath != "/worktree" ||
+	if configured.DataDir != "/opr" || configured.WorkspacePath != "/worktree" ||
 		configured.Model != "provider/model" || configured.Permissions != ports.PermissionModeAcceptEdits ||
-		configured.SystemPrompt != "AO rules" || configured.SessionID != "session-1" {
+		configured.SystemPrompt != "Operator rules" || configured.SessionID != "session-1" {
 		t.Fatalf("configure input = %#v", configured)
 	}
 	for _, capability := range []ports.ChatCapability{

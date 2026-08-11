@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("SessionChatSurface link routing", () => {
-	it("opens a plain Chat link in the active worker AO Browser", async () => {
+	it("opens a plain Chat link in the active worker Operator Browser", async () => {
 		const user = userEvent.setup();
 		const queryClient = new QueryClient({
 			defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
--- A conversation branch is a provider-thread lineage node. AO keeps every
+-- A conversation branch is a provider-thread lineage node. Operator keeps every
 -- sibling durable and changes only conversations.active_branch_id when the user
 -- navigates or edits an earlier prompt. Timeline sequence numbers remain
 -- conversation-scoped and immutable; fork_after_sequence is the inclusive
@@ -94,7 +94,7 @@ BEGIN
     WHERE id = NEW.id;
 END;
 
--- Fresh Chat startup creates AO's conversation before the provider returns its
+-- Fresh Chat startup creates Operator's conversation before the provider returns its
 -- thread handle. Bind that handle to the root exactly once when Session Manager
 -- persists the successful controller result. Later branch activations never
 -- rewrite lineage identity because their target branch already has a handle.

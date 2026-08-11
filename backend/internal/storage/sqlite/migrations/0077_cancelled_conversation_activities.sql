@@ -3,7 +3,7 @@
 -- +goose StatementBegin
 -- A provider can stop an item because its enclosing turn was interrupted. That
 -- is neither success nor failure, and keeping it as running leaves every client
--- showing work that no longer exists. Widen the status constraint so AO can
+-- showing work that no longer exists. Widen the status constraint so Operator can
 -- persist that terminal distinction.
 --
 -- SQLite cannot alter a CHECK constraint in place, so this rebuilds the table

@@ -8,13 +8,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestReviewCommandWritesDenyByDefaultSettings(t *testing.T) {
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/amp", nil }}
 	root := t.TempDir()
-	inv := ports.ReviewInvocation{TaskPromptRoot: root, SystemPromptFile: "/ao/system.md", Prompt: "Read task."}
+	inv := ports.ReviewInvocation{TaskPromptRoot: root, SystemPromptFile: "/opr/system.md", Prompt: "Read task."}
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +23,7 @@ func TestReviewCommandWritesDenyByDefaultSettings(t *testing.T) {
 	if !slices.Equal(spec.Argv, []string{"/opt/amp", "--settings-file", settingsPath}) {
 		t.Fatalf("argv = %#v", spec.Argv)
 	}
-	if spec.InitialMessage != "First read and follow the reviewer role in `/ao/system.md`. Then Read task." {
+	if spec.InitialMessage != "First read and follow the reviewer role in `/opr/system.md`. Then Read task." {
 		t.Fatalf("initial message = %q", spec.InitialMessage)
 	}
 	raw, err := os.ReadFile(settingsPath)

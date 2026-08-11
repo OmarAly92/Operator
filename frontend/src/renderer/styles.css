@@ -1469,7 +1469,7 @@ textarea,
 	}
 }
 
-@keyframes ao-startup-logo-breathe {
+@keyframes opr-startup-logo-breathe {
 	0%,
 	100% {
 		opacity: 0.86;
@@ -1481,7 +1481,7 @@ textarea,
 	}
 }
 
-@keyframes ao-startup-status-in {
+@keyframes opr-startup-status-in {
 	from {
 		opacity: 0;
 		filter: blur(2px);
@@ -1494,7 +1494,7 @@ textarea,
 	}
 }
 
-@keyframes ao-startup-dot-pulse {
+@keyframes opr-startup-dot-pulse {
 	0%,
 	70%,
 	100% {
@@ -1507,37 +1507,37 @@ textarea,
 	}
 }
 
-.ao-startup-screen {
+.operator-startup-screen {
 	position: relative;
 	flex: 1 1 0%;
 	min-width: 0;
 	min-height: 0;
 }
 
-.ao-startup-logo {
-	animation: ao-startup-logo-breathe 3.2s ease-in-out infinite;
+.operator-startup-logo {
+	animation: opr-startup-logo-breathe 3.2s ease-in-out infinite;
 	filter: drop-shadow(0 7px 20px rgb(0 0 0 / 0.28));
 }
 
-.ao-startup-status {
+.operator-startup-status {
 	display: inline-block;
-	animation: ao-startup-status-in 240ms ease-out;
+	animation: opr-startup-status-in 240ms ease-out;
 }
 
-.ao-startup-dots span {
+.operator-startup-dots span {
 	width: 4px;
 	height: 4px;
-	animation: ao-startup-dot-pulse 1.4s ease-in-out infinite;
+	animation: opr-startup-dot-pulse 1.4s ease-in-out infinite;
 	border-radius: var(--radius-full);
 	background: var(--color-accent);
 	opacity: 0.25;
 }
 
-.ao-startup-dots span:nth-child(2) {
+.operator-startup-dots span:nth-child(2) {
 	animation-delay: 160ms;
 }
 
-.ao-startup-dots span:nth-child(3) {
+.operator-startup-dots span:nth-child(3) {
 	animation-delay: 320ms;
 }
 
@@ -1638,9 +1638,9 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.ao-startup-logo,
-	.ao-startup-status,
-	.ao-startup-dots span {
+	.operator-startup-logo,
+	.operator-startup-status,
+	.operator-startup-dots span {
 		animation: none;
 	}
 
@@ -1946,9 +1946,9 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	}
 }
 
-/* ── Shell topbar (agent-orchestrator .dashboard-app-header) ──────────────
+/* ── Shell topbar (operator .dashboard-app-header) ──────────────
  * One header for every screen (rendered by the shell layout), so one padding:
- * AO's session-topbar values. Upstream splits this into a 14px dashboard
+ * Operator's session-topbar values. Upstream splits this into a 14px dashboard
  * header and a 16/14px session override; with the bar hoisted there is a
  * single frame and the crumb never shifts between views. The bar spans the
  * full window width with the sidebar pinned below it (approved divergence
@@ -2269,7 +2269,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	color: var(--fg-passive);
 }
 
-/* ── Session inspector rail (agent-orchestrator SessionInspector) ───────── */
+/* ── Session inspector rail (operator SessionInspector) ───────── */
 .session-inspector {
 	container-type: inline-size;
 	display: flex;
@@ -2359,7 +2359,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	box-shadow: none;
 }
 
-/* Inspector resize handle (shadcn resizable separator, AO visual): a 7px
+/* Inspector resize handle (shadcn resizable separator, Operator visual): a 7px
  * transparent grab strip whose centered 1px line lights accent on hover, drag
  * (rrp sets data-separator="active"), and keyboard focus. */
 .session-inspector__resize-handle {
@@ -3113,8 +3113,8 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 /* BaseWindow's explicit shell WebContentsView does not always expose the
    Window Controls Overlay safe-area env value. Keep maximized browser/files
    surfaces below the Windows native min/max/close controls in that mode. */
-html[data-native-browser-composition="true"][data-ao-platform="win32"] .browser-popout-overlay,
-html[data-native-browser-composition="true"][data-ao-platform="win32"] .files-popout-overlay {
+html[data-native-browser-composition="true"][data-opr-platform="win32"] .browser-popout-overlay,
+html[data-native-browser-composition="true"][data-opr-platform="win32"] .files-popout-overlay {
 	top: var(--size-window-titlebar);
 }
 

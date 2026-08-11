@@ -85,11 +85,11 @@ describe("decideRelocation", () => {
 describe("installedBundlePath", () => {
 	it("maps any running bundle to the same name under /Applications", () => {
 		expect(
-			installedBundlePath("/Users/x/Downloads/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Users/x/Downloads/Operator.app"),
+		).toBe("/Applications/Operator.app");
 		expect(
-			installedBundlePath("/Volumes/Agent Orchestrator/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Volumes/Operator/Operator.app"),
+		).toBe("/Applications/Operator.app");
 	});
 });
 
@@ -98,8 +98,8 @@ describe("readBundleVersion", () => {
 	let bundle: string;
 
 	beforeEach(async () => {
-		dir = await mkdtemp(path.join(os.tmpdir(), "ao-relocation-"));
-		bundle = path.join(dir, "Agent Orchestrator.app");
+		dir = await mkdtemp(path.join(os.tmpdir(), "opr-relocation-"));
+		bundle = path.join(dir, "Operator.app");
 		await mkdir(path.join(bundle, "Contents"), { recursive: true });
 	});
 
@@ -118,7 +118,7 @@ describe("readBundleVersion", () => {
 <plist version="1.0">
   <dict>
     <key>CFBundleDisplayName</key>
-    <string>Agent Orchestrator</string>
+    <string>Operator</string>
     <key>CFBundleShortVersionString</key>
     <string>0.11.2-nightly.202608050602</string>
     <key>CFBundleVersion</key>

@@ -1,4 +1,4 @@
-import { COMPANY } from "@ao/shared/constants";
+import { COMPANY } from "@operator/shared/constants";
 import { FAQ_ITEMS } from "@/app/components/FAQSection/constants";
 import { getComparisonPages } from "./compare";
 import { getDocPage, getDocsNav, type DocsNavItem } from "./docs";
@@ -21,7 +21,7 @@ export function buildLlmsHeader(): string[] {
 	return [
 		`# ${COMPANY.NAME}`,
 		"",
-		"> Open-source desktop application and local CLI (`ao`) to run 10+ parallel AI coding agents in isolated Git worktrees without file conflicts or API proxying.",
+		"> Open-source desktop application and local CLI (`opr`) to run 10+ parallel AI coding agents in isolated Git worktrees without file conflicts or API proxying.",
 		"",
 		`${COMPANY.NAME} is an open-source desktop application that lets developers run multiple AI coding agents in parallel, each in its own isolated Git worktree. It works with any CLI-based agent including Claude Code, OpenCode, and OpenAI Codex. Agents can work on different branches or features simultaneously without conflicts. ${COMPANY.NAME} is free, does not proxy API calls, and supports macOS, Windows, and Linux.`,
 	];
@@ -34,20 +34,20 @@ export function buildWhenToUseSection(
 ): string[] {
 	const documentationDirection = referenceDocumentationSection
 		? "To learn the product, use the Documentation section below."
-		: "To learn the product, start with the docs index at https://aoagents.dev/docs/.";
+		: "To learn the product, start with the docs index at https://operator.example.com/docs/.";
 
 	return [
-		"## When to use Agent Orchestrator",
+		"## When to use Operator",
 		"",
-		"Reach for Agent Orchestrator when you need to:",
+		"Reach for Operator when you need to:",
 		"",
 		"- Run several coding agents (Claude Code, Codex, OpenCode, or any CLI agent) at the same time on one repository without them stepping on each other, each agent gets an isolated Git worktree and its own branch.",
-		"- Orchestrate agent work through the desktop app and local `ao` CLI: create workspaces, launch agents with a prompt, open terminals, and track tasks.",
+		"- Orchestrate agent work through the desktop app and local `opr` CLI: create workspaces, launch agents with a prompt, open terminals, and track tasks.",
 		"- Schedule recurring agent runs (automations) that execute a prompt on a cron-like schedule in a fresh or existing workspace.",
 		"- Automatically route CI failures and review feedback to the agent session that owns the branch, so the right agent can handle failures without manual babysitting.",
 		"- Review diffs, manage ports, and monitor many concurrent agent sessions from one dashboard.",
 		"",
-		`Agent Orchestrator is not a coding agent itself; it is the local workspace and orchestration layer the agents run in. If you are an AI agent inside an AO-managed session, use the installed \`ao\` CLI. ${documentationDirection}`,
+		`Operator is not a coding agent itself; it is the local workspace and orchestration layer the agents run in. If you are an AI agent inside an Operator-managed session, use the installed \`opr\` CLI. ${documentationDirection}`,
 	];
 }
 
@@ -65,10 +65,10 @@ export function buildDeveloperResourcesSection(
 			? [
 					`- [Documentation](${docsUrl}/): product and workflow documentation`,
 					`- [Quickstart](${docsUrl}/quickstart/): install and first-run guide`,
-					`- [CLI](${docsUrl}/cli/): local \`ao\` command reference`,
+					`- [CLI](${docsUrl}/cli/): local \`opr\` command reference`,
 				]
 			: []),
-		`- [Agent instructions](${baseUrl}/agents.md): when and how AI agents should use Agent Orchestrator`,
+		`- [Agent instructions](${baseUrl}/agents.md): when and how AI agents should use Operator`,
 		`- [Blog llms.txt](${baseUrl}/blog/llms.txt): scoped index of blog posts`,
 		`- [GitHub](${COMPANY.GITHUB_URL}): source code and releases`,
 	];
@@ -132,7 +132,7 @@ export function buildLlmsTxt(): string {
 		...buildWhenToUseSection({ referenceDocumentationSection: true }),
 		"",
 		...buildDeveloperResourcesSection({ includeDocumentationLinks: false }),
-		`- [Full LLM context](${baseUrl}/llms-full.txt): combined AO overview, developer resources, comparisons, and FAQ`,
+		`- [Full LLM context](${baseUrl}/llms-full.txt): combined Operator overview, developer resources, comparisons, and FAQ`,
 		"",
 		...buildDocumentationSection(),
 		"",

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kilocode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/OmarAly92/operator/backend/internal/adapters/agent/kilocode"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const configAssignmentPrefix = "KILO_CONFIG_CONTENT="
@@ -37,7 +37,7 @@ var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 // ReviewCommand launches Kilo Code with the same hidden system-prompt agent as
 // the worker adapter, then replaces its normal permission config with the
 // reviewer-only read/report policy. The persistent TUI form is intentional:
-// AO reuses reviewer panes and injects later review tasks into them.
+// Operator reuses reviewer panes and injects later review tasks into them.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	argv, err := r.agent.GetLaunchCommand(ctx, ports.LaunchConfig{
 		SessionID:        inv.ReviewerID,
@@ -102,16 +102,16 @@ func withReviewerConfig(argv []string, taskPromptRoot, systemPromptFile string) 
 		"glob": "allow",
 		"grep": "allow",
 		"bash": map[string]string{
-			"*":                             "deny",
-			"gh api *":                      "allow",
-			"git diff*":                     "allow",
-			"git log*":                      "allow",
-			"git show*":                     "allow",
-			"git status*":                   "allow",
-			"ao review submit *":            "allow",
-			"printf *":                      "allow",
-			"printf * | gh api *":           "allow",
-			"printf * | ao review submit *": "allow",
+			"*":                              "deny",
+			"gh api *":                       "allow",
+			"git diff*":                      "allow",
+			"git log*":                       "allow",
+			"git show*":                      "allow",
+			"git status*":                    "allow",
+			"opr review submit *":            "allow",
+			"printf *":                       "allow",
+			"printf * | gh api *":            "allow",
+			"printf * | opr review submit *": "allow",
 		},
 	}
 	if taskPromptRoot != "" {

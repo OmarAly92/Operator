@@ -7,17 +7,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/opencode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/opencode"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_OPENCODE_ACP=1. It uses the user's existing
+// Run explicitly with OPERATOR_LIVE_OPENCODE_ACP=1. It uses the user's existing
 // OpenCode executable, configuration, providers, and credentials; CI never
 // depends on any of them.
 func TestLiveOpenCodeACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_OPENCODE_ACP") != "1" {
-		t.Skip("set AO_LIVE_OPENCODE_ACP=1 to run against the local OpenCode account")
+	if os.Getenv("OPERATOR_LIVE_OPENCODE_ACP") != "1" {
+		t.Skip("set OPERATOR_LIVE_OPENCODE_ACP=1 to run against the local OpenCode account")
 	}
 
 	driver := New(opencode.New(), nil)
@@ -38,7 +38,7 @@ func TestLiveOpenCodeACP(t *testing.T) {
 	defer conversation.Close()
 
 	ref, err := conversation.SendTurn(ctx, ports.ChatUserMessage{
-		Text: "Reply with exactly: AO OpenCode ACP works", ClientMessageID: "live-1",
+		Text: "Reply with exactly: Operator OpenCode ACP works", ClientMessageID: "live-1",
 		Origin: domain.MessageOriginHuman,
 	})
 	if err != nil {
@@ -62,7 +62,7 @@ func TestLiveOpenCodeACP(t *testing.T) {
 				if event.TurnState != domain.TurnStateCompleted {
 					t.Fatalf("turn state = %q; answer=%q", event.TurnState, answer.String())
 				}
-				if !strings.Contains(answer.String(), "AO OpenCode ACP works") {
+				if !strings.Contains(answer.String(), "Operator OpenCode ACP works") {
 					t.Fatalf("answer = %q", answer.String())
 				}
 				return

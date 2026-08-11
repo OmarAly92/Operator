@@ -1,10 +1,10 @@
-# End-to-end CLI smoke test, modelling "install ao on a fresh machine, then use it".
+# End-to-end CLI smoke test, modelling "install opr on a fresh machine, then use it".
 #
 # Build context is the REPO ROOT:
-#   docker build -f test/cli/Dockerfile -t ao-cli-smoke .
-#   docker run --rm --init ao-cli-smoke
+#   docker build -f test/cli/Dockerfile -t opr-cli-smoke .
+#   docker run --rm --init opr-cli-smoke
 #
-# `ao start` is now the desktop-app launcher (it no longer runs a daemon); the
+# `opr start` is now the desktop-app launcher (it no longer runs a daemon); the
 # fresh-box check just proves the binary is sane and start reaches the fetch
 # path. --init keeps process accounting clean for any short-lived child.
 
@@ -18,18 +18,18 @@ RUN cd backend && go mod download
 
 COPY backend ./backend
 # Pure-Go SQLite (modernc) builds fine with CGO disabled -> a static binary.
-# Build against a release repo with NO published assets so `ao start` reaches the
-# fetch path and fails cleanly (404) on a fresh box. The real AgentWrapper repo
+# Build against a release repo with NO published assets so `opr start` reaches the
+# fetch path and fails cleanly (404) on a fresh box. The real OmarAly92 repo
 # now publishes a linux-x64 AppImage, so an unpinned binary would download it and
 # exit 0, defeating the fresh-install assertion below. See install-check.sh.
 RUN cd backend && CGO_ENABLED=0 go build -trimpath \
-      -ldflags "-X github.com/aoagents/agent-orchestrator/backend/internal/cli.releaseRepo=AgentWrapper/ao-fresh-install-fixture" \
-      -o /out/ao ./cmd/ao
+      -ldflags "-X github.com/OmarAly92/operator/backend/internal/cli.releaseRepo=OmarAly92/opr-fresh-install-fixture" \
+      -o /out/opr ./cmd/opr
 
 # ---- stage 2: a clean machine with NO Go toolchain, just like an end user ----
 FROM debian:bookworm-slim AS run
 
-# Runtime deps a fresh user would need: git is required by `ao doctor`; curl
+# Runtime deps a fresh user would need: git is required by `opr doctor`; curl
 # drives the HTTP-level guard checks; ca-certificates for good measure. Zellij is
 # optional for this smoke test, so doctor reports a WARN if it is absent.
 RUN apt-get update \
@@ -37,16 +37,16 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # "Install" the CLI the way a user would: drop the binary on PATH.
-COPY --from=build /out/ao /usr/local/bin/ao
-COPY test/cli/install-check.sh /usr/local/bin/ao-install-check.sh
-RUN chmod +x /usr/local/bin/ao /usr/local/bin/ao-install-check.sh
+COPY --from=build /out/opr /usr/local/bin/opr
+COPY test/cli/install-check.sh /usr/local/bin/opr-install-check.sh
+RUN chmod +x /usr/local/bin/opr /usr/local/bin/opr-install-check.sh
 
 # Run as an unprivileged user with a real HOME, like a normal install.
-RUN useradd --create-home --shell /bin/bash ao
-USER ao
-WORKDIR /home/ao
+RUN useradd --create-home --shell /bin/bash opr
+USER opr
+WORKDIR /home/opr
 
 # Sanity: prove the install resolved before the check runs.
-RUN ao version
+RUN opr version
 
-ENTRYPOINT ["/usr/local/bin/ao-install-check.sh"]
+ENTRYPOINT ["/usr/local/bin/opr-install-check.sh"]

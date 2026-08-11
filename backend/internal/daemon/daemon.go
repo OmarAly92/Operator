@@ -1,4 +1,4 @@
-// Package daemon owns the Agent Orchestrator backend process: config loading,
+// Package daemon owns the Operator backend process: config loading,
 // loopback HTTP serving, durable storage, CDC fan-out, lifecycle wiring, and
 // graceful shutdown.
 package daemon
@@ -16,36 +16,36 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelcatalog"
-	chatdriverregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/browserruntime"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemon/supervisor"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
-	"github.com/aoagents/agent-orchestrator/backend/internal/notify"
-	usagepipeline "github.com/aoagents/agent-orchestrator/backend/internal/observe/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/preview"
-	"github.com/aoagents/agent-orchestrator/backend/internal/previewserver"
-	"github.com/aoagents/agent-orchestrator/backend/internal/push"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
-	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
-	browsersvc "github.com/aoagents/agent-orchestrator/backend/internal/service/browser"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	devimportsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/devimport"
-	importsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/importer"
-	notificationsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/notification"
-	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	settingssvc "github.com/aoagents/agent-orchestrator/backend/internal/service/settings"
-	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/terminal"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
+	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/OmarAly92/operator/backend/internal/browserruntime"
+	"github.com/OmarAly92/operator/backend/internal/config"
+	"github.com/OmarAly92/operator/backend/internal/daemon/supervisor"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/httpd"
+	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
+	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/notify"
+	usagepipeline "github.com/OmarAly92/operator/backend/internal/observe/usage"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/preview"
+	"github.com/OmarAly92/operator/backend/internal/previewserver"
+	"github.com/OmarAly92/operator/backend/internal/push"
+	"github.com/OmarAly92/operator/backend/internal/runfile"
+	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
+	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
+	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
+	devimportsvc "github.com/OmarAly92/operator/backend/internal/service/devimport"
+	importsvc "github.com/OmarAly92/operator/backend/internal/service/importer"
+	notificationsvc "github.com/OmarAly92/operator/backend/internal/service/notification"
+	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
+	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
+	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
+	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
+	"github.com/OmarAly92/operator/backend/internal/skillassets"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/terminal"
 )
 
 // Run starts the daemon and blocks until it exits. SIGINT/SIGTERM drive
@@ -103,17 +103,17 @@ func Run() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	// Refresh the embedded using-ao skill into the data dir so worker sessions
-	// in any project can read the ao CLI catalog from a stable absolute path.
-	// Non-fatal: the skill is an enhancement over `ao --help`, not required.
+	// Refresh the embedded using-opr skill into the data dir so worker sessions
+	// in any project can read the opr CLI catalog from a stable absolute path.
+	// Non-fatal: the skill is an enhancement over `opr --help`, not required.
 	if err := skillassets.Install(cfg.DataDir); err != nil {
-		log.Warn("install using-ao skill", "err", err)
+		log.Warn("install using-opr skill", "err", err)
 	}
 
 	telemetrySink := newTelemetrySink(cfg, store, log)
 	defer func() { _ = telemetrySink.Close(context.Background()) }()
 	telemetrySink.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.daemon.started",
+		Name:       "opr.daemon.started",
 		Source:     "daemon",
 		OccurredAt: time.Now().UTC(),
 		Level:      ports.TelemetryLevelInfo,
@@ -181,7 +181,7 @@ func Run() error {
 
 	// Wire the controller-facing session service over the same store + LCM, the
 	// selected runtime, routed git/scratch workspaces, the per-session agent
-	// resolver (AO_AGENT validated here for compatibility), and the agent
+	// resolver (OPERATOR_AGENT validated here for compatibility), and the agent
 	// messenger, then mount it on the API.
 	chatDrivers := chatdriverregistry.Build(log)
 
@@ -335,7 +335,7 @@ func Run() error {
 	}
 
 	// Durable agent-switch reconciliation is a startup safety boundary. The
-	// in-memory input fence disappeared with the previous daemon; if AO cannot
+	// in-memory input fence disappeared with the previous daemon; if Operator cannot
 	// prove and recover every active saga, do not bind a usable API with user
 	// input accidentally reopened. This runs after session-scoped shell wiring
 	// (ordinary recovery may tear down a worktree) but before HTTP is bound.
@@ -454,7 +454,7 @@ func Run() error {
 	const supervisorGrace = 5 * time.Second
 
 	if ln, addr, err := supervisor.Listen(cfg.RunFilePath); err != nil {
-		// Non-fatal: without the link the daemon still works (e.g. headless "ao start"),
+		// Non-fatal: without the link the daemon still works (e.g. headless "opr start"),
 		// it just will not auto-stop when a frontend dies. Do not block startup on it.
 		log.Warn("supervisor: listener unavailable; frontend-death auto-stop disabled", "err", err)
 	} else {

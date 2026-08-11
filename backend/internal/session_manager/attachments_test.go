@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestWriteSpawnAttachments(t *testing.T) {
@@ -22,7 +22,7 @@ func TestWriteSpawnAttachments(t *testing.T) {
 		t.Fatalf("writeSpawnAttachments: %v", err)
 	}
 
-	want := []string{".ao/attachments/attachment-1.html", ".ao/attachments/attachment-2.png", ".ao/attachments/attachment-3.bin"}
+	want := []string{".operator/attachments/attachment-1.html", ".operator/attachments/attachment-2.png", ".operator/attachments/attachment-3.bin"}
 	if len(refs) != len(want) {
 		t.Fatalf("refs = %v, want %v", refs, want)
 	}
@@ -43,13 +43,13 @@ func TestWriteSpawnAttachments(t *testing.T) {
 func TestStageAttachmentsUsesNeutralFileNames(t *testing.T) {
 	dir := t.TempDir()
 	st := newFakeStore()
-	st.sessions["ao-1"] = domain.SessionRecord{
-		ID:       "ao-1",
+	st.sessions["opr-1"] = domain.SessionRecord{
+		ID:       "opr-1",
 		Metadata: domain.SessionMetadata{WorkspacePath: dir},
 	}
 	m := New(Deps{Store: st, Workspace: &fakeWorkspace{}})
 
-	refs, err := m.StageAttachments(context.Background(), "ao-1", []ports.SpawnAttachment{
+	refs, err := m.StageAttachments(context.Background(), "opr-1", []ports.SpawnAttachment{
 		{Ext: ".html", Data: []byte("<main>hi</main>")},
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestStageAttachmentsUsesNeutralFileNames(t *testing.T) {
 	if len(refs) != 1 {
 		t.Fatalf("refs = %v, want one", refs)
 	}
-	if !strings.HasPrefix(refs[0], ".ao/attachments/attachment-") || !strings.HasSuffix(refs[0], ".html") {
+	if !strings.HasPrefix(refs[0], ".operator/attachments/attachment-") || !strings.HasSuffix(refs[0], ".html") {
 		t.Fatalf("ref = %q, want neutral attachment name with .html extension", refs[0])
 	}
 	if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(refs[0]))); err != nil {
@@ -68,17 +68,17 @@ func TestStageAttachmentsUsesNeutralFileNames(t *testing.T) {
 
 func TestAppendAttachmentReferences(t *testing.T) {
 	t.Run("appends after a brief", func(t *testing.T) {
-		got := appendAttachmentReferences("Fix the button", []string{".ao/attachments/attachment-1.html"})
+		got := appendAttachmentReferences("Fix the button", []string{".operator/attachments/attachment-1.html"})
 		if !strings.HasPrefix(got, "Fix the button\n\n") {
 			t.Errorf("brief not preserved: %q", got)
 		}
-		if !strings.Contains(got, "- .ao/attachments/attachment-1.html") {
+		if !strings.Contains(got, "- .operator/attachments/attachment-1.html") {
 			t.Errorf("missing reference: %q", got)
 		}
 	})
 
 	t.Run("handles empty brief", func(t *testing.T) {
-		got := appendAttachmentReferences("", []string{".ao/attachments/attachment-1.html"})
+		got := appendAttachmentReferences("", []string{".operator/attachments/attachment-1.html"})
 		if strings.HasPrefix(got, "\n") {
 			t.Errorf("leading blank line for empty brief: %q", got)
 		}

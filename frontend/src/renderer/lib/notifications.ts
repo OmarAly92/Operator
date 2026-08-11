@@ -1,6 +1,6 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import type { components } from "../../api/schema";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { apiClient, apiErrorMessage, getApiBaseUrl, subscribeApiBaseUrl } from "./api-client";
 
 export type NotificationDTO = components["schemas"]["NotificationResponse"];
@@ -82,7 +82,7 @@ function mergeRecentNotification(queryClient: QueryClient, notification: Notific
 }
 
 /**
- * AO resolved the issue behind a notification. Update the row in unread/all
+ * Operator resolved the issue behind a notification. Update the row in unread/all
  * caches; the seen state is a separate axis and is deliberately left untouched.
  */
 export function applyResolvedNotification(queryClient: QueryClient, notification: NotificationDTO): void {
@@ -323,7 +323,7 @@ export function createNotificationsTransport(
 						const inserted = mergeUnreadNotification(queryClient, notification);
 						mergeRecentNotification(queryClient, notification);
 						if (inserted && !suppressToastForWatchedSession(notification, getVisibleAgentSessionId())) {
-							void aoBridge.notifications.show({
+							void operatorBridge.notifications.show({
 								id: notification.id,
 								title: notification.title,
 								body: notification.body || undefined,
@@ -331,7 +331,7 @@ export function createNotificationsTransport(
 							});
 						}
 					});
-					// AO closed the underlying issue (the session got its input, the
+					// Operator closed the underlying issue (the session got its input, the
 					// PR stopped waiting on a merge). Patch the row live so an open
 					// panel reflects that without waiting for a refetch.
 					source.addEventListener("notification_resolved", (event) => {
@@ -344,7 +344,7 @@ export function createNotificationsTransport(
 				}
 			};
 
-			const removeDaemonListener = aoBridge.daemon.onStatus(() => {
+			const removeDaemonListener = operatorBridge.daemon.onStatus(() => {
 				connectSource();
 				invalidateNotifications();
 			});

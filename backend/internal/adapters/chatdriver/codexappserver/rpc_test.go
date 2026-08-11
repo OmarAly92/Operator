@@ -107,12 +107,12 @@ func TestRequestReturnsDecodedResult(t *testing.T) {
 	if req.ID == nil {
 		t.Fatal("request carried no id")
 	}
-	fake.push(`{"id":` + string(*req.ID) + `,"result":{"userAgent":"ao/1","codexHome":"/tmp/.codex"}}`)
+	fake.push(`{"id":` + string(*req.ID) + `,"result":{"userAgent":"opr/1","codexHome":"/tmp/.codex"}}`)
 
 	if err := <-done; err != nil {
 		t.Fatalf("request returned %v", err)
 	}
-	if got.UserAgent != "ao/1" || got.CodexHome != "/tmp/.codex" {
+	if got.UserAgent != "opr/1" || got.CodexHome != "/tmp/.codex" {
 		t.Fatalf("decoded result = %+v", got)
 	}
 }

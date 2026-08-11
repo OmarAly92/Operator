@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/conpty/ptyregistry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty/ptyregistry"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 // livePID returns a PID that is guaranteed to be alive (the current process).
@@ -106,7 +106,7 @@ func fakeSpawnerFor(t *testing.T, hosts map[string]*inProcHost, fakePID int) hos
 }
 
 // ---------------------------------------------------------------------------
-// Redirect ptyregistry to a temp HOME so tests don't pollute ~/.ao
+// Redirect ptyregistry to a temp HOME so tests don't pollute ~/.operator
 // ---------------------------------------------------------------------------
 
 func isolateRegistry(t *testing.T) {
@@ -446,7 +446,7 @@ func TestSupervisedProcessExitKeepsHostAlive(t *testing.T) {
 	handle, err := rt.Create(ctx, ports.RuntimeConfig{
 		SessionID:     "sess-supervised",
 		WorkspacePath: "/tmp/w",
-		Argv:          []string{"ao", "agent-process", "supervise"},
+		Argv:          []string{"opr", "agent-process", "supervise"},
 		Env:           map[string]string{runtimeLaunchIDEnv: "launch-current"},
 	})
 	if err != nil {

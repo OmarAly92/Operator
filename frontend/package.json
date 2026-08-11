@@ -1,16 +1,16 @@
 {
-	"name": "agent-orchestrator",
-	"productName": "Agent Orchestrator",
+	"name": "operator",
+	"productName": "Operator",
 	"version": "0.10.3",
 	"private": true,
-	"description": "Electron + TypeScript frontend for the agent-orchestrator rewrite",
-	"author": "Agent Orchestrator",
+	"description": "Electron + TypeScript frontend for the operator rewrite",
+	"author": "Operator",
 	"license": "MIT",
-	"homepage": "https://github.com/aoagents/agent-orchestrator",
+	"homepage": "https://github.com/OmarAly92/operator",
 	"main": ".vite/build/main.js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/aoagents/agent-orchestrator"
+		"url": "https://github.com/OmarAly92/operator"
 	},
 	"scripts": {
 		"build:acp-runtime": "node ./scripts/build-acp-runtime.mjs",

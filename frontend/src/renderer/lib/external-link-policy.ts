@@ -1,4 +1,4 @@
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 
 export function isWebLink(url: string): boolean {
 	try {
@@ -11,7 +11,7 @@ export function isWebLink(url: string): boolean {
 
 export async function openLinkInSystemBrowser(url: string): Promise<void> {
 	try {
-		await aoBridge.app.openExternal(url);
+		await operatorBridge.app.openExternal(url);
 	} catch (error) {
 		console.warn("Unable to open link in system browser", error);
 	}

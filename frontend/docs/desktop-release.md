@@ -8,7 +8,7 @@ on `main`; the PR-based flow below supersedes it.
 ## How releases work
 
 - **Stable** releases are triggered by pushing a `desktop-vX.Y.Z` tag to
-  `AgentWrapper/agent-orchestrator`. `.github/workflows/frontend-release.yml`
+  `OmarAly92/operator`. `.github/workflows/frontend-release.yml`
   builds on four runners (macOS arm64, macOS Intel, Windows, Linux), signs and
   notarizes the macOS builds, and publishes a GitHub Release.
 - **Nightly** releases run on a schedule via `frontend-nightly.yml` with no
@@ -60,7 +60,7 @@ manually; that is how the 28-29 Jul misdiagnosis happened.
 
 ## Prerequisites
 
-- Push access to `AgentWrapper/agent-orchestrator` (the tag push is the trigger).
+- Push access to `OmarAly92/operator` (the tag push is the trigger).
 - Authenticated `gh` CLI for the notes/verify steps.
 - A release approver available (see "Who can approve" below); the build jobs
   wait on the `release` environment until someone approves.
@@ -68,7 +68,7 @@ manually; that is how the 28-29 Jul misdiagnosis happened.
 ## Cutting a stable release
 
 Throughout, `X.Y.Z` is the new version (e.g. `0.10.2`) and `upstream` is the
-`AgentWrapper/agent-orchestrator` remote.
+`OmarAly92/operator` remote.
 
 ### 1. Decide the version and review what ships
 
@@ -85,7 +85,7 @@ Stable versions bump the patch unless something warrants minor/major.
 ### 2. Bump the version on `main` via a PR
 
 Bump `frontend/package.json` to `X.Y.Z` on a branch and merge it into `main`.
-This is the only version pin the stable build reads; `packages/ao*` are not
+This is the only version pin the stable build reads; `packages/opr*` are not
 gated on the desktop release and stay as-is.
 
 ```bash
@@ -94,7 +94,7 @@ git checkout -b release-X.Y.Z upstream/main
 git add frontend/package.json
 git commit -m "chore(release): stamp desktop app version X.Y.Z"
 git push <your-remote> release-X.Y.Z
-gh pr create -R AgentWrapper/agent-orchestrator --base main \
+gh pr create -R OmarAly92/operator --base main \
   --head <owner>:release-X.Y.Z \
   --title "chore(release): stamp desktop app version X.Y.Z"
 ```
@@ -120,17 +120,17 @@ approver either clicks "Review deployments" > approve in the run page, or from
 the CLI:
 
 ```bash
-run_id=$(gh run list -R AgentWrapper/agent-orchestrator --workflow frontend-release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh api repos/AgentWrapper/agent-orchestrator/actions/runs/$run_id/pending_deployments \
+run_id=$(gh run list -R OmarAly92/operator --workflow frontend-release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh api repos/OmarAly92/operator/actions/runs/$run_id/pending_deployments \
   --jq '.[] | {env: .environment.id, can_approve: .current_user_can_approve}'
-gh api -X POST repos/AgentWrapper/agent-orchestrator/actions/runs/$run_id/pending_deployments \
+gh api -X POST repos/OmarAly92/operator/actions/runs/$run_id/pending_deployments \
   -F 'environment_ids[]=<env id from above>' -f state=approved -f comment='Release X.Y.Z approved'
 ```
 
 Then wait (roughly 30 minutes; macOS notarization dominates):
 
 ```bash
-gh run watch $run_id -R AgentWrapper/agent-orchestrator --exit-status --interval 60
+gh run watch $run_id -R OmarAly92/operator --exit-status --interval 60
 ```
 
 The workflow retries transient macOS sign/notary flakes on its own. The
@@ -143,29 +143,29 @@ The publisher creates the release with an empty body. Generate the standard
 What's Changed / New Contributors / Full Changelog body and attach it:
 
 ```bash
-gh api repos/AgentWrapper/agent-orchestrator/releases/generate-notes \
+gh api repos/OmarAly92/operator/releases/generate-notes \
   -f tag_name=vX.Y.Z -f previous_tag_name=v<last-stable> --jq '.body' > /tmp/notes.md
-gh release edit vX.Y.Z -R AgentWrapper/agent-orchestrator --notes-file /tmp/notes.md
+gh release edit vX.Y.Z -R OmarAly92/operator --notes-file /tmp/notes.md
 ```
 
 ### 6. Verify
 
 ```bash
 # published, not draft/prerelease, 17 assets:
-gh release view vX.Y.Z -R AgentWrapper/agent-orchestrator \
+gh release view vX.Y.Z -R OmarAly92/operator \
   --json isDraft,isPrerelease,assets --jq '{isDraft,isPrerelease,count:(.assets|length)}'
 # latest points at the new release:
-gh api repos/AgentWrapper/agent-orchestrator/releases/latest --jq '.tag_name'
+gh api repos/OmarAly92/operator/releases/latest --jq '.tag_name'
 # updater feed carries the new version:
-curl -sL https://github.com/AgentWrapper/agent-orchestrator/releases/latest/download/latest-mac.yml | head -3
+curl -sL https://github.com/OmarAly92/operator/releases/latest/download/latest-mac.yml | head -3
 ```
 
 Verify the macOS artifacts with the shared script rather than by hand:
 
 ```bash
-gh release download vX.Y.Z -R AgentWrapper/agent-orchestrator \
-  --pattern 'agent-orchestrator-darwin-*.zip' --dir /tmp/relcheck
-frontend/scripts/verify-mac-artifact.sh /tmp/relcheck/agent-orchestrator-darwin-arm64.zip
+gh release download vX.Y.Z -R OmarAly92/operator \
+  --pattern 'operator-darwin-*.zip' --dir /tmp/relcheck
+frontend/scripts/verify-mac-artifact.sh /tmp/relcheck/operator-darwin-arm64.zip
 ```
 
 It extracts with `ditto -x -k` (plain `unzip` breaks the seal and produces a
@@ -176,14 +176,14 @@ Expected assets: versioned installers for every platform
 (`Agent.Orchestrator-darwin-{arm64,x64}-X.Y.Z.zip`, `Agent.Orchestrator.Setup.X.Y.Z.exe`,
 `Agent.Orchestrator-X.Y.Z.AppImage`, deb, rpm) plus `.blockmap` sidecars for
 Windows and Linux only (macOS ships none by policy since #3151, so mac clients
-always take the full-download path), the version-free aliases `ao start` fetches
-(`agent-orchestrator-darwin-arm64.zip`, `agent-orchestrator-darwin-x64.zip`,
-`agent-orchestrator-win32-x64.exe`, `agent-orchestrator-linux-x64.AppImage`,
+always take the full-download path), the version-free aliases `opr start` fetches
+(`operator-darwin-arm64.zip`, `operator-darwin-x64.zip`,
+`operator-win32-x64.exe`, `operator-linux-x64.AppImage`,
 and the deb/rpm published under versioned names), and the electron-updater
 feeds `latest.yml`, `latest-mac.yml`, `latest-linux.yml`.
 
 **Stable releases only** additionally carry
-`agent-orchestrator-darwin-{arm64,x64}.dmg` for first install, and this is the
+`operator-darwin-{arm64,x64}.dmg` for first install, and this is the
 artifact the download page and the README tables link to. Mounting it gives the
 drag-to-Applications window, so the app lands in `/Applications` rather than
 being unzipped into `~/Downloads` and launched from there (#3617, #3527).
@@ -228,15 +228,15 @@ pusher who is not an approver still needs one of the five. Repo admins can
 bypass the gate. The current list is readable by anyone with repo access:
 
 ```bash
-gh api repos/AgentWrapper/agent-orchestrator/environments/release \
+gh api repos/OmarAly92/operator/environments/release \
   --jq '.protection_rules[] | select(.type=="required_reviewers") | .reviewers[].reviewer.login'
 ```
 
 ## Fork test releases (dev loop)
 
-Test releases go to the fork, never to AgentWrapper: push a `desktop-v*` tag
+Test releases go to the fork, never to OmarAly92: push a `desktop-v*` tag
 to the fork or run the workflow via `workflow_dispatch` from the fork's
-Actions tab. `AO_RELEASE_REPO` is derived from `github.repository`, so a fork
+Actions tab. `OPERATOR_RELEASE_REPO` is derived from `github.repository`, so a fork
 run publishes to the fork with no source edit. See the header comment in
 `frontend-release.yml`.
 
@@ -301,7 +301,7 @@ Nightly.
    (`pr<N>.yml`, `pr<N>-mac.yml`, `pr<N>-linux.yml`), and annotate the release with
    the machine-readable marker:
    ```
-   <!-- ao-feature-build: {"pr":<N>,"base":"<base>","sha":"<sha>","slug":"<slug>"} -->
+   <!-- opr-feature-build: {"pr":<N>,"base":"<base>","sha":"<sha>","slug":"<slug>"} -->
    ```
    The release name is set to `[feature] PR #<N>: <title>`.
 

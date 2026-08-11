@@ -1,25 +1,25 @@
 import posthog from "posthog-js/dist/module.full.no-external";
-import { aoBridge } from "./bridge";
+import { operatorBridge } from "./bridge";
 import { isLoopbackHostname } from "./loopback";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
 import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from "../../shared/posthog-config";
 
-const POSTHOG_KEY = import.meta.env.VITE_AO_POSTHOG_KEY?.trim() || DEFAULT_POSTHOG_PROJECT_KEY;
-const POSTHOG_HOST = import.meta.env.VITE_AO_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
+const POSTHOG_KEY = import.meta.env.VITE_OPERATOR_POSTHOG_KEY?.trim() || DEFAULT_POSTHOG_PROJECT_KEY;
+const POSTHOG_HOST = import.meta.env.VITE_OPERATOR_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
 const RELEASE_TAG = "2026-01-30";
 const TELEMETRY_SCHEMA_VERSION = 2;
 const REDACTED_LOCAL_URL = "[redacted-local-url]";
 const REDACTED_LOCAL_PATH = "[redacted-local-path]";
-const ACTIVE_STORAGE_KEY = "ao.telemetry.activeSlotsByDate";
-const ROUTE_VIEW_STORAGE_KEY = "ao.telemetry.routeViewsByDate";
+const ACTIVE_STORAGE_KEY = "opr.telemetry.activeSlotsByDate";
+const ROUTE_VIEW_STORAGE_KEY = "opr.telemetry.routeViewsByDate";
 const EMBEDDED_LOCAL_URL_PATTERN =
 	/(?:\bfile:\/\/\/\S+|\bapp:\/\/renderer\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\S*)/gi;
 const POSTHOG_EVENT_NAME_ALIASES: Record<string, string> = {
-	"ao.app.active": "ao.v2.app.active",
-	"ao.renderer.route_viewed": "ao.v2.renderer.route_viewed",
-	"ao.renderer.loaded": "ao.v2.renderer.loaded",
-	"ao.renderer.api_error": "ao.v2.renderer.api_error",
-	"ao.renderer.daemon_failure": "ao.v2.renderer.daemon_failure",
+	"opr.app.active": "opr.v2.app.active",
+	"opr.renderer.route_viewed": "opr.v2.renderer.route_viewed",
+	"opr.renderer.loaded": "opr.v2.renderer.loaded",
+	"opr.renderer.api_error": "opr.v2.renderer.api_error",
+	"opr.renderer.daemon_failure": "opr.v2.renderer.daemon_failure",
 };
 
 let initPromise: Promise<boolean> | null = null;
@@ -122,7 +122,7 @@ export function buildTelemetryContext(
 	const version = appVersion.trim() || "unknown";
 	return {
 		// Classifies this install as the desktop app across every event, so a
-		// shared event like ao.app.active splits cleanly by `client` alongside
+		// shared event like opr.app.active splits cleanly by `client` alongside
 		// the mobile app (client="mobile") and the CLI (client="cli"), rather
 		// than by inferring from the platform value set.
 		client: "desktop",
@@ -151,7 +151,7 @@ export function setReleaseChannelContext(channel: ReleaseChannel): void {
  */
 async function readUpdateSettingsForTelemetry(): Promise<{ channel?: unknown; feature?: unknown } | null> {
 	try {
-		return (await aoBridge.updateSettings.get()) as { channel?: unknown; feature?: unknown };
+		return (await operatorBridge.updateSettings.get()) as { channel?: unknown; feature?: unknown };
 	} catch {
 		return null;
 	}
@@ -447,36 +447,36 @@ export async function sanitizeRendererProperties(
 ): Promise<TelemetryProperties> {
 	const safe: TelemetryProperties = {};
 	switch (event) {
-		case "ao.app.active":
+		case "opr.app.active":
 			if (properties?.channel === "renderer") safe.channel = "renderer";
 			break;
-		case "ao.renderer.route_viewed":
+		case "opr.renderer.route_viewed":
 			if (typeof properties?.surface === "string" && properties.surface.trim() !== "") {
 				safe.surface = properties.surface;
 			}
 			break;
-		case "ao.renderer.project_add_requested":
-		case "ao.renderer.loaded":
+		case "opr.renderer.project_add_requested":
+		case "opr.renderer.loaded":
 			break;
-		case "ao.renderer.project_add_succeeded":
-		case "ao.renderer.project_removed":
-		case "ao.renderer.orchestrator_open_requested":
-		case "ao.renderer.task_create_requested":
-		case "ao.renderer.task_create_succeeded":
-		case "ao.renderer.task_create_failed":
-		case "ao.renderer.session_kill_requested":
-		case "ao.renderer.session_kill_succeeded":
-		case "ao.renderer.session_kill_failed":
-		case "ao.renderer.settings_save_requested":
-		case "ao.renderer.settings_save_succeeded":
-		case "ao.renderer.settings_save_failed": {
+		case "opr.renderer.project_add_succeeded":
+		case "opr.renderer.project_removed":
+		case "opr.renderer.orchestrator_open_requested":
+		case "opr.renderer.task_create_requested":
+		case "opr.renderer.task_create_succeeded":
+		case "opr.renderer.task_create_failed":
+		case "opr.renderer.session_kill_requested":
+		case "opr.renderer.session_kill_succeeded":
+		case "opr.renderer.session_kill_failed":
+		case "opr.renderer.settings_save_requested":
+		case "opr.renderer.settings_save_succeeded":
+		case "opr.renderer.settings_save_failed": {
 			const projectIDHash = await hashedTelemetryID(properties?.project_id);
 			if (projectIDHash) safe.project_id_hash = projectIDHash;
 			break;
 		}
-		case "ao.renderer.orchestrator_spawn_requested":
-		case "ao.renderer.orchestrator_spawn_succeeded":
-		case "ao.renderer.orchestrator_spawn_failed": {
+		case "opr.renderer.orchestrator_spawn_requested":
+		case "opr.renderer.orchestrator_spawn_succeeded":
+		case "opr.renderer.orchestrator_spawn_failed": {
 			const projectIDHash = await hashedTelemetryID(properties?.project_id);
 			if (projectIDHash) safe.project_id_hash = projectIDHash;
 			if (typeof properties?.source === "string" && ORCHESTRATOR_SPAWN_SOURCE_SET.has(properties.source)) {
@@ -484,32 +484,32 @@ export async function sanitizeRendererProperties(
 			}
 			break;
 		}
-		case "ao.renderer.notification_opened":
+		case "opr.renderer.notification_opened":
 			if (properties?.target === "pr" || properties?.target === "session") safe.target = properties.target;
 			break;
-		case "ao.renderer.notification_mark_read_requested":
-		case "ao.renderer.notification_mark_read_succeeded":
-		case "ao.renderer.notification_mark_read_failed":
+		case "opr.renderer.notification_mark_read_requested":
+		case "opr.renderer.notification_mark_read_succeeded":
+		case "opr.renderer.notification_mark_read_failed":
 			if (properties?.scope === "single" || properties?.scope === "all") safe.scope = properties.scope;
 			break;
-		case "ao.renderer.daemon_failure":
+		case "opr.renderer.daemon_failure":
 			if (typeof properties?.daemon_state === "string") safe.daemon_state = properties.daemon_state;
 			if (typeof properties?.code === "string") safe.code = properties.code;
 			if (typeof properties?.exit_code === "number") safe.exit_code = properties.exit_code;
 			if (typeof properties?.signal === "string") safe.signal = properties.signal;
 			break;
-		case "ao.renderer.api_error":
+		case "opr.renderer.api_error":
 			if (typeof properties?.operation === "string") safe.operation = properties.operation;
 			if (typeof properties?.error_category === "string") safe.error_category = properties.error_category;
 			if (typeof properties?.status === "number") safe.status = properties.status;
 			break;
-		case "ao.renderer.terminal_attach_failed":
+		case "opr.renderer.terminal_attach_failed":
 			if (properties?.reason === "open_timeout" || properties?.reason === "pane_error") {
 				safe.reason = properties.reason;
 			}
 			break;
-		case "ao.renderer.agents_available": {
-			// Counts and a fixed-vocabulary id list only. Agent ids come from AO's own
+		case "opr.renderer.agents_available": {
+			// Counts and a fixed-vocabulary id list only. Agent ids come from Operator's own
 			// registry, never from user input, so they carry no user data.
 			for (const key of ["installed_count", "authorized_count", "supported_count"] as const) {
 				if (typeof properties?.[key] === "number") safe[key] = properties[key];
@@ -519,13 +519,13 @@ export async function sanitizeRendererProperties(
 			}
 			break;
 		}
-		case "ao.renderer.session_state_unknown":
+		case "opr.renderer.session_state_unknown":
 			if (properties?.field === "status" || properties?.field === "activity") safe.field = properties.field;
 			if (properties?.reason === "missing" || properties?.reason === "unrecognized") safe.reason = properties.reason;
 			break;
-		case "ao.renderer.update_failed":
-		case "ao.renderer.update_downloaded":
-		case "ao.renderer.update_unsupported":
+		case "opr.renderer.update_failed":
+		case "opr.renderer.update_downloaded":
+		case "opr.renderer.update_unsupported":
 			// Version strings are release identifiers, not user data. The updater's
 			// raw error message is deliberately absent: it can carry feed URLs and
 			// local paths, so update-telemetry.ts maps it to error_category first.
@@ -534,12 +534,12 @@ export async function sanitizeRendererProperties(
 			if (properties?.phase === "check" || properties?.phase === "download") safe.phase = properties.phase;
 			if (properties?.trigger === "automatic" || properties?.trigger === "manual") safe.trigger = properties.trigger;
 			break;
-		case "ao.renderer.mobile_connect_opened":
+		case "opr.renderer.mobile_connect_opened":
 			// Whether the bridge was already on when the modal opened separates
 			// "came to set this up" from "came back to re-scan the QR".
 			if (typeof properties?.bridge_enabled === "boolean") safe.bridge_enabled = properties.bridge_enabled;
 			break;
-		case "ao.renderer.update_channel_changed":
+		case "opr.renderer.update_channel_changed":
 			// Closed vocabulary on both ends. A feature build's PR number or branch
 			// name is deliberately absent: it names unreleased work.
 			for (const key of ["from_channel", "to_channel"] as const) {
@@ -549,9 +549,9 @@ export async function sanitizeRendererProperties(
 				}
 			}
 			break;
-		case "ao.renderer.support_opened":
+		case "opr.renderer.support_opened":
 			break;
-		case "ao.renderer.support_submitted":
+		case "opr.renderer.support_submitted":
 			// The report's summary, details, and diagnostics block are the user's own
 			// words and machine state. Only the chosen destination and whether the
 			// hand-off worked are reported.
@@ -560,7 +560,7 @@ export async function sanitizeRendererProperties(
 			}
 			if (properties?.outcome === "succeeded" || properties?.outcome === "failed") safe.outcome = properties.outcome;
 			break;
-		case "ao.renderer.mobile_bridge_toggled":
+		case "opr.renderer.mobile_bridge_toggled":
 			// The host, port, and connection password in the QR never leave the
 			// machine: only the direction of the switch and whether it worked.
 			if (typeof properties?.enabled === "boolean") safe.enabled = properties.enabled;
@@ -614,18 +614,18 @@ export function buildPostHogConfig(distinctId: string): PostHogInitOptions {
 		capture_exceptions: false,
 		capture_performance: false,
 		// Session replay is billed per recording, not per event, so it bypasses
-		// every limiter in this file. AO never watches replays, so keep the
+		// every limiter in this file. Operator never watches replays, so keep the
 		// recorder off in the client instead of relying on the project-side
 		// toggle staying off.
 		disable_session_recording: true,
-		// AO reads no feature flags and ships no surveys. Both of these poll
+		// Operator reads no feature flags and ships no surveys. Both of these poll
 		// PostHog on init, and /flags requests are billed, so every one of these
 		// requests is pure cost for data nothing consumes.
 		advanced_disable_flags: true,
 		disable_surveys: true,
-		// AO owns the stable random installation ID. Memory-only SDK
+		// Operator owns the stable random installation ID. Memory-only SDK
 		// persistence prevents legacy identified state from replacing it after
-		// an upgrade; the AO-owned heartbeat and route reservations continue to
+		// an upgrade; the Operator-owned heartbeat and route reservations continue to
 		// use window.localStorage independently.
 		persistence: "memory",
 		person_profiles: "never",
@@ -649,7 +649,7 @@ export async function initTelemetry(): Promise<boolean> {
 	if (initPromise) return initPromise;
 	initPromise = (async () => {
 		if (!POSTHOG_KEY) return false;
-		const bootstrap = await aoBridge.telemetry.getBootstrap();
+		const bootstrap = await operatorBridge.telemetry.getBootstrap();
 		// Null means the supervisor withheld it: no key, no data dir, or an
 		// unpackaged build that has not opted in. The client is never created.
 		if (!bootstrap) return false;
@@ -675,19 +675,19 @@ export async function initTelemetry(): Promise<boolean> {
 			// reached PostHog in packaged builds, so renderer app-active
 			// dropped to zero while batched events kept landing.
 			capture: async () =>
-				isDeniedEvent("ao.app.active")
+				isDeniedEvent("opr.app.active")
 					? true
 					: Boolean(
 					posthog.capture(
-						postHogEventName("ao.app.active"),
-						withTelemetryContext(await sanitizeRendererProperties("ao.app.active", { channel: "renderer" })),
+						postHogEventName("opr.app.active"),
+						withTelemetryContext(await sanitizeRendererProperties("opr.app.active", { channel: "renderer" })),
 					),
 				),
 		});
-		if (!isDeniedEvent("ao.renderer.loaded")) {
+		if (!isDeniedEvent("opr.renderer.loaded")) {
 			posthog.capture(
-				postHogEventName("ao.renderer.loaded"),
-				withTelemetryContext(await sanitizeRendererProperties("ao.renderer.loaded")),
+				postHogEventName("opr.renderer.loaded"),
+				withTelemetryContext(await sanitizeRendererProperties("opr.renderer.loaded")),
 			);
 		}
 		return true;
@@ -701,7 +701,7 @@ export async function captureRendererEvent(event: string, properties?: Record<st
 	// the denylist sits outermost.
 	if (isDeniedEvent(event)) return;
 	const sanitizedProperties = await sanitizeRendererProperties(event, properties);
-	if (event === "ao.renderer.route_viewed") {
+	if (event === "opr.renderer.route_viewed") {
 		const surface = typeof sanitizedProperties.surface === "string" ? sanitizedProperties.surface : "other";
 		if (!reserveRouteViewCapture(telemetryStorage(), surface)) return;
 	} else if (!reserveCapture(event)) {

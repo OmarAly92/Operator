@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestGetLaunchCommandBuildsArgv(t *testing.T) {
@@ -293,7 +293,7 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	hooksPath := filepath.Join(hooksDir, "hooks.json")
-	// Pre-existing user hook on an event AO also manages, plus a non-AO field.
+	// Pre-existing user hook on an event Operator also manages, plus a non-Operator field.
 	existing := `{"version":1,"customField":"keep me","hooks":{"stop":[{"command":"custom stop hook"}]}}`
 	if err := os.WriteFile(hooksPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
@@ -307,7 +307,7 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Operator hook commands.
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -352,14 +352,14 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 	if trust.WorkspacePath != workspace {
 		t.Fatalf("trust workspacePath = %q, want %q", trust.WorkspacePath, workspace)
 	}
-	if trust.TrustMethod != "ao-session" {
-		t.Fatalf("trustMethod = %q, want ao-session", trust.TrustMethod)
+	if trust.TrustMethod != "opr-session" {
+		t.Fatalf("trustMethod = %q, want opr-session", trust.TrustMethod)
 	}
 	if trust.TrustedAt == "" {
 		t.Fatal("trustedAt is empty")
 	}
-	if !trust.AOManaged {
-		t.Fatal("aoManaged = false, want true")
+	if !trust.OperatorManaged {
+		t.Fatal("operatorManaged = false, want true")
 	}
 }
 
@@ -370,9 +370,9 @@ func TestGetAgentHooksTrustSeedIsBestEffort(t *testing.T) {
 	}
 }
 
-func TestAugmentRuntimeEnvUsesAODataDir(t *testing.T) {
+func TestAugmentRuntimeEnvUsesOperatorDataDir(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cursor-agent"}
-	env := map[string]string{cursorDataDirEnv: "/outside-ao"}
+	env := map[string]string{cursorDataDirEnv: "/outside-opr"}
 	dataDir := t.TempDir()
 
 	plugin.AugmentRuntimeEnv(env, dataDir)
@@ -386,10 +386,10 @@ func TestGetAgentHooksUsesCursorDataDirOverride(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cursor-agent"}
 	workspace := t.TempDir()
 	cursorDataDir := cursorDataDir(t.TempDir())
-	aoDataDir := t.TempDir()
+	operatorDataDir := t.TempDir()
 
 	cfg := ports.WorkspaceHookConfig{
-		DataDir:       aoDataDir,
+		DataDir:       operatorDataDir,
 		Env:           map[string]string{cursorDataDirEnv: cursorDataDir},
 		SessionID:     "sess-1",
 		WorkspacePath: workspace,
@@ -413,10 +413,10 @@ func TestCleanupWorkspaceUsesRecordedTrustPathWhenEnvChanges(t *testing.T) {
 	workspace := t.TempDir()
 	originalCursorDataDir := cursorDataDir(t.TempDir())
 	newCursorDataDir := cursorDataDir(t.TempDir())
-	aoDataDir := t.TempDir()
+	operatorDataDir := t.TempDir()
 
 	installCfg := ports.WorkspaceHookConfig{
-		DataDir:       aoDataDir,
+		DataDir:       operatorDataDir,
 		Env:           map[string]string{cursorDataDirEnv: originalCursorDataDir},
 		SessionID:     "sess-1",
 		WorkspacePath: workspace,
@@ -442,7 +442,7 @@ func TestCleanupWorkspaceUsesRecordedTrustPathWhenEnvChanges(t *testing.T) {
 	}
 }
 
-func TestCleanupWorkspaceRemovesOnlyAOManagedTrustMarker(t *testing.T) {
+func TestCleanupWorkspaceRemovesOnlyOperatorManagedTrustMarker(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cursor-agent"}
 	workspace := t.TempDir()
 	cfg := ports.WorkspaceHookConfig{DataDir: t.TempDir(), SessionID: "sess-1", WorkspacePath: workspace}
@@ -455,7 +455,7 @@ func TestCleanupWorkspaceRemovesOnlyAOManagedTrustMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(trustPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("AO trust marker stat = %v, want missing", err)
+		t.Fatalf("Operator trust marker stat = %v, want missing", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(trustPath), 0o750); err != nil {
@@ -481,7 +481,7 @@ func TestCleanupWorkspaceRemovesOnlyAOManagedTrustMarker(t *testing.T) {
 	}
 }
 
-func TestUninstallHooksRemovesOnlyAOHooks(t *testing.T) {
+func TestUninstallHooksRemovesOnlyOperatorHooks(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cursor-agent"}
 	workspace := t.TempDir()
 	hooksPath := filepath.Join(workspace, ".cursor", "hooks.json")
@@ -556,8 +556,8 @@ func TestCursorWorkspaceProjectName(t *testing.T) {
 		want string
 	}{
 		{
-			path: "/Users/example/.ao/data/worktrees/project/session-1",
-			want: "Users-example-ao-data-worktrees-project-session-1",
+			path: "/Users/example/.operator/data/worktrees/project/session-1",
+			want: "Users-example-operator-data-worktrees-project-session-1",
 		},
 		{
 			path: "/Users/example/Library/Application Support/Cursor/workspace.json",

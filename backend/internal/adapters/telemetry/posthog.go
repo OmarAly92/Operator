@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 const postHogBufferSize = 128
@@ -28,12 +28,12 @@ const maxCommandShapeLength = 48
 const remoteTelemetrySchemaVersion = 2
 
 var remoteEventNameAliases = map[string]string{
-	"ao.app.active":              "ao.v2.app.active",
-	"ao.cli.invoked":             "ao.v2.cli.invoked",
-	"ao.renderer.route_viewed":   "ao.v2.renderer.route_viewed",
-	"ao.renderer.loaded":         "ao.v2.renderer.loaded",
-	"ao.renderer.api_error":      "ao.v2.renderer.api_error",
-	"ao.renderer.daemon_failure": "ao.v2.renderer.daemon_failure",
+	"opr.app.active":              "opr.v2.app.active",
+	"opr.cli.invoked":             "opr.v2.cli.invoked",
+	"opr.renderer.route_viewed":   "opr.v2.renderer.route_viewed",
+	"opr.renderer.loaded":         "opr.v2.renderer.loaded",
+	"opr.renderer.api_error":      "opr.v2.renderer.api_error",
+	"opr.renderer.daemon_failure": "opr.v2.renderer.daemon_failure",
 }
 
 var remoteCommandTokens = map[string]struct{}{
@@ -88,21 +88,21 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 	// Reported by the LAN listener on the first authenticated request per
 	// transport per day (httpd/mobile_connect_telemetry.go). "transport" is a
 	// closed vocabulary — lan / tailscale / loopback / other — never an address.
-	"ao.mobile.device_connected": {
+	"opr.mobile.device_connected": {
 		"transport": {},
 	},
-	"ao.app.active": {
+	"opr.app.active": {
 		"actor_type":   {},
 		"channel":      {},
 		"command":      {},
 		"command_path": {},
 	},
-	"ao.cli.invoked": {
+	"opr.cli.invoked": {
 		"actor_type":   {},
 		"command":      {},
 		"command_path": {},
 	},
-	"ao.cli.usage_errors": {
+	"opr.cli.usage_errors": {
 		"component":    {},
 		"command":      {},
 		"command_path": {},
@@ -117,7 +117,7 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"window_start": {},
 		"window_end":   {},
 	},
-	"ao.daemon.panic": {
+	"opr.daemon.panic": {
 		"component":         {},
 		"fingerprint":       {},
 		"method":            {},
@@ -129,11 +129,11 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"window_start":      {},
 		"window_end":        {},
 	},
-	"ao.daemon.started": {
+	"opr.daemon.started": {
 		"agent": {},
 		"port":  {},
 	},
-	"ao.http.5xx": {
+	"opr.http.5xx": {
 		"component":     {},
 		"duration":      {},
 		"error_code":    {},
@@ -148,37 +148,37 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"window_start":  {},
 		"window_end":    {},
 	},
-	"ao.onboarding.first_project_added": {
+	"opr.onboarding.first_project_added": {
 		"has_git_remote": {},
 		"kind":           {},
 	},
-	"ao.onboarding.first_session_spawned": {
+	"opr.onboarding.first_session_spawned": {
 		"harness":                {},
 		"kind":                   {},
 		"since_first_project_ms": {},
 	},
-	"ao.review.triggered": {
+	"opr.review.triggered": {
 		"created_runs": {},
 		"harness":      {},
 		"reused":       {},
 	},
-	"ao.review.trigger_failed": {
+	"opr.review.trigger_failed": {
 		"error_kind": {},
 	},
-	"ao.review.submitted": {
+	"opr.review.submitted": {
 		"duration_ms":        {},
 		"harness":            {},
 		"posted_to_provider": {},
 		"verdict":            {},
 	},
-	"ao.review.cancelled": {
+	"opr.review.cancelled": {
 		"cancelled_runs": {},
 	},
-	"ao.projects.created": {
+	"opr.projects.created": {
 		"has_git_remote": {},
 		"kind":           {},
 	},
-	"ao.session.spawn_failed": {
+	"opr.session.spawn_failed": {
 		"component":   {},
 		"duration_ms": {},
 		"error_code":  {},
@@ -188,15 +188,15 @@ var remotePayloadAllowlist = map[string]map[string]struct{}{
 		"kind":        {},
 		"operation":   {},
 	},
-	"ao.session.spawned": {
+	"opr.session.spawned": {
 		"duration_ms": {},
 		"harness":     {},
 		"kind":        {},
 	},
-	"ao.session.waiting_input_entered": {
+	"opr.session.waiting_input_entered": {
 		"state": {},
 	},
-	"ao.session.waiting_input_exited": {
+	"opr.session.waiting_input_exited": {
 		"dwell_ms":  {},
 		"exited_to": {},
 		"state":     {},
@@ -328,7 +328,7 @@ func (s *PostHogSink) properties(ev ports.TelemetryEvent) map[string]any {
 		"telemetry_schema_version": remoteTelemetrySchemaVersion,
 		// Classifies this install as the CLI/daemon on every event, matching the
 		// desktop renderer (client="desktop") and mobile (client="mobile"), so a
-		// shared event like ao.app.active splits by one property across surfaces.
+		// shared event like opr.app.active splits by one property across surfaces.
 		"client": "cli",
 		// The distinct ID is a random install ID with no person data behind it,
 		// so skip PostHog person-profile processing: identified events bill at
@@ -412,13 +412,13 @@ func isAllowedCommandValue(key, value string) bool {
 		if len(tokens) != 1 {
 			return false
 		}
-		if value == "ao" || value == "<unknown>" {
+		if value == "opr" || value == "<unknown>" {
 			return true
 		}
 		_, ok := remoteCommandTokens[value]
 		return ok
 	}
-	if key != "command_path" || tokens[0] != "ao" {
+	if key != "command_path" || tokens[0] != "opr" {
 		return false
 	}
 	for i, token := range tokens[1:] {
@@ -484,8 +484,8 @@ func sanitizeRemoteValue(key string, v any) (any, bool) {
 }
 
 // agentSlugPattern is the shape of a real adapter id (claude-code, codex, ...).
-// AO_AGENT is free text and cfg.Agent is only validated against the registry
-// when the daemon builds its resolver, which happens after ao.daemon.started is
+// OPERATOR_AGENT is free text and cfg.Agent is only validated against the registry
+// when the daemon builds its resolver, which happens after opr.daemon.started is
 // already emitted. So a malformed value, including a filesystem path, could ride
 // on that first event. safeAgentSlug drops anything that is not a plain slug, so
 // telemetry carries a known-shape id or nothing, never a path.

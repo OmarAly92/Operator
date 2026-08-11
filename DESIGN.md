@@ -45,7 +45,7 @@ resizable`, react-resizable-panels v4 `collapsible` panel + imperative API,
   user-requested). The panel animates to 0% via a flex-grow transition while the
   content keeps a stable min-width (yyork-style, no mid-animation reflow). Toggled
   by a `PanelRight` icon button in the session topbar and ⌘⇧B; open state + split
-  width persist. The AO reference keeps the rail always visible.
+  width persist. The agent-orchestrator reference keeps the rail always visible.
 - **Approved divergence (2026-06-12):** on Win/Linux the shell topbar spans the
   window and the sidebar hangs below it so the sidebar border stops at the header.
   On macOS the shell topbar is hidden (in-panel actions) and the sidebar is
@@ -55,7 +55,7 @@ resizable`, react-resizable-panels v4 `collapsible` panel + imperative API,
 ## Product Context
 
 - **What this is:** ReverbCode is an Electron desktop app for supervising many parallel
-  AI coding-agent sessions, backed by a Go daemon (`backend/`). The `ao` CLI is the
+  AI coding-agent sessions, backed by a Go daemon (`backend/`). The `opr` CLI is the
   thin client over the same daemon.
 - **Who it's for:** professional software engineers running multiple coding agents at
   once who need to delegate, watch, intervene, and ship PRs.
@@ -77,7 +77,7 @@ list of independent sessions. Grounded in the daemon
   `is_terminated`, PR facts); they differ only by `Kind` (`KindOrchestrator` vs the
   default worker). A project may run the orchestrator on a different agent than its workers.
 - The **Orchestrator is the human-facing coordinator**: you talk to it; it spawns
-  workers (`ao spawn`), messages them (`ao send`), tracks progress, and synthesizes
+  workers (`opr spawn`), messages them (`opr send`), tracks progress, and synthesizes
   results. It avoids implementing unless necessary.
 - A **Worker is a normal agent session** — nothing special-cased. It runs one focused
   task in an isolated git worktree + branch, with the agent CLI in a terminal as the
@@ -223,13 +223,13 @@ left rail stay name-only — no glyph.)
 - **Right — worker session:** a **PR/CI status pill** that is the action
   (`PR #156 · mergeable` green / `CI failed` red / `review requested` amber /
   `Open PR` when none) → **Changes / Files / Terminal** view toggles → **⋯ session menu**
-  (rename, restart, kill, claim PR — the `ao session …` commands).
+  (rename, restart, kill, claim PR — the `opr session …` commands).
 - **Right — orchestrator:** **+ New worker** → Terminal toggle → **⋯ menu**. No diff toggles.
 
 ### Spawn-worker modal (mirrors the reference's Create Task)
 
 You mostly let the orchestrator spawn workers from its conversation; the manual paths
-(the topbar `+ New worker`, a project row's hover `+`, or `ao spawn`) open a modal that
+(the topbar `+ New worker`, a project row's hover `+`, or `opr spawn`) open a modal that
 mirrors the reference exactly. Launching from a project row pre-fills the Project field:
 
 - Centered dialog, **12px radius**, `max-w` ~512px, `bg` canvas, `ring-1` at 10% fg,
@@ -273,4 +273,4 @@ mirrors the reference exactly. Launching from a project row pre-fills the Projec
 | 2026-06-09 | **Name-only** worker rows                                              | User direction; status/branch/diff live in panes + topbar, not the row.                            |
 | 2026-06-09 | Removed **Library** from the rail footer                               | User direction; footer is Search + Settings only.                                                  |
 | 2026-06-09 | Topbar right = PR/CI pill + view toggles + ⋯ menu (worker)             | Surfaces the actionable PR/CI state from the daemon; desktop-tool precedent.                       |
-| 2026-06-09 | Spawn modal mirrors the reference's Create Task                        | Consistency with the reference; mapped to `ao spawn` params.                                       |
+| 2026-06-09 | Spawn modal mirrors the reference's Create Task                        | Consistency with the reference; mapped to `opr spawn` params.                                       |

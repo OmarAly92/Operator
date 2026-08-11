@@ -2,7 +2,7 @@
  * Daemon-owned user preferences.
  *
  * Read from and written to the daemon rather than held in the renderer, because
- * `ao spawn`, mobile, and headless spawns resolve the same value. A preference
+ * `opr spawn`, mobile, and headless spawns resolve the same value. A preference
  * kept in one client would look correct in Settings and disagree with the others.
  */
 

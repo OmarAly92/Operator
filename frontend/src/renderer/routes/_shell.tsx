@@ -32,7 +32,7 @@ import { ShellProvider } from "../lib/shell-context";
 import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { captureOrchestratorReplacementFailure } from "../lib/orchestrator-replacement-telemetry";
 import { applyDocumentTheme, applyDocumentThemeStyle } from "../lib/theme";
-import { aoBridge } from "../lib/bridge";
+import { operatorBridge } from "../lib/bridge";
 import { handleModifierLinkClick } from "../lib/external-link-policy";
 import { cn } from "../lib/utils";
 import {
@@ -267,10 +267,10 @@ function ShellLayout() {
 				operation: "project_add",
 				surface: "project_board",
 			});
-			void captureRendererEvent("ao.renderer.project_add_requested");
+			void captureRendererEvent("opr.renderer.project_add_requested");
 			const status = await refreshDaemonStatus();
 			if (status.state !== "ready" || !status.port) {
-				throw new Error(status.message || "AO daemon is not ready.");
+				throw new Error(status.message || "Operator daemon is not ready.");
 			}
 			const { data, error } = await apiClient.POST("/api/v1/projects", {
 				body: {
@@ -301,11 +301,11 @@ function ShellLayout() {
 				orchestratorAgent: input.orchestratorAgent as WorkspaceSummary["orchestratorAgent"],
 				sessions: [],
 			};
-			void captureRendererEvent("ao.renderer.project_add_succeeded", { project_id: workspace.id });
+			void captureRendererEvent("opr.renderer.project_add_succeeded", { project_id: workspace.id });
 			updateWorkspaces((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)]);
 			setOrchestratorStartupError(workspace.id, null);
 			try {
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_requested", {
+				void captureRendererEvent("opr.renderer.orchestrator_spawn_requested", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
@@ -326,7 +326,7 @@ function ShellLayout() {
 						: `Failed to spawn orchestrator (${spawnResponse.status})`;
 					throw new Error(message);
 				}
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_succeeded", {
+				void captureRendererEvent("opr.renderer.orchestrator_spawn_succeeded", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
@@ -337,7 +337,7 @@ function ShellLayout() {
 					params: { projectId: workspace.id, sessionId },
 				});
 			} catch (spawnError) {
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_failed", {
+				void captureRendererEvent("opr.renderer.orchestrator_spawn_failed", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
@@ -383,7 +383,7 @@ function ShellLayout() {
 				});
 				throw failure;
 			}
-			void captureRendererEvent("ao.renderer.project_removed", { project_id: projectId });
+			void captureRendererEvent("opr.renderer.project_removed", { project_id: projectId });
 			updateWorkspaces((current) => current.filter((item) => item.id !== projectId));
 		},
 		[updateWorkspaces],
@@ -479,7 +479,7 @@ function ShellLayout() {
 	// Send the preference, not the resolved theme, so "system" keeps both surfaces
 	// following the OS instead of freezing matchMedia to a forced value.
 	useEffect(() => {
-		void aoBridge.theme?.set(themePreference);
+		void operatorBridge.theme?.set(themePreference);
 	}, [themePreference]);
 
 	useEffect(() => {
@@ -568,7 +568,7 @@ function ShellLayout() {
 	// for the in-scope project, else fall back to create-project.
 	useEffect(
 		() =>
-			aoBridge.app.onNewSessionShortcut(() => {
+			operatorBridge.app.onNewSessionShortcut(() => {
 				if (scopedProjectId) {
 					requestNewTask(scopedProjectId);
 				} else {
@@ -578,12 +578,12 @@ function ShellLayout() {
 		[scopedProjectId, requestNewTask, requestCreateProject],
 	);
 
-	useEffect(() => aoBridge.app.onKeyboardShortcutsHelp(() => setIsKeyboardShortcutsOpen(true)), []);
+	useEffect(() => operatorBridge.app.onKeyboardShortcutsHelp(() => setIsKeyboardShortcutsOpen(true)), []);
 
 	// New standalone terminal (⌘T / Ctrl+T), also detected in the main process so it
 	// fires from inside a terminal pane. It raises the same store signal as the
 	// tab-strip + button so the two cannot drift apart.
-	useEffect(() => aoBridge.app.onNewShellTerminalShortcut(() => requestNewShellTerminal()), [requestNewShellTerminal]);
+	useEffect(() => operatorBridge.app.onNewShellTerminalShortcut(() => requestNewShellTerminal()), [requestNewShellTerminal]);
 
 	// The shell layout is the single consumer of that signal, because it is the
 	// only component mounted on EVERY route. Owning it here is what lets the
@@ -619,13 +619,13 @@ function ShellLayout() {
 	]);
 
 	useEffect(
-		() => aoBridge.app.onOpenSettingsShortcut(() => useUiStore.getState().openGlobalSettings()),
+		() => operatorBridge.app.onOpenSettingsShortcut(() => useUiStore.getState().openGlobalSettings()),
 		[],
 	);
 
 	useEffect(() => {
-		const disposePrevious = aoBridge.app.onPreviousSessionShortcut(() => navigateSession(-1));
-		const disposeNext = aoBridge.app.onNextSessionShortcut(() => navigateSession(1));
+		const disposePrevious = operatorBridge.app.onPreviousSessionShortcut(() => navigateSession(-1));
+		const disposeNext = operatorBridge.app.onNextSessionShortcut(() => navigateSession(1));
 		return () => {
 			disposePrevious();
 			disposeNext();
@@ -634,7 +634,7 @@ function ShellLayout() {
 
 	useEffect(
 		() =>
-			aoBridge.app.onFocusTerminalShortcut(() => {
+			operatorBridge.app.onFocusTerminalShortcut(() => {
 				document
 					.querySelector<HTMLElement>(
 						"[data-terminal-activation-phase='visible'] .xterm-helper-textarea, " +
@@ -688,7 +688,7 @@ function ShellLayout() {
 				{!framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
             call the store directly) stay in sync. --sidebar-width chains to
-            the drag-resizable --ao-sidebar-w set on :root by useResizable. */}
+            the drag-resizable --opr-sidebar-w set on :root by useResizable. */}
 				<SidebarProvider
 					className="min-h-0 flex-1 flex-col overflow-x-hidden"
 					keyboardShortcut={false}
@@ -700,7 +700,7 @@ function ShellLayout() {
 					open={!isStartupLoading && (isSidebarOpen || isSidebarPeekOpen)}
 					style={
 						{
-							"--sidebar-width": "var(--ao-sidebar-w, var(--size-sidebar-default))",
+							"--sidebar-width": "var(--opr-sidebar-w, var(--size-sidebar-default))",
 							"--sidebar-width-icon": "var(--size-sidebar-icon)",
 						} as CSSProperties
 					}
@@ -779,7 +779,7 @@ function ShellLayout() {
 						<div
 							aria-hidden="true"
 							className={cn(
-								"fixed top-0 left-0 z-chrome w-(--ao-sidebar-w,var(--size-sidebar-default)) transition-[height] duration-200 ease-out motion-reduce:transition-none",
+								"fixed top-0 left-0 z-chrome w-(--opr-sidebar-w,var(--size-sidebar-default)) transition-[height] duration-200 ease-out motion-reduce:transition-none",
 								isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
 							)}
 							style={trafficLightDragActive ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined}

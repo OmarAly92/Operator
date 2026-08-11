@@ -6,20 +6,20 @@ import (
 	"reflect"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/acp"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 func TestClaudeSessionMetaAppendsWithoutReplacingPreset(t *testing.T) {
 	if got := claudeSessionMeta(acpdriver.LaunchConfig{}); got != nil {
 		t.Fatalf("empty prompt metadata = %#v", got)
 	}
-	meta := claudeSessionMeta(acpdriver.LaunchConfig{SystemPrompt: "AO standing instructions"})
+	meta := claudeSessionMeta(acpdriver.LaunchConfig{SystemPrompt: "Operator standing instructions"})
 	prompt, ok := meta["systemPrompt"].(map[string]any)
 	if !ok {
 		t.Fatalf("systemPrompt = %#v", meta["systemPrompt"])
 	}
-	if prompt["type"] != "preset" || prompt["preset"] != "claude_code" || prompt["append"] != "AO standing instructions" {
+	if prompt["type"] != "preset" || prompt["preset"] != "claude_code" || prompt["append"] != "Operator standing instructions" {
 		t.Fatalf("systemPrompt = %#v", prompt)
 	}
 }
@@ -51,7 +51,7 @@ func TestRuntimeCommandOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AO_CLAUDE_ACP_COMMAND", executable)
+	t.Setenv("OPERATOR_CLAUDE_ACP_COMMAND", executable)
 	launch, err := resolveRuntime(context.Background())
 	if err != nil {
 		t.Fatalf("resolveRuntime: %v", err)

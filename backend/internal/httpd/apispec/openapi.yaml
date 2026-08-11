@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   description: Loopback-only HTTP surface served by the Go daemon. Generated from
     Go (code-first) — do not edit by hand; run `go generate ./...`.
-  title: Agent Orchestrator HTTP daemon
+  title: Operator HTTP daemon
   version: 0.1.0-route-shell
 servers:
 - description: Local daemon (loopback only)
@@ -214,11 +214,12 @@ paths:
     post:
       operationId: executeBrowserCommand
       parameters:
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Operator worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Operator-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Operator
+            worker.
           type: string
       requestBody:
         content:
@@ -282,17 +283,18 @@ paths:
     get:
       operationId: getBrowserStatus
       parameters:
-      - description: AO session identifier.
+      - description: Operator session identifier.
         in: query
         name: sessionId
         schema:
-          description: AO session identifier.
+          description: Operator session identifier.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Operator worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Operator-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Operator
+            worker.
           type: string
       responses:
         "200":
@@ -436,7 +438,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Check whether a legacy AO install is available to import
+      summary: Check whether a legacy Operator install is available to import
       tags:
       - import
     post:
@@ -460,7 +462,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Run the legacy AO project import through the daemon store
+      summary: Run the legacy Operator project import through the daemon store
       tags:
       - import
   /api/v1/mobile/disable:
@@ -2603,13 +2605,14 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: AO conversation turn identifier, from the snapshot's turns array.
+      - description: Operator conversation turn identifier, from the snapshot's turns
+          array.
         in: path
         name: turnId
         required: true
         schema:
-          description: AO conversation turn identifier, from the snapshot's turns
-            array.
+          description: Operator conversation turn identifier, from the snapshot's
+            turns array.
           type: string
       requestBody:
         content:
@@ -2668,13 +2671,14 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: AO conversation turn identifier, from the snapshot's turns array.
+      - description: Operator conversation turn identifier, from the snapshot's turns
+          array.
         in: path
         name: turnId
         required: true
         schema:
-          description: AO conversation turn identifier, from the snapshot's turns
-            array.
+          description: Operator conversation turn identifier, from the snapshot's
+            turns array.
           type: string
       responses:
         "200":
@@ -3301,11 +3305,12 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Operator worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Operator-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Operator
+            worker.
           type: string
       responses:
         "200":
@@ -3357,11 +3362,12 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Operator worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Operator-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Operator
+            worker.
           type: string
       responses:
         "200":
@@ -3413,11 +3419,12 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Operator worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Operator-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Operator
+            worker.
           type: string
       requestBody:
         content:
@@ -3486,8 +3493,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Gateway Timeout
-      summary: Start a session-owned server from .ao/launch.json and open its application
-        preview
+      summary: Start a session-owned server from .operator/launch.json and open its
+        application preview
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/restore:
@@ -4078,7 +4085,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Switch a logical AO session to another agent harness
+      summary: Switch a logical Operator session to another agent harness
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/workspace/events:
@@ -7175,7 +7182,7 @@ components:
           description: Native agent session identifier used to resume its transcript.
           type: string
         event:
-          description: AO hook sub-command that produced this state (e.g. post-tool-use).
+          description: Operator hook sub-command that produced this state (e.g. post-tool-use).
           type: string
         latestAssistantUpdate:
           description: Latest assistant update exposed by the provider hook.
@@ -7186,7 +7193,7 @@ components:
           maxLength: 16384
           type: string
         launchId:
-          description: AO process generation that produced the signal.
+          description: Operator process generation that produced the signal.
           type: string
         state:
           description: Agent activity state reported by an agent hook. Optional for
@@ -7261,10 +7268,10 @@ components:
           description: Native reviewer session identifier used to resume its transcript.
           type: string
         event:
-          description: AO hook sub-command that produced this signal.
+          description: Operator hook sub-command that produced this signal.
           type: string
         launchId:
-          description: AO process generation that produced the signal.
+          description: Operator process generation that produced the signal.
           type: string
         state:
           description: Reviewer activity state reported by a hook. Accepted for forward
@@ -7597,7 +7604,7 @@ components:
     SubmitReviewInput:
       properties:
         body:
-          description: Review body recorded by AO. Required for changes_requested.
+          description: Review body recorded by Operator. Required for changes_requested.
           type: string
         githubReviewId:
           description: Id of the GitHub PR review the reviewer posted, if any.
@@ -7617,7 +7624,7 @@ components:
     SubmitReviewItem:
       properties:
         body:
-          description: Review body recorded by AO. Required for changes_requested.
+          description: Review body recorded by Operator. Required for changes_requested.
           type: string
         githubReviewId:
           description: Id of the GitHub PR review the reviewer posted, if any.
@@ -7644,7 +7651,7 @@ components:
           maxLength: 4096
           type: string
         targetHarness:
-          description: Agent harness to continue the logical AO session with.
+          description: Agent harness to continue the logical Operator session with.
           enum:
           - claude-code
           - codex
@@ -7950,13 +7957,13 @@ tags:
   name: reviews
 - description: Durable dashboard notifications
   name: notifications
-- description: Token usage telemetry for AO sessions
+- description: Token usage telemetry for Operator sessions
   name: usage
 - description: Mobile push-device registration for OS push notifications
   name: push
 - description: Server-sent CDC event stream with durable replay
   name: events
-- description: Legacy AO project import (availability probe and run)
+- description: Legacy Operator project import (availability probe and run)
   name: import
 - description: Developer-only maintenance operations
   name: dev

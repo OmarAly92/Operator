@@ -13,8 +13,8 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type fakeAgent struct {
@@ -265,7 +265,7 @@ func TestACPDriverDefersPromptUntilDurableTurnBinding(t *testing.T) {
 	driver.spawn = fakeSpawn(agent)
 
 	conversation, err := driver.Start(context.Background(), ports.ChatStartConfig{
-		WorkspacePath: t.TempDir(), SystemPrompt: "AO instructions",
+		WorkspacePath: t.TempDir(), SystemPrompt: "Operator instructions",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -465,7 +465,7 @@ func TestACPDriverNegotiatesRichClientCapabilitiesAndNativePromptContent(t *test
 	}
 
 	ref, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
-		Text: "inspect these", ClientMessageID: "ao-client-message-1",
+		Text: "inspect these", ClientMessageID: "opr-client-message-1",
 		Content: []ports.ChatContent{
 			{Type: "image", Data: "aW1hZ2U=", MIMEType: "image/png"},
 			{Type: "resource_link", URI: "file:///repo/README.md", Name: "README.md"},
@@ -490,8 +490,8 @@ func TestACPDriverNegotiatesRichClientCapabilitiesAndNativePromptContent(t *test
 	if len(prompt) != 4 || prompt[1].Image == nil || prompt[2].ResourceLink == nil || prompt[3].Resource == nil {
 		t.Fatalf("native prompt = %#v", prompt)
 	}
-	if promptMessageID == nil || *promptMessageID != "ao-client-message-1" {
-		t.Fatalf("ACP prompt message id = %v, want AO's durable client id", promptMessageID)
+	if promptMessageID == nil || *promptMessageID != "opr-client-message-1" {
+		t.Fatalf("ACP prompt message id = %v, want Operator's durable client id", promptMessageID)
 	}
 }
 
@@ -518,14 +518,14 @@ func TestACPDriverReappliesLaunchContextWhenResuming(t *testing.T) {
 		ProviderConversationID: "provider-session-1",
 		WorkspacePath:          workspace,
 		Env:                    map[string]string{"KEEP": "yes"},
-		SystemPrompt:           "Recomputed AO instructions",
+		SystemPrompt:           "Recomputed Operator instructions",
 	})
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
 	defer conv.Close()
 	if got.SessionID != "worker-1" || got.WorkspacePath != workspace ||
-		got.Env["KEEP"] != "yes" || got.SystemPrompt != "Recomputed AO instructions" {
+		got.Env["KEEP"] != "yes" || got.SystemPrompt != "Recomputed Operator instructions" {
 		t.Fatalf("launch config = %#v", got)
 	}
 	agent.mu.Lock()
@@ -536,7 +536,7 @@ func TestACPDriverReappliesLaunchContextWhenResuming(t *testing.T) {
 		t.Fatalf("resume calls = %d, load calls = %d; want resume fallback", resumeCalls, loadCalls)
 	}
 	prompt, ok := resumeMeta["systemPrompt"].(map[string]any)
-	if !ok || prompt["append"] != "Recomputed AO instructions" {
+	if !ok || prompt["append"] != "Recomputed Operator instructions" {
 		t.Fatalf("session/resume metadata = %#v, want recomputed system prompt", resumeMeta)
 	}
 }
@@ -580,7 +580,7 @@ func TestACPDriverLoadsSettledHistoryWhenTheAgentCanReplayIt(t *testing.T) {
 	conv, err := driver.Resume(context.Background(), ports.ChatResumeConfig{
 		ProviderConversationID: "provider-session-1",
 		WorkspacePath:          t.TempDir(),
-		SystemPrompt:           "AO load instructions",
+		SystemPrompt:           "Operator load instructions",
 	})
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -596,7 +596,7 @@ func TestACPDriverLoadsSettledHistoryWhenTheAgentCanReplayIt(t *testing.T) {
 		t.Fatalf("load calls = %d, resume calls = %d, session = %q", loadCalls, resumeCalls, loadedSession)
 	}
 	prompt, ok := loadMeta["systemPrompt"].(map[string]any)
-	if !ok || prompt["append"] != "AO load instructions" {
+	if !ok || prompt["append"] != "Operator load instructions" {
 		t.Fatalf("session/load metadata = %#v, want recomputed system prompt", loadMeta)
 	}
 

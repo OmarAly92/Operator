@@ -655,7 +655,7 @@ export function TerminalPane({
 			? terminalTarget.handleId
 			: (session?.terminalHandleId ?? "empty");
 
-	if (!window.ao) {
+	if (!window.operator) {
 		// A standalone shell has no agent and no branch, so it previews as a plain
 		// prompt rather than borrowing the session's agent transcript.
 		if (terminalTarget?.kind === "shell") {
@@ -727,7 +727,7 @@ export function TerminalPane({
 }
 
 function workerPreviewLines(session: WorkspaceSession | undefined, provider: string): string[] {
-	if (session?.id === "ao-demo-orchestrator") {
+	if (session?.id === "opr-demo-orchestrator") {
 		return [
 			"> Go through my Linear backlog and let's plan which tasks to spawn off",
 			"",
@@ -755,7 +755,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"> yes, spawn all three",
 			"",
 			"Running 3 shell commands…",
-			'└ $ ao spawn --project ao-demo --name "new-task-flake" --agent codex --prompt',
+			'└ $ opr spawn --project opr-demo --name "new-task-flake" --agent codex --prompt',
 			'  "Fix the flaky NewTaskDialog smoke test: submit is debounced 300ms while the',
 			'  e2e check asserts synchronously. Reproduce, fix, and push to update PR #324."',
 			"PASS 3 sessions spawned — board updated",
@@ -764,9 +764,9 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 	if (session?.id === "demo-review-stack") {
 		return [
 			'$ rg "previewUrl|Browser" frontend/src/renderer',
-			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after ao preview",
+			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after opr preview",
 			"frontend/src/renderer/hooks/useBrowserView.ts: preview revision re-navigates the view",
-			"$ ao preview http://localhost:5173",
+			"$ opr preview http://localhost:5173",
 			"DONE preview target set for demo-review-stack",
 			"$ npm --prefix frontend run typecheck",
 			"PASS TypeScript project references are clean",
@@ -797,7 +797,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"╭────────────────────────────────────────────╮",
 			"│ >_ OpenAI Codex (v0.133.0)                 │",
 			"│ model:        gpt-5.5 high  /model to change",
-			"│ directory:    ~/ao-demo/demo-new-task-flake",
+			"│ directory:    ~/opr-demo/demo-new-task-flake",
 			"│ permissions:  YOLO mode                    │",
 			"╰────────────────────────────────────────────╯",
 			"",
@@ -807,7 +807,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"• Ran npm test -- NewTaskDialog",
 			"└ PASS 12 tests passed",
 			"",
-			"▲ ao send · CI failed on PR #324. The failing checks are e2e (NewTaskDialog",
+			"▲ opr send · CI failed on PR #324. The failing checks are e2e (NewTaskDialog",
 			"  submits with Enter). Investigate and push a fix.",
 			"",
 			'• Ran rg -n "onKeyDown|Enter" src/components/NewTaskDialog.tsx',
@@ -829,8 +829,8 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 
 function reviewerPreviewLines(session: WorkspaceSession | undefined): string[] {
 	return [
-		"$ ao review submit --session " + (session?.id ?? "demo-session"),
-		"Reviewing PR #319: browser preview rail renders inside AO",
+		"$ opr review submit --session " + (session?.id ?? "demo-session"),
+		"Reviewing PR #319: browser preview rail renders inside Operator",
 		"PASS implementation matches the requested README screenshot flow",
 		"Reviewing PR #320: stacked PR review rows",
 		"WARN keep multiple review rows visible before taking the screenshot",
@@ -1010,7 +1010,7 @@ function AttachedTerminal({
 		(!replaySettled || replayPaintPending) &&
 		(state === "connecting" || state === "attached");
 	const showEndedState = state === "exited" || canRestoreSession;
-	const emptyStateTitle = session ? t("terminal.startingSession") : "Agent Orchestrator";
+	const emptyStateTitle = session ? t("terminal.startingSession") : "Operator";
 	const emptyStateMessage = session
 		? session.kind === "orchestrator"
 			? t("terminal.preparingOrchestrator")

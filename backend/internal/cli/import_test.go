@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/legacyimport"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/OmarAly92/operator/backend/internal/legacyimport"
+	"github.com/OmarAly92/operator/backend/internal/runfile"
 )
 
 func writeLegacyProject(t *testing.T) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), ".agent-orchestrator")
+	root := filepath.Join(t.TempDir(), ".operator")
 	if err := os.MkdirAll(filepath.Join(root, "projects", "alpha", "sessions"), 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestImportCommand_SurfacesParseErrorOnce(t *testing.T) {
 	setConfigEnv(t)
 	// A tab-indented line is a YAML syntax error (not a *yaml.TypeError), so
 	// loadLegacyConfig surfaces it exactly like issue #2186 describes.
-	root := filepath.Join(t.TempDir(), ".agent-orchestrator")
+	root := filepath.Join(t.TempDir(), ".operator")
 	if err := os.MkdirAll(root, 0o750); err != nil {
 		t.Fatal(err)
 	}

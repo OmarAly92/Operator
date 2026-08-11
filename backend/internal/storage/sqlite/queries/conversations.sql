@@ -195,7 +195,7 @@ SET compacted_at = ?, updated_at = ?
 WHERE id = ?;
 
 -- The thread title the provider reports for this conversation. Kept even when the
--- user has overridden the AO label, because it is the name the conversation has in
+-- user has overridden the Operator label, because it is the name the conversation has in
 -- the provider's own history.
 -- NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 -- offset, so a multi-byte character here silently corrupts later queries.
@@ -204,8 +204,8 @@ UPDATE conversations
 SET provider_title = ?, updated_at = ?
 WHERE id = ?;
 
--- The last title AO pushed into sessions.display_name. It is the compare-and-set
--- witness that lets a later provider title replace a label AO wrote while never
+-- The last title Operator pushed into sessions.display_name. It is the compare-and-set
+-- witness that lets a later provider title replace a label Operator wrote while never
 -- replacing one a person chose.
 -- name: UpdateConversationAppliedTitle :exec
 UPDATE conversations
@@ -224,7 +224,7 @@ SET model_reroute_json = ?, updated_at = ?
 WHERE id = ?;
 
 -- The provider account this conversation runs under, including the moment it last
--- asked for credentials AO does not hold. Latest wins.
+-- asked for credentials Operator does not hold. Latest wins.
 -- name: UpdateConversationAccount :exec
 UPDATE conversations
 SET account_json = ?, updated_at = ?
@@ -262,7 +262,7 @@ INSERT INTO conversation_turns (
     controller_generation, state, requested_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?);
 
--- A turn the PROVIDER started that AO never dispatched: a compaction runs as its
+-- A turn the PROVIDER started that Operator never dispatched: a compaction runs as its
 -- own turn, and so does work resumed inside the provider's own history. Without a
 -- row every item it emits correlates to no turn, which silently unpicks the
 -- timeline. INSERT OR IGNORE because the provider re-announces a turn on resume.
@@ -343,7 +343,7 @@ WHERE conversation_id = ? AND provider_turn_id = ?;
 -- so the latest payload is the complete answer and there is nothing to merge.
 --
 -- execrows so the caller can tell "recorded" from "no such turn", which is a real
--- case after a restart: a plan can arrive for a provider turn AO never recorded.
+-- case after a restart: a plan can arrive for a provider turn Operator never recorded.
 -- NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 -- offset, so a multi-byte character here silently corrupts later queries.
 -- name: UpdateConversationTurnPlan :execrows
@@ -465,7 +465,7 @@ WHERE conversation_id = ?
   AND state IN ('queued', 'running')
   AND rolled_back_at IS NOT NULL;
 
--- Older AO builds stored compaction boundaries without their provider turn.
+-- Older Operator builds stored compaction boundaries without their provider turn.
 -- Correlate those at or after the rollback anchor so the normal rolled-back-turn
 -- filter hides facts the provider has now forgotten.
 -- name: AttachLegacyCompactionsToRollbackAnchor :exec
@@ -486,7 +486,7 @@ WHERE conversation_activities.conversation_id = sqlc.arg(target_conversation_id)
   ), 0);
 
 -- Conversation state must describe the latest compaction that still exists in
--- provider history after rollback, not the latest one AO ever observed.
+-- provider history after rollback, not the latest one Operator ever observed.
 -- name: RecomputeConversationCompactedAt :exec
 UPDATE conversations
 SET compacted_at = (
@@ -557,7 +557,7 @@ INSERT INTO conversation_messages (
 
 -- Folding a streaming delta: append to the existing text and bump the revision
 -- so a client can detect a gap. The provider item id is the correlation key
--- because AO does not know the message id the provider will use.
+-- because Operator does not know the message id the provider will use.
 -- name: AppendConversationMessageDelta :exec
 UPDATE conversation_messages
 SET text = text || ?, revision = revision + 1, streaming = 1, updated_at = ?
@@ -578,8 +578,8 @@ SELECT * FROM conversation_messages
 WHERE conversation_id = ? AND client_message_id = ?
 LIMIT 1;
 
--- A native history import has the provider turn identity but not AO's turn id.
--- Looking through the turn also detects a message AO wrote before dispatch, which
+-- A native history import has the provider turn identity but not Operator's turn id.
+-- Looking through the turn also detects a message Operator wrote before dispatch, which
 -- prevents a Chat -> TUI -> Chat cycle from rendering the same prompt twice.
 -- name: SelectConversationUserMessageByTurn :one
 SELECT conversation_messages.*
@@ -595,7 +595,7 @@ LIMIT 1;
 -- agent has no memory of is the one way this feature can lie.
 --
 -- Rows with turn_id IS NULL survive the filter on purpose. Those are items the
--- provider never attributed to a turn, and hiding what AO cannot prove belonged to
+-- provider never attributed to a turn, and hiding what Operator cannot prove belonged to
 -- the discarded range would be a guess dressed up as a fact.
 -- NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 -- offset, so a multi-byte character here silently corrupts later queries.
@@ -824,7 +824,7 @@ LIMIT sqlc.arg(page_limit);
 --
 -- One statement, not a read followed by a write: a manual rename landing between the
 -- two would be silently discarded. The guard admits exactly two cases - the session
--- has no label yet, or it still carries the title AO last wrote - so anything a user
+-- has no label yet, or it still carries the title Operator last wrote - so anything a user
 -- typed wins by simply not matching.
 --
 -- It lives with the conversation queries rather than the session ones because it is

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -30,7 +30,7 @@ func (a *captureAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchConfi
 	if a.launchErr != nil {
 		return nil, a.launchErr
 	}
-	return []string{"copilot", "--agent=ao-review-w1", "--interactive", cfg.Prompt}, nil
+	return []string{"copilot", "--agent=opr-review-w1", "--interactive", cfg.Prompt}, nil
 }
 
 func (a *captureAgent) GetPromptDeliveryStrategy(context.Context, ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
@@ -58,10 +58,10 @@ func TestPreLaunchInstallsOnlyReviewerProfileInputs(t *testing.T) {
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 	inv := ports.ReviewInvocation{
-		DataDir:          "/ao",
+		DataDir:          "/opr",
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
-		SystemPromptFile: "/ao/prompts/w1/reviewer/system.md",
+		SystemPromptFile: "/opr/prompts/w1/reviewer/system.md",
 	}
 
 	if err := r.PreLaunch(context.Background(), inv); err != nil {
@@ -89,9 +89,9 @@ func TestPreLaunchPropagatesProfileError(t *testing.T) {
 func TestReviewCommandUsesRestrictedPersistentPolicy(t *testing.T) {
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
-	promptRoot := filepath.Join("/ao", "prompts", "w1", "reviewer")
+	promptRoot := filepath.Join("/opr", "prompts", "w1", "reviewer")
 	spec, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		DataDir:          "/ao",
+		DataDir:          "/opr",
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
 		Prompt:           "Read the hidden task.",
@@ -158,7 +158,7 @@ func TestReviewPolicyAllowsReviewCommandsAndDeniesWritesAndGitMutations(t *testi
 		"shell(git status:*)",
 		"shell(printf:*)",
 		"shell(gh api:*)",
-		"shell(ao review submit:*)",
+		"shell(opr review submit:*)",
 	} {
 		if !slices.Contains(allowedTools, want) {
 			t.Errorf("allowed policy missing %q: %#v", want, allowedTools)
@@ -238,7 +238,7 @@ func parsePolicy(t *testing.T, argv []string) parsedPolicy {
 			got.values[arg] = append(got.values[arg], argv[i])
 			continue
 		}
-		if strings.HasPrefix(arg, "--") && arg != "--agent=ao-review-w1" {
+		if strings.HasPrefix(arg, "--") && arg != "--agent=opr-review-w1" {
 			got.flags[arg] = true
 		}
 	}
@@ -259,12 +259,12 @@ func TestNewReviewerRealCommandSelectsCustomAgent(t *testing.T) {
 	spec, err := New().ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		Prompt:           "review",
-		SystemPromptFile: "/ao/system.md",
+		SystemPromptFile: "/opr/system.md",
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if !slices.Contains(spec.Argv, "--agent=ao-review-w1") {
+	if !slices.Contains(spec.Argv, "--agent=opr-review-w1") {
 		t.Fatalf("custom agent missing from %#v", spec.Argv)
 	}
 }
