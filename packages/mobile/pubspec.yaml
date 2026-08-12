@@ -49,6 +49,8 @@ dependencies:
   mobile_scanner: ^7.4.0
   web_socket_channel: ^3.0.3
   permission_handler: ^13.0.1
+  url_launcher: ^6.3.2
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:
