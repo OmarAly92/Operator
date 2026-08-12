@@ -1,8 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class ServerConfigStore {
+class ServerConfigStore implements ServerConfigSource {
   ServerConfigStore(this._secureStorage, this._preferences);
 
   static const _hostKey = 'server.host';
@@ -15,6 +16,7 @@ class ServerConfigStore {
 
   ServerConfig? _current;
 
+  @override
   ServerConfig? get current => _current;
 
   Future<void> load() async {
