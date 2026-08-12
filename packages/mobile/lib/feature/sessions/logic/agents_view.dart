@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
+import 'package:operator_mobile/core/app_themes/colors/tone.dart';
+import 'package:operator_mobile/feature/pull_request/logic/pr_view.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
-import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 
 enum BoardZone { working, action, pending, merge }
@@ -97,14 +98,6 @@ String? trackerIssueId(String? issueId) {
   return _trackerProviderPrefixes.any(id.startsWith) ? id : null;
 }
 
-enum Tone { neutral, passive, success, warning, error }
-
-String prLifecycle(SessionPrModel pr) {
-  if (pr.state == 'merged') return 'merged';
-  if (pr.state == 'closed') return 'closed';
-  if (pr.state == 'draft') return 'draft';
-  return 'open';
-}
 
 class PrLineSummary {
   const PrLineSummary({required this.text, required this.tone});
@@ -118,7 +111,7 @@ PrLineSummary? prLine(SessionModel session) {
 
   final groups = <String, List<int>>{};
   for (final pr in real) {
-    groups.putIfAbsent(prLifecycle(pr), () => []).add(pr.number!);
+    groups.putIfAbsent(prLifecycleOf(pr).name, () => []).add(pr.number!);
   }
 
   final parts = groups.entries.map((e) => '${e.value.map((n) => '#$n').join(', ')} ${e.key}');
