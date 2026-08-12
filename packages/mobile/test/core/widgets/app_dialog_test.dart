@@ -11,12 +11,12 @@ void main() {
   Future<bool?> pumpAndConfirm(WidgetTester tester, {required bool tapConfirm}) async {
     bool? result;
     await tester.pumpWidget(
-      MaterialApp(
-        home: ScreenUtilInit(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
           designSize: const Size(390, 844),
-          builder: (context, child) => SkinScope(
-            skin: const DarkSkin(),
-            child: AppScaffold(
+          builder: (context, child) => MaterialApp(
+            home: AppScaffold(
               body: Builder(
                 builder: (context) => PrimaryButton(
                   text: 'Kill',

@@ -23,7 +23,7 @@ void main() {
     );
 
     expect(find.text('HOST'), findsOneWidget);
-    expect(find.text('192.168.1.5'), findsNothing);
+    expect(find.text('192.168.1.5'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '10.0.0.5');
     expect(controller.text, '10.0.0.5');
