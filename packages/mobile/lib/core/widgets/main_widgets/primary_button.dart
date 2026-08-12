@@ -68,7 +68,7 @@ class PrimaryButton extends StatelessWidget {
                 child: isLoading
                     ? Center(
                         child: SpinKitThreeBounce(
-                          color: context.skin.accent,
+                          color: foregroundColor ?? context.skin.onAccent,
                           size: 35,
                         ),
                       )
@@ -103,7 +103,10 @@ class PrimaryButton extends StatelessWidget {
         style: buildButtonStyleFrom(context),
         onPressed: isLoading ? () {} : onPressed,
         child: isLoading
-            ? SpinKitThreeBounce(color: context.skin.accent, size: 35)
+            ? SpinKitThreeBounce(
+                color: foregroundColor ?? context.skin.onAccent,
+                size: 35,
+              )
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
