@@ -1,8 +1,8 @@
 name: Mobile
 
-# Typechecks the Expo mobile app. Without this, changes under packages/mobile
-# (e.g. the push-notification client) shipped with no CI coverage — the existing
-# frontend/go workflows don't touch this package.
+# Typechecks the frozen Expo/React Native mobile app under packages/mobile_rn.
+# This tree is no longer actively developed (packages/mobile is now the
+# Flutter client) so the workflow is manually triggered only, not run on push/PR.
 
 on:
   workflow_dispatch:
