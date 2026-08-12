@@ -110,5 +110,6 @@ class GlobalAppbar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => Size.fromHeight(bottom == null ? 56 : 56 + 50);
+  Size get preferredSize =>
+      Size.fromHeight(56 + (bottom?.preferredSize.height ?? 0));
 }

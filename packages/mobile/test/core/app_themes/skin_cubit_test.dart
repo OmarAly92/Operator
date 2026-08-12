@@ -17,6 +17,7 @@ void main() {
     'switches from light to dark and keeps the new skin',
     build: SkinCubit.new,
     act: (cubit) => cubit.setSkin(const DarkSkin()),
+    expect: () => [const SkinChangedState(DarkSkin())],
     verify: (cubit) {
       expect(cubit.skin, isA<DarkSkin>());
       expect(cubit.skin.themeMode, ThemeMode.dark);

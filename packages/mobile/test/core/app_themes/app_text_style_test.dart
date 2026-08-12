@@ -8,14 +8,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ScreenUtilInit(
-          designSize: const Size(1080, 1920),
-          builder: (context, child) {
-            return Scaffold(
-              body: Center(
-                child: Container(),
-              ),
-            );
-          },
+          designSize: const Size(390, 844),
+          builder: (context, child) => const SizedBox.shrink(),
         ),
       ),
     );
@@ -30,14 +24,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ScreenUtilInit(
-          designSize: const Size(1080, 1920),
-          builder: (context, child) {
-            return Scaffold(
-              body: Center(
-                child: Container(),
-              ),
-            );
-          },
+          designSize: const Size(390, 844),
+          builder: (context, child) => const SizedBox.shrink(),
         ),
       ),
     );
