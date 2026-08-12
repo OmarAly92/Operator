@@ -7,6 +7,7 @@ abstract class ApiConsumer {
     String path, {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
+    Options? options,
     T Function(Map<String, dynamic>)? errorFromJsonT,
   });
 

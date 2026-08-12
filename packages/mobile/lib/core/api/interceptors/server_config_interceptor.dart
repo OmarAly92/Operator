@@ -12,7 +12,8 @@ class ServerConfigInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final config = _source.current;
+    final override = options.extra['pairingTarget'] as ServerConfig?;
+    final config = override ?? _source.current;
     if (config == null) {
       throw DioException(
         requestOptions: options,
