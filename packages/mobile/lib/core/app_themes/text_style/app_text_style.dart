@@ -76,4 +76,5 @@ sealed class AppTextStyle {
 
   static TextStyle get mono13Regular => _monoStyle(13, FontWeightHelper.regular);
   static TextStyle get mono13Bold => _monoStyle(13, FontWeightHelper.bold);
+  static TextStyle get mono24Bold => _monoStyle(24, FontWeightHelper.bold);
 }
