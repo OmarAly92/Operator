@@ -33,6 +33,30 @@ class _FakeMuxSocket implements MuxSocket {
   void closeFromServer() => _incoming.close();
 }
 
+class _SlowFakeMuxSocket implements MuxSocket {
+  _SlowFakeMuxSocket(this._readyFuture);
+
+  final Future<void> _readyFuture;
+  final _incoming = StreamController<dynamic>.broadcast();
+  final List<String> sent = [];
+  bool closed = false;
+
+  @override
+  Future<void> get ready => _readyFuture;
+
+  @override
+  Stream<dynamic> get messages => _incoming.stream;
+
+  @override
+  void send(String data) => sent.add(data);
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    await _incoming.close();
+  }
+}
+
 const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 
 void main() {
@@ -189,6 +213,29 @@ void main() {
         async.elapse(const Duration(seconds: 20));
         expect(connectCount, 1);
       });
+    });
+
+    test('disconnect while a connect is in flight suppresses the pending open', () async {
+      final readyCompleter = Completer<void>();
+      late _SlowFakeMuxSocket socket;
+      final statuses = <MuxStatus>[];
+      final client = MuxClient(
+        _config,
+        connect: (_, _) => socket = _SlowFakeMuxSocket(readyCompleter.future),
+      );
+      client.status.listen(statuses.add);
+
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+
+      client.disconnect();
+      readyCompleter.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(statuses, isNot(contains(MuxStatus.open)));
+      expect(socket.closed, isTrue);
+      expect(socket.sent, isEmpty);
     });
   });
 }

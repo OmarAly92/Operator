@@ -102,6 +102,11 @@ class MuxClient {
       return;
     }
 
+    if (_closedByUser) {
+      await socket.close();
+      return;
+    }
+
     _sub = socket.messages.listen(
       _onMessage,
       onError: (Object _) => _statusController.add(MuxStatus.error),
