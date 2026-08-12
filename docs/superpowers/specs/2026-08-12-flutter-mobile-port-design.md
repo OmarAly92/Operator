@@ -280,7 +280,7 @@ run or built as part of implementation.
 | # | Milestone | Done when |
 |---|---|---|
 | M0 | `git mv packages/mobile packages/mobile_rn` with its CI disabled; Flutter project at `packages/mobile`; `lib/core` mirrored; skin and `AppTextStyle`; DI; router; CI switched to `flutter analyze` / `flutter test` | Skin tests green — done 2026-08-12 |
-| M1 | Walking skeleton: pairing (QR + manual) → sessions → Kanban | Runs against a real daemon on a real phone |
+| M1 | Walking skeleton: pairing (QR + manual) → sessions → Kanban | Runs against a real daemon on a real phone — done 2026-08-13 |
 | M2 | Breadth on the spine: PRs, orchestrator, spawn, settings | Four tabs live |
 | M3 | Chat: timeline, SSE, composer, attachments, elicitation | Chat session usable end to end |
 | M4 | Terminal: spike against the four criteria, then build | Shell usable, or fallback taken |
