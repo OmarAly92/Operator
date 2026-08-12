@@ -29,6 +29,9 @@ class SessionsCubit extends Cubit<SessionsState> {
   Timer? _pollTimer;
   StreamSubscription<List<SessionPatch>>? _muxSub;
   bool _stopped = false;
+  int _revision = 0;
+
+  void _emitSessions() => emit(GetSessionsSuccessState(++_revision));
 
   Future<void> _tick() async {
     if (_stopped) return;
@@ -37,7 +40,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     result.when(
       onSuccess: (response) {
         sessions = response.data ?? [];
-        emit(const GetSessionsSuccessState());
+        _emitSessions();
       },
       onFailure: (failure) {
         emit(GetSessionsFailureState(failure));
@@ -77,7 +80,7 @@ class SessionsCubit extends Cubit<SessionsState> {
                 ),
         )
         .toList();
-    emit(const GetSessionsSuccessState());
+    _emitSessions();
   }
 
   Future<void> kill(String id) async {

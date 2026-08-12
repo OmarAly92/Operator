@@ -71,6 +71,28 @@ void main() {
   );
 
   blocTest<SessionsCubit, SessionsState>(
+    'emits a fresh success state for a mux patch so the board repaints',
+    build: () {
+      when(() => repository.getSessions()).thenAnswer(
+        (_) async => Result.success(GlobalResponse(data: [SessionModel(id: 'proj-1', status: 'working')])),
+      );
+      return SessionsCubit(repository, mux);
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(Duration.zero);
+      patchesController.add([
+        const SessionPatch(id: 'proj-1', status: 'needs_input', activity: 'blocked', attentionLevel: 'respond', lastActivityAt: 't2'),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+    },
+    expect: () => [
+      isA<GetSessionsLoadingState>(),
+      isA<GetSessionsSuccessState>().having((state) => state.revision, 'revision', 1),
+      isA<GetSessionsSuccessState>().having((state) => state.revision, 'revision', 2),
+    ],
+  );
+
+  blocTest<SessionsCubit, SessionsState>(
     'kill re-fetches on success',
     build: () {
       when(() => repository.getSessions()).thenAnswer((_) async => Result.success(GlobalResponse(data: [])));

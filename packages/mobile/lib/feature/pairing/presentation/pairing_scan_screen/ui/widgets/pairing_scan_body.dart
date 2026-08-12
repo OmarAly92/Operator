@@ -33,6 +33,17 @@ class _PairingScanBodyState extends State<PairingScanBody> {
     context.read<PairingScanCubit>().onScan(raw, Theme.of(context).platform);
   }
 
+  Future<void> _onManualConnect() async {
+    final paired = await Navigator.of(context).pushNamed<bool>(RoutesStrings.manualConnect);
+    if (paired != true || !mounted) return;
+    final fromOnboarding = context.read<PairingScanCubit>().fromOnboarding;
+    if (fromOnboarding) {
+      Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.sessions, (_) => false);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
@@ -48,7 +59,7 @@ class _PairingScanBodyState extends State<PairingScanBody> {
           alignment: Alignment.topCenter,
           child: SafeArea(
             child: TextButton(
-              onPressed: () => Navigator.pushNamed(context, RoutesStrings.manualConnect),
+              onPressed: _onManualConnect,
               child: AppText('Enter manually', style: AppTextStyle.style14Medium.copyWith(color: skin.accent)),
             ),
           ),

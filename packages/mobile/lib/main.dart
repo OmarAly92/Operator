@@ -60,6 +60,7 @@ class OperatorApp extends StatelessWidget {
                   supportedLocales: context.supportedLocales,
                   locale: context.locale,
                   initialRoute: initialRoute,
+                  onGenerateInitialRoutes: (name) => [AppRouter.generateRoute(RouteSettings(name: name))],
                   onGenerateRoute: AppRouter.generateRoute,
                 ),
               ),
