@@ -2,8 +2,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
+import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
+import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
+import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final sl = GetIt.instance;
@@ -11,6 +20,8 @@ final sl = GetIt.instance;
 class ServiceLocator {
   static Future<void> init() async {
     await _coreSetup();
+    _pairingFeatureSetup();
+    _sessionsFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -25,5 +36,30 @@ class ServiceLocator {
     sl.registerLazySingleton<NetworkStatus>(
       () => NetworkStatusImp(sl<ApiConsumer>(), sl<ServerConfigStore>()),
     );
+    sl.registerLazySingleton<MuxClient>(() {
+      final current = sl<ServerConfigStore>().current;
+      return MuxClient(current ?? const ServerConfig(host: '127.0.0.1', httpPort: '1', secure: false, password: ''));
+    });
+  }
+
+  static void _pairingFeatureSetup() {
+    sl.registerFactoryParam<PairingScanCubit, bool, void>(
+      (fromOnboarding, _) => PairingScanCubit(sl<PairingRepository>(), sl<ServerConfigStore>(), fromOnboarding: fromOnboarding),
+    );
+    sl.registerFactory<ManualConnectCubit>(() => ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()));
+
+    sl.registerLazySingleton<PairingRepository>(
+      () => PairingRepositoryImp(sl<PairingRemoteDataSource>(), sl<ServerConfigStore>()),
+    );
+    sl.registerLazySingleton<PairingRemoteDataSource>(() => PairingRemoteDataSourceImp(sl<ApiConsumer>()));
+  }
+
+  static void _sessionsFeatureSetup() {
+    sl.registerFactory<SessionsCubit>(() => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()));
+
+    sl.registerLazySingleton<SessionsRepository>(
+      () => SessionsRepositoryImp(sl<SessionsRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<SessionsRemoteDataSource>(() => SessionsRemoteDataSourceImp(sl<ApiConsumer>()));
   }
 }
