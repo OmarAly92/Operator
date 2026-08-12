@@ -7,4 +7,6 @@ sealed class EndPoints {
   static const String notifications = '/api/v1/notifications';
 
   static String sessionPr(String sessionId) => '/api/v1/sessions/$sessionId/pr';
+  static String sessionKill(String sessionId) => '/api/v1/sessions/$sessionId/kill';
+  static String sessionRestore(String sessionId) => '/api/v1/sessions/$sessionId/restore';
 }
