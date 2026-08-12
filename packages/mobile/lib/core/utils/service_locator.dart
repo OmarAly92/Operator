@@ -55,7 +55,7 @@ class ServiceLocator {
   }
 
   static void _sessionsFeatureSetup() {
-    sl.registerFactory<SessionsCubit>(() => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()));
+    sl.registerLazySingleton<SessionsCubit>(() => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()));
 
     sl.registerLazySingleton<SessionsRepository>(
       () => SessionsRepositoryImp(sl<SessionsRemoteDataSource>(), sl<NetworkStatus>()),

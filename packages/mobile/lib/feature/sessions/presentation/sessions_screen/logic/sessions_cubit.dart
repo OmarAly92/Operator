@@ -4,13 +4,19 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
+import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
+import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 
 part 'sessions_state.dart';
+
+const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
   SessionsCubit(this._repository, this._muxClient) : super(const SessionsInitialState()) {
@@ -25,6 +31,19 @@ class SessionsCubit extends Cubit<SessionsState> {
   final MuxClient _muxClient;
 
   List<SessionModel> sessions = [];
+  List<OrchestratorModel> orchestrators = [];
+  List<ProjectModel> projects = [];
+  String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
+
+  List<SessionModel> get visibleSessions => activeProjectId == kAllProjects
+      ? sessions
+      : sessions.where((s) => s.projectId == activeProjectId).toList();
+
+  void setActiveProject(String id) {
+    activeProjectId = id;
+    CacheHelper.save(CacheKeys.activeProjectId, id);
+    _emitSessions();
+  }
 
   Timer? _pollTimer;
   StreamSubscription<List<SessionPatch>>? _muxSub;
@@ -36,10 +55,13 @@ class SessionsCubit extends Cubit<SessionsState> {
   Future<void> _tick() async {
     if (_stopped) return;
     emit(const GetSessionsLoadingState());
-    final result = await _repository.getSessions();
+    final result = await _repository.getBoard();
     result.when(
       onSuccess: (response) {
-        sessions = response.data ?? [];
+        final board = response.data ?? const BoardSnapshot();
+        sessions = board.sessions;
+        orchestrators = board.orchestrators;
+        projects = board.projects;
         _emitSessions();
       },
       onFailure: (failure) {

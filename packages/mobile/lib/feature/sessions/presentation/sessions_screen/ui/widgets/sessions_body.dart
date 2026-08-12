@@ -25,18 +25,18 @@ class SessionsBody extends StatelessWidget {
       buildWhen: (previous, current) =>
           current is GetSessionsLoadingState || current is GetSessionsSuccessState || current is GetSessionsFailureState,
       builder: (context, state) {
-        if (cubit.sessions.isEmpty && state is GetSessionsLoadingState) {
+        if (cubit.visibleSessions.isEmpty && state is GetSessionsLoadingState) {
           return const AppLoader.center();
         }
-        if (cubit.sessions.isEmpty && state is GetSessionsFailureState) {
+        if (cubit.visibleSessions.isEmpty && state is GetSessionsFailureState) {
           return AppErrorWidget(failure: state.failure, onPressed: cubit.refresh);
         }
 
-        final grouped = groupSessions(skin, cubit.sessions);
+        final grouped = groupSessions(skin, cubit.visibleSessions);
         var working = 0;
         var needsYou = 0;
         var mergeable = 0;
-        for (final session in cubit.sessions) {
+        for (final session in cubit.visibleSessions) {
           switch (attentionOf(session)) {
             case AttentionLevel.working:
               working++;

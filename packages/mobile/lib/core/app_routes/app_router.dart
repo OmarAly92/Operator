@@ -38,7 +38,7 @@ sealed class AppRouter {
 
       case RoutesStrings.sessions:
         return MaterialPageRoute(
-          builder: (context) => BlocProvider(create: (_) => sl<SessionsCubit>(), child: const SessionsScreen()),
+          builder: (context) => BlocProvider.value(value: sl<SessionsCubit>(), child: const SessionsScreen()),
           settings: settings,
         );
 
