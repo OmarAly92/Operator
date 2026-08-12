@@ -53,13 +53,13 @@
 
 **Mobile (Expo)**
 
-- `packages/mobile/lib/config.ts` — **modify**: add `password` to `ServerConfig`, derive auth header helper.
-- `packages/mobile/lib/api.ts` — **modify**: attach `Authorization` header to every fetch.
-- `packages/mobile/lib/mux.ts` — **modify**: attach `Authorization` header to the WebSocket via RN's `headers` option.
-- `packages/mobile/lib/pairing.ts` — **new**: parse the scanned QR payload `{v,host,port}`.
-- `packages/mobile/app/pair.tsx` — **new**: camera scanner screen (expo-camera).
-- `packages/mobile/app/(tabs)/settings.tsx` — **modify**: "Scan QR" entry + password popup + manual host/port/password.
-- `packages/mobile/package.json` / `app.json` — **modify**: add `expo-camera` + camera permission.
+- `packages/mobile_rn/lib/config.ts` — **modify**: add `password` to `ServerConfig`, derive auth header helper.
+- `packages/mobile_rn/lib/api.ts` — **modify**: attach `Authorization` header to every fetch.
+- `packages/mobile_rn/lib/mux.ts` — **modify**: attach `Authorization` header to the WebSocket via RN's `headers` option.
+- `packages/mobile_rn/lib/pairing.ts` — **new**: parse the scanned QR payload `{v,host,port}`.
+- `packages/mobile_rn/app/pair.tsx` — **new**: camera scanner screen (expo-camera).
+- `packages/mobile_rn/app/(tabs)/settings.tsx` — **modify**: "Scan QR" entry + password popup + manual host/port/password.
+- `packages/mobile_rn/package.json` / `app.json` — **modify**: add `expo-camera` + camera permission.
 
 **Docs**
 
@@ -1245,9 +1245,9 @@ git commit -m "feat(mobile): desktop Connect Mobile modal with QR, password, war
 
 **Files:**
 
-- Modify: `packages/mobile/lib/config.ts`
-- Modify: `packages/mobile/lib/api.ts`
-- Modify: `packages/mobile/lib/mux.ts`
+- Modify: `packages/mobile_rn/lib/config.ts`
+- Modify: `packages/mobile_rn/lib/api.ts`
+- Modify: `packages/mobile_rn/lib/mux.ts`
 
 **Interfaces:**
 
@@ -1275,7 +1275,7 @@ test("authHeaders present only with a password", () => {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/mobile/lib/config.ts packages/mobile/lib/api.ts packages/mobile/lib/mux.ts
+git add packages/mobile_rn/lib/config.ts packages/mobile_rn/lib/api.ts packages/mobile_rn/lib/mux.ts
 git commit -m "feat(mobile): send Authorization bearer on REST + mux"
 ```
 
@@ -1285,10 +1285,10 @@ git commit -m "feat(mobile): send Authorization bearer on REST + mux"
 
 **Files:**
 
-- Create: `packages/mobile/lib/pairing.ts`
-- Create: `packages/mobile/app/pair.tsx`
-- Modify: `packages/mobile/app/(tabs)/settings.tsx`
-- Modify: `packages/mobile/package.json`, `packages/mobile/app.json`
+- Create: `packages/mobile_rn/lib/pairing.ts`
+- Create: `packages/mobile_rn/app/pair.tsx`
+- Modify: `packages/mobile_rn/app/(tabs)/settings.tsx`
+- Modify: `packages/mobile_rn/package.json`, `packages/mobile_rn/app.json`
 
 **Interfaces:**
 
@@ -1329,7 +1329,7 @@ Expected: typecheck PASS; on-device pairing connects and the terminal streams.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/mobile/lib/pairing.ts packages/mobile/app/pair.tsx "packages/mobile/app/(tabs)/settings.tsx" packages/mobile/package.json packages/mobile/app.json
+git add packages/mobile_rn/lib/pairing.ts packages/mobile_rn/app/pair.tsx "packages/mobile_rn/app/(tabs)/settings.tsx" packages/mobile_rn/package.json packages/mobile_rn/app.json
 git commit -m "feat(mobile): QR scan pairing + password popup"
 ```
 
@@ -1343,7 +1343,7 @@ git commit -m "feat(mobile): QR scan pairing + password popup"
 
 - Modify: `AGENTS.md`
 - Modify: `docs/architecture.md`
-- Modify: `packages/mobile/scripts/README.md` (mark `opr-phone-proxy.js` superseded by the built-in LAN listener)
+- Modify: `packages/mobile_rn/scripts/README.md` (mark `opr-phone-proxy.js` superseded by the built-in LAN listener)
 
 - [ ] **Step 1:** In `AGENTS.md`, change the hard rule from _"The daemon is a loopback-only sidecar. Do not make the bind host configurable or expose it beyond `127.0.0.1`."_ to scope it to the **Loopback Listener**, and add the LAN Listener's rules:
 
@@ -1356,7 +1356,7 @@ git commit -m "feat(mobile): QR scan pairing + password popup"
 - [ ] **Step 5: Commit**
 
 ```bash
-git add AGENTS.md docs/architecture.md packages/mobile/scripts/README.md
+git add AGENTS.md docs/architecture.md packages/mobile_rn/scripts/README.md
 git commit -m "docs(mobile): scope loopback-only rule to loopback listener; document LAN listener"
 ```
 

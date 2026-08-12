@@ -197,7 +197,7 @@ npm run frontend:typecheck
 ## Mobile companion app
 
 The mobile companion app is still being wired into the contributor docs. Do not
-assume `packages/mobile/README.md` is a complete setup guide on this branch.
+assume `packages/mobile_rn/README.md` is a complete setup guide on this branch.
 Until a tracked guide lands, use the desktop/backend workflow above and check
 open issues/PRs for current mobile-specific setup notes.
 
