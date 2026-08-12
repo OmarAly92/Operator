@@ -16,7 +16,7 @@ class NetworkStatusImp implements NetworkStatus {
   Future<bool> get isConnected async {
     if (_configSource.current == null) return false;
     try {
-      await _apiConsumer.get(EndPoints.projects);
+      await _apiConsumer.get(EndPoints.health);
       return true;
     } catch (_) {
       return false;
