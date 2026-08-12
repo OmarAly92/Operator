@@ -38,6 +38,15 @@ void main() {
       expect(failure.apiStatus, isNull);
     });
 
+    test('falls back to a default message when message is not a string', () {
+      final failure = handleDioError(
+        _exception({'message': 12345, 'code': 'X'}, 500),
+      );
+
+      expect(failure.message, 'Request failed');
+      expect(failure.apiStatus, 'X');
+    });
+
     test('maps a timeout to a network failure', () {
       final failure = handleDioError(
         DioException(

@@ -27,11 +27,20 @@ ServerFailure<Map<String, dynamic>> handleDioError(DioException error) {
   }
 
   final requestId = body['requestId'];
+  final rawMessage = body['message'];
+  final rawError = body['error'];
+  final message = rawMessage is String
+      ? rawMessage
+      : rawError is String
+          ? rawError
+          : 'Request failed';
+  final rawCode = body['code'];
+  final apiStatus = rawCode is String ? rawCode : null;
   return ServerFailure<Map<String, dynamic>>(
     error: error,
-    message: (body['message'] ?? body['error'] ?? 'Request failed') as String,
+    message: message,
     statusCode: error.response?.statusCode,
-    apiStatus: body['code'] as String?,
+    apiStatus: apiStatus,
     validationErrors: requestId is String ? {'requestId': requestId} : null,
   );
 }
