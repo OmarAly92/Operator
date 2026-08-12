@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
@@ -11,14 +8,6 @@ import 'package:talker_dio_logger/talker_dio_logger.dart';
 
 class DioConsumer implements ApiConsumer {
   DioConsumer(this._configSource) {
-    if (!kIsWeb) {
-      (client.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback = (cert, host, port) => true;
-        return client;
-      };
-    }
-
     setDefaultDioOptions();
 
     client.interceptors.add(ServerConfigInterceptor(_configSource));
