@@ -5,6 +5,7 @@ import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/dio_error_handler.dart';
 import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 import 'package:talker_dio_logger/talker_dio_logger.dart';
 
@@ -61,8 +62,12 @@ class DioConsumer implements ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     T Function(Map<String, dynamic>)? errorFromJsonT,
-  }) {
-    return client.get(path, queryParameters: queryParameters, data: body);
+  }) async {
+    try {
+      return await client.get(path, queryParameters: queryParameters, data: body);
+    } on DioException catch (error) {
+      throw handleDioError(error);
+    }
   }
 
   @override
@@ -73,13 +78,17 @@ class DioConsumer implements ApiConsumer {
     bool formDataIsEnabled = false,
     Options? options,
     T Function(Map<String, dynamic>)? errorFromJsonT,
-  }) {
-    return client.post(
-      path,
-      queryParameters: queryParameters,
-      data: body,
-      options: options,
-    );
+  }) async {
+    try {
+      return await client.post(
+        path,
+        queryParameters: queryParameters,
+        data: body,
+        options: options,
+      );
+    } on DioException catch (error) {
+      throw handleDioError(error);
+    }
   }
 
   @override
@@ -88,8 +97,12 @@ class DioConsumer implements ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     T Function(Map<String, dynamic>)? errorFromJsonT,
-  }) {
-    return client.put(path, queryParameters: queryParameters, data: body);
+  }) async {
+    try {
+      return await client.put(path, queryParameters: queryParameters, data: body);
+    } on DioException catch (error) {
+      throw handleDioError(error);
+    }
   }
 
   @override
@@ -98,7 +111,11 @@ class DioConsumer implements ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     T Function(Map<String, dynamic>)? errorFromJsonT,
-  }) {
-    return client.delete(path, queryParameters: queryParameters, data: body);
+  }) async {
+    try {
+      return await client.delete(path, queryParameters: queryParameters, data: body);
+    } on DioException catch (error) {
+      throw handleDioError(error);
+    }
   }
 }
