@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/widgets/camera_permission_gate.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/widgets/connection_failure_banner.dart';
@@ -47,7 +49,7 @@ class _PairingScanBodyState extends State<PairingScanBody> {
           child: SafeArea(
             child: TextButton(
               onPressed: () => Navigator.pushNamed(context, RoutesStrings.manualConnect),
-              child: const Text('Enter manually'),
+              child: AppText('Enter manually', style: AppTextStyle.style14Medium.copyWith(color: skin.accent)),
             ),
           ),
         ),
