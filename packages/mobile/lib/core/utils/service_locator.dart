@@ -19,7 +19,7 @@ class ServiceLocator {
     sl.registerLazySingleton<FlutterSecureStorage>(() => const FlutterSecureStorage());
 
     sl.registerLazySingleton<ServerConfigStore>(
-      () => ServerConfigStore(sl<FlutterSecureStorage>(), sl<SharedPreferences>()),
+      () => ServerConfigStore(sl<FlutterSecureStorage>()),
     );
     sl.registerLazySingleton<ApiConsumer>(() => DioConsumer(sl<ServerConfigStore>()));
     sl.registerLazySingleton<NetworkStatus>(
