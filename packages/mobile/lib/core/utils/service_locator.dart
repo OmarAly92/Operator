@@ -19,6 +19,7 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
@@ -34,6 +35,7 @@ class ServiceLocator {
     _pullRequestFeatureSetup();
     _orchestratorFeatureSetup();
     _spawnFeatureSetup();
+    _settingsFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -104,5 +106,9 @@ class ServiceLocator {
       () => SpawnRepositoryImp(sl<SpawnRemoteDataSource>(), sl<NetworkStatus>()),
     );
     sl.registerLazySingleton<SpawnRemoteDataSource>(() => SpawnRemoteDataSourceImp(sl<ApiConsumer>()));
+  }
+
+  static void _settingsFeatureSetup() {
+    sl.registerFactory<SettingsCubit>(() => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>()));
   }
 }

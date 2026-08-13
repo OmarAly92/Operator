@@ -4,8 +4,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
+import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
@@ -19,6 +21,7 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
@@ -28,6 +31,8 @@ class _MockMuxClient extends Mock implements MuxClient {}
 class _MockPullRequestRepository extends Mock implements PullRequestRepository {}
 
 class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
+
+class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -46,6 +51,10 @@ void main() {
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
     sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(_MockOrchestratorRepository()));
+    final serverConfigStore = _MockServerConfigStore();
+    when(() => serverConfigStore.current).thenReturn(null);
+    sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
+    sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore));
   });
 
   tearDown(() => sl.reset());
@@ -57,8 +66,11 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, child) => MaterialApp(
-            home: BlocProvider(
-              create: (_) => SessionsCubit(repository, mux),
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux)),
+                BlocProvider<SkinCubit>(create: (_) => SkinCubit()),
+              ],
               child: const HomeShell(),
             ),
           ),

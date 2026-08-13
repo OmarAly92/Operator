@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/ui/orchestrator_screen.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -26,7 +27,7 @@ class _HomeShellState extends State<HomeShell> {
           const SessionsScreen(),
           OrchestratorScreen(onOpenBoard: () => setState(() => _index = 0)),
           const PullRequestsScreen(),
-          const SizedBox.shrink(),
+          SettingsScreen(onOpenBoard: () => setState(() => _index = 0)),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
