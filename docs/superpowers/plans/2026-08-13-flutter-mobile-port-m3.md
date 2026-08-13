@@ -2243,7 +2243,8 @@ git commit -m "feat(mobile): port the composer dock inset rule"
   - `class DiffFileModel extends Equatable` — `path (String)`, `oldPath`, `status (String)`,
     `additions (int)`, `deletions (int)`, `patch (String?)`, `patchTruncated (bool)`;
     `DiffFileModel.fromJson`; `static List<DiffFileModel> listFrom(dynamic value)`
-  - `class InputPropertyModel implements ElicitationProperty` — plus `InputPropertyModel.fromJson`
+  - `class InputPropertyModel implements ElicitationProperty` — `defaultValue`,
+    `hasDefaultValue (bool)`, plus `InputPropertyModel.fromJson`
   - `class InputSchemaModel extends Equatable` — `title`, `description`, `required (List<String>)`,
     `properties (Map<String, InputPropertyModel>)`
   - `class ActivityDetailModel extends Equatable` — `raw (Map<String, dynamic>)` plus typed getters
@@ -2295,6 +2296,11 @@ Three wire conversions carry real behavior and are what the test pins:
 
 `items` is `messages + activities` sorted by `sequence`, exactly as `toSnapshot` does — the daemon
 sends them as two arrays and the timeline needs one ordered stream.
+
+`InputPropertyModel` retains whether the schema contained a `default` key. An absent default lets
+the elicitation control apply its type fallback; an explicit `default: null` remains null. Parse
+this as `hasDefaultValue: json.containsKey('default')`, rather than inferring presence from the
+nullable `defaultValue`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2501,6 +2507,15 @@ void main() {
       expect(schema.properties['scopes']!.itemsAnyOf!.map((choice) => choice.label), ['Read', 'write']);
     });
 
+    test('distinguishes an absent elicitation default from an explicit null', () {
+      final absent = InputPropertyModel.fromJson({'type': 'boolean'});
+      final explicitNull = InputPropertyModel.fromJson({'type': 'boolean', 'default': null});
+
+      expect(absent.hasDefaultValue, isFalse);
+      expect(explicitNull.hasDefaultValue, isTrue);
+      expect(explicitNull.defaultValue, isNull);
+    });
+
     test('copyWith replaces only what pagination merges', () {
       final snapshot = ConversationSnapshotModel.fromJson(wire());
       final merged = snapshot.copyWith(oldestSequence: 1, hasMoreBefore: true, items: const [], turns: const []);
@@ -2610,6 +2625,7 @@ class InputPropertyModel extends Equatable implements ElicitationProperty {
     this.title,
     this.description,
     this.defaultValue,
+    this.hasDefaultValue = false,
     this.enumValues,
     this.oneOf,
     this.itemsAnyOf,
@@ -2627,6 +2643,8 @@ class InputPropertyModel extends Equatable implements ElicitationProperty {
   final String? description;
   @override
   final dynamic defaultValue;
+  @override
+  final bool hasDefaultValue;
   @override
   final List<dynamic>? enumValues;
   @override
@@ -2647,6 +2665,7 @@ class InputPropertyModel extends Equatable implements ElicitationProperty {
         title: json['title'] as String?,
         description: json['description'] as String?,
         defaultValue: json['default'],
+        hasDefaultValue: json.containsKey('default'),
         enumValues: json['enum'] as List<dynamic>?,
         oneOf: _choices(json['oneOf']),
         itemsAnyOf: _choices((json['items'] as Map<String, dynamic>?)?['anyOf']),
@@ -2676,7 +2695,7 @@ class InputPropertyModel extends Equatable implements ElicitationProperty {
 
   @override
   List<Object?> get props =>
-      [type, title, description, defaultValue, enumValues, oneOf, itemsAnyOf, minimum, maximum, minLength, maxLength];
+      [type, title, description, defaultValue, hasDefaultValue, enumValues, oneOf, itemsAnyOf, minimum, maximum, minLength, maxLength];
 }
 
 class InputSchemaModel extends Equatable {
