@@ -11,6 +11,9 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -19,6 +22,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _MockPullRequestRepository extends Mock implements PullRequestRepository {}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -34,7 +39,11 @@ void main() {
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => repository.getBoard())
         .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
+    await sl.reset();
+    sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
   });
+
+  tearDown(() => sl.reset());
 
   Future<void> pumpShell(WidgetTester tester) async {
     await tester.pumpWidget(

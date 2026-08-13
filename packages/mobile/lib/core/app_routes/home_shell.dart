@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -23,7 +24,7 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           const SessionsScreen(),
           const SizedBox.shrink(),
-          const SizedBox.shrink(),
+          const PullRequestsScreen(),
           const SizedBox.shrink(),
         ],
       ),
