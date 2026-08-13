@@ -295,7 +295,7 @@ proxies send **CRLF** frame boundaries; older daemons omit `seq`, so the SSE `id
 fallback; malformed `data` is dropped, not thrown. The test below is the ledger's
 `chat/sse.test.ts` row, mirrored 1:1.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/data/sse_test.dart`:
 
@@ -335,12 +335,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/data/sse_test.dart`
 Expected: FAIL — `package:operator_mobile/feature/chat/data/sse.dart` does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/data/sse.dart`:
 
@@ -423,12 +423,12 @@ ConversationEventModel? parseSseFrame(String frame) {
 }
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/data/sse_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 423/423 green.
