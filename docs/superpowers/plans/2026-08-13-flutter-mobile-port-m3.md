@@ -135,7 +135,7 @@ asymmetry is RN's, and it is preserved rather than tidied.
 iOS needs the photo-library usage string before `image_picker` can be used at all; without it the
 picker crashes the app on first tap rather than failing softly.
 
-- [ ] **Step 1: Add the two dependencies**
+- [x] **Step 1: Add the two dependencies**
 
 In `packages/mobile/pubspec.yaml`, under `dependencies:`, after `package_info_plus: ^10.2.1`:
 
@@ -144,7 +144,7 @@ In `packages/mobile/pubspec.yaml`, under `dependencies:`, after `package_info_pl
   file_selector: ^1.1.0
 ```
 
-- [ ] **Step 2: Declare the iOS photo-library purpose string**
+- [x] **Step 2: Declare the iOS photo-library purpose string**
 
 In `packages/mobile/ios/Runner/Info.plist`, inside the top-level `<dict>`:
 
@@ -153,7 +153,7 @@ In `packages/mobile/ios/Runner/Info.plist`, inside the top-level `<dict>`:
 	<string>Operator attaches images you pick to the message you send your agent.</string>
 ```
 
-- [ ] **Step 3: Write the failing endpoint test**
+- [x] **Step 3: Write the failing endpoint test**
 
 `packages/mobile/test/core/api/end_points_test.dart`:
 
@@ -208,12 +208,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 4: Run it to verify it fails**
+- [x] **Step 4: Run it to verify it fails**
 
 Run: `flutter test test/core/api/end_points_test.dart`
 Expected: FAIL — `events`, `sessionConversation` and the rest are not defined.
 
-- [ ] **Step 5: Add the endpoints**
+- [x] **Step 5: Add the endpoints**
 
 In `packages/mobile/lib/core/api/api_request_helpers/end_points.dart`, after `notifications`:
 
@@ -251,7 +251,7 @@ and after `prMerge`:
   static String _session(String sessionId) => '$sessions/${Uri.encodeComponent(sessionId)}';
 ```
 
-- [ ] **Step 6: Add the cursor cache key**
+- [x] **Step 6: Add the cursor cache key**
 
 In `packages/mobile/lib/core/helpers/cache/cache_keys.dart`, after `activeProjectId`:
 
@@ -260,12 +260,12 @@ In `packages/mobile/lib/core/helpers/cache/cache_keys.dart`, after `activeProjec
       'opr.chat.events.$host.$port.$sessionId';
 ```
 
-- [ ] **Step 7: Resolve and verify**
+- [x] **Step 7: Resolve and verify**
 
 Run: `flutter pub get && flutter analyze && flutter test`
 Expected: dependencies resolve, "No issues found!", 418/418 tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/mobile/pubspec.yaml packages/mobile/pubspec.lock packages/mobile/ios/Runner/Info.plist packages/mobile/lib packages/mobile/test
