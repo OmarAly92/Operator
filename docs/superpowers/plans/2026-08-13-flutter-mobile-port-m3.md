@@ -2164,7 +2164,7 @@ root view was already padded by the keyboard height, so opening the keyboard mov
 opposite directions. In Flutter the same two numbers are `MediaQuery.viewInsets.bottom` and
 `MediaQuery.viewPadding.bottom`, which is the ledger's "adapted — `MediaQuery.viewInsets`" row.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/keyboard_inset_test.dart` (ported from
 `session/keyboardInset.test.ts`; its `CONTROL_KEYS` group belongs to M4's terminal key row):
@@ -2191,12 +2191,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/keyboard_inset_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/keyboard_inset.dart`:
 
@@ -2209,12 +2209,12 @@ double dockInset(double keyboardHeight, double safeAreaBottom) {
 }
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/keyboard_inset_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 459/459 green.
