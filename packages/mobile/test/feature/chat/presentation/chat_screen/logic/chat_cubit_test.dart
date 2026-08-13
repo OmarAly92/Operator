@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
@@ -12,6 +15,9 @@ import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dar
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
+
+typedef _ConversationPageResult =
+    Result<GlobalResponse<ConversationSnapshotModel>, Failure>;
 
 ConversationSnapshotModel page({
   String conversationId = 'c-1',
@@ -36,6 +42,9 @@ ConversationMessageModel message(String id, int sequence) =>
 
 void main() {
   late _MockChatRepository repository;
+  late Completer<_ConversationPageResult> olderPageResponse;
+  late Completer<_ConversationPageResult> firstRefreshResponse;
+  late Completer<_ConversationPageResult> secondRefreshResponse;
 
   void stubIdleCatalogs() {
     when(() => repository.getModels(any())).thenAnswer(
@@ -232,6 +241,88 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
+    'discards an older page when the live conversation changes while it loads',
+    build: () {
+      var liveCalls = 0;
+      olderPageResponse = Completer<_ConversationPageResult>();
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async {
+        liveCalls += 1;
+        return Result.success(
+          GlobalResponse(
+            data: liveCalls == 1
+                ? page(
+                    oldestSequence: 3,
+                    hasMoreBefore: true,
+                    items: [message('m3', 3)],
+                  )
+                : page(conversationId: 'c-2', items: [message('n1', 1)]),
+          ),
+        );
+      });
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: 3),
+      ).thenAnswer((_) => olderPageResponse.future);
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(Duration.zero);
+      final pagination = cubit.loadOlder();
+      await Future<void>.delayed(Duration.zero);
+      await cubit.refresh();
+      olderPageResponse.complete(
+        Result.success(GlobalResponse(data: page(items: [message('m1', 1)]))),
+      );
+      await pagination;
+    },
+    verify: (cubit) {
+      expect(cubit.snapshot!.conversationId, 'c-2');
+      expect(cubit.snapshot!.items.map((item) => item.id), ['n1']);
+      expect(cubit.loadingOlder, isFalse);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'discards a stale refresh that completes after a newer refresh',
+    build: () {
+      firstRefreshResponse = Completer<_ConversationPageResult>();
+      secondRefreshResponse = Completer<_ConversationPageResult>();
+      var calls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) {
+        calls += 1;
+        return calls == 1
+            ? firstRefreshResponse.future
+            : secondRefreshResponse.future;
+      });
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(Duration.zero);
+      final newerRefresh = cubit.refresh();
+      secondRefreshResponse.complete(
+        Result.success(
+          GlobalResponse(
+            data: page(conversationId: 'c-2', items: [message('n1', 1)]),
+          ),
+        ),
+      );
+      await newerRefresh;
+      firstRefreshResponse.complete(
+        Result.success(GlobalResponse(data: page(items: [message('m1', 1)]))),
+      );
+      await Future<void>.delayed(Duration.zero);
+    },
+    verify: (cubit) {
+      expect(cubit.snapshot!.conversationId, 'c-2');
+      expect(cubit.snapshot!.items.map((item) => item.id), ['n1']);
+      expect(cubit.refreshing, isFalse);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
     'reads the model list only when the provider owns no config options',
     build: () {
       when(
@@ -278,6 +369,124 @@ void main() {
     verify: (cubit) {
       expect(cubit.configOptions.single.id, 'fast');
       verifyNever(() => repository.getModels(any()));
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'switches from models to provider config without resetting session catalogs',
+    build: () {
+      var calls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async {
+        calls += 1;
+        return Result.success(
+          GlobalResponse(
+            data: page(
+              capabilities: calls == 1 ? const [] : const ['config_options'],
+            ),
+          ),
+        );
+      });
+      when(() => repository.getModels('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatModelModel(id: 'opus', displayName: 'Opus')],
+          ),
+        ),
+      );
+      when(() => repository.getConfigOptions('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatConfigOptionModel(id: 'fast', name: 'Fast')],
+          ),
+        ),
+      );
+      when(() => repository.getSkills('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatSkillModel(name: 'review', displayName: 'Review')],
+          ),
+        ),
+      );
+      when(() => repository.getWorkspacePaths('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: WorkspacePathsModel(paths: ['lib/a.dart']),
+          ),
+        ),
+      );
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await cubit.refresh();
+      await Future<void>.delayed(Duration.zero);
+    },
+    verify: (cubit) {
+      expect(cubit.models, isEmpty);
+      expect(cubit.configOptions.single.id, 'fast');
+      expect(cubit.skills.single.name, 'review');
+      expect(cubit.workspace.paths, ['lib/a.dart']);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'switches from provider config to models without resetting session catalogs',
+    build: () {
+      var calls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async {
+        calls += 1;
+        return Result.success(
+          GlobalResponse(
+            data: page(
+              capabilities: calls == 1 ? const ['config_options'] : const [],
+            ),
+          ),
+        );
+      });
+      when(() => repository.getModels('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatModelModel(id: 'opus', displayName: 'Opus')],
+          ),
+        ),
+      );
+      when(() => repository.getConfigOptions('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatConfigOptionModel(id: 'fast', name: 'Fast')],
+          ),
+        ),
+      );
+      when(() => repository.getSkills('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: [ChatSkillModel(name: 'review', displayName: 'Review')],
+          ),
+        ),
+      );
+      when(() => repository.getWorkspacePaths('w-1')).thenAnswer(
+        (_) async => Result.success(
+          const GlobalResponse(
+            data: WorkspacePathsModel(paths: ['lib/a.dart']),
+          ),
+        ),
+      );
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await cubit.refresh();
+      await Future<void>.delayed(Duration.zero);
+    },
+    verify: (cubit) {
+      expect(cubit.configOptions, isEmpty);
+      expect(cubit.models.single.id, 'opus');
+      expect(cubit.skills.single.name, 'review');
+      expect(cubit.workspace.paths, ['lib/a.dart']);
     },
   );
 
@@ -343,4 +552,77 @@ void main() {
       verifyNever(() => repository.getWorkspacePaths(any()));
     },
   );
+
+  test('stops existing catalog timers after becoming unavailable', () {
+    fakeAsync((async) {
+      var conversationCalls = 0;
+      var skillCalls = 0;
+      var workspaceCalls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async {
+        conversationCalls += 1;
+        if (conversationCalls == 1) {
+          return Result.success(GlobalResponse(data: page()));
+        }
+        return Result.failure(
+          ServerFailure(
+            error: 'x',
+            message: 'gone',
+            apiStatus: 'SESSION_NOT_FOUND',
+          ),
+        );
+      });
+      when(() => repository.getSkills('w-1')).thenAnswer((_) async {
+        skillCalls += 1;
+        return Result.success(const GlobalResponse(data: <ChatSkillModel>[]));
+      });
+      when(() => repository.getWorkspacePaths('w-1')).thenAnswer((_) async {
+        workspaceCalls += 1;
+        return Result.success(
+          const GlobalResponse(data: WorkspacePathsModel()),
+        );
+      });
+
+      final cubit = ChatCubit(
+        repository,
+        'w-1',
+        skillPoll: const Duration(milliseconds: 10),
+        workspacePoll: const Duration(milliseconds: 10),
+      );
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 20));
+      async.flushMicrotasks();
+
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      final skillCallsAfterFailure = skillCalls;
+      final workspaceCallsAfterFailure = workspaceCalls;
+
+      async.elapse(const Duration(milliseconds: 50));
+      async.flushMicrotasks();
+
+      expect(skillCalls, skillCallsAfterFailure);
+      expect(workspaceCalls, workspaceCallsAfterFailure);
+      unawaited(cubit.close());
+    });
+  });
+
+  test('immediate close prevents every scheduled repository request', () async {
+    when(
+      () => repository.getConversationPage('w-1', beforeSequence: null),
+    ).thenAnswer((_) async => Result.success(GlobalResponse(data: page())));
+
+    final cubit = build();
+    await cubit.close();
+    await Future<void>.delayed(Duration.zero);
+
+    verifyNever(
+      () => repository.getConversationPage('w-1', beforeSequence: null),
+    );
+    verifyNever(() => repository.getModels(any()));
+    verifyNever(() => repository.getConfigOptions(any()));
+    verifyNever(() => repository.getSkills(any()));
+    verifyNever(() => repository.getWorkspacePaths(any()));
+  });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -23,21 +24,35 @@ class ChatUnavailable extends Equatable {
 }
 
 class ChatCubit extends Cubit<ChatState> {
-  ChatCubit(
+  factory ChatCubit(
+    ChatRepository repository,
+    String sessionId, {
+    Duration configPoll = const Duration(seconds: 5),
+    Duration skillPoll = const Duration(seconds: 60),
+    Duration workspacePoll = const Duration(seconds: 30),
+  }) => ChatCubit._(
+    repository,
+    sessionId,
+    configPoll: configPoll,
+    skillPoll: skillPoll,
+    workspacePoll: workspacePoll,
+  );
+
+  ChatCubit._(
     this._repository,
     this.sessionId, {
-    this.configPoll = const Duration(seconds: 5),
-    this.skillPoll = const Duration(seconds: 60),
-    this.workspacePoll = const Duration(seconds: 30),
+    required this._configPoll,
+    required this._skillPoll,
+    required this._workspacePoll,
   }) : super(const ChatInitialState()) {
     scheduleMicrotask(() => unawaited(refresh()));
   }
 
   final ChatRepository _repository;
   final String sessionId;
-  final Duration configPoll;
-  final Duration skillPoll;
-  final Duration workspacePoll;
+  final Duration _configPoll;
+  final Duration _skillPoll;
+  final Duration _workspacePoll;
 
   final List<ConversationSnapshotModel> _pages = [];
 
@@ -55,54 +70,81 @@ class ChatCubit extends Cubit<ChatState> {
   Timer? _configTimer;
   Timer? _skillTimer;
   Timer? _workspaceTimer;
-  bool _catalogsStarted = false;
+  bool _commonCatalogsStarted = false;
+  bool? _providerOwnsConfig;
+  String? _catalogConversationId;
+  int _refreshGeneration = 0;
+  int _paginationGeneration = 0;
+  int _catalogGeneration = 0;
+  int _commonCatalogGeneration = 0;
   int _revision = 0;
 
   bool get usesProviderConfig => snapshot?.can('config_options') ?? false;
 
   Future<void> refresh() async {
+    if (isClosed) return;
+    final generation = ++_refreshGeneration;
     refreshing = true;
     _emit();
 
     final result = await _repository.getConversationPage(sessionId);
-    if (isClosed) return;
+    if (isClosed || generation != _refreshGeneration) return;
 
     result.when(
-      onSuccess: (response) {
-        final live = response.data;
-        if (live != null) _replaceLivePage(live);
-        unavailable = null;
-        error = null;
-      },
-      onFailure: (failure) {
-        final code = conversationErrorCode(failure);
-        final message = conversationActionError(failure);
-        if (code != null && kPermanentConversationCodes.contains(code)) {
-          unavailable = ChatUnavailable(code: code, message: message);
-        } else {
-          error = message;
-        }
-      },
+      onSuccess: (response) => _applyRefreshSuccess(response.data),
+      onFailure: _applyRefreshFailure,
     );
 
     loading = false;
     refreshing = false;
     _emit();
-    _startCatalogs();
+  }
+
+  void _applyRefreshSuccess(ConversationSnapshotModel? live) {
+    if (live != null) _replaceLivePage(live);
+    unavailable = null;
+    error = null;
+    _reconcileCatalogs();
+  }
+
+  void _applyRefreshFailure(Failure failure) {
+    final code = conversationErrorCode(failure);
+    final message = conversationActionError(failure);
+    if (code != null && kPermanentConversationCodes.contains(code)) {
+      unavailable = ChatUnavailable(code: code, message: message);
+      error = null;
+      _stopCatalogs();
+    } else {
+      error = message;
+    }
   }
 
   Future<void> loadOlder() async {
+    if (isClosed) return;
     final current = snapshot;
     if (current == null || !current.hasMoreBefore || loadingOlder) return;
+    final conversationId = current.conversationId;
+    final cursor = current.oldestSequence;
+    final generation = ++_paginationGeneration;
 
     loadingOlder = true;
     _emit();
 
     final result = await _repository.getConversationPage(
       sessionId,
-      beforeSequence: current.oldestSequence,
+      beforeSequence: cursor,
     );
     if (isClosed) return;
+    final live = snapshot;
+    final isCurrentRequest =
+        generation == _paginationGeneration &&
+        live?.conversationId == conversationId &&
+        live?.oldestSequence == cursor;
+    if (!isCurrentRequest) {
+      loadingOlder = false;
+      _emit();
+      return;
+    }
 
     result.when(
       onSuccess: (response) {
@@ -120,6 +162,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void _replaceLivePage(ConversationSnapshotModel live) {
+    _paginationGeneration += 1;
     final previous = _pages.isEmpty ? null : _pages.first;
     if (previous?.conversationId != null &&
         previous!.conversationId != live.conversationId) {
@@ -138,35 +181,70 @@ class ChatCubit extends Cubit<ChatState> {
 
   void _mergePages() => snapshot = mergeConversationPages(_pages);
 
-  void _startCatalogs() {
-    if (_catalogsStarted || unavailable != null || snapshot == null) return;
-    _catalogsStarted = true;
+  void _reconcileCatalogs() {
+    final current = snapshot;
+    if (isClosed || unavailable != null || current == null) return;
 
-    unawaited(_loadCatalogs());
-    if (usesProviderConfig) {
-      _configTimer = Timer.periodic(
-        configPoll,
-        (_) => unawaited(_loadConfigOptions()),
-      );
+    if (!_commonCatalogsStarted) {
+      _startCommonCatalogs();
     }
-    _skillTimer = Timer.periodic(skillPoll, (_) => unawaited(_loadSkills()));
+
+    final providerOwnsConfig = usesProviderConfig;
+    final conversationChanged =
+        _catalogConversationId != current.conversationId;
+    final ownershipChanged = _providerOwnsConfig != providerOwnsConfig;
+    if (!conversationChanged && !ownershipChanged) return;
+
+    _switchProviderCatalog(
+      conversationId: current.conversationId,
+      providerOwnsConfig: providerOwnsConfig,
+    );
+  }
+
+  void _startCommonCatalogs() {
+    _commonCatalogsStarted = true;
+    unawaited(_loadSkills());
+    unawaited(_loadWorkspace());
+    _skillTimer = Timer.periodic(_skillPoll, (_) => unawaited(_loadSkills()));
     _workspaceTimer = Timer.periodic(
-      workspacePoll,
+      _workspacePoll,
       (_) => unawaited(_loadWorkspace()),
     );
   }
 
-  Future<void> _loadCatalogs() async {
-    await Future.wait([
-      if (usesProviderConfig) _loadConfigOptions() else _loadModels(),
-      _loadSkills(),
-      _loadWorkspace(),
-    ]);
+  void _switchProviderCatalog({
+    required String? conversationId,
+    required bool providerOwnsConfig,
+  }) {
+    _catalogConversationId = conversationId;
+    _providerOwnsConfig = providerOwnsConfig;
+    _catalogGeneration += 1;
+    _configTimer?.cancel();
+    _configTimer = null;
+
+    if (providerOwnsConfig) {
+      models = [];
+      unawaited(_loadConfigOptions());
+      _configTimer = Timer.periodic(
+        _configPoll,
+        (_) => unawaited(_loadConfigOptions()),
+      );
+    } else {
+      configOptions = [];
+      unawaited(_loadModels());
+    }
   }
 
   Future<void> _loadModels() async {
+    if (isClosed || unavailable != null || usesProviderConfig) return;
+    final generation = _catalogGeneration;
     final result = await _repository.getModels(sessionId);
-    if (isClosed) return;
+    if (isClosed ||
+        unavailable != null ||
+        generation != _catalogGeneration ||
+        usesProviderConfig) {
+      return;
+    }
     result.when(
       onSuccess: (response) {
         models = response.data ?? const [];
@@ -177,8 +255,15 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> _loadConfigOptions() async {
+    if (isClosed || unavailable != null || !usesProviderConfig) return;
+    final generation = _catalogGeneration;
     final result = await _repository.getConfigOptions(sessionId);
-    if (isClosed) return;
+    if (isClosed ||
+        unavailable != null ||
+        generation != _catalogGeneration ||
+        !usesProviderConfig) {
+      return;
+    }
     result.when(
       onSuccess: (response) {
         configOptions = response.data ?? const [];
@@ -189,8 +274,14 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> _loadSkills() async {
+    if (isClosed || unavailable != null) return;
+    final generation = _commonCatalogGeneration;
     final result = await _repository.getSkills(sessionId);
-    if (isClosed) return;
+    if (isClosed ||
+        unavailable != null ||
+        generation != _commonCatalogGeneration) {
+      return;
+    }
     result.when(
       onSuccess: (response) {
         skills = response.data ?? const [];
@@ -201,8 +292,14 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> _loadWorkspace() async {
+    if (isClosed || unavailable != null) return;
+    final generation = _commonCatalogGeneration;
     final result = await _repository.getWorkspacePaths(sessionId);
-    if (isClosed) return;
+    if (isClosed ||
+        unavailable != null ||
+        generation != _commonCatalogGeneration) {
+      return;
+    }
     result.when(
       onSuccess: (response) {
         workspace = response.data ?? const WorkspacePathsModel();
@@ -216,11 +313,23 @@ class ChatCubit extends Cubit<ChatState> {
     if (!isClosed) emit(ChatReadyState(++_revision));
   }
 
-  @override
-  Future<void> close() {
+  void _stopCatalogs() {
+    _catalogGeneration += 1;
+    _commonCatalogGeneration += 1;
     _configTimer?.cancel();
     _skillTimer?.cancel();
     _workspaceTimer?.cancel();
+    _configTimer = null;
+    _skillTimer = null;
+    _workspaceTimer = null;
+    _commonCatalogsStarted = false;
+    _providerOwnsConfig = null;
+    _catalogConversationId = null;
+  }
+
+  @override
+  Future<void> close() {
+    _stopCatalogs();
     return super.close();
   }
 }
