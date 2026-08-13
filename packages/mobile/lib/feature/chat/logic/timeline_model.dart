@@ -67,7 +67,7 @@ List<ConversationItemModel> readableConversationItems(
       return false;
     }
     return !(item.activityKind == 'plan' &&
-        item.turnId != null &&
+        (item.turnId?.isNotEmpty ?? false) &&
         plannedTurns.contains(item.turnId));
   }).toList();
 }
@@ -152,17 +152,20 @@ List<ConversationMarker> conversationMarkers(
             : 'Conversation update'),
     120,
   );
-  final detailSource =
-      assistant?.text ?? activity?.detail?.text ?? activity?.summary;
-  final detail = detailSource == null || detailSource.isEmpty
-      ? null
-      : _previewText(detailSource, 240);
+  final detailSource = _firstTruthy([
+    assistant?.text,
+    activity?.detail?.text,
+    activity?.summary,
+  ]);
+  final detail = detailSource == null ? null : _previewText(detailSource, 240);
 
   return ConversationMarker(
     key: group.key,
     sequence: group.anchor,
     title: title,
-    detail: detail != null && detail != title ? detail : null,
+    detail: detail != null && detail.isNotEmpty && detail != title
+        ? detail
+        : null,
     state: group.turn?.state,
   );
 }).toList();
@@ -181,10 +184,10 @@ bool activityStartsExpanded(ConversationActivityModel activity) {
   final detail = activity.detail;
   final liveBody =
       activity.status == 'running' &&
-      (detail?.output != null ||
-          detail?.result != null ||
-          detail?.error != null ||
-          detail?.patchOutput != null);
+      (_isJavaScriptTruthy(detail?.output) ||
+          _isJavaScriptTruthy(detail?.result) ||
+          _isJavaScriptTruthy(detail?.raw['error']) ||
+          _isJavaScriptTruthy(detail?.raw['patchOutput']));
   return activity.status == 'failed' || liveBody;
 }
 
@@ -254,4 +257,18 @@ String _previewText(String value, int limit) {
   return plain.length > limit
       ? '${plain.substring(0, limit - 1).trimRight()}…'
       : plain;
+}
+
+String? _firstTruthy(List<String?> values) {
+  for (final value in values) {
+    if (_isJavaScriptTruthy(value)) return value;
+  }
+  return null;
+}
+
+bool _isJavaScriptTruthy(dynamic value) {
+  if (value == null || value == false) return false;
+  if (value is String) return value.isNotEmpty;
+  if (value is num) return value != 0 && !value.isNaN;
+  return true;
 }

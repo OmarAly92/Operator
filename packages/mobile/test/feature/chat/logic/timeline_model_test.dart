@@ -191,6 +191,62 @@ void main() {
       ]);
     });
 
+    test('keeps a plan activity with an empty turn identifier', () {
+      final planned = snapshot(
+        turns: const [
+          ConversationTurnModel(
+            id: '',
+            planSteps: [PlanStepModel(text: 'Do it', status: 'pending')],
+          ),
+        ],
+        items: [activity('plan', 7, turnId: '')],
+      );
+      expect(readableConversationItems(planned).map((item) => item.id), [
+        'plan-7',
+      ]);
+    });
+
+    test('uses a truthy summary when activity detail text is empty', () {
+      final empty = snapshot(
+        items: [
+          const ConversationMessageModel(
+            id: 'u1',
+            turnId: 't1',
+            sequence: 1,
+            role: 'user',
+            origin: 'human',
+            text: 'Question',
+          ),
+          const ConversationActivityModel(
+            id: 'system-2',
+            turnId: 't1',
+            sequence: 2,
+            activityKind: 'system',
+            summary: 'Summary detail',
+            detail: ActivityDetailModel({'text': ''}),
+          ),
+        ],
+      );
+      expect(conversationMarkers(empty).single.detail, 'Summary detail');
+    });
+
+    test('omits whitespace-only normalized activity marker detail', () {
+      final whitespace = snapshot(
+        items: [
+          ConversationActivityModel(
+            id: 'system-1',
+            turnId: 't1',
+            sequence: 1,
+            revision: 1,
+            activityKind: 'system',
+            status: 'completed',
+            detail: const ActivityDetailModel({'text': '   '}),
+          ),
+        ],
+      );
+      expect(conversationMarkers(whitespace).single.detail, isNull);
+    });
+
     test(
       'gates rollback on the daemon capability, accepted history and idle state',
       () {
@@ -283,6 +339,35 @@ void main() {
         );
       },
     );
+
+    test('uses JavaScript truthiness for live activity bodies', () {
+      for (final detail in [
+        {'output': ''},
+        {'output': false},
+        {'output': 0},
+        {'output': double.nan},
+      ]) {
+        expect(
+          activityStartsExpanded(
+            activity('command', 1, status: 'running', detail: detail),
+          ),
+          isFalse,
+        );
+      }
+      for (final detail in [
+        {'result': 'done'},
+        {'error': 1},
+        {'patchOutput': []},
+        {'output': <String, dynamic>{}},
+      ]) {
+        expect(
+          activityStartsExpanded(
+            activity('command', 1, status: 'running', detail: detail),
+          ),
+          isTrue,
+        );
+      }
+    });
 
     test(
       'builds nested provider work without hiding or looping malformed events',
