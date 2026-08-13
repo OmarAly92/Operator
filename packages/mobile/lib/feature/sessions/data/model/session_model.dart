@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:operator_mobile/feature/sessions/data/model/activity_string.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 
 class SessionModel extends Equatable {
@@ -36,21 +37,12 @@ class SessionModel extends Equatable {
   final bool? isTerminated;
   final List<SessionPrModel>? prs;
 
-  static String? _activityString(dynamic raw) {
-    if (raw is String) return raw.isEmpty ? null : raw;
-    if (raw is Map<String, dynamic> && raw['state'] is String) {
-      final state = raw['state'] as String;
-      return state.isEmpty ? null : state;
-    }
-    return null;
-  }
-
   factory SessionModel.fromJson(Map<String, dynamic> json) => SessionModel(
     id: json['id'] as String?,
     projectId: json['projectId'] as String?,
     kind: json['kind'] as String?,
     status: json['status'] as String?,
-    activity: _activityString(json['activity']),
+    activity: activityString(json['activity']),
     harness: json['harness'] as String?,
     mode: json['mode'] as String?,
     branch: json['branch'] as String?,

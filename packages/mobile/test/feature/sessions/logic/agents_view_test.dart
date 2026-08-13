@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
+import 'package:operator_mobile/core/app_themes/colors/tone.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
+import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 
 const _dark = DarkSkin();
 const _light = LightSkin();
@@ -48,6 +50,17 @@ void main() {
 
     test('takes its colours from the passed skin', () {
       expect(zoneMeta(_light, BoardZone.merge).color, isNot(zoneMeta(_dark, BoardZone.merge).color));
+    });
+  });
+
+  group('attentionMeta', () {
+    test('uses desktop\'s labels for every level', () {
+      expect(attentionMeta(_dark, AttentionLevel.merge).label, 'Ready to merge');
+      expect(attentionMeta(_dark, AttentionLevel.respond).label, 'Needs you');
+      expect(attentionMeta(_dark, AttentionLevel.review).label, 'Review');
+      expect(attentionMeta(_dark, AttentionLevel.pending).label, 'In review');
+      expect(attentionMeta(_dark, AttentionLevel.working).label, 'Working');
+      expect(attentionMeta(_dark, AttentionLevel.done).label, 'Done');
     });
   });
 

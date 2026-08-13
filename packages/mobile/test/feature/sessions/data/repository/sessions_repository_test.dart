@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 
@@ -26,22 +27,27 @@ void main() {
   test('fails fast with noNetwork when the daemon is unreachable', () async {
     when(() => network.isConnected).thenAnswer((_) async => false);
 
-    final result = await repository.getSessions();
+    final result = await repository.getBoard();
 
     expect(result.isFailure, isTrue);
-    verifyNever(() => dataSource.getSessions());
+    verifyNever(() => dataSource.getBoard());
   });
 
-  test('returns the sessions list on success', () async {
+  test('returns the board snapshot on success', () async {
     when(() => network.isConnected).thenAnswer((_) async => true);
-    when(() => dataSource.getSessions()).thenAnswer(
-      (_) async => const GlobalResponse<List<SessionModel>>(data: [SessionModel(id: 'proj-1')]),
+    when(() => dataSource.getBoard()).thenAnswer(
+      (_) async => const GlobalResponse<BoardSnapshot>(
+        data: BoardSnapshot(sessions: [SessionModel(id: 'proj-1')]),
+      ),
     );
 
-    final result = await repository.getSessions();
+    final result = await repository.getBoard();
 
     expect(result.isSuccess, isTrue);
-    result.when(onSuccess: (r) => expect(r.data!.single.id, 'proj-1'), onFailure: (_) => fail('expected success'));
+    result.when(
+      onSuccess: (r) => expect(r.data!.sessions.single.id, 'proj-1'),
+      onFailure: (_) => fail('expected success'),
+    );
   });
 
   test('kill and restore propagate a Failure', () async {

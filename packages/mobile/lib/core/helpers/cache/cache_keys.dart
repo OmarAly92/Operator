@@ -7,4 +7,5 @@ sealed class CacheKeys {
   static const String serverSecure = 'server.secure';
   static const String serverPassword = 'server.password';
   static const String onboardingSkipped = 'opr.onboardingSkipped';
+  static const String activeProjectId = 'opr.activeProjectId';
 }

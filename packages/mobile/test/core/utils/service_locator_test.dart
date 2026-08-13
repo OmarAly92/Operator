@@ -7,8 +7,15 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
+import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
+import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -47,5 +54,36 @@ void main() {
     expect(sl<PairingRepository>(), isA<PairingRepository>());
     expect(sl<SessionsRepository>(), isA<SessionsRepository>());
     expect(sl<MuxClient>(), isA<MuxClient>());
+  });
+
+  test('resolves the pull request cubit and repository', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<PullRequestCubit>(), isA<PullRequestCubit>());
+    expect(sl<PullRequestRepository>(), isA<PullRequestRepository>());
+  });
+
+  test('resolves the orchestrator cubit and repository', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<OrchestratorCubit>(), isA<OrchestratorCubit>());
+    expect(sl<OrchestratorRepository>(), isA<OrchestratorRepository>());
+  });
+
+  test('resolves the spawn cubit and repository', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<SpawnCubit>(), isA<SpawnCubit>());
+    expect(sl<SpawnRepository>(), isA<SpawnRepository>());
+  });
+
+  test('resolves the settings cubit', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<SettingsCubit>(), isA<SettingsCubit>());
   });
 }

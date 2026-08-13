@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
@@ -11,7 +12,8 @@ import 'package:operator_mobile/feature/pairing/presentation/manual_connect_scre
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/pairing_scan_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
 
 sealed class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -38,8 +40,15 @@ sealed class AppRouter {
 
       case RoutesStrings.sessions:
         return MaterialPageRoute(
-          builder: (context) => BlocProvider(create: (_) => sl<SessionsCubit>(), child: const SessionsScreen()),
+          builder: (context) => BlocProvider.value(value: sl<SessionsCubit>(), child: const HomeShell()),
           settings: settings,
+        );
+
+      case RoutesStrings.spawn:
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider(create: (_) => sl<SpawnCubit>(), child: const SpawnScreen()),
+          settings: settings,
+          fullscreenDialog: true,
         );
 
       default:

@@ -6,13 +6,16 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_actions_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -22,13 +25,15 @@ void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await CacheHelper.init();
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
-    when(() => repository.getSessions()).thenAnswer((_) async => Result.success(GlobalResponse(data: <SessionModel>[])));
+    when(() => repository.getBoard()).thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
     when(() => repository.kill(any())).thenAnswer((_) async => Result.success(true));
     when(() => repository.restore(any())).thenAnswer((_) async => Result.success(true));
   });
