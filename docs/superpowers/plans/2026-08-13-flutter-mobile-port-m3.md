@@ -1863,7 +1863,7 @@ This matches the desktop composer's text contract exactly. A skill is a slash co
 therefore only starts at the beginning of the message (ignoring leading whitespace). A file may be
 mentioned after any whitespace boundary. Email addresses, URLs and ordinary paths remain text.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/composer_suggestions_test.dart` (ported from
 `chat/composerSuggestions.test.ts`):
@@ -1959,12 +1959,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/composer_suggestions_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/composer_suggestions.dart`:
 
@@ -2130,12 +2130,12 @@ does. If the analyzer rejects them, fall back to building the list and calling
 `.whereType<double>().toList()` — the behavior must stay "a field that does not match at all does
 not vote".
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/composer_suggestions_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 456/456 green.
