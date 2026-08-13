@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/tone.dart';
+import 'package:operator_mobile/feature/pull_request/data/model/session_pr_summary_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 
@@ -158,4 +159,54 @@ int comparePrs(SessionPrModel a, SessionPrModel b) {
   final rank = _openRank(a) - _openRank(b);
   if (rank != 0) return rank;
   return (b.number ?? 0) - (a.number ?? 0);
+}
+
+List<PrStatusAtom> prStatusAtoms(SessionPrSummaryModel rich) {
+  if (rich.state == 'merged') return const [PrStatusAtom(text: 'Merged', tone: Tone.success)];
+  if (rich.state == 'closed') return const [PrStatusAtom(text: 'Closed', tone: Tone.passive)];
+
+  final atoms = <PrStatusAtom>[];
+
+  switch (rich.ciState) {
+    case 'passing':
+      atoms.add(const PrStatusAtom(text: 'CI passing', tone: Tone.success));
+    case 'failing':
+      atoms.add(const PrStatusAtom(text: 'CI failing', tone: Tone.error));
+    case 'pending':
+      atoms.add(const PrStatusAtom(text: 'CI running', tone: Tone.neutral));
+  }
+
+  switch (rich.mergeabilityState) {
+    case 'mergeable':
+      atoms.add(const PrStatusAtom(text: 'Mergeable', tone: Tone.success));
+    case 'conflicting':
+      atoms.add(const PrStatusAtom(text: 'Conflict', tone: Tone.error));
+    case 'blocked':
+      atoms.add(const PrStatusAtom(text: 'Blocked', tone: Tone.warning));
+    case 'unstable':
+      atoms.add(const PrStatusAtom(text: 'Unstable', tone: Tone.warning));
+  }
+
+  switch (rich.reviewDecision) {
+    case 'approved':
+      atoms.add(const PrStatusAtom(text: 'Approved', tone: Tone.success));
+    case 'changes_requested':
+      atoms.add(const PrStatusAtom(text: 'Changes requested', tone: Tone.warning));
+    case 'review_required':
+      atoms.add(const PrStatusAtom(text: 'Review pending', tone: Tone.neutral));
+    default:
+      if (rich.hasUnresolvedHumanComments == true) {
+        atoms.add(const PrStatusAtom(text: 'Unresolved comments', tone: Tone.warning));
+      }
+  }
+
+  return atoms;
+}
+
+String? prBlockerLine(SessionPrSummaryModel rich, {int max = 2}) {
+  final names = [...rich.failingChecks, ...rich.mergeReasons.map(mergeReasonLabel)];
+  if (names.isEmpty) return null;
+  final shown = names.take(max).toList();
+  final extra = names.length - shown.length;
+  return extra > 0 ? '${shown.join(' · ')} +$extra more' : shown.join(' · ');
 }

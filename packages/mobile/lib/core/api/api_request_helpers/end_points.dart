@@ -10,4 +10,5 @@ sealed class EndPoints {
   static String sessionPr(String sessionId) => '/api/v1/sessions/$sessionId/pr';
   static String sessionKill(String sessionId) => '/api/v1/sessions/$sessionId/kill';
   static String sessionRestore(String sessionId) => '/api/v1/sessions/$sessionId/restore';
+  static String prMerge(int number) => '/api/v1/prs/$number/merge';
 }

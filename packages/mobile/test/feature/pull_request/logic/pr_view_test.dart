@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/tone.dart';
+import 'package:operator_mobile/feature/pull_request/data/model/session_pr_summary_model.dart';
 import 'package:operator_mobile/feature/pull_request/logic/pr_view.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
@@ -177,6 +178,72 @@ void main() {
 
     test('breaks ties with the newest PR first', () {
       expect(sorted([pr(number: 4), pr(number: 12), pr(number: 7)]), [12, 7, 4]);
+    });
+  });
+
+  group('prStatusAtoms', () {
+    SessionPrSummaryModel rich({
+      String? state = 'open',
+      String? ci,
+      String? merge,
+      String? review,
+      bool? unresolved,
+    }) => SessionPrSummaryModel(
+      state: state,
+      ciState: ci,
+      mergeabilityState: merge,
+      reviewDecision: review,
+      hasUnresolvedHumanComments: unresolved,
+    );
+
+    test('collapses a decided PR to one atom', () {
+      expect(prStatusAtoms(rich(state: 'merged', ci: 'passing')),
+          const [PrStatusAtom(text: 'Merged', tone: Tone.success)]);
+      expect(prStatusAtoms(rich(state: 'closed')),
+          const [PrStatusAtom(text: 'Closed', tone: Tone.passive)]);
+    });
+
+    test('reports CI, merge and review in that order', () {
+      final atoms = prStatusAtoms(rich(ci: 'passing', merge: 'mergeable', review: 'approved'));
+      expect(atoms.map((a) => a.text), ['CI passing', 'Mergeable', 'Approved']);
+    });
+
+    test('omits anything the daemon has not determined', () {
+      expect(prStatusAtoms(rich(ci: 'unknown', merge: 'unknown')), isEmpty);
+      expect(prStatusAtoms(rich()), isEmpty);
+    });
+
+    test('colours failures and blockers correctly', () {
+      final atoms = prStatusAtoms(rich(ci: 'failing', merge: 'conflicting', review: 'changes_requested'));
+      expect(atoms.map((a) => a.tone), [Tone.error, Tone.error, Tone.warning]);
+    });
+
+    test('surfaces unresolved comments when there is no formal decision', () {
+      expect(prStatusAtoms(rich(review: 'none', unresolved: true)),
+          const [PrStatusAtom(text: 'Unresolved comments', tone: Tone.warning)]);
+    });
+  });
+
+  group('prBlockerLine', () {
+    test('names failing checks and merge reasons together', () {
+      expect(
+        prBlockerLine(const SessionPrSummaryModel(
+          failingChecks: ['go test'],
+          mergeReasons: ['behind_base'],
+        )),
+        'go test · branch behind base',
+      );
+    });
+
+    test('caps the list and counts the remainder rather than truncating silently', () {
+      expect(
+        prBlockerLine(const SessionPrSummaryModel(failingChecks: ['a', 'b', 'c', 'd'])),
+        'a · b +2 more',
+      );
+    });
+
+    test('returns nothing when there is nothing blocking', () {
+      expect(prBlockerLine(const SessionPrSummaryModel()), isNull);
     });
   });
 }
