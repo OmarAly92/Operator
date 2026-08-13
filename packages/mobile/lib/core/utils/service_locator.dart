@@ -10,6 +10,9 @@ import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
+import 'package:operator_mobile/feature/pull_request/data/data_source/pull_request_remote_data_source.dart';
+import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -22,6 +25,7 @@ class ServiceLocator {
     await _coreSetup();
     _pairingFeatureSetup();
     _sessionsFeatureSetup();
+    _pullRequestFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -61,5 +65,16 @@ class ServiceLocator {
       () => SessionsRepositoryImp(sl<SessionsRemoteDataSource>(), sl<NetworkStatus>()),
     );
     sl.registerLazySingleton<SessionsRemoteDataSource>(() => SessionsRemoteDataSourceImp(sl<ApiConsumer>()));
+  }
+
+  static void _pullRequestFeatureSetup() {
+    sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(sl<PullRequestRepository>()));
+
+    sl.registerLazySingleton<PullRequestRepository>(
+      () => PullRequestRepositoryImp(sl<PullRequestRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<PullRequestRemoteDataSource>(
+      () => PullRequestRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
   }
 }

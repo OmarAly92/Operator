@@ -8,6 +8,8 @@ import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
+import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,5 +49,13 @@ void main() {
     expect(sl<PairingRepository>(), isA<PairingRepository>());
     expect(sl<SessionsRepository>(), isA<SessionsRepository>());
     expect(sl<MuxClient>(), isA<MuxClient>());
+  });
+
+  test('resolves the pull request cubit and repository', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<PullRequestCubit>(), isA<PullRequestCubit>());
+    expect(sl<PullRequestRepository>(), isA<PullRequestRepository>());
   });
 }
