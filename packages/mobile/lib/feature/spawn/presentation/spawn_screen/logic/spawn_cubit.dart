@@ -33,9 +33,15 @@ class SpawnCubit extends Cubit<SpawnState> {
     return ranked.where((agent) => chatHarnesses.contains(agent.id)).toList();
   }
 
-  void setProject(String? next) => projectId = next;
+  void setProject(String? next) {
+    projectId = next;
+    _bump();
+  }
 
-  void setHarness(String next) => harness = next;
+  void setHarness(String next) {
+    harness = next;
+    _bump();
+  }
 
   String _pickHarness(String current) =>
       agents.any((agent) => agent.id == current) ? current : (defaultAgent(agents) ?? '');

@@ -78,6 +78,22 @@ void main() {
   );
 
   blocTest<SpawnCubit, SpawnState>(
+    'emits when the project changes',
+    build: () => SpawnCubit(repository),
+    act: (cubit) => cubit.setProject('p'),
+    expect: () => [isA<CatalogReadyState>().having((s) => s.revision, 'revision', 1)],
+    verify: (cubit) => expect(cubit.projectId, 'p'),
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'emits when the harness changes',
+    build: () => SpawnCubit(repository),
+    act: (cubit) => cubit.setHarness('codex'),
+    expect: () => [isA<CatalogReadyState>().having((s) => s.revision, 'revision', 1)],
+    verify: (cubit) => expect(cubit.harness, 'codex'),
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
     'reports a catalog fetch failure instead of showing an empty picker',
     build: () {
       when(() => repository.getAgents())
@@ -104,6 +120,7 @@ void main() {
     verify: (cubit) => verifyNever(() => repository.spawn(any())),
     expect: () => [
       isA<CatalogLoadingState>(),
+      isA<CatalogReadyState>(),
       isA<CatalogReadyState>(),
       isA<SpawnValidationFailureState>(),
     ],
