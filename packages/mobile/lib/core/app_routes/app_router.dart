@@ -12,6 +12,8 @@ import 'package:operator_mobile/feature/pairing/presentation/manual_connect_scre
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/pairing_scan_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
 
 sealed class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -40,6 +42,13 @@ sealed class AppRouter {
         return MaterialPageRoute(
           builder: (context) => BlocProvider.value(value: sl<SessionsCubit>(), child: const HomeShell()),
           settings: settings,
+        );
+
+      case RoutesStrings.spawn:
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider(create: (_) => sl<SpawnCubit>(), child: const SpawnScreen()),
+          settings: settings,
+          fullscreenDialog: true,
         );
 
       default:

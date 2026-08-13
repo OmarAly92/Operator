@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
@@ -19,6 +20,11 @@ class SessionsScreen extends StatelessWidget {
       backgroundColor: context.skin.bgBase,
       appBar: const GlobalAppbar.main(),
       body: const SessionsBody(),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: context.skin.accent,
+        onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
+        child: Icon(Icons.add, color: context.skin.onAccent),
+      ),
     ),
   );
 }

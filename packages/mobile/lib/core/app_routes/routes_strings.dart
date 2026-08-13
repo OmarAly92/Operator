@@ -3,4 +3,5 @@ sealed class RoutesStrings {
   static const String pairingScan = '/pair';
   static const String manualConnect = '/pair/manual';
   static const String sessions = '/sessions';
+  static const String spawn = '/spawn';
 }
