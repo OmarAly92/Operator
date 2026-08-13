@@ -2302,7 +2302,7 @@ the elicitation control apply its type fallback; an explicit `default: null` rem
 this as `hasDefaultValue: json.containsKey('default')`, rather than inferring presence from the
 nullable `defaultValue`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/data/model/conversation_snapshot_model_test.dart` (the
 conversation-mapping half of the ledger's `chatModeApi.test.ts` row):
@@ -2528,12 +2528,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/data/model/conversation_snapshot_model_test.dart`
 Expected: FAIL — the model libraries do not exist.
 
-- [ ] **Step 3: Write the detail model**
+- [x] **Step 3: Write the detail model**
 
 `packages/mobile/lib/feature/chat/data/model/activity_detail_model.dart`:
 
@@ -2801,7 +2801,7 @@ class ActivityDetailModel extends Equatable {
 }
 ```
 
-- [ ] **Step 4: Write the item and turn models**
+- [x] **Step 4: Write the item and turn models**
 
 `packages/mobile/lib/feature/chat/data/model/conversation_item_model.dart`:
 
@@ -3017,7 +3017,7 @@ class ConversationTurnModel extends Equatable {
 }
 ```
 
-- [ ] **Step 5: Write the snapshot model**
+- [x] **Step 5: Write the snapshot model**
 
 `packages/mobile/lib/feature/chat/data/model/conversation_snapshot_model.dart`:
 
@@ -3396,12 +3396,12 @@ class ConversationSnapshotModel extends Equatable {
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/data/model/conversation_snapshot_model_test.dart`
 Expected: PASS.
 
-- [ ] **Step 7: Verify nothing regressed and commit**
+- [x] **Step 7: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 469/469 green.
