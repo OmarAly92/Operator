@@ -463,7 +463,7 @@ spec insists must not be discarded stays reachable on the same failure.
 `kPermanentConversationCodes` is `classifyConversationError`'s permanent set from
 `useConversation.ts`, lifted here so Task 17 can branch on it without redefining the list.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/conversation_action_test.dart` (ported from
 `chat/conversationAction.test.ts`):
@@ -522,12 +522,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/conversation_action_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/conversation_errors.dart`:
 
@@ -625,12 +625,12 @@ bool conversationActionUnsupported(String action, String? code) =>
     code != null && _unsupportedCodes[action] == code;
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/conversation_action_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 427/427 green.
