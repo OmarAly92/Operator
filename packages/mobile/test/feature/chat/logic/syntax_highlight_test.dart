@@ -38,11 +38,7 @@ void main() {
           '+added\n-removed\n',
           'diff',
         )?.map((token) => token.kind).toList(),
-        [
-          SyntaxTokenKind.addition,
-          SyntaxTokenKind.deletion,
-          SyntaxTokenKind.plain,
-        ],
+        [SyntaxTokenKind.addition, SyntaxTokenKind.deletion],
       );
       expect(
         highlightCode(

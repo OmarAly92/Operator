@@ -47,3 +47,12 @@
 - GREEN: `flutter test test/feature/chat/logic/syntax_highlight_test.dart --reporter expanded` passed with 4 tests.
 - Verification: `flutter analyze` completed with `No issues found!`.
 - Self-review: the change is scoped to diff token segmentation and preserves all token kind classification and all non-diff paths.
+
+## Fix round 2
+
+- Removed the synthetic terminal empty diff token from fix round 1; React Native `split(/(?<=\n)/)` produces newline-attached segments without a final empty segment.
+- Retained unconditional mapping of Dart split segments, preserving embedded blank lines and exact source round-tripping.
+- Updated the regression to require the React Native-equivalent addition/deletion two-token result while retaining the exact round-trip assertion.
+- `flutter test test/feature/chat/logic/syntax_highlight_test.dart --reporter expanded` passed with 4 tests.
+- `flutter analyze` completed with `No issues found!`.
+- Self-review: the correction removes only the over-added segment and leaves supported-language and non-diff tokenization unchanged.
