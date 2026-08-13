@@ -5,6 +5,7 @@ sealed class EndPoints {
   static const String orchestrators = '/api/v1/orchestrators';
   static const String settings = '/api/v1/settings';
   static const String agents = '/api/v1/agents';
+  static const String agentsRefresh = '/api/v1/agents/refresh';
   static const String notifications = '/api/v1/notifications';
 
   static String sessionPr(String sessionId) => '/api/v1/sessions/$sessionId/pr';
