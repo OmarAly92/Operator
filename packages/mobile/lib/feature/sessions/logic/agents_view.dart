@@ -41,6 +41,31 @@ ZoneMeta zoneMeta(AppSkin skin, BoardZone zone) {
   }
 }
 
+class AttentionMeta {
+  const AttentionMeta({required this.label, required this.color, required this.tint});
+
+  final String label;
+  final Color color;
+  final Color tint;
+}
+
+AttentionMeta attentionMeta(AppSkin skin, AttentionLevel level) {
+  switch (level) {
+    case AttentionLevel.merge:
+      return AttentionMeta(label: 'Ready to merge', color: skin.green, tint: skin.tintGreen);
+    case AttentionLevel.respond:
+      return AttentionMeta(label: 'Needs you', color: skin.amber, tint: skin.tintAmber);
+    case AttentionLevel.review:
+      return AttentionMeta(label: 'Review', color: skin.red, tint: skin.tintRed);
+    case AttentionLevel.pending:
+      return AttentionMeta(label: 'In review', color: skin.textTertiary, tint: skin.bgSubtle);
+    case AttentionLevel.working:
+      return AttentionMeta(label: 'Working', color: skin.orange, tint: skin.tintOrange);
+    case AttentionLevel.done:
+      return AttentionMeta(label: 'Done', color: skin.textTertiary, tint: skin.bgSubtle);
+  }
+}
+
 bool isArchived(SessionModel session) => session.isTerminated == true || session.status == 'terminated';
 
 class BoardSection {
