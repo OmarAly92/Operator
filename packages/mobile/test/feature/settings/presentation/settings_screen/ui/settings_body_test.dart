@@ -34,6 +34,25 @@ class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 const _pairedConfig = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 
+class _FakePairingScreen extends StatelessWidget {
+  const _FakePairingScreen({required this.onPaired});
+
+  final VoidCallback onPaired;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: TextButton(
+        onPressed: () {
+          onPaired();
+          Navigator.of(context).pop();
+        },
+        child: const Text('Simulate successful pairing'),
+      ),
+    ),
+  );
+}
+
 void main() {
   late _MockSessionsRepository sessionsRepository;
   late _MockMuxClient mux;
@@ -85,7 +104,11 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, child) => MaterialApp(
-            routes: {RoutesStrings.onboarding: (_) => const Scaffold(body: Text('Onboarding screen'))},
+            routes: {
+              RoutesStrings.onboarding: (_) => const Scaffold(body: Text('Onboarding screen')),
+              RoutesStrings.pairingScan: (_) =>
+                  _FakePairingScreen(onPaired: () => when(() => serverConfigStore.current).thenReturn(_pairedConfig)),
+            },
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => sessionsCubit),
@@ -107,6 +130,23 @@ void main() {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
     expect(find.text('10.0.0.5:3011'), findsOneWidget);
+  });
+
+  testWidgets('returning from pairing refreshes the Connection row without waiting for a poll tick', (tester) async {
+    when(() => serverConfigStore.current).thenReturn(null);
+
+    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+    expect(find.text('Not connected'), findsOneWidget);
+
+    await tester.tap(find.text('Connect Operator'));
+    await tester.pumpAndSettle();
+    expect(find.text('Simulate successful pairing'), findsOneWidget);
+
+    await tester.tap(find.text('Simulate successful pairing'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('10.0.0.5:3011'), findsOneWidget);
+    expect(find.text('Not connected'), findsNothing);
   });
 
   testWidgets('the Connection row shows Not connected when unpaired', (tester) async {

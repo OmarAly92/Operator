@@ -47,7 +47,10 @@ class _SettingsBodyState extends State<SettingsBody> {
     setState(() => _buildInfo = BuildInfo(version: info.version, build: info.buildNumber));
   }
 
-  Future<void> _openConnection(BuildContext context) => Navigator.of(context).pushNamed(RoutesStrings.pairingScan);
+  Future<void> _openConnection(BuildContext context) async {
+    await Navigator.of(context).pushNamed(RoutesStrings.pairingScan);
+    if (mounted) setState(() {});
+  }
 
   Future<void> _openProjectPicker(BuildContext context, SessionsCubit sessionsCubit) async {
     final selected = await showProjectPickerSheet(
