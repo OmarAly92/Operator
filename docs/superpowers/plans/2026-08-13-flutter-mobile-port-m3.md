@@ -3436,7 +3436,7 @@ The merge walks pages **oldest first** so a newer page replaces the same item or
 latest revision when a page boundary overlaps a streaming update. The `oldestSequence` and
 `hasMoreBefore` come from the oldest page; everything else comes from the live one.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/snapshot_test.dart` (ported from `chat/snapshot.test.ts`):
 
@@ -3518,12 +3518,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/snapshot_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/conversation_pages.dart`:
 
@@ -3565,12 +3565,12 @@ ConversationSnapshotModel? mergeConversationPages(List<ConversationSnapshotModel
 }
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/snapshot_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 474/474 green.
