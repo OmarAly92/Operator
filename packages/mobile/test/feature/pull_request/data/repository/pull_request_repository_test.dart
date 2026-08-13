@@ -23,45 +23,80 @@ void main() {
     repository = PullRequestRepositoryImp(dataSource, network);
   });
 
-  test('fails fast with noNetwork when the daemon is unreachable', () async {
-    when(() => network.isConnected).thenAnswer((_) async => false);
+  group('getSessionPr', () {
+    test('fails fast with noNetwork when the daemon is unreachable', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
 
-    final result = await repository.getSessionPr('s1');
+      final result = await repository.getSessionPr('s1');
 
-    expect(result.isFailure, isTrue);
-    verifyNever(() => dataSource.getSessionPr('s1'));
+      expect(result.isFailure, isTrue);
+      verifyNever(() => dataSource.getSessionPr('s1'));
+    });
+
+    test('returns the PR summaries on success', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.getSessionPr('s1')).thenAnswer(
+        (_) async => const GlobalResponse<List<SessionPrSummaryModel>>(
+          data: [
+            SessionPrSummaryModel(
+              number: 184,
+              title: 'Fix auth timeouts',
+              state: 'open',
+              repo: 'o/r',
+            ),
+          ],
+        ),
+      );
+
+      final result = await repository.getSessionPr('s1');
+
+      expect(result.isSuccess, isTrue);
+      result.when(
+        onSuccess: (r) => expect(r.data!.single.number, 184),
+        onFailure: (_) => fail('expected success'),
+      );
+    });
+
+    test('propagates a Failure', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.getSessionPr('s1')).thenThrow(ServerFailure.noNetwork());
+
+      final result = await repository.getSessionPr('s1');
+
+      expect(result.isFailure, isTrue);
+    });
   });
 
-  test('returns the PR summaries on success', () async {
-    when(() => network.isConnected).thenAnswer((_) async => true);
-    when(() => dataSource.getSessionPr('s1')).thenAnswer(
-      (_) async => const GlobalResponse<List<SessionPrSummaryModel>>(
-        data: [
-          SessionPrSummaryModel(
-            number: 184,
-            title: 'Fix auth timeouts',
-            state: 'open',
-            repo: 'o/r',
-          ),
-        ],
-      ),
-    );
+  group('merge', () {
+    test('fails fast with noNetwork when the daemon is unreachable', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
 
-    final result = await repository.getSessionPr('s1');
+      final result = await repository.merge(184);
 
-    expect(result.isSuccess, isTrue);
-    result.when(
-      onSuccess: (r) => expect(r.data!.single.number, 184),
-      onFailure: (_) => fail('expected success'),
-    );
-  });
+      expect(result.isFailure, isTrue);
+      verifyNever(() => dataSource.merge(184));
+    });
 
-  test('merge and getSessionPr propagate a Failure', () async {
-    when(() => network.isConnected).thenAnswer((_) async => true);
-    when(() => dataSource.getSessionPr('s1')).thenThrow(ServerFailure.noNetwork());
+    test('returns success on merge', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.merge(184)).thenAnswer((_) async => {});
 
-    final result = await repository.getSessionPr('s1');
+      final result = await repository.merge(184);
 
-    expect(result.isFailure, isTrue);
+      expect(result.isSuccess, isTrue);
+      result.when(
+        onSuccess: (success) => expect(success, isTrue),
+        onFailure: (_) => fail('expected success'),
+      );
+    });
+
+    test('propagates a Failure', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => dataSource.merge(184)).thenThrow(ServerFailure.noNetwork());
+
+      final result = await repository.merge(184);
+
+      expect(result.isFailure, isTrue);
+    });
   });
 }
