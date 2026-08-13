@@ -831,7 +831,7 @@ Task 20's renderer an exhaustive `switch` with no default branch to forget.
 Unknown syntax stays readable paragraph text. The renderer never hides content because a provider
 used syntax it does not know.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/chat_markdown_test.dart` (ported from
 `chat/ChatMarkdown.test.ts`, extended to pin the block kinds the renderer switches on):
@@ -890,12 +890,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/chat_markdown_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/markdown_blocks.dart`:
 
@@ -1113,12 +1113,12 @@ List<String> _tableCells(String value) => value
     .toList();
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/chat_markdown_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 437/437 green.
@@ -1152,7 +1152,7 @@ with `allMatches` standing in for `g`. Second, `String.split(RegExp)` in Dart dr
 also has no lookbehind support in older engines — Dart *does* support `(?<=\n)`, so the diff
 splitter ports as written.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/syntax_highlight_test.dart` (ported from
 `chat/syntaxHighlight.test.ts`):
@@ -1200,12 +1200,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/syntax_highlight_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/syntax_highlight.dart`:
 
@@ -1328,14 +1328,14 @@ List<SyntaxToken> _diffTokens(String code) => code
 Set<String> _words(String value) => value.split(' ').toSet();
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/syntax_highlight_test.dart`
 Expected: PASS. If the string-literal pattern misbehaves, check the single-quote concatenation
 first — Dart raw strings cannot contain the quote character that delimits them, which is why the
 literal is assembled from three pieces.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 441/441 green.
