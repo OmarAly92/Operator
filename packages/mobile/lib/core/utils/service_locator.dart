@@ -19,6 +19,9 @@ import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
+import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final sl = GetIt.instance;
@@ -30,6 +33,7 @@ class ServiceLocator {
     _sessionsFeatureSetup();
     _pullRequestFeatureSetup();
     _orchestratorFeatureSetup();
+    _spawnFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -91,5 +95,14 @@ class ServiceLocator {
     sl.registerLazySingleton<OrchestratorRemoteDataSource>(
       () => OrchestratorRemoteDataSourceImp(sl<ApiConsumer>()),
     );
+  }
+
+  static void _spawnFeatureSetup() {
+    sl.registerFactory<SpawnCubit>(() => SpawnCubit(sl<SpawnRepository>()));
+
+    sl.registerLazySingleton<SpawnRepository>(
+      () => SpawnRepositoryImp(sl<SpawnRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<SpawnRemoteDataSource>(() => SpawnRemoteDataSourceImp(sl<ApiConsumer>()));
   }
 }

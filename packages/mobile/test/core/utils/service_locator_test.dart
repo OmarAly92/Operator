@@ -13,6 +13,8 @@ import 'package:operator_mobile/feature/pairing/data/repository/pairing_reposito
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
+import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -67,5 +69,13 @@ void main() {
     );
     expect(sl<OrchestratorCubit>(), isA<OrchestratorCubit>());
     expect(sl<OrchestratorRepository>(), isA<OrchestratorRepository>());
+  });
+
+  test('resolves the spawn cubit and repository', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<SpawnCubit>(), isA<SpawnCubit>());
+    expect(sl<SpawnRepository>(), isA<SpawnRepository>());
   });
 }
