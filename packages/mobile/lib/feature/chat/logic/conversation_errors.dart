@@ -61,7 +61,7 @@ String conversationActionError(Failure failure) {
     case 'CHAT_APPROVAL_MODE_INVALID':
       return 'The provider does not accept that approval mode.';
     case 'CHAT_DECISION_REQUIRED':
-      return "Choose one of the provider's approval options.";
+      return 'Choose one of the provider\'s approval options.';
     case 'CHAT_INPUT_ACTION_INVALID':
       return 'That response is not available for this request.';
     case 'CHAT_INPUT_CONTENT_INVALID':
