@@ -7,6 +7,7 @@ class _Property implements ElicitationProperty {
     this.title,
     this.description,
     this.defaultValue,
+    this.hasDefaultValue = false,
     this.enumValues,
     this.oneOf,
     this.itemsAnyOf,
@@ -24,6 +25,8 @@ class _Property implements ElicitationProperty {
   final String? description;
   @override
   final dynamic defaultValue;
+  @override
+  final bool hasDefaultValue;
   @override
   final List<dynamic>? enumValues;
   @override
@@ -146,8 +149,24 @@ void main() {
       expect(initialInputValue(const _Property(type: 'boolean')), false);
       expect(initialInputValue(const _Property(type: 'string')), '');
       expect(
-        initialInputValue(const _Property(type: 'boolean', defaultValue: true)),
+        initialInputValue(
+          const _Property(
+            type: 'boolean',
+            defaultValue: true,
+            hasDefaultValue: true,
+          ),
+        ),
         true,
+      );
+      expect(
+        initialInputValue(
+          const _Property(
+            type: 'boolean',
+            defaultValue: null,
+            hasDefaultValue: true,
+          ),
+        ),
+        isNull,
       );
     });
 

@@ -20,6 +20,7 @@ abstract class ElicitationProperty {
   String? get title;
   String? get description;
   dynamic get defaultValue;
+  bool get hasDefaultValue;
   List<dynamic>? get enumValues;
   List<InputChoice>? get oneOf;
   List<InputChoice>? get itemsAnyOf;
@@ -30,7 +31,7 @@ abstract class ElicitationProperty {
 }
 
 dynamic initialInputValue(ElicitationProperty property) {
-  if (property.defaultValue != null) return property.defaultValue;
+  if (property.hasDefaultValue) return property.defaultValue;
   if (property.type == 'array') return <dynamic>[];
   if (property.type == 'boolean') return false;
   return '';
