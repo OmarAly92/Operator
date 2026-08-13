@@ -6,6 +6,9 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/feature/orchestrator/data/data_source/orchestrator_remote_data_source.dart';
+import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
+import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
@@ -26,6 +29,7 @@ class ServiceLocator {
     _pairingFeatureSetup();
     _sessionsFeatureSetup();
     _pullRequestFeatureSetup();
+    _orchestratorFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -75,6 +79,17 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<PullRequestRemoteDataSource>(
       () => PullRequestRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+  }
+
+  static void _orchestratorFeatureSetup() {
+    sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(sl<OrchestratorRepository>()));
+
+    sl.registerLazySingleton<OrchestratorRepository>(
+      () => OrchestratorRepositoryImp(sl<OrchestratorRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<OrchestratorRemoteDataSource>(
+      () => OrchestratorRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 }
