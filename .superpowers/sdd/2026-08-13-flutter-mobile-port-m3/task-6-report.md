@@ -56,3 +56,12 @@
 - `flutter test test/feature/chat/logic/syntax_highlight_test.dart --reporter expanded` passed with 4 tests.
 - `flutter analyze` completed with `No issues found!`.
 - Self-review: the correction removes only the over-added segment and leaves supported-language and non-diff tokenization unchanged.
+
+## Fix round 3
+
+- Added the RN-equivalent embedded blank-line regression for `+a\n\n-b\n`.
+- The test asserts newline-attached texts `['+a\n', '\n', '-b\n']`, kinds `[addition, plain, deletion]`, and exact source round-tripping.
+- Production code was unchanged because the test passed against the existing unconditional split mapping.
+- `flutter test test/feature/chat/logic/syntax_highlight_test.dart --reporter expanded` passed with 5 tests.
+- `flutter analyze` completed with `No issues found!`.
+- Self-review: the regression directly covers the earlier filtering defect without broadening behavior or test scope.

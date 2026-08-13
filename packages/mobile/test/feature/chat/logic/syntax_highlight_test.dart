@@ -51,6 +51,19 @@ void main() {
       expect(highlightCode('opaque'), isNull);
     });
 
+    test('preserves embedded blank diff lines', () {
+      const code = '+a\n\n-b\n';
+      final tokens = highlightCode(code, 'diff')!;
+
+      expect(tokens.map((token) => token.text), ['+a\n', '\n', '-b\n']);
+      expect(tokens.map((token) => token.kind), [
+        SyntaxTokenKind.addition,
+        SyntaxTokenKind.plain,
+        SyntaxTokenKind.deletion,
+      ]);
+      expect(tokens.map((token) => token.text).join(), code);
+    });
+
     test('resolves aliases and the language prefix', () {
       expect(
         highlightCode('x = 1 # note', 'py')?.last.kind,
