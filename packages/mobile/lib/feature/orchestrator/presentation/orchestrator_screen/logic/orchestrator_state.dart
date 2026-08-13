@@ -14,12 +14,13 @@ class OrchestratorInitialState extends OrchestratorLaunchState {
 }
 
 class LaunchLoadingState extends OrchestratorLaunchState {
-  const LaunchLoadingState(this.projectId);
+  const LaunchLoadingState(this.projectId, {required this.clean});
 
   final String projectId;
+  final bool clean;
 
   @override
-  List<Object?> get props => [projectId];
+  List<Object?> get props => [projectId, clean];
 }
 
 class LaunchSuccessState extends OrchestratorLaunchState {

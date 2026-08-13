@@ -32,8 +32,23 @@ void main() {
     },
     act: (cubit) => cubit.launch('p', clean: false),
     expect: () => [
-      isA<LaunchLoadingState>().having((s) => s.projectId, 'projectId', 'p'),
+      isA<LaunchLoadingState>().having((s) => s.projectId, 'projectId', 'p').having((s) => s.clean, 'clean', isFalse),
       isA<LaunchSuccessState>().having((s) => s.link.id, 'link.id', 'o1'),
+    ],
+  );
+
+  blocTest<OrchestratorCubit, OrchestratorLaunchState>(
+    'carries the clean flag on the loading state so a retry can reuse it',
+    build: () {
+      when(() => repository.launch(any())).thenAnswer(
+        (_) async => Result.success(GlobalResponse(data: const OrchestratorModel(id: 'o1'))),
+      );
+      return OrchestratorCubit(repository);
+    },
+    act: (cubit) => cubit.launch('p', clean: true),
+    expect: () => [
+      isA<LaunchLoadingState>().having((s) => s.clean, 'clean', isTrue),
+      isA<LaunchSuccessState>(),
     ],
   );
 

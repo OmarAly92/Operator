@@ -33,6 +33,7 @@ class OrchestratorBody extends StatefulWidget {
 
 class _OrchestratorBodyState extends State<OrchestratorBody> {
   String? _launchingProjectId;
+  bool _launchingClean = false;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +43,7 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
       listener: (context, state) {
         if (state is LaunchLoadingState) {
           _launchingProjectId = state.projectId;
+          _launchingClean = state.clean;
         }
         if (state is LaunchSuccessState) {
           sessionsCubit.refresh();
@@ -50,6 +52,7 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
         if (state is LaunchFailureState) {
           if (state.chatUnavailable) {
             final projectId = _launchingProjectId;
+            final clean = _launchingClean;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(chatErrorCopy(state.failure)),
@@ -57,7 +60,7 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
                   label: 'Start Terminal UI',
                   onPressed: projectId == null
                       ? () {}
-                      : () => context.read<OrchestratorCubit>().launch(projectId, clean: false, mode: 'tui'),
+                      : () => context.read<OrchestratorCubit>().launch(projectId, clean: clean, mode: 'tui'),
                 ),
               ),
             );

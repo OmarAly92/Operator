@@ -12,7 +12,7 @@ class OrchestratorCubit extends Cubit<OrchestratorLaunchState> {
   final OrchestratorRepository _repository;
 
   Future<void> launch(String projectId, {required bool clean, String mode = 'chat'}) async {
-    emit(LaunchLoadingState(projectId));
+    emit(LaunchLoadingState(projectId, clean: clean));
     final result = await _repository.launch(
       LaunchOrchestratorParams(projectId: projectId, clean: clean, mode: mode),
     );
