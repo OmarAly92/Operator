@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
+import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,4 +30,18 @@ void main() {
     build: SkinCubit.new,
     verify: (cubit) => expect(cubit.skin, isA<LightSkin>()),
   );
+
+  group('preferenceLabel', () {
+    test('light preference maps to Light', () {
+      expect(preferenceLabel(ThemeMode.light), 'Light');
+    });
+
+    test('dark preference maps to Dark', () {
+      expect(preferenceLabel(ThemeMode.dark), 'Dark');
+    });
+
+    test('system preference maps to System', () {
+      expect(preferenceLabel(ThemeMode.system), 'System');
+    });
+  });
 }
