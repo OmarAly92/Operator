@@ -51,10 +51,17 @@ class DioConsumer implements ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     Options? options,
+    CancelToken? cancelToken,
     T Function(Map<String, dynamic>)? errorFromJsonT,
   }) async {
     try {
-      return await client.get(path, queryParameters: queryParameters, data: body, options: options);
+      return await client.get(
+        path,
+        queryParameters: queryParameters,
+        data: body,
+        options: options,
+        cancelToken: cancelToken,
+      );
     } on DioException catch (error) {
       throw handleDioError(error);
     }

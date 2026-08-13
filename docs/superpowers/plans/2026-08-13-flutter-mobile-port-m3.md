@@ -4976,7 +4976,7 @@ does not give it:
 The stream yields **every** event for the daemon, not just this session's; filtering by `sessionId`
 is the caller's job, exactly as in `streamConversationEvents`'s callback contract.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/data/data_source/chat_event_data_source_test.dart`:
 
@@ -5097,13 +5097,13 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/data/data_source/chat_event_data_source_test.dart`
 Expected: FAIL — `cancelToken` is not a parameter of `ApiConsumer.get`, and the data source does
 not exist.
 
-- [ ] **Step 3: Give `ApiConsumer.get` a cancel token**
+- [x] **Step 3: Give `ApiConsumer.get` a cancel token**
 
 In `packages/mobile/lib/core/api/api_request_helpers/api_consumer.dart`, add to `get`'s signature:
 
@@ -5124,7 +5124,7 @@ to `get` and thread it through:
       );
 ```
 
-- [ ] **Step 4: Write the event data source**
+- [x] **Step 4: Write the event data source**
 
 `packages/mobile/lib/feature/chat/data/data_source/chat_event_data_source.dart`:
 
@@ -5188,12 +5188,12 @@ next chunk repairs at the frame level because a frame is only parsed once its bo
 this ever shows up as a mangled character in a streamed message, the fix is
 `utf8.decoder.bind(body.stream)` as a stream transformer rather than per-chunk `convert`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/data/data_source/chat_event_data_source_test.dart`
 Expected: PASS.
 
-- [ ] **Step 6: Verify nothing regressed and commit**
+- [x] **Step 6: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 496/496 green.

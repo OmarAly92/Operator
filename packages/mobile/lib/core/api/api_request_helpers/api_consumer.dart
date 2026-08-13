@@ -8,6 +8,7 @@ abstract class ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     Options? options,
+    CancelToken? cancelToken,
     T Function(Map<String, dynamic>)? errorFromJsonT,
   });
 
