@@ -1,17 +1,70 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/send_message_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/set_config_option_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/set_conversation_title_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/stage_attachments_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/steer_conversation_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/logic/conversation_errors.dart';
 import 'package:operator_mobile/feature/chat/logic/conversation_pages.dart';
 
 part 'chat_state.dart';
+
+enum ConversationAction {
+  steer,
+  interrupt,
+  approval,
+  input,
+  compact,
+  rollback,
+  settings,
+  config,
+  mcp,
+  rename,
+}
+
+class PendingSend extends Equatable {
+  const PendingSend({
+    required this.id,
+    required this.text,
+    this.failed = false,
+    this.error,
+    this.attachments,
+    this.resources,
+  });
+
+  final String id;
+  final String text;
+  final bool failed;
+  final String? error;
+  final List<ChatImageModel>? attachments;
+  final List<ChatResourceModel>? resources;
+
+  PendingSend copyWith({bool? failed, String? error}) => PendingSend(
+    id: id,
+    text: text,
+    failed: failed ?? this.failed,
+    error: error,
+    attachments: attachments,
+    resources: resources,
+  );
+
+  @override
+  List<Object?> get props => [id, text, failed, error, attachments, resources];
+}
 
 class ChatUnavailable extends Equatable {
   const ChatUnavailable({required this.message, this.code});
@@ -66,6 +119,11 @@ class ChatCubit extends Cubit<ChatState> {
   List<ChatConfigOptionModel> configOptions = [];
   List<ChatSkillModel> skills = [];
   WorkspacePathsModel workspace = const WorkspacePathsModel();
+  List<PendingSend> pendingSends = [];
+  Set<ConversationAction> pendingActions = {};
+  String? actionError;
+  Map<ConversationAction, String> actionErrors = {};
+  Map<ConversationAction, String> actionCodes = {};
 
   Timer? _configTimer;
   Timer? _skillTimer;
@@ -80,6 +138,172 @@ class ChatCubit extends Cubit<ChatState> {
   int _revision = 0;
 
   bool get usesProviderConfig => snapshot?.can('config_options') ?? false;
+
+  Future<void> send(
+    String text, {
+    List<ChatImageModel>? attachments,
+    List<ChatResourceModel>? resources,
+  }) async {
+    var message = text;
+    var payload = attachments;
+
+    if (attachments != null && attachments.isNotEmpty) {
+      final staged = await _repository.stageAttachments(
+        sessionId,
+        StageAttachmentsParams(attachments: attachments),
+      );
+      if (isClosed) return;
+
+      Failure? stagingFailure;
+      staged.when(
+        onSuccess: (paths) {
+          message = _withAttachmentReferences(text, paths);
+          if (!(snapshot?.can('images') ?? false)) payload = null;
+        },
+        onFailure: (failure) => stagingFailure = failure,
+      );
+      if (stagingFailure != null) {
+        pendingSends = [
+          ...pendingSends,
+          PendingSend(
+            id: _clientMessageId(),
+            text: text,
+            failed: true,
+            error: conversationActionError(stagingFailure!),
+            attachments: attachments,
+            resources: resources,
+          ),
+        ];
+        _emit();
+        return;
+      }
+    }
+
+    await _deliver(
+      PendingSend(
+        id: _clientMessageId(),
+        text: message,
+        attachments: payload,
+        resources: resources,
+      ),
+    );
+  }
+
+  Future<void> retrySend(String id) async {
+    for (final pending in pendingSends) {
+      if (pending.id == id) {
+        await _deliver(pending);
+        return;
+      }
+    }
+  }
+
+  void discardSend(String id) {
+    pendingSends = pendingSends.where((pending) => pending.id != id).toList();
+    _emit();
+  }
+
+  Future<void> steer(String text) => _runAction(
+    ConversationAction.steer,
+    () => _repository.steer(
+      sessionId,
+      SteerConversationParams(text: text, clientMessageId: _clientMessageId()),
+    ),
+  );
+
+  Future<void> interrupt() => _runAction(
+    ConversationAction.interrupt,
+    () => _repository.interrupt(sessionId),
+  );
+
+  Future<void> resolveApproval(String requestId, String decisionId) =>
+      _runAction(
+        ConversationAction.approval,
+        () => _repository.resolveApproval(
+          sessionId,
+          ResolveApprovalParams(requestId: requestId, decisionId: decisionId),
+        ),
+      );
+
+  Future<void> resolveInput(
+    String requestId,
+    String action, [
+    Map<String, dynamic>? content,
+  ]) => _runAction(
+    ConversationAction.input,
+    () => _repository.resolveInput(
+      sessionId,
+      ResolveInputParams(
+        requestId: requestId,
+        action: action,
+        content: content,
+      ),
+    ),
+  );
+
+  Future<void> compact() => _runAction(
+    ConversationAction.compact,
+    () => _repository.compact(sessionId),
+  );
+
+  Future<int> rollback(String turnId) async {
+    var discarded = 0;
+    await _runAction(ConversationAction.rollback, () async {
+      final result = await _repository.rollbackTurn(
+        sessionId,
+        RollbackTurnParams(turnId: turnId),
+      );
+      discarded = result.getOrDefault(0);
+      return result.isSuccess
+          ? Result<bool, Failure>.success(true)
+          : result.asFailure<bool>();
+    }, resetHistoricalPages: true);
+    return discarded;
+  }
+
+  Future<void> chooseSettings(TurnSettingsModel settings) => _runAction(
+    ConversationAction.settings,
+    () => _repository.setSettings(sessionId, settings),
+  );
+
+  Future<void> setConfigOption(SetConfigOptionParams params) =>
+      _runAction(ConversationAction.config, () async {
+        final result = await _repository.setConfigOption(sessionId, params);
+        result.when(
+          onSuccess: (response) {
+            configOptions = response.data ?? configOptions;
+          },
+          onFailure: (_) {},
+        );
+        return result.isSuccess
+            ? Result<bool, Failure>.success(true)
+            : result.asFailure<bool>();
+      });
+
+  Future<void> reloadMcp() => _runAction(
+    ConversationAction.mcp,
+    () => _repository.reloadMcpServers(sessionId),
+  );
+
+  Future<void> rename(String title) => _runAction(
+    ConversationAction.rename,
+    () => _repository.setTitle(
+      sessionId,
+      SetConversationTitleParams(title: title),
+    ),
+  );
+
+  Future<void> resumeAgent() async {
+    final result = await _repository.resumeAgent(sessionId);
+    if (isClosed) return;
+    result.when(
+      onSuccess: (_) => unawaited(refresh()),
+      onFailure: (failure) {
+        actionError = conversationActionError(failure);
+        _emit();
+      },
+    );
+  }
 
   Future<void> refresh() async {
     if (isClosed) return;
@@ -307,6 +531,100 @@ class ChatCubit extends Cubit<ChatState> {
       },
       onFailure: (_) {},
     );
+  }
+
+  Future<void> _deliver(PendingSend pending) async {
+    pendingSends = _upsertPending(
+      pendingSends,
+      pending.copyWith(failed: false),
+    );
+    _emit();
+
+    final result = await _repository.sendMessage(
+      sessionId,
+      SendMessageParams(
+        text: pending.text,
+        clientMessageId: pending.id,
+        attachments: pending.attachments,
+        resources: pending.resources,
+      ),
+    );
+    if (isClosed) return;
+
+    if (result.isSuccess) {
+      pendingSends = pendingSends
+          .where((item) => item.id != pending.id)
+          .toList();
+      await refresh();
+      return;
+    }
+
+    late Failure failure;
+    result.when(onSuccess: (_) {}, onFailure: (value) => failure = value);
+    pendingSends = _upsertPending(
+      pendingSends,
+      pending.copyWith(failed: true, error: conversationActionError(failure)),
+    );
+    _emit();
+  }
+
+  Future<void> _runAction(
+    ConversationAction kind,
+    Future<Result<bool, Failure>> Function() action, {
+    bool resetHistoricalPages = false,
+  }) async {
+    pendingActions = {...pendingActions, kind};
+    actionError = null;
+    actionErrors = {...actionErrors}..remove(kind);
+    actionCodes = {...actionCodes}..remove(kind);
+    _emit();
+
+    final result = await action();
+    if (isClosed) return;
+
+    if (result.isSuccess) {
+      if (resetHistoricalPages) {
+        final retainedPages = discardHistoricalPages(_pages);
+        _pages
+          ..clear()
+          ..addAll(retainedPages);
+        _mergePages();
+      }
+      pendingActions = {...pendingActions}..remove(kind);
+      await refresh();
+      return;
+    }
+
+    late Failure failure;
+    result.when(onSuccess: (_) {}, onFailure: (value) => failure = value);
+    final message = conversationActionError(failure);
+    actionError = message;
+    actionErrors = {...actionErrors, kind: message};
+    final code = conversationErrorCode(failure);
+    if (code != null) actionCodes = {...actionCodes, kind: code};
+    pendingActions = {...pendingActions}..remove(kind);
+    _emit();
+  }
+
+  static List<PendingSend> _upsertPending(
+    List<PendingSend> items,
+    PendingSend next,
+  ) {
+    final index = items.indexWhere((item) => item.id == next.id);
+    if (index < 0) return [...items, next];
+    return [...items]..[index] = next;
+  }
+
+  static String _clientMessageId() =>
+      'mobile-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}-'
+      '${Random().nextInt(1 << 32).toRadixString(36)}';
+
+  static String _withAttachmentReferences(String text, List<String> paths) {
+    if (paths.isEmpty) return text;
+    final references = paths.map((path) => '- $path').join('\n');
+    final trimmed = text.trim();
+    return '$trimmed${trimmed.isEmpty ? '' : '\n\n'}'
+        'Attached files are available in the worktree:\n$references';
   }
 
   void _emit() {

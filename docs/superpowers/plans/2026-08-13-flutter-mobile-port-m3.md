@@ -6154,7 +6154,7 @@ paths are appended to the message text as a reference block, and the inline imag
 dropped unless the provider advertises the `images` capability. A provider that cannot read images
 still gets the paths, which it can open itself.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/logic/chat_cubit_actions_test.dart`:
 
@@ -6451,12 +6451,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_actions_test.dart`
 Expected: FAIL — `send`, `ConversationAction` and the rest are not defined.
 
-- [ ] **Step 3: Add the action surface to the cubit**
+- [x] **Step 3: Add the action surface to the cubit**
 
 At the top of `chat_cubit.dart`, beside `ChatUnavailable`:
 
@@ -6734,7 +6734,7 @@ and the methods:
 Add `import 'dart:math';` and imports for `ChatImageModel`, `ChatResourceModel` and the params
 classes.
 
-- [ ] **Step 4: Give `Result` the two helpers this uses**
+- [x] **Step 4: Give `Result` the two helpers this uses**
 
 `_runAction` needs to re-type a `Result<T, Failure>` as `Result<bool, Failure>` when the action's
 own payload has already been consumed. In
@@ -6750,12 +6750,12 @@ own payload has already been consumed. In
 `errorMessage` already exists there and returns the failure's `toString()`; `send` uses it only for
 the staging-failure path, where the daemon message is already the useful part.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_actions_test.dart`
 Expected: PASS.
 
-- [ ] **Step 6: Verify nothing regressed and commit**
+- [x] **Step 6: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 523/523 green.
