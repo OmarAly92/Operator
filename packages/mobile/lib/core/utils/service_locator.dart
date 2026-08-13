@@ -6,6 +6,10 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
+import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
+import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/data/data_source/orchestrator_remote_data_source.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
@@ -36,6 +40,7 @@ class ServiceLocator {
     _orchestratorFeatureSetup();
     _spawnFeatureSetup();
     _settingsFeatureSetup();
+    _chatFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -110,5 +115,25 @@ class ServiceLocator {
 
   static void _settingsFeatureSetup() {
     sl.registerFactory<SettingsCubit>(() => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>()));
+  }
+
+  static void _chatFeatureSetup() {
+    sl.registerFactoryParam<ChatCubit, String, void>(
+      (sessionId, _) => ChatCubit(sl<ChatRepository>(), sessionId),
+    );
+
+    sl.registerLazySingleton<ChatRepository>(
+      () => ChatRepositoryImp(
+        sl<ChatRemoteDataSource>(),
+        sl<ChatEventDataSource>(),
+        sl<NetworkStatus>(),
+      ),
+    );
+    sl.registerLazySingleton<ChatRemoteDataSource>(
+      () => ChatRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+    sl.registerLazySingleton<ChatEventDataSource>(
+      () => ChatEventDataSourceImp(sl<ApiConsumer>()),
+    );
   }
 }

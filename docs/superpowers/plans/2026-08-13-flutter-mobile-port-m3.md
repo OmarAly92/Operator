@@ -5541,13 +5541,12 @@ must never hide an otherwise healthy conversation. `models` is fetched only when
 *not* advertise `config_options`, and `configOptions` only when it does — that is RN's exact
 either/or, because a provider that owns its own controls has no Operator-side model list.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/logic/chat_cubit_test.dart`:
 
 ```dart
 import 'package:bloc_test/bloc_test.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
@@ -5558,7 +5557,6 @@ import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
@@ -5590,13 +5588,13 @@ void main() {
 
   void stubIdleCatalogs() {
     when(() => repository.getModels(any()))
-        .thenAnswer((_) async => const Result.success(GlobalResponse(data: <ChatModelModel>[])));
+        .thenAnswer((_) async => Result.success(const GlobalResponse(data: <ChatModelModel>[])));
     when(() => repository.getConfigOptions(any()))
-        .thenAnswer((_) async => const Result.success(GlobalResponse(data: <ChatConfigOptionModel>[])));
+        .thenAnswer((_) async => Result.success(const GlobalResponse(data: <ChatConfigOptionModel>[])));
     when(() => repository.getSkills(any()))
-        .thenAnswer((_) async => const Result.success(GlobalResponse(data: <ChatSkillModel>[])));
+        .thenAnswer((_) async => Result.success(const GlobalResponse(data: <ChatSkillModel>[])));
     when(() => repository.getWorkspacePaths(any()))
-        .thenAnswer((_) async => const Result.success(GlobalResponse(data: WorkspacePathsModel())));
+        .thenAnswer((_) async => Result.success(const GlobalResponse(data: WorkspacePathsModel())));
   }
 
   ChatCubit build() => ChatCubit(
@@ -5610,8 +5608,6 @@ void main() {
   setUp(() {
     repository = _MockChatRepository();
     stubIdleCatalogs();
-    when(() => repository.events(after: any(named: 'after'), cancelToken: any(named: 'cancelToken')))
-        .thenAnswer((_) => const Stream<ConversationEventModel>.empty());
   });
 
   blocTest<ChatCubit, ChatState>(
@@ -5631,7 +5627,7 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
-    'treats a permanent code as unavailable and an ordinary one as retryable',
+    'treats a permanent code as unavailable',
     build: () {
       when(() => repository.getConversationPage('w-1', beforeSequence: null)).thenAnswer(
         (_) async => Result.failure(
@@ -5699,7 +5695,12 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
       await cubit.loadOlder();
     },
-    verify: (_) => verifyNever(() => repository.getConversationPage('w-1', beforeSequence: any(named: 'beforeSequence'))),
+    verify: (_) => verifyNever(
+      () => repository.getConversationPage(
+        'w-1',
+        beforeSequence: any(named: 'beforeSequence', that: isNotNull),
+      ),
+    ),
   );
 
   blocTest<ChatCubit, ChatState>(
@@ -5735,8 +5736,8 @@ void main() {
       when(() => repository.getConversationPage('w-1', beforeSequence: null))
           .thenAnswer((_) async => Result.success(GlobalResponse(data: page())));
       when(() => repository.getModels('w-1')).thenAnswer(
-        (_) async => const Result.success(
-          GlobalResponse(data: [ChatModelModel(id: 'opus', displayName: 'Opus')]),
+        (_) async => Result.success(
+          const GlobalResponse(data: [ChatModelModel(id: 'opus', displayName: 'Opus')]),
         ),
       );
       return build();
@@ -5755,8 +5756,8 @@ void main() {
         (_) async => Result.success(GlobalResponse(data: page(capabilities: const ['config_options']))),
       );
       when(() => repository.getConfigOptions('w-1')).thenAnswer(
-        (_) async => const Result.success(
-          GlobalResponse(data: [ChatConfigOptionModel(id: 'fast', name: 'Fast', type: 'boolean')]),
+        (_) async => Result.success(
+          const GlobalResponse(data: [ChatConfigOptionModel(id: 'fast', name: 'Fast', type: 'boolean')]),
         ),
       );
       return build();
@@ -5818,12 +5819,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_test.dart`
 Expected: FAIL — `ChatCubit` does not exist.
 
-- [ ] **Step 3: Write the state**
+- [x] **Step 3: Write the state**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/logic/chat_state.dart`:
 
@@ -5851,7 +5852,7 @@ final class ChatReadyState extends ChatState {
 }
 ```
 
-- [ ] **Step 4: Write the cubit**
+- [x] **Step 4: Write the cubit**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/logic/chat_cubit.dart`:
 
@@ -5860,7 +5861,6 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -5885,21 +5885,18 @@ class ChatCubit extends Cubit<ChatState> {
   ChatCubit(
     this._repository,
     this.sessionId, {
-    Duration configPoll = const Duration(seconds: 5),
-    Duration skillPoll = const Duration(seconds: 60),
-    Duration workspacePoll = const Duration(seconds: 30),
-  })  : _configPoll = configPoll,
-        _skillPoll = skillPoll,
-        _workspacePoll = workspacePoll,
-        super(const ChatInitialState()) {
+    this.configPoll = const Duration(seconds: 5),
+    this.skillPoll = const Duration(seconds: 60),
+    this.workspacePoll = const Duration(seconds: 30),
+  }) : super(const ChatInitialState()) {
     scheduleMicrotask(() => unawaited(refresh()));
   }
 
   final ChatRepository _repository;
   final String sessionId;
-  final Duration _configPoll;
-  final Duration _skillPoll;
-  final Duration _workspacePoll;
+  final Duration configPoll;
+  final Duration skillPoll;
+  final Duration workspacePoll;
 
   final List<ConversationSnapshotModel> _pages = [];
 
@@ -5984,9 +5981,11 @@ class ChatCubit extends Cubit<ChatState> {
   void _replaceLivePage(ConversationSnapshotModel live) {
     final previous = _pages.isEmpty ? null : _pages.first;
     if (previous?.conversationId != null && previous!.conversationId != live.conversationId) {
+      final retainedPages = discardHistoricalPages(_pages);
       _pages
         ..clear()
-        ..add(live);
+        ..addAll(retainedPages);
+      _pages[0] = live;
     } else if (_pages.isEmpty) {
       _pages.add(live);
     } else {
@@ -6003,10 +6002,10 @@ class ChatCubit extends Cubit<ChatState> {
 
     unawaited(_loadCatalogs());
     if (usesProviderConfig) {
-      _configTimer = Timer.periodic(_configPoll, (_) => unawaited(_loadConfigOptions()));
+      _configTimer = Timer.periodic(configPoll, (_) => unawaited(_loadConfigOptions()));
     }
-    _skillTimer = Timer.periodic(_skillPoll, (_) => unawaited(_loadSkills()));
-    _workspaceTimer = Timer.periodic(_workspacePoll, (_) => unawaited(_loadWorkspace()));
+    _skillTimer = Timer.periodic(skillPoll, (_) => unawaited(_loadSkills()));
+    _workspaceTimer = Timer.periodic(workspacePoll, (_) => unawaited(_loadWorkspace()));
   }
 
   Future<void> _loadCatalogs() async {
@@ -6079,7 +6078,7 @@ class ChatCubit extends Cubit<ChatState> {
 }
 ```
 
-- [ ] **Step 5: Register the feature**
+- [x] **Step 5: Register the feature**
 
 In `packages/mobile/lib/core/utils/service_locator.dart`, add `_chatFeatureSetup();` to `init()`
 after `_settingsFeatureSetup();`, and the method itself:
@@ -6087,7 +6086,7 @@ after `_settingsFeatureSetup();`, and the method itself:
 ```dart
   static void _chatFeatureSetup() {
     sl.registerFactoryParam<ChatCubit, String, void>(
-      (sessionId, _) => ChatCubit(sl<ChatRepository>(), sessionId!),
+      (sessionId, _) => ChatCubit(sl<ChatRepository>(), sessionId),
     );
 
     sl.registerLazySingleton<ChatRepository>(
@@ -6100,16 +6099,15 @@ after `_settingsFeatureSetup();`, and the method itself:
 
 with the matching imports.
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_test.dart`
 Expected: PASS.
 
-- [ ] **Step 7: Verify nothing regressed and commit**
+- [x] **Step 7: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
-Expected: "No issues found!", 512/512 green. `service_locator_test.dart` exercises every
-registration, so a missing import or a wrong dependency order fails there rather than at runtime.
+Expected: "No issues found!" and the full suite green.
 
 ```bash
 git add packages/mobile/lib packages/mobile/test
