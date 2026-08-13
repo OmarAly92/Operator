@@ -154,6 +154,40 @@ void main() {
     });
   });
 
+  test('refresh resumes polling after an auth failure instead of staying stuck forever', () {
+    fakeAsync((async) {
+      var callCount = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        callCount++;
+        if (callCount == 1) {
+          return Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401));
+        }
+        return Result.success(
+          GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'proj-1', status: 'working')])),
+        );
+      });
+
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      expect(callCount, 1);
+      expect(cubit.state, isA<GetSessionsFailureState>());
+
+      async.elapse(const Duration(seconds: 24));
+      expect(callCount, 1, reason: 'polling stays stopped until something calls refresh');
+
+      unawaited(cubit.refresh());
+      async.flushMicrotasks();
+      expect(callCount, 2);
+      expect(cubit.state, isA<GetSessionsSuccessState>());
+      expect(cubit.sessions.single.id, 'proj-1');
+
+      async.elapse(const Duration(seconds: 8));
+      expect(callCount, 3, reason: 'the poll timer was re-armed by refresh');
+
+      cubit.close();
+    });
+  });
+
   blocTest<SessionsCubit, SessionsState>(
     'exposes projects and orchestrators from one board fetch',
     build: () {

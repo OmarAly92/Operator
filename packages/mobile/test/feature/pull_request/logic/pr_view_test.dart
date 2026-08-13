@@ -84,6 +84,20 @@ void main() {
     });
   });
 
+  group('prLifecycleFromName', () {
+    test('maps each known lifecycle name', () {
+      expect(prLifecycleFromName('open'), PrLifecycle.open);
+      expect(prLifecycleFromName('draft'), PrLifecycle.draft);
+      expect(prLifecycleFromName('merged'), PrLifecycle.merged);
+      expect(prLifecycleFromName('closed'), PrLifecycle.closed);
+    });
+
+    test('falls back to open for an unknown or missing name', () {
+      expect(prLifecycleFromName('some_garbage'), PrLifecycle.open);
+      expect(prLifecycleFromName(null), PrLifecycle.open);
+    });
+  });
+
   group('mergeReasonLabel', () {
     test('humanises the reasons desktop knows', () {
       expect(mergeReasonLabel('behind_base'), 'branch behind base');

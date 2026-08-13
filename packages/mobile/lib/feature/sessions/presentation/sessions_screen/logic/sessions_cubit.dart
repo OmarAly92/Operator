@@ -74,7 +74,16 @@ class SessionsCubit extends Cubit<SessionsState> {
     );
   }
 
-  Future<void> refresh() => _tick();
+  void resume() {
+    if (!_stopped) return;
+    _stopped = false;
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => unawaited(_tick()));
+  }
+
+  Future<void> refresh() {
+    resume();
+    return _tick();
+  }
 
   void _applyPatches(List<SessionPatch> patches) {
     if (patches.isEmpty) return;
