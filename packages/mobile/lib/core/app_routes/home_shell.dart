@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/ui/orchestrator_screen.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
 
@@ -23,7 +24,7 @@ class _HomeShellState extends State<HomeShell> {
         index: _index,
         children: [
           const SessionsScreen(),
-          const SizedBox.shrink(),
+          OrchestratorScreen(onOpenBoard: () => setState(() => _index = 0)),
           const PullRequestsScreen(),
           const SizedBox.shrink(),
         ],

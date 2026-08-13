@@ -12,6 +12,8 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
+import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
@@ -24,6 +26,8 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockPullRequestRepository extends Mock implements PullRequestRepository {}
+
+class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -41,6 +45,7 @@ void main() {
         .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
+    sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(_MockOrchestratorRepository()));
   });
 
   tearDown(() => sl.reset());
