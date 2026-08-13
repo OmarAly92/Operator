@@ -139,25 +139,24 @@ List<SyntaxToken>? highlightCode(String code, [String? rawLanguage]) {
   return tokens;
 }
 
-List<SyntaxToken> _diffTokens(String code) => code
-    .split(_diffLines)
-    .where((line) => line.isNotEmpty)
-    .map(
-      (line) => SyntaxToken(
-        text: line,
-        kind:
-            line.startsWith('+++') ||
-                line.startsWith('---') ||
-                line.startsWith('@@') ||
-                line.startsWith('diff ')
-            ? SyntaxTokenKind.meta
-            : line.startsWith('+')
-            ? SyntaxTokenKind.addition
-            : line.startsWith('-')
-            ? SyntaxTokenKind.deletion
-            : SyntaxTokenKind.plain,
-      ),
-    )
-    .toList();
+List<SyntaxToken> _diffTokens(String code) =>
+    [...code.split(_diffLines), if (code.endsWith('\n')) '']
+        .map(
+          (line) => SyntaxToken(
+            text: line,
+            kind:
+                line.startsWith('+++') ||
+                    line.startsWith('---') ||
+                    line.startsWith('@@') ||
+                    line.startsWith('diff ')
+                ? SyntaxTokenKind.meta
+                : line.startsWith('+')
+                ? SyntaxTokenKind.addition
+                : line.startsWith('-')
+                ? SyntaxTokenKind.deletion
+                : SyntaxTokenKind.plain,
+          ),
+        )
+        .toList();
 
 Set<String> _words(String value) => value.split(' ').toSet();

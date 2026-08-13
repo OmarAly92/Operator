@@ -38,7 +38,18 @@ void main() {
           '+added\n-removed\n',
           'diff',
         )?.map((token) => token.kind).toList(),
-        [SyntaxTokenKind.addition, SyntaxTokenKind.deletion],
+        [
+          SyntaxTokenKind.addition,
+          SyntaxTokenKind.deletion,
+          SyntaxTokenKind.plain,
+        ],
+      );
+      expect(
+        highlightCode(
+          '+added\n-removed\n',
+          'diff',
+        )?.map((token) => token.text).join(),
+        '+added\n-removed\n',
       );
       expect(highlightCode('opaque', 'made-up-language'), isNull);
       expect(highlightCode('opaque'), isNull);
