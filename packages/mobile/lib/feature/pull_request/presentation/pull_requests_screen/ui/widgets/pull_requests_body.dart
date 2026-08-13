@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
@@ -108,10 +110,11 @@ class PullRequestsBody extends StatelessWidget {
   }
 
   Widget _connectionFailureState(BuildContext context, SessionsCubit sessionsCubit, GetSessionsFailureState state) {
+    final target = sl<ServerConfigStore>().current;
     final copy = describeConnectionFailure(
       classifyConnectionFailure(state.failure.statusCode),
-      host: '',
-      port: '',
+      host: target?.host ?? '',
+      port: target?.httpPort ?? '',
       platform: Theme.of(context).platform,
     );
     return AppEmptyState(

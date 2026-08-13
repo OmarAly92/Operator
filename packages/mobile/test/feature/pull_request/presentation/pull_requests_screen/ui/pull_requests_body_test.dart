@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
@@ -11,6 +13,7 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/pull_request/data/model/session_pr_summary_model.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
@@ -28,6 +31,8 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockPullRequestRepository extends Mock implements PullRequestRepository {}
+
+class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 void main() {
   late _MockSessionsRepository sessionsRepository;
@@ -48,7 +53,16 @@ void main() {
         const GlobalResponse(data: []),
       ),
     );
+
+    final serverConfigStore = _MockServerConfigStore();
+    when(() => serverConfigStore.current).thenReturn(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    await sl.reset();
+    sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
   });
+
+  tearDown(() => sl.reset());
 
   Future<void> pumpBody(WidgetTester tester, SessionsCubit sessionsCubit, PullRequestCubit prCubit) async {
     await tester.pumpWidget(
@@ -172,5 +186,17 @@ void main() {
 
     expect(find.text('No pull requests'), findsNothing);
     expect(find.text('Your desktop rejected the password'), findsOneWidget);
+  });
+
+  testWidgets('with an unreachable failure, the paired host and port appear in the message', (tester) async {
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'x', message: 'bad')),
+    );
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final prCubit = PullRequestCubit(prRepository);
+
+    await pumpBody(tester, sessionsCubit, prCubit);
+
+    expect(find.textContaining('10.0.0.5:3011'), findsOneWidget);
   });
 }
