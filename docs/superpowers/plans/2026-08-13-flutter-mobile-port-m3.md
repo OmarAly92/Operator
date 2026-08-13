@@ -664,7 +664,7 @@ The escape pattern accepts end-of-string mid-sequence on purpose — streamed ch
 through a control sequence. Dart's `RegExp` has no `s`/`dotAll` here; `[\s\S]` is used exactly as
 in the TypeScript source, which works identically in Dart.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/ansi_test.dart` (ported from `chat/ansi.test.ts`, with
 the shared module's own edge cases added because Dart's regex engine is not JavaScript's):
@@ -709,12 +709,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/ansi_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/ansi.dart`:
 
@@ -791,12 +791,12 @@ String _overwrite(String line) {
 }
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/ansi_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 433/433 green.
