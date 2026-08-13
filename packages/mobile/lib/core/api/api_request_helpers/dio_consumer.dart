@@ -96,6 +96,24 @@ class DioConsumer implements ApiConsumer {
   }
 
   @override
+  Future<Response> patch<T>(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParameters,
+    T Function(Map<String, dynamic>)? errorFromJsonT,
+  }) async {
+    try {
+      return await client.patch(
+        path,
+        queryParameters: queryParameters,
+        data: body,
+      );
+    } on DioException catch (error) {
+      throw handleDioError(error);
+    }
+  }
+
+  @override
   Future<Response> delete<T>(
     String path, {
     Map<String, dynamic>? body,

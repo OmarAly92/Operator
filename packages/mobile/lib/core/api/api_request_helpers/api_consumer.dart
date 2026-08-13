@@ -27,6 +27,13 @@ abstract class ApiConsumer {
     T Function(Map<String, dynamic>)? errorFromJsonT,
   });
 
+  Future<Response> patch<T>(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParameters,
+    T Function(Map<String, dynamic>)? errorFromJsonT,
+  });
+
   Future<Response> delete<T>(
     String path, {
     Map<String, dynamic>? body,

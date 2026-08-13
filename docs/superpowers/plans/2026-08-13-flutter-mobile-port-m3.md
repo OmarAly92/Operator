@@ -4115,7 +4115,7 @@ Three details are ported deliberately, not incidentally:
   composer's `@` picker must not offer a path that no longer exists, and the truncation warning is
   what tells the user to type a path instead of scrolling.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/data/data_source/chat_remote_data_source_test.dart`:
 
@@ -4339,14 +4339,14 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/data/data_source/chat_remote_data_source_test.dart`
 Expected: FAIL — the data source does not exist. If `apiConsumer.patch` is also reported as
 undefined, that is expected: `ApiConsumer` already declares `put`/`post`/`delete`, and **`patch` is
 added in Step 3**.
 
-- [ ] **Step 3: Add `patch` to the API consumer**
+- [x] **Step 3: Add `patch` to the API consumer**
 
 The daemon uses `PATCH` for `/conversation/settings` and `/conversation/config-options/{id}`;
 `ApiConsumer` has no `patch` yet. In
@@ -4379,7 +4379,7 @@ and in `packages/mobile/lib/core/api/api_request_helpers/dio_consumer.dart`, aft
   }
 ```
 
-- [ ] **Step 4: Write the catalog, attachment and workspace models**
+- [x] **Step 4: Write the catalog, attachment and workspace models**
 
 `packages/mobile/lib/feature/chat/data/model/chat_catalog_model.dart`:
 
@@ -4579,7 +4579,7 @@ class WorkspacePathsModel extends Equatable {
 }
 ```
 
-- [ ] **Step 5: Write the params classes**
+- [x] **Step 5: Write the params classes**
 
 `packages/mobile/lib/feature/chat/data/model/params/send_message_params.dart`:
 
@@ -4704,7 +4704,7 @@ holds. Inventing a second identical shape would be the "never shared even where 
 rule applied past the point where it means anything — there is one settings shape, and the daemon
 round-trips it.
 
-- [ ] **Step 6: Write the data source**
+- [x] **Step 6: Write the data source**
 
 `packages/mobile/lib/feature/chat/data/data_source/chat_remote_data_source.dart`:
 
@@ -4924,12 +4924,12 @@ class ChatRemoteDataSourceImp implements ChatRemoteDataSource {
 }
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/data/data_source/chat_remote_data_source_test.dart`
 Expected: PASS.
 
-- [ ] **Step 8: Verify nothing regressed and commit**
+- [x] **Step 8: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 492/492 green.
