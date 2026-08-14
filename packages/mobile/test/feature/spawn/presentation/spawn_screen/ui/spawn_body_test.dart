@@ -75,6 +75,9 @@ void main() {
       ScreenUtilInit(
         designSize: const Size(390, 844),
         builder: (context, child) => MaterialApp(
+          onGenerateRoute: (settings) => MaterialPageRoute(
+            builder: (_) => Text((settings.arguments as Map<String, dynamic>)['sessionId'] as String),
+          ),
           home: SkinScope(
             skin: const DarkSkin(),
             child: BlocProvider<SessionsCubit>(
@@ -171,6 +174,7 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => spawnRepository.spawn(any())).called(1);
+    expect(find.text('s1'), findsOneWidget);
   });
 
   testWidgets(

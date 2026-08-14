@@ -68,6 +68,9 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, child) => MaterialApp(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (_) => Text((settings.arguments as Map<String, dynamic>)['sessionId'] as String),
+            ),
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => sessionsCubit),
@@ -169,5 +172,6 @@ void main() {
     expect((captured[0] as LaunchOrchestratorParams).clean, isTrue);
     expect((captured[1] as LaunchOrchestratorParams).clean, isTrue);
     expect((captured[1] as LaunchOrchestratorParams).mode, 'tui');
+    expect(find.text('o2'), findsOneWidget);
   });
 }

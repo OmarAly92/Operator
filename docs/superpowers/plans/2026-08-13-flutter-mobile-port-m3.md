@@ -13962,7 +13962,7 @@ Three M2 tests assert those buttons' **absence** and must be updated here rather
 `orchestrator_card_test.dart`'s "offers no open action, because no session screen exists yet".
 Their replacements assert that the action now exists and reports the session id.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/sessions/presentation/session_route/session_route_screen_test.dart`:
 
@@ -14046,12 +14046,12 @@ Testing the `chat` branch end to end would require a live `ChatCubit` from the s
 the chat path is covered by Task 25's body test and by the card tests below; this test pins the
 two branches the route decides on its own.
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/sessions/presentation/session_route/session_route_screen_test.dart`
 Expected: FAIL — `SessionRouteScreen` does not exist.
 
-- [ ] **Step 3: Write the route screen**
+- [x] **Step 3: Write the route screen**
 
 `packages/mobile/lib/feature/sessions/presentation/session_route/ui/session_route_screen.dart`:
 
@@ -14154,7 +14154,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
 The `Session not found.` string is the exact copy `app/session/[id].tsx` shows, and the test above
 matches on it, so keep it verbatim including the period.
 
-- [ ] **Step 4: Route it and give the shell an addressable tab**
+- [x] **Step 4: Route it and give the shell an addressable tab**
 
 In `packages/mobile/lib/core/app_routes/routes_strings.dart`:
 
@@ -14212,7 +14212,7 @@ with `index: HomeShell.selectedTab.value` on the `IndexedStack`,
 `currentIndex` and tab switching, so it keeps passing — but reset `HomeShell.selectedTab.value = 0`
 in that file's `setUp`, because a static notifier now outlives a single test.
 
-- [ ] **Step 5: Wire the three entry points**
+- [x] **Step 5: Wire the three entry points**
 
 In `sessions_body.dart`, replace both `onTap: () {}` placeholders:
 
@@ -14286,7 +14286,7 @@ followed by opening the new session:
 Do the same for `LaunchSuccessState` in `orchestrator_body.dart`. Both destinations resolve the
 mode themselves, so a TUI-mode spawn lands on the honest terminal panel rather than a wrong screen.
 
-- [ ] **Step 6: Update the two tests that assert the buttons' absence**
+- [x] **Step 6: Update the two tests that assert the buttons' absence**
 
 In `pr_card_test.dart`, give `pumpCard` a `VoidCallback? onOpenSession` parameter, pass it to
 `PrCard`, and replace the `offers no session action` test with:
@@ -14322,12 +14322,12 @@ In `orchestrator_card_test.dart`, give `pumpCard` a `VoidCallback? onOpen` param
   });
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 580/580 green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/mobile/lib packages/mobile/test

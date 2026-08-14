@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -110,6 +111,7 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
         if (projectId != null) {
           sl<SessionsCubit>().setActiveProject(projectId);
         }
+        HomeShell.selectedTab.value = 2;
         if (mounted) Navigator.of(context).pop();
       case ConversationMenuAction.settings:
         openSettings();

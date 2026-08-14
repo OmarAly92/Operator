@@ -4,9 +4,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
@@ -15,9 +21,16 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/live_turn_bar.dart';
+import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
+import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockChatCubit extends MockCubit<ChatState> implements ChatCubit {}
+
+class _MockSessionsRepository extends Mock implements SessionsRepository {}
+
+class _MockMuxClient extends Mock implements MuxClient {}
 
 ConversationSnapshotModel snapshot({
   String controllerState = 'ready',
@@ -47,13 +60,25 @@ ConversationSnapshotModel snapshot({
 
 void main() {
   late _MockChatCubit cubit;
+  late SessionsCubit sessionsCubit;
 
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
+    await sl.reset();
+    HomeShell.selectedTab.value = 0;
 
     cubit = _MockChatCubit();
+    final sessionsRepository = _MockSessionsRepository();
+    final mux = _MockMuxClient();
+    when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+    when(() => mux.connect()).thenReturn(null);
+    when(() => mux.subscribeSessions()).thenReturn(null);
+    when(() => sessionsRepository.getBoard())
+        .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
+    sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    sl.registerLazySingleton<SessionsCubit>(() => sessionsCubit);
     when(() => cubit.state).thenReturn(const ChatReadyState(1));
     when(() => cubit.sessionId).thenReturn('w-1');
     when(() => cubit.loading).thenReturn(false);
@@ -79,6 +104,11 @@ void main() {
     when(() => cubit.onResumed()).thenAnswer((_) async {});
   });
 
+  tearDown(() async {
+    await sessionsCubit.close();
+    await sl.reset();
+  });
+
   Future<void> pumpBody(WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;
@@ -93,7 +123,7 @@ void main() {
             home: Scaffold(
               body: BlocProvider<ChatCubit>.value(
                 value: cubit,
-                child: const ChatBody(),
+                child: const ChatBody(projectId: 'p-1'),
               ),
             ),
           ),
@@ -109,6 +139,18 @@ void main() {
 
     await pumpBody(tester);
     expect(find.byType(CircularProgressIndicator), findsWidgets);
+  });
+
+  testWidgets('the pull requests menu action selects the project and PR tab', (tester) async {
+    await pumpBody(tester);
+
+    tester.state<ChatBodyState>(find.byType(ChatBody)).openMenu();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pull requests'));
+    await tester.pumpAndSettle();
+
+    expect(sessionsCubit.activeProjectId, 'p-1');
+    expect(HomeShell.selectedTab.value, 2);
   });
 
   testWidgets(

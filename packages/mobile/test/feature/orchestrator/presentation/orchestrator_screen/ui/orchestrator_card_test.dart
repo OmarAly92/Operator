@@ -54,6 +54,7 @@ void main() {
     WidgetTester tester, {
     required OrchestratorModel? link,
     required List<SessionModel> workers,
+    VoidCallback? onOpen,
   }) async {
     await tester.pumpWidget(
       SkinScope(
@@ -73,6 +74,7 @@ void main() {
                   link: link,
                   workers: workers,
                   onOpenBoard: () {},
+                  onOpen: onOpen,
                 ),
               ),
             ),
@@ -153,9 +155,17 @@ void main() {
     expect(find.text('1 worker'), findsOneWidget);
   });
 
-  testWidgets('offers no open action, because no session screen exists yet', (tester) async {
-    await pumpCard(tester, link: const OrchestratorModel(id: 'o1', projectId: 'p'), workers: const []);
+  testWidgets('opens the orchestrator session', (tester) async {
+    var opened = 0;
+    await pumpCard(
+      tester,
+      link: const OrchestratorModel(id: 'o1', projectId: 'p'),
+      workers: const [],
+      onOpen: () => opened++,
+    );
 
-    expect(find.byTooltip('Open orchestrator'), findsNothing);
+    await tester.tap(find.byTooltip('Open orchestrator'));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
   });
 }

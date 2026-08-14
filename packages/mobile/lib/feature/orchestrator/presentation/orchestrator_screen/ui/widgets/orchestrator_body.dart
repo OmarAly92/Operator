@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
@@ -48,6 +49,10 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
         if (state is LaunchSuccessState) {
           sessionsCubit.refresh();
           context.showSnackBar('Orchestrator started');
+          Navigator.of(context).pushNamed(
+            RoutesStrings.session,
+            arguments: {'sessionId': state.link.id},
+          );
         }
         if (state is LaunchFailureState) {
           if (state.chatUnavailable) {
@@ -93,18 +98,27 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                for (final project in projects)
-                  OrchestratorCard(
+                ...projects.map((project) {
+                  final link = _linkFor(sessionsCubit.orchestrators, project.id);
+                  final sessionId = link?.id;
+                  return OrchestratorCard(
                     projectId: project.id ?? '',
                     projectName: project.name ?? project.id ?? '',
-                    link: _linkFor(sessionsCubit.orchestrators, project.id),
+                    link: link,
                     workers: workersOf(
                       sessionsCubit.sessions,
                       project.id ?? '',
-                      _linkFor(sessionsCubit.orchestrators, project.id),
+                      link,
                     ),
                     onOpenBoard: widget.onOpenBoard,
-                  ),
+                    onOpen: sessionId == null
+                        ? null
+                        : () => Navigator.of(context).pushNamed(
+                              RoutesStrings.session,
+                              arguments: {'sessionId': sessionId},
+                            ),
+                  );
+                }),
               ],
             ),
           );
