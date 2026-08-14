@@ -12884,7 +12884,7 @@ person needs to know.
 `ChatMetaBar`'s compact button is disabled — not hidden — while a turn is in flight, and its label
 says why. Hiding it would read as "this agent cannot compact", which is a different fact.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/ui/chat_body_test.dart`:
 
@@ -13087,12 +13087,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_body_test.dart`
 Expected: FAIL — `ChatBody` does not exist.
 
-- [ ] **Step 3: Write the banner, meta bar and live turn bar**
+- [x] **Step 3: Write the banner, meta bar and live turn bar**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/inline_banner.dart`:
 
@@ -13519,7 +13519,7 @@ class _LiveTurnBarState extends State<LiveTurnBar> {
 }
 ```
 
-- [ ] **Step 4: Write the body and the screen**
+- [x] **Step 4: Write the body and the screen**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart`:
 
@@ -13906,12 +13906,12 @@ class _ChatScreenState extends State<ChatScreen> implements ChatScreenActions {
 `sl<ChatCubit>(param1: ...)` rather than by a `BlocProvider(create:)`, so nothing else owns its
 lifetime. `BlocProvider.value` deliberately does **not** close what it is given.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_body_test.dart`
 Expected: PASS.
 
-- [ ] **Step 6: Verify nothing regressed and commit**
+- [x] **Step 6: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 575/575 green.
