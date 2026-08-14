@@ -33,7 +33,7 @@ sealed class AppRouter {
         );
 
       case RoutesStrings.manualConnect:
-        return MaterialPageRoute(
+        return MaterialPageRoute<bool>(
           builder: (context) => BlocProvider(create: (_) => sl<ManualConnectCubit>(), child: const ManualConnectScreen()),
           settings: settings,
         );

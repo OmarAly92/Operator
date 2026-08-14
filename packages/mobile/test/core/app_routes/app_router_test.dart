@@ -34,6 +34,11 @@ void main() {
     await sl.reset();
   });
 
+  test('types the manual connect route so pushNamed<bool> can cast it', () {
+    final route = AppRouter.generateRoute(const RouteSettings(name: RoutesStrings.manualConnect));
+    expect(route, isA<Route<bool?>>());
+  });
+
   test('falls through to the error widget for an unknown route', () {
     expect(builtWidgetFor('/nowhere'), isA<AppScaffold>());
   });

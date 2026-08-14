@@ -11,7 +11,7 @@ class ManualConnectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => BlocListener<ManualConnectCubit, ManualConnectState>(
     listener: (context, state) {
-      if (state is ConnectSuccessState) Navigator.of(context).pop(true);
+      if (state is ConnectSuccessState) Navigator.of(context).pop<bool>(true);
     },
     child: const AppScaffold(
       appBar: GlobalAppbar.sub(titleText: 'Connect manually'),
