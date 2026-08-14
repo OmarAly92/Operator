@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +35,7 @@ Future<void> pumpTimeline(
   int? jumpToSequence,
   VoidCallback? onJumpHandled,
   Future<int> Function(String turnId)? onRollback,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -58,7 +61,12 @@ Future<void> pumpTimeline(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump();
+  }
 }
 
 void main() {
@@ -280,6 +288,149 @@ void main() {
     expect(rolledBack, ['t1']);
   });
 
+  testWidgets('closes rollback confirmation when eligibility is lost', (
+    tester,
+  ) async {
+    var rollbackCalls = 0;
+    const item = ConversationMessageModel(
+      id: 'u1',
+      turnId: 't1',
+      sequence: 1,
+      revision: 1,
+      role: 'user',
+      text: 'go',
+    );
+    const turn = ConversationTurnModel(
+      id: 't1',
+      state: 'completed',
+      providerTurnId: 'p1',
+      requestedAt: '2026-08-05T00:00:00Z',
+    );
+
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [item],
+        turns: const [turn],
+        capabilities: const ['rollback'],
+      ),
+      onRollback: (_) async => rollbackCalls++,
+    );
+    await tester.tap(find.byIcon(Icons.settings_backup_restore));
+    await tester.pump();
+    final staleAction = tester
+        .widget<InkWell>(
+          find.ancestor(
+            of: find.text('Roll back'),
+            matching: find.byType(InkWell),
+          ),
+        )
+        .onTap!;
+
+    await pumpTimeline(
+      tester,
+      snapshot(items: const [item], turns: const [turn]),
+      onRollback: (_) async => rollbackCalls++,
+    );
+
+    expect(find.text('Roll back'), findsNothing);
+    staleAction();
+    await tester.pump();
+    expect(rollbackCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('closes rollback confirmation when the turn starts running', (
+    tester,
+  ) async {
+    const item = ConversationMessageModel(
+      id: 'u1',
+      turnId: 't1',
+      sequence: 1,
+      revision: 1,
+      role: 'user',
+      text: 'go',
+    );
+    const completed = ConversationTurnModel(
+      id: 't1',
+      state: 'completed',
+      providerTurnId: 'p1',
+      requestedAt: '2026-08-05T00:00:00Z',
+    );
+
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [item],
+        turns: const [completed],
+        capabilities: const ['rollback'],
+      ),
+    );
+    await tester.tap(find.byIcon(Icons.settings_backup_restore));
+    await tester.pump();
+
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [item],
+        turns: const [
+          ConversationTurnModel(
+            id: 't1',
+            state: 'running',
+            providerTurnId: 'p1',
+            requestedAt: '2026-08-05T00:00:00Z',
+          ),
+        ],
+        capabilities: const ['rollback'],
+      ),
+    );
+
+    expect(find.text('Roll back'), findsNothing);
+  });
+
+  testWidgets('invokes rollback only once while it is pending', (tester) async {
+    final pending = Completer<int>();
+    var rollbackCalls = 0;
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [
+          ConversationMessageModel(
+            id: 'u1',
+            turnId: 't1',
+            sequence: 1,
+            revision: 1,
+            role: 'user',
+            text: 'go',
+          ),
+        ],
+        turns: const [
+          ConversationTurnModel(
+            id: 't1',
+            state: 'completed',
+            providerTurnId: 'p1',
+            requestedAt: '2026-08-05T00:00:00Z',
+          ),
+        ],
+        capabilities: const ['rollback'],
+      ),
+      onRollback: (_) {
+        rollbackCalls++;
+        return pending.future;
+      },
+    );
+    await tester.tap(find.byIcon(Icons.settings_backup_restore));
+    await tester.pump();
+
+    await tester.tap(find.text('Roll back'));
+    await tester.tap(find.text('Roll back'));
+    await tester.pump();
+
+    expect(rollbackCalls, 1);
+    pending.complete(1);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('offers to load earlier messages only when there are any', (
     tester,
   ) async {
@@ -378,6 +529,172 @@ void main() {
     expect(find.text('Latest'), findsNothing);
   });
 
+  testWidgets('keeps the visible exchange anchored when history prepends', (
+    tester,
+  ) async {
+    List<ConversationMessageModel> messages(int start, int end) => [
+      for (var sequence = start; sequence <= end; sequence++)
+        ConversationMessageModel(
+          id: 'm$sequence',
+          turnId: 't$sequence',
+          sequence: sequence,
+          revision: 1,
+          role: 'assistant',
+          text: 'Anchored answer $sequence ${'detail ' * 12}',
+        ),
+    ];
+
+    await pumpTimeline(
+      tester,
+      snapshot(items: messages(1, 30)),
+      jumpToSequence: 16,
+    );
+    final target = find.textContaining('Anchored answer 16');
+    final before = tester.getTopLeft(target).dy;
+
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: [
+          for (var sequence = -7; sequence <= 0; sequence++)
+            ConversationMessageModel(
+              id: 'm$sequence',
+              turnId: 't$sequence',
+              sequence: sequence,
+              revision: 1,
+              role: 'assistant',
+              text: 'Older answer $sequence ${'historic detail ' * 40}',
+            ),
+          ...messages(1, 30),
+        ],
+      ),
+      jumpToSequence: 16,
+    );
+
+    expect(target, findsOneWidget);
+    expect(tester.getTopLeft(target).dy, closeTo(before, 1));
+  });
+
+  testWidgets('keeps expanded activity state with its stable timeline row', (
+    tester,
+  ) async {
+    ConversationActivityModel command(int sequence, String name) =>
+        ConversationActivityModel(
+          id: name,
+          turnId: 't1',
+          sequence: sequence,
+          revision: 1,
+          activityKind: 'command',
+          status: 'completed',
+          summary: name,
+          detail: ActivityDetailModel({
+            'command': name,
+            'output': '$name output',
+            'event': 'visible',
+          }),
+        );
+
+    await pumpTimeline(
+      tester,
+      snapshot(items: [command(2, 'second'), command(3, 'third')]),
+    );
+    await tester.tap(find.text('second'));
+    await tester.pump();
+    expect(find.textContaining('second output'), findsOneWidget);
+
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: [command(1, 'first'), command(2, 'second'), command(3, 'third')],
+      ),
+    );
+
+    expect(find.textContaining('second output'), findsOneWidget);
+    expect(find.textContaining('first output'), findsNothing);
+  });
+
+  testWidgets('shows live MCP progress and one running indicator', (
+    tester,
+  ) async {
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [
+          ConversationActivityModel(
+            id: 'tool-1',
+            sequence: 1,
+            revision: 1,
+            activityKind: 'mcp_tool',
+            status: 'running',
+            summary: 'Search docs',
+            detail: ActivityDetailModel({
+              'server': 'docs',
+              'toolName': 'search',
+              'progress': 'Connecting\nReading page 2',
+            }),
+          ),
+        ],
+      ),
+      settle: false,
+    );
+
+    expect(find.text('Reading page 2'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('shows stopped for a cancelled MCP activity', (tester) async {
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [
+          ConversationActivityModel(
+            id: 'tool-1',
+            sequence: 1,
+            revision: 1,
+            activityKind: 'mcp_tool',
+            status: 'cancelled',
+            summary: 'Search docs',
+            detail: ActivityDetailModel({'toolName': 'search'}),
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('stopped'), findsOneWidget);
+  });
+
+  testWidgets('warns when an MCP payload was truncated', (tester) async {
+    await pumpTimeline(
+      tester,
+      snapshot(
+        items: const [
+          ConversationActivityModel(
+            id: 'tool-1',
+            sequence: 1,
+            revision: 1,
+            activityKind: 'mcp_tool',
+            status: 'completed',
+            summary: 'Search docs',
+            detail: ActivityDetailModel({
+              'toolName': 'search',
+              'arguments': {'truncated': true, 'bytes': 2048},
+            }),
+          ),
+        ],
+      ),
+    );
+    await tester.tap(find.text('search'));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'This payload (2 KB) was larger than Operator stores, so it was not kept.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('"truncated"'), findsNothing);
+  });
+
   test('summarizes activity categories the way the desktop does', () {
     ConversationActivityModel command(String summary) =>
         ConversationActivityModel(
@@ -425,16 +742,26 @@ void main() {
         'command',
         detail: const ActivityDetailModel({'event': 'steer'}),
       ),
-      activity('a7', 'command', turnId: 't2'),
+      activity('a7', 'user_input'),
+      activity('a8', 'command'),
+      activity('a9', 'error'),
+      activity('a10', 'command'),
+      activity('a11', 'reasoning'),
+      activity('a12', 'command', turnId: 't2'),
     ]);
 
-    expect(rows, hasLength(6));
+    expect(rows, hasLength(11));
     expect((rows[0] as ActivitiesRow).activities, hasLength(2));
     expect(rows[1], isA<SingleRow>());
     expect((rows[2] as ActivitiesRow).activities, hasLength(1));
     expect(rows[3], isA<SingleRow>());
     expect(rows[4], isA<SingleRow>());
-    expect((rows[5] as ActivitiesRow).activities.single.turnId, 't2');
+    expect(rows[5], isA<SingleRow>());
+    expect((rows[6] as ActivitiesRow).activities, hasLength(1));
+    expect(rows[7], isA<SingleRow>());
+    expect((rows[8] as ActivitiesRow).activities, hasLength(1));
+    expect(rows[9], isA<SingleRow>());
+    expect((rows[10] as ActivitiesRow).activities.single.turnId, 't2');
   });
 
   test('summarizes tools reviews plans and plural categories', () {

@@ -4,7 +4,7 @@
 
 Completed on `worktree-flutter-mobile-m3`.
 
-Task 22 now provides the multi-widget Flutter chat timeline layer, activity metadata and run grouping, expandable activity details, file-change and plan cards, turn summaries with guarded rollback, message and system-item rendering, conversation-map jumps, and the 120-logical-pixel tail-follow behavior.
+Task 22 now provides the multi-widget Flutter chat timeline layer, activity metadata and run grouping, expandable activity details, file-change and plan cards, turn summaries with revalidated rollback, message and system-item rendering, stable row state, prepend-safe viewport retention, conversation-map jumps, complete MCP status rendering, and the 120-logical-pixel tail-follow behavior.
 
 All eight Task 22 checkboxes are marked complete in both the local task brief and the canonical milestone plan.
 
@@ -153,6 +153,51 @@ The 15 tests cover:
 - Non-foldable human-visible activity boundaries
 - MCP tool, auto-review, plan, and plural summaries
 
+### Review fix round 1 RED
+
+The review findings were encoded as focused widget regressions before production changes.
+
+Command:
+
+```text
+flutter test test/feature/chat/presentation/chat_screen/ui/chat_timeline_test.dart
+```
+
+Observed result:
+
+```text
+00:01 +15 -8: Some tests failed.
+```
+
+The eight failing scenarios were:
+
+- Rollback confirmation remained visible after capability loss.
+- Rollback confirmation remained visible after the turn became in flight.
+- Two queued taps invoked rollback twice.
+- Prepending older history lost the visible exchange.
+- Expanded activity state migrated to the prepended row.
+- Running MCP progress was absent from the header.
+- Cancelled MCP activity omitted its stopped status.
+- Truncated MCP arguments rendered raw marker JSON instead of the warning.
+
+The expanded `user_input`, `error`, and `reasoning` boundary assertions passed during this RED run because the existing grouping implementation already treated those kinds as non-foldable. They are retained as explicit characterization coverage.
+
+### Review fix round 1 GREEN
+
+After the minimal corrections, the focused suite passed:
+
+```text
+00:01 +23: All tests passed!
+```
+
+The history regression was then strengthened with variable-height prepended rows and remained green:
+
+```text
+00:00 +1: All tests passed!
+```
+
+The final prepend implementation captures the first visible stable group and its viewport position before update, detects a genuine earlier-history insertion, restores the lazy list using the content-extent delta, then refines the final offset from the original anchor on the following frame.
+
 ## Implementation
 
 ### Activity layer
@@ -188,6 +233,16 @@ The 15 tests cover:
 - Initial and update-time tail following account for Flutter lazy-list metric changes.
 - Moving more than 120 logical pixels from the tail exposes `Latest`; selecting it returns to the true end.
 - Distant map targets are approached proportionally until their lazy anchor exists, then finalized with `Scrollable.ensureVisible` at alignment `0.18`.
+- Every rendered `TimelineRow` is keyed by its stable row key, and list groups expose child-index mapping so state follows identity when pagination shifts indexes.
+- When earlier groups prepend while the user is away from the tail, the first visible stable group retains its viewport position, including when the new rows have different heights.
+
+### Review corrections
+
+- Rollback confirmation now closes as soon as callback capability, turn identity, provider identity, settled state, or rollback state makes the action ineligible.
+- The rollback action rechecks its live callback, turn ID, eligibility, and pending state before invoking the daemon, preventing stale and duplicate actions.
+- MCP headers now show the final progress line, one live spinner for a running single tool activity, and a stopped label for cancellation.
+- MCP arguments and results now replace daemon truncation markers with the same human-readable byte-sized warning as React Native.
+- Grouping coverage now explicitly locks `user_input`, `error`, and `reasoning` as non-foldable boundaries.
 
 ## Files changed
 
@@ -227,11 +282,11 @@ Result:
 
 ```text
 Analyzing mobile...
-No issues found! (ran in 2.2s)
-00:16 +589: All tests passed!
+No issues found! (ran in 2.0s)
+00:15 +597: All tests passed!
 ```
 
-The milestone brief's expected count is stale because the assigned baseline already contained 574 tests rather than 551. Task 22 adds 15, producing the verified total of 589.
+The milestone brief's expected count is stale because the assigned baseline already contained 574 tests rather than 551. The original Task 22 implementation added 15 tests and review fix round 1 adds 8 more, producing the verified total of 597.
 
 No app launch or build command was run, as instructed.
 
@@ -248,6 +303,7 @@ No app launch or build command was run, as instructed.
 - Catches are limited to JSON serialization fallback and user-visible async rollback failure reporting.
 - No hardcoded success payloads, dead imports, disabled tests, or unrelated cleanup remain.
 - `flutter analyze` and `git diff --check` are clean.
+- The deferred `ActivityMeta.color` signature discrepancy was intentionally left unchanged because production matches the React Native behavior and the review classified it as Minor.
 
 ### Test guard
 
@@ -273,7 +329,12 @@ The focused tests fail for realistic regressions including:
 - Mounting a long timeline at the beginning
 - Failing to materialize a distant map target
 - Changing/removing the 120-pixel tail-follow behavior
+- Letting stale rollback confirmation survive capability or in-flight changes
+- Invoking rollback twice while its first request is pending
+- Losing the visible exchange when variable-height history prepends
+- Migrating expanded state between stable activity rows
+- Omitting MCP progress, running, cancelled, or truncated-payload semantics
 
 ## Concerns
 
-No implementation blockers or unresolved correctness concerns remain. The only discrepancy is the stale expected test count in the written brief; current repository evidence is 589 passing tests.
+No Critical or Important review findings remain unresolved. The deferred Minor `ActivityMeta.color` signature discrepancy remains intentionally unchanged because the implementation matches React Native. The written brief's expected test count is stale; current repository evidence is 597 passing tests.

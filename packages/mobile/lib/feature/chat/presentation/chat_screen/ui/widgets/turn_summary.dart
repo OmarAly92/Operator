@@ -23,6 +23,24 @@ class _TurnSummaryState extends State<TurnSummary> {
   bool _rollingBack = false;
   String? _rollbackError;
 
+  bool get _rollbackAvailable {
+    final turn = widget.turn;
+    return widget.onRollback != null &&
+        !turn.isInFlight &&
+        turn.id != null &&
+        turn.providerTurnId != null &&
+        turn.rolledBack != true;
+  }
+
+  @override
+  void didUpdateWidget(TurnSummary oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_confirming && !_rollbackAvailable) {
+      _confirming = false;
+      _rollbackError = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
@@ -31,12 +49,7 @@ class _TurnSummaryState extends State<TurnSummary> {
       turn.startedAt ?? turn.requestedAt,
       turn.completedAt,
     );
-    final rollbackAvailable =
-        widget.onRollback != null &&
-        !turn.isInFlight &&
-        turn.id != null &&
-        turn.providerTurnId != null &&
-        turn.rolledBack != true;
+    final rollbackAvailable = _rollbackAvailable;
 
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 14),
@@ -91,7 +104,7 @@ class _TurnSummaryState extends State<TurnSummary> {
                 maxLines: 6,
               ),
             ),
-          if (_confirming)
+          if (_confirming && rollbackAvailable)
             _RollbackConfirmation(
               rollingBack: _rollingBack,
               rollbackError: _rollbackError,
@@ -111,12 +124,20 @@ class _TurnSummaryState extends State<TurnSummary> {
   }
 
   Future<void> _rollback() async {
+    final onRollback = widget.onRollback;
+    final turnId = widget.turn.id;
+    if (_rollingBack ||
+        !_rollbackAvailable ||
+        onRollback == null ||
+        turnId == null) {
+      return;
+    }
     setState(() {
       _rollingBack = true;
       _rollbackError = null;
     });
     try {
-      await widget.onRollback!(widget.turn.id!);
+      await onRollback(turnId);
       if (mounted) setState(() => _confirming = false);
     } catch (error) {
       if (mounted) setState(() => _rollbackError = error.toString());

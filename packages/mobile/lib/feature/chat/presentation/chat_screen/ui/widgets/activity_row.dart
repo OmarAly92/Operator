@@ -243,9 +243,38 @@ class _McpToolRowState extends State<_McpToolRow> {
                       style: AppTextStyle.mono12Regular.copyWith(
                         color: failed ? skin.red : skin.textSecondary,
                       ),
+                      maxLines: 1,
                     ),
                   ),
-                  if (body)
+                  if (detail?.progress != null) ...[
+                    const HorizontalSpace(8),
+                    Flexible(
+                      child: AppText(
+                        _lastLine(detail!.progress!),
+                        style: AppTextStyle.style10Regular.copyWith(
+                          color: skin.textFaint,
+                        ),
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
+                  if (widget.activity.status == 'running')
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: skin.purple,
+                      ),
+                    )
+                  else if (widget.activity.status == 'cancelled')
+                    AppText(
+                      'stopped',
+                      style: AppTextStyle.style10Regular.copyWith(
+                        color: skin.textFaint,
+                      ),
+                    )
+                  else if (body)
                     Icon(
                       _open ? Icons.expand_less : Icons.chevron_right,
                       size: 15,
@@ -271,11 +300,11 @@ class _McpToolRowState extends State<_McpToolRow> {
                     ),
                   if (detail?.arguments != null) ...[
                     const DetailLabel(label: 'arguments'),
-                    CodeOutput(value: printable(detail!.arguments)),
+                    _JsonPayload(payload: detail!.arguments),
                   ],
                   if (detail?.result != null) ...[
                     const DetailLabel(label: 'result'),
-                    CodeOutput(value: printable(detail!.result)),
+                    _JsonPayload(payload: detail!.result),
                   ],
                   if (detail?.progress != null) ...[
                     const DetailLabel(label: 'progress'),
@@ -292,6 +321,42 @@ class _McpToolRowState extends State<_McpToolRow> {
       ),
     );
   }
+}
+
+class _JsonPayload extends StatelessWidget {
+  const _JsonPayload({required this.payload});
+
+  final dynamic payload;
+
+  @override
+  Widget build(BuildContext context) {
+    final note = _truncationNote(payload);
+    if (note == null) return CodeOutput(value: printable(payload));
+    return AppText(
+      note,
+      style: AppTextStyle.style12Regular.copyWith(
+        color: context.skin.textSecondary,
+      ),
+      maxLines: 4,
+    );
+  }
+}
+
+String? _truncationNote(dynamic payload) {
+  if (payload is! Map || payload['truncated'] != true) return null;
+  final bytes = payload['bytes'];
+  final size = bytes is num ? ' (${_formatBytes(bytes)})' : '';
+  return 'This payload$size was larger than Operator stores, so it was not kept.';
+}
+
+String _formatBytes(num bytes) {
+  if (bytes < 1024) return '${bytes.round()} B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String _lastLine(String progress) {
+  return progress.trimRight().split('\n').last;
 }
 
 class _AutoReviewRow extends StatefulWidget {
