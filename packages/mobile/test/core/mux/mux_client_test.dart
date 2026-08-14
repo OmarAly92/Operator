@@ -237,5 +237,19 @@ void main() {
       expect(socket.closed, isTrue);
       expect(socket.sent, isEmpty);
     });
+
+    test('remembers the current status for late subscribers', () async {
+      final socket = _FakeMuxSocket();
+      final client = MuxClient(_config, connect: (_, _) => socket);
+
+      expect(client.currentStatus, MuxStatus.closed);
+
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(client.currentStatus, MuxStatus.open);
+
+      await client.disconnect();
+    });
   });
 }
