@@ -8540,7 +8540,7 @@ the conversation map can `Scrollable.ensureVisible` a specific exchange, and a t
 auto-scrolls to the bottom while the user is within 120 logical pixels of it, and shows a "Latest"
 button otherwise. That is the same threshold RN uses.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/ui/chat_timeline_test.dart`:
 
@@ -8750,12 +8750,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_timeline_test.dart`
 Expected: FAIL — the timeline widgets do not exist.
 
-- [ ] **Step 3: Write the activity metadata and run grouping**
+- [x] **Step 3: Write the activity metadata and run grouping**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/activity_meta.dart`:
 
@@ -8854,7 +8854,7 @@ String _commandCategory(String text) {
 }
 ```
 
-- [ ] **Step 4: Write the activity rows**
+- [x] **Step 4: Write the activity rows**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/activity_row.dart` — the
 expandable generic row, the MCP tool row, and the auto-review row:
@@ -9216,7 +9216,7 @@ class _AutoReviewRowState extends State<_AutoReviewRow> {
 }
 ```
 
-- [ ] **Step 5: Write the file-change, plan and turn-summary widgets**
+- [x] **Step 5: Write the file-change, plan and turn-summary widgets**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/file_change_list.dart`:
 
@@ -9813,7 +9813,7 @@ class _TurnSummaryState extends State<TurnSummary> {
 }
 ```
 
-- [ ] **Step 6: Write the run grouping, the item renderer and the list**
+- [x] **Step 6: Write the run grouping, the item renderer and the list**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/activity_run.dart` — the
 collapsed run, its subagent tree, and `activityRuns`:
@@ -10645,13 +10645,13 @@ class _ChatTimelineState extends State<ChatTimeline> {
 }
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_timeline_test.dart`
 Expected: PASS. `timeline_item.dart` imports Task 21's `ApprovalCard` and `UserInputCard`; if they
 are missing, that task was skipped.
 
-- [ ] **Step 8: Verify nothing regressed and commit**
+- [x] **Step 8: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 551/551 green.
