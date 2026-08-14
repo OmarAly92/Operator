@@ -11,7 +11,7 @@ const List<({String id, String label, String hint})> kApprovalModes = [
   (
     id: 'default',
     label: 'Default',
-    hint: 'the worktree is the safety boundary',
+    hint: 'The worktree is the safety boundary',
   ),
   (
     id: 'accept-edits',

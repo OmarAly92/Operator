@@ -51,6 +51,31 @@ Future<void> pumpHost(
 }
 
 void main() {
+  test('keeps every approval label and safety hint exact', () {
+    expect(kApprovalModes, const [
+      (
+        id: 'default',
+        label: 'Default',
+        hint: 'The worktree is the safety boundary',
+      ),
+      (
+        id: 'accept-edits',
+        label: 'Ask outside worktree',
+        hint: 'Edits here are allowed; anything else asks',
+      ),
+      (
+        id: 'auto',
+        label: 'Ask when unsure',
+        hint: 'The agent decides when to check with you',
+      ),
+      (
+        id: 'bypass-permissions',
+        label: 'Never ask',
+        hint: 'No approvals or sandbox prompts',
+      ),
+    ]);
+  });
+
   testWidgets('offers Operator turn settings when the provider owns none', (
     tester,
   ) async {
@@ -78,7 +103,7 @@ void main() {
     expect(find.text('Model'), findsOneWidget);
     expect(find.text('Approvals'), findsOneWidget);
     expect(
-      find.textContaining('the worktree is the safety boundary'),
+      find.textContaining('The worktree is the safety boundary'),
       findsOneWidget,
     );
 
