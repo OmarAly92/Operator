@@ -44,6 +44,7 @@ class PendingSend extends Equatable {
     this.error,
     this.attachments,
     this.resources,
+    this.requiresStaging = false,
   });
 
   final String id;
@@ -52,18 +53,29 @@ class PendingSend extends Equatable {
   final String? error;
   final List<ChatImageModel>? attachments;
   final List<ChatResourceModel>? resources;
+  final bool requiresStaging;
 
-  PendingSend copyWith({bool? failed, String? error}) => PendingSend(
-    id: id,
-    text: text,
-    failed: failed ?? this.failed,
-    error: error,
-    attachments: attachments,
-    resources: resources,
-  );
+  PendingSend copyWith({bool? failed, String? error, bool? requiresStaging}) =>
+      PendingSend(
+        id: id,
+        text: text,
+        failed: failed ?? this.failed,
+        error: error,
+        attachments: attachments,
+        resources: resources,
+        requiresStaging: requiresStaging ?? this.requiresStaging,
+      );
 
   @override
-  List<Object?> get props => [id, text, failed, error, attachments, resources];
+  List<Object?> get props => [
+    id,
+    text,
+    failed,
+    error,
+    attachments,
+    resources,
+    requiresStaging,
+  ];
 }
 
 class ChatUnavailable extends Equatable {
@@ -144,61 +156,34 @@ class ChatCubit extends Cubit<ChatState> {
     List<ChatImageModel>? attachments,
     List<ChatResourceModel>? resources,
   }) async {
-    var message = text;
-    var payload = attachments;
-
-    if (attachments != null && attachments.isNotEmpty) {
-      final staged = await _repository.stageAttachments(
-        sessionId,
-        StageAttachmentsParams(attachments: attachments),
-      );
-      if (isClosed) return;
-
-      Failure? stagingFailure;
-      staged.when(
-        onSuccess: (paths) {
-          message = _withAttachmentReferences(text, paths);
-          if (!(snapshot?.can('images') ?? false)) payload = null;
-        },
-        onFailure: (failure) => stagingFailure = failure,
-      );
-      if (stagingFailure != null) {
-        pendingSends = [
-          ...pendingSends,
-          PendingSend(
-            id: _clientMessageId(),
-            text: text,
-            failed: true,
-            error: conversationActionError(stagingFailure!),
-            attachments: attachments,
-            resources: resources,
-          ),
-        ];
-        _emit();
-        return;
-      }
-    }
-
-    await _deliver(
-      PendingSend(
-        id: _clientMessageId(),
-        text: message,
-        attachments: payload,
-        resources: resources,
-      ),
+    if (isClosed) return;
+    final pending = PendingSend(
+      id: _clientMessageId(),
+      text: text,
+      attachments: attachments,
+      resources: resources,
+      requiresStaging: attachments != null && attachments.isNotEmpty,
     );
+    if (pending.requiresStaging) return _stageAndDeliver(pending);
+    await _deliver(pending);
   }
 
   Future<void> retrySend(String id) async {
+    if (isClosed) return;
     for (final pending in pendingSends) {
       if (pending.id == id) {
-        await _deliver(pending);
+        if (pending.requiresStaging) {
+          await _stageAndDeliver(pending);
+        } else {
+          await _deliver(pending);
+        }
         return;
       }
     }
   }
 
   void discardSend(String id) {
+    if (isClosed) return;
     pendingSends = pendingSends.where((pending) => pending.id != id).toList();
     _emit();
   }
@@ -268,13 +253,23 @@ class ChatCubit extends Cubit<ChatState> {
 
   Future<void> setConfigOption(SetConfigOptionParams params) =>
       _runAction(ConversationAction.config, () async {
+        final catalogGeneration = _catalogGeneration;
+        final conversationId = snapshot?.conversationId;
+        final providerOwnsConfig = usesProviderConfig;
         final result = await _repository.setConfigOption(sessionId, params);
-        result.when(
-          onSuccess: (response) {
-            configOptions = response.data ?? configOptions;
-          },
-          onFailure: (_) {},
-        );
+        final ownsCurrentCatalog =
+            !isClosed &&
+            catalogGeneration == _catalogGeneration &&
+            conversationId == snapshot?.conversationId &&
+            providerOwnsConfig == usesProviderConfig;
+        if (ownsCurrentCatalog) {
+          result.when(
+            onSuccess: (response) {
+              configOptions = response.data ?? configOptions;
+            },
+            onFailure: (_) {},
+          );
+        }
         return result.isSuccess
             ? Result<bool, Failure>.success(true)
             : result.asFailure<bool>();
@@ -294,15 +289,19 @@ class ChatCubit extends Cubit<ChatState> {
   );
 
   Future<void> resumeAgent() async {
+    if (isClosed) return;
+    actionError = null;
+    _emit();
     final result = await _repository.resumeAgent(sessionId);
     if (isClosed) return;
-    result.when(
-      onSuccess: (_) => unawaited(refresh()),
-      onFailure: (failure) {
-        actionError = conversationActionError(failure);
-        _emit();
-      },
-    );
+    if (result.isSuccess) {
+      await refresh();
+      return;
+    }
+    late Failure failure;
+    result.when(onSuccess: (_) {}, onFailure: (value) => failure = value);
+    actionError = conversationActionError(failure);
+    _emit();
   }
 
   Future<void> refresh() async {
@@ -534,6 +533,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> _deliver(PendingSend pending) async {
+    if (isClosed) return;
     pendingSends = _upsertPending(
       pendingSends,
       pending.copyWith(failed: false),
@@ -568,42 +568,91 @@ class ChatCubit extends Cubit<ChatState> {
     _emit();
   }
 
+  Future<void> _stageAndDeliver(PendingSend pending) async {
+    if (isClosed) return;
+    pendingSends = _upsertPending(
+      pendingSends,
+      pending.copyWith(failed: false),
+    );
+    _emit();
+    final stagingResult = await _repository.stageAttachments(
+      sessionId,
+      StageAttachmentsParams(attachments: pending.attachments!),
+    );
+    if (isClosed) return;
+
+    List<String>? paths;
+    Failure? stagingFailure;
+    stagingResult.when(
+      onSuccess: (stagedPaths) => paths = stagedPaths,
+      onFailure: (failure) => stagingFailure = failure,
+    );
+    if (stagingFailure != null) {
+      pendingSends = _upsertPending(
+        pendingSends,
+        pending.copyWith(
+          failed: true,
+          error: conversationActionError(stagingFailure!),
+        ),
+      );
+      _emit();
+      return;
+    }
+
+    await _deliver(
+      PendingSend(
+        id: pending.id,
+        text: _withAttachmentReferences(pending.text, paths!),
+        attachments: snapshot?.can('images') ?? false
+            ? pending.attachments
+            : null,
+        resources: pending.resources,
+      ),
+    );
+  }
+
   Future<void> _runAction(
     ConversationAction kind,
     Future<Result<bool, Failure>> Function() action, {
     bool resetHistoricalPages = false,
   }) async {
+    if (isClosed) return;
     pendingActions = {...pendingActions, kind};
     actionError = null;
     actionErrors = {...actionErrors}..remove(kind);
     actionCodes = {...actionCodes}..remove(kind);
     _emit();
 
-    final result = await action();
-    if (isClosed) return;
+    try {
+      final result = await action();
+      if (isClosed) return;
 
-    if (result.isSuccess) {
-      if (resetHistoricalPages) {
-        final retainedPages = discardHistoricalPages(_pages);
-        _pages
-          ..clear()
-          ..addAll(retainedPages);
-        _mergePages();
+      if (result.isSuccess) {
+        if (resetHistoricalPages) {
+          _paginationGeneration += 1;
+          final retainedPages = discardHistoricalPages(_pages);
+          _pages
+            ..clear()
+            ..addAll(retainedPages);
+          _mergePages();
+        }
+        await refresh();
+        return;
       }
-      pendingActions = {...pendingActions}..remove(kind);
-      await refresh();
-      return;
-    }
 
-    late Failure failure;
-    result.when(onSuccess: (_) {}, onFailure: (value) => failure = value);
-    final message = conversationActionError(failure);
-    actionError = message;
-    actionErrors = {...actionErrors, kind: message};
-    final code = conversationErrorCode(failure);
-    if (code != null) actionCodes = {...actionCodes, kind: code};
-    pendingActions = {...pendingActions}..remove(kind);
-    _emit();
+      late Failure failure;
+      result.when(onSuccess: (_) {}, onFailure: (value) => failure = value);
+      final message = conversationActionError(failure);
+      actionError = message;
+      actionErrors = {...actionErrors, kind: message};
+      final code = conversationErrorCode(failure);
+      if (code != null) actionCodes = {...actionCodes, kind: code};
+    } finally {
+      if (!isClosed) {
+        pendingActions = {...pendingActions}..remove(kind);
+        _emit();
+      }
+    }
   }
 
   static List<PendingSend> _upsertPending(

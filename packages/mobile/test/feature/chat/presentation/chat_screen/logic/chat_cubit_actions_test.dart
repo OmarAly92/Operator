@@ -48,6 +48,15 @@ void main() {
   late Completer<Result<bool, Failure>> interruptResponse;
   late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
   rollbackRefreshResponse;
+  late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
+  rollbackOlderResponse;
+  late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
+  actionRefreshResponse;
+  late Completer<Result<GlobalResponse<List<ChatConfigOptionModel>>, Failure>>
+  configResponse;
+  late Completer<Result<bool, Failure>> resumeResponse;
+  late Completer<Result<List<String>, Failure>> stageRetryResponse;
+  late bool stagingRetryFailedState;
 
   setUpAll(() {
     registerFallbackValue(_FakeSendMessageParams());
@@ -151,7 +160,12 @@ void main() {
     build: build,
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
-      await cubit.send('ship it');
+      await cubit.send(
+        'ship it',
+        resources: const [
+          ChatResourceModel(uri: 'file:///w/readme.md', name: 'readme'),
+        ],
+      );
     },
     verify: (cubit) {
       final params =
@@ -161,6 +175,9 @@ void main() {
               as SendMessageParams;
       expect(params.text, 'ship it');
       expect(params.clientMessageId, startsWith('mobile-'));
+      expect(params.attachments, isNull);
+      expect(params.resources!.single.uri, 'file:///w/readme.md');
+      expect(params.resources!.single.name, 'readme');
       expect(cubit.pendingSends, isEmpty);
       verify(
         () => repository.getConversationPage('w-1', beforeSequence: null),
@@ -288,17 +305,24 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
-    'keeps an attachment staging failure retryable without delivering',
+    'retries attachment staging with the same client id before delivery',
     build: () {
-      when(() => repository.stageAttachments(any(), any())).thenAnswer(
-        (_) async => Result.failure(
-          ServerFailure(
-            error: 'x',
-            message: 'sign in',
-            apiStatus: 'CHAT_AUTH_REQUIRED',
-          ),
-        ),
-      );
+      stageRetryResponse = Completer();
+      var stageCalls = 0;
+      when(() => repository.stageAttachments(any(), any())).thenAnswer((_) {
+        stageCalls += 1;
+        return stageCalls == 1
+            ? Future.value(
+                Result.failure(
+                  ServerFailure(
+                    error: 'x',
+                    message: 'sign in',
+                    apiStatus: 'CHAT_AUTH_REQUIRED',
+                  ),
+                ),
+              )
+            : stageRetryResponse.future;
+      });
       return build();
     },
     act: (cubit) async {
@@ -307,11 +331,72 @@ void main() {
         'look',
         attachments: const [ChatImageModel(mimeType: 'image/png', data: 'AAA')],
       );
+      final retry = cubit.retrySend(cubit.pendingSends.single.id);
+      await Future<void>.delayed(Duration.zero);
+      stagingRetryFailedState = cubit.pendingSends.single.failed;
+      stageRetryResponse.complete(Result.success(const ['/w/shot.png']));
+      await retry;
     },
     verify: (cubit) {
-      expect(cubit.pendingSends.single.failed, isTrue);
-      expect(cubit.pendingSends.single.error, contains('Sign in'));
-      verifyNever(() => repository.sendMessage(any(), any()));
+      final stageParams = verify(
+        () => repository.stageAttachments('w-1', captureAny()),
+      ).captured.cast<StageAttachmentsParams>();
+      expect(stageParams, hasLength(2));
+      expect(stageParams[0].attachments.single.data, 'AAA');
+      expect(stageParams[1].attachments.single.data, 'AAA');
+      final sendParams =
+          verify(
+                () => repository.sendMessage('w-1', captureAny()),
+              ).captured.single
+              as SendMessageParams;
+      expect(sendParams.clientMessageId, startsWith('mobile-'));
+      expect(
+        sendParams.text,
+        'look\n\nAttached files are available in the worktree:\n- /w/shot.png',
+      );
+      expect(sendParams.attachments, isNull);
+      expect(stagingRetryFailedState, isFalse);
+      expect(cubit.pendingSends, isEmpty);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'retries a staged delivery failure without staging the attachment again',
+    build: () {
+      when(
+        () => repository.stageAttachments(any(), any()),
+      ).thenAnswer((_) async => Result.success(const ['/w/shot.png']));
+      var deliveryCalls = 0;
+      when(() => repository.sendMessage(any(), any())).thenAnswer((_) {
+        deliveryCalls += 1;
+        return deliveryCalls == 1
+            ? Future.value(
+                Result.failure(
+                  ServerFailure(error: 'x', message: 'Delivery failed'),
+                ),
+              )
+            : Future.value(Result.success(true));
+      });
+      return build(capabilities: const ['images']);
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await cubit.send(
+        'look',
+        attachments: const [ChatImageModel(mimeType: 'image/png', data: 'AAA')],
+      );
+      await cubit.retrySend(cubit.pendingSends.single.id);
+    },
+    verify: (cubit) {
+      verify(() => repository.stageAttachments('w-1', any())).called(1);
+      final deliveries = verify(
+        () => repository.sendMessage('w-1', captureAny()),
+      ).captured.cast<SendMessageParams>();
+      expect(deliveries, hasLength(2));
+      expect(deliveries[1].clientMessageId, deliveries[0].clientMessageId);
+      expect(deliveries[1].text, deliveries[0].text);
+      expect(deliveries[1].attachments!.single.data, 'AAA');
+      expect(cubit.pendingSends, isEmpty);
     },
   );
 
@@ -478,16 +563,114 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
+    'keeps a successful action pending until its refresh completes',
+    build: () {
+      actionRefreshResponse = Completer();
+      var liveCalls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) {
+        liveCalls += 1;
+        if (liveCalls > 1) return actionRefreshResponse.future;
+        return Future.value(Result.success(GlobalResponse(data: page())));
+      });
+      return ChatCubit(repository, 'w-1');
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final action = cubit.compact();
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.refreshing, isTrue);
+      expect(cubit.pendingActions, {ConversationAction.compact});
+      actionRefreshResponse.complete(
+        Result.success(GlobalResponse(data: page())),
+      );
+      await action;
+    },
+    verify: (cubit) => expect(cubit.pendingActions, isEmpty),
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'rejects an older page that completes during rollback refresh',
+    build: () {
+      rollbackOlderResponse = Completer();
+      rollbackRefreshResponse = Completer();
+      var liveCalls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) {
+        liveCalls += 1;
+        if (liveCalls > 1) return rollbackRefreshResponse.future;
+        return Future.value(
+          Result.success(
+            GlobalResponse(
+              data: page(
+                oldestSequence: 2,
+                hasMoreBefore: true,
+                items: const [ConversationMessageModel(id: 'm-2', sequence: 2)],
+              ),
+            ),
+          ),
+        );
+      });
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: 2),
+      ).thenAnswer((_) => rollbackOlderResponse.future);
+      return ChatCubit(repository, 'w-1');
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final pagination = cubit.loadOlder();
+      await Future<void>.delayed(Duration.zero);
+      final rollbackAction = cubit.rollback('t-1');
+      await Future<void>.delayed(Duration.zero);
+      rollbackOlderResponse.complete(
+        Result.success(
+          GlobalResponse(
+            data: page(
+              items: const [ConversationMessageModel(id: 'm-1', sequence: 1)],
+            ),
+          ),
+        ),
+      );
+      await pagination;
+      rollbackRefreshResponse.complete(
+        Result.success(
+          GlobalResponse(
+            data: page(
+              oldestSequence: 2,
+              hasMoreBefore: true,
+              items: const [ConversationMessageModel(id: 'm-2', sequence: 2)],
+            ),
+          ),
+        ),
+      );
+      await rollbackAction;
+    },
+    verify: (cubit) {
+      expect(cubit.snapshot!.items.map((item) => item.id), ['m-2']);
+      expect(cubit.loadingOlder, isFalse);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
     'routes each remaining action to its endpoint',
     build: build,
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
+      await cubit.steer('use the other file');
       await cubit.interrupt();
       await cubit.resolveApproval('req-1', 'accept');
       await cubit.resolveInput('req-2', 'accept', const {'token': 'x'});
       await cubit.reloadMcp();
       await cubit.rename('New title');
-      await cubit.chooseSettings(const TurnSettingsModel(model: 'opus'));
+      await cubit.chooseSettings(
+        const TurnSettingsModel(
+          model: 'opus',
+          reasoningEffort: 'high',
+          approvalMode: 'on-request',
+        ),
+      );
       await cubit.setConfigOption(
         const SetConfigOptionParams(optionId: 'fast', enabled: true),
       );
@@ -495,14 +678,201 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     },
     verify: (_) {
+      final steerParams =
+          verify(() => repository.steer('w-1', captureAny())).captured.single
+              as SteerConversationParams;
+      expect(steerParams.text, 'use the other file');
+      expect(steerParams.clientMessageId, startsWith('mobile-'));
       verify(() => repository.interrupt('w-1')).called(1);
-      verify(() => repository.resolveApproval('w-1', any())).called(1);
-      verify(() => repository.resolveInput('w-1', any())).called(1);
+      final approvalParams =
+          verify(
+                () => repository.resolveApproval('w-1', captureAny()),
+              ).captured.single
+              as ResolveApprovalParams;
+      expect(approvalParams.requestId, 'req-1');
+      expect(approvalParams.decisionId, 'accept');
+      final inputParams =
+          verify(
+                () => repository.resolveInput('w-1', captureAny()),
+              ).captured.single
+              as ResolveInputParams;
+      expect(inputParams.requestId, 'req-2');
+      expect(inputParams.action, 'accept');
+      expect(inputParams.content, const {'token': 'x'});
       verify(() => repository.reloadMcpServers('w-1')).called(1);
-      verify(() => repository.setTitle('w-1', any())).called(1);
-      verify(() => repository.setSettings('w-1', any())).called(1);
-      verify(() => repository.setConfigOption('w-1', any())).called(1);
+      final titleParams =
+          verify(() => repository.setTitle('w-1', captureAny())).captured.single
+              as SetConversationTitleParams;
+      expect(titleParams.title, 'New title');
+      final settings =
+          verify(
+                () => repository.setSettings('w-1', captureAny()),
+              ).captured.single
+              as TurnSettingsModel;
+      expect(settings.model, 'opus');
+      expect(settings.reasoningEffort, 'high');
+      expect(settings.approvalMode, 'on-request');
+      final configParams =
+          verify(
+                () => repository.setConfigOption('w-1', captureAny()),
+              ).captured.single
+              as SetConfigOptionParams;
+      expect(configParams.optionId, 'fast');
+      expect(configParams.enabled, isTrue);
+      expect(configParams.value, isNull);
       verify(() => repository.resumeAgent('w-1')).called(1);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'ignores a config response after conversation ownership changes',
+    build: () {
+      configResponse = Completer();
+      var liveCalls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) {
+        liveCalls += 1;
+        return Future.value(
+          Result.success(
+            GlobalResponse(
+              data: ConversationSnapshotModel(
+                conversationId: liveCalls == 1 ? 'c-1' : 'c-2',
+                sessionId: 'w-1',
+                harness: 'codex',
+                controllerState: 'ready',
+                latestSequence: liveCalls,
+                capabilities: const ['config_options'],
+              ),
+            ),
+          ),
+        );
+      });
+      when(
+        () => repository.setConfigOption('w-1', any()),
+      ).thenAnswer((_) => configResponse.future);
+      return ChatCubit(repository, 'w-1');
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final update = cubit.setConfigOption(
+        const SetConfigOptionParams(optionId: 'fast', enabled: true),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await cubit.refresh();
+      configResponse.complete(
+        Result.success(
+          const GlobalResponse(
+            data: [ChatConfigOptionModel(id: 'stale', name: 'Stale')],
+          ),
+        ),
+      );
+      await update;
+    },
+    verify: (cubit) {
+      expect(cubit.snapshot!.conversationId, 'c-2');
+      expect(cubit.configOptions, isEmpty);
+    },
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'clears resume errors before retry and refreshes after success',
+    build: () {
+      resumeResponse = Completer();
+      var resumeCalls = 0;
+      when(() => repository.resumeAgent('w-1')).thenAnswer((_) {
+        resumeCalls += 1;
+        return resumeCalls == 1
+            ? resumeResponse.future
+            : Future.value(Result.success(true));
+      });
+      when(() => repository.steer(any(), any())).thenAnswer(
+        (_) async => Result.failure(
+          ServerFailure(
+            error: 'x',
+            message: 'nope',
+            apiStatus: 'CHAT_STEER_UNSUPPORTED',
+          ),
+        ),
+      );
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await cubit.steer('guide');
+      final firstResume = cubit.resumeAgent();
+      await Future<void>.delayed(Duration.zero);
+      final errorWhilePending = cubit.actionError;
+      resumeResponse.complete(
+        Result.failure(
+          ServerFailure(
+            error: 'x',
+            message: 'auth',
+            apiStatus: 'CHAT_AUTH_REQUIRED',
+          ),
+        ),
+      );
+      await firstResume;
+      expect(errorWhilePending, isNull);
+      expect(cubit.actionError, contains('Sign in'));
+      await cubit.resumeAgent();
+      expect(cubit.actionError, isNull);
+    },
+    verify: (_) {
+      verify(() => repository.resumeAgent('w-1')).called(2);
+      verify(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).called(2);
+    },
+  );
+
+  test(
+    'closed cubit rejects every Task 18 action before repository I/O',
+    () async {
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async => Result.success(GlobalResponse(data: page())));
+      when(
+        () => repository.stageAttachments(any(), any()),
+      ).thenAnswer((_) async => Result.success(const ['/w/shot.png']));
+      final cubit = build();
+      await cubit.close();
+      await cubit.send(
+        'look',
+        attachments: const [ChatImageModel(mimeType: 'image/png', data: 'AAA')],
+      );
+      cubit.pendingSends = const [PendingSend(id: 'p-1', text: 'pending')];
+      await cubit.retrySend('p-1');
+      cubit.discardSend('p-1');
+      await cubit.steer('guide');
+      await cubit.interrupt();
+      await cubit.resolveApproval('req-1', 'accept');
+      await cubit.resolveInput('req-2', 'accept', const {'token': 'x'});
+      await cubit.compact();
+      await cubit.rollback('t-1');
+      await cubit.chooseSettings(const TurnSettingsModel(model: 'opus'));
+      await cubit.setConfigOption(
+        const SetConfigOptionParams(optionId: 'fast', enabled: true),
+      );
+      await cubit.reloadMcp();
+      await cubit.rename('Title');
+      await cubit.resumeAgent();
+
+      expect(cubit.pendingSends.single.id, 'p-1');
+      verifyNever(() => repository.getConversationPage(any()));
+      verifyNever(() => repository.stageAttachments(any(), any()));
+      verifyNever(() => repository.sendMessage(any(), any()));
+      verifyNever(() => repository.steer(any(), any()));
+      verifyNever(() => repository.interrupt(any()));
+      verifyNever(() => repository.resolveApproval(any(), any()));
+      verifyNever(() => repository.resolveInput(any(), any()));
+      verifyNever(() => repository.compact(any()));
+      verifyNever(() => repository.rollbackTurn(any(), any()));
+      verifyNever(() => repository.setSettings(any(), any()));
+      verifyNever(() => repository.setConfigOption(any(), any()));
+      verifyNever(() => repository.reloadMcpServers(any()));
+      verifyNever(() => repository.setTitle(any(), any()));
+      verifyNever(() => repository.resumeAgent(any()));
     },
   );
 }
