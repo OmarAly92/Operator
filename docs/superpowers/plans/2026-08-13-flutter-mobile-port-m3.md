@@ -7127,7 +7127,7 @@ parameter rather than something the widget infers.
 Everything selectable in RN stays selectable here (`SelectableText.rich`), and long-pressing a code
 block copies it, matching `CodeOutput`'s `onLongPress`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/ui/chat_markdown_test.dart`:
 
@@ -7190,12 +7190,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_markdown_test.dart`
 Expected: FAIL — the widgets do not exist.
 
-- [ ] **Step 3: Write the code renderer**
+- [x] **Step 3: Write the code renderer**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/highlighted_code_text.dart`:
 
@@ -7265,7 +7265,7 @@ class HighlightedCodeText extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 4: Write the shared atoms**
+- [x] **Step 4: Write the shared atoms**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/chat_atoms.dart`:
 
@@ -7411,7 +7411,7 @@ class PartialNote extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 5: Write the markdown renderer**
+- [x] **Step 5: Write the markdown renderer**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/chat_markdown.dart`:
 
@@ -7804,12 +7804,12 @@ class _MarkdownTable extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_markdown_test.dart`
 Expected: PASS.
 
-- [ ] **Step 7: Verify nothing regressed and commit**
+- [x] **Step 7: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 535/535 green.
