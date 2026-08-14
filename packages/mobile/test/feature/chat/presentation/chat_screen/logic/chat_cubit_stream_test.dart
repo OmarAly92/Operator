@@ -222,4 +222,51 @@ void main() {
       ),
     ),
   );
+
+  blocTest<ChatCubit, ChatState>(
+    'stops an active stream when the conversation becomes permanently unavailable',
+    build: () {
+      var calls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) async {
+        calls += 1;
+        if (calls == 1) {
+          return Result.success(
+            GlobalResponse(
+              data: const ConversationSnapshotModel(
+                conversationId: 'c-1',
+                sessionId: 'w-1',
+                harness: 'codex',
+                controllerState: 'ready',
+                latestSequence: 1,
+              ),
+            ),
+          );
+        }
+        return Result.failure(
+          ServerFailure(
+            error: 'x',
+            message: 'gone',
+            apiStatus: 'SESSION_NOT_FOUND',
+          ),
+        );
+      });
+      return build();
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await cubit.refresh();
+      events.addError(
+        ServerFailure(error: 'dropped', message: 'stream closed'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    },
+    verify: (_) => verify(
+      () => repository.events(
+        after: any(named: 'after'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).called(1),
+  );
 }

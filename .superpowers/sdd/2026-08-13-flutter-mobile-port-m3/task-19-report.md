@@ -24,3 +24,32 @@ From `packages/mobile`:
 
 - `flutter analyze` completed with `No issues found!`.
 - `flutter test` completed successfully with 556 passing tests.
+
+## Review fix round 1
+
+### Files changed
+
+- `packages/mobile/lib/feature/chat/presentation/chat_screen/logic/chat_cubit.dart`
+- `packages/mobile/test/feature/chat/presentation/chat_screen/logic/chat_cubit_stream_test.dart`
+- `.superpowers/sdd/2026-08-13-flutter-mobile-port-m3/task-19-report.md`
+
+### RED
+
+Added `stops an active stream when the conversation becomes permanently unavailable`. The test opens a stream from a successful initial page, refreshes to a `SESSION_NOT_FOUND` failure, then drops the old stream. It requires exactly one `repository.events` call.
+
+Command:
+
+`flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_stream_test.dart`
+
+Output before the production change: failed at the new test with `Expected: <1> Actual: <2>`, proving the dropped active stream scheduled a reconnect after permanent unavailability.
+
+### GREEN
+
+Added `_stopEvents()` and invoke it when a permanent conversation failure is applied. It disables streaming, cancels and clears the refresh/reconnect timers and cancel token, cancels and clears the subscription, and is shared by `close()`.
+
+Commands and outputs:
+
+- `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_stream_test.dart` — 8 passing tests.
+- `flutter test test/feature/chat/presentation/chat_screen/logic/` — 44 passing tests.
+- `flutter analyze` — `No issues found!`.
+- `flutter test` — 557 passing tests.

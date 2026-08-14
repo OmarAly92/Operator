@@ -378,6 +378,7 @@ class ChatCubit extends Cubit<ChatState> {
       unavailable = ChatUnavailable(code: code, message: message);
       error = null;
       _stopCatalogs();
+      _stopEvents();
     } else {
       error = message;
     }
@@ -426,6 +427,18 @@ class ChatCubit extends Cubit<ChatState> {
     _reconnectTimer = Timer(_reconnectDelay, _openEventStream);
     final next = _reconnectDelay * 2;
     _reconnectDelay = next > _reconnectMax ? _reconnectMax : next;
+  }
+
+  void _stopEvents() {
+    _streaming = false;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _eventCancel?.cancel();
+    _eventCancel = null;
+    unawaited(_eventSub?.cancel());
+    _eventSub = null;
   }
 
   String get _cursorKey {
@@ -792,12 +805,8 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() {
-    _streaming = false;
     _stopCatalogs();
-    _refreshTimer?.cancel();
-    _reconnectTimer?.cancel();
-    _eventCancel?.cancel();
-    unawaited(_eventSub?.cancel());
+    _stopEvents();
     _refreshIdle?.complete();
     _refreshIdle = null;
     return super.close();
