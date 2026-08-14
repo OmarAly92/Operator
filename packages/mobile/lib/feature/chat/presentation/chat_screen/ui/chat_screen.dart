@@ -6,8 +6,8 @@ import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart';
 
-class ChatScreen extends StatelessWidget {
-  ChatScreen({
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({
     super.key,
     required this.sessionId,
     required this.title,
@@ -17,12 +17,21 @@ class ChatScreen extends StatelessWidget {
   final String sessionId;
   final String title;
   final String? projectId;
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<ChatBodyState> _body = GlobalKey<ChatBodyState>();
 
   @override
-  Widget build(BuildContext context) => BlocListener<ChatCubit, ChatState>(
-    listener: (context, state) {},
-    child: AppScaffold(
+  Widget build(BuildContext context) {
+    final title = context.select<ChatCubit, String>(
+      (cubit) => cubit.snapshot?.title ?? widget.title,
+    );
+
+    return AppScaffold(
       appBar: GlobalAppbar.sub(
         titleText: title.length > 24 ? '${title.substring(0, 22)}…' : title,
         actions: [
@@ -32,7 +41,7 @@ class ChatScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ChatBody(key: _body, projectId: projectId),
-    ),
-  );
+      body: ChatBody(key: _body, projectId: widget.projectId),
+    );
+  }
 }

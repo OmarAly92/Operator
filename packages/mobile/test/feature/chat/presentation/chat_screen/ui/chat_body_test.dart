@@ -432,4 +432,62 @@ void main() {
     expect(find.byType(Scaffold), findsOneWidget);
     expect(find.byType(ChatBody), findsOneWidget);
   });
+
+  testWidgets('titles the screen with the conversation, not the board row', (
+    tester,
+  ) async {
+    when(() => cubit.snapshot).thenReturn(
+      ConversationSnapshotModel(
+        conversationId: 'c-1',
+        sessionId: 'w-1',
+        harness: 'codex',
+        controllerState: 'ready',
+        latestSequence: 1,
+        title: 'Renamed thread',
+      ),
+    );
+
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: BlocProvider<ChatCubit>.value(
+              value: cubit,
+              child: const ChatScreen(sessionId: 'w-1', title: 'Board row title'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Renamed thread'), findsOneWidget);
+    expect(find.text('Board row title'), findsNothing);
+  });
+
+  testWidgets('falls back to the board title before a conversation loads', (
+    tester,
+  ) async {
+    when(() => cubit.snapshot).thenReturn(null);
+
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: BlocProvider<ChatCubit>.value(
+              value: cubit,
+              child: const ChatScreen(sessionId: 'w-1', title: 'Board row title'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Board row title'), findsOneWidget);
+  });
 }
