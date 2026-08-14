@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
-import 'package:file_selector/file_selector.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_selector/file_selector.dart'
+    show XFile, XTypeGroup, openFiles;
+import 'package:image_picker/image_picker.dart' show ImagePicker;
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 
 const int kMaxAttachments = 8;
@@ -54,6 +55,57 @@ abstract class AttachmentPicker {
   Future<List<PickedAttachment>> pickTextFiles();
 }
 
+Future<PickedAttachment> imageAttachmentFromFile(XFile asset) async {
+  final mimeType = (asset.mimeType ?? 'image/jpeg').toLowerCase();
+  if (!kSupportedImageTypes.contains(mimeType)) {
+    throw const AttachmentPickerException(
+      'Only PNG, JPEG, GIF, WebP, and BMP images are supported.',
+    );
+  }
+  final declaredBytes = await asset.length();
+  if (declaredBytes > kMaxImageBytes) {
+    throw const AttachmentPickerException('Each image must be under 10 MB.');
+  }
+  final bytes = await asset.readAsBytes();
+  if (bytes.length > kMaxImageBytes) {
+    throw const AttachmentPickerException('Each image must be under 10 MB.');
+  }
+  return PickedAttachment(
+    id: '${asset.path}-${DateTime.now().microsecondsSinceEpoch}',
+    name: asset.name.isEmpty ? 'Image' : asset.name,
+    bytes: bytes.length,
+    image: ChatImageModel(mimeType: mimeType, data: base64Encode(bytes)),
+  );
+}
+
+Future<PickedAttachment> textAttachmentFromFile(XFile file) async {
+  final declaredBytes = await file.length();
+  if (declaredBytes > kMaxEmbeddedFileBytes) {
+    throw _embeddedFileTooLarge(file.name);
+  }
+  final body = await file.readAsString();
+  final bytes = utf8.encode(body).length;
+  if (bytes > kMaxEmbeddedFileBytes) {
+    throw _embeddedFileTooLarge(file.name);
+  }
+  return PickedAttachment(
+    id: '${file.path}-${DateTime.now().microsecondsSinceEpoch}',
+    name: file.name,
+    bytes: bytes,
+    resource: ChatResourceModel(
+      uri: 'mobile-attachment://${Uri.encodeComponent(file.name)}',
+      name: file.name,
+      mimeType: file.mimeType ?? 'text/plain',
+      text: body,
+    ),
+  );
+}
+
+AttachmentPickerException _embeddedFileTooLarge(String name) =>
+    AttachmentPickerException(
+      '$name is larger than 500 KB. Reference a worktree file with @ instead.',
+    );
+
 class PlatformAttachmentPicker implements AttachmentPicker {
   PlatformAttachmentPicker({ImagePicker? imagePicker})
     : _imagePicker = imagePicker ?? ImagePicker();
@@ -69,26 +121,7 @@ class PlatformAttachmentPicker implements AttachmentPicker {
     final picked = <PickedAttachment>[];
 
     for (final asset in assets) {
-      final mimeType = (asset.mimeType ?? 'image/jpeg').toLowerCase();
-      if (!kSupportedImageTypes.contains(mimeType)) {
-        throw const AttachmentPickerException(
-          'Only PNG, JPEG, GIF, WebP, and BMP images are supported.',
-        );
-      }
-      final bytes = await asset.readAsBytes();
-      if (bytes.length > kMaxImageBytes) {
-        throw const AttachmentPickerException(
-          'Each image must be under 10 MB.',
-        );
-      }
-      picked.add(
-        PickedAttachment(
-          id: '${asset.path}-${DateTime.now().microsecondsSinceEpoch}',
-          name: asset.name.isEmpty ? 'Image' : asset.name,
-          bytes: bytes.length,
-          image: ChatImageModel(mimeType: mimeType, data: base64Encode(bytes)),
-        ),
-      );
+      picked.add(await imageAttachmentFromFile(asset));
     }
     return picked;
   }
@@ -117,26 +150,7 @@ class PlatformAttachmentPicker implements AttachmentPicker {
 
     final picked = <PickedAttachment>[];
     for (final file in files) {
-      final body = await file.readAsString();
-      final bytes = utf8.encode(body).length;
-      if (bytes > kMaxEmbeddedFileBytes) {
-        throw AttachmentPickerException(
-          '${file.name} is larger than 500 KB. Reference a worktree file with @ instead.',
-        );
-      }
-      picked.add(
-        PickedAttachment(
-          id: '${file.path}-${DateTime.now().microsecondsSinceEpoch}',
-          name: file.name,
-          bytes: bytes,
-          resource: ChatResourceModel(
-            uri: 'mobile-attachment://${Uri.encodeComponent(file.name)}',
-            name: file.name,
-            mimeType: file.mimeType ?? 'text/plain',
-            text: body,
-          ),
-        ),
-      );
+      picked.add(await textAttachmentFromFile(file));
     }
     return picked;
   }

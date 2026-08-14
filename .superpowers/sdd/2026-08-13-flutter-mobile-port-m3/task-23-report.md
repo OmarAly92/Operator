@@ -217,3 +217,141 @@ The platform implementation itself is intentionally not invoked by widget tests 
 ## Concerns
 
 None blocking. Task 25 is the planned consumer that mounts this composer in the final chat screen; Task 23 intentionally creates the widget and seam without prematurely wiring that later screen composition.
+
+## Review fix round 1
+
+### Findings verified
+
+- A running turn with an empty text field always rendered Stop, even after attachments made the composer non-empty. This made an attachment-only queued message impossible to submit.
+- Image and text picker paths allocated the full selected contents before comparing them with their per-file limits.
+- The original focused suite did not pin daemon steer refusal, the eight-item total cap, the 25 MB aggregate image cap, or caret-triggered suggestion dismissal.
+
+### Composer RED
+
+Five focused widget regressions were added before changing the composer branch.
+
+Command:
+
+```text
+flutter test test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart
+```
+
+Observed result:
+
+```text
+00:00 +6: sends an attachment-only message while a turn is running
+Expected: no matching candidates
+Actual: Found 1 widget with icon Icons.stop
+00:01 +13 -1: Some tests failed.
+```
+
+The remaining new regressions were already green during this RED run:
+
+- `steerUnavailable` hid steering and routed text through `onSend`.
+- Nine picked attachments retained only the first eight and showed `You can attach up to 8 items.`
+- Three 9 MB images retained only the first two and showed `Images must total under 25 MB.`
+- Moving the caret into a slash token opened the ranked skill sheet, and dismissing it without another text/caret change did not reopen it.
+
+The minimal fix adds `_attachments.isEmpty` to the running-turn Stop condition. Attachment-only content now renders the queued send control and submits its image payload through `onSend`.
+
+### Composer GREEN
+
+Command:
+
+```text
+flutter test test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart
+```
+
+Result:
+
+```text
+00:01 +14: All tests passed!
+```
+
+### Picker preflight RED
+
+The picker restriction tests use a mocked plugin `XFile`, the filesystem/platform boundary, without invoking image or document picker channels. They require an oversized declared length to throw the exact restriction message before the corresponding content read can run.
+
+Command:
+
+```text
+flutter test test/feature/chat/logic/attachment_picker_test.dart
+```
+
+Observed result:
+
+```text
+Error: Method not found: 'imageAttachmentFromFile'.
+Error: Method not found: 'textAttachmentFromFile'.
+00:00 +0 -1: Some tests failed.
+```
+
+The minimal implementation extracts the two file-to-model conversions into platform-independent helpers. Each helper calls `XFile.length()` before `readAsBytes` or `readAsString`, preserves the exact 10 MB and 500 KB restriction messages, and retains a second byte-count check after reading to protect against stale metadata or text encoding differences.
+
+### Picker preflight GREEN
+
+Command:
+
+```text
+flutter test test/feature/chat/logic/attachment_picker_test.dart
+```
+
+Result:
+
+```text
+00:00 +2: All tests passed!
+```
+
+### Combined focused GREEN
+
+Command:
+
+```text
+flutter test test/feature/chat/logic/attachment_picker_test.dart test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart
+```
+
+Result:
+
+```text
+00:01 +16: All tests passed!
+```
+
+### Review-fix implementation
+
+- Stop is now shown only when a turn is running, trimmed text is empty, and no attachment is present.
+- Attachment-only running-turn submissions remain forced to Queue for next and send their accepted payload.
+- Image and text conversions preflight selected-file length before content allocation.
+- Post-read image bytes and UTF-8 embedded-text bytes remain checked against the same limits.
+- Platform picker wiring still uses only `image_picker` and `file_selector`.
+- No app, build, dependency, local persistence, comment, or feature-level ScreenUtil change was introduced.
+
+### Review-fix guard pass
+
+- Widget tests assert rendered controls, exact user errors, accepted payload counts, and callback routing rather than private state.
+- The `XFile` mock is limited to the third-party file boundary; `verifyNever` proves oversized files are rejected before the allocation-triggering read.
+- Chat models and picked attachments remain real immutable values in widget tests.
+- The helpers have current production callers in both platform picker loops and are not speculative exports.
+- Installed `XFile.length`, `readAsBytes`, and `readAsString` APIs were verified against `cross_file` 0.3.5+4.
+- `flutter analyze` and `git diff --check` are clean.
+
+### Review-fix final verification
+
+Mandated command:
+
+```text
+flutter analyze && flutter test
+```
+
+Result:
+
+```text
+Analyzing mobile...
+No issues found! (ran in 1.9s)
+00:20 +613: All tests passed!
+```
+
+Review fix round 1 adds seven focused tests to the prior 606-test suite. No app launch or build command was run.
+
+### Review-fix concerns
+
+None blocking.

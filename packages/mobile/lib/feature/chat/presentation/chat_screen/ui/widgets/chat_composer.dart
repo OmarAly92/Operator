@@ -489,7 +489,9 @@ class _ChatComposerState extends State<ChatComposer> {
                         ),
                       ),
                       const Spacer(),
-                      if (_turnRunning && _controller.text.trim().isEmpty)
+                      if (_turnRunning &&
+                          _controller.text.trim().isEmpty &&
+                          _attachments.isEmpty)
                         _roundButton(
                           context,
                           icon: Icons.stop,
