@@ -211,6 +211,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -2628,6 +2629,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
@@ -3461,6 +3463,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/terminal/data/model/interface_transition_model.dart';
 import 'package:operator_mobile/feature/terminal/data/model/interface_transition_status_model.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/start_interface_transition_params.dart';
@@ -5296,6 +5299,13 @@ the two rows directly after the "Conversation map" row:
 ```
 
 - [ ] **Step 4: Handle the actions**
+
+`Result.when` is an extension method, so any file that calls it must import
+`core/helpers/result/result.dart` directly — a transitive import through a repository does not bring
+it into scope. `chat_body.dart` does not import it yet; add
+`import 'package:operator_mobile/core/helpers/result/result.dart';` alongside the new
+`OpenSessionShellParams`, `TerminalArgs`, `TerminalRepository`, `RoutesStrings`,
+`InterfaceSwitchCubit` and `showInterfaceSwitchSheet` imports.
 
 In `chat_body.dart`, pass `openingShell: _openingShell` and
 `interfaceSupported: context.read<InterfaceSwitchCubit>().supported` into
