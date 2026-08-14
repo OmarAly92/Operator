@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
@@ -85,5 +86,17 @@ void main() {
       const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
     );
     expect(sl<SettingsCubit>(), isA<SettingsCubit>());
+  });
+
+  test('creates a distinct chat cubit for each session parameter', () async {
+    final first = sl<ChatCubit>(param1: 'session-1');
+    final second = sl<ChatCubit>(param1: 'session-2');
+
+    expect(first.sessionId, 'session-1');
+    expect(second.sessionId, 'session-2');
+    expect(identical(first, second), isFalse);
+
+    await first.close();
+    await second.close();
   });
 }

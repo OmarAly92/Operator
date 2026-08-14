@@ -69,7 +69,10 @@ class SessionsBody extends StatelessWidget {
                     child: SessionCard(
                       session: session,
                       showProject: true,
-                      onTap: () {},
+                      onTap: () => Navigator.of(context).pushNamed(
+                        RoutesStrings.session,
+                        arguments: {'sessionId': session.id},
+                      ),
                       onLongPress: () => openActions(session),
                     ),
                   ),
@@ -82,7 +85,10 @@ class SessionsBody extends StatelessWidget {
                     child: SessionCard(
                       session: session,
                       showProject: true,
-                      onTap: () {},
+                      onTap: () => Navigator.of(context).pushNamed(
+                        RoutesStrings.session,
+                        arguments: {'sessionId': session.id},
+                      ),
                       onLongPress: () => openActions(session),
                     ),
                   ),

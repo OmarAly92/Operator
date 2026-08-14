@@ -39,6 +39,7 @@ void main() {
   late _MockMuxClient mux;
 
   setUp(() async {
+    HomeShell.selectedTab.value = 0;
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     repository = _MockSessionsRepository();

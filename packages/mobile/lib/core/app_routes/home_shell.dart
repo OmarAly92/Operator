@@ -9,12 +9,26 @@ import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
+  static final ValueNotifier<int> selectedTab = ValueNotifier<int>(0);
+
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  @override
+  void initState() {
+    super.initState();
+    HomeShell.selectedTab.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    HomeShell.selectedTab.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -22,17 +36,17 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       backgroundColor: skin.bgBase,
       body: IndexedStack(
-        index: _index,
+        index: HomeShell.selectedTab.value,
         children: [
           const SessionsScreen(),
-          OrchestratorScreen(onOpenBoard: () => setState(() => _index = 0)),
+          OrchestratorScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
           const PullRequestsScreen(),
-          SettingsScreen(onOpenBoard: () => setState(() => _index = 0)),
+          SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (next) => setState(() => _index = next),
+        currentIndex: HomeShell.selectedTab.value,
+        onTap: (next) => HomeShell.selectedTab.value = next,
         type: BottomNavigationBarType.fixed,
         backgroundColor: skin.bgSurface,
         selectedItemColor: skin.blue,

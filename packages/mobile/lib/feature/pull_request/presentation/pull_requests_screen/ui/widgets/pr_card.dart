@@ -16,11 +16,12 @@ import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 const int _projectLabelMax = 12;
 
 class PrCard extends StatelessWidget {
-  const PrCard({super.key, required this.pr, required this.session, this.summary});
+  const PrCard({super.key, required this.pr, required this.session, this.summary, this.onOpenSession});
 
   final SessionPrModel pr;
   final SessionModel session;
   final SessionPrSummaryModel? summary;
+  final VoidCallback? onOpenSession;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +111,12 @@ class PrCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onOpenSession != null)
+                IconButton(
+                  icon: const Icon(Icons.forum_outlined),
+                  tooltip: 'Open session',
+                  onPressed: onOpenSession,
+                ),
               IconButton(
                 icon: const Icon(Icons.open_in_new),
                 tooltip: 'Open in GitHub',

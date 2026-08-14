@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -99,6 +100,10 @@ class PullRequestsBody extends StatelessWidget {
                         pr: entry.pr,
                         session: entry.session,
                         summary: prCubit.summaryFor(entry.session.id ?? '', entry.pr.number ?? 0),
+                        onOpenSession: () => Navigator.of(context).pushNamed(
+                          RoutesStrings.session,
+                          arguments: {'sessionId': entry.session.id},
+                        ),
                       ),
                 ],
               ),

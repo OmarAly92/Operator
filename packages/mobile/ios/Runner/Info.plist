@@ -68,6 +68,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Operator uses your camera to scan the pairing QR code shown by Connect Mobile.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Operator attaches images you pick to the message you send your agent.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>github</string>

@@ -9,7 +9,7 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_pr_model.dart';
 
 void main() {
-  Future<void> pumpCard(WidgetTester tester, {SessionPrSummaryModel? summary}) async {
+  Future<void> pumpCard(WidgetTester tester, {SessionPrSummaryModel? summary, VoidCallback? onOpenSession}) async {
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
@@ -25,6 +25,7 @@ void main() {
                   displayName: 'Fix auth timeouts',
                 ),
                 summary: summary,
+                onOpenSession: onOpenSession,
               ),
             ),
           ),
@@ -78,10 +79,13 @@ void main() {
     expect(find.text('go test · branch behind base'), findsOneWidget);
   });
 
-  testWidgets('offers no session action, because no session screen exists yet', (tester) async {
-    await pumpCard(tester);
+  testWidgets('opens the session behind the pull request', (tester) async {
+    var opened = 0;
+    await pumpCard(tester, onOpenSession: () => opened++);
 
-    expect(find.byTooltip('Open session'), findsNothing);
     expect(find.byTooltip('Open in GitHub'), findsOneWidget);
+    await tester.tap(find.byTooltip('Open session'));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
   });
 }

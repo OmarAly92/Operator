@@ -8,6 +8,7 @@ abstract class ApiConsumer {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,
     Options? options,
+    CancelToken? cancelToken,
     T Function(Map<String, dynamic>)? errorFromJsonT,
   });
 
@@ -21,6 +22,13 @@ abstract class ApiConsumer {
   });
 
   Future<Response> put<T>(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParameters,
+    T Function(Map<String, dynamic>)? errorFromJsonT,
+  });
+
+  Future<Response> patch<T>(
     String path, {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParameters,

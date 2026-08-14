@@ -34,6 +34,7 @@ class OrchestratorCard extends StatefulWidget {
     required this.link,
     required this.workers,
     required this.onOpenBoard,
+    this.onOpen,
   });
 
   final String projectId;
@@ -41,6 +42,7 @@ class OrchestratorCard extends StatefulWidget {
   final OrchestratorModel? link;
   final List<SessionModel> workers;
   final VoidCallback onOpenBoard;
+  final VoidCallback? onOpen;
 
   @override
   State<OrchestratorCard> createState() => _OrchestratorCardState();
@@ -132,6 +134,12 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
                   style: AppTextStyle.style12Regular,
                 ),
               ),
+              if (widget.onOpen != null)
+                IconButton(
+                  icon: const Icon(Icons.forum_outlined),
+                  tooltip: 'Open orchestrator',
+                  onPressed: widget.onOpen,
+                ),
               if (intent.confirm)
                 IconButton(
                   icon: const Icon(Icons.refresh),

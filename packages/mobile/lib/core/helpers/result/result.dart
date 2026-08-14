@@ -38,6 +38,11 @@ extension ResultExtensions<T, E> on Result<T, E> {
     };
   }
 
+  Result<R, E> asFailure<R>() => switch (this) {
+    _ResultFailure<T, E>(:final error) => Result<R, E>.failure(error),
+    _ => throw StateError('asFailure called on a success'),
+  };
+
   void when({
     required void Function(T data) onSuccess,
     required void Function(E failure) onFailure,

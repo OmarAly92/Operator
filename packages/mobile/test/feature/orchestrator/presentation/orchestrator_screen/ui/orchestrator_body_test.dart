@@ -68,6 +68,9 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, child) => MaterialApp(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (_) => Text((settings.arguments as Map<String, dynamic>)['sessionId'] as String),
+            ),
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => sessionsCubit),
@@ -103,6 +106,26 @@ void main() {
 
     expect(find.text('One'), findsOneWidget);
     expect(find.text('Two'), findsOneWidget);
+  });
+
+  testWidgets('the orchestrator body opens the exact linked session id', (tester) async {
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: const BoardSnapshot(
+            projects: [ProjectModel(id: 'p1', name: 'One')],
+            orchestrators: [OrchestratorModel(id: 'orchestrator-session', projectId: 'p1')],
+          ),
+        ),
+      ),
+    );
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+
+    await pumpBody(tester, sessionsCubit);
+    await tester.tap(find.byTooltip('Open orchestrator'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('orchestrator-session'), findsOneWidget);
   });
 
   testWidgets('with no projects and the board failed, the connection-failure copy shows with a Retry action', (
@@ -169,5 +192,6 @@ void main() {
     expect((captured[0] as LaunchOrchestratorParams).clean, isTrue);
     expect((captured[1] as LaunchOrchestratorParams).clean, isTrue);
     expect((captured[1] as LaunchOrchestratorParams).mode, 'tui');
+    expect(find.text('o2'), findsOneWidget);
   });
 }

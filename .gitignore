@@ -97,3 +97,6 @@ e2e-artifacts/
 
 # Local pnpm artifacts
 pnpm-lock.yaml
+
+# Subagent-driven-development scratch (task briefs and reports)
+.superpowers/

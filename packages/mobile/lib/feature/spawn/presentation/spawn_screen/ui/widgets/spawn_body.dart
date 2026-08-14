@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
@@ -109,6 +110,10 @@ class _SpawnBodyState extends State<SpawnBody> {
           final messenger = ScaffoldMessenger.of(context);
           final navigator = Navigator.of(context);
           if (navigator.canPop()) navigator.pop();
+          navigator.pushNamed(
+            RoutesStrings.session,
+            arguments: {'sessionId': state.session.id},
+          );
           messenger.showSnackBar(
             SnackBar(
               content: Text('Spawned ${state.session.displayName ?? state.session.issueId ?? 'agent'}'),
