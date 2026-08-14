@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
@@ -149,6 +151,100 @@ class TerminalCubit extends Cubit<TerminalState> {
   void dismissBanner() {
     banner = null;
     _emit();
+  }
+
+  void setSendTarget(SendTarget target) {
+    sendTarget = target;
+    _emit();
+  }
+
+  void zoom(int delta) {
+    fontSize = (fontSize + delta).clamp(kTerminalMinFontSize, kTerminalMaxFontSize);
+    _emit();
+  }
+
+  Future<void> send() async {
+    final text = composer.text.trim();
+    if (text.isEmpty) return;
+
+    if (routeForSend(sendTarget) == SendTarget.terminal) {
+      if (!_writeToPty(text)) {
+        banner = kTerminalUnavailableNotice;
+        _emit();
+        return;
+      }
+      banner = kTerminalModeNotice;
+      composer.clear();
+      _emit();
+      return;
+    }
+
+    sending = true;
+    _emit();
+    final result = await _repository.sendSessionMessage(
+      args.sessionId,
+      SendSessionMessageParams(message: text),
+    );
+    result.when(
+      onSuccess: (_) => composer.clear(),
+      onFailure: (failure) {
+        // Only reroute onto a socket we actually hold open — otherwise the write
+        // is a no-op and we would clear the field having sent nothing.
+        if (routeForSend(sendTarget, failure) == SendTarget.terminal && _writeToPty(text)) {
+          sendTarget = SendTarget.terminal;
+          banner = kReroutedNotice;
+          composer.clear();
+          return;
+        }
+        banner = 'Send failed: ${failure.message}';
+      },
+    );
+    sending = false;
+    _emit();
+  }
+
+  bool _writeToPty(String text) {
+    if (status != MuxStatus.open) return false;
+    _mux.sendInput(args.id, terminalPayload(text), projectId: args.projectId);
+    return true;
+  }
+
+  Future<void> terminate() async {
+    final result = args.shellOnly
+        ? await _repository.closeShellTerminal(args.id)
+        : await _sessions.kill(args.sessionId);
+    result.when(
+      onSuccess: (_) => emit(const TerminalClosedState()),
+      onFailure: (failure) {
+        banner = '${args.shellOnly ? 'Close' : 'Kill'} failed: ${failure.message}';
+        _emit();
+      },
+    );
+  }
+
+  Future<void> restore() async {
+    restoring = true;
+    _emit();
+    final result = await _sessions.restore(args.sessionId);
+    result.when(
+      onSuccess: (_) {
+        banner = null;
+        notFound = false;
+        _reopenTimer?.cancel();
+        _reopenTimer = Timer(_restoreDelay, _reopen);
+      },
+      onFailure: (failure) => banner = 'Restore failed: ${failure.message}',
+    );
+    restoring = false;
+    _emit();
+  }
+
+  /// The daemon needs a moment to bring the worktree agent's PTY back before the
+  /// re-attach can land.
+  void _reopen() {
+    _mux.openTerminal(args.id, projectId: args.projectId);
+    final fit = _lastFit;
+    if (fit != null) _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
   }
 
   @override
