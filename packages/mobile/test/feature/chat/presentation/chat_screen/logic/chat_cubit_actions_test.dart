@@ -57,6 +57,11 @@ void main() {
   late Completer<Result<bool, Failure>> resumeResponse;
   late Completer<Result<List<String>, Failure>> stageRetryResponse;
   late bool stagingRetryFailedState;
+  late String stagingFailedPendingId;
+  late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
+  supersedingRefreshResponse;
+  late Set<ConversationAction> pendingDuringSupersedingRefresh;
+  late bool actionCompletedBeforeSupersedingRefresh;
 
   setUpAll(() {
     registerFallbackValue(_FakeSendMessageParams());
@@ -331,7 +336,8 @@ void main() {
         'look',
         attachments: const [ChatImageModel(mimeType: 'image/png', data: 'AAA')],
       );
-      final retry = cubit.retrySend(cubit.pendingSends.single.id);
+      stagingFailedPendingId = cubit.pendingSends.single.id;
+      final retry = cubit.retrySend(stagingFailedPendingId);
       await Future<void>.delayed(Duration.zero);
       stagingRetryFailedState = cubit.pendingSends.single.failed;
       stageRetryResponse.complete(Result.success(const ['/w/shot.png']));
@@ -349,7 +355,7 @@ void main() {
                 () => repository.sendMessage('w-1', captureAny()),
               ).captured.single
               as SendMessageParams;
-      expect(sendParams.clientMessageId, startsWith('mobile-'));
+      expect(sendParams.clientMessageId, stagingFailedPendingId);
       expect(
         sendParams.text,
         'look\n\nAttached files are available in the worktree:\n- /w/shot.png',
@@ -588,6 +594,47 @@ void main() {
       await action;
     },
     verify: (cubit) => expect(cubit.pendingActions, isEmpty),
+  );
+
+  blocTest<ChatCubit, ChatState>(
+    'keeps an action pending when its refresh is superseded',
+    build: () {
+      actionRefreshResponse = Completer();
+      supersedingRefreshResponse = Completer();
+      var liveCalls = 0;
+      when(
+        () => repository.getConversationPage('w-1', beforeSequence: null),
+      ).thenAnswer((_) {
+        liveCalls += 1;
+        if (liveCalls == 2) return actionRefreshResponse.future;
+        if (liveCalls == 3) return supersedingRefreshResponse.future;
+        return Future.value(Result.success(GlobalResponse(data: page())));
+      });
+      return ChatCubit(repository, 'w-1');
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      var actionCompleted = false;
+      final action = cubit.compact().whenComplete(() => actionCompleted = true);
+      await Future<void>.delayed(Duration.zero);
+      final supersedingRefresh = cubit.refresh();
+      await Future<void>.delayed(Duration.zero);
+      actionRefreshResponse.complete(
+        Result.success(GlobalResponse(data: page())),
+      );
+      await Future<void>.delayed(Duration.zero);
+      pendingDuringSupersedingRefresh = {...cubit.pendingActions};
+      actionCompletedBeforeSupersedingRefresh = actionCompleted;
+      supersedingRefreshResponse.complete(
+        Result.success(GlobalResponse(data: page())),
+      );
+      await Future.wait([action, supersedingRefresh]);
+    },
+    verify: (cubit) {
+      expect(pendingDuringSupersedingRefresh, {ConversationAction.compact});
+      expect(actionCompletedBeforeSupersedingRefresh, isFalse);
+      expect(cubit.pendingActions, isEmpty);
+    },
   );
 
   blocTest<ChatCubit, ChatState>(

@@ -148,6 +148,7 @@ class ChatCubit extends Cubit<ChatState> {
   int _catalogGeneration = 0;
   int _commonCatalogGeneration = 0;
   int _revision = 0;
+  Completer<void>? _refreshIdle;
 
   bool get usesProviderConfig => snapshot?.can('config_options') ?? false;
 
@@ -306,6 +307,7 @@ class ChatCubit extends Cubit<ChatState> {
 
   Future<void> refresh() async {
     if (isClosed) return;
+    final refreshIdle = _refreshIdle ??= Completer<void>();
     final generation = ++_refreshGeneration;
     refreshing = true;
     _emit();
@@ -321,6 +323,15 @@ class ChatCubit extends Cubit<ChatState> {
     loading = false;
     refreshing = false;
     _emit();
+    if (identical(_refreshIdle, refreshIdle)) {
+      _refreshIdle = null;
+      refreshIdle.complete();
+    }
+  }
+
+  Future<void> _awaitAuthoritativeRefresh() async {
+    final refreshIdle = _refreshIdle;
+    if (refreshIdle != null) await refreshIdle.future;
   }
 
   void _applyRefreshSuccess(ConversationSnapshotModel? live) {
@@ -637,6 +648,7 @@ class ChatCubit extends Cubit<ChatState> {
           _mergePages();
         }
         await refresh();
+        await _awaitAuthoritativeRefresh();
         return;
       }
 
@@ -697,6 +709,8 @@ class ChatCubit extends Cubit<ChatState> {
   @override
   Future<void> close() {
     _stopCatalogs();
+    _refreshIdle?.complete();
+    _refreshIdle = null;
     return super.close();
   }
 }
