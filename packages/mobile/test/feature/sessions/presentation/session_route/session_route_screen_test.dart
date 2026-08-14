@@ -67,6 +67,40 @@ void main() {
     await tester.pump();
   }
 
+  Future<SessionsCubit> settledCubit(List<SessionModel> sessions) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: BoardSnapshot(sessions: sessions)),
+      ),
+    );
+    final cubit = SessionsCubit(repository, mux);
+    await cubit.stream.firstWhere((state) => state is GetSessionsSuccessState);
+    clearInteractions(repository);
+    return cubit;
+  }
+
+  Future<void> pumpSettledRoute(
+    WidgetTester tester,
+    SessionsCubit cubit,
+  ) async {
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: BlocProvider.value(
+              value: cubit,
+              child: const SessionRouteScreen(sessionId: 'w-1'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+  }
+
   testWidgets('says a TUI session needs a build that has the terminal', (
     tester,
   ) async {
@@ -82,5 +116,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Session not found.'), findsOneWidget);
     verify(() => repository.getBoard()).called(1);
+  });
+
+  testWidgets('refreshes a settled empty cache once before reporting the session missing', (tester) async {
+    final cubit = await settledCubit(const []);
+    try {
+      await pumpSettledRoute(tester, cubit);
+
+      expect(find.text('Session not found.'), findsOneWidget);
+      verify(() => repository.getBoard()).called(1);
+    } finally {
+      await cubit.close();
+    }
+  });
+
+  testWidgets('uses a cached session without another board refresh', (tester) async {
+    final cubit = await settledCubit(
+      const [SessionModel(id: 'w-1', projectId: 'p', mode: 'tui')],
+    );
+    try {
+      await pumpSettledRoute(tester, cubit);
+
+      expect(find.textContaining('Terminal UI'), findsOneWidget);
+      verifyNever(() => repository.getBoard());
+    } finally {
+      await cubit.close();
+    }
   });
 }

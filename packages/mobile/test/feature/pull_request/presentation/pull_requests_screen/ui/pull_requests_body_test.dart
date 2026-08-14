@@ -69,6 +69,9 @@ void main() {
       ScreenUtilInit(
         designSize: const Size(390, 844),
         builder: (context, child) => MaterialApp(
+          onGenerateRoute: (settings) => MaterialPageRoute(
+            builder: (_) => Text((settings.arguments as Map<String, dynamic>)['sessionId'] as String),
+          ),
           home: SkinScope(
             skin: const DarkSkin(),
             child: BlocProvider<SessionsCubit>(
@@ -109,6 +112,32 @@ void main() {
 
     expect(find.text('Open 1'), findsOneWidget);
     expect(find.text('#1'), findsOneWidget);
+  });
+
+  testWidgets('the PR body opens the exact backing session id', (tester) async {
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: const BoardSnapshot(
+            sessions: [
+              SessionModel(
+                id: 'pr-session',
+                projectId: 'p1',
+                prs: [SessionPrModel(number: 1, state: 'open')],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final prCubit = PullRequestCubit(prRepository);
+
+    await pumpBody(tester, sessionsCubit, prCubit);
+    await tester.tap(find.byTooltip('Open session'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('pr-session'), findsOneWidget);
   });
 
   testWidgets('tapping the Merged pill hides the open PR and shows a merged one', (tester) async {

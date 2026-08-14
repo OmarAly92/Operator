@@ -108,6 +108,26 @@ void main() {
     expect(find.text('Two'), findsOneWidget);
   });
 
+  testWidgets('the orchestrator body opens the exact linked session id', (tester) async {
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: const BoardSnapshot(
+            projects: [ProjectModel(id: 'p1', name: 'One')],
+            orchestrators: [OrchestratorModel(id: 'orchestrator-session', projectId: 'p1')],
+          ),
+        ),
+      ),
+    );
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+
+    await pumpBody(tester, sessionsCubit);
+    await tester.tap(find.byTooltip('Open orchestrator'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('orchestrator-session'), findsOneWidget);
+  });
+
   testWidgets('with no projects and the board failed, the connection-failure copy shows with a Retry action', (
     tester,
   ) async {
