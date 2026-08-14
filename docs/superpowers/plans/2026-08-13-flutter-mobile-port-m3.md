@@ -10712,7 +10712,7 @@ Two composer behaviors are subtle and load-bearing:
 
 The mic key is **absent**, not disabled — voice is M5.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart`:
 
@@ -10934,12 +10934,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart`
 Expected: FAIL — the composer does not exist.
 
-- [ ] **Step 3: Add the draft cache key**
+- [x] **Step 3: Add the draft cache key**
 
 In `packages/mobile/lib/core/helpers/cache/cache_keys.dart`:
 
@@ -10947,7 +10947,7 @@ In `packages/mobile/lib/core/helpers/cache/cache_keys.dart`:
   static String chatDraft(String sessionId) => 'opr.chat.draft.$sessionId';
 ```
 
-- [ ] **Step 4: Write the attachment picker**
+- [x] **Step 4: Write the attachment picker**
 
 `packages/mobile/lib/feature/chat/logic/attachment_picker.dart`:
 
@@ -11080,7 +11080,7 @@ class PlatformAttachmentPicker implements AttachmentPicker {
 }
 ```
 
-- [ ] **Step 5: Write the suggestion sheet**
+- [x] **Step 5: Write the suggestion sheet**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/suggestion_sheet.dart`:
 
@@ -11262,7 +11262,7 @@ class _SuggestionSheetState extends State<_SuggestionSheet> {
 }
 ```
 
-- [ ] **Step 6: Write the composer**
+- [x] **Step 6: Write the composer**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart`:
 
@@ -11777,12 +11777,12 @@ class _ChatComposerState extends State<ChatComposer> {
 `firstOrNull` on the two `where(...)` chains comes from `package:collection`; add
 `import 'package:collection/collection.dart';` if the analyzer asks for it.
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/chat_composer_test.dart`
 Expected: PASS.
 
-- [ ] **Step 8: Verify nothing regressed and commit**
+- [x] **Step 8: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 560/560 green.

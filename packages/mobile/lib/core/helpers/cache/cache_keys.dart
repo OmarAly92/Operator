@@ -8,6 +8,7 @@ sealed class CacheKeys {
   static const String serverPassword = 'server.password';
   static const String onboardingSkipped = 'opr.onboardingSkipped';
   static const String activeProjectId = 'opr.activeProjectId';
+  static String chatDraft(String sessionId) => 'opr.chat.draft.$sessionId';
   static String chatEventCursor(String host, String port, String sessionId) =>
       'opr.chat.events.$host.$port.$sessionId';
 }
