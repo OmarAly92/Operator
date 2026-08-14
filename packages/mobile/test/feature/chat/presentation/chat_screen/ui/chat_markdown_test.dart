@@ -71,4 +71,96 @@ void main() {
     await pump(tester, const ChatMarkdown(text: '…', streaming: true));
     expect(find.text('…'), findsOneWidget);
   });
+
+  testWidgets('keeps rendered markdown content selectable', (tester) async {
+    await pump(
+      tester,
+      const ChatMarkdown(
+        text:
+            '# Findings\n\n- inspect\n\n> quoted\n\n| File | State |\n| --- | --- |\n| app.ts | changed |\n\n![result](https://example.com/result.png)',
+      ),
+    );
+
+    for (final value in ['Findings', 'inspect', 'quoted', 'File', 'app.ts']) {
+      expect(
+        find.ancestor(
+          of: find.text(value),
+          matching: find.byType(SelectableText),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.ancestor(
+        of: find.textContaining('Image unavailable: result'),
+        matching: find.byType(SelectableText),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('seeds later code blocks with the shared wrap preference', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const ChatMarkdown(key: ValueKey('first'), text: '```dart\nfirst\n```'),
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Wrap'));
+    await tester.pump();
+
+    await pump(
+      tester,
+      const ChatMarkdown(key: ValueKey('second'), text: '```dart\nsecond\n```'),
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.text('Wrap'));
+    await tester.pump();
+  });
+
+  testWidgets('rebuilds linked prose without recognizer exceptions', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const ChatMarkdown(text: '[first](https://example.com/first)'),
+    );
+    await tester.pumpWidget(
+      SkinScope(
+        skin: const DarkSkin(),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ChatMarkdown(
+                  text: '[second](https://example.com/second)',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
 }

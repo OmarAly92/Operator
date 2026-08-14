@@ -15,6 +15,8 @@ final RegExp _inline = RegExp(
   r'~~([^~]+)~~|\*([^*\n]+)\*|_([^_\n]+)_|(https?://[^\s<]+))',
 );
 
+bool _preferredWrap = false;
+
 class ChatMarkdown extends StatelessWidget {
   const ChatMarkdown({super.key, required this.text, this.streaming = false});
 
@@ -71,10 +73,8 @@ class ChatMarkdown extends StatelessWidget {
                     ),
                     const HorizontalSpace(8),
                     Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: _spans(context, skin, items[index].text),
-                        ),
+                      child: _MarkdownInlineText(
+                        text: items[index].text,
                         style: AppTextStyle.style16Regular.copyWith(
                           color: items[index].checked == true
                               ? skin.textTertiary
@@ -92,8 +92,8 @@ class ChatMarkdown extends StatelessWidget {
           ],
         );
       case HeadingBlock(:final text, :final level):
-        return Text.rich(
-          TextSpan(children: _spans(context, skin, text)),
+        return _MarkdownInlineText(
+          text: text,
           style:
               (level > 2
                       ? AppTextStyle.style16Bold
@@ -108,8 +108,8 @@ class ChatMarkdown extends StatelessWidget {
               left: BorderSide(color: skin.borderStrong, width: 2),
             ),
           ),
-          child: Text.rich(
-            TextSpan(children: _spans(context, skin, text)),
+          child: _MarkdownInlineText(
+            text: text,
             style: AppTextStyle.style15Regular.copyWith(
               color: skin.textSecondary,
               height: 1.5,
@@ -118,8 +118,8 @@ class ChatMarkdown extends StatelessWidget {
           ),
         );
       case ParagraphBlock(:final text):
-        return SelectableText.rich(
-          TextSpan(children: _spans(context, skin, text)),
+        return _MarkdownInlineText(
+          text: text,
           style: AppTextStyle.style16Regular.copyWith(
             color: skin.textPrimary,
             height: 1.5,
@@ -127,18 +127,52 @@ class ChatMarkdown extends StatelessWidget {
         );
     }
   }
+}
 
-  List<InlineSpan> _spans(BuildContext context, AppSkin skin, String value) {
+class _MarkdownInlineText extends StatefulWidget {
+  const _MarkdownInlineText({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  State<_MarkdownInlineText> createState() => _MarkdownInlineTextState();
+}
+
+class _MarkdownInlineTextState extends State<_MarkdownInlineText> {
+  final _recognizers = <TapGestureRecognizer>[];
+
+  @override
+  Widget build(BuildContext context) {
+    _disposeRecognizers();
+    final skin = context.skin;
+    return SelectableText.rich(
+      TextSpan(children: _spans(skin)),
+      style: widget.style,
+    );
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  List<InlineSpan> _spans(AppSkin skin) {
     final spans = <InlineSpan>[];
     var at = 0;
 
-    for (final match in _inline.allMatches(value)) {
+    for (final match in _inline.allMatches(widget.text)) {
       if (match.start > at) {
-        spans.add(TextSpan(text: value.substring(at, match.start)));
+        spans.add(TextSpan(text: widget.text.substring(at, match.start)));
       }
 
       final url = match.group(3) ?? match.group(4) ?? match.group(11);
       if (url != null) {
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () =>
+              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        _recognizers.add(recognizer);
         spans.add(
           TextSpan(
             text: match.group(2) ?? url,
@@ -146,11 +180,7 @@ class ChatMarkdown extends StatelessWidget {
               color: skin.blue,
               decoration: TextDecoration.underline,
             ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => launchUrl(
-                Uri.parse(url),
-                mode: LaunchMode.externalApplication,
-              ),
+            recognizer: recognizer,
           ),
         );
       } else if (match.group(5) != null) {
@@ -188,10 +218,17 @@ class ChatMarkdown extends StatelessWidget {
       at = match.end;
     }
 
-    if (at < value.length) {
-      spans.add(TextSpan(text: value.substring(at)));
+    if (at < widget.text.length) {
+      spans.add(TextSpan(text: widget.text.substring(at)));
     }
     return spans;
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
   }
 }
 
@@ -207,8 +244,14 @@ class _CodeCard extends StatefulWidget {
 }
 
 class _CodeCardState extends State<_CodeCard> {
-  bool _wrap = false;
+  late bool _wrap;
   bool _copied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _wrap = _preferredWrap;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +292,10 @@ class _CodeCardState extends State<_CodeCard> {
                   icon: Icons.wrap_text,
                   label: 'Wrap',
                   active: _wrap,
-                  onTap: () => setState(() => _wrap = !_wrap),
+                  onTap: () => setState(() {
+                    _preferredWrap = !_wrap;
+                    _wrap = _preferredWrap;
+                  }),
                 ),
                 _CodeAction(
                   icon: _copied ? Icons.check : Icons.copy_outlined,
@@ -336,7 +382,7 @@ class _MarkdownImageState extends State<_MarkdownImage> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     if (_failed) {
-      return AppText(
+      return SelectableText(
         'Image unavailable: ${widget.alt.isEmpty ? widget.url : widget.alt}',
         style: AppTextStyle.style12Regular.copyWith(
           color: skin.textTertiary,
@@ -372,7 +418,7 @@ class _MarkdownImageState extends State<_MarkdownImage> {
           if (widget.alt.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: AppText(
+              child: SelectableText(
                 widget.alt,
                 style: AppTextStyle.style10Regular.copyWith(
                   color: skin.textTertiary,
@@ -398,7 +444,7 @@ class _MarkdownTable extends StatelessWidget {
     Widget cell(String value, {bool header = false}) => Container(
       constraints: const BoxConstraints(minWidth: 110, maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      child: AppText(
+      child: SelectableText(
         value,
         style: header
             ? AppTextStyle.style12Bold.copyWith(color: skin.textPrimary)
