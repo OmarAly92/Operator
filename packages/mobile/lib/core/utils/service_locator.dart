@@ -46,47 +46,83 @@ class ServiceLocator {
   static Future<void> _coreSetup() async {
     final preferences = await SharedPreferences.getInstance();
     sl.registerLazySingleton<SharedPreferences>(() => preferences);
-    sl.registerLazySingleton<FlutterSecureStorage>(() => const FlutterSecureStorage());
+    sl.registerLazySingleton<FlutterSecureStorage>(
+      () => const FlutterSecureStorage(),
+    );
 
     sl.registerLazySingleton<ServerConfigStore>(
       () => ServerConfigStore(sl<FlutterSecureStorage>()),
     );
-    sl.registerLazySingleton<ApiConsumer>(() => DioConsumer(sl<ServerConfigStore>()));
+    sl.registerLazySingleton<ApiConsumer>(
+      () => DioConsumer(sl<ServerConfigStore>()),
+    );
     sl.registerLazySingleton<NetworkStatus>(
       () => NetworkStatusImp(sl<ApiConsumer>(), sl<ServerConfigStore>()),
     );
     sl.registerLazySingleton<MuxClient>(() {
       final current = sl<ServerConfigStore>().current;
-      return MuxClient(current ?? const ServerConfig(host: '127.0.0.1', httpPort: '1', secure: false, password: ''));
+      return MuxClient(
+        current ??
+            const ServerConfig(
+              host: '127.0.0.1',
+              httpPort: '1',
+              secure: false,
+              password: '',
+            ),
+      );
     });
   }
 
   static void _pairingFeatureSetup() {
     sl.registerFactoryParam<PairingScanCubit, bool, void>(
-      (fromOnboarding, _) => PairingScanCubit(sl<PairingRepository>(), sl<ServerConfigStore>(), fromOnboarding: fromOnboarding),
+      (fromOnboarding, _) => PairingScanCubit(
+        sl<PairingRepository>(),
+        sl<ServerConfigStore>(),
+        fromOnboarding: fromOnboarding,
+      ),
     );
-    sl.registerFactory<ManualConnectCubit>(() => ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()));
+    sl.registerFactory<ManualConnectCubit>(
+      () =>
+          ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()),
+    );
 
     sl.registerLazySingleton<PairingRepository>(
-      () => PairingRepositoryImp(sl<PairingRemoteDataSource>(), sl<ServerConfigStore>()),
+      () => PairingRepositoryImp(
+        sl<PairingRemoteDataSource>(),
+        sl<ServerConfigStore>(),
+      ),
     );
-    sl.registerLazySingleton<PairingRemoteDataSource>(() => PairingRemoteDataSourceImp(sl<ApiConsumer>()));
+    sl.registerLazySingleton<PairingRemoteDataSource>(
+      () => PairingRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
   }
 
   static void _sessionsFeatureSetup() {
-    sl.registerLazySingleton<SessionsCubit>(() => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()));
+    sl.registerLazySingleton<SessionsCubit>(
+      () => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()),
+    );
 
     sl.registerLazySingleton<SessionsRepository>(
-      () => SessionsRepositoryImp(sl<SessionsRemoteDataSource>(), sl<NetworkStatus>()),
+      () => SessionsRepositoryImp(
+        sl<SessionsRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
-    sl.registerLazySingleton<SessionsRemoteDataSource>(() => SessionsRemoteDataSourceImp(sl<ApiConsumer>()));
+    sl.registerLazySingleton<SessionsRemoteDataSource>(
+      () => SessionsRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
   }
 
   static void _pullRequestFeatureSetup() {
-    sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(sl<PullRequestRepository>()));
+    sl.registerFactory<PullRequestCubit>(
+      () => PullRequestCubit(sl<PullRequestRepository>()),
+    );
 
     sl.registerLazySingleton<PullRequestRepository>(
-      () => PullRequestRepositoryImp(sl<PullRequestRemoteDataSource>(), sl<NetworkStatus>()),
+      () => PullRequestRepositoryImp(
+        sl<PullRequestRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<PullRequestRemoteDataSource>(
       () => PullRequestRemoteDataSourceImp(sl<ApiConsumer>()),
@@ -94,10 +130,15 @@ class ServiceLocator {
   }
 
   static void _orchestratorFeatureSetup() {
-    sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(sl<OrchestratorRepository>()));
+    sl.registerFactory<OrchestratorCubit>(
+      () => OrchestratorCubit(sl<OrchestratorRepository>()),
+    );
 
     sl.registerLazySingleton<OrchestratorRepository>(
-      () => OrchestratorRepositoryImp(sl<OrchestratorRemoteDataSource>(), sl<NetworkStatus>()),
+      () => OrchestratorRepositoryImp(
+        sl<OrchestratorRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<OrchestratorRemoteDataSource>(
       () => OrchestratorRemoteDataSourceImp(sl<ApiConsumer>()),
@@ -108,18 +149,27 @@ class ServiceLocator {
     sl.registerFactory<SpawnCubit>(() => SpawnCubit(sl<SpawnRepository>()));
 
     sl.registerLazySingleton<SpawnRepository>(
-      () => SpawnRepositoryImp(sl<SpawnRemoteDataSource>(), sl<NetworkStatus>()),
+      () =>
+          SpawnRepositoryImp(sl<SpawnRemoteDataSource>(), sl<NetworkStatus>()),
     );
-    sl.registerLazySingleton<SpawnRemoteDataSource>(() => SpawnRemoteDataSourceImp(sl<ApiConsumer>()));
+    sl.registerLazySingleton<SpawnRemoteDataSource>(
+      () => SpawnRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
   }
 
   static void _settingsFeatureSetup() {
-    sl.registerFactory<SettingsCubit>(() => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>()));
+    sl.registerFactory<SettingsCubit>(
+      () => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>()),
+    );
   }
 
   static void _chatFeatureSetup() {
     sl.registerFactoryParam<ChatCubit, String, void>(
-      (sessionId, _) => ChatCubit(sl<ChatRepository>(), sessionId),
+      (sessionId, _) => ChatCubit(
+        sl<ChatRepository>(),
+        sessionId,
+        configStore: sl<ServerConfigStore>(),
+      ),
     );
 
     sl.registerLazySingleton<ChatRepository>(

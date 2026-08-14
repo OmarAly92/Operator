@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
@@ -18,6 +21,7 @@ import 'package:operator_mobile/feature/chat/data/model/params/stage_attachments
 import 'package:operator_mobile/feature/chat/data/model/params/steer_conversation_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
+import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/feature/chat/logic/conversation_errors.dart';
 import 'package:operator_mobile/feature/chat/logic/conversation_pages.dart';
 
@@ -92,32 +96,48 @@ class ChatCubit extends Cubit<ChatState> {
   factory ChatCubit(
     ChatRepository repository,
     String sessionId, {
+    required ServerConfigStore configStore,
     Duration configPoll = const Duration(seconds: 5),
     Duration skillPoll = const Duration(seconds: 60),
     Duration workspacePoll = const Duration(seconds: 30),
+    Duration refreshDebounce = const Duration(milliseconds: 120),
+    Duration reconnectMin = const Duration(seconds: 1),
+    Duration reconnectMax = const Duration(seconds: 15),
   }) => ChatCubit._(
     repository,
     sessionId,
+    configStore: configStore,
     configPoll: configPoll,
     skillPoll: skillPoll,
     workspacePoll: workspacePoll,
+    refreshDebounce: refreshDebounce,
+    reconnectMin: reconnectMin,
+    reconnectMax: reconnectMax,
   );
 
   ChatCubit._(
     this._repository,
     this.sessionId, {
+    required this._configStore,
     required this._configPoll,
     required this._skillPoll,
     required this._workspacePoll,
+    required this._refreshDebounce,
+    required this._reconnectMin,
+    required this._reconnectMax,
   }) : super(const ChatInitialState()) {
     scheduleMicrotask(() => unawaited(refresh()));
   }
 
   final ChatRepository _repository;
   final String sessionId;
+  final ServerConfigStore _configStore;
   final Duration _configPoll;
   final Duration _skillPoll;
   final Duration _workspacePoll;
+  final Duration _refreshDebounce;
+  final Duration _reconnectMin;
+  final Duration _reconnectMax;
 
   final List<ConversationSnapshotModel> _pages = [];
 
@@ -140,6 +160,13 @@ class ChatCubit extends Cubit<ChatState> {
   Timer? _configTimer;
   Timer? _skillTimer;
   Timer? _workspaceTimer;
+  CancelToken? _eventCancel;
+  StreamSubscription<ConversationEventModel>? _eventSub;
+  Timer? _refreshTimer;
+  Timer? _reconnectTimer;
+  Duration _reconnectDelay = Duration.zero;
+  int _cursor = 0;
+  bool _streaming = false;
   bool _commonCatalogsStarted = false;
   bool? _providerOwnsConfig;
   String? _catalogConversationId;
@@ -151,6 +178,8 @@ class ChatCubit extends Cubit<ChatState> {
   Completer<void>? _refreshIdle;
 
   bool get usesProviderConfig => snapshot?.can('config_options') ?? false;
+
+  Future<void> onResumed() => refresh();
 
   Future<void> send(
     String text, {
@@ -323,6 +352,7 @@ class ChatCubit extends Cubit<ChatState> {
     loading = false;
     refreshing = false;
     _emit();
+    _startEvents();
     if (identical(_refreshIdle, refreshIdle)) {
       _refreshIdle = null;
       refreshIdle.complete();
@@ -351,6 +381,60 @@ class ChatCubit extends Cubit<ChatState> {
     } else {
       error = message;
     }
+  }
+
+  void _startEvents() {
+    if (_streaming || unavailable != null || snapshot == null) return;
+    _streaming = true;
+    _reconnectDelay = _reconnectMin;
+    _cursor = (CacheHelper.get(_cursorKey) as int?) ?? 0;
+    _openEventStream();
+  }
+
+  void _openEventStream() {
+    if (isClosed || !_streaming) return;
+    final cancelToken = CancelToken();
+    _eventCancel = cancelToken;
+    _eventSub = _repository
+        .events(after: _cursor, cancelToken: cancelToken)
+        .listen(
+          _onEvent,
+          onError: (Object _) => _scheduleReconnect(),
+          onDone: _scheduleReconnect,
+          cancelOnError: true,
+        );
+  }
+
+  void _onEvent(ConversationEventModel event) {
+    _reconnectDelay = _reconnectMin;
+    if (event.seq > _cursor) {
+      _cursor = event.seq;
+      unawaited(CacheHelper.save(_cursorKey, _cursor));
+    }
+    if (event.sessionId != sessionId || !event.touchesConversation) return;
+
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(_refreshDebounce, () => unawaited(refresh()));
+  }
+
+  void _scheduleReconnect() {
+    unawaited(_eventSub?.cancel());
+    _eventSub = null;
+    if (isClosed || !_streaming) return;
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(_reconnectDelay, _openEventStream);
+    final next = _reconnectDelay * 2;
+    _reconnectDelay = next > _reconnectMax ? _reconnectMax : next;
+  }
+
+  String get _cursorKey {
+    final config = _configStore.current;
+    return CacheKeys.chatEventCursor(
+      config?.host ?? '',
+      config?.httpPort ?? '',
+      sessionId,
+    );
   }
 
   Future<void> loadOlder() async {
@@ -708,7 +792,12 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() {
+    _streaming = false;
     _stopCatalogs();
+    _refreshTimer?.cancel();
+    _reconnectTimer?.cancel();
+    _eventCancel?.cancel();
+    unawaited(_eventSub?.cancel());
     _refreshIdle?.complete();
     _refreshIdle = null;
     return super.close();
