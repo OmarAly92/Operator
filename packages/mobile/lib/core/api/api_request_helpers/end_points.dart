@@ -37,5 +37,13 @@ sealed class EndPoints {
   static String sessionWorkspaceFiles(String sessionId) => '${_session(sessionId)}/workspace/files';
   static String sessionResumeAgent(String sessionId) => '${_session(sessionId)}/resume-agent';
 
+  static const String shellTerminals = '/api/v1/shell-terminals';
+
+  static String shellTerminal(String handleId) =>
+      '$shellTerminals/${Uri.encodeComponent(handleId)}';
+  static String sessionSend(String sessionId) => '${_session(sessionId)}/send';
+  static String sessionInterfaceTransition(String sessionId) =>
+      '${_session(sessionId)}/interface-transition';
+
   static String _session(String sessionId) => '$sessions/${Uri.encodeComponent(sessionId)}';
 }
