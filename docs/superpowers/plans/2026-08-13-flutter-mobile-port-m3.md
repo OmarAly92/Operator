@@ -7853,7 +7853,7 @@ modes are spelled out rather than implied:
 Validation runs before submit and reports the **first** problem, naming the field by its schema
 title (falling back to `humanizeInputName`), exactly as `UserInputCard` does today.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/ui/request_cards_test.dart`:
 
@@ -8028,12 +8028,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/request_cards_test.dart`
 Expected: FAIL — the cards do not exist.
 
-- [ ] **Step 3: Write the approval card**
+- [x] **Step 3: Write the approval card**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/approval_card.dart`:
 
@@ -8166,7 +8166,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
 }
 ```
 
-- [ ] **Step 4: Write the elicitation card**
+- [x] **Step 4: Write the elicitation card**
 
 `packages/mobile/lib/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart`:
 
@@ -8490,12 +8490,12 @@ class _InputField extends StatelessWidget {
 reports it as undefined on this SDK, use `activeColor` — the two differ only by version, and the
 project pins Flutter 3.44.5 in `.github/workflows/mobile-flutter.yml`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/ui/request_cards_test.dart`
 Expected: PASS.
 
-- [ ] **Step 6: Verify nothing regressed and commit**
+- [x] **Step 6: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 542/542 green.
