@@ -3620,7 +3620,7 @@ Usage and reasoning rows are filtered out of the mobile timeline: they remain in
 record, but prose and work are the primary surface on a phone. A `plan` activity is dropped only
 when its own turn already carries a plan, so the same plan is not rendered twice.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/logic/timeline_model_test.dart` (ported from
 `chat/timelineModel.test.ts`):
@@ -3831,12 +3831,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/logic/timeline_model_test.dart`
 Expected: FAIL — the library does not exist.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `packages/mobile/lib/feature/chat/logic/timeline_model.dart`:
 
@@ -4049,12 +4049,12 @@ String _previewText(String value, int limit) {
 `import 'package:collection/collection.dart';` — `collection` is already a transitive dependency of
 `flutter_test` and `equatable`.
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `flutter test test/feature/chat/logic/timeline_model_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 483/483 green.
@@ -5226,7 +5226,7 @@ is nothing to short-circuit into; and gating it on a `/healthz` round-trip befor
 attempt would double the traffic of the reconnect loop that already exists to handle exactly this
 failure. Its failures surface as stream errors, which Task 19's loop already treats as "reconnect".
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/data/repository/chat_repository_test.dart`:
 
@@ -5326,12 +5326,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/data/repository/chat_repository_test.dart`
 Expected: FAIL — the repository does not exist.
 
-- [ ] **Step 3: Write the repository**
+- [x] **Step 3: Write the repository**
 
 `packages/mobile/lib/feature/chat/data/repository/chat_repository.dart`:
 
@@ -5488,12 +5488,12 @@ class ChatRepositoryImp implements ChatRepository {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/data/repository/chat_repository_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Verify nothing regressed and commit**
+- [x] **Step 5: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 501/501 green.
@@ -6796,7 +6796,7 @@ Four behaviors matter and are what the test pins:
   ladder `MuxBackoff` uses for the board socket, but local to this cubit because the daemon's SSE
   endpoint and the mux socket fail independently.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/mobile/test/feature/chat/presentation/chat_screen/logic/chat_cubit_stream_test.dart`:
 
@@ -6962,12 +6962,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/chat_cubit_stream_test.dart`
 Expected: FAIL — `configStore`, `refreshDebounce` and `onResumed` are not defined.
 
-- [ ] **Step 3: Extend the constructor**
+- [x] **Step 3: Extend the constructor**
 
 ```dart
   ChatCubit(
@@ -6998,7 +6998,7 @@ directly and must be updated to pass a `_MockConfigStore` whose `current` return
 `ServerConfig`, plus `SharedPreferences.setMockInitialValues({})` and `await CacheHelper.init()` in
 their `setUp` — the cursor read happens on the first stream attempt.
 
-- [ ] **Step 4: Add the stream loop**
+- [x] **Step 4: Add the stream loop**
 
 Inside `ChatCubit`:
 
@@ -7083,12 +7083,12 @@ Call `_startEvents();` immediately after `_startCatalogs();` at the end of `refr
 Add `import 'package:dio/dio.dart';`, `import 'package:operator_mobile/core/api/server_config_store.dart';`
 and `import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `flutter test test/feature/chat/presentation/chat_screen/logic/`
 Expected: PASS — all three cubit test files.
 
-- [ ] **Step 6: Verify nothing regressed and commit**
+- [x] **Step 6: Verify nothing regressed and commit**
 
 Run: `flutter analyze && flutter test`
 Expected: "No issues found!", 530/530 green.
