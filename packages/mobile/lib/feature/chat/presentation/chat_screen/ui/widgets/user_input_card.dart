@@ -59,9 +59,11 @@ class _UserInputCardState extends State<UserInputCard> {
   Future<void> _submit(InputSchemaModel? schema) async {
     final missing = missingRequiredInputs(schema?.required, _values);
     if (missing.isNotEmpty) {
+      final missingName = missing.first;
+      final property = schema?.properties[missingName];
       setState(
         () => _validationError =
-            'Complete ${missing.join(', ')} before continuing.',
+            'Complete ${property?.title ?? humanizeInputName(missingName)} before continuing.',
       );
       return;
     }
@@ -190,12 +192,13 @@ class _UserInputCardState extends State<UserInputCard> {
                   enabled: !widget.busy && !_submitting,
                   onPressed: () => _resolve('decline'),
                 ),
-                if (isUrlMode && url != null)
+                if (isUrlMode)
                   ChatActionButton(
                     label: _submitting ? 'Opening…' : 'Open link',
                     primary: true,
-                    enabled: !widget.busy && !_submitting,
+                    enabled: !widget.busy && !_submitting && url != null,
                     onPressed: () async {
+                      if (url == null) return;
                       final opened = await launchUrl(
                         url,
                         mode: LaunchMode.externalApplication,

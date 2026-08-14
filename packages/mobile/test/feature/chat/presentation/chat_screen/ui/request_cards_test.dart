@@ -150,7 +150,7 @@ void main() {
       expect(find.text('Credentials'), findsOneWidget);
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Complete token'), findsOneWidget);
+      expect(find.textContaining('Complete Token'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'ab');
       await tester.tap(find.text('Continue'));
@@ -163,7 +163,79 @@ void main() {
       expect(submitted, {'token': 'abcd'});
     });
 
-    testWidgets('refuses to open a URL the provider made unsafe', (
+    testWidgets('reports only the first missing required field by its title', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        UserInputCard(
+          activity: request(
+            kind: 'user_input',
+            detail: const {
+              'inputMode': 'form',
+              'schema': {
+                'required': ['api_token', 'account_key'],
+                'properties': {
+                  'api_token': {'type': 'string', 'title': 'API token'},
+                  'account_key': {'type': 'string', 'title': 'Account key'},
+                },
+              },
+            },
+          ),
+          busy: false,
+          onResolve: (_, _, [_]) async {},
+        ),
+      );
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Complete API token before continuing'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('account_key'), findsNothing);
+      expect(
+        find.text('Complete Account key before continuing.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('humanizes the first missing required field without a title', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        UserInputCard(
+          activity: request(
+            kind: 'user_input',
+            detail: const {
+              'inputMode': 'form',
+              'schema': {
+                'required': ['backup_code', 'token'],
+                'properties': {
+                  'backup_code': {'type': 'string'},
+                  'token': {'type': 'string', 'title': 'Token'},
+                },
+              },
+            },
+          ),
+          busy: false,
+          onResolve: (_, _, [_]) async {},
+        ),
+      );
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Complete Backup code before continuing'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('backup_code'), findsNothing);
+    });
+
+    testWidgets('renders an unreachable Open link action for an unsafe URL', (
       tester,
     ) async {
       await pump(
@@ -178,6 +250,16 @@ void main() {
         ),
       );
       expect(find.textContaining('unsafe or invalid URL'), findsOneWidget);
+      expect(find.text('Open link'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is InkWell && widget.onTap == null,
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('cannot answer a request with no provider identity', (
