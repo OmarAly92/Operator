@@ -302,9 +302,16 @@ class _SpikeTerminalState extends State<SpikeTerminal> {
   final TerminalController _controller = TerminalController();
   final MuxClient _mux = sl<MuxClient>();
   StreamSubscription<TerminalEvent>? _events;
+  final Map<int, Offset> _pointers = {};
   double _scale = 1;
   double _scaleStart = 1;
+  double _pinchDistance = 0;
   String _grid = '';
+
+  double _distance() {
+    final points = _pointers.values.toList();
+    return points.length < 2 ? 0 : (points[0] - points[1]).distance;
+  }
 
   @override
   void initState() {
@@ -312,8 +319,13 @@ class _SpikeTerminalState extends State<SpikeTerminal> {
     _events = _mux.terminalEvents.where((event) => event.id == widget.id).listen(_onEvent);
     _terminal.onOutput = (data) => _mux.sendInput(widget.id, data, projectId: widget.projectId);
     _terminal.onResize = (cols, rows, _, _) {
-      setState(() => _grid = '$cols x $rows');
       _mux.resize(widget.id, cols, rows, projectId: widget.projectId);
+      // TerminalView resizes during layout, so this fires inside performLayout:
+      // calling setState synchronously here is illegal and silently breaks the
+      // route's rebuild pipeline for the rest of the session.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _grid = '$cols x $rows');
+      });
     };
     _mux.connect();
     _mux.openTerminal(widget.id, projectId: widget.projectId);
@@ -355,12 +367,26 @@ class _SpikeTerminalState extends State<SpikeTerminal> {
       title: Text(_grid),
       actions: [IconButton(onPressed: _copy, icon: const Icon(Icons.copy))],
     ),
-    body: GestureDetector(
-      onScaleStart: (_) => _scaleStart = _scale,
-      onScaleUpdate: (details) {
-        if (details.pointerCount < 2) return;
-        setState(() => _scale = (_scaleStart * details.scale).clamp(0.4, 1.0));
+    // A Listener, not a GestureDetector: a ScaleGestureRecognizer accepts
+    // single-pointer contacts and wins the arena against xterm's own long-press
+    // recognizer, which would kill selection. This mirrors Task 13's design, so
+    // the spike measures the gesture stack the product will actually ship.
+    body: Listener(
+      onPointerDown: (event) {
+        _pointers[event.pointer] = event.localPosition;
+        if (_pointers.length == 2) {
+          _scaleStart = _scale;
+          _pinchDistance = _distance();
+        }
       },
+      onPointerMove: (event) {
+        if (!_pointers.containsKey(event.pointer)) return;
+        _pointers[event.pointer] = event.localPosition;
+        if (_pointers.length < 2 || _pinchDistance <= 0) return;
+        setState(() => _scale = (_scaleStart * (_distance() / _pinchDistance)).clamp(0.4, 1.0));
+      },
+      onPointerUp: (event) => _pointers.remove(event.pointer),
+      onPointerCancel: (event) => _pointers.remove(event.pointer),
       child: Transform.scale(
         scale: _scale,
         alignment: Alignment.topLeft,
@@ -394,7 +420,7 @@ Measured against current behavior, i.e. the RN app on the same phone and the sam
 | 1 | **Gesture parity** | Open a session running a full-screen TUI (Claude Code, or `vim`/`less` in a shell). One-finger drag up and down; then pinch with two fingers. | The one-finger drag scrolls (scrollback in a plain shell, the app's own scroll in a TUI) and the two-finger pinch scales the grid between shrink-to-fit and 1:1 — **and the two do not fight**: a pinch never scrolls, a drag never zooms. |
 | 2 | **PTY fit negotiation** | With the phone as the only viewer, watch the title's grid readout and check the shell reflows to it. Then open the same session on the desktop app and watch the readout change to the desktop's grid. | The phone's reported grid reaches the daemon (the PTY reflows), and when a desktop viewer owns the authoritative size the phone renders that grid scaled to fit instead of imposing its own. |
 | 3 | **Output bursts** | Run something noisy — `yes | head -100000`, or a real build. | Output stays smooth; no multi-second freeze, no dropped frames severe enough to make the screen unresponsive. |
-| 4 | **Selection and copy** | Long-press on a line, drag to extend, tap the copy action, paste elsewhere. | A selection is visible, extends with the drag, and the copy action puts the selected text on the clipboard. |
+| 4 | **Selection and copy** | Long-press on a line, drag to extend, tap the copy action, paste elsewhere. | A selection is visible, extends with the drag, and the copy action puts the selected text on the clipboard. If nothing highlights, check the gesture stack **before** blaming the renderer: any recognizer that claims the arena (a `GestureDetector` with `onScale*`, in particular) defeats xterm's own long-press. |
 
 Record the outcome in the "Spike outcome" section at the end of this plan file: one line per
 criterion, PASS or FAIL, with a sentence of evidence.
