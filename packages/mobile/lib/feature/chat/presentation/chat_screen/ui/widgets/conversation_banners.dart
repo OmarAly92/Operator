@@ -13,6 +13,7 @@ class ConversationBanners extends StatelessWidget {
     required this.onResume,
     required this.onReloadMcp,
     this.mcpError,
+    this.onOpenShell,
   });
 
   final ConversationSnapshotModel snapshot;
@@ -22,6 +23,7 @@ class ConversationBanners extends StatelessWidget {
   final String? mcpError;
   final VoidCallback onResume;
   final VoidCallback onReloadMcp;
+  final VoidCallback? onOpenShell;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,8 @@ class ConversationBanners extends StatelessWidget {
                 '${snapshot.account!.reauthReason ?? 'The provider rejected this session\'s credentials.'} '
                 '${signIn != null ? 'Run “$signIn” on the Operator host, then try again.' : 'Sign in with the agent\'s CLI on the Operator host, then try again.'} '
                 'Operator holds no credentials of its own. The worktree is untouched.',
+            secondary: 'Shell',
+            onSecondary: onOpenShell,
           ),
         if (snapshot.controllerState == 'stopped')
           InlineBanner(
@@ -49,6 +53,8 @@ class ConversationBanners extends StatelessWidget {
                 snapshot.controllerError ?? 'The agent controller is stopped.',
             action: resuming ? 'Resuming…' : 'Resume agent',
             onPressed: resuming ? null : onResume,
+            secondary: 'Shell',
+            onSecondary: onOpenShell,
           ),
         if (snapshot.controllerState == 'recovering' ||
             snapshot.controllerState == 'connecting')

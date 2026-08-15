@@ -79,13 +79,15 @@ class PrimaryButton extends StatelessWidget {
                             icon!,
                             const HorizontalSpace(8),
                           ],
-                          AppText(
-                            text,
-                            style:
-                                textStyle ??
-                                AppTextStyle.style17Medium.copyWith(
-                                  color: textColor ?? context.skin.onAccent,
-                                ),
+                          Flexible(
+                            child: AppText(
+                              text,
+                              style:
+                                  textStyle ??
+                                  AppTextStyle.style17Medium.copyWith(
+                                    color: textColor ?? context.skin.onAccent,
+                                  ),
+                            ),
                           ),
                           if (trailingIcon != null) ...[
                             const HorizontalSpace(8),
@@ -112,13 +114,15 @@ class PrimaryButton extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (icon != null) ...[icon!, const SizedBox(width: 8)],
-                  AppText(
-                    text,
-                    style:
-                        textStyle ??
-                        AppTextStyle.style17Medium.copyWith(
-                          color: textColor ?? context.skin.onAccent,
-                        ),
+                  Flexible(
+                    child: AppText(
+                      text,
+                      style:
+                          textStyle ??
+                          AppTextStyle.style17Medium.copyWith(
+                            color: textColor ?? context.skin.onAccent,
+                          ),
+                    ),
                   ),
                   if (trailingIcon != null) ...[
                     const HorizontalSpace(8),

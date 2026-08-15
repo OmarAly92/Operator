@@ -182,16 +182,43 @@ void main() {
         mcpReloadSupported: false,
         compacting: false,
         mcpReloading: false,
+        openingShell: false,
+        interfaceSupported: false,
       ),
     );
 
     expect(find.text('Conversation map'), findsOneWidget);
+    expect(find.text('Open worktree shell'), findsOneWidget);
     expect(find.text('Pull requests'), findsOneWidget);
     expect(find.text('Turn settings'), findsOneWidget);
     expect(find.text('Compact history'), findsNothing);
     expect(find.text('Reload MCP servers'), findsNothing);
     expect(find.text('Rename'), findsNothing);
-    expect(find.text('Open Terminal UI'), findsNothing);
+    expect(find.text('Open Terminal UI'), findsOneWidget);
+  });
+
+  testWidgets('offers the worktree shell and the Terminal UI handoff', (tester) async {
+    ConversationMenuResult? result;
+    await pumpHost(
+      tester,
+      (context) async => result = await showConversationMenuSheet(
+        context,
+        snapshot: snapshot(),
+        compactSupported: false,
+        mcpReloadSupported: false,
+        compacting: false,
+        mcpReloading: false,
+        openingShell: false,
+        interfaceSupported: true,
+      ),
+    );
+
+    expect(find.text('Open worktree shell'), findsOneWidget);
+    expect(find.text('Open Terminal UI'), findsOneWidget);
+
+    await tester.tap(find.text('Open worktree shell'));
+    await tester.pumpAndSettle();
+    expect(result?.action, ConversationMenuAction.worktreeShell);
   });
 
   testWidgets('returns the chosen menu action', (tester) async {
@@ -205,6 +232,8 @@ void main() {
         mcpReloadSupported: false,
         compacting: false,
         mcpReloading: false,
+        openingShell: false,
+        interfaceSupported: true,
       ),
     );
 

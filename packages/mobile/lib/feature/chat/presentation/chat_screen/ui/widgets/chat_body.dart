@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
+import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/utils/extensions.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
@@ -19,6 +22,11 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/inline_banner.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/live_turn_bar.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
+import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart';
 
 class ChatBody extends StatefulWidget {
   const ChatBody({super.key, this.projectId});
@@ -31,6 +39,7 @@ class ChatBody extends StatefulWidget {
 
 class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
   int? _jumpToSequence;
+  bool _openingShell = false;
 
   @override
   void initState() {
@@ -96,6 +105,8 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
           ),
       compacting: cubit.pendingActions.contains(ConversationAction.compact),
       mcpReloading: cubit.pendingActions.contains(ConversationAction.mcp),
+      openingShell: _openingShell,
+      interfaceSupported: context.read<InterfaceSwitchCubit>().supported,
     );
     if (!mounted || result == null) return;
 
@@ -122,7 +133,67 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
       case ConversationMenuAction.rename:
         final title = result.title;
         if (title != null) await cubit.rename(title);
+      case ConversationMenuAction.worktreeShell:
+        await _openShell();
+      case ConversationMenuAction.terminalUi:
+        await _switchToTerminal();
     }
+  }
+
+  Future<void> _openShell() async {
+    final projectId = widget.projectId;
+    final sessionId = context.read<ChatCubit>().sessionId;
+    if (projectId == null) {
+      context.showSnackBar('This session has no project, so it has no worktree shell.');
+      return;
+    }
+    if (_openingShell) return;
+    setState(() => _openingShell = true);
+    final result = await sl<TerminalRepository>().openSessionShell(
+      OpenSessionShellParams(projectId: projectId, sessionId: sessionId),
+    );
+    if (!mounted) return;
+    setState(() => _openingShell = false);
+    result.when(
+      onSuccess: (response) {
+        final shell = response.data;
+        final handleId = shell?.handleId;
+        if (handleId == null) {
+          context.showSnackBar('Could not open shell: the daemon returned no handle.');
+          return;
+        }
+        Navigator.of(context).pushNamed(
+          RoutesStrings.terminal,
+          arguments: {
+            'args': TerminalArgs(
+              id: handleId,
+              sessionId: sessionId,
+              projectId: projectId,
+              title: shell?.title ?? 'Worktree shell',
+              shellOnly: true,
+            ),
+          },
+        );
+      },
+      onFailure: (failure) => context.showSnackBar('Could not open shell: ${failure.message}'),
+    );
+  }
+
+  Future<void> _switchToTerminal() async {
+    final switchCubit = context.read<InterfaceSwitchCubit>();
+    if (!switchCubit.supported) {
+      context.showSnackBar(
+        switchCubit.reason ?? 'This agent has not declared a compatible native conversation handoff.',
+      );
+      return;
+    }
+    final choice = await showInterfaceSwitchSheet(
+      context,
+      targetLabel: 'Terminal UI',
+      waitingOnInput: context.read<ChatCubit>().snapshot?.hasTurnInFlight ?? false,
+    );
+    if (choice == null || !mounted) return;
+    await switchCubit.start('tui', choice == InterfaceSwitchChoice.drain ? 'drain' : 'interrupt');
   }
 
   @override
@@ -146,6 +217,10 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
             icon: Icons.warning_amber_rounded,
             title: 'Conversation unavailable',
             message: '${unavailable.message}\n\nThe worktree is untouched.',
+            action: PrimaryButton(
+              text: _openingShell ? 'Opening…' : 'Open worktree shell',
+              onPressed: _openingShell ? null : _openShell,
+            ),
           );
         }
 
@@ -208,6 +283,7 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
               mcpError: cubit.actionErrors[ConversationAction.mcp],
               onResume: cubit.resumeAgent,
               onReloadMcp: cubit.reloadMcp,
+              onOpenShell: _openShell,
             ),
             if (cubit.error != null)
               InlineBanner(
