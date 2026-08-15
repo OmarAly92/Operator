@@ -8,20 +8,37 @@ const Set<String> _activePhases = {
   'activating',
 };
 
-const Set<String> _cancellablePhases = {'requested', 'preflighting', 'draining'};
+const Set<String> _cancellablePhases = {
+  'requested',
+  'preflighting',
+  'draining',
+};
 
-bool interfaceTransitionIsActive(String? phase) => phase != null && _activePhases.contains(phase);
+bool interfaceTransitionIsActive(String? phase) =>
+    phase != null && _activePhases.contains(phase);
 
 bool interfaceTransitionIsCancellable(String? phase) =>
     phase != null && _cancellablePhases.contains(phase);
 
-String interfaceTransitionLabel(String? phase) => switch (phase) {
-  'draining' =>
-    'Waiting for the current terminal turn to finish. New Operator messages are queued safely.',
-  'source_stopping' => 'Stopping the terminal controller before Chat starts.',
-  'source_stopped' =>
-    'Terminal controller stopped. The worktree and native conversation are unchanged.',
-  'target_starting' => 'Resuming the same native conversation in Chat.',
-  'activating' => 'Opening the Chat interface.',
-  _ => 'Checking that Chat can resume this agent\'s native conversation.',
-};
+String interfaceTransitionLabel(
+  String? phase, {
+  String sourceLabel = 'terminal',
+  String targetLabel = 'Chat',
+}) {
+  final sourceCapitalized = sourceLabel.isEmpty
+      ? sourceLabel
+      : sourceLabel[0].toUpperCase() + sourceLabel.substring(1);
+  return switch (phase) {
+    'draining' =>
+      'Waiting for the current $sourceLabel turn to finish. New Operator messages are queued safely.',
+    'source_stopping' =>
+      'Stopping the $sourceLabel controller before $targetLabel starts.',
+    'source_stopped' =>
+      '$sourceCapitalized controller stopped. The worktree and native conversation are unchanged.',
+    'target_starting' =>
+      'Resuming the same native conversation in $targetLabel.',
+    'activating' => 'Opening the $targetLabel interface.',
+    _ =>
+      'Checking that $targetLabel can resume this agent\'s native conversation.',
+  };
+}

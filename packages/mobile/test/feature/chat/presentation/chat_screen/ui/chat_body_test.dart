@@ -87,7 +87,9 @@ void main() {
   late _RouteCapturingObserver routeObserver;
 
   setUpAll(() {
-    registerFallbackValue(const OpenSessionShellParams(projectId: '', sessionId: ''));
+    registerFallbackValue(
+      const OpenSessionShellParams(projectId: '', sessionId: ''),
+    );
   });
 
   setUp(() async {
@@ -103,15 +105,20 @@ void main() {
     final mux = _MockMuxClient();
     terminalRepository = _MockTerminalRepository();
     switchCubit = _MockInterfaceSwitchCubit();
-    when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+    when(
+      () => mux.sessionPatches,
+    ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
-    when(() => sessionsRepository.getBoard())
-        .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const BoardSnapshot())),
+    );
     sessionsCubit = SessionsCubit(sessionsRepository, mux);
     sl.registerLazySingleton<SessionsCubit>(() => sessionsCubit);
     sl.registerLazySingleton<TerminalRepository>(() => terminalRepository);
-    when(() => switchCubit.state).thenReturn(const InterfaceSwitchInitialState());
+    when(
+      () => switchCubit.state,
+    ).thenReturn(const InterfaceSwitchInitialState());
     when(() => switchCubit.supported).thenReturn(true);
     when(() => switchCubit.reason).thenReturn(null);
     when(() => switchCubit.error).thenReturn(null);
@@ -198,7 +205,9 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsWidgets);
   });
 
-  testWidgets('the pull requests menu action selects the project and PR tab', (tester) async {
+  testWidgets('the pull requests menu action selects the project and PR tab', (
+    tester,
+  ) async {
     await pumpBody(tester);
 
     tester.state<ChatBodyState>(find.byType(ChatBody)).openMenu();
@@ -475,8 +484,11 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, _) => MaterialApp(
-            home: BlocProvider<ChatCubit>.value(
-              value: cubit,
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
+              ],
               child: ChatScreen(sessionId: 'w-1', title: 'Conversation'),
             ),
           ),
@@ -510,9 +522,15 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, _) => MaterialApp(
-            home: BlocProvider<ChatCubit>.value(
-              value: cubit,
-              child: const ChatScreen(sessionId: 'w-1', title: 'Board row title'),
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
+              ],
+              child: const ChatScreen(
+                sessionId: 'w-1',
+                title: 'Board row title',
+              ),
             ),
           ),
         ),
@@ -535,9 +553,15 @@ void main() {
         child: ScreenUtilInit(
           designSize: const Size(390, 844),
           builder: (context, _) => MaterialApp(
-            home: BlocProvider<ChatCubit>.value(
-              value: cubit,
-              child: const ChatScreen(sessionId: 'w-1', title: 'Board row title'),
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
+              ],
+              child: const ChatScreen(
+                sessionId: 'w-1',
+                title: 'Board row title',
+              ),
             ),
           ),
         ),
@@ -548,36 +572,48 @@ void main() {
     expect(find.text('Board row title'), findsOneWidget);
   });
 
-  testWidgets('opens a worktree shell and pushes the terminal route', (tester) async {
+  testWidgets('opens a worktree shell and pushes the terminal route', (
+    tester,
+  ) async {
     when(() => terminalRepository.openSessionShell(any())).thenAnswer(
       (_) async => Result.success(
-        const GlobalResponse(data: ShellTerminalModel(handleId: 'h-1', title: 'Worktree shell')),
+        const GlobalResponse(
+          data: ShellTerminalModel(handleId: 'h-1', title: 'Worktree shell'),
+        ),
       ),
     );
     await pumpBody(tester);
 
     await openMenuAndTap(tester, 'Open worktree shell');
 
-    final captured = verify(() => terminalRepository.openSessionShell(captureAny()))
-        .captured
-        .single as OpenSessionShellParams;
+    final captured =
+        verify(
+              () => terminalRepository.openSessionShell(captureAny()),
+            ).captured.single
+            as OpenSessionShellParams;
     expect(captured.sessionId, 'w-1');
     expect(routeObserver.pushed, contains(RoutesStrings.terminal));
   });
 
-  testWidgets('reports why a shell could not be opened instead of failing silently', (tester) async {
-    when(() => terminalRepository.openSessionShell(any())).thenAnswer(
-      (_) async => Result.failure(ServerFailure(error: 'x', message: 'no worktree')),
-    );
-    await pumpBody(tester);
+  testWidgets(
+    'reports why a shell could not be opened instead of failing silently',
+    (tester) async {
+      when(() => terminalRepository.openSessionShell(any())).thenAnswer(
+        (_) async =>
+            Result.failure(ServerFailure(error: 'x', message: 'no worktree')),
+      );
+      await pumpBody(tester);
 
-    await openMenuAndTap(tester, 'Open worktree shell');
-    await tester.pump();
+      await openMenuAndTap(tester, 'Open worktree shell');
+      await tester.pump();
 
-    expect(find.text('Could not open shell: no worktree'), findsOneWidget);
-  });
+      expect(find.text('Could not open shell: no worktree'), findsOneWidget);
+    },
+  );
 
-  testWidgets('asks how to hand off before switching to the Terminal UI', (tester) async {
+  testWidgets('asks how to hand off before switching to the Terminal UI', (
+    tester,
+  ) async {
     when(() => switchCubit.supported).thenReturn(true);
     await pumpBody(tester);
 

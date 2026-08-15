@@ -8,7 +8,14 @@ import 'package:operator_mobile/feature/terminal/logic/interface_transition.dart
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 
 class InterfaceSwitchOverlay extends StatelessWidget {
-  const InterfaceSwitchOverlay({super.key});
+  const InterfaceSwitchOverlay({
+    super.key,
+    this.sourceLabel = 'terminal',
+    this.targetLabel = 'Chat',
+  });
+
+  final String sourceLabel;
+  final String targetLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +39,20 @@ class InterfaceSwitchOverlay extends StatelessWidget {
             children: [
               Icon(Icons.swap_horiz, size: 22, color: skin.blue),
               const VerticalSpace(10),
-              AppText('Switching to Chat', style: AppTextStyle.style16Bold),
+              AppText(
+                'Switching to $targetLabel',
+                style: AppTextStyle.style16Bold,
+              ),
               const VerticalSpace(10),
               AppText(
-                interfaceTransitionLabel(cubit.phase),
-                style: AppTextStyle.style12Regular.copyWith(color: skin.textSecondary),
+                interfaceTransitionLabel(
+                  cubit.phase,
+                  sourceLabel: sourceLabel,
+                  targetLabel: targetLabel,
+                ),
+                style: AppTextStyle.style12Regular.copyWith(
+                  color: skin.textSecondary,
+                ),
                 maxLines: 4,
                 textAlign: TextAlign.center,
               ),

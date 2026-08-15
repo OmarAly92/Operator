@@ -12,6 +12,7 @@ Future<InterfaceSwitchChoice?> showInterfaceSwitchSheet(
   BuildContext context, {
   required String targetLabel,
   required bool waitingOnInput,
+  String sourceLabel = 'Terminal UI',
 }) => showModalBottomSheet<InterfaceSwitchChoice>(
   context: context,
   backgroundColor: context.skin.bgSurface,
@@ -27,24 +28,33 @@ Future<InterfaceSwitchChoice?> showInterfaceSwitchSheet(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppText('Switch to $targetLabel?', style: AppTextStyle.style16SemiBold),
+            AppText(
+              'Switch to $targetLabel?',
+              style: AppTextStyle.style16SemiBold,
+            ),
             const VerticalSpace(8),
             AppText(
               waitingOnInput
                   ? 'This turn is waiting for your input. Finish waits for your answer; stop cancels it and switches now.'
                   : 'Keep the same Operator session, worktree, and native agent conversation.',
-              style: AppTextStyle.style13Regular.copyWith(color: skin.textSecondary),
+              style: AppTextStyle.style13Regular.copyWith(
+                color: skin.textSecondary,
+              ),
               maxLines: 4,
             ),
             const VerticalSpace(14),
             TextButton(
               onPressed: () =>
                   Navigator.of(sheetContext).pop(InterfaceSwitchChoice.drain),
-              child: AppText('Finish, then switch', style: AppTextStyle.style14SemiBold),
+              child: AppText(
+                'Finish, then switch',
+                style: AppTextStyle.style14SemiBold,
+              ),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.of(sheetContext).pop(InterfaceSwitchChoice.interrupt),
+              onPressed: () => Navigator.of(
+                sheetContext,
+              ).pop(InterfaceSwitchChoice.interrupt),
               child: AppText(
                 'Stop and switch',
                 style: AppTextStyle.style14SemiBold.copyWith(color: skin.red),
@@ -53,8 +63,10 @@ Future<InterfaceSwitchChoice?> showInterfaceSwitchSheet(
             TextButton(
               onPressed: () => Navigator.of(sheetContext).pop(),
               child: AppText(
-                'Keep Terminal UI',
-                style: AppTextStyle.style14Medium.copyWith(color: skin.textSecondary),
+                'Keep $sourceLabel',
+                style: AppTextStyle.style14Medium.copyWith(
+                  color: skin.textSecondary,
+                ),
               ),
             ),
           ],

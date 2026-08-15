@@ -26,6 +26,7 @@ import 'package:operator_mobile/feature/terminal/data/model/params/open_session_
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart';
 
 class ChatBody extends StatefulWidget {
@@ -144,7 +145,9 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
     final projectId = widget.projectId;
     final sessionId = context.read<ChatCubit>().sessionId;
     if (projectId == null) {
-      context.showSnackBar('This session has no project, so it has no worktree shell.');
+      context.showSnackBar(
+        'This session has no project, so it has no worktree shell.',
+      );
       return;
     }
     if (_openingShell) return;
@@ -159,7 +162,9 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
         final shell = response.data;
         final handleId = shell?.handleId;
         if (handleId == null) {
-          context.showSnackBar('Could not open shell: the daemon returned no handle.');
+          context.showSnackBar(
+            'Could not open shell: the daemon returned no handle.',
+          );
           return;
         }
         Navigator.of(context).pushNamed(
@@ -175,7 +180,8 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
           },
         );
       },
-      onFailure: (failure) => context.showSnackBar('Could not open shell: ${failure.message}'),
+      onFailure: (failure) =>
+          context.showSnackBar('Could not open shell: ${failure.message}'),
     );
   }
 
@@ -183,17 +189,23 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
     final switchCubit = context.read<InterfaceSwitchCubit>();
     if (!switchCubit.supported) {
       context.showSnackBar(
-        switchCubit.reason ?? 'This agent has not declared a compatible native conversation handoff.',
+        switchCubit.reason ??
+            'This agent has not declared a compatible native conversation handoff.',
       );
       return;
     }
     final choice = await showInterfaceSwitchSheet(
       context,
       targetLabel: 'Terminal UI',
-      waitingOnInput: context.read<ChatCubit>().snapshot?.hasTurnInFlight ?? false,
+      waitingOnInput:
+          context.read<ChatCubit>().snapshot?.hasTurnInFlight ?? false,
+      sourceLabel: 'Chat',
     );
     if (choice == null || !mounted) return;
-    await switchCubit.start('tui', choice == InterfaceSwitchChoice.drain ? 'drain' : 'interrupt');
+    await switchCubit.start(
+      'tui',
+      choice == InterfaceSwitchChoice.drain ? 'drain' : 'interrupt',
+    );
   }
 
   @override
@@ -258,127 +270,151 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
             );
         final activeTurn = snapshot.activeTurn;
 
-        return Column(
+        return Stack(
           children: [
-            ChatMetaBar(
-              snapshot: snapshot,
-              refreshing: cubit.refreshing,
-              compacting: cubit.pendingActions.contains(
-                ConversationAction.compact,
+            Positioned.fill(
+              child: Column(
+                children: [
+                  ChatMetaBar(
+                    snapshot: snapshot,
+                    refreshing: cubit.refreshing,
+                    compacting: cubit.pendingActions.contains(
+                      ConversationAction.compact,
+                    ),
+                    onRefresh: cubit.refresh,
+                    onCompact: compactSupported ? cubit.compact : null,
+                    compactDisabled:
+                        snapshot.hasTurnInFlight ||
+                        snapshot.controllerState == 'stopped' ||
+                        cubit.pendingActions.contains(
+                          ConversationAction.compact,
+                        ),
+                  ),
+                  ConversationBanners(
+                    snapshot: snapshot,
+                    resuming: false,
+                    mcpReloading: cubit.pendingActions.contains(
+                      ConversationAction.mcp,
+                    ),
+                    mcpReloadSupported: mcpReloadSupported,
+                    mcpError: cubit.actionErrors[ConversationAction.mcp],
+                    onResume: cubit.resumeAgent,
+                    onReloadMcp: cubit.reloadMcp,
+                    onOpenShell: _openShell,
+                  ),
+                  if (cubit.error != null)
+                    InlineBanner(
+                      tone: BannerTone.danger,
+                      icon: Icons.wifi_off,
+                      text: cubit.error!,
+                      action: 'Retry',
+                      onPressed: cubit.refresh,
+                    ),
+                  if (quota != null)
+                    InlineBanner(
+                      tone: quota.severity == Severity.critical
+                          ? BannerTone.danger
+                          : BannerTone.warning,
+                      icon: Icons.warning_amber_rounded,
+                      text:
+                          '${quota.percent}% of the'
+                          '${quota.planLabel == null ? '' : ' ${quota.planLabel}'} account quota is used'
+                          '${resetLabel(quota.resetsInSeconds) == null ? '' : '; resets in ${resetLabel(quota.resetsInSeconds)}'}. '
+                          '${quota.severity == Severity.critical ? 'Turns may start failing for reasons unrelated to your request.' : 'Turns will stop when the limit is reached.'}',
+                    ),
+                  if (cubit.actionError != null)
+                    InlineBanner(
+                      tone: BannerTone.danger,
+                      icon: Icons.error_outline,
+                      text: cubit.actionError!,
+                    ),
+                  if (rolledBack > 0)
+                    InlineBanner(
+                      tone: BannerTone.muted,
+                      icon: Icons.settings_backup_restore,
+                      text:
+                          '$rolledBack ${rolledBack == 1 ? 'turn was' : 'turns were'} rolled back. '
+                          'The agent no longer remembers ${rolledBack == 1 ? 'it' : 'them'}.',
+                    ),
+                  for (final pending in cubit.pendingSends)
+                    if (pending.failed)
+                      InlineBanner(
+                        tone: BannerTone.danger,
+                        icon: Icons.send_outlined,
+                        text:
+                            'Message not sent: ${pending.error ?? 'Delivery failed'}',
+                        action: 'Retry',
+                        secondary: 'Discard',
+                        onPressed: () => cubit.retrySend(pending.id),
+                        onSecondary: () => cubit.discardSend(pending.id),
+                      ),
+                  Expanded(
+                    child: ChatTimeline(
+                      snapshot: snapshot,
+                      loadingOlder: cubit.loadingOlder,
+                      onLoadOlder: cubit.loadOlder,
+                      approvalPending: cubit.pendingActions.contains(
+                        ConversationAction.approval,
+                      ),
+                      inputPending: cubit.pendingActions.contains(
+                        ConversationAction.input,
+                      ),
+                      onDecide: cubit.resolveApproval,
+                      onResolveInput: cubit.resolveInput,
+                      onRollback: cubit.rollback,
+                      jumpToSequence: _jumpToSequence,
+                      onJumpHandled: () =>
+                          setState(() => _jumpToSequence = null),
+                    ),
+                  ),
+                  if (activeTurn != null)
+                    LiveTurnBar(
+                      snapshot: snapshot,
+                      startedAt: activeTurn.startedAt ?? activeTurn.requestedAt,
+                      stopping: cubit.pendingActions.contains(
+                        ConversationAction.interrupt,
+                      ),
+                      onInterrupt: cubit.interrupt,
+                    ),
+                  ChatComposer(
+                    sessionId: cubit.sessionId,
+                    snapshot: snapshot,
+                    skills: cubit.skills,
+                    filePaths: cubit.workspace.paths ?? const [],
+                    filePathsTruncated: cubit.workspace.truncated ?? false,
+                    configOptions: cubit.configOptions,
+                    steerUnavailable: conversationActionUnsupported(
+                      'steer',
+                      cubit.actionCodes[ConversationAction.steer],
+                    ),
+                    pending: cubit.pendingSends.any(
+                      (pending) => !pending.failed,
+                    ),
+                    error: cubit.actionErrors[ConversationAction.steer],
+                    onSend: (text, {attachments, resources}) => cubit.send(
+                      text,
+                      attachments: attachments,
+                      resources: resources,
+                    ),
+                    onSteer: cubit.steer,
+                    onInterrupt: cubit.interrupt,
+                    onOpenSettings: openSettings,
+                  ),
+                ],
               ),
-              onRefresh: cubit.refresh,
-              onCompact: compactSupported ? cubit.compact : null,
-              compactDisabled:
-                  snapshot.hasTurnInFlight ||
-                  snapshot.controllerState == 'stopped' ||
-                  cubit.pendingActions.contains(ConversationAction.compact),
             ),
-            ConversationBanners(
-              snapshot: snapshot,
-              resuming: false,
-              mcpReloading: cubit.pendingActions.contains(
-                ConversationAction.mcp,
-              ),
-              mcpReloadSupported: mcpReloadSupported,
-              mcpError: cubit.actionErrors[ConversationAction.mcp],
-              onResume: cubit.resumeAgent,
-              onReloadMcp: cubit.reloadMcp,
-              onOpenShell: _openShell,
-            ),
-            if (cubit.error != null)
-              InlineBanner(
-                tone: BannerTone.danger,
-                icon: Icons.wifi_off,
-                text: cubit.error!,
-                action: 'Retry',
-                onPressed: cubit.refresh,
-              ),
-            if (quota != null)
-              InlineBanner(
-                tone: quota.severity == Severity.critical
-                    ? BannerTone.danger
-                    : BannerTone.warning,
-                icon: Icons.warning_amber_rounded,
-                text:
-                    '${quota.percent}% of the'
-                    '${quota.planLabel == null ? '' : ' ${quota.planLabel}'} account quota is used'
-                    '${resetLabel(quota.resetsInSeconds) == null ? '' : '; resets in ${resetLabel(quota.resetsInSeconds)}'}. '
-                    '${quota.severity == Severity.critical ? 'Turns may start failing for reasons unrelated to your request.' : 'Turns will stop when the limit is reached.'}',
-              ),
-            if (cubit.actionError != null)
-              InlineBanner(
-                tone: BannerTone.danger,
-                icon: Icons.error_outline,
-                text: cubit.actionError!,
-              ),
-            if (rolledBack > 0)
-              InlineBanner(
-                tone: BannerTone.muted,
-                icon: Icons.settings_backup_restore,
-                text:
-                    '$rolledBack ${rolledBack == 1 ? 'turn was' : 'turns were'} rolled back. '
-                    'The agent no longer remembers ${rolledBack == 1 ? 'it' : 'them'}.',
-              ),
-            for (final pending in cubit.pendingSends)
-              if (pending.failed)
-                InlineBanner(
-                  tone: BannerTone.danger,
-                  icon: Icons.send_outlined,
-                  text:
-                      'Message not sent: ${pending.error ?? 'Delivery failed'}',
-                  action: 'Retry',
-                  secondary: 'Discard',
-                  onPressed: () => cubit.retrySend(pending.id),
-                  onSecondary: () => cubit.discardSend(pending.id),
-                ),
-            Expanded(
-              child: ChatTimeline(
-                snapshot: snapshot,
-                loadingOlder: cubit.loadingOlder,
-                onLoadOlder: cubit.loadOlder,
-                approvalPending: cubit.pendingActions.contains(
-                  ConversationAction.approval,
-                ),
-                inputPending: cubit.pendingActions.contains(
-                  ConversationAction.input,
-                ),
-                onDecide: cubit.resolveApproval,
-                onResolveInput: cubit.resolveInput,
-                onRollback: cubit.rollback,
-                jumpToSequence: _jumpToSequence,
-                onJumpHandled: () => setState(() => _jumpToSequence = null),
-              ),
-            ),
-            if (activeTurn != null)
-              LiveTurnBar(
-                snapshot: snapshot,
-                startedAt: activeTurn.startedAt ?? activeTurn.requestedAt,
-                stopping: cubit.pendingActions.contains(
-                  ConversationAction.interrupt,
-                ),
-                onInterrupt: cubit.interrupt,
-              ),
-            ChatComposer(
-              sessionId: cubit.sessionId,
-              snapshot: snapshot,
-              skills: cubit.skills,
-              filePaths: cubit.workspace.paths ?? const [],
-              filePathsTruncated: cubit.workspace.truncated ?? false,
-              configOptions: cubit.configOptions,
-              steerUnavailable: conversationActionUnsupported(
-                'steer',
-                cubit.actionCodes[ConversationAction.steer],
-              ),
-              pending: cubit.pendingSends.any((pending) => !pending.failed),
-              error: cubit.actionErrors[ConversationAction.steer],
-              onSend: (text, {attachments, resources}) => cubit.send(
-                text,
-                attachments: attachments,
-                resources: resources,
-              ),
-              onSteer: cubit.steer,
-              onInterrupt: cubit.interrupt,
-              onOpenSettings: openSettings,
+            BlocBuilder<InterfaceSwitchCubit, InterfaceSwitchState>(
+              buildWhen: (previous, current) =>
+                  current is InterfaceSwitchReadyState,
+              builder: (context, _) =>
+                  context.read<InterfaceSwitchCubit>().active
+                  ? const Positioned.fill(
+                      child: InterfaceSwitchOverlay(
+                        sourceLabel: 'chat',
+                        targetLabel: 'Terminal UI',
+                      ),
+                    )
+                  : const Positioned.fill(child: SizedBox.shrink()),
             ),
           ],
         );
