@@ -1,3 +1,4 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,10 +9,17 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 class _FakeBuildContext extends Fake implements BuildContext {}
 
 class _MockSessionsCubit extends Mock implements SessionsCubit {}
+
+class _MockTerminalCubit extends MockCubit<TerminalState> implements TerminalCubit {}
+
+class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
+    implements InterfaceSwitchCubit {}
 
 void main() {
   Widget builtWidgetFor(String routeName, {Object? arguments}) {
@@ -41,5 +49,24 @@ void main() {
 
   test('falls through to the error widget for an unknown route', () {
     expect(builtWidgetFor('/nowhere'), isA<AppScaffold>());
+  });
+
+  test('routes the terminal through a BlocProvider', () async {
+    await sl.reset();
+    sl.registerLazySingleton<SessionsCubit>(_MockSessionsCubit.new);
+    sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>((_, _) => _MockTerminalCubit());
+    sl.registerFactoryParam<InterfaceSwitchCubit, String, void>((_, _) => _MockInterfaceSwitchCubit());
+
+    expect(
+      builtWidgetFor(
+        RoutesStrings.terminal,
+        arguments: {
+          'args': const TerminalArgs(id: 'h-1', sessionId: 's-1', title: 'Worktree shell', shellOnly: true),
+        },
+      ),
+      isA<MultiBlocProvider>(),
+    );
+
+    await sl.reset();
   });
 }
