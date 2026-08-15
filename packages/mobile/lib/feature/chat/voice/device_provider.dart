@@ -22,22 +22,31 @@ const Map<String, String> _errorMessages = {
       'Microphone or speech permission was denied. Enable it in Settings to dictate.',
   'error_speech_recognizer_request_not_authorized':
       'Microphone or speech permission was denied. Enable it in Settings to dictate.',
-  'error_speech_recognizer_disabled': 'Speech recognition is unavailable on this device.',
-  'error_language_not_supported': 'Speech recognition is not available for this language.',
-  'error_language_unavailable': 'Speech recognition is not available for this language.',
+  'error_speech_recognizer_disabled':
+      'Speech recognition is unavailable on this device.',
+  'error_language_not_supported':
+      'Speech recognition is not available for this language.',
+  'error_language_unavailable':
+      'Speech recognition is not available for this language.',
   'error_assets_not_installed':
       'This device has no speech recognition assets installed for this language.',
-  'error_network': 'Speech recognition needs a network connection and could not reach it.',
-  'error_network_timeout': 'Speech recognition needs a network connection and could not reach it.',
+  'error_network':
+      'Speech recognition needs a network connection and could not reach it.',
+  'error_network_timeout':
+      'Speech recognition needs a network connection and could not reach it.',
   'error_audio_error': 'Could not capture audio from the microphone.',
   'error_listen_failed': 'Could not capture audio from the microphone.',
-  'error_speech_recognizer_connection_interrupted': 'Recording was interrupted.',
-  'error_speech_recognizer_connection_invalidated': 'Recording was interrupted.',
+  'error_speech_recognizer_connection_interrupted':
+      'Recording was interrupted.',
+  'error_speech_recognizer_connection_invalidated':
+      'Recording was interrupted.',
   'error_busy': 'The speech recogniser is busy. Try again in a moment.',
   'error_speech_recognizer_already_active':
       'The speech recogniser is busy. Try again in a moment.',
-  'error_server': 'The speech recognition service could not complete the request.',
-  'error_server_disconnected': 'The speech recognition service could not complete the request.',
+  'error_server':
+      'The speech recognition service could not complete the request.',
+  'error_server_disconnected':
+      'The speech recognition service could not complete the request.',
 };
 
 class _VoiceSession {
@@ -71,14 +80,24 @@ bool _isSameSegment(String previous, String next) {
 }
 
 class DeviceVoiceProvider implements VoiceProvider {
-  DeviceVoiceProvider(
-    this._recognizer, {
-    this.stopGrace = const Duration(seconds: 4),
+  factory DeviceVoiceProvider(
+    SpeechRecognizer recognizer, {
+    Duration stopGrace = const Duration(seconds: 4),
     TargetPlatform? platform,
-  }) : _platform = platform ?? defaultTargetPlatform;
+  }) => DeviceVoiceProvider._(
+    recognizer,
+    stopGrace: stopGrace,
+    platform: platform ?? defaultTargetPlatform,
+  );
+
+  DeviceVoiceProvider._(
+    this._recognizer, {
+    required this._stopGrace,
+    required this._platform,
+  });
 
   final SpeechRecognizer _recognizer;
-  final Duration stopGrace;
+  final Duration _stopGrace;
   final TargetPlatform _platform;
 
   _VoiceSession? _session;
@@ -98,7 +117,10 @@ class DeviceVoiceProvider implements VoiceProvider {
   Future<bool> requestPermission() async {
     if (_granted) return true;
     try {
-      _granted = await _recognizer.initialize(onStatus: _onStatus, onError: _onError);
+      _granted = await _recognizer.initialize(
+        onStatus: _onStatus,
+        onError: _onError,
+      );
       return _granted;
     } catch (_) {
       return false;
@@ -106,7 +128,10 @@ class DeviceVoiceProvider implements VoiceProvider {
   }
 
   @override
-  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {
     if (_session != null) abort();
     final session = _VoiceSession(callbacks);
     _session = session;
@@ -120,7 +145,9 @@ class DeviceVoiceProvider implements VoiceProvider {
         listenFor: kVoiceListenFor,
       );
     } catch (error) {
-      _fail(error is StateError ? error.message : 'Could not start the microphone.');
+      _fail(
+        error is StateError ? error.message : 'Could not start the microphone.',
+      );
     }
   }
 
@@ -129,7 +156,7 @@ class DeviceVoiceProvider implements VoiceProvider {
     final session = _session;
     unawaited(_recognizer.stop());
     if (session == null) return;
-    session.settleTimer = Timer(stopGrace, () {
+    session.settleTimer = Timer(_stopGrace, () {
       if (identical(_session, session)) _settle();
     });
   }
@@ -168,7 +195,8 @@ class DeviceVoiceProvider implements VoiceProvider {
     // final would append the phrase twice. The one case that does bank is a task
     // restart, whose first result shares no opening with what came before.
     if (_platform == TargetPlatform.iOS) {
-      if (!_isSameSegment(session.partial, transcript) && session.partial.trim().isNotEmpty) {
+      if (!_isSameSegment(session.partial, transcript) &&
+          session.partial.trim().isNotEmpty) {
         session.finalized.add(session.partial.trim());
       }
       session.partial = transcript;
@@ -177,10 +205,13 @@ class DeviceVoiceProvider implements VoiceProvider {
     }
 
     if (result.isFinal) {
-      if (transcript.trim().isNotEmpty) session.finalized.add(transcript.trim());
+      if (transcript.trim().isNotEmpty) {
+        session.finalized.add(transcript.trim());
+      }
       session.partial = '';
     } else {
-      if (!_isSameSegment(session.partial, transcript) && session.partial.trim().isNotEmpty) {
+      if (!_isSameSegment(session.partial, transcript) &&
+          session.partial.trim().isNotEmpty) {
         session.finalized.add(session.partial.trim());
       }
       session.partial = transcript;
