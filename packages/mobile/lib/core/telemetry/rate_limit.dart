@@ -89,15 +89,12 @@ RateLimitState mergeRateState(RateLimitState persisted, RateLimitState current) 
       merged[entry.key] = entry.value;
       continue;
     }
+    final sourceWindow = previous.minuteStart > entry.value.minuteStart ? previous : entry.value;
     merged[entry.key] = NameWindow(
       day: entry.value.day,
       dayCount: previous.dayCount > entry.value.dayCount ? previous.dayCount : entry.value.dayCount,
-      minuteStart: previous.minuteStart > entry.value.minuteStart
-          ? previous.minuteStart
-          : entry.value.minuteStart,
-      minuteCount: previous.minuteCount > entry.value.minuteCount
-          ? previous.minuteCount
-          : entry.value.minuteCount,
+      minuteStart: sourceWindow.minuteStart,
+      minuteCount: sourceWindow.minuteCount,
     );
   }
   return merged;

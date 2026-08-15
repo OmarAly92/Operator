@@ -96,4 +96,15 @@ void main() {
     expect(merged['y']!.dayCount, 42);
     expect(NameWindow.fromJson(merged['y']!.toJson()), merged['y']);
   });
+
+  test('merges from the newer minute window to avoid falsely reporting a cap after restart', () {
+    final merged = mergeRateState(
+      {'event': window(minuteStart: 1000, minuteCount: 5, dayCount: 10)},
+      {'event': window(minuteStart: 61000, minuteCount: 1, dayCount: 1)},
+    );
+
+    expect(merged['event']!.minuteStart, 61000);
+    expect(merged['event']!.minuteCount, 1);
+    expect(merged['event']!.dayCount, 10);
+  });
 }
