@@ -55,4 +55,12 @@ void main() {
       );
     });
   });
+
+  test('builds the notification and push paths', () {
+    expect(EndPoints.notifications, '/api/v1/notifications');
+    expect(EndPoints.notification('n 1'), '/api/v1/notifications/n%201');
+    expect(EndPoints.notificationsReadAll, '/api/v1/notifications/read-all');
+    expect(EndPoints.pushDevices, '/api/v1/push/devices');
+    expect(EndPoints.pushDevice('ExponentPushToken[a b]'), '/api/v1/push/devices/ExponentPushToken%5Ba%20b%5D');
+  });
 }

@@ -7,7 +7,12 @@ sealed class EndPoints {
   static const String agents = '/api/v1/agents';
   static const String agentsRefresh = '/api/v1/agents/refresh';
   static const String notifications = '/api/v1/notifications';
+  static const String notificationsReadAll = '/api/v1/notifications/read-all';
+  static const String pushDevices = '/api/v1/push/devices';
   static const String events = '/api/v1/events';
+
+  static String notification(String id) => '$notifications/${Uri.encodeComponent(id)}';
+  static String pushDevice(String token) => '$pushDevices/${Uri.encodeComponent(token)}';
 
   static String sessionPr(String sessionId) => '/api/v1/sessions/$sessionId/pr';
   static String sessionKill(String sessionId) => '/api/v1/sessions/$sessionId/kill';
