@@ -13,15 +13,27 @@ import 'package:operator_mobile/feature/terminal/logic/interface_transition.dart
 part 'interface_switch_state.dart';
 
 class InterfaceSwitchCubit extends Cubit<InterfaceSwitchState> {
-  InterfaceSwitchCubit(
+  factory InterfaceSwitchCubit(
+    TerminalRepository repository,
+    String sessionId, {
+    VoidCallback? onSettled,
+    Duration activePoll = const Duration(milliseconds: 300),
+    Duration idlePoll = const Duration(seconds: 10),
+  }) => InterfaceSwitchCubit._(
+    repository,
+    sessionId,
+    onSettled: onSettled,
+    activePoll: activePoll,
+    idlePoll: idlePoll,
+  );
+
+  InterfaceSwitchCubit._(
     this._repository,
     this.sessionId, {
     this.onSettled,
-    Duration activePoll = const Duration(milliseconds: 300),
-    Duration idlePoll = const Duration(seconds: 10),
-  }) : _activePoll = activePoll,
-       _idlePoll = idlePoll,
-       super(const InterfaceSwitchInitialState()) {
+    required this._activePoll,
+    required this._idlePoll,
+  }) : super(const InterfaceSwitchInitialState()) {
     if (sessionId.isEmpty) return;
     unawaited(refresh());
     _schedule();

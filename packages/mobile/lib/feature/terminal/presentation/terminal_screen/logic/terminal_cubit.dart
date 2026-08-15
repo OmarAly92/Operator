@@ -52,14 +52,21 @@ class _TerminalWriteSink implements Sink<String> {
 }
 
 class TerminalCubit extends Cubit<TerminalState> {
-  TerminalCubit(
+  factory TerminalCubit(
+    MuxClient mux,
+    TerminalRepository repository,
+    SessionsRepository sessions,
+    TerminalArgs args, {
+    Duration restoreDelay = const Duration(milliseconds: 1200),
+  }) => TerminalCubit._(mux, repository, sessions, args, restoreDelay: restoreDelay);
+
+  TerminalCubit._(
     this._mux,
     this._repository,
     this._sessions,
     this.args, {
-    Duration restoreDelay = const Duration(milliseconds: 1200),
-  }) : _restoreDelay = restoreDelay,
-       sendTarget = args.shellOnly ? SendTarget.terminal : SendTarget.agent,
+    required this._restoreDelay,
+  }) : sendTarget = args.shellOnly ? SendTarget.terminal : SendTarget.agent,
        super(const TerminalInitialState()) {
     status = _mux.currentStatus;
     terminal.onOutput = (data) => _mux.sendInput(args.id, data, projectId: args.projectId);
