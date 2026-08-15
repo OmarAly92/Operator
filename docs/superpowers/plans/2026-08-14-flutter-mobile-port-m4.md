@@ -61,18 +61,29 @@ cd packages/mobile && flutter analyze && flutter test
 "No issues found!" and 645/645 green. M4 branches from that commit (the
 `superpowers:using-git-worktrees` skill creates the isolated workspace).
 
-### New dependency (pinned, verified conflict-free)
+### New dependency: vendored locally, not pinned to pub.dev
 
 ```yaml
+# packages/mobile/pubspec.yaml
+environment:
+  sdk: ^3.12.2
+workspace:
+  - packages/xterm
 dependencies:
-  xterm: ^4.0.0
+  xterm:   # resolved via the workspace member below, no version constraint
 ```
 
-Verified against the exact `packages/mobile/pubspec.yaml` this plan starts from: `flutter pub add
-xterm --dry-run` resolves `xterm 4.0.0` and pulls exactly two transitive packages, `quiver 3.2.2`
-and `zmodem 0.0.6`, with no downgrades of any existing dependency. Do not re-litigate the version —
-add it as pinned. `webview_flutter` is **not** added; it is the fallback renderer and is only
-reached if Task 1's gate fails (see below).
+The plan originally called for `xterm: ^4.0.0` pinned from pub.dev (verified conflict-free:
+`quiver 3.2.2` and `zmodem 0.0.6`, no downgrades). Before Task 1 ran, the project owner vendored
+`xterm 4.0.0`'s source into `packages/mobile/packages/xterm` as a Dart pub workspace member — the
+package has had no pub.dev release in about two years, and owning the source lets Tasks 12–14 patch
+xterm's gesture/rendering code directly instead of working around a frozen dependency. This is a
+deliberate, explicit deviation from the plan text; see the deviations table below. The vendored
+package's own broken `test/`, 5.5 MB `example/`, and `.github/` were removed (stale `mockito`
+usage against the current `mockito` resolution), and the app's `analysis_options.yaml` excludes
+`packages/**` from analysis — the same isolation a pub.dev dependency would have gotten for free.
+`webview_flutter` is **not** added; it is the fallback renderer and is only reached if Task 1's gate
+fails (see below).
 
 ### The renderer decision, and what happens if the spike fails
 
@@ -5462,10 +5473,10 @@ M4 is done when, from `packages/mobile`:
 
 | Criterion | Verdict | Evidence |
 |---|---|---|
-| 1 · Gesture parity | | |
-| 2 · PTY fit negotiation | | |
-| 3 · Output bursts | | |
-| 4 · Selection and copy | | |
+| 1 · Gesture parity | PASS | Two-finger pinch visibly scales the grid (`Transform.scale` responds to a `Listener`-tracked pinch, confirmed shrinking on screen); one-finger drag scrolls without the pinch recognizer interfering — for a plain shell it drives `TerminalView`'s own `scrollController`, for an alt-buffer TUI (Claude Code itself, confirmed via `terminal.isUsingAltBuffer == true`) it forwards arrow-key input, which the app visibly acknowledged (`History 1/3`, its own `Up / Scroll wheel` hint). A `GestureDetector(onScaleStart/onScaleUpdate)` was tried first and reproduced the arena conflict this table's row 4 warns about; switching to a `Listener` (Task 13's actual design) resolved it. |
+| 2 · PTY fit negotiation | PASS | The AppBar's grid readout changed from the phone's own negotiated size to `daemon 109 x 38` once the daemon echoed back a size — the reported grid reaches the daemon and the daemon's authoritative size is reflected back. |
+| 3 · Output bursts | PROVISIONAL PASS | iOS Simulator does not support `--release` or `--profile` builds (`flutter run` errors on both), so this only ran in debug/JIT mode against a session that had already printed 3000 lines — no dropped frames or freeze observed, but a debug build's frame times are not the evidence the plan calls for. Needs a real-device or `flutter build` re-check before trusting it under load. |
+| 4 · Selection and copy | PASS, with a caveat | Programmatic selection (`TerminalController.setSelection` with buffer anchors, bypassing the gesture layer) rendered a visible highlight and `_copy()` put the exact selected text on the clipboard (verified via `xcrun simctl pbpaste booted`) — the renderer's selection/copy pipeline is correct. Synthetic long-press through the simulator-automation tool used to drive this session could not be made to reliably trigger xterm's `LongPressGestureRecognizer` (`onLongPressStart` never fired on repeated attempts, both before and after switching from `GestureDetector` to `Listener`), so real-device/manual confirmation of the touch trigger itself is still outstanding. |
 
 ## Ledger rows closed here
 

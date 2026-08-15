@@ -12,6 +12,8 @@ enum ConversationMenuAction {
   compact,
   reloadMcp,
   rename,
+  worktreeShell,
+  terminalUi,
 }
 
 class ConversationMenuResult {
@@ -28,6 +30,8 @@ Future<ConversationMenuResult?> showConversationMenuSheet(
   required bool mcpReloadSupported,
   required bool compacting,
   required bool mcpReloading,
+  required bool openingShell,
+  required bool interfaceSupported,
 }) {
   return showModalBottomSheet<ConversationMenuResult>(
     context: context,
@@ -42,6 +46,8 @@ Future<ConversationMenuResult?> showConversationMenuSheet(
       mcpReloadSupported: mcpReloadSupported,
       compacting: compacting,
       mcpReloading: mcpReloading,
+      openingShell: openingShell,
+      interfaceSupported: interfaceSupported,
     ),
   );
 }
@@ -53,6 +59,8 @@ class _ConversationMenuSheet extends StatefulWidget {
     required this.mcpReloadSupported,
     required this.compacting,
     required this.mcpReloading,
+    required this.openingShell,
+    required this.interfaceSupported,
   });
 
   final ConversationSnapshotModel snapshot;
@@ -60,6 +68,8 @@ class _ConversationMenuSheet extends StatefulWidget {
   final bool mcpReloadSupported;
   final bool compacting;
   final bool mcpReloading;
+  final bool openingShell;
+  final bool interfaceSupported;
 
   @override
   State<_ConversationMenuSheet> createState() => _ConversationMenuSheetState();
@@ -169,6 +179,26 @@ class _ConversationMenuSheetState extends State<_ConversationMenuSheet> {
             onTap: () => Navigator.of(
               context,
             ).pop(const ConversationMenuResult(ConversationMenuAction.map)),
+          ),
+          _MenuRow(
+            icon: Icons.terminal,
+            label: widget.openingShell ? 'Opening shell…' : 'Open worktree shell',
+            hint: 'A plain terminal in this session\'s worktree',
+            enabled: !widget.openingShell,
+            onTap: () => Navigator.of(context).pop(
+              const ConversationMenuResult(ConversationMenuAction.worktreeShell),
+            ),
+          ),
+          _MenuRow(
+            icon: Icons.swap_horiz,
+            label: 'Open Terminal UI',
+            hint: widget.interfaceSupported
+                ? 'Keep the session, worktree and conversation; drive the agent\'s own TUI'
+                : 'This agent has not declared a compatible handoff',
+            enabled: widget.interfaceSupported,
+            onTap: () => Navigator.of(context).pop(
+              const ConversationMenuResult(ConversationMenuAction.terminalUi),
+            ),
           ),
           _MenuRow(
             icon: Icons.merge_outlined,

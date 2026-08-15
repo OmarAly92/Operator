@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
@@ -27,6 +29,10 @@ import 'package:operator_mobile/feature/settings/presentation/settings_screen/lo
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
+import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final sl = GetIt.instance;
@@ -41,6 +47,7 @@ class ServiceLocator {
     _spawnFeatureSetup();
     _settingsFeatureSetup();
     _chatFeatureSetup();
+    _terminalFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -184,6 +191,31 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<ChatEventDataSource>(
       () => ChatEventDataSourceImp(sl<ApiConsumer>()),
+    );
+  }
+
+  static void _terminalFeatureSetup() {
+    sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
+      (args, _) => TerminalCubit(
+        sl<MuxClient>(),
+        sl<TerminalRepository>(),
+        sl<SessionsRepository>(),
+        args,
+      ),
+    );
+    sl.registerFactoryParam<InterfaceSwitchCubit, String, void>(
+      (sessionId, _) => InterfaceSwitchCubit(
+        sl<TerminalRepository>(),
+        sessionId,
+        onSettled: () => unawaited(sl<SessionsCubit>().refresh()),
+      ),
+    );
+
+    sl.registerLazySingleton<TerminalRepository>(
+      () => TerminalRepositoryImp(sl<TerminalRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<TerminalRemoteDataSource>(
+      () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 }

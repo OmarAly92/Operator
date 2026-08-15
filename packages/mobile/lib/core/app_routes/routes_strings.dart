@@ -5,4 +5,5 @@ sealed class RoutesStrings {
   static const String sessions = '/sessions';
   static const String session = '/session';
   static const String spawn = '/spawn';
+  static const String terminal = '/terminal';
 }

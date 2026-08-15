@@ -16,6 +16,9 @@ import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/s
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
 
 sealed class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -61,8 +64,28 @@ sealed class AppRouter {
             providers: [
               BlocProvider.value(value: sl<SessionsCubit>()),
               BlocProvider<ChatCubit>(create: (_) => sl<ChatCubit>(param1: sessionId)),
+              BlocProvider<InterfaceSwitchCubit>(
+                create: (_) => sl<InterfaceSwitchCubit>(param1: sessionId),
+              ),
             ],
             child: SessionRouteScreen(sessionId: sessionId),
+          ),
+          settings: settings,
+        );
+
+      case RoutesStrings.terminal:
+        final args = (settings.arguments as Map<String, dynamic>?)?['args'] as TerminalArgs?;
+        final terminalArgs =
+            args ?? const TerminalArgs(id: '', sessionId: '', title: 'Terminal');
+        return MaterialPageRoute(
+          builder: (context) => MultiBlocProvider(
+            providers: [
+              BlocProvider<TerminalCubit>(create: (_) => sl<TerminalCubit>(param1: terminalArgs)),
+              BlocProvider<InterfaceSwitchCubit>(
+                create: (_) => sl<InterfaceSwitchCubit>(param1: terminalArgs.shellOnly ? '' : terminalArgs.sessionId),
+              ),
+            ],
+            child: const TerminalScreen(),
           ),
           settings: settings,
         );

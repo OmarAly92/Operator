@@ -37,6 +37,16 @@ void main() {
       expect(EndPoints.sessionResumeAgent('w-1'), '/api/v1/sessions/w-1/resume-agent');
     });
 
+    test('builds the terminal paths', () {
+      expect(EndPoints.shellTerminals, '/api/v1/shell-terminals');
+      expect(EndPoints.shellTerminal('handle 1'), '/api/v1/shell-terminals/handle%201');
+      expect(EndPoints.sessionSend('sess-1'), '/api/v1/sessions/sess-1/send');
+      expect(
+        EndPoints.sessionInterfaceTransition('sess-1'),
+        '/api/v1/sessions/sess-1/interface-transition',
+      );
+    });
+
     test('escape identifiers so a slash cannot forge a route', () {
       expect(EndPoints.sessionConversation('a/b'), '/api/v1/sessions/a%2Fb/conversation');
       expect(

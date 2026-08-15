@@ -78,13 +78,22 @@ class MuxClient {
   final Map<String, String?> _openTerminals = {};
   bool _subscribed = false;
 
+  MuxStatus _currentStatus = MuxStatus.closed;
+
+  MuxStatus get currentStatus => _currentStatus;
+
+  void _setStatus(MuxStatus status) {
+    _currentStatus = status;
+    _statusController.add(status);
+  }
+
   void connect() {
     _closedByUser = false;
     unawaited(_open());
   }
 
   Future<void> _open() async {
-    _statusController.add(MuxStatus.connecting);
+    _setStatus(MuxStatus.connecting);
     final uri = Uri.parse('${_cfg.wsBase}/mux');
     final headers = {
       'Origin': 'http://localhost',
@@ -97,7 +106,7 @@ class MuxClient {
     try {
       await socket.ready;
     } catch (_) {
-      _statusController.add(MuxStatus.error);
+      _setStatus(MuxStatus.error);
       _scheduleReconnect();
       return;
     }
@@ -109,13 +118,13 @@ class MuxClient {
 
     _sub = socket.messages.listen(
       _onMessage,
-      onError: (Object _) => _statusController.add(MuxStatus.error),
+      onError: (Object _) => _setStatus(MuxStatus.error),
       onDone: _onClosed,
     );
 
     _isOpen = true;
     _backoffMs = MuxBackoff.initialMs;
-    _statusController.add(MuxStatus.open);
+    _setStatus(MuxStatus.open);
 
     if (_subscribed) _send({'ch': 'subscribe', 'topics': ['sessions', 'notifications']});
     for (final entry in _openTerminals.entries) {
@@ -171,7 +180,7 @@ class MuxClient {
   void _onClosed() {
     _isOpen = false;
     _clearPing();
-    _statusController.add(MuxStatus.closed);
+    _setStatus(MuxStatus.closed);
     if (!_closedByUser) _scheduleReconnect();
   }
 

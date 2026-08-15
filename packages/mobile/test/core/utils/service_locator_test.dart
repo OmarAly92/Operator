@@ -17,6 +17,10 @@ import 'package:operator_mobile/feature/sessions/data/repository/sessions_reposi
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
+import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
+import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -94,6 +98,40 @@ void main() {
 
     expect(first.sessionId, 'session-1');
     expect(second.sessionId, 'session-2');
+    expect(identical(first, second), isFalse);
+
+    await first.close();
+    await second.close();
+  });
+
+  test('resolves the terminal repository and data source', () async {
+    await sl<ServerConfigStore>().save(
+      const ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12'),
+    );
+    expect(sl<TerminalRepository>(), isA<TerminalRepository>());
+    expect(sl<TerminalRemoteDataSource>(), isA<TerminalRemoteDataSource>());
+  });
+
+  test('creates a distinct terminal cubit for each args parameter', () async {
+    final first = sl<TerminalCubit>(
+      param1: const TerminalArgs(id: 'h-1', sessionId: 'session-1', title: 'A'),
+    );
+    final second = sl<TerminalCubit>(
+      param1: const TerminalArgs(id: 'h-2', sessionId: 'session-2', title: 'B'),
+    );
+
+    expect(first.args.sessionId, 'session-1');
+    expect(second.args.sessionId, 'session-2');
+    expect(identical(first, second), isFalse);
+
+    await first.close();
+    await second.close();
+  });
+
+  test('creates a distinct interface switch cubit for each session parameter', () async {
+    final first = sl<InterfaceSwitchCubit>(param1: '');
+    final second = sl<InterfaceSwitchCubit>(param1: '');
+
     expect(identical(first, second), isFalse);
 
     await first.close();
