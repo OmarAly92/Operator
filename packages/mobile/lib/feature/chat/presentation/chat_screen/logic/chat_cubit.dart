@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -658,6 +659,7 @@ class ChatCubit extends Cubit<ChatState> {
       ),
     );
     if (isClosed) return;
+    TelemetryRuntime.featureUsed('send', succeeded: result.isSuccess);
 
     if (result.isSuccess) {
       pendingSends = pendingSends

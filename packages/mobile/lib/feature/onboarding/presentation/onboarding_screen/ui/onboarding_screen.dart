@@ -3,16 +3,30 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/telemetry/events.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/widgets/onboarding_step.dart';
 
-class OnboardingScreen extends StatelessWidget {
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    TelemetryRuntime.capture(MobileEvents.onboardingStarted);
+  }
+
   Future<void> _skip(BuildContext context) async {
+    TelemetryRuntime.capture(MobileEvents.onboardingSkipped);
     await CacheHelper.save(CacheKeys.onboardingSkipped, true);
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.sessions, (_) => false);

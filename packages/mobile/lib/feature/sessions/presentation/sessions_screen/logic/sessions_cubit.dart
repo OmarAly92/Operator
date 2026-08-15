@@ -8,6 +8,8 @@ import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/core/telemetry/events.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
@@ -49,6 +51,8 @@ class SessionsCubit extends Cubit<SessionsState> {
   StreamSubscription<List<SessionPatch>>? _muxSub;
   bool _stopped = false;
   int _revision = 0;
+  bool _connectionOpen = false;
+  bool _everConnected = false;
 
   void _emitSessions() => emit(GetSessionsSuccessState(++_revision));
 
@@ -62,9 +66,17 @@ class SessionsCubit extends Cubit<SessionsState> {
         sessions = board.sessions;
         orchestrators = board.orchestrators;
         projects = board.projects;
+        if (!_connectionOpen) {
+          _connectionOpen = true;
+          TelemetryRuntime.capture(MobileEvents.connected, {
+            'trigger': _everConnected ? 'reconnect' : 'launch',
+          });
+          _everConnected = true;
+        }
         _emitSessions();
       },
       onFailure: (failure) {
+        _connectionOpen = false;
         emit(GetSessionsFailureState(failure));
         if (!shouldKeepPolling(failure.statusCode)) {
           _stopped = true;
@@ -116,11 +128,13 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   Future<void> kill(String id) async {
     final result = await _repository.kill(id);
+    TelemetryRuntime.featureUsed('kill', succeeded: result.isSuccess);
     result.when(onSuccess: (_) => _tick(), onFailure: (failure) => emit(KillFailureState(failure)));
   }
 
   Future<void> restore(String id) async {
     final result = await _repository.restore(id);
+    TelemetryRuntime.featureUsed('restore', succeeded: result.isSuccess);
     result.when(onSuccess: (_) => _tick(), onFailure: (failure) => emit(RestoreFailureState(failure)));
   }
 

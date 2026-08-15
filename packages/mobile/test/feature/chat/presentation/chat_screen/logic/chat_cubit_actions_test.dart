@@ -25,8 +25,12 @@ import 'package:operator_mobile/feature/chat/data/model/params/steer_conversatio
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
+import 'package:operator_mobile/core/telemetry/events.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../../../core/telemetry/telemetry_test.dart' show RecordingClient;
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
@@ -956,4 +960,31 @@ void main() {
       verifyNever(() => repository.resumeAgent(any()));
     },
   );
+
+  test('a delivered message reports feature_used with the send feature', () async {
+    TelemetryRuntime.reset();
+    final client = RecordingClient();
+    TelemetryRuntime.init(
+      client: client,
+      context: const TelemetryContextInput(
+        platformOs: 'ios',
+        isPhysicalDevice: true,
+        dev: false,
+        appVersion: '1.1.0',
+      ),
+    );
+    addTearDown(TelemetryRuntime.reset);
+    when(() => repository.sendMessage(any(), any())).thenAnswer(
+      (_) async => Result.failure(ServerFailure(error: 'x', message: 'offline', statusCode: 503)),
+    );
+    final cubit = build();
+
+    await cubit.send('ship it');
+
+    expect(
+      client.captures.where((capture) => capture.event == MobileEvents.featureUsed).single.properties,
+      containsPair('feature', 'send'),
+    );
+    await cubit.close();
+  });
 }
