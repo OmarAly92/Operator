@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
@@ -70,14 +71,17 @@ class TerminalHarness {
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
-        child: MaterialApp(
-          home: Scaffold(
-            body: MultiBlocProvider(
-              providers: [
-                BlocProvider<TerminalCubit>.value(value: cubit),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
-              ],
-              child: SizedBox(width: 400, height: 600, child: child),
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, _) => MaterialApp(
+            home: Scaffold(
+              body: MultiBlocProvider(
+                providers: [
+                  BlocProvider<TerminalCubit>.value(value: cubit),
+                  BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
+                ],
+                child: SizedBox(width: 400, height: 600, child: child),
+              ),
             ),
           ),
         ),
