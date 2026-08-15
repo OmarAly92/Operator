@@ -12,6 +12,9 @@ import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_so
 import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
+import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
+import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
+import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/data/data_source/orchestrator_remote_data_source.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
@@ -48,6 +51,7 @@ class ServiceLocator {
     _settingsFeatureSetup();
     _chatFeatureSetup();
     _terminalFeatureSetup();
+    _notificationFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -216,6 +220,19 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<TerminalRemoteDataSource>(
       () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+  }
+
+  static void _notificationFeatureSetup() {
+    sl.registerLazySingleton<NotificationsCubit>(
+      () => NotificationsCubit(sl<NotificationRepository>()),
+    );
+
+    sl.registerLazySingleton<NotificationRepository>(
+      () => NotificationRepositoryImp(sl<NotificationRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<NotificationRemoteDataSource>(
+      () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 }

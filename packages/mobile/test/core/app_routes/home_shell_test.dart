@@ -14,6 +14,10 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/notification/data/model/notification_page_model.dart';
+import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
+import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
+import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
@@ -34,9 +38,14 @@ class _MockOrchestratorRepository extends Mock implements OrchestratorRepository
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
+class _MockNotificationRepository extends Mock implements NotificationRepository {}
+
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
+  late _MockNotificationRepository notificationRepository;
+
+  setUpAll(() => registerFallbackValue(const GetNotificationsParams()));
 
   setUp(() async {
     HomeShell.selectedTab.value = 0;
@@ -44,11 +53,17 @@ void main() {
     await CacheHelper.init();
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
+    notificationRepository = _MockNotificationRepository();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => repository.getBoard())
         .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
+    when(() => notificationRepository.getNotifications(any())).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: const NotificationPageModel(notifications: [], unreadCount: 0)),
+      ),
+    );
     await sl.reset();
     sl.registerFactory<PullRequestCubit>(() => PullRequestCubit(_MockPullRequestRepository()));
     sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(_MockOrchestratorRepository()));
@@ -71,6 +86,12 @@ void main() {
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux)),
                 BlocProvider<SkinCubit>(create: (_) => SkinCubit()),
+                BlocProvider<NotificationsCubit>(
+                  create: (_) => NotificationsCubit(
+                    notificationRepository,
+                    unreadPoll: const Duration(hours: 1),
+                  ),
+                ),
               ],
               child: const HomeShell(),
             ),

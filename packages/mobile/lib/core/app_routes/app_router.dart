@@ -7,6 +7,8 @@ import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.da
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
+import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
+import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/notifications_screen.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/ui/manual_connect_screen.dart';
@@ -45,7 +47,22 @@ sealed class AppRouter {
 
       case RoutesStrings.sessions:
         return MaterialPageRoute(
-          builder: (context) => BlocProvider.value(value: sl<SessionsCubit>(), child: const HomeShell()),
+          builder: (context) => MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: sl<SessionsCubit>()),
+              BlocProvider.value(value: sl<NotificationsCubit>()),
+            ],
+            child: const HomeShell(),
+          ),
+          settings: settings,
+        );
+
+      case RoutesStrings.notifications:
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider.value(
+            value: sl<NotificationsCubit>(),
+            child: const NotificationsScreen(),
+          ),
           settings: settings,
         );
 
