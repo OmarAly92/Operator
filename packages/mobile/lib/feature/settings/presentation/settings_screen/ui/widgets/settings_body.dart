@@ -17,11 +17,14 @@ import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
+import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
+import 'package:operator_mobile/feature/notification/logic/push_status.dart';
 import 'package:operator_mobile/feature/pull_request/logic/open_github.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_state.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class SettingsBody extends StatefulWidget {
   const SettingsBody({super.key, required this.onOpenBoard});
@@ -34,17 +37,68 @@ class SettingsBody extends StatefulWidget {
 
 class _SettingsBodyState extends State<SettingsBody> {
   BuildInfo _buildInfo = const BuildInfo();
+  PushStatus? _pushStatus;
+  bool _pushBusy = false;
 
   @override
   void initState() {
     super.initState();
     _loadBuildInfo();
+    _refreshPushStatus();
   }
 
   Future<void> _loadBuildInfo() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
     setState(() => _buildInfo = BuildInfo(version: info.version, build: info.buildNumber));
+  }
+
+  Future<void> _refreshPushStatus() async {
+    final status = await sl<PushRegistrar>().status();
+    if (!mounted) return;
+    setState(() => _pushStatus = status);
+  }
+
+  Future<void> _togglePush(BuildContext context, bool next) async {
+    final toggle = describePushToggle(_pushStatus, sl<ServerConfigStore>().current);
+    if (toggle.blocked) {
+      final open = await AppDialog.confirm(
+        context,
+        title: 'Notifications are blocked',
+        message: 'Allow notifications for Operator in your system settings, then come back.',
+        confirmLabel: 'Open settings',
+        cancelLabel: 'Not now',
+      );
+      if (open) await openAppSettings();
+      return;
+    }
+
+    setState(() => _pushBusy = true);
+    final registrar = sl<PushRegistrar>();
+    PushRegisterResult? result;
+    if (!next) {
+      await registrar.unregister();
+    } else {
+      result = await registrar.register(sl<ServerConfigStore>().current, ask: true);
+    }
+    if (!mounted) return;
+    setState(() => _pushBusy = false);
+
+    if (result is PushNotRegistered && context.mounted) {
+      final described = describeRegisterFailure(
+        result.reason,
+        Theme.of(context).platform,
+        statusCode: result.statusCode,
+      );
+      await AppDialog.confirm(
+        context,
+        title: described.title,
+        message: described.message,
+        confirmLabel: 'OK',
+        cancelLabel: 'Close',
+      );
+    }
+    await _refreshPushStatus();
   }
 
   Future<void> _openConnection(BuildContext context) async {
@@ -189,6 +243,32 @@ class _SettingsBodyState extends State<SettingsBody> {
                   onTap: () => _openThemePicker(context, skinCubit),
                 ),
               ],
+            ),
+            const VerticalSpace(20),
+            Builder(
+              builder: (context) {
+                final toggle = describePushToggle(_pushStatus, config);
+                return SettingsGroup(
+                  title: 'Notifications',
+                  footer: toggle.footer,
+                  children: [
+                    SettingsToggle(
+                      icon: Icons.notifications_none,
+                      label: 'Agent notifications',
+                      value: toggle.value,
+                      disabled: toggle.disabled,
+                      busy: _pushBusy,
+                      onChanged: (next) => _togglePush(context, next),
+                    ),
+                    SettingsRow(
+                      icon: Icons.history,
+                      label: 'History',
+                      onTap: () =>
+                          Navigator.of(context).pushNamed(RoutesStrings.notifications),
+                    ),
+                  ],
+                );
+              },
             ),
             const VerticalSpace(20),
             SettingsGroup(
