@@ -61,3 +61,21 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/SessionCard.tsx` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/session_card.dart` | With `session_section_header.dart` and `sessions_stats_row.dart` for the `SectionList` chrome. |
 | `app/(tabs)/index.tsx` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_body.dart` | The Kanban tab, plus `session_actions_sheet.dart` for kill/restore/resume. |
 | `app/session/[id].tsx` | `lib/feature/sessions/presentation/session_route/ui/session_route_screen.dart` | The chat-or-terminal fork. |
+| `lib/prView.ts` | `lib/feature/pull_request/logic/pr_view.dart` | 1:1 — `prLifecycle`, `mergeReasonLabel`, the headline atom and the badge row. |
+| `lib/PRCard.tsx` | `lib/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pr_card.dart` | 1:1. Neither app has a merge action; the daemon's `prMerge` endpoint is reachable from `pull_request_repository.dart` but no UI calls it, in either tree. |
+| `lib/usePRSummaries.ts` | `lib/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart` | The fan-out and its per-session summary cache. |
+| `lib/githubLink.ts` | `lib/feature/pull_request/logic/github_link.dart` | 1:1. |
+| `lib/openGitHub.ts` | `lib/feature/pull_request/logic/open_github.dart` | Adapted — `url_launcher`. |
+| `lib/ProjectSwitcher.tsx` | `lib/feature/pull_request/presentation/pull_requests_screen/ui/widgets/project_switcher.dart` | |
+| `lib/ProjectPickerSheet.tsx` | `lib/core/widgets/pickers/project_picker_sheet.dart` | In `core/` because the PR tab, the spawn screen and settings all open it. |
+| `app/sheets/project.tsx` | `lib/core/widgets/pickers/project_picker_sheet.dart` | The route wrapper collapses into the sheet — `showModalBottomSheet` returns the choice. |
+| `app/(tabs)/prs.tsx` | `lib/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pull_requests_body.dart` | Including the open/merged/all filter and its counts. |
+| `lib/orchestratorView.ts` | `lib/feature/orchestrator/logic/orchestrator_view.dart` | 1:1. |
+| `app/(tabs)/orchestrator.tsx` | `lib/feature/orchestrator/presentation/orchestrator_screen/ui/widgets/orchestrator_body.dart` | With `orchestrator_card.dart`. |
+| `lib/agentPicker.ts` | `lib/feature/spawn/logic/agent_picker.dart` | 1:1. |
+| `lib/AgentPickerSheet.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | In `core/` — spawn and the chat settings sheet both open it. |
+| `app/sheets/agent.tsx` | `lib/core/widgets/pickers/agent_picker_sheet.dart` | Route wrapper collapsed, as above. |
+| `app/spawn.tsx` | `lib/feature/spawn/presentation/spawn_screen/ui/widgets/spawn_body.dart` | |
+| `lib/ThemePickerSheet.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | |
+| `app/sheets/theme.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | Route wrapper collapsed, as above. |
+| `app/(tabs)/settings.tsx` | `lib/feature/settings/presentation/settings_screen/ui/widgets/settings_body.dart` | Daemon settings, theme picker, agent picker, project switcher, the notifications section and disconnect. |
