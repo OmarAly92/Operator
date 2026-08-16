@@ -99,7 +99,7 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/chat/HighlightedCodeText.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/highlighted_code_text.dart` | |
 | `lib/chat/ChatSettingsModal.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_settings_sheet.dart` | Model, mode and config-option pickers. |
 | `lib/voice/types.ts` | `lib/feature/chat/voice/voice_types.dart` | 1:1. |
-| `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras needed the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposes none of the three. |
+| `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras are ported via the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposed none of the three, so M6 Tasks 13–17 forked and extended it. |
 | `lib/voice/useVoiceInput.ts` | `lib/feature/chat/voice/logic/voice_input_cubit.dart` | Push-to-talk and latched, with the same state machine. |
 | `lib/voice/MicKey.tsx` | `lib/feature/chat/voice/ui/mic_key.dart` | With `voice_strip.dart` for the transcript strip. |
 | `lib/session/TerminalSessionScreen.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart` | Split by concern: `terminal_surface.dart` (the `xterm.dart` view), `terminal_status_bar.dart`, `terminal_composer.dart`, `terminal_dead_overlay.dart`, `terminal_preview_globe.dart`, `interface_switch_overlay.dart`, `interface_switch_sheet.dart`. The injected CSS/JS that made a WebView usable has no counterpart — the spike passed on `xterm.dart`, so the fallback was never taken. |
@@ -176,4 +176,4 @@ is deleted.
 | Haptic feedback | `lib/haptics.ts` and 65 call sites | Closed — M6 Tasks 7–10 |
 | Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all four tabs | Closed — M6 Task 11 |
 | `build_mode` can never report `simulator` | `lib/telemetry/context.ts` vs `lib/main.dart:33` | Closed — M6 Task 12 |
-| Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Open — to be closed by M6 Tasks 13-17 |
+| Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Closed — M6 Tasks 13–17 |

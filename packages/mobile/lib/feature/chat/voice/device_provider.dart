@@ -9,6 +9,36 @@ import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 const Duration kVoicePauseFor = Duration(seconds: 10);
 const Duration kVoiceListenFor = Duration(minutes: 5);
 
+/// Biases the recogniser toward words that show up constantly in agent prompts
+/// and would otherwise come back mangled ("get" for "git", "MPM" for "npm").
+const List<String> kCodingVocabulary = [
+  'git',
+  'npm',
+  'repo',
+  'commit',
+  'rebase',
+  'branch',
+  'merge',
+  'PR',
+  'diff',
+  'refactor',
+  'TypeScript',
+  'JavaScript',
+  'Go',
+  'React',
+  'Expo',
+  'JSON',
+  'API',
+  'CLI',
+  'daemon',
+  'worktree',
+  'regex',
+  'localhost',
+  'stack trace',
+  'lint',
+  'typecheck',
+];
+
 /// Silence, a stray tap or a deliberate cancel is not a fault: settle normally so
 /// anything already transcribed survives.
 const Set<String> _silentErrors = {
@@ -143,6 +173,7 @@ class DeviceVoiceProvider implements VoiceProvider {
         localeId: _language,
         pauseFor: kVoicePauseFor,
         listenFor: kVoiceListenFor,
+        longForm: mode == VoiceMode.latched,
       );
     } catch (error) {
       _fail(

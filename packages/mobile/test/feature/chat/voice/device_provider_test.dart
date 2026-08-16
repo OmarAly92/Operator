@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
 import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
@@ -16,7 +16,7 @@ class FakeRecognizer implements SpeechRecognizer {
   bool throwOnListen = false;
   List<String> supportedLocales = ['en-US', 'en-GB', 'en-IN'];
   String? systemLocale = 'en-IN';
-  ({Duration pauseFor, Duration listenFor, String? localeId})? lastOptions;
+  ({Duration pauseFor, Duration listenFor, String? localeId, bool longForm})? lastOptions;
 
   void Function(String status)? _onStatus;
   void Function(SpeechFailure failure)? _onError;
@@ -59,11 +59,12 @@ class FakeRecognizer implements SpeechRecognizer {
     String? localeId,
     required Duration pauseFor,
     required Duration listenFor,
+    required bool longForm,
   }) async {
     listenCalls++;
     if (throwOnListen) throw StateError('mic busy');
     _onResult = onResult;
-    lastOptions = (pauseFor: pauseFor, listenFor: listenFor, localeId: localeId);
+    lastOptions = (pauseFor: pauseFor, listenFor: listenFor, localeId: localeId, longForm: longForm);
   }
 
   @override
@@ -90,6 +91,8 @@ class Harness {
 const Duration grace = Duration(milliseconds: 30);
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late FakeRecognizer recognizer;
 
   setUp(() => recognizer = FakeRecognizer());
@@ -424,6 +427,62 @@ void main() {
       await Future<void>.delayed(grace * 2);
 
       expect(harness.finals, ['run the linter']);
+    });
+  });
+
+  group('listen options', () {
+    final List<MethodCall> calls = <MethodCall>[];
+    const channel = MethodChannel('plugin.csdcorp.com/speech_to_text');
+
+    setUp(() {
+      calls.clear();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) async {
+          calls.add(call);
+          return true;
+        },
+      );
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    Future<Map<Object?, Object?>> listenArgs({required bool longForm}) async {
+      final recognizer = SpeechToTextRecognizer();
+      await recognizer.initialize();
+      calls.clear();
+      await recognizer.listen(
+        onResult: (_) {},
+        pauseFor: const Duration(seconds: 10),
+        listenFor: const Duration(seconds: 60),
+        longForm: longForm,
+      );
+      return calls.single.arguments as Map<Object?, Object?>;
+    }
+
+    test('push-to-talk asks for the cheapest capture session', () async {
+      final args = await listenArgs(longForm: false);
+      expect(args['iosAudioCategory'], 'record');
+      expect(args['iosAudioCategoryOptions'], isEmpty);
+      expect(args['iosAudioMode'], 'default');
+    });
+
+    test('latched dictation asks for a Bluetooth-capable session', () async {
+      final args = await listenArgs(longForm: true);
+      expect(args['iosAudioCategory'], 'playAndRecord');
+      expect(args['iosAudioCategoryOptions'], ['allowBluetooth', 'defaultToSpeaker']);
+      expect(args['iosAudioMode'], 'measurement');
+    });
+
+    test('both modes bias the recogniser and widen the Android silence window', () async {
+      final args = await listenArgs(longForm: false);
+      expect(args['contextualStrings'], kCodingVocabulary);
+      expect(args['contextualStrings'], contains('git'));
+      expect(args['contextualStrings'], contains('npm'));
+      expect(args['possiblyCompleteSilence'], 10000);
     });
   });
 }

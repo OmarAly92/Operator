@@ -1,6 +1,8 @@
+import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text_platform_interface/speech_to_text_platform_interface.dart' show IosAudioSession;
 
 const String kSpeechListening = SpeechToText.listeningStatus;
 const String kSpeechDone = SpeechToText.doneStatus;
@@ -38,6 +40,7 @@ abstract class SpeechRecognizer {
     String? localeId,
     required Duration pauseFor,
     required Duration listenFor,
+    required bool longForm,
   });
 
   Future<void> stop();
@@ -79,6 +82,7 @@ class SpeechToTextRecognizer implements SpeechRecognizer {
     String? localeId,
     required Duration pauseFor,
     required Duration listenFor,
+    required bool longForm,
   }) => _speech.listen(
     onResult: (SpeechRecognitionResult result) =>
         onResult(SpeechResult(result.recognizedWords, isFinal: result.finalResult)),
@@ -89,6 +93,19 @@ class SpeechToTextRecognizer implements SpeechRecognizer {
       localeId: localeId,
       pauseFor: pauseFor,
       listenFor: listenFor,
+      contextualStrings: kCodingVocabulary,
+      androidPossiblyCompleteSilenceMillis: 10000,
+      iosAudioSession: longForm
+          ? const IosAudioSession(
+              category: 'playAndRecord',
+              categoryOptions: ['allowBluetooth', 'defaultToSpeaker'],
+              mode: 'measurement',
+            )
+          : const IosAudioSession(
+              category: 'record',
+              categoryOptions: [],
+              mode: 'default',
+            ),
     ),
   );
 
