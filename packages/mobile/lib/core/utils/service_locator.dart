@@ -29,6 +29,9 @@ import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
+import 'package:operator_mobile/feature/preview/data/data_source/preview_remote_data_source.dart';
+import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
+import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/data/data_source/pull_request_remote_data_source.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
@@ -60,6 +63,7 @@ class ServiceLocator {
     _terminalFeatureSetup();
     _notificationFeatureSetup();
     _voiceSetup();
+    _previewFeatureSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -263,6 +267,24 @@ class ServiceLocator {
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) =>
           VoiceInputCubit(sl<VoiceProvider>(), onTranscript: onTranscript),
+    );
+  }
+
+  static void _previewFeatureSetup() {
+    sl.registerFactoryParam<PreviewCubit, String, String?>(
+      (sessionId, previewUrl) =>
+          PreviewCubit(sl<PreviewRepository>(), sessionId, previewUrl: previewUrl),
+    );
+
+    sl.registerLazySingleton<PreviewRepository>(
+      () => PreviewRepositoryImp(
+        sl<PreviewRemoteDataSource>(),
+        sl<NetworkStatus>(),
+        sl<ServerConfigStore>(),
+      ),
+    );
+    sl.registerLazySingleton<PreviewRemoteDataSource>(
+      () => PreviewRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 }

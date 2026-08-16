@@ -14,6 +14,8 @@ import 'package:operator_mobile/feature/pairing/presentation/manual_connect_scre
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/ui/manual_connect_screen.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/ui/pairing_scan_screen.dart';
+import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
+import 'package:operator_mobile/feature/preview/presentation/preview_screen/ui/preview_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/session_route_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
@@ -103,6 +105,20 @@ sealed class AppRouter {
               ),
             ],
             child: const TerminalScreen(),
+          ),
+          settings: settings,
+        );
+
+      case RoutesStrings.preview:
+        final args = settings.arguments as Map<String, dynamic>?;
+        final sessionId = args?['sessionId'] as String? ?? '';
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider<PreviewCubit>(
+            create: (_) => sl<PreviewCubit>(
+              param1: sessionId,
+              param2: args?['previewUrl'] as String?,
+            ),
+            child: PreviewScreen(title: args?['title'] as String? ?? 'Preview'),
           ),
           settings: settings,
         );

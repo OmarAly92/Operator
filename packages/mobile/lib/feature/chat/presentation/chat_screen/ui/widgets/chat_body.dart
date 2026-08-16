@@ -30,9 +30,10 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart';
 
 class ChatBody extends StatefulWidget {
-  const ChatBody({super.key, this.projectId});
+  const ChatBody({super.key, this.projectId, this.previewUrl});
 
   final String? projectId;
+  final String? previewUrl;
 
   @override
   State<ChatBody> createState() => ChatBodyState();
@@ -138,6 +139,15 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
         await _openShell();
       case ConversationMenuAction.terminalUi:
         await _switchToTerminal();
+      case ConversationMenuAction.preview:
+        Navigator.of(context).pushNamed(
+          RoutesStrings.preview,
+          arguments: {
+            'sessionId': cubit.sessionId,
+            'title': snapshot.title ?? 'Preview',
+            'previewUrl': widget.previewUrl,
+          },
+        );
     }
   }
 

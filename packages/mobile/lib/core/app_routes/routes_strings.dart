@@ -7,4 +7,5 @@ sealed class RoutesStrings {
   static const String spawn = '/spawn';
   static const String terminal = '/terminal';
   static const String notifications = '/notifications';
+  static const String preview = '/preview';
 }
