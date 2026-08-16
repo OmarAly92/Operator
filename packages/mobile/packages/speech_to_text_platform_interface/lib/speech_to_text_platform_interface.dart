@@ -50,6 +50,22 @@ enum ListenMode {
   confirmation,
 }
 
+/// The iOS audio session a listen call should run under. The session cannot be
+/// changed mid-recording, so the choice is fixed when listening starts: a
+/// capture-only session activates fast, a Bluetooth-capable one is worth its
+/// slower activation for a long hands-free phrase.
+class IosAudioSession {
+  const IosAudioSession({
+    required this.category,
+    required this.categoryOptions,
+    required this.mode,
+  });
+
+  final String category;
+  final List<String> categoryOptions;
+  final String mode;
+}
+
 /// Options for the [listen] method. Previously options were provided as
 /// separate parameters to listen however as the number of options grew
 /// this became unwieldy. The options are now provided as a single object
@@ -66,6 +82,9 @@ class SpeechListenOptions {
   final Duration? pauseFor;
   final Duration? listenFor;
   final String? localeId;
+  final List<String> contextualStrings;
+  final IosAudioSession? iosAudioSession;
+  final int? androidPossiblyCompleteSilenceMillis;
 
   SpeechListenOptions({
     /// If true the listen session will automatically be canceled on a permanent error.
@@ -113,6 +132,19 @@ class SpeechListenOptions {
     /// The locale to use for the listen session, if null the system default
     /// locale will be used. This is only supported on iOS and Android.
     this.localeId = null,
+
+    /// Biases the recogniser toward these words/phrases. iOS maps this to
+    /// `SFSpeechRecognitionRequest.contextualStrings`, Android to
+    /// `RecognizerIntent.EXTRA_BIASING_STRINGS`.
+    this.contextualStrings = const [],
+
+    /// The iOS audio session to activate for this listen call. Null keeps
+    /// upstream's own session configuration.
+    this.iosAudioSession = null,
+
+    /// Android's `EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS`.
+    /// Null keeps upstream's own behaviour.
+    this.androidPossiblyCompleteSilenceMillis = null,
   });
 
   SpeechListenOptions copyWith({
@@ -126,6 +158,9 @@ class SpeechListenOptions {
     Duration? pauseFor,
     Duration? listenFor,
     String? localeId,
+    List<String>? contextualStrings,
+    IosAudioSession? iosAudioSession,
+    int? androidPossiblyCompleteSilenceMillis,
   }) {
     return SpeechListenOptions(
         cancelOnError: cancelOnError ?? this.cancelOnError,
@@ -137,7 +172,11 @@ class SpeechListenOptions {
         enableHapticFeedback: enableHapticFeedback ?? this.enableHapticFeedback,
         pauseFor: pauseFor ?? this.pauseFor,
         listenFor: listenFor ?? this.listenFor,
-        localeId: localeId ?? this.localeId);
+        localeId: localeId ?? this.localeId,
+        contextualStrings: contextualStrings ?? this.contextualStrings,
+        iosAudioSession: iosAudioSession ?? this.iosAudioSession,
+        androidPossiblyCompleteSilenceMillis:
+            androidPossiblyCompleteSilenceMillis ?? this.androidPossiblyCompleteSilenceMillis);
   }
 }
 

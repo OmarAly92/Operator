@@ -113,6 +113,11 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
       "autoPunctuation": options?.autoPunctuation ?? false,
       "pauseFor": options?.pauseFor?.inMilliseconds ?? null,
       "listenFor": options?.listenFor?.inMilliseconds ?? null,
+      "contextualStrings": options?.contextualStrings ?? const <String>[],
+      "iosAudioCategory": options?.iosAudioSession?.category,
+      "iosAudioCategoryOptions": options?.iosAudioSession?.categoryOptions,
+      "iosAudioMode": options?.iosAudioSession?.mode,
+      "possiblyCompleteSilence": options?.androidPossiblyCompleteSilenceMillis,
     };
     if (null != (localeId ?? options?.localeId)) {
       listenParams["localeId"] = (localeId ?? options?.localeId);

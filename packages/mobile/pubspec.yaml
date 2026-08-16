@@ -61,6 +61,7 @@ dependencies:
   file_selector: ^1.1.0
   xterm:
   speech_to_text:
+  speech_to_text_platform_interface:
   webview_flutter: ^4.14.1
   app_links: ^7.2.1
 
