@@ -59,6 +59,7 @@ dependencies:
   xterm:
   speech_to_text: ^7.4.0
   webview_flutter: ^4.14.1
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:

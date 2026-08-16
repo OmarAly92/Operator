@@ -12,6 +12,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/logic/skin_cubit.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
+import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
@@ -67,6 +68,14 @@ class _OperatorAppState extends State<OperatorApp> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(sl<DeepLinkService>().start());
+    });
+  }
+
+  @override
   void dispose() {
     _lifecycle.dispose();
     super.dispose();
@@ -85,6 +94,7 @@ class _OperatorAppState extends State<OperatorApp> {
                 designSize: const Size(390, 844),
                 minTextAdapt: true,
                 builder: (context, child) => MaterialApp(
+                  navigatorKey: sl<GlobalKey<NavigatorState>>(),
                   debugShowCheckedModeBanner: false,
                   theme: AppThemes.fromSkin(skin),
                   themeMode: skin.themeMode,

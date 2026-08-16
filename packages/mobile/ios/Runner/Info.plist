@@ -78,5 +78,18 @@
 	<array>
 		<string>github</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>dev.operator.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aomobile</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
