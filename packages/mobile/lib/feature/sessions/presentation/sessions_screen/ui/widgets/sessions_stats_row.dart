@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
-import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
@@ -29,12 +28,10 @@ class SessionsStatsRow extends StatelessWidget {
     final skin = context.skin;
     Widget stat(int n, String label, Color color, VoidCallback? onTap) => Expanded(
       child: AppContainer(
-        onTap: onTap == null
-            ? null
-            : () {
-                Haptics.select();
-                onTap();
-              },
+        // No haptic here: a stat whose section is not on the board must stay
+        // inert rather than buzz and do nothing, so the caller fires it only
+        // after it knows the jump will land.
+        onTap: onTap,
         hapticsOnTap: false,
         backgroundColor: skin.bgElevated,
         border: Border.all(color: skin.borderSubtle),

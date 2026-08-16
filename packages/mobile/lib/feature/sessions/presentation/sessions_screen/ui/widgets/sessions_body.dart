@@ -17,8 +17,27 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_section_header.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_stats_row.dart';
 
-class SessionsBody extends StatelessWidget {
+class SessionsBody extends StatefulWidget {
   const SessionsBody({super.key});
+
+  @override
+  State<SessionsBody> createState() => _SessionsBodyState();
+}
+
+class _SessionsBodyState extends State<SessionsBody> {
+  // Keyed by zone rather than by rendered section: a zone that is empty on this
+  // tick still owns its key, so a section appearing later reuses the same
+  // element instead of being re-inflated.
+  final Map<BoardZone, GlobalKey> _sectionKeys = {
+    for (final zone in BoardZone.values) zone: GlobalKey(),
+  };
+
+  void _jumpTo(BoardZone zone) {
+    final sectionContext = _sectionKeys[zone]?.currentContext;
+    if (sectionContext == null) return;
+    Haptics.select();
+    Scrollable.ensureVisible(sectionContext, duration: const Duration(milliseconds: 200));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,16 +76,6 @@ class SessionsBody extends StatelessWidget {
 
         void openActions(SessionModel session) => showSessionActionsSheet(context, session);
 
-        final sectionKeys = <BoardZone, GlobalKey>{
-          for (final section in grouped.sections) section.zone: GlobalKey(),
-        };
-        void jumpTo(BoardZone zone) {
-          final sectionContext = sectionKeys[zone]?.currentContext;
-          if (sectionContext != null) {
-            Scrollable.ensureVisible(sectionContext, duration: const Duration(milliseconds: 200));
-          }
-        }
-
         return RefreshIndicator(
           onRefresh: () async {
             Haptics.tap();
@@ -80,13 +89,13 @@ class SessionsBody extends StatelessWidget {
                 working: working,
                 needsYou: needsYou,
                 mergeable: mergeable,
-                onTapWorking: () => jumpTo(BoardZone.working),
-                onTapNeedsYou: () => jumpTo(BoardZone.action),
-                onTapMergeable: () => jumpTo(BoardZone.merge),
+                onTapWorking: () => _jumpTo(BoardZone.working),
+                onTapNeedsYou: () => _jumpTo(BoardZone.action),
+                onTapMergeable: () => _jumpTo(BoardZone.merge),
               ),
               for (final section in grouped.sections) ...[
                 KeyedSubtree(
-                  key: sectionKeys[section.zone],
+                  key: _sectionKeys[section.zone],
                   child: SessionSectionHeader(label: section.label, color: section.color, count: section.sessions.length),
                 ),
                 for (final session in section.sessions)

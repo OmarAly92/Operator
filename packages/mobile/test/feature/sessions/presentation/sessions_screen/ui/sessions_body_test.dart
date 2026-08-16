@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart'
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/session_section_header.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,6 +26,7 @@ class _MockMuxClient extends Mock implements MuxClient {}
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
+  final List<String> fired = <String>[];
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -33,6 +36,19 @@ void main() {
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
+    fired.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') fired.add('${call.arguments}');
+        return null;
+      },
+    );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
   Future<void> pumpBody(WidgetTester tester, BoardSnapshot snapshot) async {
@@ -101,4 +117,59 @@ void main() {
       expect(find.text(target.id), findsOneWidget);
     });
   }
+
+  group('stat jump', () {
+    testWidgets('tapping a populated stat clicks and jumps to its section', (tester) async {
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [
+            SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
+            SessionModel(id: 'b', projectId: 'proj', displayName: 'Needs you', status: 'needs_input'),
+          ],
+        ),
+      );
+
+      await tester.tap(find.text('need you'));
+      await tester.pumpAndSettle();
+
+      expect(fired, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('tapping a stat whose section is not on the board stays silent', (tester) async {
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [
+            SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
+          ],
+        ),
+      );
+
+      await tester.tap(find.text('mergeable'));
+      await tester.pumpAndSettle();
+
+      expect(fired, isEmpty);
+    });
+
+    testWidgets('section elements survive a board refresh', (tester) async {
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [
+            SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
+          ],
+        ),
+      );
+
+      final before = tester.element(find.byType(SessionSectionHeader).first);
+
+      await tester.element(find.byType(SessionsBody)).read<SessionsCubit>().refresh();
+      await tester.pumpAndSettle();
+
+      final after = tester.element(find.byType(SessionSectionHeader).first);
+      expect(identical(before, after), isTrue,
+          reason: 'a rebuilt GlobalKey re-inflates the section on every poll tick');
+    });
+  });
 }

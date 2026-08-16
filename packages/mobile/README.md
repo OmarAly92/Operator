@@ -10,29 +10,35 @@ was built from, then deleted at milestone M6 once every file in it was
 accounted for — see `docs/mobile-parity-ledger.md` for where each one went.
 This package has been the only mobile client since M6.
 
-## Current milestone: M1 — walking skeleton
+## Status: the port is complete (M0–M6)
 
-M0 shipped `lib/core` only: data layer, error handling, the Operator
-skin/theme, a small set of core widgets, and DI/routing/bootstrap.
+Eleven features over a shared `lib/core`:
 
-M1 adds the first screens a person actually uses — pairing (QR + manual) →
-onboarding → the sessions Kanban board:
+- `pairing` / `onboarding` — QR scan (`mobile_scanner`) and manual
+  host/port/password entry, both verifying against the daemon before saving,
+  behind a first-run gate decided in `main.dart` before `runApp`.
+- `sessions` — the Kanban board (`SessionsCubit`: an 8s REST poll layered with
+  live `MuxClient` session patches), cards, stats that jump to their section,
+  and a long-press sheet for kill/restore/resume.
+- `pull_request` / `orchestrator` / `spawn` / `settings` — the other three tabs
+  and the new-session flow.
+- `chat` — timeline, SSE stream, composer, attachments and elicitation.
+- `terminal` — TUI and shell over the mux socket, rendered with a vendored
+  `xterm.dart`.
+- `preview` / `notification` — the in-app preview browser, notification history
+  and the push switch.
 
-- `feature/pairing` — QR scan (`mobile_scanner`) and manual host/port/password
-  entry, both verifying against the daemon before saving.
-- `feature/onboarding` — the first-run gate (`shouldOnboard`), decided
-  synchronously in `main.dart` before `runApp` rather than by a mounted
-  redirect widget.
-- `feature/sessions` — the Kanban board (`SessionsCubit`: an 8s REST poll
-  layered with live `MuxClient` session patches), session cards, and a
-  long-press action sheet for kill/restore.
-- `core/mux` — `MuxClient`, the WebSocket multiplexer session-status and
-  (future terminal) events flow through.
+Cross-cutting: `core/mux` (the WebSocket multiplexer both the board and the
+terminal depend on), `core/telemetry`, `core/deep_link`, and `chat/voice` for
+dictation.
 
-See `docs/superpowers/plans/2026-08-12-flutter-mobile-port-m1.md` for the
-full task-by-task plan and its "What M1 deliberately does not include"
-section for scope boundaries (no spawn flow, no project switcher, no
-session-detail screen — chat/terminal land in M3/M4).
+Two subsystems deliberately outlive the port and are **not** wired: the PostHog
+sink (no project key exists) and FCM/APNs push registration (needs credentials).
+The decision logic for both is built and tested behind its seam. See
+`docs/mobile-parity-ledger.md` for those, for every divergence from the
+React Native original, and for where each of its 99 source files went.
+
+Per-milestone plans are in `docs/superpowers/plans/2026-08-*-flutter-mobile-port-*.md`.
 
 ## Running the gate
 
