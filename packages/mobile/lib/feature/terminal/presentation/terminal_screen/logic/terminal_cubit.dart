@@ -26,6 +26,7 @@ class TerminalArgs extends Equatable {
     required this.title,
     this.projectId,
     this.shellOnly = false,
+    this.previewUrl,
   });
 
   /// The PTY handle: an Operator session id, or a worktree shell's handleId.
@@ -34,9 +35,10 @@ class TerminalArgs extends Equatable {
   final String title;
   final String? projectId;
   final bool shellOnly;
+  final String? previewUrl;
 
   @override
-  List<Object?> get props => [id, sessionId, title, projectId, shellOnly];
+  List<Object?> get props => [id, sessionId, title, projectId, shellOnly, previewUrl];
 }
 
 class _TerminalWriteSink implements Sink<String> {

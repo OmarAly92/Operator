@@ -98,6 +98,16 @@ void main() {
     await cubit.close();
   });
 
+  test('never calls the repository when the session id is empty', () async {
+    final cubit = PreviewCubit(repository, '', poll: const Duration(milliseconds: 30));
+
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    verifyNever(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')));
+    expect(cubit.loading, isFalse);
+    await cubit.close();
+  });
+
   test('stops polling once closed', () async {
     when(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')))
         .thenAnswer((_) async => Result.success(null));

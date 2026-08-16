@@ -244,7 +244,7 @@ class ServiceLocator {
 
   static void _notificationFeatureSetup() {
     sl.registerLazySingleton<NotificationsCubit>(
-      () => NotificationsCubit(sl<NotificationRepository>()),
+      () => NotificationsCubit(sl<NotificationRepository>(), sl<ServerConfigStore>()),
     );
 
     sl.registerLazySingleton<NotificationRepository>(

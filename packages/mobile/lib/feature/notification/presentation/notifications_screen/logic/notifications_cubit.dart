@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_model.dart';
 import 'package:operator_mobile/feature/notification/data/model/params/get_notifications_params.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
+import 'package:operator_mobile/feature/notification/logic/push_status.dart';
 
 part 'notifications_state.dart';
 
@@ -13,18 +15,22 @@ const int kNotificationPageSize = 50;
 
 class NotificationsCubit extends Cubit<NotificationsState> {
   factory NotificationsCubit(
-    NotificationRepository repository, {
+    NotificationRepository repository,
+    ServerConfigStore serverConfigStore, {
     Duration unreadPoll = const Duration(seconds: 30),
-  }) => NotificationsCubit._(repository, unreadPoll: unreadPoll);
+  }) => NotificationsCubit._(repository, serverConfigStore, unreadPoll: unreadPoll);
 
-  NotificationsCubit._(this._repository, {required this._unreadPoll})
+  NotificationsCubit._(this._repository, this._serverConfigStore, {required this._unreadPoll})
     : super(const NotificationsInitialState()) {
     unawaited(load());
     _timer = Timer.periodic(_unreadPoll, (_) => unawaited(refreshUnread()));
   }
 
   final NotificationRepository _repository;
+  final ServerConfigStore _serverConfigStore;
   final Duration _unreadPoll;
+
+  bool get _hasServer => hasServer(_serverConfigStore.current);
 
   List<NotificationModel> items = [];
   int unreadCount = 0;
@@ -60,6 +66,11 @@ class NotificationsCubit extends Cubit<NotificationsState> {
 
   Future<void> _fetch({required bool reset}) async {
     error = null;
+    if (!_hasServer) {
+      loading = false;
+      _emit();
+      return;
+    }
     final result = await _repository.getNotifications(
       GetNotificationsParams(
         status: 'all',
@@ -87,6 +98,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   }
 
   Future<void> refreshUnread() async {
+    if (!_hasServer) return;
     final result = await _repository.getNotifications(
       const GetNotificationsParams(status: 'unread', limit: 1),
     );

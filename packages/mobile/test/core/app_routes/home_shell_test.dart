@@ -138,6 +138,7 @@ void main() {
                 BlocProvider<NotificationsCubit>(
                   create: (_) => NotificationsCubit(
                     notificationRepository,
+                    sl<ServerConfigStore>(),
                     unreadPoll: const Duration(hours: 1),
                   ),
                 ),

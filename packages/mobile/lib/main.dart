@@ -70,6 +70,7 @@ class _OperatorAppState extends State<OperatorApp> {
   @override
   void initState() {
     super.initState();
+    _lifecycle.hashCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(sl<DeepLinkService>().start());
     });

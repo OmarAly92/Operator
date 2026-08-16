@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/notification/data/model/notification_model.dart';
@@ -10,6 +12,15 @@ import 'package:operator_mobile/feature/notification/data/repository/notificatio
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 
 class _MockRepository extends Mock implements NotificationRepository {}
+
+class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+const _pairedServer = ServerConfig(
+  host: '10.0.0.5',
+  httpPort: '4317',
+  secure: false,
+  password: 'secret',
+);
 
 NotificationModel item(String id, {String status = 'unread'}) =>
     NotificationModel(id: id, type: 'needs_input', sessionId: 's-1', status: status);
@@ -30,13 +41,18 @@ Result<GlobalResponse<NotificationPageModel>, Failure> page(
 
 void main() {
   late _MockRepository repository;
+  late _MockServerConfigStore serverConfigStore;
 
   setUpAll(() => registerFallbackValue(const GetNotificationsParams()));
 
-  setUp(() => repository = _MockRepository());
+  setUp(() {
+    repository = _MockRepository();
+    serverConfigStore = _MockServerConfigStore();
+    when(() => serverConfigStore.current).thenReturn(_pairedServer);
+  });
 
   NotificationsCubit build() =>
-      NotificationsCubit(repository, unreadPoll: const Duration(hours: 1));
+      NotificationsCubit(repository, serverConfigStore, unreadPoll: const Duration(hours: 1));
 
   test('loads the first page on construction', () async {
     when(() => repository.getNotifications(any()))
@@ -150,6 +166,29 @@ void main() {
 
     expect(cubit.items.single.status, 'unread');
     expect(cubit.unreadCount, 1);
+    await cubit.close();
+  });
+
+  test('does not call the daemon when there is no paired server', () async {
+    when(() => serverConfigStore.current).thenReturn(null);
+    final cubit = build();
+
+    await Future<void>.delayed(Duration.zero);
+
+    verifyNever(() => repository.getNotifications(any()));
+    expect(cubit.items, isEmpty);
+    expect(cubit.loading, isFalse);
+    await cubit.close();
+  });
+
+  test('refreshUnread is a no-op when there is no paired server', () async {
+    when(() => serverConfigStore.current).thenReturn(null);
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    await cubit.refreshUnread();
+
+    verifyNever(() => repository.getNotifications(any()));
     await cubit.close();
   });
 }

@@ -50,7 +50,11 @@ class TerminalScreen extends StatelessWidget {
           titleText: title,
           actions: [
             if (!args.shellOnly)
-              TerminalPreviewGlobe(sessionId: args.sessionId, title: args.title),
+              TerminalPreviewGlobe(
+                sessionId: args.sessionId,
+                title: args.title,
+                previewUrl: args.previewUrl,
+              ),
             if (!args.shellOnly)
               Semantics(
                 button: true,

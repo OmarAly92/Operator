@@ -43,6 +43,11 @@ class PreviewCubit extends Cubit<PreviewState> {
 
   Future<void> refresh() async {
     if (isClosed) return;
+    if (sessionId.isEmpty) {
+      loading = false;
+      emit(PreviewReadyState(++_revision));
+      return;
+    }
     final result = await _repository.getPreview(sessionId, previewUrl: previewUrl);
     if (isClosed) return;
     result.when(

@@ -104,11 +104,12 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
                     sessionId: session.id,
                     title: session.title,
                     projectId: session.projectId,
+                    previewUrl: session.previewUrl,
                   ),
                 ),
               ),
               BlocProvider<PreviewCubit>(
-                create: (_) => sl<PreviewCubit>(param1: session!.id, param2: null),
+                create: (_) => sl<PreviewCubit>(param1: session!.id, param2: session.previewUrl),
               ),
             ],
             child: const TerminalScreen(),

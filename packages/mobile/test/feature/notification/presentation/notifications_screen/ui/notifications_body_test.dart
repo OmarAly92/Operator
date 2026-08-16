@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
@@ -18,6 +20,15 @@ import 'package:operator_mobile/feature/notification/presentation/notifications_
 
 class _MockRepository extends Mock implements NotificationRepository {}
 
+class _MockServerConfigStore extends Mock implements ServerConfigStore {}
+
+const _pairedServer = ServerConfig(
+  host: '10.0.0.5',
+  httpPort: '4317',
+  secure: false,
+  password: 'secret',
+);
+
 NotificationModel item(String id, {String type = 'needs_input', String status = 'unread'}) =>
     NotificationModel(
       id: id,
@@ -31,10 +42,15 @@ NotificationModel item(String id, {String type = 'needs_input', String status = 
 
 void main() {
   late _MockRepository repository;
+  late _MockServerConfigStore serverConfigStore;
 
   setUpAll(() => registerFallbackValue(const GetNotificationsParams()));
 
-  setUp(() => repository = _MockRepository());
+  setUp(() {
+    repository = _MockRepository();
+    serverConfigStore = _MockServerConfigStore();
+    when(() => serverConfigStore.current).thenReturn(_pairedServer);
+  });
 
   void stubPage(List<NotificationModel> notifications, {int unreadCount = 0}) {
     when(() => repository.getNotifications(any())).thenAnswer(
@@ -47,7 +63,11 @@ void main() {
   }
 
   Future<NotificationsCubit> pump(WidgetTester tester, Widget child) async {
-    final cubit = NotificationsCubit(repository, unreadPoll: const Duration(hours: 1));
+    final cubit = NotificationsCubit(
+      repository,
+      serverConfigStore,
+      unreadPoll: const Duration(hours: 1),
+    );
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
