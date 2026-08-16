@@ -5,6 +5,7 @@ import { useUiStore } from "../stores/ui-store";
 import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
 import { SkinProvider } from "../theme/skin-context";
 import { darkSkin } from "../theme/skins/dark";
+import { githubDark } from "../theme/skins/github";
 import { lightSkin } from "../theme/skins/light";
 import { XtermTerminal } from "./XtermTerminal";
 
@@ -203,10 +204,6 @@ describe("XtermTerminal", () => {
 	});
 
 	it("re-derives the live terminal palette from the skin when the store's theme/style changes", () => {
-		// The skin REGISTRY has no entries until Task 9 gives named themes their
-		// own terminal tokens, so every style currently resolves to the base
-		// dark/light skin regardless of `themeStyle` — assert against that real,
-		// current skin output rather than invented per-theme colors.
 		useUiStore.setState({ themeStyle: "orchestrate" });
 
 		try {
@@ -219,11 +216,9 @@ describe("XtermTerminal", () => {
 
 			act(() => useUiStore.getState().setThemeStyle("github"));
 
-			// skinFor("github", "dark") still resolves to darkSkin (empty registry),
-			// so the terminal's theme option is unchanged — the point of this test
-			// is that it re-derives from the skin on every store change, not that
-			// GitHub looks distinct yet.
-			expect(state.lastTerminal!.options.theme).toMatchObject(skinToXtermTheme(darkSkin, "dark"));
+			expect(state.lastTerminal!.options.theme).toMatchObject(
+				skinToXtermTheme(githubDark, "dark"),
+			);
 		} finally {
 			act(() => useUiStore.setState({ themeStyle: "orchestrate" }));
 		}
