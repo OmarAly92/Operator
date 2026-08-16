@@ -50,5 +50,11 @@ sealed class EndPoints {
   static String sessionInterfaceTransition(String sessionId) =>
       '${_session(sessionId)}/interface-transition';
 
+  static String sessionPreview(String sessionId) => '${_session(sessionId)}/preview';
+
+  static String sessionPreviewFile(String sessionId, String entry) =>
+      '${sessionPreview(sessionId)}/files/'
+      '${entry.split('/').map(Uri.encodeComponent).join('/')}';
+
   static String _session(String sessionId) => '$sessions/${Uri.encodeComponent(sessionId)}';
 }
