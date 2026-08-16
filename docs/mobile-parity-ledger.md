@@ -79,3 +79,26 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/ThemePickerSheet.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | |
 | `app/sheets/theme.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | Route wrapper collapsed, as above. |
 | `app/(tabs)/settings.tsx` | `lib/feature/settings/presentation/settings_screen/ui/widgets/settings_body.dart` | Daemon settings, theme picker, agent picker, project switcher, the notifications section and disconnect. |
+| `lib/chat/api.ts` | `lib/feature/chat/data/data_source/chat_remote_data_source.dart` | Every conversation call. The catalogue calls (`models`, `skills`, `config-options`) are `chat_catalog_model.dart`. |
+| `lib/chat/types.ts` | `lib/feature/chat/data/model/conversation_item_model.dart` | With `conversation_turn_model.dart`, `activity_detail_model.dart`, `chat_attachment_model.dart` and `workspace_paths_model.dart`. |
+| `lib/chat/sse.ts` | `lib/feature/chat/data/sse.dart` | `takeSseFrames` and `parseSseFrame` as pure functions over a `ResponseType.stream` Dio response. CRLF boundaries, the `id:` fallback for daemons with no `seq`, and dropping malformed `data` all survive. |
+| `lib/chat/snapshot.ts` | `lib/feature/chat/data/model/conversation_snapshot_model.dart` | 1:1. |
+| `lib/chat/timelineModel.ts` | `lib/feature/chat/logic/timeline_model.dart` | 1:1. |
+| `lib/chat/conversationChrome.ts` | `lib/feature/chat/logic/conversation_chrome.dart` | 1:1. |
+| `lib/chat/conversationErrors.ts` | `lib/feature/chat/logic/conversation_errors.dart` | 1:1. |
+| `lib/chat/elicitationModel.ts` | `lib/feature/chat/logic/elicitation_model.dart` | 1:1. |
+| `lib/chat/composerSuggestions.ts` | `lib/feature/chat/logic/composer_suggestions.dart` | 1:1. |
+| `lib/chat/markdownBlocks.ts` | `lib/feature/chat/logic/markdown_blocks.dart` | 1:1. |
+| `lib/chat/syntaxHighlight.ts` | `lib/feature/chat/logic/syntax_highlight.dart` | 1:1. |
+| `lib/chat/ansi.ts` | `lib/feature/chat/logic/ansi.dart` | 1:1. |
+| `lib/chat/useConversation.ts` | `lib/feature/chat/presentation/chat_screen/logic/chat_cubit.dart` | The stream lifecycle, reconnect, optimistic send and the pending-request set. Paging is `conversation_pages.dart`. |
+| `lib/chat/ChatSessionScreen.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart` | With `chat_meta_bar.dart`, `conversation_banners.dart`, `conversation_menu_sheet.dart` and `conversation_map_sheet.dart`. `MenuRow` is inside the menu sheet. |
+| `lib/chat/ChatTimeline.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_timeline.dart` | Split by item type: `timeline_item.dart`, `activity_row.dart`, `activity_run.dart`, `activity_meta.dart`, `turn_summary.dart`, `live_turn_bar.dart`, `plan_card.dart`, `approval_card.dart`, `user_input_card.dart`, `file_change_list.dart`, `inline_banner.dart`, `chat_atoms.dart`. |
+| `lib/chat/ChatComposer.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart` | With `suggestion_sheet.dart`; attachment picking is `logic/attachment_picker.dart`. |
+| `lib/chat/ChatMarkdown.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_markdown.dart` | |
+| `lib/chat/HighlightedCodeText.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/highlighted_code_text.dart` | |
+| `lib/chat/ChatSettingsModal.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_settings_sheet.dart` | Model, mode and config-option pickers. |
+| `lib/voice/types.ts` | `lib/feature/chat/voice/voice_types.dart` | 1:1. |
+| `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras needed the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposes none of the three. |
+| `lib/voice/useVoiceInput.ts` | `lib/feature/chat/voice/logic/voice_input_cubit.dart` | Push-to-talk and latched, with the same state machine. |
+| `lib/voice/MicKey.tsx` | `lib/feature/chat/voice/ui/mic_key.dart` | With `voice_strip.dart` for the transcript strip. |
