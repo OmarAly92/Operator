@@ -15,6 +15,7 @@ import 'package:operator_mobile/core/app_themes/themes/app_themes.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
+import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,10 +28,11 @@ Future<void> main() async {
   await sl<ServerConfigStore>().load();
 
   final packageInfo = await PackageInfo.fromPlatform();
+  final physical = await isPhysicalDevice();
   TelemetryRuntime.init(
     context: TelemetryContextInput(
       platformOs: Platform.operatingSystem,
-      isPhysicalDevice: true,
+      isPhysicalDevice: physical,
       dev: kDebugMode,
       appVersion: packageInfo.version,
     ),
