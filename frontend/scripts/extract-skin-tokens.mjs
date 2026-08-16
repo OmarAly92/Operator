@@ -1,6 +1,29 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+export const DERIVED_SLOTS = new Set([
+	"statusTerminated",
+	"sidebarBorder",
+	"bgPrimary",
+	"bgSecondary",
+	"bgTertiary",
+	"bgElevated",
+	"bgSidebar",
+	"textPrimary",
+	"textMuted",
+	"textPassive",
+	"colorBorder",
+	"borderStrong",
+	"colorAccent",
+	"colorAccentForeground",
+	"dangerStrong",
+	"statusIdle",
+	"statusExited",
+	"warning",
+	"success",
+	"danger",
+]);
+
 const TOKENS = path.resolve("src/styles/tokens.css");
 const NON_COLOUR = /^--(size|space|radius|font|tracking|leading|z|duration|ease|breakpoint)/;
 
@@ -90,6 +113,7 @@ console.log(`wrote ${Object.keys(base).length} tokens`);
 
 function emitSkin(name, values, importPath = "../app-skin") {
 	const body = Object.entries(values)
+		.filter(([cssVar]) => !DERIVED_SLOTS.has(slotName(cssVar)))
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([cssVar, value]) => `\t${slotName(cssVar)}: "${value}",`)
 		.join("\n");
