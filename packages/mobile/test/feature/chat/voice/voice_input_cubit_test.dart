@@ -1,3 +1,4 @@
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
@@ -21,7 +22,10 @@ class _FakeProvider implements VoiceProvider {
   Future<bool> requestPermission() async => permission;
 
   @override
-  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {
     starts++;
     lastMode = mode;
     this.callbacks = callbacks;
@@ -78,34 +82,40 @@ void main() {
     await cubit.close();
   });
 
-  test('a hold starts the recogniser and only claims recording once it is ready', () async {
-    final cubit = build();
+  test(
+    'a hold starts the recogniser and only claims recording once it is ready',
+    () async {
+      final cubit = build();
 
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
-    expect(cubit.phase, VoiceState.starting);
-    expect(provider.lastMode, VoiceMode.push);
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.phase, VoiceState.starting);
+      expect(provider.lastMode, VoiceMode.push);
 
-    provider.callbacks!.onReady();
-    expect(cubit.phase, VoiceState.recording);
-    await cubit.close();
-  });
+      provider.callbacks!.onReady();
+      expect(cubit.phase, VoiceState.recording);
+      await cubit.close();
+    },
+  );
 
-  test('the live partial reaches the cubit and clears when the phrase lands', () async {
-    final cubit = build();
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
-    provider.callbacks!.onReady();
+  test(
+    'the live partial reaches the cubit and clears when the phrase lands',
+    () async {
+      final cubit = build();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      provider.callbacks!.onReady();
 
-    provider.callbacks!.onPartial('ship the release');
-    expect(cubit.partial, 'ship the release');
+      provider.callbacks!.onPartial('ship the release');
+      expect(cubit.partial, 'ship the release');
 
-    provider.callbacks!.onFinal('ship the release');
-    expect(transcripts, ['ship the release']);
-    expect(cubit.partial, isEmpty);
-    expect(cubit.phase, VoiceState.idle);
-    await cubit.close();
-  });
+      provider.callbacks!.onFinal('ship the release');
+      expect(transcripts, ['ship the release']);
+      expect(cubit.partial, isEmpty);
+      expect(cubit.phase, VoiceState.idle);
+      await cubit.close();
+    },
+  );
 
   test('an empty transcript is a no-op, not a send', () async {
     final cubit = build();
@@ -133,62 +143,74 @@ void main() {
     await cubit.close();
   });
 
-  test('releasing before the recogniser is live aborts instead of finalising', () async {
-    final cubit = build();
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
+  test(
+    'releasing before the recogniser is live aborts instead of finalising',
+    () async {
+      final cubit = build();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
 
-    await Future<void>.delayed(tapThreshold * 2);
-    cubit.pressOut();
+      await Future<void>.delayed(tapThreshold * 2);
+      cubit.pressOut();
 
-    expect(provider.aborts, 1);
-    expect(provider.stops, 0);
-    expect(cubit.phase, VoiceState.idle);
-    await cubit.close();
-  });
+      expect(provider.aborts, 1);
+      expect(provider.stops, 0);
+      expect(cubit.phase, VoiceState.idle);
+      await cubit.close();
+    },
+  );
 
-  test('a hold longer than the threshold stops and keeps the transcript', () async {
-    final cubit = build();
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
-    provider.callbacks!.onReady();
+  test(
+    'a hold longer than the threshold stops and keeps the transcript',
+    () async {
+      final cubit = build();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      provider.callbacks!.onReady();
 
-    await Future<void>.delayed(tapThreshold * 2);
-    cubit.pressOut();
+      await Future<void>.delayed(tapThreshold * 2);
+      cubit.pressOut();
 
-    expect(provider.stops, 1);
-    expect(cubit.phase, VoiceState.recording);
-    await cubit.close();
-  });
+      expect(provider.stops, 1);
+      expect(cubit.phase, VoiceState.recording);
+      await cubit.close();
+    },
+  );
 
-  test('a tap throws away its sliver of audio and opens the double-tap window', () async {
-    final cubit = build();
+  test(
+    'a tap throws away its sliver of audio and opens the double-tap window',
+    () async {
+      final cubit = build();
 
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
-    cubit.pressOut();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      cubit.pressOut();
 
-    expect(provider.aborts, 1);
-    expect(cubit.phase, VoiceState.idle);
-    await cubit.close();
-  });
+      expect(provider.aborts, 1);
+      expect(cubit.phase, VoiceState.idle);
+      await cubit.close();
+    },
+  );
 
-  test('a second tap latches, and the latched recording ignores the finger', () async {
-    final cubit = build();
-    cubit.pressIn();
-    await Future<void>.delayed(Duration.zero);
-    cubit.pressOut();
+  test(
+    'a second tap latches, and the latched recording ignores the finger',
+    () async {
+      final cubit = build();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      cubit.pressOut();
 
-    cubit.pressIn();
-    await Future<void>.delayed(restartDelay * 3);
+      cubit.pressIn();
+      await Future<void>.delayed(restartDelay * 3);
 
-    expect(cubit.mode, VoiceMode.latched);
-    expect(provider.lastMode, VoiceMode.latched);
+      expect(cubit.mode, VoiceMode.latched);
+      expect(provider.lastMode, VoiceMode.latched);
 
-    cubit.pressOut();
-    expect(provider.stops, 0);
-    await cubit.close();
-  });
+      cubit.pressOut();
+      expect(provider.stops, 0);
+      await cubit.close();
+    },
+  );
 
   test('pressing again while latched stops the recording', () async {
     final cubit = build();
@@ -202,6 +224,77 @@ void main() {
     cubit.pressIn();
 
     expect(provider.stops, 1);
+    await cubit.close();
+  });
+
+  test('cancelling while idle is a no-op', () async {
+    final cubit = build();
+
+    cubit.pressCancel();
+
+    expect(provider.aborts, 0);
+    expect(cubit.phase, VoiceState.idle);
+    await cubit.close();
+  });
+
+  test(
+    'cancelling mid-hold aborts to idle without arming the double-tap timer',
+    () {
+      fakeAsync((async) {
+        final cubit = build();
+        cubit.pressIn();
+        async.elapse(Duration.zero);
+        provider.callbacks!.onReady();
+
+        cubit.pressCancel();
+
+        expect(provider.aborts, 1);
+        expect(cubit.phase, VoiceState.idle);
+        expect(cubit.mode, VoiceMode.push);
+        expect(async.pendingTimers, isEmpty);
+
+        cubit.close();
+      });
+    },
+  );
+
+  test(
+    'cancelling between the second press-in and the latch taking hold is a no-op',
+    () async {
+      final cubit = build();
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      cubit.pressOut();
+      final abortsAfterTap = provider.aborts;
+
+      cubit.pressIn();
+      cubit.pressCancel();
+
+      expect(provider.aborts, abortsAfterTap);
+
+      await Future<void>.delayed(restartDelay * 3);
+      expect(cubit.mode, VoiceMode.latched);
+      await cubit.close();
+    },
+  );
+
+  test('cancelling a latched recording does not disrupt it', () async {
+    final cubit = build();
+    cubit.pressIn();
+    await Future<void>.delayed(Duration.zero);
+    cubit.pressOut();
+    cubit.pressIn();
+    await Future<void>.delayed(restartDelay * 3);
+    provider.callbacks!.onReady();
+    expect(cubit.mode, VoiceMode.latched);
+    expect(cubit.phase, VoiceState.recording);
+
+    final abortsBefore = provider.aborts;
+    cubit.pressCancel();
+
+    expect(provider.aborts, abortsBefore);
+    expect(cubit.phase, VoiceState.recording);
+    expect(cubit.mode, VoiceMode.latched);
     await cubit.close();
   });
 
