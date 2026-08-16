@@ -52,9 +52,8 @@ Future<InterfaceSwitchChoice?> showInterfaceSwitchSheet(
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.of(
-                sheetContext,
-              ).pop(InterfaceSwitchChoice.interrupt),
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(InterfaceSwitchChoice.interrupt),
               child: AppText(
                 'Stop and switch',
                 style: AppTextStyle.style14SemiBold.copyWith(color: skin.red),

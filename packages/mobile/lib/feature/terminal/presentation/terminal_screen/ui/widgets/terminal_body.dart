@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
@@ -20,6 +21,7 @@ class TerminalBody extends StatelessWidget {
   Future<void> _confirmKill(BuildContext context) async {
     final cubit = context.read<TerminalCubit>();
     final shellOnly = cubit.args.shellOnly;
+    Haptics.warning();
     final confirmed = await AppDialog.confirm(
       context,
       title: shellOnly ? 'Close shell?' : 'Kill session?',

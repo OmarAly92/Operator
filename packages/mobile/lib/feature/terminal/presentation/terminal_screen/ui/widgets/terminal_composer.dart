@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
@@ -33,6 +34,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
     final composer = context.read<TerminalCubit>().composer;
     composer.text = appendTranscript(composer.text, spoken);
     composer.selection = TextSelection.collapsed(offset: composer.text.length);
+    Haptics.success();
   }
 
   @override

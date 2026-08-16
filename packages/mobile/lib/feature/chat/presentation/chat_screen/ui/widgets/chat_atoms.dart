@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
@@ -40,7 +41,12 @@ class ChatActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: enabled ? onPressed : null,
+          onTap: enabled
+              ? () {
+                  Haptics.tap();
+                  onPressed();
+                }
+              : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
             child: Column(
@@ -121,7 +127,10 @@ class CodeOutput extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     return GestureDetector(
-      onLongPress: () => Clipboard.setData(ClipboardData(text: value)),
+      onLongPress: () {
+        Clipboard.setData(ClipboardData(text: value));
+        Haptics.success();
+      },
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(top: 6),

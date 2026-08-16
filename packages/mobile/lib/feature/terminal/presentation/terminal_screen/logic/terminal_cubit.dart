@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
@@ -178,10 +179,12 @@ class TerminalCubit extends Cubit<TerminalState> {
 
     if (routeForSend(sendTarget) == SendTarget.terminal) {
       if (!_writeToPty(text)) {
+        Haptics.error();
         banner = kTerminalUnavailableNotice;
         _emit();
         return;
       }
+      Haptics.success();
       banner = kTerminalModeNotice;
       composer.clear();
       _emit();
@@ -195,16 +198,21 @@ class TerminalCubit extends Cubit<TerminalState> {
       SendSessionMessageParams(message: text),
     );
     result.when(
-      onSuccess: (_) => composer.clear(),
+      onSuccess: (_) {
+        Haptics.success();
+        composer.clear();
+      },
       onFailure: (failure) {
         // Only reroute onto a socket we actually hold open — otherwise the write
         // is a no-op and we would clear the field having sent nothing.
         if (routeForSend(sendTarget, failure) == SendTarget.terminal && _writeToPty(text)) {
+          Haptics.success();
           sendTarget = SendTarget.terminal;
           banner = kReroutedNotice;
           composer.clear();
           return;
         }
+        Haptics.error();
         banner = 'Send failed: ${failure.message}';
       },
     );
@@ -223,8 +231,12 @@ class TerminalCubit extends Cubit<TerminalState> {
         ? await _repository.closeShellTerminal(args.id)
         : await _sessions.kill(args.sessionId);
     result.when(
-      onSuccess: (_) => emit(const TerminalClosedState()),
+      onSuccess: (_) {
+        Haptics.success();
+        emit(const TerminalClosedState());
+      },
       onFailure: (failure) {
+        Haptics.error();
         banner = '${args.shellOnly ? 'Close' : 'Kill'} failed: ${failure.message}';
         _emit();
       },

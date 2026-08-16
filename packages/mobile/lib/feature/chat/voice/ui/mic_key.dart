@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 
@@ -104,7 +105,12 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                     ? 'Stop dictating'
                     : 'Hold to dictate, or double-tap for hands-free',
                 child: GestureDetector(
-                  onTapDown: disabled ? null : (_) => cubit.pressIn(),
+                  onTapDown: disabled
+                      ? null
+                      : (_) {
+                          Haptics.tap();
+                          cubit.pressIn();
+                        },
                   onTapUp: disabled ? null : (_) => cubit.pressOut(),
                   onTapCancel: disabled ? null : cubit.pressCancel,
                   child: Container(

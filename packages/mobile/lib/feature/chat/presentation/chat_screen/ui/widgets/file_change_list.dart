@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
@@ -203,7 +204,10 @@ class PatchBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onLongPress: () => Clipboard.setData(ClipboardData(text: patch)),
+          onLongPress: () {
+            Clipboard.setData(ClipboardData(text: patch));
+            Haptics.success();
+          },
           child: Container(
             width: double.infinity,
             margin: const EdgeInsets.only(top: 6),

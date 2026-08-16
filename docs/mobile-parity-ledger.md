@@ -173,7 +173,7 @@ is deleted.
 
 | Gap | RN source | Status |
 |---|---|---|
-| Haptic feedback | `lib/haptics.ts` and 65 call sites | Open — to be closed by M6 Tasks 7-10 |
+| Haptic feedback | `lib/haptics.ts` and 65 call sites | Closed — M6 Tasks 7–10 |
 | Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all four tabs | Open — to be closed by M6 Task 11 |
 | `build_mode` can never report `simulator` | `lib/telemetry/context.ts` vs `lib/main.dart:33` | Open — to be closed by M6 Task 12 |
 | Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Open — to be closed by M6 Tasks 13-17 |

@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
@@ -261,12 +262,14 @@ class _ChatComposerState extends State<ChatComposer> {
         );
       }
 
+      Haptics.success();
       if (!mounted) return;
       _controller.clear();
       setState(() => _attachments = []);
       unawaited(CacheHelper.remove(CacheKeys.chatDraft(widget.sessionId)));
       FocusScope.of(context).unfocus();
     } catch (error) {
+      Haptics.error();
       if (mounted) setState(() => _localError = error.toString());
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -620,7 +623,12 @@ class _ChatComposerState extends State<ChatComposer> {
   ) {
     final skin = context.skin;
     return IconButton(
-      onPressed: onTap,
+      onPressed: onTap == null
+          ? null
+          : () {
+              Haptics.tap();
+              onTap();
+            },
       tooltip: label,
       iconSize: 17,
       constraints: const BoxConstraints(minWidth: 32, minHeight: 36),

@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,11 +14,60 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/ui/widgets/manual_connect_body.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 
 class MockManualConnectCubit extends MockCubit<ManualConnectState> implements ManualConnectCubit {}
+
+class FakeVoiceProvider implements VoiceProvider {
+  bool availableValue = true;
+  bool permission = true;
+  int starts = 0;
+  int stops = 0;
+  int aborts = 0;
+  VoiceMode? lastMode;
+  VoiceCallbacks? callbacks;
+
+  @override
+  bool get available => availableValue;
+
+  @override
+  String? get language => 'en-US';
+
+  @override
+  Future<bool> requestPermission() async => permission;
+
+  @override
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {
+    starts++;
+    lastMode = mode;
+    this.callbacks = callbacks;
+  }
+
+  @override
+  void stop() => stops++;
+
+  @override
+  void abort() => aborts++;
+}
+
+const Duration _voiceTapThreshold = Duration(milliseconds: 40);
+const Duration _voiceDoubleTapWindow = Duration(milliseconds: 60);
+const Duration _voiceRestartDelay = Duration(milliseconds: 10);
+
+VoiceInputCubit buildCubit(FakeVoiceProvider provider) => VoiceInputCubit(
+      provider,
+      onTranscript: (_) {},
+      tapThreshold: _voiceTapThreshold,
+      doubleTapWindow: _voiceDoubleTapWindow,
+      restartDelay: _voiceRestartDelay,
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -178,6 +228,39 @@ void main() {
       ));
       await tester.pump();
       expect(fired, ['warning']);
+    });
+  });
+
+  group('voice haptics', () {
+    test('the microphone going live selects', () async {
+      final provider = FakeVoiceProvider();
+      final cubit = buildCubit(provider);
+
+      cubit.pressIn();
+      await Future<void>.delayed(Duration.zero);
+      expect(fired, isEmpty);
+
+      provider.callbacks!.onReady();
+      await Future<void>.delayed(Duration.zero);
+      expect(fired, ['HapticFeedbackType.selectionClick']);
+
+      await cubit.close();
+    });
+
+    test('latching on a double tap taps', () {
+      fakeAsync((async) {
+        final provider = FakeVoiceProvider();
+        final cubit = buildCubit(provider);
+
+        cubit.pressIn();
+        cubit.pressOut();
+        async.elapse(const Duration(milliseconds: 20));
+        cubit.pressIn();
+        async.flushMicrotasks();
+
+        expect(fired, ['HapticFeedbackType.lightImpact']);
+        cubit.close();
+      });
     });
   });
 }

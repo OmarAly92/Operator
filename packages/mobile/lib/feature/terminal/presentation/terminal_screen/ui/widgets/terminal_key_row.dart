@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/terminal/logic/keys.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
@@ -27,7 +28,10 @@ class TerminalKeyRow extends StatelessWidget {
                 button: true,
                 label: key.hint,
                 child: InkWell(
-                  onTap: () => cubit.sendKey(key.sequence),
+                  onTap: () {
+                    Haptics.tap();
+                    cubit.sendKey(key.sequence);
+                  },
                   borderRadius: BorderRadius.circular(7),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 9),

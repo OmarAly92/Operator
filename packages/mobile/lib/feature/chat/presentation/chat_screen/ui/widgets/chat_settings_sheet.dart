@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
@@ -428,7 +429,12 @@ class _Choice extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     return InkWell(
-      onTap: enabled ? onTap : null,
+      onTap: enabled
+          ? () {
+              Haptics.select();
+              onTap();
+            }
+          : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(

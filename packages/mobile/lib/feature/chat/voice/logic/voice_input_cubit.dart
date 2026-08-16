@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 
 part 'voice_input_state.dart';
@@ -69,6 +70,7 @@ class VoiceInputCubit extends Cubit<VoiceInputState> {
       _tapWindow!.cancel();
       _tapWindow = null;
       _startedLatched = true;
+      Haptics.tap();
       _restart = Timer(_restartDelay, () => _begin(VoiceMode.latched));
       return;
     }
@@ -142,6 +144,7 @@ class VoiceInputCubit extends Cubit<VoiceInputState> {
       VoiceCallbacks(
         onReady: () {
           if (isClosed || phase != VoiceState.starting) return;
+          Haptics.select();
           _setPhase(VoiceState.recording);
         },
         onPartial: (text) {

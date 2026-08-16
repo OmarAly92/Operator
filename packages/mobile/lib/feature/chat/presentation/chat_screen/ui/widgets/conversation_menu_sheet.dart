@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -311,7 +312,12 @@ class _MenuRow extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1 : 0.45,
       child: InkWell(
-        onTap: enabled ? onTap : null,
+        onTap: enabled
+            ? () {
+                Haptics.tap();
+                onTap();
+              }
+            : null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/logic/markdown_blocks.dart';
@@ -170,8 +171,17 @@ class _MarkdownInlineTextState extends State<_MarkdownInlineText> {
       final url = match.group(3) ?? match.group(4) ?? match.group(11);
       if (url != null) {
         final recognizer = TapGestureRecognizer()
-          ..onTap = () =>
-              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          ..onTap = () async {
+            try {
+              final opened = await launchUrl(
+                Uri.parse(url),
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened) Haptics.error();
+            } catch (_) {
+              Haptics.error();
+            }
+          };
         _recognizers.add(recognizer);
         spans.add(
           TextSpan(
@@ -303,6 +313,7 @@ class _CodeCardState extends State<_CodeCard> {
                   active: _copied,
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: widget.code));
+                    Haptics.success();
                     if (!mounted) return;
                     setState(() => _copied = true);
                     await Future<void>.delayed(

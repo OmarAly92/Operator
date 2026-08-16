@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
@@ -185,7 +186,10 @@ class _AssistantMessage extends StatelessWidget {
           ),
           if (!streaming && text.isNotEmpty)
             InkWell(
-              onTap: () => Clipboard.setData(ClipboardData(text: text)),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: text));
+                Haptics.success();
+              },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 7),
                 child: Row(
