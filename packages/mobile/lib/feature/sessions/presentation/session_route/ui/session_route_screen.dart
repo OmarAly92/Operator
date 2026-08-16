@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
+import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
@@ -94,15 +95,22 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
         }
 
         if (session?.mode == 'tui') {
-          return BlocProvider<TerminalCubit>(
-            create: (_) => sl<TerminalCubit>(
-              param1: TerminalArgs(
-                id: session!.id,
-                sessionId: session.id,
-                title: session.title,
-                projectId: session.projectId,
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider<TerminalCubit>(
+                create: (_) => sl<TerminalCubit>(
+                  param1: TerminalArgs(
+                    id: session!.id,
+                    sessionId: session.id,
+                    title: session.title,
+                    projectId: session.projectId,
+                  ),
+                ),
               ),
-            ),
+              BlocProvider<PreviewCubit>(
+                create: (_) => sl<PreviewCubit>(param1: session!.id, param2: null),
+              ),
+            ],
             child: const TerminalScreen(),
           );
         }

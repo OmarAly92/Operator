@@ -103,6 +103,9 @@ sealed class AppRouter {
               BlocProvider<InterfaceSwitchCubit>(
                 create: (_) => sl<InterfaceSwitchCubit>(param1: terminalArgs.shellOnly ? '' : terminalArgs.sessionId),
               ),
+              BlocProvider<PreviewCubit>(
+                create: (_) => sl<PreviewCubit>(param1: terminalArgs.sessionId, param2: null),
+              ),
             ],
             child: const TerminalScreen(),
           ),

@@ -126,6 +126,9 @@ class TerminalHarness {
                 providers: [
                   BlocProvider<TerminalCubit>.value(value: cubit),
                   BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
+                  BlocProvider<PreviewCubit>(
+                    create: (_) => sl<PreviewCubit>(param1: cubit.args.sessionId, param2: null),
+                  ),
                 ],
                 child: SizedBox(width: 400, height: 600, child: child),
               ),
