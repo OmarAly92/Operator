@@ -9521,6 +9521,17 @@ than adding coverage.
 | The Android release `INTERNET` permission and `usesCleartextTraffic` — neither is in the main manifest today, so a release build cannot reach a plain-HTTP daemon | M6 parity sweep |
 | Deleting `packages/mobile_rn` | M6 |
 
+## Divergences from RN introduced while implementing
+
+The spec's non-goal is "ported as-is and raised separately", so anything where the Dart behaves
+*better* than the RN source has to be written down, or a later reader comparing the two will read it
+as a porting error.
+
+| Where | What differs | Why, and what to do about it |
+|---|---|---|
+| `core/telemetry/rate_limit.dart` — `mergeRateState` | RN (`lib/telemetry/rateLimit.ts`) takes `Math.max` of `minuteStart` and `minuteCount` **independently**, so a restart can pair a fresh minute window with the previous minute's count and immediately report the name as capped. The Dart takes the whole newer minute window and keeps only `dayCount` as a max. | The RN form under-reports events after a restart. The fix is strictly safer (the daily ceiling — the real backstop — still uses `max`), and it landed with a test. **Raise the same bug against `rateLimit.ts`**, and against the desktop sink if it shares the shape (`backend/internal/adapters/telemetry/ratelimit.go`). |
+| `feature/notification/logic/notification_view.dart` — `notificationTarget` | RN interpolates the session id raw; the Dart escapes it with `Uri.encodeComponent`. | The Dart consumer (`resolveDeepLinkPath`) decodes, so producer and consumer have to agree. RN's Expo Router consumed the raw path, so RN is self-consistent — this is a port-local requirement, not an RN bug. |
+
 ## Execution order and what can be parallelised
 
 The five subsystems are independent of each other; only these orderings are real:

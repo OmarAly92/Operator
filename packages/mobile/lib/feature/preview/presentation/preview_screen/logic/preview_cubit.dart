@@ -41,6 +41,22 @@ class PreviewCubit extends Cubit<PreviewState> {
 
   bool get hasPreview => preview != null && previewWorthShowing(preview!.entry);
 
+  bool get polling => _timer != null;
+
+  /// The preview route opens its own cubit over the same session, so the poller
+  /// behind the globe stands down while that screen is on top rather than
+  /// asking the daemon the same question twice every tick.
+  void pausePolling() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void resumePolling() {
+    if (isClosed || _timer != null || sessionId.isEmpty) return;
+    _timer = Timer.periodic(_poll, (_) => unawaited(refresh()));
+    unawaited(refresh());
+  }
+
   Future<void> refresh() async {
     if (isClosed) return;
     if (sessionId.isEmpty) {

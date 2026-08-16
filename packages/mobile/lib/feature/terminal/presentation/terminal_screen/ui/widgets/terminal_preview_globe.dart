@@ -17,20 +17,27 @@ class TerminalPreviewGlobe extends StatelessWidget {
   final String title;
   final String? previewUrl;
 
+  Future<void> _openPreview(BuildContext context, PreviewCubit cubit) async {
+    cubit.pausePolling();
+    await Navigator.of(context).pushNamed(
+      RoutesStrings.preview,
+      arguments: {'sessionId': sessionId, 'title': title, 'previewUrl': previewUrl},
+    );
+    cubit.resumePolling();
+  }
+
   @override
   Widget build(BuildContext context) => BlocBuilder<PreviewCubit, PreviewState>(
     buildWhen: (previous, current) => current is PreviewReadyState,
     builder: (context, state) {
-      final ready = context.read<PreviewCubit>().hasPreview;
+      final cubit = context.read<PreviewCubit>();
+      final ready = cubit.hasPreview;
       return Semantics(
         button: true,
         label: 'Open preview',
         child: IconButton(
           onPressed: () => ready
-              ? Navigator.of(context).pushNamed(
-                  RoutesStrings.preview,
-                  arguments: {'sessionId': sessionId, 'title': title, 'previewUrl': previewUrl},
-                )
+              ? _openPreview(context, cubit)
               : context.showSnackBar(
                   'No preview yet — waiting for the agent to generate a page '
                   'or document.',

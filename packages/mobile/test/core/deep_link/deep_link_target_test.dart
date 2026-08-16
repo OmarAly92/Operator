@@ -60,6 +60,33 @@ void main() {
     expect(resolveDeepLinkPath('nonsense'), isNull);
   });
 
+  // Uri already decoded these segments; decoding them a second time turned a
+  // legitimately escaped id into a different one.
+  test('does not decode a parsed link twice', () {
+    expect(
+      resolveDeepLink(Uri.parse('aomobile://session/a%2525'))?.arguments,
+      {'sessionId': 'a%25'},
+    );
+    expect(
+      resolveDeepLink(Uri.parse('aomobile:///session/a%2Fb'))?.arguments,
+      {'sessionId': 'a/b'},
+    );
+  });
+
+  // A crafted link used to throw ArgumentError out of the link-stream listener.
+  test('survives a truncated escape from either direction', () {
+    expect(
+      resolveDeepLink(Uri.parse('aomobile:///session/a%252'))?.arguments,
+      {'sessionId': 'a%2'},
+    );
+    expect(resolveDeepLinkPath('/session/a%2'), isNull);
+    expect(resolveDeepLinkPath('/session/100%'), isNull);
+  });
+
+  test('round-trips an id that notificationTarget had to escape', () {
+    expect(resolveDeepLinkPath('/session/a%20b')?.arguments, {'sessionId': 'a b'});
+  });
+
   test('is equal for equal links, so a repeated cold-start link is detectable', () {
     expect(
       resolveDeepLink(Uri.parse('aomobile://session/abc')),

@@ -205,4 +205,27 @@ void main() {
     expect(await store.load(), isNull);
     expect((await store.pending()).single.token, 't-new');
   });
+
+  // A permanently dead daemon must not grow the queue forever, but the cap has
+  // to keep the NEWEST entries: those are the daemons most likely still able to
+  // push to this device.
+  test('the pending queue keeps the newest entries when it overflows', () async {
+    for (var i = 0; i < kMaxPendingUnregister + 3; i++) {
+      await store.queuePending(
+        PushRegistration(
+          token: 't-$i',
+          host: '10.0.0.$i',
+          httpPort: '3011',
+          secure: false,
+          password: 'p',
+        ),
+      );
+    }
+
+    final queued = await store.pending();
+
+    expect(queued, hasLength(kMaxPendingUnregister));
+    expect(queued.first.token, 't-3');
+    expect(queued.last.token, 't-${kMaxPendingUnregister + 2}');
+  });
 }

@@ -48,6 +48,13 @@ void main() {
       expect(notificationTarget(type: '', sessionId: 'abc'), '/prs');
       expect(notificationTarget(type: 'something_new', sessionId: 'abc'), '/prs');
     });
+
+    // The consumer decodes, so an id carrying a % or a / has to be escaped here
+    // or it resolves to the wrong session — or to nothing at all.
+    test('escapes an id the path would otherwise mangle', () {
+      expect(notificationTarget(type: 'needs_input', sessionId: 'a/b'), '/session/a%2Fb');
+      expect(notificationTarget(type: 'needs_input', sessionId: '100%'), '/session/100%25');
+    });
   });
 
   group('relativeTime', () {

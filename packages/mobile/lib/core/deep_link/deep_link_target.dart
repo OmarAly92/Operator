@@ -21,6 +21,10 @@ class DeepLinkTarget extends Equatable {
 /// `aomobile://session/abc` parses with `session` as the host, while
 /// `aomobile:///session/abc` puts it in the path — both forms reach a phone, so
 /// both are flattened to the same segment list.
+///
+/// `Uri.pathSegments` is already percent-decoded, so decoding it again would
+/// both mangle a legitimately escaped id and throw on what is left of a
+/// truncated escape.
 DeepLinkTarget? resolveDeepLink(Uri uri) {
   if (uri.scheme != kDeepLinkScheme) return null;
   final segments = [
@@ -31,17 +35,25 @@ DeepLinkTarget? resolveDeepLink(Uri uri) {
 }
 
 /// The path form `notificationTarget` produces, so a tray tap and a history tap
-/// cannot disagree about where a notification leads.
+/// cannot disagree about where a notification leads. Unlike a parsed [Uri],
+/// these segments arrive still encoded, so they are decoded here — and a
+/// malformed escape resolves to nothing rather than throwing at the caller.
 DeepLinkTarget? resolveDeepLinkPath(String path) {
   if (!path.startsWith('/')) return null;
-  return _resolveSegments(
-    path.split('/').where((segment) => segment.isNotEmpty).toList(),
-  );
+  final decoded = <String>[];
+  for (final segment in path.split('/').where((segment) => segment.isNotEmpty)) {
+    try {
+      decoded.add(Uri.decodeComponent(segment));
+    } catch (_) {
+      return null;
+    }
+  }
+  return _resolveSegments(decoded);
 }
 
 DeepLinkTarget? _resolveSegments(List<String> segments) {
   if (segments.isEmpty) return null;
-  final id = segments.length > 1 ? Uri.decodeComponent(segments[1]) : '';
+  final id = segments.length > 1 ? segments[1] : '';
 
   switch (segments.first) {
     case 'session':

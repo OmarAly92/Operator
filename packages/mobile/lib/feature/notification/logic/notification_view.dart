@@ -41,8 +41,13 @@ NotificationVisual notificationVisual(AppSkin skin, String type) => switch (type
   ),
 };
 
+/// The id is escaped because the consumer (`resolveDeepLinkPath`) decodes it —
+/// leaving it raw makes a `%` or a `/` in an id either mangle the path or fail
+/// to resolve.
 String notificationTarget({required String type, String? sessionId}) =>
-    type == 'needs_input' && (sessionId ?? '').isNotEmpty ? '/session/$sessionId' : '/prs';
+    type == 'needs_input' && (sessionId ?? '').isNotEmpty
+    ? '/session/${Uri.encodeComponent(sessionId!)}'
+    : '/prs';
 
 String relativeTime(String iso, [DateTime? now]) {
   final then = DateTime.tryParse(iso);

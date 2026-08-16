@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/helpers/logging/app_logger.dart';
 
 const String kPushRegistrationKey = 'opr.pushRegistration';
 const String kPushPendingUnregisterKey = 'opr.pushPendingUnregister';
@@ -119,7 +120,16 @@ class PushRegistrationStore {
       await _storage.delete(kPushPendingUnregisterKey);
       return;
     }
-    final bounded = registrations.length > kMaxPendingUnregister
+    // Dropping the oldest entries means those daemons keep a token they can
+    // push to; the queue is still bounded, but the loss must not be silent.
+    final dropped = registrations.length - kMaxPendingUnregister;
+    if (dropped > 0) {
+      AppLogger.warning(
+        'Dropping $dropped stale push unregistration(s) past the queue cap of '
+        '$kMaxPendingUnregister; those daemons may keep pushing to this device.',
+      );
+    }
+    final bounded = dropped > 0
         ? registrations.sublist(registrations.length - kMaxPendingUnregister)
         : registrations;
     await _storage.write(

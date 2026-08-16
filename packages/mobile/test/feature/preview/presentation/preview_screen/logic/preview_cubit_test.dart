@@ -120,4 +120,43 @@ void main() {
 
     verifyNever(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')));
   });
+
+  // The preview route runs its own cubit over the same session, so the globe's
+  // poller stands down instead of asking the same question twice per tick.
+  test('pausing stops the tick, and resuming asks once immediately', () async {
+    when(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')))
+        .thenAnswer((_) async => Result.success(null));
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    cubit.pausePolling();
+    expect(cubit.polling, isFalse);
+    clearInteractions(repository);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    verifyNever(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')));
+
+    cubit.resumePolling();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.polling, isTrue);
+    verify(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl'))).called(1);
+    await cubit.close();
+  });
+
+  test('resuming twice does not start a second timer', () async {
+    when(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl')))
+        .thenAnswer((_) async => Result.success(null));
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+    cubit.pausePolling();
+
+    cubit.resumePolling();
+    cubit.resumePolling();
+    await Future<void>.delayed(Duration.zero);
+    clearInteractions(repository);
+    await Future<void>.delayed(const Duration(milliseconds: 45));
+
+    verify(() => repository.getPreview(any(), previewUrl: any(named: 'previewUrl'))).called(1);
+    await cubit.close();
+  });
 }
