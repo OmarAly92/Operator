@@ -12,6 +12,10 @@ import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_so
 import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
@@ -55,6 +59,7 @@ class ServiceLocator {
     _chatFeatureSetup();
     _terminalFeatureSetup();
     _notificationFeatureSetup();
+    _voiceSetup();
   }
 
   static Future<void> _coreSetup() async {
@@ -248,6 +253,16 @@ class ServiceLocator {
         sl<PushRegistrationStore>(),
         sl<PushTokenSource>(),
       ),
+    );
+  }
+
+  static void _voiceSetup() {
+    sl.registerLazySingleton<VoiceProvider>(
+      () => DeviceVoiceProvider(SpeechToTextRecognizer()),
+    );
+    sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+      (onTranscript, _) =>
+          VoiceInputCubit(sl<VoiceProvider>(), onTranscript: onTranscript),
     );
   }
 }

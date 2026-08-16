@@ -79,6 +79,7 @@ class VoiceInputCubit extends Cubit<VoiceInputState> {
   }
 
   void pressOut() {
+    if (isClosed) return;
     if (_startedLatched) return;
     if (mode == VoiceMode.latched) return;
 
@@ -92,6 +93,18 @@ class VoiceInputCubit extends Cubit<VoiceInputState> {
     }
 
     _finish();
+  }
+
+  void pressCancel() {
+    if (isClosed) return;
+    if (_startedLatched) return;
+    if (mode == VoiceMode.latched) return;
+    if (phase != VoiceState.starting && phase != VoiceState.recording) return;
+
+    _provider.abort();
+    partial = '';
+    mode = VoiceMode.push;
+    _setPhase(VoiceState.idle);
   }
 
   void onAppBackgrounded() {

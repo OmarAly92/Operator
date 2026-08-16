@@ -12,6 +12,8 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
@@ -31,6 +33,26 @@ class _MockTerminalRepository extends Mock implements TerminalRepository {}
 
 class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
+
+class _InertVoiceProvider implements VoiceProvider {
+  @override
+  bool get available => false;
+
+  @override
+  String? get language => null;
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {}
+
+  @override
+  void stop() {}
+
+  @override
+  void abort() {}
+}
 
 void main() {
   late _MockSessionsRepository repository;
@@ -74,6 +96,9 @@ void main() {
     await sl.reset();
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
       (args, _) => TerminalCubit(mux, terminalRepository, repository, args),
+    );
+    sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+      (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
     );
   });
 

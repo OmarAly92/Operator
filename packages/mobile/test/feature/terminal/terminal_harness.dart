@@ -9,6 +9,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
@@ -23,6 +26,26 @@ class MockSessionsRepository extends Mock implements SessionsRepository {}
 class MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
 
+class _InertVoiceProvider implements VoiceProvider {
+  @override
+  bool get available => false;
+
+  @override
+  String? get language => null;
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {}
+
+  @override
+  void stop() {}
+
+  @override
+  void abort() {}
+}
+
 class TerminalHarness {
   final MockMuxClient mux = MockMuxClient();
   final MockTerminalRepository terminalRepository = MockTerminalRepository();
@@ -34,6 +57,11 @@ class TerminalHarness {
   late TerminalCubit cubit;
 
   void start({bool shellOnly = false}) {
+    if (!sl.isRegistered<VoiceInputCubit>()) {
+      sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+        (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
+      );
+    }
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
