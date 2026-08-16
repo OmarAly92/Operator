@@ -165,6 +165,10 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
       if let localeParam = argsArr["localeId"] as? String {
         localeStr = localeParam
       }
+      let contextualStrings = argsArr["contextualStrings"] as? [String] ?? []
+      let audioCategory = argsArr["iosAudioCategory"] as? String
+      let audioCategoryOptions = argsArr["iosAudioCategoryOptions"] as? [String] ?? []
+      let audioMode = argsArr["iosAudioMode"] as? String
       guard let listenMode = ListenMode(rawValue: listenModeIndex) else {
         DispatchQueue.main.async {
           result(
@@ -187,13 +191,15 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
                 listenForSpeech(
                     result, localeStr: capturedLocaleStr, partialResults: capturedPartialResults, onDevice: capturedOnDevice,
                     listenMode: capturedListenMode, sampleRate: capturedSampleRate, autoPunctuation: capturedAutoPunctuation,
-                    enableHaptics: capturedEnableHaptics)
+                    enableHaptics: capturedEnableHaptics, contextualStrings: contextualStrings,
+                    audioCategory: audioCategory, audioCategoryOptions: audioCategoryOptions, audioMode: audioMode)
             }
         } else {
             listenForSpeech(
                 result, localeStr: localeStr, partialResults: partialResults, onDevice: onDevice,
                 listenMode: listenMode, sampleRate: sampleRate, autoPunctuation: autoPunctuation,
-                enableHaptics: enableHaptics)
+                enableHaptics: enableHaptics, contextualStrings: contextualStrings,
+                audioCategory: audioCategory, audioCategoryOptions: audioCategoryOptions, audioMode: audioMode)
         }
     case SwiftSpeechToTextMethods.stop.rawValue:
         if #available(iOS 13.0, *) {
@@ -483,7 +489,8 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
   private func listenForSpeech(
     _ result: @escaping FlutterResult, localeStr: String?, partialResults: Bool,
     onDevice: Bool, listenMode: ListenMode, sampleRate: Int, autoPunctuation: Bool,
-    enableHaptics: Bool
+    enableHaptics: Bool, contextualStrings: [String] = [], audioCategory: String? = nil,
+    audioCategoryOptions: [String] = [], audioMode: String? = nil
   ) {
     if nil != currentTask || listening {
       sendBoolResult(false, result)
@@ -517,14 +524,46 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
       #if os(iOS)
         rememberedAudioCategory = self.audioSession.category
         rememberedAudioCategoryOptions = self.audioSession.categoryOptions
-        try self.audioSession.setCategory(
-          AVAudioSession.Category.playAndRecord,
-          options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers])
-        //            try self.audioSession.setMode(AVAudioSession.Mode.measurement)
+        let requestedCategory: AVAudioSession.Category? = {
+          switch audioCategory {
+          case "record": return .record
+          case "playAndRecord": return .playAndRecord
+          default: return nil
+          }
+        }()
+        let requestedOptions: AVAudioSession.CategoryOptions = audioCategoryOptions.reduce(into: []) {
+          partial, name in
+          switch name {
+          case "allowBluetooth": partial.insert(.allowBluetooth)
+          case "defaultToSpeaker": partial.insert(.defaultToSpeaker)
+          case "duckOthers": partial.insert(.duckOthers)
+          case "mixWithOthers": partial.insert(.mixWithOthers)
+          default: break
+          }
+        }
+        let requestedMode: AVAudioSession.Mode? = {
+          switch audioMode {
+          case "measurement": return .measurement
+          case "default": return .default
+          default: return nil
+          }
+        }()
+
+        if let category = requestedCategory {
+          try self.audioSession.setCategory(
+            category, mode: requestedMode ?? .default, options: requestedOptions)
+        } else {
+          try self.audioSession.setCategory(
+            AVAudioSession.Category.playAndRecord,
+            options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers])
+          //            try self.audioSession.setMode(AVAudioSession.Mode.measurement)
+        }
         if sampleRate > 0 {
           try self.audioSession.setPreferredSampleRate(Double(sampleRate))
         }
-        try self.audioSession.setMode(AVAudioSession.Mode.default)
+        if requestedCategory == nil {
+          try self.audioSession.setMode(AVAudioSession.Mode.default)
+        }
         try self.audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         if #available(iOS 13.0, *) {
           try self.audioSession.setAllowHapticsAndSystemSoundsDuringRecording(enableHaptics)
@@ -572,6 +611,9 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
       }
       if #available(iOS 16.0, macOS 13, *) {
         currentRequest.addsPunctuation = autoPunctuation
+      }
+      if !contextualStrings.isEmpty {
+        currentRequest.contextualStrings = contextualStrings
       }
       self.currentTask = self.recognizer?.recognitionTask(with: currentRequest, delegate: self)
       let recordingFormat = inputNode?.outputFormat(forBus: self.busForNodeTap)
