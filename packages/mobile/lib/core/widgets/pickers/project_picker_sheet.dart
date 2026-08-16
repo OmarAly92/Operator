@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
@@ -33,7 +34,10 @@ Future<String?> showProjectPickerSheet(
               label: 'All projects',
               icon: Icons.layers_outlined,
               selected: selected == kAllProjects,
-              onTap: () => Navigator.of(sheetContext).pop(kAllProjects),
+              onTap: () {
+                Haptics.select();
+                Navigator.of(sheetContext).pop(kAllProjects);
+              },
             ),
           for (final project in projects)
             _ProjectOption(
@@ -41,7 +45,10 @@ Future<String?> showProjectPickerSheet(
               hint: project.sessionPrefix,
               icon: Icons.folder_outlined,
               selected: selected == project.id,
-              onTap: () => Navigator.of(sheetContext).pop(project.id),
+              onTap: () {
+                Haptics.select();
+                Navigator.of(sheetContext).pop(project.id);
+              },
             ),
           if (projects.isEmpty)
             Padding(

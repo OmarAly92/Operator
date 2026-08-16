@@ -1,5 +1,6 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ class PrimaryButton extends StatelessWidget {
     this.isExpand = false,
     this.padding,
     this.isLoading = false,
+    this.isDestructive = false,
     this.fixedSize,
     this.icon,
     this.trailingIcon,
@@ -35,6 +37,7 @@ class PrimaryButton extends StatelessWidget {
     this.isExpand = true,
     this.padding,
     this.isLoading = false,
+    this.isDestructive = false,
     this.fixedSize,
     this.icon,
     this.trailingIcon,
@@ -49,10 +52,24 @@ class PrimaryButton extends StatelessWidget {
   final Size? fixedSize;
   final bool isExpand;
   final bool isLoading;
+  final bool isDestructive;
   final BorderRadiusGeometry? borderRadius;
   final void Function()? onPressed;
   final Widget? icon;
   final Widget? trailingIcon;
+
+  void Function()? get _onPressed {
+    final handler = onPressed;
+    if (handler == null) return null;
+    return () {
+      if (isDestructive) {
+        Haptics.warning();
+      } else {
+        Haptics.tap();
+      }
+      handler();
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +81,7 @@ class PrimaryButton extends StatelessWidget {
             Expanded(
               child: ElevatedButton(
                 style: buildButtonStyleFrom(context),
-                onPressed: isLoading ? () {} : onPressed,
+                onPressed: isLoading ? () {} : _onPressed,
                 child: isLoading
                     ? Center(
                         child: SpinKitThreeBounce(
@@ -103,7 +120,7 @@ class PrimaryButton extends StatelessWidget {
     } else {
       return ElevatedButton(
         style: buildButtonStyleFrom(context),
-        onPressed: isLoading ? () {} : onPressed,
+        onPressed: isLoading ? () {} : _onPressed,
         child: isLoading
             ? SpinKitThreeBounce(
                 color: foregroundColor ?? context.skin.onAccent,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -26,6 +27,7 @@ Future<String?> showAgentPickerSheet(
       return StatefulBuilder(
         builder: (builderContext, setState) {
           Future<void> handleRefresh() async {
+            Haptics.tap();
             setState(() => isRefreshing = true);
             await onRefresh();
             setState(() => isRefreshing = false);
@@ -90,7 +92,12 @@ Future<String?> showAgentPickerSheet(
                             _AgentOption(
                               agent: agent,
                               selected: agent.id == selected,
-                              onTap: agent.selectable ? () => Navigator.of(sheetContext).pop(agent.id) : null,
+                              onTap: agent.selectable
+                                  ? () {
+                                      Haptics.select();
+                                      Navigator.of(sheetContext).pop(agent.id);
+                                    }
+                                  : null,
                             ),
                         ],
                       ),

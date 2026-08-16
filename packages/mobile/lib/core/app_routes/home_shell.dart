@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/ui/orchestrator_screen.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/pull_requests_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/sessions_screen.dart';
@@ -46,7 +47,10 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: HomeShell.selectedTab.value,
-        onTap: (next) => HomeShell.selectedTab.value = next,
+        onTap: (next) {
+          Haptics.select();
+          HomeShell.selectedTab.value = next;
+        },
         type: BottomNavigationBarType.fixed,
         backgroundColor: skin.bgSurface,
         selectedItemColor: skin.blue,

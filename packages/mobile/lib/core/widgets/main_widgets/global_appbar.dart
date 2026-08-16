@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:flutter/services.dart';
 
@@ -57,6 +58,15 @@ class GlobalAppbar extends StatelessWidget implements PreferredSizeWidget {
   final void Function()? onAppPopIconPressed;
   final SystemUiOverlayStyle? systemOverlayStyle;
 
+  void Function()? get _onAppPopIconPressed {
+    final handler = onAppPopIconPressed;
+    if (handler == null) return null;
+    return () {
+      Haptics.tap();
+      handler();
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppBar(
@@ -67,7 +77,7 @@ class GlobalAppbar extends StatelessWidget implements PreferredSizeWidget {
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                leading ?? BackButton(onPressed: onAppPopIconPressed),
+                leading ?? BackButton(onPressed: _onAppPopIconPressed),
                 if (leadingText != null)
                   Expanded(
                     child: AppText(

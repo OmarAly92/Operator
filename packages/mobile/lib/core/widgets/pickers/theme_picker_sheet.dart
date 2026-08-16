@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
@@ -28,7 +29,10 @@ Future<ThemeMode?> showThemePickerSheet(BuildContext context, {required ThemeMod
             _ThemeOption(
               label: preferenceLabel(mode),
               selected: selected == mode,
-              onTap: () => Navigator.of(sheetContext).pop(mode),
+              onTap: () {
+                Haptics.select();
+                Navigator.of(sheetContext).pop(mode);
+              },
             ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
 
 class AppContainer extends StatelessWidget {
@@ -32,6 +33,15 @@ class AppContainer extends StatelessWidget {
   final Color? backgroundColor;
   final List<BoxShadow>? boxShadow;
 
+  void Function()? get _onTap {
+    final handler = onTap;
+    if (handler == null) return null;
+    return () {
+      Haptics.tap();
+      handler();
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Opacity(
@@ -43,7 +53,7 @@ class AppContainer extends StatelessWidget {
           borderRadius: borderRadius ?? BorderRadius.circular(12),
           child: AppInkWell(
             borderRadius: borderRadius ?? BorderRadius.circular(12),
-            onTap: onTap,
+            onTap: _onTap,
             child: Container(
               width: width,
               height: height,
