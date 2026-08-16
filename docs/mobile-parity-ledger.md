@@ -177,3 +177,55 @@ is deleted.
 | Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all four tabs | Closed — M6 Task 11 |
 | `build_mode` can never report `simulator` | `lib/telemetry/context.ts` vs `lib/main.dart:33` | Closed — M6 Task 12 |
 | Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Closed — M6 Tasks 13–17 |
+
+## Divergences from RN
+
+The port's rule was "ported as-is; where the RN behavior looks wrong, port it and raise it
+separately". These are the places the Dart deliberately does something else.
+
+| Where | What differs | Why |
+|---|---|---|
+| `core/telemetry/rate_limit.dart` — `mergeRateState` | RN (`lib/telemetry/rateLimit.ts`) takes `Math.max` of `minuteStart` and `minuteCount` independently, so a restart can pair a fresh minute window with the previous minute's count and immediately report a name as capped. The Dart takes the whole newer minute window and keeps only `dayCount` as a max. | The RN form under-reports events after a restart. The daily ceiling — the real backstop — still uses `max`. **The same bug should be raised against `rateLimit.ts` and against the desktop sink if it shares the shape (`backend/internal/adapters/telemetry/ratelimit.go`).** |
+| `feature/notification/logic/notification_view.dart` — `notificationTarget` | RN interpolates the session id raw; the Dart percent-encodes it. | The Dart consumer (`resolveDeepLinkPath`) decodes, so producer and consumer have to agree. RN's Expo Router consumed the raw path, so RN was self-consistent — this is port-local, not an RN bug. |
+| `core/utils/haptics.dart` — `success`/`warning`/`error` on Android | `expo-haptics` maps notification feedback to Android's own patterns; the Dart uses `VibrationEffect` predefined effects, and `success` and `error` currently share `EFFECT_DOUBLE_CLICK`. | Android has no notification-feedback API. iOS is exact; Android is the closest stock approximation. If the two ever need to be distinguishable by feel, that is a waveform, not a predefined effect. |
+| `feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart` — no haptic on "Stop and switch" | An M6 Task 10 pass initially wired `Haptics.warning()` there, attributed (per the plan's own mapping table) to `TerminalSessionScreen.tsx:1052`. Reading that line showed it belongs to the *kill*-confirmation dialog (already correctly wired in `terminal_body.dart`'s `_confirmKill`), not this sheet — RN's actual `requestInterfaceSwitch` confirmation (`TerminalSessionScreen.tsx:964-989`) has no haptics call at all. | The invented haptic was removed to keep strict parity — RN really does leave this one silent. |
+
+## What outlives the port
+
+Work that is deliberately not done, recorded so it is not rediscovered as a bug.
+
+| Item | Why it is not done | What it needs |
+|---|---|---|
+| The PostHog sink behind `MobileTelemetryClient` | No project key exists — the desktop app dropped its own in `8ec08116e`, so a wired SDK would send nothing. Everything in front of the sink is built and tested: the sanitizer, the rate limiter, the daily-active tracker, the closed event vocabulary and the context builder. | A project key, then one file implementing `MobileTelemetryClient` over `posthog_flutter` and one line in `main.dart` passing it to `TelemetryRuntime.init`. |
+| FCM/APNs push registration | A Firebase project, `google-services.json` and an APNs key are credentials only the repository owner can create. The decision logic is built and tested behind the `PushTokenSource` seam: `push_registrar.dart`, `push_registration.dart`, `push_status.dart`. Settings shows the switch and its state. | The credentials, then a `PushTokenSource` implementation over `firebase_messaging` and a tap handler routing through `DeepLinkService`. |
+| A `feature_used {feature: merge}` capture | Not a gap. Neither app has a merge action — `lib/PRCard.tsx` and `app/(tabs)/prs.tsx` never called the endpoint. The allowlist keeps `merge` in its closed vocabulary so the event needs no schema change if a button ever lands. | A merge button, which would be a new feature, not a port. |
+| The `speech_to_text` fork's upstream drift | `packages/mobile/packages/speech_to_text` is pinned at 7.4.0 with four changed files (`SpeechListenOptions`, the method-channel argument map, `SpeechToTextPlugin.swift`, `SpeechToTextPlugin.kt`), plus its sibling `speech_to_text_platform_interface` (`speech_to_text_platform_interface.dart`, `method_channel_speech_to_text.dart`). | On upgrade, re-apply the diff described in `packages/speech_to_text/FORK.md`. |
+| `setupRecognizerIntent`'s Android result cache does not track the two new listen options | Its existing `previousXxx`-field cache (added upstream, before the fork) skips rebuilding the recognizer intent when language/partialResults/listenMode/pauseFor are unchanged from the previous call — it was never widened to also key on `contextualStrings`/`possiblyCompleteSilence`. Inert today because this app's only caller (`speech_recognizer.dart`) always passes the same constant vocabulary and the same `10000`ms value on every call. | If a future caller ever varies either value between calls, add them to the cache-invalidation check in `SpeechToTextPlugin.kt`'s `setupRecognizerIntent`. |
+
+## Native configuration inherited from `app.json`
+
+The RN app kept its native configuration in `app.json`. When that stopped being the source of
+truth, three settings had to be restated in the Flutter project (`0548efe28`):
+
+- `android:usesCleartextTraffic="true"` and the `INTERNET` permission in the **main** manifest —
+  only the debug and profile manifests declared `INTERNET`, so a release build could not open a
+  socket to the daemon.
+- `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription` in `ios/Runner/Info.plist` —
+  without them App Transport Security blocks plain HTTP to a LAN address, and iOS 14+ refuses local
+  network access entirely.
+- `VIBRATE` on Android, added at M6 with the haptics channel.
+
+## Build environment fixes M6 turned up
+
+None of these are RN-parity gaps — they are pre-existing checkout/toolchain issues that no
+milestone before M6 had triggered, because M6 was the first to run `flutter build ios` and
+`flutter build apk` rather than only `flutter analyze`/`flutter test`.
+
+- `ios/Runner/HapticsPlugin.swift` (M6 Task 7) existed on disk but was never added to
+  `ios/Runner.xcodeproj/project.pbxproj`'s Sources build phase, so no iOS build had ever actually
+  compiled it. Fixed at Task 15, the first task to run `flutter build ios`.
+- `android/app/build.gradle.kts` compiled against Flutter's bundled default `compileSdk` (36),
+  which two pre-existing dependencies (`flutter_secure_storage`, `permission_handler_android`)
+  outgrew — they now require 37. No Android build had succeeded on this checkout since
+  scaffolding. Fixed at Task 16 by hardcoding `compileSdk = 37`, the first task to run
+  `flutter build apk`.
