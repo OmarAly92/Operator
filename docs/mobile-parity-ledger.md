@@ -42,3 +42,22 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/telemetry/sanitize.ts` | `lib/core/telemetry/sanitize.dart` | 1:1. |
 | `lib/telemetry/telemetry.ts` | `lib/core/telemetry/telemetry.dart` | The sink is the abstract `MobileTelemetryClient`. No PostHog SDK is wired — see "What outlives the port". |
 | `lib/TelemetryManager.tsx` | `lib/main.dart` | `TelemetryRuntime.init` at startup and `AppLifecycleListener(onResume:)` for the daily-active ping. |
+| `lib/pairing.ts` | `lib/feature/pairing/logic/pairing_payload.dart` | QR payload parse. |
+| `lib/cameraLens.ts` | `lib/feature/pairing/logic/camera_lens.dart` | Adapted — `mobile_scanner` instead of `expo-camera`. |
+| `lib/disconnect.ts` | `lib/feature/pairing/logic/disconnect.dart` | 1:1. |
+| `lib/ManualConnectSheet.tsx` | `lib/feature/pairing/presentation/manual_connect_screen/ui/widgets/manual_connect_body.dart` | A sheet in RN, a screen in Dart — `Navigator.push` returns the result, so it needs no `sheetResult` key. Its logic is `manual_connect_cubit.dart`. |
+| `app/pair.tsx` | `lib/feature/pairing/presentation/pairing_scan_screen/ui/widgets/pairing_scan_body.dart` | With `camera_permission_gate.dart` and `connection_failure_banner.dart`. |
+| `app/sheets/connect.tsx` | `lib/feature/pairing/presentation/manual_connect_screen/ui/manual_connect_screen.dart` | The route wrapper; see `sheetResult.ts` for why the sheet-route indirection is gone. |
+| `lib/onboarding.ts` | `lib/feature/onboarding/logic/onboarding.dart` | 1:1. |
+| `lib/onboardingStore.ts` | `lib/feature/onboarding/logic/onboarding.dart` | Persistence collapsed into the same file; it is one `CacheHelper` key. |
+| `lib/OnboardingGate.tsx` | `lib/main.dart` | The gate is the `initialRoute` computation in `main`. |
+| `app/onboarding.tsx` | `lib/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart` | With `onboarding_step.dart` for `ui.tsx`'s `NumberedStep`. |
+| `lib/store.tsx` | `lib/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart` | The board poll, its sequential auth probe, and the unread-count tick. `ConnStatus` is `SessionsState`; the React context is the cubit. |
+| `lib/sessionStatus.ts` | `lib/feature/sessions/logic/session_status.dart` | 1:1, with `status_visual.dart` holding the hue mapping. |
+| `lib/agentsView.ts` | `lib/feature/sessions/logic/agents_view.dart` | 1:1. |
+| `lib/harnessLogo.ts` | `lib/feature/sessions/logic/harness_logo.dart` | 1:1. Filed under `sessions` rather than the spec's `core/utils` because the board is its only consumer. |
+| `lib/harnessLogoAssets.ts` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart` | The asset map is the widget's lookup; the SVGs are `packages/mobile/assets`. |
+| `lib/AgentLogo.tsx` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart` | `flutter_svg`. |
+| `lib/SessionCard.tsx` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/session_card.dart` | With `session_section_header.dart` and `sessions_stats_row.dart` for the `SectionList` chrome. |
+| `app/(tabs)/index.tsx` | `lib/feature/sessions/presentation/sessions_screen/ui/widgets/sessions_body.dart` | The Kanban tab, plus `session_actions_sheet.dart` for kill/restore/resume. |
+| `app/session/[id].tsx` | `lib/feature/sessions/presentation/session_route/ui/session_route_screen.dart` | The chat-or-terminal fork. |
