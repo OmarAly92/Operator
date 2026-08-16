@@ -66,6 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Operator connects to Operator running on your computer over your local network.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Operator uses your camera to scan the pairing QR code shown by Connect Mobile.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

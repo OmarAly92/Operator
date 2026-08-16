@@ -1,10 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only the debug and profile manifests used to declare INTERNET, for the
+         Flutter tooling. A release build without it cannot open a socket to the
+         daemon at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- usesCleartextTraffic: the daemon is reached over plain HTTP on a LAN IP
+         or a Tailscale address the user chooses at pairing time. A
+         network-security config cannot express that — it allowlists concrete
+         domains, not address ranges. Matches the RN build's setting. -->
     <application
         android:label="operator_mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
