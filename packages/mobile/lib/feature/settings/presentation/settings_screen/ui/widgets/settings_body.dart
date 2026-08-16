@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/light_skin.dart';
@@ -204,6 +205,7 @@ class _SettingsBodyState extends State<SettingsBody> {
         }
 
         return ListView(
+          controller: HomeShell.controllerFor(3),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
             SettingsGroup(

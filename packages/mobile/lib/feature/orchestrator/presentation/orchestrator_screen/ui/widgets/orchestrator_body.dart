@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
@@ -101,6 +102,7 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
               await sessionsCubit.refresh();
             },
             child: ListView(
+              controller: HomeShell.controllerFor(1),
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 ...projects.map((project) {

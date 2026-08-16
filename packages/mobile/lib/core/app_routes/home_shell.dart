@@ -12,6 +12,13 @@ class HomeShell extends StatefulWidget {
 
   static final ValueNotifier<int> selectedTab = ValueNotifier<int>(0);
 
+  static final List<ScrollController> _controllers = List<ScrollController>.generate(
+    4,
+    (_) => ScrollController(),
+  );
+
+  static ScrollController controllerFor(int tab) => _controllers[tab];
+
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -49,6 +56,17 @@ class _HomeShellState extends State<HomeShell> {
         currentIndex: HomeShell.selectedTab.value,
         onTap: (next) {
           Haptics.select();
+          if (next == HomeShell.selectedTab.value) {
+            final controller = HomeShell.controllerFor(next);
+            if (controller.hasClients && controller.offset > 0) {
+              controller.animateTo(
+                0,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+              );
+            }
+            return;
+          }
           HomeShell.selectedTab.value = next;
         },
         type: BottomNavigationBarType.fixed,

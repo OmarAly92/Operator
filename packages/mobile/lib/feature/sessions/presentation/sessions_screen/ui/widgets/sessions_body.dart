@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
@@ -72,6 +73,7 @@ class SessionsBody extends StatelessWidget {
             await cubit.refresh();
           },
           child: ListView(
+            controller: HomeShell.controllerFor(0),
             padding: const EdgeInsets.only(bottom: 40),
             children: [
               SessionsStatsRow(

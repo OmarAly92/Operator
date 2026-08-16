@@ -28,6 +28,7 @@ import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_s
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
@@ -180,5 +181,58 @@ void main() {
 
     expect(find.byType(IndexedStack), findsOneWidget);
     expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).children.length, 4);
+  });
+
+  testWidgets('re-tapping the active tab scrolls its list to the top', (tester) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(
+            sessions: [
+              for (var i = 0; i < 40; i++)
+                SessionModel(id: 's$i', projectId: 'proj', displayName: 'Session $i', status: 'working'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await pumpShell(tester);
+
+    final controller = HomeShell.controllerFor(0);
+    expect(controller.hasClients, isTrue);
+
+    controller.jumpTo(400);
+    await tester.pump();
+    expect(controller.offset, 400);
+
+    await tester.tap(find.text('Agents'));
+    await tester.pumpAndSettle();
+    expect(controller.offset, 0);
+  });
+
+  testWidgets('tapping a different tab switches without scrolling the old one', (tester) async {
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(
+            sessions: [
+              for (var i = 0; i < 40; i++)
+                SessionModel(id: 's$i', projectId: 'proj', displayName: 'Session $i', status: 'working'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await pumpShell(tester);
+
+    final agents = HomeShell.controllerFor(0);
+    agents.jumpTo(400);
+    await tester.pump();
+
+    await tester.tap(find.text('PRs'));
+    await tester.pumpAndSettle();
+
+    expect(HomeShell.selectedTab.value, 2);
+    expect(agents.offset, 400);
   });
 }
