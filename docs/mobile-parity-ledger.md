@@ -102,3 +102,19 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras needed the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposes none of the three. |
 | `lib/voice/useVoiceInput.ts` | `lib/feature/chat/voice/logic/voice_input_cubit.dart` | Push-to-talk and latched, with the same state machine. |
 | `lib/voice/MicKey.tsx` | `lib/feature/chat/voice/ui/mic_key.dart` | With `voice_strip.dart` for the transcript strip. |
+| `lib/session/TerminalSessionScreen.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart` | Split by concern: `terminal_surface.dart` (the `xterm.dart` view), `terminal_status_bar.dart`, `terminal_composer.dart`, `terminal_dead_overlay.dart`, `terminal_preview_globe.dart`, `interface_switch_overlay.dart`, `interface_switch_sheet.dart`. The injected CSS/JS that made a WebView usable has no counterpart — the spike passed on `xterm.dart`, so the fallback was never taken. |
+| `lib/session/keys.ts` | `lib/feature/terminal/logic/keys.dart` | 1:1. |
+| `lib/session/KeyRow.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart` | |
+| `lib/session/Composer.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart` | |
+| `lib/session/sendRoute.ts` | `lib/feature/terminal/logic/send_route.dart` | 1:1. Filed under `terminal` rather than the spec's `sessions` because the terminal composer is its only consumer. |
+| `lib/session/keyboardInset.ts` | `lib/feature/chat/logic/keyboard_inset.dart` | Adapted — `MediaQuery.viewInsets`. |
+| `lib/session/useInterfaceTransition.ts` | `lib/feature/terminal/logic/interface_transition.dart` | With `interface_switch_cubit.dart` driving it. |
+| `app/shell/[handleId].tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart` | |
+| `app/preview/[id].tsx` | `lib/feature/preview/presentation/preview_screen/ui/widgets/preview_body.dart` | With `preview_browser.dart` wrapping `webview_flutter`, and `logic/preview_url.dart` for `mobileReachablePreviewURL`. |
+| `lib/notificationView.ts` | `lib/feature/notification/logic/notification_view.dart` | 1:1, except `notificationTarget` percent-encodes the session id — see "Divergences". |
+| `lib/pushStatus.ts` | `lib/feature/notification/logic/push_status.dart` | 1:1, with two enum names changed for the Flutter runtime (`notPaired`, `notConfigured`). |
+| `lib/push.ts` | `lib/feature/notification/logic/push_registration.dart` | The registration decision and its bookkeeping, behind the `PushTokenSource` seam in `push_token_source.dart`. **No FCM/APNs SDK is wired** — see "What outlives the port". |
+| `lib/PushManager.tsx` | `lib/feature/notification/logic/push_registrar.dart` | |
+| `app/notifications.tsx` | `lib/feature/notification/presentation/notifications_screen/ui/widgets/notifications_body.dart` | With `notification_row.dart` and `notification_bell.dart`. |
+| `app/_layout.tsx` | `lib/main.dart` | Providers, the deep-link listener and the navigator key. |
+| `app/(tabs)/_layout.tsx` | `lib/core/app_routes/home_shell.dart` | The four-tab bar, its `tabPress` selection haptic, and the re-tap-to-scroll-to-top gesture. |
