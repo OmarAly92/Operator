@@ -36,7 +36,8 @@ import { operatorBridge } from "../lib/bridge";
 import { TERMINAL_FONT_SIZE_DEFAULT } from "../lib/design-tokens";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { applyDocumentTheme, applyDocumentThemeStyle } from "../lib/theme";
-import { buildTerminalThemes } from "../lib/terminal-themes";
+import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
+import { useSkin } from "../theme/skin-context";
 import { useUiStore, type Theme } from "../stores/ui-store";
 import {
 	DropdownMenu,
@@ -103,7 +104,7 @@ function loadRenderer(term: Terminal): void {
 	loadCanvasFallback();
 }
 
-// xterm palette tracks the app theme (see lib/terminal-themes.ts + tokens.css).
+// xterm palette tracks the app skin (see theme/bridge/xterm-theme.ts).
 const SUPPRESS_NATIVE_PASTE_MS = 100;
 
 function preparePastedText(text: string): string {
@@ -254,6 +255,7 @@ function removeHiddenScrollbarReservation(term: Terminal): void {
 export function XtermTerminal(props: XtermTerminalProps) {
 	const { t } = useTranslation();
 	const themeStyle = useUiStore((state) => state.themeStyle);
+	const skin = useSkin();
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const termRef = useRef<Terminal | null>(null);
 	const fitRef = useRef<(() => void) | null>(null);
@@ -273,6 +275,10 @@ export function XtermTerminal(props: XtermTerminalProps) {
 	// never tear down and recreate the terminal because a handler identity
 	// changed between renders.
 	const callbacksRef = useRef(props);
+	// Mirrors callbacksRef: the mount effect below stays dependency-free, so it
+	// reads the skin current at mount time through this ref rather than as a
+	// dependency.
+	const skinRef = useRef(skin);
 
 	const setContextMenuOpen = useCallback((open: boolean) => {
 		setContextMenu((current) => ({ ...current, open }));
@@ -287,19 +293,19 @@ export function XtermTerminal(props: XtermTerminalProps) {
 	);
 
 	callbacksRef.current = props;
+	skinRef.current = skin;
 
 	useEffect(() => {
-		// buildTerminalThemes() reads live CSS vars from :root. Parent shell effects
-		// run after child effects, so sync both independent theme axes here before
-		// reading. Retained terminals subscribe to themeStyle directly and update
-		// their live palette without being torn down or losing scrollback.
+		// Parent shell effects run after child effects, so sync both independent
+		// theme axes here before deriving the terminal palette from the skin.
+		// Retained terminals subscribe to themeStyle directly and update their
+		// live palette without being torn down or losing scrollback.
 		applyDocumentTheme(props.theme);
 		applyDocumentThemeStyle(themeStyle);
 		const term = termRef.current;
 		if (!term) return;
-		const { dark, light } = buildTerminalThemes();
-		term.options.theme = props.theme === "dark" ? dark : light;
-	}, [props.theme, themeStyle]);
+		term.options.theme = skinToXtermTheme(skin, props.theme);
+	}, [props.theme, themeStyle, skin]);
 
 	useEffect(() => {
 		const term = termRef.current;
@@ -337,7 +343,6 @@ export function XtermTerminal(props: XtermTerminalProps) {
 
 		let term: Terminal;
 		try {
-			const { dark, light } = buildTerminalThemes();
 			term = new Terminal({
 				// Required for the Unicode 11 width addon below.
 				allowProposedApi: true,
@@ -368,7 +373,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				// handler's normal-buffer branch). The scrollbar itself is hidden in
 				// CSS; its matching FitAddon reservation is removed after open() below.
 				scrollback: 5000,
-				theme: props.theme === "dark" ? dark : light,
+				theme: skinToXtermTheme(skinRef.current, props.theme),
 			});
 		} catch (error) {
 			callbacksRef.current.onError?.(error);

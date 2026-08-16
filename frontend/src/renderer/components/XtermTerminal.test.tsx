@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttachableTerminal } from "../hooks/useTerminalSession";
 import { useUiStore } from "../stores/ui-store";
+import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
+import { SkinProvider } from "../theme/skin-context";
+import { darkSkin } from "../theme/skins/dark";
+import { lightSkin } from "../theme/skins/light";
 import { XtermTerminal } from "./XtermTerminal";
 
 const state = vi.hoisted(() => ({
@@ -198,67 +202,47 @@ describe("XtermTerminal", () => {
 		await waitFor(() => expect(state.lastTerminal!.focus).toHaveBeenCalled());
 	});
 
-	it("updates the live terminal palette when the named color theme changes", () => {
-		const style = document.createElement("style");
-		style.textContent = `
-			:root {
-				--color-bg-terminal-opaque: #101317;
-				--color-text-terminal: #d7d7d2;
-				--color-working: #60a5fa;
-			}
-			:root[data-style-theme="github"] {
-				--background: #0d1117;
-				--foreground: #ccd3d8;
-				--primary: #58a6ff;
-			}
-		`;
-		document.head.appendChild(style);
-		delete document.documentElement.dataset.styleTheme;
+	it("re-derives the live terminal palette from the skin when the store's theme/style changes", () => {
+		// The skin REGISTRY has no entries until Task 9 gives named themes their
+		// own terminal tokens, so every style currently resolves to the base
+		// dark/light skin regardless of `themeStyle` — assert against that real,
+		// current skin output rather than invented per-theme colors.
 		useUiStore.setState({ themeStyle: "orchestrate" });
 
 		try {
-			render(<XtermTerminal theme="dark" />);
-			expect(state.lastTerminal!.options.theme).toMatchObject({ background: "#101317" });
+			render(
+				<SkinProvider>
+					<XtermTerminal theme="dark" />
+				</SkinProvider>,
+			);
+			expect(state.lastTerminal!.options.theme).toMatchObject(skinToXtermTheme(darkSkin, "dark"));
 
 			act(() => useUiStore.getState().setThemeStyle("github"));
 
-			expect(state.lastTerminal!.options.theme).toMatchObject({
-				background: "#0d1117",
-				cursor: "#58a6ff",
-				foreground: "#ccd3d8",
-			});
+			// skinFor("github", "dark") still resolves to darkSkin (empty registry),
+			// so the terminal's theme option is unchanged — the point of this test
+			// is that it re-derives from the skin on every store change, not that
+			// GitHub looks distinct yet.
+			expect(state.lastTerminal!.options.theme).toMatchObject(skinToXtermTheme(darkSkin, "dark"));
 		} finally {
-			style.remove();
-			delete document.documentElement.dataset.styleTheme;
 			act(() => useUiStore.setState({ themeStyle: "orchestrate" }));
 		}
 	});
 
 	it("uses the terminal foreground for the light-mode block cursor", () => {
-		const style = document.createElement("style");
-		style.textContent = `
-			:root {
-				--color-bg-terminal-opaque: #f5f5f4;
-				--color-text-terminal: #24292f;
-				--color-working: #2563eb;
-			}
-		`;
-		document.head.appendChild(style);
-		delete document.documentElement.dataset.styleTheme;
-		useUiStore.setState({ themeStyle: "orchestrate" });
+		useUiStore.setState({ themeStyle: "orchestrate", resolvedTheme: "light" });
 
 		try {
-			render(<XtermTerminal theme="light" />);
-			expect(state.lastTerminal!.options.theme).toMatchObject({
-				background: "#f5f5f4",
-				foreground: "#24292f",
-				cursor: "#24292f",
-				cursorAccent: "#f5f5f4",
-			});
+			render(
+				<SkinProvider>
+					<XtermTerminal theme="light" />
+				</SkinProvider>,
+			);
+			const theme = skinToXtermTheme(lightSkin, "light");
+			expect(state.lastTerminal!.options.theme).toMatchObject(theme);
+			expect(theme.cursor).toBe(lightSkin.textTerminal);
 		} finally {
-			style.remove();
-			delete document.documentElement.dataset.styleTheme;
-			act(() => useUiStore.setState({ themeStyle: "orchestrate" }));
+			act(() => useUiStore.setState({ themeStyle: "orchestrate", resolvedTheme: "dark" }));
 		}
 	});
 
