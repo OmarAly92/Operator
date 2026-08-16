@@ -4,12 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/chat/logic/attachment_picker.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakePicker implements AttachmentPicker {
@@ -22,6 +25,29 @@ class _FakePicker implements AttachmentPicker {
 
   @override
   Future<List<PickedAttachment>> pickTextFiles() async => const [];
+}
+
+class _InertVoiceProvider implements VoiceProvider {
+  @override
+  bool get available => false;
+
+  @override
+  String? get language => null;
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {}
+
+  @override
+  void stop() {}
+
+  @override
+  void abort() {}
 }
 
 PickedAttachment imageAttachment(String id, int bytes) => PickedAttachment(
@@ -50,6 +76,12 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
+    if (!sl.isRegistered<VoiceInputCubit>()) {
+      sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+        (onTranscript, _) =>
+            VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
+      );
+    }
   });
 
   Future<void> pumpComposer(

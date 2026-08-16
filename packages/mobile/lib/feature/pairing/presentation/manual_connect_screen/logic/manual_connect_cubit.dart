@@ -5,6 +5,8 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/telemetry/events.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 
 part 'manual_connect_state.dart';
@@ -40,7 +42,10 @@ class ManualConnectCubit extends Cubit<ManualConnectState> {
     );
     final result = await _repository.verifyAndConnect(target);
     result.when(
-      onSuccess: (_) => emit(const ConnectSuccessState()),
+      onSuccess: (_) {
+        TelemetryRuntime.capture(MobileEvents.paired, {'method': 'manual'});
+        emit(const ConnectSuccessState());
+      },
       onFailure: (failure) => emit(
         ConnectFailureState(
           describeConnectionFailure(

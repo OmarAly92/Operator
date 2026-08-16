@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
+import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
@@ -46,7 +47,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
     if (mounted) setState(() => _resolving = false);
   }
 
-  ({String id, String? mode, String title, String? projectId})? _lookup(
+  ({String id, String? mode, String title, String? projectId, String? previewUrl})? _lookup(
     SessionsCubit cubit,
   ) {
     for (final session in cubit.sessions) {
@@ -56,6 +57,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           mode: session.mode,
           title: sessionTitle(session),
           projectId: session.projectId,
+          previewUrl: session.previewUrl,
         );
       }
     }
@@ -66,6 +68,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           mode: orchestrator.mode,
           title: orchestrator.projectName ?? orchestrator.id!,
           projectId: orchestrator.projectId,
+          previewUrl: null,
         );
       }
     }
@@ -87,19 +90,28 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
             sessionId: session!.id,
             title: session.title,
             projectId: session.projectId,
+            previewUrl: session.previewUrl,
           );
         }
 
         if (session?.mode == 'tui') {
-          return BlocProvider<TerminalCubit>(
-            create: (_) => sl<TerminalCubit>(
-              param1: TerminalArgs(
-                id: session!.id,
-                sessionId: session.id,
-                title: session.title,
-                projectId: session.projectId,
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider<TerminalCubit>(
+                create: (_) => sl<TerminalCubit>(
+                  param1: TerminalArgs(
+                    id: session!.id,
+                    sessionId: session.id,
+                    title: session.title,
+                    projectId: session.projectId,
+                    previewUrl: session.previewUrl,
+                  ),
+                ),
               ),
-            ),
+              BlocProvider<PreviewCubit>(
+                create: (_) => sl<PreviewCubit>(param1: session!.id, param2: session.previewUrl),
+              ),
+            ],
             child: const TerminalScreen(),
           );
         }

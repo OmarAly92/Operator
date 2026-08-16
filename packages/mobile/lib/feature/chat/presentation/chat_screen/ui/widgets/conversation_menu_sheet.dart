@@ -14,6 +14,7 @@ enum ConversationMenuAction {
   rename,
   worktreeShell,
   terminalUi,
+  preview,
 }
 
 class ConversationMenuResult {
@@ -179,6 +180,14 @@ class _ConversationMenuSheetState extends State<_ConversationMenuSheet> {
             onTap: () => Navigator.of(
               context,
             ).pop(const ConversationMenuResult(ConversationMenuAction.map)),
+          ),
+          _MenuRow(
+            icon: Icons.public,
+            label: 'Open preview',
+            hint: 'View a page or document generated in this worktree',
+            onTap: () => Navigator.of(
+              context,
+            ).pop(const ConversationMenuResult(ConversationMenuAction.preview)),
           ),
           _MenuRow(
             icon: Icons.terminal,

@@ -8,6 +8,7 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/lo
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_preview_globe.dart';
 
 class TerminalScreen extends StatelessWidget {
   const TerminalScreen({super.key});
@@ -48,6 +49,12 @@ class TerminalScreen extends StatelessWidget {
         appBar: GlobalAppbar.sub(
           titleText: title,
           actions: [
+            if (!args.shellOnly)
+              TerminalPreviewGlobe(
+                sessionId: args.sessionId,
+                title: args.title,
+                previewUrl: args.previewUrl,
+              ),
             if (!args.shellOnly)
               Semantics(
                 button: true,

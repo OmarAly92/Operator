@@ -70,9 +70,26 @@
 	<string>Operator uses your camera to scan the pairing QR code shown by Connect Mobile.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Operator attaches images you pick to the message you send your agent.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Operator uses the microphone so you can dictate prompts to an agent.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Operator transcribes your speech into prompts for an agent.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>github</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>dev.operator.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aomobile</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

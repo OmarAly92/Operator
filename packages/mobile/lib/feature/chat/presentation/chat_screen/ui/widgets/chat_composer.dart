@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
@@ -15,6 +17,9 @@ import 'package:operator_mobile/feature/chat/logic/attachment_picker.dart';
 import 'package:operator_mobile/feature/chat/logic/composer_suggestions.dart';
 import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/suggestion_sheet.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/ui/mic_key.dart';
+import 'package:operator_mobile/feature/chat/voice/ui/voice_strip.dart';
 
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
@@ -72,6 +77,21 @@ class _ChatComposerState extends State<ChatComposer> {
   bool _submitting = false;
   String? _localError;
 
+  late final VoiceInputCubit _voice = sl<VoiceInputCubit>(
+    param1: _appendTranscript,
+  );
+  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
+    onHide: _voice.onAppBackgrounded,
+    onPause: _voice.onAppBackgrounded,
+  );
+
+  void _appendTranscript(String spoken) {
+    _controller.text = appendTranscript(_controller.text, spoken);
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +99,7 @@ class _ChatComposerState extends State<ChatComposer> {
     final draft =
         CacheHelper.get(CacheKeys.chatDraft(widget.sessionId)) as String?;
     if (draft != null && draft.isNotEmpty) _controller.text = draft;
+    _lifecycle.hashCode;
   }
 
   @override
@@ -87,6 +108,8 @@ class _ChatComposerState extends State<ChatComposer> {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _focus.dispose();
+    _lifecycle.dispose();
+    unawaited(_voice.close());
     super.dispose();
   }
 
@@ -280,243 +303,261 @@ class _ChatComposerState extends State<ChatComposer> {
         providerLabel ??
         widget.snapshot.settings.model;
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        10,
-        8,
-        10,
-        8 + dockInset(media.viewInsets.bottom, media.viewPadding.bottom),
-      ),
-      decoration: BoxDecoration(
-        color: skin.bgSurface,
-        border: Border(top: BorderSide(color: skin.borderSubtle)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_attachments.isNotEmpty)
-            SizedBox(
-              height: 46,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _attachments.length,
-                separatorBuilder: (_, _) => const HorizontalSpace(7),
-                itemBuilder: (context, index) {
-                  final attachment = _attachments[index];
-                  final previewBytes = _imageBytes(attachment.image?.data);
-                  return Container(
-                    constraints: const BoxConstraints(maxWidth: 180),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: skin.bgElevated,
-                      border: Border.all(color: skin.borderSubtle),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (attachment.isImage && previewBytes != null)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.memory(
-                              previewBytes,
-                              width: 26,
-                              height: 26,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.image_outlined,
-                                size: 14,
-                                color: skin.blue,
+    return BlocProvider<VoiceInputCubit>.value(
+      value: _voice,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          10,
+          8,
+          10,
+          8 + dockInset(media.viewInsets.bottom, media.viewPadding.bottom),
+        ),
+        decoration: BoxDecoration(
+          color: skin.bgSurface,
+          border: Border(top: BorderSide(color: skin.borderSubtle)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const VoiceStrip(),
+            if (_attachments.isNotEmpty)
+              SizedBox(
+                height: 46,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _attachments.length,
+                  separatorBuilder: (_, _) => const HorizontalSpace(7),
+                  itemBuilder: (context, index) {
+                    final attachment = _attachments[index];
+                    final previewBytes = _imageBytes(attachment.image?.data);
+                    return Container(
+                      constraints: const BoxConstraints(maxWidth: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: skin.bgElevated,
+                        border: Border.all(color: skin.borderSubtle),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (attachment.isImage && previewBytes != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.memory(
+                                previewBytes,
+                                width: 26,
+                                height: 26,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Icon(
+                                  Icons.image_outlined,
+                                  size: 14,
+                                  color: skin.blue,
+                                ),
+                              ),
+                            )
+                          else if (attachment.isImage)
+                            Icon(
+                              Icons.image_outlined,
+                              size: 14,
+                              color: skin.blue,
+                            )
+                          else
+                            Icon(
+                              Icons.description_outlined,
+                              size: 14,
+                              color: skin.blue,
+                            ),
+                          const HorizontalSpace(6),
+                          Flexible(
+                            child: AppText(
+                              attachment.name,
+                              style: AppTextStyle.style11Regular.copyWith(
+                                color: skin.textSecondary,
                               ),
                             ),
-                          )
-                        else if (attachment.isImage)
-                          Icon(Icons.image_outlined, size: 14, color: skin.blue)
-                        else
-                          Icon(
-                            Icons.description_outlined,
-                            size: 14,
-                            color: skin.blue,
                           ),
-                        const HorizontalSpace(6),
+                          const HorizontalSpace(6),
+                          InkWell(
+                            onTap: () => setState(
+                              () => _attachments = _attachments
+                                  .where((other) => other.id != attachment.id)
+                                  .toList(),
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 13,
+                              color: skin.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (_localError != null || widget.error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 3),
+                child: AppText(
+                  _localError ?? widget.error!,
+                  style: AppTextStyle.style11Regular.copyWith(color: skin.red),
+                  maxLines: 3,
+                ),
+              ),
+            Opacity(
+              opacity: _stopped ? 0.55 : 1,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: skin.bgElevated,
+                  border: Border.all(color: skin.borderDefault),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 150),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focus,
+                        enabled: !_stopped,
+                        maxLines: null,
+                        maxLength: 40000,
+                        style: AppTextStyle.style15Regular.copyWith(
+                          color: skin.textPrimary,
+                          height: 1.4,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          isDense: true,
+                          border: InputBorder.none,
+                          hintText: _stopped
+                              ? 'Agent is stopped'
+                              : _turnRunning
+                              ? (_steerEligible
+                                    ? 'Agent is working — this goes into its running turn'
+                                    : 'Agent is working — this sends when it finishes')
+                              : widget.skills.isNotEmpty
+                              ? 'Ask the agent…  / for skills, @ for files'
+                              : 'Ask the agent…  @ for files',
+                          hintStyle: AppTextStyle.style15Regular.copyWith(
+                            color: skin.textFaint,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_canSteer) _deliveryChoice(context),
+                    Row(
+                      children: [
+                        _iconButton(
+                          context,
+                          Icons.attach_file,
+                          'Attach image',
+                          _stopped ? null : () => _pick(_picker.pickImages),
+                        ),
+                        if (widget.snapshot.can('embedded_context'))
+                          _iconButton(
+                            context,
+                            Icons.note_add_outlined,
+                            'Attach text file',
+                            _stopped
+                                ? null
+                                : () => _pick(_picker.pickTextFiles),
+                          ),
+                        if (widget.skills.isNotEmpty)
+                          _iconButton(
+                            context,
+                            Icons.terminal,
+                            'Skills',
+                            _stopped
+                                ? null
+                                : () => _openSuggestions(
+                                    SuggestionKind.skills,
+                                    '',
+                                  ),
+                          ),
+                        if (widget.filePaths.isNotEmpty)
+                          _iconButton(
+                            context,
+                            Icons.alternate_email,
+                            'Worktree files',
+                            _stopped
+                                ? null
+                                : () => _openSuggestions(
+                                    SuggestionKind.files,
+                                    '',
+                                  ),
+                          ),
                         Flexible(
-                          child: AppText(
-                            attachment.name,
-                            style: AppTextStyle.style11Regular.copyWith(
-                              color: skin.textSecondary,
-                            ),
-                          ),
-                        ),
-                        const HorizontalSpace(6),
-                        InkWell(
-                          onTap: () => setState(
-                            () => _attachments = _attachments
-                                .where((other) => other.id != attachment.id)
-                                .toList(),
-                          ),
-                          child: Icon(
-                            Icons.close,
-                            size: 13,
-                            color: skin.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          if (_localError != null || widget.error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6, left: 3),
-              child: AppText(
-                _localError ?? widget.error!,
-                style: AppTextStyle.style11Regular.copyWith(color: skin.red),
-                maxLines: 3,
-              ),
-            ),
-          Opacity(
-            opacity: _stopped ? 0.55 : 1,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-              decoration: BoxDecoration(
-                color: skin.bgElevated,
-                border: Border.all(color: skin.borderDefault),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 150),
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focus,
-                      enabled: !_stopped,
-                      maxLines: null,
-                      maxLength: 40000,
-                      style: AppTextStyle.style15Regular.copyWith(
-                        color: skin.textPrimary,
-                        height: 1.4,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: _stopped
-                            ? 'Agent is stopped'
-                            : _turnRunning
-                            ? (_steerEligible
-                                  ? 'Agent is working — this goes into its running turn'
-                                  : 'Agent is working — this sends when it finishes')
-                            : widget.skills.isNotEmpty
-                            ? 'Ask the agent…  / for skills, @ for files'
-                            : 'Ask the agent…  @ for files',
-                        hintStyle: AppTextStyle.style15Regular.copyWith(
-                          color: skin.textFaint,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_canSteer) _deliveryChoice(context),
-                  Row(
-                    children: [
-                      _iconButton(
-                        context,
-                        Icons.attach_file,
-                        'Attach image',
-                        _stopped ? null : () => _pick(_picker.pickImages),
-                      ),
-                      if (widget.snapshot.can('embedded_context'))
-                        _iconButton(
-                          context,
-                          Icons.note_add_outlined,
-                          'Attach text file',
-                          _stopped ? null : () => _pick(_picker.pickTextFiles),
-                        ),
-                      if (widget.skills.isNotEmpty)
-                        _iconButton(
-                          context,
-                          Icons.terminal,
-                          'Skills',
-                          _stopped
-                              ? null
-                              : () =>
-                                    _openSuggestions(SuggestionKind.skills, ''),
-                        ),
-                      if (widget.filePaths.isNotEmpty)
-                        _iconButton(
-                          context,
-                          Icons.alternate_email,
-                          'Worktree files',
-                          _stopped
-                              ? null
-                              : () =>
-                                    _openSuggestions(SuggestionKind.files, ''),
-                        ),
-                      Flexible(
-                        child: InkWell(
-                          onTap: widget.onOpenSettings,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.memory,
-                                  size: 13,
-                                  color: skin.textTertiary,
-                                ),
-                                const HorizontalSpace(5),
-                                Flexible(
-                                  child: AppText(
-                                    selectedModel ?? 'Default',
-                                    style: AppTextStyle.style10Regular.copyWith(
-                                      color: skin.textTertiary,
+                          child: InkWell(
+                            onTap: widget.onOpenSettings,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.memory,
+                                    size: 13,
+                                    color: skin.textTertiary,
+                                  ),
+                                  const HorizontalSpace(5),
+                                  Flexible(
+                                    child: AppText(
+                                      selectedModel ?? 'Default',
+                                      style: AppTextStyle.style10Regular
+                                          .copyWith(color: skin.textTertiary),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const Spacer(),
-                      if (_turnRunning &&
-                          _controller.text.trim().isEmpty &&
-                          _attachments.isEmpty)
-                        _roundButton(
-                          context,
-                          icon: Icons.stop,
-                          background: skin.bgSubtle,
-                          foreground: skin.textPrimary,
-                          onTap: widget.onInterrupt,
-                        )
-                      else
-                        _roundButton(
-                          context,
-                          icon: _steerEligible
-                              ? Icons.reply
-                              : Icons.arrow_upward,
-                          background: skin.blue,
-                          foreground: skin.onAccent,
-                          busy: widget.pending || _submitting,
-                          onTap: sendDisabled ? null : _submit,
-                        ),
-                    ],
-                  ),
-                ],
+                        const Spacer(),
+                        const MicKey(),
+                        const HorizontalSpace(7),
+                        if (_turnRunning &&
+                            _controller.text.trim().isEmpty &&
+                            _attachments.isEmpty)
+                          _roundButton(
+                            context,
+                            icon: Icons.stop,
+                            background: skin.bgSubtle,
+                            foreground: skin.textPrimary,
+                            onTap: widget.onInterrupt,
+                          )
+                        else
+                          _roundButton(
+                            context,
+                            icon: _steerEligible
+                                ? Icons.reply
+                                : Icons.arrow_upward,
+                            background: skin.blue,
+                            foreground: skin.onAccent,
+                            busy: widget.pending || _submitting,
+                            onTap: sendDisabled ? null : _submit,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -12,11 +12,13 @@ class ChatScreen extends StatefulWidget {
     required this.sessionId,
     required this.title,
     this.projectId,
+    this.previewUrl,
   });
 
   final String sessionId;
   final String title;
   final String? projectId;
+  final String? previewUrl;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -41,7 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      body: ChatBody(key: _body, projectId: widget.projectId),
+      body: ChatBody(key: _body, projectId: widget.projectId, previewUrl: widget.previewUrl),
     );
   }
 }

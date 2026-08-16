@@ -55,4 +55,20 @@ void main() {
       );
     });
   });
+
+  test('builds the notification and push paths', () {
+    expect(EndPoints.notifications, '/api/v1/notifications');
+    expect(EndPoints.notification('n 1'), '/api/v1/notifications/n%201');
+    expect(EndPoints.notificationsReadAll, '/api/v1/notifications/read-all');
+    expect(EndPoints.pushDevices, '/api/v1/push/devices');
+    expect(EndPoints.pushDevice('ExponentPushToken[a b]'), '/api/v1/push/devices/ExponentPushToken%5Ba%20b%5D');
+  });
+
+  test('builds the preview paths, escaping every entry segment', () {
+    expect(EndPoints.sessionPreview('s-1'), '/api/v1/sessions/s-1/preview');
+    expect(
+      EndPoints.sessionPreviewFile('s-1', 'dist/my page/index.html'),
+      '/api/v1/sessions/s-1/preview/files/dist/my%20page/index.html',
+    );
+  });
 }

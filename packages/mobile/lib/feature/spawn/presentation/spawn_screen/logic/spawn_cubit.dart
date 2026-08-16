@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/operator_settings_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
@@ -107,6 +108,7 @@ class SpawnCubit extends Cubit<SpawnState> {
       issueId: name.trim(),
       harness: harness,
     ));
+    TelemetryRuntime.featureUsed('spawn', succeeded: result.isSuccess);
     result.when(
       onSuccess: (response) => emit(SpawnSuccessState(response.data ?? const SessionModel())),
       onFailure: (failure) =>

@@ -124,3 +124,53 @@ class SettingsRow extends StatelessWidget {
     return AppInkWell(onTap: (disabled || loading) ? null : onTap, child: content);
   }
 }
+
+class SettingsToggle extends StatelessWidget {
+  const SettingsToggle({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.disabled = false,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool disabled;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: skin.textSecondary),
+            const HorizontalSpace(10),
+            Expanded(
+              child: AppText(
+                label,
+                style: AppTextStyle.style15Regular.copyWith(color: skin.textPrimary),
+              ),
+            ),
+            if (busy) ...[const AppLoader(strokeWidth: 2), const HorizontalSpace(10)],
+            Switch(
+              value: value,
+              activeThumbColor: skin.onAccent,
+              activeTrackColor: skin.blue,
+              onChanged: disabled || busy ? null : onChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

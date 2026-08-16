@@ -11,4 +11,5 @@ sealed class CacheKeys {
   static String chatDraft(String sessionId) => 'opr.chat.draft.$sessionId';
   static String chatEventCursor(String host, String port, String sessionId) =>
       'opr.chat.events.$host.$port.$sessionId';
+  static const String telemetryRateLimit = 'opr.telemetry.rateLimit';
 }

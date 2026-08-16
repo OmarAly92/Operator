@@ -5,6 +5,8 @@ import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/telemetry/events.dart';
+import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/logic/pairing_payload.dart';
 
@@ -41,7 +43,14 @@ class PairingScanCubit extends Cubit<PairingScanState> {
     emit(const VerifyLoadingState());
     final result = await _repository.verifyAndConnect(target);
     result.when(
-      onSuccess: (_) => emit(const VerifySuccessState()),
+      onSuccess: (_) {
+        TelemetryRuntime.capture(MobileEvents.paired, {
+          'method': 'qr',
+          'from_onboarding': fromOnboarding,
+        });
+        if (fromOnboarding) TelemetryRuntime.capture(MobileEvents.onboardingCompleted);
+        emit(const VerifySuccessState());
+      },
       onFailure: (failure) {
         _scanned = false;
         emit(

@@ -23,6 +23,8 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/live_turn_bar.dart';
+import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -42,6 +44,29 @@ class _MockTerminalRepository extends Mock implements TerminalRepository {}
 
 class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
+
+class _InertVoiceProvider implements VoiceProvider {
+  @override
+  bool get available => false;
+
+  @override
+  String? get language => null;
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {}
+
+  @override
+  void stop() {}
+
+  @override
+  void abort() {}
+}
 
 class _RouteCapturingObserver extends NavigatorObserver {
   final List<String> pushed = [];
@@ -116,6 +141,10 @@ void main() {
     sessionsCubit = SessionsCubit(sessionsRepository, mux);
     sl.registerLazySingleton<SessionsCubit>(() => sessionsCubit);
     sl.registerLazySingleton<TerminalRepository>(() => terminalRepository);
+    sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
+      (onTranscript, _) =>
+          VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
+    );
     when(
       () => switchCubit.state,
     ).thenReturn(const InterfaceSwitchInitialState());
