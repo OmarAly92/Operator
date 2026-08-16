@@ -23,7 +23,9 @@ List<String> _rnSourceFiles() {
 Map<String, String?> _ledgerRows() {
   final rows = <String, String?>{};
   for (final line in File(_ledgerPath).readAsLinesSync()) {
-    final match = _sourceRow.firstMatch(line.trim());
+    final trimmed = line.trim();
+    if (trimmed == '## Test files') break;
+    final match = _sourceRow.firstMatch(trimmed);
     if (match == null) continue;
     final source = match.group(1)!;
     expect(rows.containsKey(source), isFalse, reason: '$source has more than one ledger row');
@@ -53,6 +55,41 @@ void main() {
         if (!File(destination).existsSync() && !Directory(destination).existsSync()) {
           broken.add('$source -> $destination');
         }
+      });
+      expect(broken, isEmpty, reason: 'destinations that do not exist:\n${broken.join('\n')}');
+    });
+  });
+
+  group('test ledger', () {
+    final RegExp testRow = RegExp(r'^\|\s*`(lib/[^`]+\.test\.ts)`\s*\|\s*(?:`([^`]+)`|OMITTED)\s*\|');
+
+    Map<String, String?> rows() {
+      final parsed = <String, String?>{};
+      for (final line in File(_ledgerPath).readAsLinesSync()) {
+        final match = testRow.firstMatch(line.trim());
+        if (match == null) continue;
+        parsed[match.group(1)!] = match.group(2);
+      }
+      return parsed;
+    }
+
+    test('has one row per RN test file', () {
+      final files = Directory(_rnRoot)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map((file) => file.path.replaceFirst('$_rnRoot/', ''))
+          .where((path) => path.endsWith('.test.ts'))
+          .toList();
+      expect(files.length, 37);
+      final missing = files.where((path) => !rows().containsKey(path)).toList();
+      expect(missing, isEmpty, reason: 'RN tests with no ledger row:\n${missing.join('\n')}');
+    });
+
+    test('every cited Dart test exists', () {
+      final broken = <String>[];
+      rows().forEach((source, destination) {
+        if (destination == null) return;
+        if (!File(destination).existsSync()) broken.add('$source -> $destination');
       });
       expect(broken, isEmpty, reason: 'destinations that do not exist:\n${broken.join('\n')}');
     });

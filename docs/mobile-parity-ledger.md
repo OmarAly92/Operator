@@ -118,3 +118,62 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `app/notifications.tsx` | `lib/feature/notification/presentation/notifications_screen/ui/widgets/notifications_body.dart` | With `notification_row.dart` and `notification_bell.dart`. |
 | `app/_layout.tsx` | `lib/main.dart` | Providers, the deep-link listener and the navigator key. |
 | `app/(tabs)/_layout.tsx` | `lib/core/app_routes/home_shell.dart` | The four-tab bar, its `tabPress` selection haptic, and the re-tap-to-scroll-to-top gesture. |
+
+## Test files
+
+The spec's ledger named a destination for each of the 37 RN test files. Five landed elsewhere; the
+column below is where they actually are, and the note says why it moved.
+
+| RN test | Dart test | Note |
+|---|---|---|
+| `lib/agentPicker.test.ts` | `test/feature/spawn/logic/agent_picker_test.dart` | 1:1. |
+| `lib/agentsView.test.ts` | `test/feature/sessions/logic/agents_view_test.dart` | 1:1. |
+| `lib/appInfo.test.ts` | `test/core/utils/app_info_test.dart` | Adapted — `package_info_plus`. |
+| `lib/cameraLens.test.ts` | `test/feature/pairing/logic/camera_lens_test.dart` | Adapted — `mobile_scanner`. |
+| `lib/chat/ChatMarkdown.test.ts` | `test/feature/chat/logic/chat_markdown_test.dart` | 1:1. |
+| `lib/chat/ansi.test.ts` | `test/feature/chat/logic/ansi_test.dart` | 1:1. |
+| `lib/chat/composerSuggestions.test.ts` | `test/feature/chat/logic/composer_suggestions_test.dart` | 1:1. |
+| `lib/chat/conversationAction.test.ts` | `test/feature/chat/logic/conversation_action_test.dart` | 1:1. |
+| `lib/chat/conversationChrome.test.ts` | `test/feature/chat/logic/conversation_chrome_test.dart` | 1:1. |
+| `lib/chat/elicitationModel.test.ts` | `test/feature/chat/logic/elicitation_model_test.dart` | 1:1. |
+| `lib/chat/snapshot.test.ts` | `test/feature/chat/logic/snapshot_test.dart` | 1:1. |
+| `lib/chat/sse.test.ts` | `test/feature/chat/data/sse_test.dart` | 1:1 — CRLF frames, the `id:` fallback and dropping malformed `data`. |
+| `lib/chat/syntaxHighlight.test.ts` | `test/feature/chat/logic/syntax_highlight_test.dart` | 1:1. |
+| `lib/chat/timelineModel.test.ts` | `test/feature/chat/logic/timeline_model_test.dart` | 1:1. |
+| `lib/chatError.test.ts` | `test/core/error_handling/chat_preflight_test.dart` | **Moved.** The spec predicted `feature/chat/logic/chat_error_test.dart`; the module is a `Failure` classifier used by spawn and orchestrator as well as chat, so it is core. |
+| `lib/chatModeApi.test.ts` | `test/feature/chat/data/data_source/chat_remote_data_source_test.dart` | **Moved.** The spec predicted `feature/chat/data/chat_mode_api_test.dart`; there is no separate mode API in Dart — the calls are methods on the chat data source, and `test/feature/chat/presentation/chat_screen/ui/chat_sheets_test.dart` covers the picker that drives them. |
+| `lib/connectionError.test.ts` | `test/core/error_handling/connection_error_test.dart` | 1:1. |
+| `lib/disconnect.test.ts` | `test/feature/pairing/logic/disconnect_test.dart` | 1:1. |
+| `lib/githubLink.test.ts` | `test/feature/pull_request/logic/github_link_test.dart` | 1:1. |
+| `lib/harnessLogo.test.ts` | `test/feature/sessions/logic/harness_logo_test.dart` | **Moved.** The spec predicted `core/utils/`; the board is the only consumer, so it lives with it. |
+| `lib/notificationView.test.ts` | `test/feature/notification/logic/notification_view_test.dart` | 1:1. |
+| `lib/onboarding.test.ts` | `test/feature/onboarding/logic/onboarding_test.dart` | 1:1. |
+| `lib/orchestratorView.test.ts` | `test/feature/orchestrator/logic/orchestrator_view_test.dart` | 1:1. |
+| `lib/prView.test.ts` | `test/feature/pull_request/logic/pr_view_test.dart` | 1:1. |
+| `lib/pushStatus.test.ts` | `test/feature/notification/logic/push_status_test.dart` | 1:1, two enum names changed. |
+| `lib/session/keyboardInset.test.ts` | `test/feature/chat/logic/keyboard_inset_test.dart` | Adapted — `MediaQuery.viewInsets`. |
+| `lib/session/sendRoute.test.ts` | `test/feature/terminal/logic/send_route_test.dart` | **Moved.** The spec predicted `feature/sessions/`; the terminal composer is the only consumer. |
+| `lib/sessionStatus.test.ts` | `test/feature/sessions/logic/session_status_test.dart` | 1:1. |
+| `lib/sheetResult.test.ts` | OMITTED | **The only dropped row, and the module it covers is dropped with it.** It tests parking and releasing a callback in a module-level map — a mechanism `Navigator.push<T>`'s return value makes unnecessary. There is no Dart code to cover. The behavior it protected (a sheet dismissed without a choice must not leak its closure) is a property of the framework here, not of our code. |
+| `lib/telemetry/context.test.ts` | `test/core/telemetry/context_test.dart` | 1:1, plus a wire-key assertion. |
+| `lib/telemetry/dailyActive.test.ts` | `test/core/telemetry/daily_active_test.dart` | 1:1. |
+| `lib/telemetry/rateLimit.test.ts` | `test/core/telemetry/rate_limit_test.dart` | 1:1, plus the restart case in "Divergences". |
+| `lib/telemetry/sanitize.test.ts` | `test/core/telemetry/sanitize_test.dart` | 1:1, plus a `CountRule` case Dart can express and TypeScript could not. |
+| `lib/telemetry/telemetry.test.ts` | `test/core/telemetry/telemetry_test.dart` | Adapted — the sink is the abstract `MobileTelemetryClient`. |
+| `lib/theme.test.ts` | `test/core/app_themes/skin_test.dart` | Extended — pins the `rgba()`→8-digit-ARGB conversions. |
+| `lib/themePreference.test.ts` | `test/core/app_themes/skin_cubit_test.dart` | `bloc_test`. |
+| `lib/voice/deviceProvider.test.ts` | `test/feature/chat/voice/device_provider_test.dart` | Adapted — the vendored `speech_to_text`. |
+
+**36 ported, 1 dropped with its module, 37 accounted for.**
+
+## Open gaps
+
+Behaviors the sweep found in the RN tree with no Dart counterpart. Each is closed before the RN tree
+is deleted.
+
+| Gap | RN source | Status |
+|---|---|---|
+| Haptic feedback | `lib/haptics.ts` and 65 call sites | Open — to be closed by M6 Tasks 7-10 |
+| Re-tapping the active tab scrolls it to the top | `lib/useTabScrollToTop.ts`, all four tabs | Open — to be closed by M6 Task 11 |
+| `build_mode` can never report `simulator` | `lib/telemetry/context.ts` vs `lib/main.dart:33` | Open — to be closed by M6 Task 12 |
+| Coding-vocabulary bias, the two iOS audio sessions, the Android silence extras | `lib/voice/deviceProvider.ts` | Open — to be closed by M6 Tasks 13-17 |
