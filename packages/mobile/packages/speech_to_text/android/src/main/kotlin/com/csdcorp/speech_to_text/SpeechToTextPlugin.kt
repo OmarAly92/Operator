@@ -217,7 +217,10 @@ public class SpeechToTextPlugin :
                     }
                     val pauseFor =
                         call.argument<Int?>("pauseFor")
-                    startListening(result, localeId, partialResults, listenModeIndex, onDevice, pauseFor )
+                    val contextualStrings = call.argument<List<String>>("contextualStrings") ?: emptyList()
+                    val possiblyCompleteSilence = call.argument<Int>("possiblyCompleteSilence")
+                    startListening(result, localeId, partialResults, listenModeIndex, onDevice, pauseFor,
+                        contextualStrings, possiblyCompleteSilence )
                 }
                 "stop" -> stopListening(result)
                 "cancel" -> cancelListening(result)
@@ -281,7 +284,8 @@ public class SpeechToTextPlugin :
     }
 
     private fun startListening(result: Result, languageTag: String, partialResults: Boolean,
-                               listenModeIndex: Int, onDevice: Boolean, pauseFor: Int?) {
+                               listenModeIndex: Int, onDevice: Boolean, pauseFor: Int?,
+                               contextualStrings: List<String> = emptyList(), possiblyCompleteSilence: Int? = null) {
         if (sdkVersionTooLow() || isNotInitialized() || isListening()) {
             result.success(false)
             return
@@ -295,7 +299,8 @@ public class SpeechToTextPlugin :
         debugLog("Start listening")
 
         optionallyStartBluetooth()
-        setupRecognizerIntent(languageTag, partialResults, listenMode, onDevice, pauseFor )
+        setupRecognizerIntent(languageTag, partialResults, listenMode, onDevice, pauseFor,
+            contextualStrings, possiblyCompleteSilence )
         handler.post {
             run {
                 speechRecognizer?.startListening(recognizerIntent)
@@ -651,7 +656,8 @@ public class SpeechToTextPlugin :
         debugLog("after setup intent")
     }
 
-    private fun setupRecognizerIntent(languageTag: String, partialResults: Boolean, listenMode: ListenMode, onDevice: Boolean, pauseFor: Int? ) {
+    private fun setupRecognizerIntent(languageTag: String, partialResults: Boolean, listenMode: ListenMode, onDevice: Boolean, pauseFor: Int?,
+                                       contextualStrings: List<String> = emptyList(), possiblyCompleteSilence: Int? = null ) {
         debugLog("setupRecognizerIntent")
         if (previousRecognizerLang == null ||
                 previousRecognizerLang != languageTag ||
@@ -691,6 +697,22 @@ public class SpeechToTextPlugin :
 
                         pauseFor?.also {
                             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, it)
+                        }
+                        possiblyCompleteSilence?.let {
+                            putExtra(
+                                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                                it
+                            )
+                        }
+                        // EXTRA_BIASING_STRINGS is API 33+. Below that the recogniser simply
+                        // ignores the extra, so there is nothing to fall back to.
+                        if (contextualStrings.isNotEmpty() &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        ) {
+                            putExtra(
+                                RecognizerIntent.EXTRA_BIASING_STRINGS,
+                                ArrayList(contextualStrings)
+                            )
                         }
                     }
                 }
