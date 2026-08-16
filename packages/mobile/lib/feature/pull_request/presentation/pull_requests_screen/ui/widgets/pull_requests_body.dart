@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
@@ -47,7 +48,10 @@ class PullRequestsBody extends StatelessWidget {
             }
             final allCount = entries.length;
 
-            Future<void> onRefresh() => Future.wait([prCubit.reload(sessionIds), sessionsCubit.refresh()]);
+            Future<void> onRefresh() {
+              Haptics.tap();
+              return Future.wait([prCubit.reload(sessionIds), sessionsCubit.refresh()]);
+            }
 
             final noCache = sessionsCubit.visibleSessions.isEmpty;
             final failureState = sessionsState is GetSessionsFailureState ? sessionsState : null;

@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -93,10 +94,18 @@ class _SpawnBodyState extends State<SpawnBody> {
       context,
       agents: _cubit.agents,
       selected: _cubit.harness,
-      onRefresh: _cubit.refreshCatalog,
+      onRefresh: _refreshCatalog,
       error: state is CatalogFailureState ? 'Could not reach your Operator server' : null,
     );
     if (chosen != null && context.mounted) _cubit.setHarness(chosen);
+  }
+
+  Future<void> _refreshCatalog() async {
+    final resolved = _cubit.stream.firstWhere((s) => s is CatalogReadyState || s is CatalogFailureState);
+    await _cubit.refreshCatalog();
+    final state = await resolved;
+    if (state is CatalogReadyState) Haptics.success();
+    if (state is CatalogFailureState) Haptics.error();
   }
 
   @override
@@ -105,7 +114,14 @@ class _SpawnBodyState extends State<SpawnBody> {
 
     return BlocConsumer<SpawnCubit, SpawnState>(
       listener: (context, state) {
+        if (state is SpawnValidationFailureState) {
+          Haptics.error();
+        }
+        if (state is SpawnFailureState) {
+          Haptics.error();
+        }
         if (state is SpawnSuccessState) {
+          Haptics.success();
           _sessionsCubit.refresh();
           final messenger = ScaffoldMessenger.of(context);
           final navigator = Navigator.of(context);
@@ -276,7 +292,10 @@ class _ModeOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final skin = context.skin;
     return AppInkWell(
-      onTap: onTap,
+      onTap: () {
+        Haptics.select();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),

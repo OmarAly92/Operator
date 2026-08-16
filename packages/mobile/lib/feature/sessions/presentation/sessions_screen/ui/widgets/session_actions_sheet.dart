@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -40,6 +41,7 @@ class SessionActionsSheet extends StatelessWidget {
               leading: Icon(Icons.replay, color: skin.accent),
               title: const AppText('Restore'),
               onTap: () {
+                Haptics.tap();
                 Navigator.of(context).pop();
                 cubit.restore(session.id!);
               },
@@ -49,6 +51,7 @@ class SessionActionsSheet extends StatelessWidget {
               leading: Icon(Icons.stop_circle_outlined, color: skin.red),
               title: AppText('Kill', style: AppTextStyle.style14Regular.copyWith(color: skin.red)),
               onTap: () async {
+                Haptics.tap();
                 final confirmed = await AppDialog.confirm(
                   context,
                   title: 'Kill session?',

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -66,6 +67,7 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
   }
 
   void _onZoneTap() {
+    Haptics.select();
     context.read<SessionsCubit>().setActiveProject(widget.projectId);
     widget.onOpenBoard();
   }
@@ -173,6 +175,7 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
       label: '$count ${meta.label} in ${widget.projectName}. Opens the board.',
       child: AppContainer(
         onTap: _onZoneTap,
+        hapticsOnTap: false,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         borderRadius: BorderRadius.circular(999),
         backgroundColor: meta.tint,

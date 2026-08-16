@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/utils/app_info.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
@@ -78,8 +79,14 @@ class _SettingsBodyState extends State<SettingsBody> {
     PushRegisterResult? result;
     if (!next) {
       await registrar.unregister();
+      Haptics.tap();
     } else {
       result = await registrar.register(sl<ServerConfigStore>().current, ask: true);
+      if (result is PushRegistered) {
+        Haptics.success();
+      } else {
+        Haptics.error();
+      }
     }
     if (!mounted) return;
     setState(() => _pushBusy = false);
@@ -159,6 +166,12 @@ class _SettingsBodyState extends State<SettingsBody> {
 
     return BlocConsumer<SettingsCubit, SettingsState>(
       listener: (context, state) {
+        if (state is PingSuccessState) {
+          Haptics.success();
+        }
+        if (state is PingFailureState) {
+          Haptics.error();
+        }
         if (state is ForgetSuccessState) {
           Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.onboarding, (_) => false);
         }

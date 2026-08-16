@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
@@ -55,6 +56,7 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
           );
         }
         if (state is LaunchFailureState) {
+          Haptics.error();
           if (state.chatUnavailable) {
             final projectId = _launchingProjectId;
             final clean = _launchingClean;
@@ -94,7 +96,10 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
           }
 
           return RefreshIndicator(
-            onRefresh: sessionsCubit.refresh,
+            onRefresh: () async {
+              Haptics.tap();
+              await sessionsCubit.refresh();
+            },
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [

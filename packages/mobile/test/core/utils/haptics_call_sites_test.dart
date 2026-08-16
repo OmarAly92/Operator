@@ -1,15 +1,23 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/ui/widgets/manual_connect_body.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
+
+class MockManualConnectCubit extends MockCubit<ManualConnectState> implements ManualConnectCubit {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -124,6 +132,52 @@ void main() {
       await tester.tap(find.text('Project One'));
       await tester.pump();
       expect(fired, ['HapticFeedbackType.selectionClick']);
+    });
+  });
+
+  group('manual connect haptics', () {
+    MockManualConnectCubit stubbedCubit() {
+      final cubit = MockManualConnectCubit();
+      when(() => cubit.hostController).thenReturn(TextEditingController());
+      when(() => cubit.portController).thenReturn(TextEditingController(text: '3011'));
+      when(() => cubit.passwordController).thenReturn(TextEditingController());
+      when(() => cubit.secure).thenReturn(false);
+      return cubit;
+    }
+
+    testWidgets('a successful connect reports success', (tester) async {
+      final cubit = stubbedCubit();
+      whenListen(
+        cubit,
+        Stream<ManualConnectState>.fromIterable([const ConnectSuccessState()]),
+        initialState: const ManualConnectInitialState(),
+      );
+      await tester.pumpWidget(host(
+        BlocProvider<ManualConnectCubit>.value(value: cubit, child: const ManualConnectBody()),
+      ));
+      await tester.pump();
+      expect(fired, ['success']);
+    });
+
+    testWidgets('a failed connect warns', (tester) async {
+      final cubit = stubbedCubit();
+      whenListen(
+        cubit,
+        Stream<ManualConnectState>.fromIterable([
+          ConnectFailureState(describeConnectionFailure(
+            ConnectionFailure.auth,
+            host: 'h',
+            port: '3011',
+            platform: TargetPlatform.iOS,
+          )),
+        ]),
+        initialState: const ManualConnectInitialState(),
+      );
+      await tester.pumpWidget(host(
+        BlocProvider<ManualConnectCubit>.value(value: cubit, child: const ManualConnectBody()),
+      ));
+      await tester.pump();
+      expect(fired, ['warning']);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -55,14 +56,37 @@ class SessionsBody extends StatelessWidget {
 
         void openActions(SessionModel session) => showSessionActionsSheet(context, session);
 
+        final sectionKeys = <BoardZone, GlobalKey>{
+          for (final section in grouped.sections) section.zone: GlobalKey(),
+        };
+        void jumpTo(BoardZone zone) {
+          final sectionContext = sectionKeys[zone]?.currentContext;
+          if (sectionContext != null) {
+            Scrollable.ensureVisible(sectionContext, duration: const Duration(milliseconds: 200));
+          }
+        }
+
         return RefreshIndicator(
-          onRefresh: cubit.refresh,
+          onRefresh: () async {
+            Haptics.tap();
+            await cubit.refresh();
+          },
           child: ListView(
             padding: const EdgeInsets.only(bottom: 40),
             children: [
-              SessionsStatsRow(working: working, needsYou: needsYou, mergeable: mergeable),
+              SessionsStatsRow(
+                working: working,
+                needsYou: needsYou,
+                mergeable: mergeable,
+                onTapWorking: () => jumpTo(BoardZone.working),
+                onTapNeedsYou: () => jumpTo(BoardZone.action),
+                onTapMergeable: () => jumpTo(BoardZone.merge),
+              ),
               for (final section in grouped.sections) ...[
-                SessionSectionHeader(label: section.label, color: section.color, count: section.sessions.length),
+                KeyedSubtree(
+                  key: sectionKeys[section.zone],
+                  child: SessionSectionHeader(label: section.label, color: section.color, count: section.sessions.length),
+                ),
                 for (final session in section.sessions)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
