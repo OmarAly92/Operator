@@ -18,6 +18,7 @@ class AppContainer extends StatelessWidget {
     this.height,
     this.backgroundColor,
     this.boxShadow,
+    this.hapticsOnTap = true,
   });
 
   final Widget child;
@@ -32,10 +33,12 @@ class AppContainer extends StatelessWidget {
   final double? height;
   final Color? backgroundColor;
   final List<BoxShadow>? boxShadow;
+  final bool hapticsOnTap;
 
   void Function()? get _onTap {
     final handler = onTap;
     if (handler == null) return null;
+    if (!hapticsOnTap) return handler;
     return () {
       Haptics.tap();
       handler();

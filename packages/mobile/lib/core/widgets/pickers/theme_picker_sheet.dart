@@ -52,6 +52,7 @@ class _ThemeOption extends StatelessWidget {
     final skin = context.skin;
     return AppContainer(
       onTap: onTap,
+      hapticsOnTap: false,
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(

@@ -26,6 +26,7 @@ class AppPill extends StatelessWidget {
     final skin = context.skin;
     return AppContainer(
       onTap: _onTap,
+      hapticsOnTap: false,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       borderRadius: BorderRadius.circular(999),
       backgroundColor: active ? skin.tintBlue : skin.bgElevated,

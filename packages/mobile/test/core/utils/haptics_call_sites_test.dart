@@ -5,7 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_pill.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
+import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
+import 'package:operator_mobile/core/widgets/pickers/theme_picker_sheet.dart';
+import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +71,59 @@ void main() {
       await tester.tap(find.text('Go'));
       await tester.pump();
       expect(fired, isEmpty);
+    });
+  });
+
+  group('AppPill haptics', () {
+    testWidgets('a tap fires exactly one selection click', (tester) async {
+      await tester.pumpWidget(host(AppPill(label: 'Filter', active: false, onTap: () {})));
+      await tester.tap(find.text('Filter'));
+      await tester.pump();
+      expect(fired, ['HapticFeedbackType.selectionClick']);
+    });
+  });
+
+  group('theme picker option haptics', () {
+    testWidgets('picking a theme fires exactly one selection click', (tester) async {
+      await tester.pumpWidget(
+        host(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showThemePickerSheet(context, selected: ThemeMode.system),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Light'));
+      await tester.pump();
+      expect(fired, ['HapticFeedbackType.selectionClick']);
+    });
+  });
+
+  group('project picker option haptics', () {
+    testWidgets('picking a project fires exactly one selection click', (tester) async {
+      await tester.pumpWidget(
+        host(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showProjectPickerSheet(
+                context,
+                projects: const [ProjectModel(id: 'p1', name: 'Project One')],
+                selected: 'p1',
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Project One'));
+      await tester.pump();
+      expect(fired, ['HapticFeedbackType.selectionClick']);
     });
   });
 }
