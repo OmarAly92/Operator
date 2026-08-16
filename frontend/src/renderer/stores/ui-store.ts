@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import type { TerminalTarget } from "../types/terminal";
 import {
-	applyDocumentTheme,
-	applyDocumentThemeStyle,
+	applyDocumentSkin,
 	readStoredThemePreference,
 	readStoredThemeStyle,
 	resolveTheme,
@@ -154,7 +153,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 		runThemeTransition(() => {
 			const resolvedTheme = resolveTheme(themePreference);
 			getLocalStorage()?.setItem(themeStorageKey, themePreference);
-			applyDocumentTheme(resolvedTheme);
+			applyDocumentSkin(get().themeStyle, resolvedTheme);
 			set({ themePreference, resolvedTheme });
 		});
 	},
@@ -162,7 +161,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 		if (get().themeStyle === themeStyle) return;
 		runThemeTransition(() => {
 			getLocalStorage()?.setItem(themeStyleStorageKey, themeStyle);
-			applyDocumentThemeStyle(themeStyle);
+			applyDocumentSkin(themeStyle, get().resolvedTheme);
 			set({ themeStyle });
 		});
 	},
@@ -175,7 +174,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 		const next = systemTheme();
 		if (next === resolvedTheme) return;
 		runThemeTransition(() => {
-			applyDocumentTheme(next);
+			applyDocumentSkin(get().themeStyle, next);
 			set({ resolvedTheme: next });
 		});
 	},

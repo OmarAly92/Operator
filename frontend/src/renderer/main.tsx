@@ -15,6 +15,7 @@ import { startDaemonFailureTelemetry } from "./lib/daemon-telemetry";
 import { startUpdateTelemetry } from "./lib/update-telemetry";
 import { appI18n } from "./i18n";
 import { useLocaleStore } from "./stores/locale-store";
+import { SkinProvider } from "./theme/skin-context";
 
 const router = createAppRouter(queryClient);
 
@@ -77,9 +78,11 @@ async function renderApp(): Promise<void> {
 		<React.StrictMode>
 			<I18nextProvider i18n={appI18n}>
 				<TelemetryBoundary>
-					<QueryClientProvider client={queryClient}>
-						<RouterProvider router={router} />
-					</QueryClientProvider>
+					<SkinProvider>
+						<QueryClientProvider client={queryClient}>
+							<RouterProvider router={router} />
+						</QueryClientProvider>
+					</SkinProvider>
 				</TelemetryBoundary>
 			</I18nextProvider>
 		</React.StrictMode>,

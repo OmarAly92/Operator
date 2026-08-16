@@ -1,3 +1,6 @@
+import { applySkinVars } from "../theme/bridge/css-vars";
+import { skinFor } from "../theme/skins";
+
 export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";
 
@@ -76,6 +79,13 @@ export function applyDocumentThemeStyle(style: ThemeStyle): void {
 	} else {
 		document.documentElement.dataset.styleTheme = style;
 	}
+}
+
+export function applyDocumentSkin(style: ThemeStyle, theme: Theme): void {
+	if (typeof document === "undefined") return;
+	applyDocumentTheme(theme);
+	applyDocumentThemeStyle(style);
+	applySkinVars(skinFor(style, theme));
 }
 
 /**
