@@ -61,7 +61,7 @@ ingestion drop rules, see [posthog-cost-controls.md](posthog-cost-controls.md).
   `personProfiles: "never"`, `enableSessionReplay: false`, and
   `captureAppLifecycleEvents: false`. There is no screen recording, no touch or
   screen autocapture, and no free-text property: the allowlist in
-  `packages/mobile_rn/lib/telemetry/events.ts` drops any unregistered key, so session
+  `packages/mobile/lib/core/telemetry/events.dart` drops any unregistered key, so session
   titles, project names, terminal output, and the connection password cannot
   leave the device. Identity is posthog-react-native's persisted anonymous
   install id, device-based and never IP. Errors are out of scope here and go to

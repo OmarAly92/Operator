@@ -196,10 +196,12 @@ npm run frontend:typecheck
 
 ## Mobile companion app
 
-The mobile companion app is still being wired into the contributor docs. Do not
-assume `packages/mobile_rn/README.md` is a complete setup guide on this branch.
-Until a tracked guide lands, use the desktop/backend workflow above and check
-open issues/PRs for current mobile-specific setup notes.
+The mobile companion app lives at `packages/mobile` (Flutter). See
+`packages/mobile/README.md` and `docs/mobile-parity-ledger.md` for setup and
+history — the latter records where the retired React Native prototype's
+behavior went. Until a tracked contributor guide lands, use the desktop/backend
+workflow above and check open issues/PRs for current mobile-specific setup
+notes.
 
 ## Running end-to-end
 

@@ -4,12 +4,11 @@ A Flutter thin client for the Operator daemon. It talks to a paired daemon over
 HTTP/SSE the same way the desktop renderer does, rather than embedding any
 orchestration logic of its own.
 
-This package is the in-progress Flutter port of the mobile app. The previous
-React Native implementation is frozen at `packages/mobile_rn` and stays on
-disk, untouched, as the reference the port is built from until milestone M6,
-when the RN tree is deleted and this package becomes the only mobile client.
-`packages/mobile_rn`'s CI workflow is disabled so the frozen tree cannot fail
-CI.
+This package is the Flutter port of the mobile app. The previous React Native
+implementation was frozen at `packages/mobile_rn` as the reference the port
+was built from, then deleted at milestone M6 once every file in it was
+accounted for — see `docs/mobile-parity-ledger.md` for where each one went.
+This package has been the only mobile client since M6.
 
 ## Current milestone: M1 — walking skeleton
 

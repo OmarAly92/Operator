@@ -51,8 +51,8 @@ final class TerminalResizeEvent extends TerminalEvent {
 }
 
 /// One WebSocket multiplexing session-status snapshots and per-session
-/// terminal I/O. Auto-reconnects with backoff. See `lib/mux.ts` in
-/// `packages/mobile_rn` for the RN reference this mirrors.
+/// terminal I/O. Auto-reconnects with backoff. See `docs/mobile-parity-ledger.md`
+/// for the RN reference (`lib/mux.ts`) this mirrors.
 class MuxClient {
   MuxClient(this._cfg, {MuxSocket Function(Uri uri, Map<String, String> headers)? connect})
     : _connect = connect ?? IOMuxSocket.connect;
