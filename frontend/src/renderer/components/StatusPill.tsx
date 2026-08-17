@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { toneRing, toneWash } from "../theme/effects";
 
 type StatusPillProps = {
 	label: string;
@@ -19,8 +20,8 @@ export function StatusPill({ label, tone, breathe, className, leading = "normal"
 			)}
 			style={{
 				color: tone,
-				background: `color-mix(in srgb, ${tone} 7%, transparent)`,
-				boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${tone} 25%, transparent)`,
+				background: toneWash(tone),
+				boxShadow: toneRing(tone),
 			}}
 		>
 			<span

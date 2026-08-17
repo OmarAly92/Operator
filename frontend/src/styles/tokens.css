@@ -8,13 +8,12 @@
  * What lives here:
  *   - the non-colour scale — size, space, radius, font, tracking, leading,
  *     z, duration, ease, breakpoint
- *   - the base colour block on `:root, :root.dark, .dark`, plus the
- *     `color-scheme` hints
+ *   - the `color-scheme` hint for native form controls and scrollbars
  *
- * What does NOT live here: light-theme and named-style colour. There is no
- * `[data-theme="light"]` or `[data-style-theme]` colour cascade any more —
- * every colour variable is written onto <html> at runtime from the active
- * `AppSkin`. See src/renderer/theme/README.md.
+ * What does NOT live here: colour, of any kind. There is no base palette, no
+ * `[data-theme="light"]` block and no `[data-style-theme]` cascade — every
+ * colour variable is written onto <html> at runtime from the active `AppSkin`.
+ * See src/renderer/theme/README.md.
  *
  * The landing site does not import this file; it has its own
  * src/site-theme/tokens.css.
@@ -28,126 +27,16 @@
 	/* ── Color scheme hint for native form controls / scrollbars ── */
 	color-scheme: dark;
 
-	/* shadcn base-luma / olive preset (b6tOz2I0x). The renderer is dark-first,
-	   so the preset's .dark values are the default application values. */
-	--background: oklch(0.185 0.006 285.885);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.24 0.008 285.885);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.28 0.008 285.885);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.92 0.004 286.32);
-	--primary-foreground: oklch(0.21 0.006 285.885);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.274 0.006 286.033);
-	--muted-foreground: oklch(0.705 0.015 286.067);
-	--accent: oklch(0.274 0.006 286.033);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	/* Hairlines separate, they do not decorate: below the shadcn dark default of
-	 * 10% so column rules and card edges recede behind content. */
-	--border: oklch(1 0 0 / 7%);
-	--input: oklch(1 0 0 / 4%);
-	--ring: oklch(0.552 0.016 285.938);
-	--chart-1: oklch(0.871 0.006 286.286);
-	--chart-2: oklch(0.552 0.016 285.938);
-	--chart-3: oklch(0.442 0.017 285.786);
-	--chart-4: oklch(0.37 0.013 285.805);
-	--chart-5: oklch(0.274 0.006 286.033);
 	--radius: 0.625rem;
-	--sidebar: oklch(0.155 0.005 285.823);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.274 0.006 286.033);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: var(--border);
-	--sidebar-ring: oklch(0.552 0.016 285.938);
 
 	/* ═══════════════════════════════════════════════════════════════
-	   COLOR — semantic (swap these per theme; do not invent new roles
-	   for one-off hex — map one-offs to the nearest existing role)
+	   COLOR — none. Every colour variable is written onto <html> at
+	   runtime from the active AppSkin; see src/renderer/theme/README.md.
+	   Adding a colour here would shadow nothing (inline styles win) and
+	   would give the app a second, unthemeable source of truth.
 	   ═══════════════════════════════════════════════════════════════ */
 
-	/* Surfaces */
-	--color-bg-primary: var(--background);
-	--color-bg-secondary: var(--card);
-	--color-bg-tertiary: var(--muted);
-	--color-bg-elevated: var(--popover);
-	--color-bg-sidebar: var(--sidebar);
-	/* Token keeps the historical #101317e7 value; painted surfaces use the
-	   opaque plate so the p-2 gutter cannot composite into #111316. */
-	--color-bg-terminal-opaque: #101317;
-	--color-bg-terminal: #101317e7;
-	/* Opaque backing for terminal swaps/covers; prevents retained frames leaking through. */
-	--color-bg-terminal-opaque: #101317;
-
-	/* Text */
-	--color-text-primary: var(--foreground);
-	--color-text-muted: var(--muted-foreground);
-	--color-text-passive: var(--chart-3);
-	--color-brand-logo: #79b0dc;
-	--color-brand-logo-bright: #a5cde7;
-	--color-brand-logo-foreground: #0a0b0d;
-	--color-text-markdown-code: var(--color-brand-logo);
-	--color-text-markdown-link: var(--color-brand-logo); /* underline distinguishes links */
-	--color-text-markdown-link-hover: var(--color-brand-logo-bright);
-	--color-text-terminal: #d7d7d2;
-	--color-text-terminal-dim: #7c7c7c;
-
-	/* Borders */
-	--color-border: var(--border);
-	--color-border-strong: var(--input);
-
-	/* Reverb workspace bar — derived from the shared shadcn token scale. The bar
-	 * reads as the top of the page it heads, not as sidebar chrome, so it takes
-	 * the page canvas and separates with its hairline alone. */
-	--color-bg-topbar: var(--background);
-	--color-bg-topbar-raised: var(--secondary);
-	--color-border-topbar: var(--border);
-	--color-border-topbar-strong: var(--input);
-	--color-text-topbar: var(--foreground);
-	--color-text-topbar-muted: var(--muted-foreground);
-	--color-text-topbar-passive: var(--chart-3);
-
-	/* Accent and destructive roles */
-	--color-accent: var(--primary);
-	--color-accent-foreground: var(--primary-foreground);
-	--color-accent-weak: color-mix(in oklch, var(--primary) 16%, transparent);
-	--color-accent-dim: var(--chart-4);
-	--color-accent-strong: var(--primary);
-	--color-danger-strong: var(--destructive);
-
-	/* Board lane signals, matched to the landing hero's board preview. */
-	--color-status-working: #60a5fa;
-	--color-status-needs-you: #fb923c;
-	--color-status-in-review: #facc15;
-	--color-status-ready: #4ade80;
-	--color-status-merged: var(--color-status-ready);
-	--color-status-idle: var(--muted-foreground);
-	--color-status-exited: var(--destructive);
-	--color-status-terminated: var(--chart-3);
-	--color-status-terminated-foreground: var(--chart-3);
-	--color-status-unknown: var(--chart-4);
-
-	/* Compatibility roles used by non-session surfaces. */
-	--color-working: var(--color-status-working);
-	--color-warning: var(--color-status-needs-you);
-	--color-success: var(--color-status-ready);
-	--color-success-bright: var(--chart-1);
-	--color-danger: var(--destructive);
-	--color-purple: var(--chart-4);
-
-	/* Interactive overlays */
-	--color-interactive-hover: color-mix(in oklch, var(--foreground) 4%, transparent);
-	--color-interactive-active: color-mix(in oklch, var(--foreground) 7%, transparent);
-	--color-overlay-subtle: color-mix(in oklch, var(--foreground) 1.8%, transparent);
-	--color-overlay-faint: color-mix(in oklch, var(--foreground) 2%, transparent);
-	--color-scrollbar: color-mix(in oklch, var(--foreground) 12%, transparent);
-	--color-scrollbar-board: color-mix(in oklch, var(--foreground) 26%, transparent);
-	--color-scrollbar-board-hover: color-mix(in oklch, var(--foreground) 45%, transparent);
-	--color-scrim: color-mix(in oklch, var(--background) 85%, transparent);
+	/* Interactive overlays — a length, not a colour, so it stays here. */
 	--blur-overlay: 1px;
 
 	/* ═══════════════════════════════════════════════════════════════
@@ -263,7 +152,7 @@
 	   LAYOUT — fixed chrome dimensions (not spacing scale)
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--ring-width-focus: 3px; /* select trigger focus ring */
+ /* select trigger focus ring */
 
 	--size-hairline: 1px;
 	--size-icon-2xs: 12px;
@@ -370,16 +259,8 @@
 	--size-dialog-xl: 560px;
 
 	/* Command palette */
-	--color-bg-command-palette: var(--popover);
-	--color-border-command-palette: var(--border);
-	--color-bg-command-item-active: color-mix(in oklch, var(--popover) 88%, var(--foreground) 12%);
-	--color-text-command-item: var(--foreground);
-	--color-text-command-placeholder: var(--muted-foreground);
-	--color-text-command-muted: var(--muted-foreground);
 	--radius-command-palette: 12px;
 	--radius-command-item: 6px;
-	--shadow-command-palette: var(--elevation-xl);
-	--shadow-popover: var(--elevation-xl);
 	--size-command-palette: 720px;
 	--size-command-palette-top: 14vh;
 	--size-command-palette-list-max: 420px;
@@ -409,27 +290,15 @@
 	--radius-center-panel: calc(var(--radius-window) - var(--size-center-panel-inset-mac));
 
 	/* Welcome / import radius alias (CreateProjectFlow rounded-welcome-panel) */
-	--color-border-welcome-panel: var(--border);
 	--radius-welcome-panel: var(--radius-center-panel);
 
 	/* Import mode picker */
-	--color-bg-import-modal: var(--card);
-	--color-border-import-modal: var(--border);
-	--color-text-import-title: var(--foreground);
-	--color-text-import-muted: var(--muted-foreground);
-	--color-bg-import-card: var(--popover);
-	--color-bg-import-card-hover: var(--accent);
-	--color-bg-import-illustration: var(--color-bg-import-chip);
-	--color-bg-import-chip: var(--secondary);
-	--shadow-import-modal: 0 0 0 1px var(--border), var(--elevation-md);
 	--size-import-modal-max: 896px;
 	--size-import-folder-dialog: 640px;
 	--size-composer-prompt-min: 112px;
 	--size-composer-start-button: 7.25rem;
 	/* Task composer — inline toolbar values. Quieter than a filled control at rest
 	 * so the task field stays the only thing with visual weight. */
-	--color-bg-composer-chip: color-mix(in oklab, var(--input) 55%, transparent);
-	--color-bg-composer-chip-hover: var(--secondary);
 	/* Shared equal edge inset for modal header/body/footer sections. */
 	--size-modal-padding: var(--space-6);
 	--size-import-modal-padding: var(--space-8);
@@ -439,15 +308,6 @@
 	--size-import-mode-illustration: 178px;
 
 	/* Settings */
-	--color-bg-settings-row: transparent;
-	--color-bg-settings-menu: var(--popover);
-	--color-bg-settings-menu-selected: color-mix(in oklch, var(--popover) 92%, var(--foreground) 8%);
-	--color-bg-settings-dialog: var(--card);
-	--color-text-settings-title: var(--foreground);
-	--color-text-settings-muted: var(--muted-foreground);
-	--color-text-settings-row: var(--foreground);
-	--color-border-settings: var(--color-border-welcome-panel);
-	--color-border-settings-menu: color-mix(in oklch, var(--border) 60%, var(--foreground) 40%);
 	--font-size-settings-title: 28px;
 	--tracking-settings-title: -0.015em;
 	--tracking-settings-section: 0.06em;
@@ -471,28 +331,12 @@
 	--size-settings-row-value-max: 20rem;
 	--size-settings-row-value-max-percent: 55%;
 	--size-settings-footer-button-padding-x: 20px;
-	--color-settings-footer-button-primary-fg: var(--primary-foreground);
 	--size-settings-dialog: 575px;
 	--size-settings-dialog-wide: 920px;
 	--size-settings-dialog-height: 680px;
 	--size-settings-dialog-max-h: 680px;
-	--color-border-settings-dialog: oklch(1 0 0 / 3%);
-	--color-border-settings-dialog-header: oklch(1 0 0 / 3%);
-	--color-bg-settings-input: var(--input);
-	--color-border-settings-input: var(--color-border-settings-dialog);
-	--color-text-settings-input: var(--foreground);
-	--color-text-settings-placeholder: var(--muted-foreground);
-	--color-text-import-sep: var(--color-text-import-muted);
-	--color-settings-accent: var(--primary);
-	--color-settings-switch-on: var(--primary);
 
 	/* Project / workspace agents sheet — aliases shared chrome where themes match */
-	--color-bg-agents-sheet: var(--color-bg-settings-dialog);
-	--color-border-agents-sheet: var(--border);
-	--color-bg-agents-sheet-control: var(--input);
-	--color-text-agents-sheet-title: var(--foreground);
-	--color-text-agents-sheet-description: var(--muted-foreground);
-	--color-text-agents-sheet-label: var(--foreground);
 	--radius-agents-sheet: var(--radius-center-panel);
 	/* Settings layout sizes (Figma) */
 	--size-settings-mobile-dialog: 550px;
@@ -513,125 +357,32 @@
 	--size-settings-action-height: 38px;
 	--radius-settings-action: 16px;
 	--radius-settings-dialog-lg: 24px;
-	--shadow-settings-dialog: var(--elevation-xl);
-	--shadow-settings-qr: var(--elevation-md);
 
 	--size-empty-offset-y: 5vh; /* board empty-state vertical nudge */
 
 	/* Browser static preview (light mock page inside dark app) */
-	--color-preview-bg: #f7f8fb;
-	--color-preview-fg: #17202a;
-	--color-preview-muted: #687384;
-	--color-preview-link: #2f5b9d;
-	--color-preview-card-border: #d7dee8;
-	--color-preview-heading: #111827;
-	--color-preview-body: #526070;
-	--color-preview-success-bg: #e7f8ed;
-	--color-preview-tile-border: #e1e7ef;
-	--color-preview-tile-bg: #fbfcfe;
-	--color-preview-terminal-border: #dce4ef;
-	--color-preview-terminal-bg: #0f172a;
-	--color-preview-terminal-fg: #cbd5e1;
 
 	/* Mock project accent swatches (sidebar dots) */
---color-project-accent-mint: var(--chart-1);
-	--color-project-accent-sky: var(--chart-2);
-	--color-project-accent-violet: #c4b5fd;
 
 	/* Terminal ANSI palette. Keep this independent from product status colors:
 	   agent TUIs own the semantic meaning of these slots. */
-	--color-term-black: #1f2329;
-	--color-term-red: #f05d5e;
-	--color-term-green: #44c97a;
-	--color-term-yellow: #e5c34b;
-	--color-term-blue: #5b9cff;
-	--color-term-magenta: #c678dd;
-	--color-term-cyan: #56b6c2;
-	--color-term-white: #d7dae0;
-	--color-term-selection-dark: rgb(77 141 255 / 0.3);
-	--color-term-selection-light: rgb(37 99 235 / 0.25);
-	--color-term-selection-inactive: rgb(128 128 128 / 0.2);
-	--color-term-selection-inactive-light: rgb(128 128 128 / 0.15);
-	--color-term-bright-black: #7f8792;
-	--color-term-bright-red: #ff7b7c;
-	--color-term-bright-green: #62df91;
-	--color-term-bright-yellow: #f2d66d;
-	--color-term-bright-blue: #79b1ff;
-	--color-term-bright-magenta: #d99aee;
-	--color-term-bright-cyan: #79d4df;
-	--color-term-bright-white: #f4f5f7;
 
 	/* ═══════════════════════════════════════════════════════════════
 	   SHADOWS
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--elevation-sm: 0 1px 0 color-mix(in oklch, var(--background) 35%, transparent);
 	--elevation-md:
 		0 1px 0 color-mix(in oklch, var(--background) 40%, transparent),
 		0 12px 32px color-mix(in oklch, var(--background) 50%, transparent);
-	--elevation-lg: 0 8px 40px color-mix(in oklch, var(--background) 55%, transparent);
 	--elevation-xl:
 		0 1px 0 color-mix(in oklch, var(--background) 40%, transparent),
 		0 20px 50px color-mix(in oklch, var(--background) 55%, transparent);
 
 	/* @theme bridge — avoids Tailwind theme key / :root name collisions */
-	--bridge-border: var(--color-border);
-	--bridge-border-strong: var(--color-border-strong);
-	--bridge-accent: var(--color-accent);
-	--bridge-accent-fg: var(--color-accent-foreground);
-	--bridge-accent-weak: var(--color-accent-weak);
-	--bridge-accent-dim: var(--color-accent-dim);
-	--bridge-accent-strong: var(--color-accent-strong);
-	--bridge-working: var(--color-working);
-	--bridge-success: var(--color-success);
-	--bridge-warning: var(--color-warning);
-	--bridge-danger: var(--color-danger);
-	--bridge-danger-strong: var(--color-danger-strong);
-	--bridge-status-working: var(--color-status-working);
-	--bridge-status-needs-you: var(--color-status-needs-you);
-	--bridge-status-in-review: var(--color-status-in-review);
-	--bridge-status-ready: var(--color-status-ready);
-	--bridge-status-merged: var(--color-status-merged);
-	--bridge-status-idle: var(--color-status-idle);
-	--bridge-status-exited: var(--color-status-exited);
-	--bridge-status-terminated: var(--color-status-terminated);
-	--bridge-status-terminated-foreground: var(--color-status-terminated-foreground);
-	--bridge-status-unknown: var(--color-status-unknown);
-	--bridge-interactive-hover: var(--color-interactive-hover);
-	--bridge-interactive-active: var(--color-interactive-active);
-	--bridge-scrim: var(--color-scrim);
-	--bridge-preview-muted: var(--color-preview-muted);
-	--bridge-preview-link: var(--color-preview-link);
-	--bridge-preview-heading: var(--color-preview-heading);
-	--bridge-preview-body: var(--color-preview-body);
-	--bridge-preview-card: var(--color-preview-card-border);
-	--bridge-preview-success: var(--color-preview-success-bg);
-	--bridge-preview-tile: var(--color-preview-tile-bg);
-	--bridge-preview-tile-border: var(--color-preview-tile-border);
-	--bridge-preview-terminal: var(--color-preview-terminal-bg);
-	--bridge-preview-terminal-border: var(--color-preview-terminal-border);
-	--bridge-preview-terminal-fg: var(--color-preview-terminal-fg);
 
 	/* Legacy renderer aliases. The Reverb workspace styles still consume these
 	   names; keep them as semantic pointers rather than reintroducing a second
 	   palette. They resolve through the active theme's supplied shadcn tokens. */
-	--bg: var(--color-bg-primary);
-	--bg-0: var(--color-bg-primary);
-	--bg-1: var(--color-bg-secondary);
-	--bg-2: var(--color-bg-tertiary);
-	--surface: var(--color-bg-secondary);
-	--fg: var(--color-text-primary);
-	--fg-muted: var(--color-text-muted);
-	--fg-passive: var(--color-text-passive);
-	--border-1: var(--color-border-strong);
-	--interactive-hover: var(--color-interactive-hover);
-	--interactive-active: var(--color-interactive-active);
-	--accent-weak: var(--color-accent-weak);
-	--term-bg: var(--color-bg-terminal);
-	--green: var(--color-success);
-	--red: var(--color-danger);
-	--orange: var(--color-working);
-	--amber: var(--color-warning);
 
 	--font-sans: var(--font-family-base);
 	--font-mono: var(--font-family-mono);

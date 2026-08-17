@@ -65,6 +65,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { useShellMaybe } from "../lib/shell-context";
+import { dotGlow } from "../theme/effects";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -523,7 +524,7 @@ function ZoneColumn({
 					className="size-dot-sm rounded-full"
 					style={{
 						background: col.dot,
-						boxShadow: col.dotGlow ? `0 0 7px color-mix(in srgb, ${col.dot} 60%, transparent)` : undefined,
+						boxShadow: col.dotGlow ? dotGlow(col.dot) : undefined,
 					}}
 				/>
 				<span className={cn("font-mono text-2xs font-medium uppercase tracking-wide-sm", col.titleClassName)}>
@@ -762,7 +763,7 @@ function LaneStatusLabel({ tone }: { tone: SplitLaneTone }) {
 		<span className={cn("inline-flex shrink-0 items-center gap-2 whitespace-nowrap", tone.titleClassName)}>
 			<span
 				className={cn("size-dot-sm rounded-full", tone.dotClassName)}
-				style={{ boxShadow: tone.dotGlow ? `0 0 7px color-mix(in srgb, ${tone.color} 60%, transparent)` : undefined }}
+				style={{ boxShadow: tone.dotGlow ? dotGlow(tone.color) : undefined }}
 				aria-hidden="true"
 			/>
 			{tone.label}
