@@ -90,20 +90,36 @@ void window.operator?.window?.setOverlay({ color: skin.windowOverlayBg });
 
 ### Add a skin
 
-One file in `skins/`:
+The **colour data** is one file and the compiler guarantees it is complete.
+Everything after that is mechanical wiring that the type system does *not*
+check for you — do all five steps.
 
-```ts
-import { defineSkin } from "../app-skin";
+1. **`skins/<style>.ts`** — the dark/light pair:
 
-export const midnightDark = defineSkin({
-	background: "#0b0f19",
-	foreground: "#dbe2f0",
-	// … every required slot; the compiler lists the ones you missed
-});
-```
+   ```ts
+   import { defineSkin } from "../app-skin";
 
-Then register the pair in `skins/index.ts` and add the style to `ThemeStyle` in
-`lib/theme.ts` so the settings UI can select it. Nothing else — no CSS, no
-`[data-style-theme]` block. The existing eight styles keep a
-`<style>.generated.ts` neighbour only because they were ported out of the old
-CSS cascade; a new skin does not need one.
+   export const midnightDark = defineSkin({
+   	background: "#0b0f19",
+   	foreground: "#dbe2f0",
+   	// … every required slot; the compiler lists the ones you missed
+   });
+   ```
+
+   No CSS, no `[data-style-theme]` block. The existing eight styles keep a
+   `<style>.generated.ts` neighbour only because they were ported out of the
+   old CSS cascade; a new skin does not need one.
+
+2. **`skins/index.ts`** — register the pair in `REGISTRY`. Miss this and
+   `skinFor()` silently falls back to the base skins.
+3. **`ThemeStyle` in `lib/theme.ts`** — add the string literal. This one *is* a
+   type error if you skip it.
+4. **`readStoredThemeStyle()` in `lib/theme.ts`** — add the style to the
+   `stored === …` chain. This is **not** a type error: without it the style is
+   selectable but silently reverts to `orchestrate` on every reload.
+5. **`COLOR_THEME_OPTIONS` in
+   `components/settings/GeneralSettingsSection.tsx`** — add `{ value, label }`.
+   Without it the style is not offered in the picker at all.
+
+Steps 2, 4 and 5 are the ones a compiler cannot catch; `skins/index.test.ts`
+covers 2 for the styles it lists, so add the new style there too.

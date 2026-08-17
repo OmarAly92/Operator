@@ -5,10 +5,19 @@
  * Extracted from the existing dark-first Cursor-like UI in
  * src/renderer/styles.css — not a restyle.
  *
- * Theme switching:
- *   - Default (:root)              → dark
- *   - :root[data-theme="light"]    → light (renderer Zustand toggle)
- *   - :root.dark / .dark           → alias for landing/docs (Fumadocs)
+ * What lives here:
+ *   - the non-colour scale — size, space, radius, font, tracking, leading,
+ *     z, duration, ease, breakpoint
+ *   - the base colour block on `:root, :root.dark, .dark`, plus the
+ *     `color-scheme` hints
+ *
+ * What does NOT live here: light-theme and named-style colour. There is no
+ * `[data-theme="light"]` or `[data-style-theme]` colour cascade any more —
+ * every colour variable is written onto <html> at runtime from the active
+ * `AppSkin`. See src/renderer/theme/README.md.
+ *
+ * The landing site does not import this file; it has its own
+ * src/site-theme/tokens.css.
  *
  * Imported by src/renderer/styles.css. See DESIGN_TOKENS.md.
  */

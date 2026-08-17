@@ -35,10 +35,9 @@ import type {
 import { operatorBridge } from "../lib/bridge";
 import { TERMINAL_FONT_SIZE_DEFAULT } from "../lib/design-tokens";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
-import { applyDocumentTheme, applyDocumentThemeStyle } from "../lib/theme";
 import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
 import { useSkin } from "../theme/skin-context";
-import { useUiStore, type Theme } from "../stores/ui-store";
+import type { Theme } from "../stores/ui-store";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -254,7 +253,6 @@ function removeHiddenScrollbarReservation(term: Terminal): void {
 
 export function XtermTerminal(props: XtermTerminalProps) {
 	const { t } = useTranslation();
-	const themeStyle = useUiStore((state) => state.themeStyle);
 	const skin = useSkin();
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const termRef = useRef<Terminal | null>(null);
@@ -296,16 +294,12 @@ export function XtermTerminal(props: XtermTerminalProps) {
 	skinRef.current = skin;
 
 	useEffect(() => {
-		// Parent shell effects run after child effects, so sync both independent
-		// theme axes here before deriving the terminal palette from the skin.
-		// Retained terminals subscribe to themeStyle directly and update their
-		// live palette without being torn down or losing scrollback.
-		applyDocumentTheme(props.theme);
-		applyDocumentThemeStyle(themeStyle);
+		// Retained terminals track the active skin, so they repaint their live
+		// palette without being torn down or losing scrollback.
 		const term = termRef.current;
 		if (!term) return;
 		term.options.theme = skinToXtermTheme(skin, props.theme);
-	}, [props.theme, themeStyle, skin]);
+	}, [props.theme, skin]);
 
 	useEffect(() => {
 		const term = termRef.current;
