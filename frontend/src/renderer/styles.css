@@ -2097,7 +2097,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	font-weight: 600;
 	line-height: 1;
 	background: var(--accent);
-	color: var(--accent-fg);
+	color: var(--accent-foreground);
 	transition: filter 0.12s ease;
 }
 

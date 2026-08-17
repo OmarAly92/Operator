@@ -658,7 +658,7 @@ function notificationIconClass(type: string): string {
 		case "ready_to_merge":
 			return "text-success";
 		case "pr_merged":
-			return "text-[#a371f7]";
+			return "text-[var(--color-pr-merged)]";
 		case "pr_closed_unmerged":
 			return "text-error";
 		default:

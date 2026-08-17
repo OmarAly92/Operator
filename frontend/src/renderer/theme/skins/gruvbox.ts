@@ -61,4 +61,6 @@ export const gruvboxLight = defineSkin({
 	termBrightWhite: "#282828",
 	termSelectionDark: "#fabd2f4d",
 	termSelectionLight: "#b5761440",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

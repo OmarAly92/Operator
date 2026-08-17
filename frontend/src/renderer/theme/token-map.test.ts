@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { SKIN_TOKENS } from "./token-map.generated";
 
 describe("token map", () => {
-	it("covers every colour token in the base block", () => {
-		expect(Object.keys(SKIN_TOKENS).length).toBe(234);
+	it("covers every colour token in the base block plus the hand-added slots", () => {
+		expect(Object.keys(SKIN_TOKENS).length).toBe(238);
 	});
 
 	it("maps camelCase slot names to their CSS variable", () => {

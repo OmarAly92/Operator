@@ -61,4 +61,6 @@ export const nordLight = defineSkin({
 	termBrightWhite: "#2e3440",
 	termSelectionDark: "#88c0d04d",
 	termSelectionLight: "#5e81ac40",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

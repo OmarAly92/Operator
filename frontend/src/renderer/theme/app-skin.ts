@@ -22,7 +22,11 @@ export type DerivedSlot =
 	| "statusExited"
 	| "warning"
 	| "success"
-	| "danger";
+	| "danger"
+	| "scrollbarHover"
+	| "prMerged"
+	| "windowOverlayBg"
+	| "windowOverlaySymbol";
 export type RequiredSlot = Exclude<SlotName, DerivedSlot>;
 
 export type SkinInput = Pick<AppSkin, RequiredSlot> & Partial<Pick<AppSkin, DerivedSlot>>;
@@ -48,6 +52,10 @@ export const DERIVED_DEFAULTS: Partial<Record<SlotName, (skin: Partial<AppSkin>)
 	warning: (skin) => skin.statusNeedsYou!,
 	success: (skin) => skin.statusReady!,
 	danger: (skin) => skin.destructive!,
+	scrollbarHover: (skin) => skin.scrollbarBoard!,
+	prMerged: () => "#a371f7",
+	windowOverlayBg: () => "#17181c",
+	windowOverlaySymbol: () => "#c7ccd4",
 };
 
 export function defineSkin(input: SkinInput): AppSkin {

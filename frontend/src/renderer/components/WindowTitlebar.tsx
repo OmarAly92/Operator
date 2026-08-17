@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useResolvedTheme, useUiStore } from "../stores/ui-store";
+import { useUiStore } from "../stores/ui-store";
+import { useSkin } from "../theme/skin-context";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -77,20 +78,19 @@ export function WindowTitlebar({
 	onSidebarPreviewEnter?: React.PointerEventHandler<HTMLButtonElement>;
 }) {
 	const { t } = useTranslation();
-	const theme = useResolvedTheme();
+	const skin = useSkin();
 	const { isSidebarOpen, toggleSidebar, openGlobalSettings } = useUiStore();
 	const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
 
 	// Electron draws the min/max/close overlay natively and can't read our CSS, so
-	// push theme-matched colours to it whenever the theme changes.
+	// push the skin's overlay colours to it whenever the skin changes.
 	useEffect(() => {
 		if (!isWindows) return;
-		// Keep in sync with --color-bg-sidebar (tokens.css) — the titlebar paints
-		// that colour, so the native buttons must match it.
-		const overlay =
-			theme === "light" ? { color: "#fcfcfc", symbolColor: "#3f444c" } : { color: "#17181c", symbolColor: "#c7ccd4" };
-		void window.operator?.window?.setOverlay(overlay);
-	}, [theme]);
+		void window.operator?.window?.setOverlay({
+			color: skin.windowOverlayBg,
+			symbolColor: skin.windowOverlaySymbol,
+		});
+	}, [skin.windowOverlayBg, skin.windowOverlaySymbol]);
 
 	// Tell main to forget the last-focused panel whenever real shell UI (not this menu) gets focus, so its fallback target doesn't go stale.
 	useEffect(() => {

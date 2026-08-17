@@ -61,4 +61,6 @@ export const draculaLight = defineSkin({
 	termBrightWhite: "#2f2e2e",
 	termSelectionDark: "#bd93f94d",
 	termSelectionLight: "#644ac940",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

@@ -61,4 +61,6 @@ export const rosePineLight = defineSkin({
 	termBrightWhite: "#2b283c",
 	termSelectionDark: "#c4a7e74d",
 	termSelectionLight: "#907aa940",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

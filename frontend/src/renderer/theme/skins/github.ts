@@ -61,4 +61,6 @@ export const githubLight = defineSkin({
 	termBrightWhite: "#24292f",
 	termSelectionDark: "#58a6ff4d",
 	termSelectionLight: "#0969da40",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

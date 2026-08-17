@@ -61,4 +61,6 @@ export const catppuccinLight = defineSkin({
 	termBrightWhite: "#25273a",
 	termSelectionDark: "#89b4fa4d",
 	termSelectionLight: "#1e66f540",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

@@ -5,7 +5,7 @@ import { darkSkin } from "../skins/dark";
 describe("skinToCssVars", () => {
 	it("emits one entry per slot, keyed by CSS variable name", () => {
 		const vars = skinToCssVars(darkSkin);
-		expect(Object.keys(vars).length).toBe(234);
+		expect(Object.keys(vars).length).toBe(238);
 		expect(vars["--color-status-working"]).toBe(darkSkin.statusWorking);
 	});
 

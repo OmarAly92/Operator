@@ -61,4 +61,6 @@ export const solarizedLight = defineSkin({
 	termBrightWhite: "#002b36",
 	termSelectionDark: "#268bd24d",
 	termSelectionLight: "#268bd240",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });

@@ -61,4 +61,6 @@ export const tokyoNightLight = defineSkin({
 	termBrightWhite: "#151d2e",
 	termSelectionDark: "#7aa2f74d",
 	termSelectionLight: "#2e7de940",
+	windowOverlayBg: "#fcfcfc",
+	windowOverlaySymbol: "#3f444c",
 });
