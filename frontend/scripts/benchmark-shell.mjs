@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -127,6 +127,82 @@ async function rendererMarkTimestamp(page, markName) {
 	}, markName);
 }
 
+export async function observeStartupCompletion({
+	scenario,
+	page,
+	daemonPort,
+	fetchImpl = fetch,
+	now = Date.now,
+	wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+	rendererTimestamp = rendererMarkTimestamp,
+}) {
+	if (scenario.processState === "warm" && scenario.completionMark === "operator:board-interactive") {
+		return await rendererTimestamp(page, scenario.completionMark);
+	}
+	if (scenario.processState !== "fresh-daemon" || scenario.completionEndpoint !== "daemon:/readyz") {
+		throw new Error("startup scenario has no supported observed completion boundary");
+	}
+	const endpoint = `http://127.0.0.1:${daemonPort}/readyz`;
+	const deadline = now() + 120_000;
+	while (now() <= deadline) {
+		try {
+			const response = await fetchImpl(endpoint);
+			const payload = response.ok ? await response.json() : undefined;
+			if (payload?.status === "ready" && payload.service === "operator-daemon") return now();
+		} catch (error) {
+			if (!(error instanceof TypeError || error instanceof SyntaxError)) throw error;
+		}
+		await wait(50);
+	}
+	throw new Error("daemon readiness endpoint was not observed before timeout");
+}
+
+export function startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp) {
+	const spawnTimestamp = Number(rawSpawnTimestamp);
+	if (!rawSpawnTimestamp || !Number.isFinite(spawnTimestamp) || spawnTimestamp <= 0) {
+		throw new Error("native process spawn timestamp unavailable");
+	}
+	if (!Number.isFinite(completionTimestamp) || completionTimestamp < spawnTimestamp) {
+		throw new Error("native process spawn timestamp is later than observed completion");
+	}
+	return completionTimestamp - spawnTimestamp;
+}
+
+async function prepareSpawnAttestation(executablePath, stateRoot) {
+	const timestampPath = path.join(stateRoot, "electron-spawn.timestamp");
+	if (process.platform === "win32") return { executablePath, timestampPath, env: {} };
+	const launcherPath = path.join(stateRoot, "electron-spawn-launcher.mjs");
+	const source = [
+		"#!/usr/bin/env node",
+		'import { writeFileSync } from "node:fs";',
+		"writeFileSync(process.env.OPERATOR_BENCH_SPAWN_TIMESTAMP_FILE, String(Date.now()));",
+		"const executable = process.env.OPERATOR_BENCH_NATIVE_EXECUTABLE;",
+		"process.execve(executable, [executable, ...process.argv.slice(2)], process.env);",
+		"",
+	].join("\n");
+	await writeFile(launcherPath, source, "utf8");
+	await chmod(launcherPath, 0o755);
+	return {
+		executablePath: launcherPath,
+		timestampPath,
+		env: {
+			OPERATOR_BENCH_NATIVE_EXECUTABLE: executablePath,
+			OPERATOR_BENCH_SPAWN_TIMESTAMP_FILE: timestampPath,
+		},
+	};
+}
+
+async function nativeSpawnTimestamp(application, attestation) {
+	if (process.platform !== "win32") return await readFile(attestation.timestampPath, "utf8");
+	const processId = await application.evaluate(() => process.pid);
+	if (!Number.isInteger(processId) || processId <= 0) throw new Error("Electron process identifier unavailable for native spawn attestation");
+	const command = `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${processId}\").CreationDate.ToUniversalTime().ToString(\"o\")`;
+	const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
+	const timestamp = Date.parse(stdout.trim());
+	if (!Number.isFinite(timestamp)) throw new Error("native process spawn timestamp unavailable");
+	return String(timestamp);
+}
+
 async function rendererMetadata(application, page) {
 	const versions = await application.evaluate(() => ({ electron: process.versions.electron, chromium: process.versions.chrome }));
 	return {
@@ -138,11 +214,12 @@ async function rendererMetadata(application, page) {
 
 async function launchSample({ executablePath, scenario, stateRoot }) {
 	const daemonPort = await availablePort();
-	const startedAt = Date.now();
+	const spawnAttestation = await prepareSpawnAttestation(executablePath, stateRoot);
 	const application = await electron.launch({
-		executablePath,
+		executablePath: spawnAttestation.executablePath,
 		env: {
 			...process.env,
+			...spawnAttestation.env,
 			OPERATOR_DATA_DIR: path.join(stateRoot, "data"),
 			OPERATOR_RUN_FILE: path.join(stateRoot, "running.json"),
 			OPERATOR_PORT: String(daemonPort),
@@ -151,8 +228,12 @@ async function launchSample({ executablePath, scenario, stateRoot }) {
 		timeout: 120_000,
 	});
 	try {
+		const rawSpawnTimestamp = await nativeSpawnTimestamp(application, spawnAttestation);
+		const firstRunCompletion =
+			scenario.processState === "fresh-daemon"
+				? observeStartupCompletion({ scenario, daemonPort })
+				: undefined;
 		const page = await application.firstWindow({ timeout: 120_000 });
-		const markTimestamp = await rendererMarkTimestamp(page, "operator:board-interactive");
 		const renderer = await rendererMetadata(application, page);
 		if (scenario.kind === "memory") {
 			await page.waitForTimeout(scenario.idleSeconds * 1000);
@@ -160,7 +241,8 @@ async function launchSample({ executablePath, scenario, stateRoot }) {
 			if (!rootProcessId) throw new Error("Electron process identifier unavailable for transient accounting");
 			return { sample: await processTreeBytes(rootProcessId), renderer };
 		}
-		return { sample: Math.max(0, markTimestamp - startedAt), renderer };
+		const completionTimestamp = await (firstRunCompletion ?? observeStartupCompletion({ scenario, page, daemonPort }));
+		return { sample: startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp), renderer };
 	} finally {
 		await application.close();
 	}

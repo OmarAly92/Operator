@@ -12,7 +12,7 @@
 		"warmups": 3,
 		"samples": 10,
 		"unit": "milliseconds",
-		"completionMark": "operator:board-interactive",
+		"completionEndpoint": "daemon:/readyz",
 		"processState": "fresh-daemon"
 	},
 	"idle-memory": {

@@ -39,6 +39,17 @@ export function terminalThroughputSample(scenario, durationMilliseconds, configu
 	throw new Error(`unsupported terminal scenario: ${scenario}`);
 }
 
+export function terminalEvidenceProfile(env) {
+	if (env.OPERATOR_BENCH_BUILD_PROFILE && env.OPERATOR_BENCH_BUILD_PROFILE !== "local-electron-webview-non-binding") {
+		throw new Error("Task 2 terminal runner cannot produce binding release evidence without an attested installed Electron runtime");
+	}
+	return {
+		buildProfile: "local-electron-webview-non-binding",
+		evidenceScope: "non-binding",
+		runtimeAttestation: "npm-electron-driver",
+	};
+}
+
 function validatedHarnessUrl(rawUrl) {
 	if (!rawUrl) throw new Error("OPERATOR_BENCH_TERMINAL_URL must name the Task 4 benchmark entry");
 	const url = new URL(rawUrl);
@@ -114,6 +125,7 @@ async function terminalRendererMetadata(application, page) {
 
 export async function runTerminalBenchmark(argv = process.argv.slice(2), env = process.env) {
 	const options = parseTerminalArguments(argv);
+	const evidence = terminalEvidenceProfile(env);
 	const scenarios = JSON.parse(await readFile(scenariosPath, "utf8"));
 	const scenario = scenarios[options.scenario];
 	if (scenario.completionMark !== "operator:terminal-ready" || scenario.transport !== "daemon-terminal-mux") {
@@ -152,11 +164,15 @@ export async function runTerminalBenchmark(argv = process.argv.slice(2), env = p
 		const benchmarkResult = createBenchmarkResult({
 			shell: options.shell,
 			scenario: options.scenario,
-			buildProfile: env.OPERATOR_BENCH_BUILD_PROFILE || "local-electron-webview",
+			buildProfile: evidence.buildProfile,
 			git: await collectGitMetadata(),
 			host: collectHostMetadata(),
 			renderer,
-			scenarioConfiguration: scenarioResultConfiguration(scenario),
+			scenarioConfiguration: {
+				...scenarioResultConfiguration(scenario),
+				evidenceScope: evidence.evidenceScope,
+				runtimeAttestation: evidence.runtimeAttestation,
+			},
 			warmups: scenario.warmups,
 			samples: throughputSamples,
 			unit: scenario.unit,
