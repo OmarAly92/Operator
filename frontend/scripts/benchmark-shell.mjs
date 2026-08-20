@@ -140,6 +140,7 @@ export async function observeStartupCompletion({
 	AbortControllerClass = AbortController,
 	setRequestTimeout = setTimeout,
 	clearRequestTimeout = clearTimeout,
+	signal,
 }) {
 	if (scenario.processState === "warm" && scenario.completionMark === "operator:board-interactive") {
 		return await rendererTimestamp(page, scenario.completionMark);
@@ -150,9 +151,12 @@ export async function observeStartupCompletion({
 	const endpoint = `http://127.0.0.1:${daemonPort}/readyz`;
 	const deadline = now() + timeoutMilliseconds;
 	while (now() <= deadline) {
+		if (signal?.aborted) throw signal.reason ?? new DOMException("aborted", "AbortError");
 		const remainingMilliseconds = deadline - now();
 		if (remainingMilliseconds <= 0) break;
 		const controller = new AbortControllerClass();
+		const abortRequest = () => controller.abort(signal?.reason);
+		signal?.addEventListener("abort", abortRequest, { once: true });
 		const requestTimeout = setRequestTimeout(
 			() => controller.abort(),
 			Math.max(1, Math.min(requestTimeoutMilliseconds, remainingMilliseconds)),
@@ -162,9 +166,11 @@ export async function observeStartupCompletion({
 			const payload = response.ok ? await response.json() : undefined;
 			if (payload?.status === "ready" && payload.service === "operator-daemon") return now();
 		} catch (error) {
+			if (signal?.aborted) throw signal.reason ?? error;
 			if (!(error instanceof TypeError || error instanceof SyntaxError || error?.name === "AbortError")) throw error;
 		} finally {
 			clearRequestTimeout(requestTimeout);
+			signal?.removeEventListener("abort", abortRequest);
 		}
 		if (now() < deadline) await wait(Math.min(50, deadline - now()));
 	}
@@ -226,6 +232,22 @@ async function rendererMetadata(application, page) {
 	};
 }
 
+async function awaitFirstRunLaunch(applicationPromise, completionPromise, readinessController) {
+	try {
+		return completionPromise
+			? await Promise.all([applicationPromise, completionPromise])
+			: [await applicationPromise, undefined];
+	} catch (error) {
+		readinessController.abort(error);
+		const [applicationOutcome] = await Promise.allSettled([
+			applicationPromise,
+			completionPromise ?? Promise.resolve(),
+		]);
+		if (applicationOutcome.status === "fulfilled") await applicationOutcome.value.close();
+		throw error;
+	}
+}
+
 export async function launchSample({ executablePath, scenario, stateRoot }, dependencies = {}) {
 	const daemonPort = await (dependencies.availablePort ?? availablePort)();
 	const spawnAttestation = await (dependencies.prepareSpawnAttestation ?? prepareSpawnAttestation)(executablePath, stateRoot);
@@ -242,13 +264,14 @@ export async function launchSample({ executablePath, scenario, stateRoot }, depe
 		timeout: 120_000,
 	});
 	const observeCompletion = dependencies.observeStartupCompletion ?? observeStartupCompletion;
+	const readinessController = new AbortController();
 	const firstRunCompletionPromise = scenario.processState === "fresh-daemon"
-		? observeCompletion({ scenario, daemonPort })
+		? observeCompletion({ scenario, daemonPort, signal: readinessController.signal })
 		: undefined;
-	const [application, firstRunCompletion] = firstRunCompletionPromise
-		? await Promise.all([applicationPromise, firstRunCompletionPromise])
-		: [await applicationPromise, undefined];
+	let application;
 	try {
+		let firstRunCompletion;
+		[application, firstRunCompletion] = await awaitFirstRunLaunch(applicationPromise, firstRunCompletionPromise, readinessController);
 		const rawSpawnTimestamp = await (dependencies.nativeSpawnTimestamp ?? nativeSpawnTimestamp)(application, spawnAttestation);
 		const page = await application.firstWindow({ timeout: 120_000 });
 		const renderer = await (dependencies.rendererMetadata ?? rendererMetadata)(application, page);
@@ -261,7 +284,7 @@ export async function launchSample({ executablePath, scenario, stateRoot }, depe
 		const completionTimestamp = firstRunCompletion ?? (await observeCompletion({ scenario, page, daemonPort }));
 		return { sample: startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp), renderer };
 	} finally {
-		await application.close();
+		if (application) await application.close();
 	}
 }
 

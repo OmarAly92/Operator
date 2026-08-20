@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -19,7 +20,8 @@ import {
 const execFileAsync = promisify(execFile);
 const frontendRoot = fileURLToPath(new URL("../", import.meta.url));
 const macVerifier = fileURLToPath(new URL("./verify-mac-artifact.sh", import.meta.url));
-const expectedComponents = Object.freeze({ daemon: "dev", agentBrowser: "0.33.1", node: "22.23.2", acp: "0.64.2" });
+const expectedComponents = Object.freeze({ agentBrowser: "0.33.1", node: "22.23.2", acp: "0.64.2" });
+const expectedRuntime = Object.freeze({ electron: "33.4.11", chromium: "130.0.6723.191" });
 
 export function parseArtifactArguments(argv, env = process.env) {
 	const namedArguments = parseNamedArguments(argv);
@@ -175,10 +177,15 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 			timeout: 120_000,
 		});
 		const page = await application.firstWindow({ timeout: 120_000 });
-		const versions = await application.evaluate(() => ({ electron: process.versions.electron, chromium: process.versions.chrome }));
+		const versions = await application.evaluate(({ app }) => ({
+			application: app.getVersion(),
+			electron: process.versions.electron,
+			chromium: process.versions.chrome,
+		}));
 		const rendererKind = await page.evaluate(() => navigator.userAgent.includes("Electron/") ? "chromium" : "");
 		return {
 			source: "installed-release-launch",
+			applicationVersion: versions.application,
 			webviewRuntimeVersion: `Electron ${versions.electron} / Chromium ${versions.chromium}`,
 			rendererKind,
 			displayScale: await page.evaluate(() => window.devicePixelRatio),
@@ -191,11 +198,62 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 
 function validateRuntime(runtime) {
 	if (runtime?.source !== "installed-release-launch") throw new Error("runtime metadata must come from an installed release launch");
+	const applicationVersion = requireString(runtime.applicationVersion, "runtime.applicationVersion");
 	const webviewRuntimeVersion = requireString(runtime.webviewRuntimeVersion, "runtime.webviewRuntimeVersion");
-	if (!/^Electron \S+ \/ Chromium \S+$/.test(webviewRuntimeVersion)) throw new Error("runtime metadata must identify Electron and Chromium from the installed release launch");
+	const expectedWebviewRuntimeVersion = `Electron ${expectedRuntime.electron} / Chromium ${expectedRuntime.chromium}`;
+	if (webviewRuntimeVersion !== expectedWebviewRuntimeVersion) {
+		throw new Error(`installed runtime expected Electron ${expectedRuntime.electron} and Chromium ${expectedRuntime.chromium}`);
+	}
 	const rendererKind = requireString(runtime.rendererKind, "runtime.rendererKind");
 	if (!Number.isFinite(runtime.displayScale) || runtime.displayScale <= 0) throw new Error("runtime metadata must contain the observed positive display scale");
-	return { webviewRuntimeVersion, rendererKind, displayScale: runtime.displayScale };
+	return { applicationVersion, webviewRuntimeVersion, rendererKind, displayScale: runtime.displayScale };
+}
+
+async function updateTreeDigest(hash, root, target) {
+	const metadata = await lstat(target);
+	const relative = path.relative(root, target).split(path.sep).join("/") || ".";
+	const mode = (metadata.mode & 0o7777).toString(8);
+	if (metadata.isSymbolicLink()) {
+		hash.update(`L\0${relative}\0${mode}\0${await readlink(target)}\0`);
+		return;
+	}
+	if (metadata.isFile()) {
+		hash.update(`F\0${relative}\0${mode}\0${metadata.size}\0`);
+		hash.update(await readFile(target));
+		return;
+	}
+	if (!metadata.isDirectory()) throw new Error(`unsupported installed artifact entry: ${relative}`);
+	hash.update(`D\0${relative}\0${mode}\0`);
+	const entries = (await readdir(target)).sort();
+	for (const entry of entries) await updateTreeDigest(hash, root, path.join(target, entry));
+}
+
+async function treeDigest(target) {
+	const hash = createHash("sha256");
+	await updateTreeDigest(hash, target, target);
+	return hash.digest("hex");
+}
+
+export async function verifyInstalledArtifactBinding({ platform, signedArtifact, installedApp }) {
+	if (platform === "win32") throw new Error("cannot cryptographically bind the Windows installed tree to the signed installer payload");
+	if (platform === "linux") throw new Error("cannot cryptographically bind the Linux installed tree to the signed AppImage payload");
+	if (platform !== "darwin") throw new Error(`unsupported native artifact binding platform: ${platform}`);
+	const parent = path.join(os.homedir(), ".operator", "benchmarks");
+	await mkdir(parent, { recursive: true });
+	const extractionRoot = await mkdtemp(path.join(parent, "electron-artifact-binding-"));
+	try {
+		await execFileAsync("ditto", ["-x", "-k", signedArtifact, extractionRoot]);
+		const applications = (await readdir(extractionRoot)).filter((entry) => entry === "Operator.app");
+		if (applications.length !== 1) throw new Error("signed macOS artifact must contain exactly one Operator.app payload");
+		const artifactApplication = path.join(extractionRoot, applications[0]);
+		const [artifactDigest, installedDigest] = await Promise.all([
+			treeDigest(artifactApplication),
+			treeDigest(installedApp),
+		]);
+		if (artifactDigest !== installedDigest) throw new Error("installed tree does not match the signed artifact payload");
+	} finally {
+		await rm(extractionRoot, { recursive: true, force: true });
+	}
 }
 
 function installedReleaseLayout(installedApp, platform) {
@@ -243,15 +301,20 @@ async function verifyPackagedComponents(layout, dependencies = {}) {
 		throw new Error("installed Electron release is missing the executable, daemon, agent-browser, or ACP runtime contents");
 	}
 	const commandOutput = dependencies.commandOutput ?? execFileAsync;
-	const [daemonVersion, daemonHelp, agentBrowserVersion, nodeVersion] = await Promise.all([
+	const [daemonVersionOutput, daemonHelp, agentBrowserVersion, nodeVersion, acpVersion] = await Promise.all([
 		commandStdout(commandOutput, layout.daemon, ["version"]),
 		commandStdout(commandOutput, layout.daemon, ["--help"]),
 		commandStdout(commandOutput, layout.agentBrowser, ["--version"]),
 		commandStdout(commandOutput, layout.node, ["--version"]),
+		commandStdout(commandOutput, layout.node, [layout.acpAdapter, "--version"]),
 	]);
-	if (daemonVersion !== expectedComponents.daemon || !daemonHelp.includes("Operator")) throw new Error(`packaged daemon must identify as Operator opr ${expectedComponents.daemon}`);
-	if (!agentBrowserVersion.includes("agent-browser") || !agentBrowserVersion.includes(expectedComponents.agentBrowser)) throw new Error(`packaged agent-browser must identify as agent-browser ${expectedComponents.agentBrowser}`);
+	const daemonVersion = daemonVersionOutput.split(/\s+/)[0];
+	if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(daemonVersion) || !daemonHelp.includes("Operator")) {
+		throw new Error("packaged daemon must identify as Operator opr with a release semantic version instead of dev");
+	}
+	if (agentBrowserVersion !== `agent-browser ${expectedComponents.agentBrowser}`) throw new Error(`packaged agent-browser must report exactly agent-browser ${expectedComponents.agentBrowser}`);
 	if (nodeVersion !== `v${expectedComponents.node}`) throw new Error(`packaged Node runtime must identify as v${expectedComponents.node}`);
+	if (acpVersion !== expectedComponents.acp) throw new Error(`packaged ACP executable must report exactly ${expectedComponents.acp} through the packaged Node runtime`);
 	const runtimePackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpRuntimePackage, "utf8"));
 	const adapterPackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpPackage, "utf8"));
 	if (runtimePackage.name !== "@operator-dev/acp-runtime" || runtimePackage.dependencies?.["@agentclientprotocol/claude-agent-acp"] !== expectedComponents.acp) {
@@ -296,11 +359,19 @@ export async function preflightArtifactBenchmark(options, dependencies = {}) {
 		platform,
 	});
 	validatePublisherIdentity(platform, observedPublisher, expectedPublisher);
+	await (dependencies.verifyArtifactBinding ?? verifyInstalledArtifactBinding)({
+		platform,
+		signedArtifact: options.signedArtifact,
+		installedApp: options.installedApp,
+	});
 	const components = await verifyPackagedComponents(layout, dependencies);
 	const observedRuntime = await (dependencies.collectRuntimeMetadata ?? collectInstalledRuntimeMetadata)({
 		executable: layout.executable,
 	});
-	const renderer = validateRuntime(observedRuntime);
+	const { applicationVersion, ...renderer } = validateRuntime(observedRuntime);
+	if (components.daemon !== `opr ${applicationVersion}`) {
+		throw new Error(`packaged daemon version ${components.daemon.slice(4)} does not match installed application version ${applicationVersion}`);
+	}
 	const measured = await artifactMeasurements(options);
 	return { buildProfile: "signed-release-attested", components, measured, renderer };
 }

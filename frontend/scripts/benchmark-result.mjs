@@ -272,6 +272,30 @@ async function pathExists(targetPath) {
 	}
 }
 
+async function cleanupFailures(operations) {
+	const failures = [];
+	for (const operation of operations) {
+		try {
+			await operation();
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	return failures;
+}
+
+async function rollbackBenchmarkResultBatch({ backups, published, stagingRoot, renamePath, removePath }) {
+	const removals = [...published].reverse().map((outputPath) => () => removePath(outputPath, { force: true }));
+	const restorations = [...backups].reverse().map(({ backupPath, outputPath }) => () => renamePath(backupPath, outputPath));
+	const failures = [
+		...await cleanupFailures(removals),
+		...await cleanupFailures(restorations),
+	];
+	const backupsRemain = (await Promise.all(backups.map(({ backupPath }) => pathExists(backupPath)))).some(Boolean);
+	if (!backupsRemain) failures.push(...await cleanupFailures([() => removePath(stagingRoot, { recursive: true, force: true })]));
+	return failures;
+}
+
 export async function writeBenchmarkResultBatch(entries, options = {}) {
 	if (!Array.isArray(entries) || entries.length === 0) throw new Error("benchmark result batch must not be empty");
 	const resultRoot = path.resolve(options.resultRoot ?? DEFAULT_RESULT_ROOT);
@@ -283,6 +307,8 @@ export async function writeBenchmarkResultBatch(entries, options = {}) {
 	const stagingRoot = await mkdtemp(path.join(resultRoot, ".benchmark-stage-"));
 	const backups = [];
 	const published = [];
+	const renamePath = options.rename ?? rename;
+	const removePath = options.rm ?? rm;
 	try {
 		for (let index = 0; index < plannedResults.length; index += 1) {
 			await (options.writeFile ?? writeFile)(
@@ -296,20 +322,25 @@ export async function writeBenchmarkResultBatch(entries, options = {}) {
 			await mkdir(path.dirname(outputPath), { recursive: true });
 			if (await pathExists(outputPath)) {
 				const backupPath = path.join(stagingRoot, `${index}.backup`);
-				await (options.rename ?? rename)(outputPath, backupPath);
+				await renamePath(outputPath, backupPath);
 				backups.push({ outputPath, backupPath });
 			}
-			await (options.rename ?? rename)(path.join(stagingRoot, `${index}.json`), outputPath);
+			await renamePath(path.join(stagingRoot, `${index}.json`), outputPath);
 			published.push(outputPath);
 		}
-		return plannedResults.map(({ outputPath }) => outputPath);
 	} catch (error) {
-		for (const outputPath of published.reverse()) await (options.rm ?? rm)(outputPath, { force: true });
-		for (const backup of backups.reverse()) await (options.rename ?? rename)(backup.backupPath, backup.outputPath);
+		const cleanupErrors = await rollbackBenchmarkResultBatch({ backups, published, stagingRoot, renamePath, removePath });
+		if (cleanupErrors.length > 0) {
+			throw new AggregateError(
+				[error, ...cleanupErrors],
+				`benchmark result publication failed and rollback encountered ${cleanupErrors.length} cleanup failure${cleanupErrors.length === 1 ? "" : "s"}`,
+				{ cause: error },
+			);
+		}
 		throw error;
-	} finally {
-		await (options.rm ?? rm)(stagingRoot, { recursive: true, force: true });
 	}
+	await removePath(stagingRoot, { recursive: true, force: true });
+	return plannedResults.map(({ outputPath }) => outputPath);
 }
 
 export function parseNamedArguments(argv) {
