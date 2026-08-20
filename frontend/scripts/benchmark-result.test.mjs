@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
 	assertResultPath,
 	createBenchmarkResult,
@@ -12,6 +14,7 @@ import {
 } from "./benchmark-result.mjs";
 
 const samples = [9, 1, 5, 7, 3, 2, 4, 6, 8, 10];
+const execFileAsync = promisify(execFile);
 
 function validResult() {
 	return {
@@ -48,17 +51,30 @@ async function createMacReleaseFixture(temporaryRoot) {
 	const installedApp = path.join(temporaryRoot, "Operator.app");
 	const executable = path.join(installedApp, "Contents", "MacOS", "operator");
 	const resources = path.join(installedApp, "Contents", "Resources");
-	const packagedFiles = [
-		path.join(resources, "daemon", "opr"),
-		path.join(resources, "agent-browser", "agent-browser"),
-		path.join(resources, "acp-runtime", "node", "bin", "node"),
-		path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js"),
-	];
+	const daemon = path.join(resources, "daemon", "opr");
+	const agentBrowser = path.join(resources, "agent-browser", "agent-browser");
+	const node = path.join(resources, "acp-runtime", "node", "bin", "node");
+	const adapterRoot = path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp");
+	const adapter = path.join(adapterRoot, "dist", "index.js");
 	await writeFile(artifact, "signed-release");
-	for (const target of [executable, ...packagedFiles]) {
+	for (const [target, source] of [
+		[executable, "process.stdout.write('Operator desktop\\n');"],
+		[daemon, "process.stdout.write(process.argv.includes('version') ? 'dev\\n' : 'Operator opr\\n');"],
+		[agentBrowser, "process.stdout.write('agent-browser 0.33.1\\n');"],
+		[node, "process.stdout.write('v22.23.2\\n');"],
+	]) {
 		await mkdir(path.dirname(target), { recursive: true });
-		await writeFile(target, path.basename(target));
+		await writeFile(target, `#!/usr/bin/env node\n${source}\n`);
+		await chmod(target, 0o755);
 	}
+	await mkdir(path.dirname(adapter), { recursive: true });
+	await writeFile(adapter, "export {};\n");
+	await writeFile(path.join(adapterRoot, "package.json"), JSON.stringify({
+		name: "@agentclientprotocol/claude-agent-acp",
+		version: "0.64.2",
+		bin: { "claude-agent-acp": "dist/index.js" },
+	}));
+	await writeFile(path.join(resources, "acp-runtime", "package.json"), JSON.stringify({ name: "@operator-dev/acp-runtime", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.64.2" } }));
 	return { artifact, installedApp };
 }
 
@@ -301,6 +317,92 @@ test("startup duration requires a timestamp attested at native process spawn", a
 	assert.throws(() => startupDurationFromSpawn("1200", 1125), /spawn timestamp is later/);
 });
 
+test("native spawn launcher records its timestamp and replaces itself with the target executable", async (context) => {
+	if (process.platform === "win32") {
+		context.skip("POSIX launcher is not used on Windows");
+		return;
+	}
+	const { prepareSpawnAttestation } = await import("./benchmark-shell.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-launcher-"));
+	try {
+		const target = path.join(temporaryRoot, "target.mjs");
+		const targetOutput = path.join(temporaryRoot, "target-output.json");
+		await writeFile(
+			target,
+			`#!/usr/bin/env node\nimport { writeFileSync } from "node:fs";\nwriteFileSync(process.env.OPERATOR_BENCH_TARGET_OUTPUT, JSON.stringify(process.argv.slice(2)));\n`,
+		);
+		await chmod(target, 0o755);
+		const attestation = await prepareSpawnAttestation(target, temporaryRoot);
+		const before = Date.now();
+		await execFileAsync(attestation.executablePath, ["alpha", "beta"], {
+			env: { ...process.env, ...attestation.env, OPERATOR_BENCH_TARGET_OUTPUT: targetOutput },
+		});
+		const after = Date.now();
+		const spawnTimestamp = Number(await readFile(attestation.timestampPath, "utf8"));
+		assert.ok(spawnTimestamp >= before && spawnTimestamp <= after);
+		assert.deepEqual(JSON.parse(await readFile(targetOutput, "utf8")), ["alpha", "beta"]);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("first-run readiness observation starts before Playwright launch connection resolves", async () => {
+	const { launchSample } = await import("./benchmark-shell.mjs");
+	let readinessStarted = false;
+	const application = {
+		firstWindow: async () => ({}),
+		close: async () => {},
+	};
+	const launchMeasurement = await launchSample(
+		{
+			executablePath: "/native/operator",
+			scenario: { kind: "startup", processState: "fresh-daemon", completionEndpoint: "daemon:/readyz" },
+			stateRoot: "/isolated/state",
+		},
+		{
+			availablePort: async () => 45002,
+			prepareSpawnAttestation: async (executablePath) => ({ executablePath, env: {}, timestampPath: "spawn" }),
+			launchElectron: async () => {
+				await new Promise((resolve) => setImmediate(resolve));
+				assert.equal(readinessStarted, true);
+				return application;
+			},
+			observeStartupCompletion: async () => {
+				readinessStarted = true;
+				return 1125;
+			},
+			nativeSpawnTimestamp: async () => "1000",
+			rendererMetadata: async () => ({ webviewRuntimeVersion: "Electron 33 / Chromium 130", rendererKind: "chromium", displayScale: 2 }),
+		},
+	);
+	assert.equal(launchMeasurement.sample, 125);
+});
+
+test("hung readiness requests are aborted within the overall deadline", async () => {
+	const { observeStartupCompletion } = await import("./benchmark-shell.mjs");
+	let abortedRequests = 0;
+	await assert.rejects(
+		observeStartupCompletion({
+			scenario: { processState: "fresh-daemon", completionEndpoint: "daemon:/readyz" },
+			daemonPort: 45003,
+			timeoutMilliseconds: 30,
+			requestTimeoutMilliseconds: 5,
+			wait: async () => {},
+			fetchImpl: async (_url, options) => {
+				if (!options?.signal) throw new Error("missing bounded abort signal");
+				return await new Promise((_resolve, reject) => {
+					options.signal.addEventListener("abort", () => {
+						abortedRequests += 1;
+						reject(new DOMException("aborted", "AbortError"));
+					});
+				});
+			},
+		}),
+		/readiness endpoint was not observed/,
+	);
+	assert.ok(abortedRequests > 0);
+});
+
 test("terminal arguments require the Task 4 acknowledgement scenarios", async () => {
 	const { parseTerminalArguments, terminalEvidenceProfile, terminalThroughputSample } = await import("./benchmark-terminal.mjs");
 	assert.deepEqual(parseTerminalArguments(["--shell", "electron", "--scenario", "vtebench"]), {
@@ -365,7 +467,8 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 			{ shell: "electron", signedArtifact: artifact, installedApp },
 			{
 				platform: "darwin",
-				verifySignature: async () => "Developer ID Application: Operator",
+				env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
+				verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
 				collectRuntimeMetadata: async () => ({
 					source: "installed-release-launch",
 					webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
@@ -377,6 +480,12 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 		assert.equal(preflight.buildProfile, "signed-release-attested");
 		assert.equal(preflight.renderer.webviewRuntimeVersion, "Electron 33.4.11 / Chromium 130.0.6723.191");
 		assert.equal(preflight.renderer.displayScale, 2);
+		assert.deepEqual(preflight.components, {
+			daemon: "opr dev",
+			agentBrowser: "agent-browser 0.33.1",
+			node: "v22.23.2",
+			acp: "@agentclientprotocol/claude-agent-acp 0.64.2",
+		});
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
 	}
@@ -392,11 +501,135 @@ test("artifact preflight refuses runtime metadata not observed from the installe
 				{ shell: "electron", signedArtifact: artifact, installedApp },
 				{
 					platform: "darwin",
-					verifySignature: async () => "Developer ID Application: Operator",
+					env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
+					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
 					collectRuntimeMetadata: async () => ({ source: "checkout-default" }),
 				},
 			),
 			/must come from an installed release launch/,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("artifact preflight refuses absent or mismatched trusted publisher identity", async () => {
+	const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-publisher-refusal-"));
+	try {
+		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		const runtime = async () => ({
+			source: "installed-release-launch",
+			webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
+			rendererKind: "chromium",
+			displayScale: 2,
+		});
+		await assert.rejects(
+			preflightArtifactBenchmark(
+				{ shell: "electron", signedArtifact: artifact, installedApp },
+				{ platform: "darwin", env: {}, collectRuntimeMetadata: runtime },
+			),
+			/OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID/,
+		);
+		await assert.rejects(
+			preflightArtifactBenchmark(
+				{ shell: "electron", signedArtifact: artifact, installedApp },
+				{
+					platform: "darwin",
+					env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
+					verifySignature: async () => ({ identity: "Developer ID Application: Other", teamId: "OTHER98765" }),
+					collectRuntimeMetadata: runtime,
+				},
+			),
+			/trusted macOS Team ID/,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("trusted publisher validation pins Windows certificate and Linux GPG identities", async () => {
+	const { expectedPublisherForPlatform, validatePublisherIdentity } = await import("./benchmark-artifact.mjs");
+	const windowsPublisher = expectedPublisherForPlatform("win32", {
+		OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER: "CN=Operator Release",
+		OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT: "AA BB CC DD EE FF 00 11 22 33 44 55 66 77 88 99 AA BB CC DD",
+	});
+	assert.deepEqual(windowsPublisher, {
+		identity: "CN=Operator Release",
+		thumbprint: "AABBCCDDEEFF00112233445566778899AABBCCDD",
+	});
+	assert.doesNotThrow(() => validatePublisherIdentity("win32", windowsPublisher, windowsPublisher));
+	assert.throws(
+		() => validatePublisherIdentity("win32", { ...windowsPublisher, thumbprint: "00".repeat(20) }, windowsPublisher),
+		/trusted Windows publisher certificate/,
+	);
+	const linuxPublisher = expectedPublisherForPlatform("linux", {
+		OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT: "0123456789ABCDEF0123456789ABCDEF01234567",
+	});
+	assert.deepEqual(linuxPublisher, { fingerprint: "0123456789ABCDEF0123456789ABCDEF01234567" });
+	assert.doesNotThrow(() => validatePublisherIdentity("linux", linuxPublisher, linuxPublisher));
+	assert.throws(
+		() => validatePublisherIdentity("linux", { fingerprint: "89ABCDEF0123456789ABCDEF0123456789ABCDEF" }, linuxPublisher),
+		/trusted Linux GPG fingerprint/,
+	);
+});
+
+test("artifact preflight rejects expected-path files with false component identities", async () => {
+	const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-component-refusal-"));
+	try {
+		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		const agentBrowser = path.join(installedApp, "Contents", "Resources", "agent-browser", "agent-browser");
+		await writeFile(agentBrowser, "#!/usr/bin/env node\nprocess.stdout.write('not-agent-browser\\n');\n");
+		await assert.rejects(
+			preflightArtifactBenchmark(
+				{ shell: "electron", signedArtifact: artifact, installedApp },
+				{
+					platform: "darwin",
+					env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
+					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
+					collectRuntimeMetadata: async () => ({
+						source: "installed-release-launch",
+						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
+						rendererKind: "chromium",
+						displayScale: 2,
+					}),
+				},
+			),
+			/agent-browser 0\.33\.1/,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("artifact preflight rejects an ACP package whose executable mapping is not the packaged adapter", async () => {
+	const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-acp-refusal-"));
+	try {
+		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		const acpPackage = path.join(installedApp, "Contents", "Resources", "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "package.json");
+		await writeFile(acpPackage, JSON.stringify({
+			name: "@agentclientprotocol/claude-agent-acp",
+			version: "0.64.2",
+			bin: { "claude-agent-acp": "dist/other.js" },
+		}));
+		await assert.rejects(
+			preflightArtifactBenchmark(
+				{ shell: "electron", signedArtifact: artifact, installedApp },
+				{
+					platform: "darwin",
+					env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
+					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
+					collectRuntimeMetadata: async () => ({
+						source: "installed-release-launch",
+						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
+						rendererKind: "chromium",
+						displayScale: 2,
+					}),
+				},
+			),
+			/ACP adapter executable/,
 		);
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
@@ -419,11 +652,62 @@ test("artifact runner preflights every input before creating result files", asyn
 					OPERATOR_BENCH_SIGNED_ARTIFACT: artifact,
 					OPERATOR_BENCH_INSTALLED_APP: installedApp,
 					OPERATOR_BENCH_MANAGED_BROWSER: path.join(temporaryRoot, "missing-browser"),
+					OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456",
 				},
 				{ resultRoot },
 			),
 		);
 		await assert.rejects(readdir(resultRoot), /ENOENT/);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("artifact runner rolls back the batch when a later result publication fails", async () => {
+	const { runArtifactBenchmark } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-batch-rollback-"));
+	const resultRoot = path.join(temporaryRoot, "perf", "results");
+	try {
+		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		let publicationAttempts = 0;
+		await assert.rejects(
+			runArtifactBenchmark(
+				["--shell", "electron"],
+				{
+					OPERATOR_BENCH_SIGNED_ARTIFACT: artifact,
+					OPERATOR_BENCH_INSTALLED_APP: installedApp,
+					OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456",
+				},
+				{
+					platform: "darwin",
+					resultRoot,
+					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
+					collectRuntimeMetadata: async () => ({
+						source: "installed-release-launch",
+						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
+						rendererKind: "chromium",
+						displayScale: 2,
+					}),
+					collectGitMetadata: async () => ({ commit: "8311fc6004cefc1146dc1ac2b13413cb801c835b", dirty: false }),
+					collectHostMetadata: () => ({
+						platform: "darwin",
+						architecture: "arm64",
+						osVersion: "25.5.0",
+						cpu: "Apple M1 Max",
+						logicalCores: 10,
+						physicalMemory: 34_359_738_368,
+					}),
+					rename: async (...arguments_) => {
+						publicationAttempts += 1;
+						if (publicationAttempts === 2) throw new Error("induced later result publication failure");
+						return await rename(...arguments_);
+					},
+				},
+			),
+			/induced later result publication failure/,
+		);
+		assert.equal(publicationAttempts, 2);
+		assert.deepEqual(await readdir(resultRoot), []);
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
 	}

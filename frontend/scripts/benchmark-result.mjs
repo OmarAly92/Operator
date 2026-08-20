@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
@@ -260,6 +260,56 @@ export async function writeBenchmarkResult(outputPath, benchmarkResult, options 
 	await mkdir(path.dirname(resolvedOutput), { recursive: true });
 	await writeFile(resolvedOutput, `${JSON.stringify(validated, null, "\t")}\n`, "utf8");
 	return resolvedOutput;
+}
+
+async function pathExists(targetPath) {
+	try {
+		await lstat(targetPath);
+		return true;
+	} catch (error) {
+		if (error?.code === "ENOENT") return false;
+		throw error;
+	}
+}
+
+export async function writeBenchmarkResultBatch(entries, options = {}) {
+	if (!Array.isArray(entries) || entries.length === 0) throw new Error("benchmark result batch must not be empty");
+	const resultRoot = path.resolve(options.resultRoot ?? DEFAULT_RESULT_ROOT);
+	const plannedResults = entries.map(({ outputPath, benchmarkResult }) => ({
+		outputPath: assertResultPath(outputPath, resultRoot),
+		benchmarkResult: validateBenchmarkResult(benchmarkResult),
+	}));
+	await mkdir(resultRoot, { recursive: true });
+	const stagingRoot = await mkdtemp(path.join(resultRoot, ".benchmark-stage-"));
+	const backups = [];
+	const published = [];
+	try {
+		for (let index = 0; index < plannedResults.length; index += 1) {
+			await (options.writeFile ?? writeFile)(
+				path.join(stagingRoot, `${index}.json`),
+				`${JSON.stringify(plannedResults[index].benchmarkResult, null, "\t")}\n`,
+				"utf8",
+			);
+		}
+		for (let index = 0; index < plannedResults.length; index += 1) {
+			const outputPath = plannedResults[index].outputPath;
+			await mkdir(path.dirname(outputPath), { recursive: true });
+			if (await pathExists(outputPath)) {
+				const backupPath = path.join(stagingRoot, `${index}.backup`);
+				await (options.rename ?? rename)(outputPath, backupPath);
+				backups.push({ outputPath, backupPath });
+			}
+			await (options.rename ?? rename)(path.join(stagingRoot, `${index}.json`), outputPath);
+			published.push(outputPath);
+		}
+		return plannedResults.map(({ outputPath }) => outputPath);
+	} catch (error) {
+		for (const outputPath of published.reverse()) await (options.rm ?? rm)(outputPath, { force: true });
+		for (const backup of backups.reverse()) await (options.rename ?? rename)(backup.backupPath, backup.outputPath);
+		throw error;
+	} finally {
+		await (options.rm ?? rm)(stagingRoot, { recursive: true, force: true });
+	}
 }
 
 export function parseNamedArguments(argv) {

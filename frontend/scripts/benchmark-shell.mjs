@@ -135,6 +135,11 @@ export async function observeStartupCompletion({
 	now = Date.now,
 	wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 	rendererTimestamp = rendererMarkTimestamp,
+	timeoutMilliseconds = 120_000,
+	requestTimeoutMilliseconds = 2_000,
+	AbortControllerClass = AbortController,
+	setRequestTimeout = setTimeout,
+	clearRequestTimeout = clearTimeout,
 }) {
 	if (scenario.processState === "warm" && scenario.completionMark === "operator:board-interactive") {
 		return await rendererTimestamp(page, scenario.completionMark);
@@ -143,16 +148,25 @@ export async function observeStartupCompletion({
 		throw new Error("startup scenario has no supported observed completion boundary");
 	}
 	const endpoint = `http://127.0.0.1:${daemonPort}/readyz`;
-	const deadline = now() + 120_000;
+	const deadline = now() + timeoutMilliseconds;
 	while (now() <= deadline) {
+		const remainingMilliseconds = deadline - now();
+		if (remainingMilliseconds <= 0) break;
+		const controller = new AbortControllerClass();
+		const requestTimeout = setRequestTimeout(
+			() => controller.abort(),
+			Math.max(1, Math.min(requestTimeoutMilliseconds, remainingMilliseconds)),
+		);
 		try {
-			const response = await fetchImpl(endpoint);
+			const response = await fetchImpl(endpoint, { signal: controller.signal });
 			const payload = response.ok ? await response.json() : undefined;
 			if (payload?.status === "ready" && payload.service === "operator-daemon") return now();
 		} catch (error) {
-			if (!(error instanceof TypeError || error instanceof SyntaxError)) throw error;
+			if (!(error instanceof TypeError || error instanceof SyntaxError || error?.name === "AbortError")) throw error;
+		} finally {
+			clearRequestTimeout(requestTimeout);
 		}
-		await wait(50);
+		if (now() < deadline) await wait(Math.min(50, deadline - now()));
 	}
 	throw new Error("daemon readiness endpoint was not observed before timeout");
 }
@@ -168,7 +182,7 @@ export function startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp)
 	return completionTimestamp - spawnTimestamp;
 }
 
-async function prepareSpawnAttestation(executablePath, stateRoot) {
+export async function prepareSpawnAttestation(executablePath, stateRoot) {
 	const timestampPath = path.join(stateRoot, "electron-spawn.timestamp");
 	if (process.platform === "win32") return { executablePath, timestampPath, env: {} };
 	const launcherPath = path.join(stateRoot, "electron-spawn-launcher.mjs");
@@ -212,10 +226,10 @@ async function rendererMetadata(application, page) {
 	};
 }
 
-async function launchSample({ executablePath, scenario, stateRoot }) {
-	const daemonPort = await availablePort();
-	const spawnAttestation = await prepareSpawnAttestation(executablePath, stateRoot);
-	const application = await electron.launch({
+export async function launchSample({ executablePath, scenario, stateRoot }, dependencies = {}) {
+	const daemonPort = await (dependencies.availablePort ?? availablePort)();
+	const spawnAttestation = await (dependencies.prepareSpawnAttestation ?? prepareSpawnAttestation)(executablePath, stateRoot);
+	const applicationPromise = (dependencies.launchElectron ?? ((options) => electron.launch(options)))({
 		executablePath: spawnAttestation.executablePath,
 		env: {
 			...process.env,
@@ -227,21 +241,24 @@ async function launchSample({ executablePath, scenario, stateRoot }) {
 		},
 		timeout: 120_000,
 	});
+	const observeCompletion = dependencies.observeStartupCompletion ?? observeStartupCompletion;
+	const firstRunCompletionPromise = scenario.processState === "fresh-daemon"
+		? observeCompletion({ scenario, daemonPort })
+		: undefined;
+	const [application, firstRunCompletion] = firstRunCompletionPromise
+		? await Promise.all([applicationPromise, firstRunCompletionPromise])
+		: [await applicationPromise, undefined];
 	try {
-		const rawSpawnTimestamp = await nativeSpawnTimestamp(application, spawnAttestation);
-		const firstRunCompletion =
-			scenario.processState === "fresh-daemon"
-				? observeStartupCompletion({ scenario, daemonPort })
-				: undefined;
+		const rawSpawnTimestamp = await (dependencies.nativeSpawnTimestamp ?? nativeSpawnTimestamp)(application, spawnAttestation);
 		const page = await application.firstWindow({ timeout: 120_000 });
-		const renderer = await rendererMetadata(application, page);
+		const renderer = await (dependencies.rendererMetadata ?? rendererMetadata)(application, page);
 		if (scenario.kind === "memory") {
 			await page.waitForTimeout(scenario.idleSeconds * 1000);
 			const rootProcessId = application.process().pid;
 			if (!rootProcessId) throw new Error("Electron process identifier unavailable for transient accounting");
-			return { sample: await processTreeBytes(rootProcessId), renderer };
+			return { sample: await (dependencies.processTreeBytes ?? processTreeBytes)(rootProcessId), renderer };
 		}
-		const completionTimestamp = await (firstRunCompletion ?? observeStartupCompletion({ scenario, page, daemonPort }));
+		const completionTimestamp = firstRunCompletion ?? (await observeCompletion({ scenario, page, daemonPort }));
 		return { sample: startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp), renderer };
 	} finally {
 		await application.close();

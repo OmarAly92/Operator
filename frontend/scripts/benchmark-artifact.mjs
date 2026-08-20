@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -13,12 +13,13 @@ import {
 	collectHostMetadata,
 	createBenchmarkResult,
 	parseNamedArguments,
-	writeBenchmarkResult,
+	writeBenchmarkResultBatch,
 } from "./benchmark-result.mjs";
 
 const execFileAsync = promisify(execFile);
 const frontendRoot = fileURLToPath(new URL("../", import.meta.url));
 const macVerifier = fileURLToPath(new URL("./verify-mac-artifact.sh", import.meta.url));
+const expectedComponents = Object.freeze({ daemon: "dev", agentBrowser: "0.33.1", node: "22.23.2", acp: "0.64.2" });
 
 export function parseArtifactArguments(argv, env = process.env) {
 	const namedArguments = parseNamedArguments(argv);
@@ -69,6 +70,38 @@ function signingIdentity(verificationOutput) {
 	return verificationOutput.match(/(?:Authority|origin)=([^\r\n]+)/)?.[1]?.trim();
 }
 
+export function expectedPublisherForPlatform(platform, env) {
+	if (platform === "darwin") {
+		const teamId = env.OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID;
+		if (!/^[A-Z0-9]{10}$/.test(teamId ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID must contain the trusted 10-character Team ID");
+		return { teamId };
+	}
+	if (platform === "win32") {
+		const identity = env.OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER;
+		const thumbprint = env.OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT?.replaceAll(" ", "").toUpperCase();
+		if (!identity?.trim()) throw new Error("OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER must contain the trusted certificate subject");
+		if (!/^[A-F0-9]{40,64}$/.test(thumbprint ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT must contain the trusted certificate thumbprint");
+		return { identity: identity.trim(), thumbprint };
+	}
+	if (platform === "linux") {
+		const fingerprint = env.OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT?.replaceAll(" ", "").toUpperCase();
+		if (!/^[A-F0-9]{40,64}$/.test(fingerprint ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT must contain the trusted signing-key fingerprint");
+		return { fingerprint };
+	}
+	throw new Error(`unsupported native publisher platform: ${platform}`);
+}
+
+export function validatePublisherIdentity(platform, observedPublisher, expectedPublisher) {
+	if (platform === "darwin" && observedPublisher?.teamId === expectedPublisher.teamId) return;
+	if (
+		platform === "win32" &&
+		observedPublisher?.identity === expectedPublisher.identity &&
+		observedPublisher?.thumbprint?.toUpperCase() === expectedPublisher.thumbprint
+	) return;
+	if (platform === "linux" && observedPublisher?.fingerprint?.toUpperCase() === expectedPublisher.fingerprint) return;
+	throw new Error(`native signature does not match the trusted ${platform === "darwin" ? "macOS Team ID" : platform === "win32" ? "Windows publisher certificate" : "Linux GPG fingerprint"}`);
+}
+
 async function nativeSignatureVerification({ signedArtifact, installedApp, installedExecutable, artifactSignature, platform }) {
 	if (platform === "darwin") {
 		const artifactVerification = await execFileAsync(macVerifier, [signedArtifact]);
@@ -76,26 +109,34 @@ async function nativeSignatureVerification({ signedArtifact, installedApp, insta
 		const artifactIdentity = signingIdentity(`${artifactVerification.stdout}\n${artifactVerification.stderr}`);
 		const installedIdentity = signingIdentity(`${installedVerification.stdout}\n${installedVerification.stderr}`);
 		if (!artifactIdentity || artifactIdentity !== installedIdentity) throw new Error("download and installed application signing identities do not match");
-		return artifactIdentity;
+		const teamId = artifactIdentity.match(/\(([A-Z0-9]{10})\)$/)?.[1];
+		if (!teamId) throw new Error("macOS signing identity does not expose a Team ID");
+		return { identity: artifactIdentity, teamId };
 	}
 	if (platform === "win32") {
-		let verifiedIdentity;
+		let verifiedPublisher;
 		for (const target of [signedArtifact, installedExecutable]) {
 			const escaped = target.replaceAll("'", "''");
-			const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escaped}'; if ($signature.Status -ne 'Valid') { exit 1 }; $signature.SignerCertificate.Subject`;
+			const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escaped}'; if ($signature.Status -ne 'Valid') { exit 1 }; @{ identity = $signature.SignerCertificate.Subject; thumbprint = $signature.SignerCertificate.Thumbprint } | ConvertTo-Json -Compress`;
 			const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
-			const identity = stdout.trim();
-			if (!identity || (verifiedIdentity && identity !== verifiedIdentity)) throw new Error("download and installed application signing identities do not match");
-			verifiedIdentity = identity;
+			const publisher = JSON.parse(stdout);
+			if (
+				!publisher.identity ||
+				!publisher.thumbprint ||
+				(verifiedPublisher && (publisher.identity !== verifiedPublisher.identity || publisher.thumbprint !== verifiedPublisher.thumbprint))
+			) {
+				throw new Error("download and installed application signing identities do not match");
+			}
+			verifiedPublisher = publisher;
 		}
-		return verifiedIdentity;
+		return verifiedPublisher;
 	}
 	if (platform === "linux") {
 		const { stdout } = await execFileAsync("gpg", ["--batch", "--status-fd=1", "--verify", artifactSignature, signedArtifact]);
 		const validSignature = stdout.split("\n").find((line) => line.startsWith("[GNUPG:] VALIDSIG "));
-		const identity = validSignature?.split(/\s+/)[2];
-		if (!identity) throw new Error("Linux artifact signature identity is unavailable");
-		return identity;
+		const fingerprint = validSignature?.split(/\s+/)[2];
+		if (!fingerprint) throw new Error("Linux artifact signature identity is unavailable");
+		return { fingerprint };
 	}
 	throw new Error(`unsupported native signature verification platform: ${platform}`);
 }
@@ -162,14 +203,16 @@ function installedReleaseLayout(installedApp, platform) {
 	const executable = platform === "darwin"
 		? path.join(installedApp, "Contents", "MacOS", "operator")
 		: path.join(installedApp, platform === "win32" ? "operator.exe" : "operator");
+	const acpRoot = path.join(resources, "acp-runtime");
+	const acpPackageRoot = path.join(acpRoot, "node_modules", "@agentclientprotocol", "claude-agent-acp");
 	return {
 		executable,
-		requiredFiles: [
-			path.join(resources, "daemon", platform === "win32" ? "opr.exe" : "opr"),
-			path.join(resources, "agent-browser", platform === "win32" ? "agent-browser.exe" : "agent-browser"),
-			path.join(resources, "acp-runtime", "node", platform === "win32" ? "node.exe" : path.join("bin", "node")),
-			path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js"),
-		],
+		daemon: path.join(resources, "daemon", platform === "win32" ? "opr.exe" : "opr"),
+		agentBrowser: path.join(resources, "agent-browser", platform === "win32" ? "agent-browser.exe" : "agent-browser"),
+		node: path.join(acpRoot, "node", platform === "win32" ? "node.exe" : path.join("bin", "node")),
+		acpAdapter: path.join(acpPackageRoot, "dist", "index.js"),
+		acpPackage: path.join(acpPackageRoot, "package.json"),
+		acpRuntimePackage: path.join(acpRoot, "package.json"),
 	};
 }
 
@@ -188,11 +231,45 @@ async function preflightRequestedPaths(options, platform) {
 	if (platform === "darwin" && path.extname(options.installedApp) !== ".app") throw new Error("macOS installed application must be an Operator .app bundle");
 }
 
-async function verifyPackagedContents(layout) {
-	const packagedFileMetadata = await Promise.all([layout.executable, ...layout.requiredFiles].map((target) => lstat(target)));
+async function commandStdout(commandOutput, executable, arguments_) {
+	const execution = await commandOutput(executable, arguments_, { timeout: 10_000 });
+	return execution.stdout.trim();
+}
+
+async function verifyPackagedComponents(layout, dependencies = {}) {
+	const packagedFiles = Object.values(layout);
+	const packagedFileMetadata = await Promise.all(packagedFiles.map((target) => lstat(target)));
 	if (packagedFileMetadata.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
 		throw new Error("installed Electron release is missing the executable, daemon, agent-browser, or ACP runtime contents");
 	}
+	const commandOutput = dependencies.commandOutput ?? execFileAsync;
+	const [daemonVersion, daemonHelp, agentBrowserVersion, nodeVersion] = await Promise.all([
+		commandStdout(commandOutput, layout.daemon, ["version"]),
+		commandStdout(commandOutput, layout.daemon, ["--help"]),
+		commandStdout(commandOutput, layout.agentBrowser, ["--version"]),
+		commandStdout(commandOutput, layout.node, ["--version"]),
+	]);
+	if (daemonVersion !== expectedComponents.daemon || !daemonHelp.includes("Operator")) throw new Error(`packaged daemon must identify as Operator opr ${expectedComponents.daemon}`);
+	if (!agentBrowserVersion.includes("agent-browser") || !agentBrowserVersion.includes(expectedComponents.agentBrowser)) throw new Error(`packaged agent-browser must identify as agent-browser ${expectedComponents.agentBrowser}`);
+	if (nodeVersion !== `v${expectedComponents.node}`) throw new Error(`packaged Node runtime must identify as v${expectedComponents.node}`);
+	const runtimePackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpRuntimePackage, "utf8"));
+	const adapterPackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpPackage, "utf8"));
+	if (runtimePackage.name !== "@operator-dev/acp-runtime" || runtimePackage.dependencies?.["@agentclientprotocol/claude-agent-acp"] !== expectedComponents.acp) {
+		throw new Error(`packaged ACP runtime must pin @agentclientprotocol/claude-agent-acp ${expectedComponents.acp}`);
+	}
+	if (
+		adapterPackage.name !== "@agentclientprotocol/claude-agent-acp" ||
+		adapterPackage.version !== expectedComponents.acp ||
+		adapterPackage.bin?.["claude-agent-acp"] !== "dist/index.js"
+	) {
+		throw new Error(`packaged ACP adapter executable must identify as @agentclientprotocol/claude-agent-acp ${expectedComponents.acp} at dist/index.js`);
+	}
+	return {
+		daemon: `opr ${daemonVersion}`,
+		agentBrowser: agentBrowserVersion,
+		node: nodeVersion,
+		acp: `${adapterPackage.name} ${adapterPackage.version}`,
+	};
 }
 
 async function artifactMeasurements(options) {
@@ -208,28 +285,29 @@ export async function preflightArtifactBenchmark(options, dependencies = {}) {
 	const platform = dependencies.platform ?? process.platform;
 	assertReleaseArtifactPath(options.signedArtifact, platform);
 	if (platform === "linux" && !options.artifactSignature) throw new Error("Linux release evidence requires an explicit detached artifact signature");
+	const expectedPublisher = expectedPublisherForPlatform(platform, dependencies.env ?? process.env);
 	await preflightRequestedPaths(options, platform);
 	const layout = installedReleaseLayout(options.installedApp, platform);
-	await verifyPackagedContents(layout);
-	const signatureIdentity = await (dependencies.verifySignature ?? nativeSignatureVerification)({
+	const observedPublisher = await (dependencies.verifySignature ?? nativeSignatureVerification)({
 		signedArtifact: options.signedArtifact,
 		installedApp: options.installedApp,
 		installedExecutable: layout.executable,
 		artifactSignature: options.artifactSignature,
 		platform,
 	});
-	requireString(signatureIdentity, "native signing identity");
+	validatePublisherIdentity(platform, observedPublisher, expectedPublisher);
+	const components = await verifyPackagedComponents(layout, dependencies);
 	const observedRuntime = await (dependencies.collectRuntimeMetadata ?? collectInstalledRuntimeMetadata)({
 		executable: layout.executable,
 	});
 	const renderer = validateRuntime(observedRuntime);
 	const measured = await artifactMeasurements(options);
-	return { buildProfile: "signed-release-attested", measured, renderer };
+	return { buildProfile: "signed-release-attested", components, measured, renderer };
 }
 
 export async function runArtifactBenchmark(argv = process.argv.slice(2), env = process.env, dependencies = {}) {
 	const options = parseArtifactArguments(argv, env);
-	const preflight = await preflightArtifactBenchmark(options, dependencies);
+	const preflight = await preflightArtifactBenchmark(options, { ...dependencies, env });
 	const git = await (dependencies.collectGitMetadata ?? collectGitMetadata)();
 	const host = (dependencies.collectHostMetadata ?? collectHostMetadata)();
 	const benchmarkResults = preflight.measured.map((measurement) => createBenchmarkResult({
@@ -242,7 +320,7 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 		scenarioConfiguration: {
 			artifactKind: measurement.artifactKind,
 			accounting: "recursive-regular-file-bytes",
-			baseContents: ["go-daemon", "agent-browser", "node-22.23.2-acp-runtime"],
+			baseContents: Object.values(preflight.components),
 			artifactIdentity: "native-signature-and-required-contents-verified",
 			runtimeMetadataSource: "installed-release-launch",
 		},
@@ -252,16 +330,22 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 	}));
 	const resultRoot = dependencies.resultRoot ?? DEFAULT_RESULT_ROOT;
 	const outputs = benchmarkResults.map((benchmarkResult) => path.join(resultRoot, path.basename(benchmarkResultPath({ shell: options.shell, scenario: benchmarkResult.scenario, variant: env.OPERATOR_BENCH_VARIANT }))));
-	for (let index = 0; index < benchmarkResults.length; index += 1) {
-		await writeBenchmarkResult(outputs[index], benchmarkResults[index], { resultRoot });
-		process.stdout.write(`${path.relative(frontendRoot, outputs[index])}\n`);
-	}
+	await writeBenchmarkResultBatch(
+		benchmarkResults.map((benchmarkResult, index) => ({ outputPath: outputs[index], benchmarkResult })),
+		{
+			resultRoot,
+			writeFile: dependencies.writeFile,
+			rename: dependencies.rename,
+			rm: dependencies.rm,
+		},
+	);
+	for (const outputPath of outputs) process.stdout.write(`${path.relative(frontendRoot, outputPath)}\n`);
 	return benchmarkResults;
 }
 
 async function main() {
 	if (process.argv.includes("--help")) {
-		process.stdout.write("OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... node scripts/benchmark-artifact.mjs --shell electron\n");
+		process.stdout.write("OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID=... node scripts/benchmark-artifact.mjs --shell electron\nWindows additionally requires OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER and OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT; Linux requires OPERATOR_BENCH_ARTIFACT_SIGNATURE and OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT.\n");
 		return;
 	}
 	await runArtifactBenchmark();
