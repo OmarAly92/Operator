@@ -142,6 +142,14 @@ function ShellLayout() {
 	const sidebarPeekCloseTimerRef = useRef<number | undefined>(undefined);
 	const routeParams = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
 	useEffect(() => {
+		if (workspaceStartupState === "ready") performance.mark("operator:board-interactive");
+	}, [workspaceStartupState]);
+	useEffect(() => {
+		const markTerminalReady = () => performance.mark("operator:terminal-ready");
+		window.addEventListener("operator:terminal-ready", markTerminalReady);
+		return () => window.removeEventListener("operator:terminal-ready", markTerminalReady);
+	}, []);
+	useEffect(() => {
 		document.addEventListener("click", handleModifierLinkClick);
 		return () => document.removeEventListener("click", handleModifierLinkClick);
 	}, []);

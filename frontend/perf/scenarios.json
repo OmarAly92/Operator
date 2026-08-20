@@ -1,0 +1,49 @@
+{
+	"warm-start": {
+		"kind": "startup",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "milliseconds",
+		"completionMark": "operator:board-interactive",
+		"processState": "warm"
+	},
+	"first-run": {
+		"kind": "startup",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "milliseconds",
+		"completionMark": "operator:board-interactive",
+		"processState": "fresh-daemon"
+	},
+	"idle-memory": {
+		"kind": "memory",
+		"warmups": 0,
+		"samples": 5,
+		"unit": "bytes",
+		"idleSeconds": 60,
+		"accounting": "full-electron-process-tree"
+	},
+	"vtebench": {
+		"kind": "terminal",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "workloads-per-second",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000
+	},
+	"large-output": {
+		"kind": "terminal",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "bytes-per-second",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000,
+		"outputBytes": 16777216
+	}
+}
