@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,7 +25,7 @@ async function fixture() {
 `,
 	);
 	await writeFile(join(rootDir, "src", "renderer", "hooks", "useMigration.ts"), `import type { Migration } from "../../main/app-state";\n`);
-	await writeFile(join(rootDir, "src", "renderer", "hooks", "useBrowser.ts"), `import type { BrowserState } from "../../main/browser-view-host";\n`);
+	await writeFile(join(rootDir, "src", "renderer", "hooks", "useBrowserView.ts"), `import type { BrowserState } from "../../main/browser-view-host";\n`);
 	await writeFile(join(rootDir, "src", "main", "app-state.ts"), "export type Migration = {};\n");
 	await writeFile(join(rootDir, "src", "main", "browser-view-host.ts"), "export type BrowserState = {};\n");
 	await writeFile(join(rootDir, "src", "main", "app-state.test.ts"), "throw new Error();\n");
@@ -38,16 +38,17 @@ function completeLedger() {
 		{ source: "preload.app", member: "openExternal", disposition: "native", owner: "tauri", task: 14, exception: null },
 		{ source: "preload.browser", member: "navigate", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
 		{ source: "renderer/hooks/useMigration.ts", member: "../../main/app-state", disposition: "shared type", owner: "renderer", task: 8, exception: null },
-		{ source: "renderer/hooks/useBrowser.ts", member: "../../main/browser-view-host", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
+		{ source: "renderer/hooks/useBrowserView.ts", member: "../../main/browser-view-host", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
 		{ source: "main", member: "app-state.ts", disposition: "native", owner: "tauri", task: 12, exception: null },
 		{ source: "main", member: "browser-view-host.ts", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
 	];
 }
 
-async function errorsFor(change) {
+async function errorsFor(change, arrange = async () => {}) {
 	const rootDir = await fixture();
 	try {
 		const ledger = completeLedger();
+		await arrange(rootDir);
 		change(ledger);
 		return await validateParityLedger({ rootDir, ledger });
 	} finally {
@@ -81,6 +82,69 @@ test("accepts exceptions only for entries in the deferred Browser-panel record",
 		ledger[0] = { ...ledger[0], disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord };
 	});
 	assert(errors.some((message) => message.includes("exception is not allowed for preload.app/getVersion")));
+});
+
+test("rejects an unrecorded preload Browser member exception", async () => {
+	const errors = await errorsFor(
+		(ledger) => ledger.push({ source: "preload.browser", member: "print", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord }),
+		async (rootDir) => {
+			const preloadPath = join(rootDir, "src", "preload.ts");
+			const source = await readFile(preloadPath, "utf8");
+			await writeFile(preloadPath, source.replace("navigate: (url: string) => url,", "navigate: (url: string) => url,\n\t\tprint: () => undefined,"));
+		},
+	);
+	assert(errors.some((message) => message.includes("exception is not allowed for preload.browser/print")));
+});
+
+test("rejects an unrecorded renderer Browser import exception", async () => {
+	const errors = await errorsFor(
+		(ledger) =>
+			ledger.push({
+				source: "renderer/hooks/useUnknownBrowser.ts",
+				member: "../../main/browser-view-host",
+				disposition: "deferred",
+				owner: null,
+				task: null,
+				exception: deferredBrowserRecord,
+			}),
+		async (rootDir) => {
+			await writeFile(join(rootDir, "src", "renderer", "hooks", "useUnknownBrowser.ts"), `import type { BrowserState } from "../../main/browser-view-host";\n`);
+		},
+	);
+	assert(errors.some((message) => message.includes("exception is not allowed for renderer/hooks/useUnknownBrowser.ts/../../main/browser-view-host")));
+});
+
+test("preload inventory survives regular-expression literals", async () => {
+	const errors = await errorsFor(
+		(ledger) => ledger.push({ source: "preload.app", member: "matchesBrace", disposition: "renderer utility", owner: "renderer", task: 8, exception: null }),
+		async (rootDir) => {
+			const preloadPath = join(rootDir, "src", "preload.ts");
+			const source = await readFile(preloadPath, "utf8");
+			await writeFile(preloadPath, source.replace("getVersion: () => \"1.0.0\",", "getVersion: () => \"1.0.0\",\n\t\tmatchesBrace: (text: string) => /{/.test(text),"));
+		},
+	);
+	assert.deepEqual(errors, []);
+});
+
+test("renderer inventory accepts single-quoted main-process imports", async () => {
+	const errors = await errorsFor(
+		(ledger) => ledger.push({ source: "renderer/hooks/useSingleQuote.ts", member: "../../main/app-state", disposition: "shared type", owner: "renderer", task: 8, exception: null }),
+		async (rootDir) => {
+			await writeFile(join(rootDir, "src", "renderer", "hooks", "useSingleQuote.ts"), "import type { Migration } from '../../main/app-state';\n");
+		},
+	);
+	assert.deepEqual(errors, []);
+});
+
+test("renderer inventory includes main-process re-exports", async () => {
+	const errors = await errorsFor(
+		(ledger) => ledger.push({ source: "renderer/lib/bridge.ts", member: "../../main/feature-builds", disposition: "shared type", owner: "renderer", task: 8, exception: null }),
+		async (rootDir) => {
+			await mkdir(join(rootDir, "src", "renderer", "lib"), { recursive: true });
+			await writeFile(join(rootDir, "src", "renderer", "lib", "bridge.ts"), `export type { FeatureBuild } from "../../main/feature-builds";\n`);
+		},
+	);
+	assert.deepEqual(errors, []);
 });
 
 test("requires a task number and an allowed owner for non-exception entries", async () => {

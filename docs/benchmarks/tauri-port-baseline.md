@@ -14,7 +14,9 @@ Artifact measurements include the Go daemon, packaged `agent-browser`, and the e
 
 ## Required result metadata
 
-Every result records `schemaVersion`, shell, scenario, commit, dirty-tree flag, build profile, platform, architecture, OS version, CPU, logical core count, physical memory, webview or runtime version, renderer kind, display scale, scenario configuration, warmup count, sample count, samples, median, p95, and units.
+Every result uses these exact top-level JSON keys: `schemaVersion`, `shell`, `scenario`, `commit`, `dirty`, `buildProfile`, `platform`, `architecture`, `osVersion`, `cpu`, `logicalCores`, `physicalMemory`, `webviewRuntimeVersion`, `rendererKind`, `displayScale`, `scenarioConfiguration`, `warmups`, `sampleCount`, `samples`, `median`, `p95`, and `unit`.
+
+`warmups` and `sampleCount` are integer counts, `samples` is the measured numeric sample array, and `unit` applies to `samples`, `median`, and `p95`. `webviewRuntimeVersion` identifies the Electron/Chromium or Tauri/OS-webview runtime used for the result. `scenarioConfiguration` contains only the sanitized inputs that define the measured scenario.
 
 Results must not contain private paths, environment values, process IDs, terminal contents, credentials, or output paths outside `frontend/perf/results`.
 

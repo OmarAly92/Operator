@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const allowedOwners = new Set(["tauri", "go", "renderer"]);
 const deferredBrowserRecord = "docs/todo/browser-panel-webview.md";
@@ -13,6 +14,37 @@ function displayKey(source, member) {
 	return `${source}/${member}`;
 }
 
+const deferredBrowserEntries = new Set(
+	[
+		["main", "browser-view-host.ts"],
+		["preload.browser", "clear"],
+		["preload.browser", "closeTab"],
+		["preload.browser", "destroy"],
+		["preload.browser", "devtools"],
+		["preload.browser", "ensure"],
+		["preload.browser", "getTabs"],
+		["preload.browser", "goBack"],
+		["preload.browser", "goForward"],
+		["preload.browser", "nativeCompositionEnabled"],
+		["preload.browser", "navigate"],
+		["preload.browser", "onAgentActivity"],
+		["preload.browser", "onAnnotationCancel"],
+		["preload.browser", "onAnnotationSubmit"],
+		["preload.browser", "onDevToolsState"],
+		["preload.browser", "onNavState"],
+		["preload.browser", "onTabsState"],
+		["preload.browser", "openTab"],
+		["preload.browser", "reload"],
+		["preload.browser", "selectTab"],
+		["preload.browser", "setAnnotationMode"],
+		["preload.browser", "setBounds"],
+		["preload.browser", "setOverlayOpen"],
+		["preload.browser", "stop"],
+		["renderer/components/BrowserTabsRail.tsx", "../../main/browser-view-host"],
+		["renderer/hooks/useBrowserView.ts", "../../main/browser-view-host"],
+	].map(([source, member]) => entryKey(source, member)),
+);
+
 async function filesBelow(directory) {
 	const entries = await readdir(directory, { withFileTypes: true });
 	const files = [];
@@ -24,98 +56,46 @@ async function filesBelow(directory) {
 	return files;
 }
 
-function commentEnd(sourceText, index) {
-	if (sourceText[index] !== "/") return null;
-	if (sourceText[index + 1] === "/") {
-		const newline = sourceText.indexOf("\n", index + 2);
-		return newline === -1 ? sourceText.length : newline;
-	}
-	if (sourceText[index + 1] !== "*") return null;
-	const closing = sourceText.indexOf("*/", index + 2);
-	return closing === -1 ? sourceText.length : closing + 2;
+function sourceFile(path, sourceText) {
+	const scriptKind = path.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+	return ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true, scriptKind);
 }
 
-function quotedToken(sourceText, index) {
-	const quote = sourceText[index];
-	let text = "";
-	index += 1;
-	while (index < sourceText.length && sourceText[index] !== quote) {
-		if (sourceText[index] === "\\") index += 1;
-		text += sourceText[index] ?? "";
-		index += 1;
-	}
-	return { token: { type: "name", text }, nextIndex: index + 1 };
+function propertyName(property, path) {
+	if (!property.name) throw new Error(`${path} contains an unsupported spread in the preload API`);
+	if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNumericLiteral(property.name)) return property.name.text;
+	throw new Error(`${path} contains a computed preload API member`);
 }
 
-function tokenizeTypeScript(sourceText) {
-	const sourceTokens = [];
-	let index = 0;
-	while (index < sourceText.length) {
-		const character = sourceText[index];
-		if (/\s/.test(character)) {
-			index += 1;
-			continue;
+function preloadApi(source, path) {
+	for (const statement of source.statements) {
+		if (!ts.isVariableStatement(statement)) continue;
+		for (const declaration of statement.declarationList.declarations) {
+			if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "api") continue;
+			if (declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer)) return declaration.initializer;
 		}
-		const nextIndex = commentEnd(sourceText, index);
-		if (nextIndex !== null) {
-			index = nextIndex;
-			continue;
-		}
-		if (character === '"' || character === "'" || character === "`") {
-			const quoted = quotedToken(sourceText, index);
-			sourceTokens.push(quoted.token);
-			index = quoted.nextIndex;
-			continue;
-		}
-		const identifier = /^[A-Za-z_$][\w$]*/.exec(sourceText.slice(index));
-		if (identifier) {
-			sourceTokens.push({ type: "name", text: identifier[0] });
-			index += identifier[0].length;
-			continue;
-		}
-		sourceTokens.push({ type: "punctuation", text: character });
-		index += 1;
 	}
-	return sourceTokens;
+	throw new Error(`${path} must declare const api as an object literal`);
 }
 
-function objectProperties(sourceTokens, openIndex) {
-	const properties = [];
-	let braces = 1;
-	let brackets = 0;
-	let parentheses = 0;
-	let expectsProperty = true;
-	for (let index = openIndex + 1; index < sourceTokens.length && braces > 0; index += 1) {
-		const token = sourceTokens[index];
-		if (token.text === "{") braces += 1;
-		if (token.text === "}") braces -= 1;
-		if (token.text === "[") brackets += 1;
-		if (token.text === "]") brackets -= 1;
-		if (token.text === "(") parentheses += 1;
-		if (token.text === ")") parentheses -= 1;
-		if (braces !== 1 || brackets !== 0 || parentheses !== 0) continue;
-		if (token.text === ",") {
-			expectsProperty = true;
-			continue;
-		}
-		if (!expectsProperty || token.type !== "name" || sourceTokens[index + 1]?.text !== ":") continue;
-		properties.push({ name: token.text, valueIndex: index + 2 });
-		expectsProperty = false;
-	}
-	return properties;
+function mainModuleSpecifier(statement) {
+	if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) return null;
+	if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) return null;
+	return statement.moduleSpecifier.text.startsWith("../../main/") ? statement.moduleSpecifier.text : null;
 }
 
 async function preloadInventory(rootDir) {
 	const path = join(rootDir, "src", "preload.ts");
 	const sourceText = await readFile(path, "utf8");
-	const sourceTokens = tokenizeTypeScript(sourceText);
 	const inventory = [];
-	const apiIndex = sourceTokens.findIndex((token, index) => token.text === "api" && sourceTokens[index + 1]?.text === "=" && sourceTokens[index + 2]?.text === "{");
-	if (apiIndex === -1) throw new Error("src/preload.ts must declare const api as an object literal");
-	for (const namespace of objectProperties(sourceTokens, apiIndex + 2)) {
-		if (sourceTokens[namespace.valueIndex]?.text !== "{") continue;
-		for (const member of objectProperties(sourceTokens, namespace.valueIndex)) {
-			inventory.push({ source: `preload.${namespace.name}`, member: member.name });
+	const api = preloadApi(sourceFile(path, sourceText), path);
+	for (const namespace of api.properties) {
+		const namespaceName = propertyName(namespace, path);
+		if (!ts.isPropertyAssignment(namespace) || !ts.isObjectLiteralExpression(namespace.initializer)) {
+			throw new Error(`${path} preload namespace ${namespaceName} must be an object literal`);
+		}
+		for (const member of namespace.initializer.properties) {
+			inventory.push({ source: `preload.${namespaceName}`, member: propertyName(member, path) });
 		}
 	}
 	return inventory;
@@ -127,10 +107,12 @@ async function rendererImportInventory(rootDir) {
 	const inventory = [];
 	for (const path of files) {
 		const sourceText = await readFile(path, "utf8");
-		for (const match of sourceText.matchAll(/\bfrom\s+"(\.\.\/\.\.\/main\/[^"]+)"/g)) {
+		for (const statement of sourceFile(path, sourceText).statements) {
+			const member = mainModuleSpecifier(statement);
+			if (!member) continue;
 			inventory.push({
 				source: `renderer/${relative(rendererDir, path).replaceAll("\\", "/")}`,
-				member: match[1],
+				member,
 			});
 		}
 	}
@@ -147,9 +129,7 @@ async function mainModuleInventory(rootDir) {
 }
 
 function isDeferredBrowserEntry(entry) {
-	if (entry.source === "preload.browser") return true;
-	if (entry.source.startsWith("renderer/") && entry.member === "../../main/browser-view-host") return true;
-	return entry.source === "main" && entry.member === "browser-view-host.ts";
+	return deferredBrowserEntries.has(entryKey(entry.source, entry.member));
 }
 
 export async function parityInventory(rootDir) {
