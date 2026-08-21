@@ -68,3 +68,14 @@ test("validateBridgeHandoff accepts signed handoff", () => {
   const result = validateBridgeHandoff({ signed: true, replacesDirectly: true });
   assert.equal(result.valid, true);
 });
+
+test("evaluateLegacyUpdate rejects invalid handoff even when bridgeProven true", () => {
+  const migrations = validMigrations();
+  migrations.darwin.directSuccess = false;
+  migrations.darwin.bridgeRequired = true;
+  migrations.darwin.bridgeProven = true;
+  migrations.darwin.handoff = { signed: false, replacesDirectly: true };
+  const result = evaluateLegacyUpdate(migrations);
+  assert.equal(result.success, false);
+  assert.match(result.reasons.join(" "), /bridge handoff invalid/);
+});

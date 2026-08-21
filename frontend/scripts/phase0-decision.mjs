@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -15,6 +15,8 @@ const WARM_START_P95_FACTOR = 0.75;
 const IDLE_MEMORY_FACTOR = 0.6;
 const ARTIFACT_DOWNLOAD_FACTOR = 0.7;
 const ARTIFACT_INSTALLED_FACTOR = 0.6;
+const TERMINAL_OPEN_MEDIAN_FACTOR = 0.75;
+const TERMINAL_OPEN_P95_FACTOR = 0.9;
 
 function pushReason(reasons, message) {
   reasons.push(message);
@@ -63,18 +65,8 @@ export function evaluateDecision(evidence) {
     if (evidence.updaterSigning.privateKeyLeaked === true) {
       pushReason(reasons, "updater private key leaked");
     }
-    if (evidence.updaterSigning.valid !== true && evidence.updaterSigning.signatureValid !== true) {
-      if (evidence.updaterSigning.signatureValid === false) {
-      } else if (evidence.updaterSigning.valid === false) {
-      }
-    }
-    if (!evidence.updaterSigning.valid && !evidence.updaterSigning.signatureValid) {
-    }
   } else {
     pushReason(reasons, "missing updater-signing evidence");
-  }
-
-  if (evidence.updaterSigning && evidence.updaterSigning.privateKeyLeaked) {
   }
 
   for (const platform of REQUIRED_PLATFORMS) {
@@ -111,13 +103,25 @@ export function evaluateDecision(evidence) {
       pushReason(reasons, `missing legacy-update migration evidence on ${platform}`);
     } else if (legacy.success !== true) {
       if (legacy.bridgeRequired === true && legacy.bridgeProven === true) {
-        hasBridgeRollout = true;
-        pushReason(reasons, `bridge handoff required on ${platform} and proven as mandatory rollout work`);
+        const handoff = legacy.handoff ?? { signed: legacy.bridgeProven === true, replacesDirectly: legacy.bridgeReplacesDirectly ?? true };
+        if (handoff.signed !== true) {
+          pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must be signed`);
+        } else if (handoff.replacesDirectly !== true) {
+          pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must replace direct migration proof`);
+        } else {
+          hasBridgeRollout = true;
+          pushReason(reasons, `bridge handoff required on ${platform} and proven as mandatory rollout work`);
+        }
       } else {
         pushReason(reasons, `legacy-update migration failed on ${platform}`);
       }
     } else if (legacy.bridgeRequired === true && legacy.bridgeProven === true) {
-      hasBridgeRollout = true;
+      const handoff = legacy.handoff ?? { signed: true, replacesDirectly: true };
+      if (handoff.signed !== true || handoff.replacesDirectly !== true) {
+        pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must be signed`);
+      } else {
+        hasBridgeRollout = true;
+      }
     }
 
     if (!data.artifact) {
@@ -127,6 +131,7 @@ export function evaluateDecision(evidence) {
         pushReason(reasons, `missing ACP runtime on ${platform}`);
       }
       if (data.artifact.includesDaemon !== true) {
+        pushReason(reasons, `missing daemon on ${platform}`);
       }
       if (platform === "linux" && data.artifact.rpmExists !== true) {
         pushReason(reasons, `missing RPM artifact on ${platform}`);
@@ -169,6 +174,19 @@ export function evaluateDecision(evidence) {
       }
     } else if (rendererKind !== "webgl") {
       pushReason(reasons, `missing renderer kind on ${platform}`);
+    }
+
+    if (electron.terminalOpen && tauri.terminalOpen) {
+      if (typeof tauri.terminalOpen.median === "number" && typeof electron.terminalOpen.median === "number") {
+        if (tauri.terminalOpen.median > electron.terminalOpen.median * TERMINAL_OPEN_MEDIAN_FACTOR) {
+          pushReason(reasons, `terminal-open median regression on ${platform}`);
+        }
+      }
+      if (typeof tauri.terminalOpen.p95 === "number" && typeof electron.terminalOpen.p95 === "number") {
+        if (tauri.terminalOpen.p95 > electron.terminalOpen.p95 * TERMINAL_OPEN_P95_FACTOR) {
+          pushReason(reasons, `terminal-open p95 regression on ${platform}`);
+        }
+      }
     }
 
     if (electron.warmStart && tauri.warmStart) {
@@ -320,33 +338,6 @@ export async function loadIdentity(configPath) {
   };
 }
 
-async function collectBenchmarkResults(resultsDir) {
-  const results = {};
-  let entries = [];
-  try {
-    entries = await readdir(resultsDir);
-  } catch {
-    return results;
-  }
-  for (const entry of entries) {
-    if (!entry.endsWith(".json")) continue;
-    const fullPath = path.join(resultsDir, entry);
-    let fileStat;
-    try {
-      fileStat = await stat(fullPath);
-    } catch {
-      continue;
-    }
-    if (!fileStat.isFile()) continue;
-    try {
-      const data = JSON.parse(await readFile(fullPath, "utf8"));
-      results[entry] = data;
-    } catch {
-    }
-  }
-  return results;
-}
-
 export async function collectEvidence(resultsDir, options = {}) {
   const evidence = await loadEvidence(resultsDir);
   if (options.configPath) {
@@ -356,7 +347,6 @@ export async function collectEvidence(resultsDir, options = {}) {
     } catch {
     }
   }
-  evidence._benchmarkResults = await collectBenchmarkResults(resultsDir);
   return evidence;
 }
 
@@ -414,8 +404,12 @@ async function updateBaselineFile(baselinePath, decision, reasons) {
   const section = formatBaselineSection(decision, reasons);
   let next;
   if (existing.includes("## Phase 0 decision")) {
-    const before = existing.split("## Phase 0 decision")[0];
-    next = `${before.trimEnd()}\n\n${section}\n`;
+    const start = existing.indexOf("## Phase 0 decision");
+    const before = existing.slice(0, start).trimEnd();
+    const remainder = existing.slice(start);
+    const nextHeader = remainder.indexOf("\n## ", 1);
+    const after = nextHeader === -1 ? "" : remainder.slice(nextHeader);
+    next = `${before}\n\n${section}${after ? after.startsWith("\n") ? after : `\n${after}` : "\n"}`;
   } else {
     next = `${existing.trimEnd()}\n\n${section}\n`;
   }
@@ -431,8 +425,17 @@ async function main() {
   if (!args.results) {
     throw new Error("--results <dir> is required");
   }
-  const evidence = await collectEvidence(args.results, { configPath: args.config });
-  const result = evaluateDecision(evidence);
+  let result;
+  try {
+    const evidence = await collectEvidence(args.results, { configPath: args.config });
+    result = evaluateDecision(evidence);
+  } catch (error) {
+    if (error && error.message && error.message.includes("missing evidence file")) {
+      result = { decision: "stop-port", reasons: [error.message, "missing platform evidence: darwin", "missing platform evidence: win32", "missing platform evidence: linux", "missing application identity evidence", "missing updater-signing evidence"] };
+    } else {
+      throw error;
+    }
+  }
   process.stdout.write(`${result.decision}\n`);
   if (result.reasons.length > 0) {
     for (const reason of result.reasons) {

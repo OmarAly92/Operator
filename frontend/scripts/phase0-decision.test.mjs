@@ -9,6 +9,7 @@ function basePlatformEvidence(rendererKind = "webgl") {
     browser: { passed: true },
     terminal: {
       electron: {
+        terminalOpen: { median: 200, p95: 250 },
         warmStart: { median: 1000, p95: 1200 },
         firstRun: { median: 2000, p95: 2400 },
         vtebench: { median: 10 },
@@ -20,6 +21,7 @@ function basePlatformEvidence(rendererKind = "webgl") {
         cpuTime: { ms: 1000 },
       },
       tauri: {
+        terminalOpen: { median: 120, p95: 200 },
         warmStart: { median: 600, p95: 800 },
         firstRun: { median: 1500, p95: 1800 },
         vtebench: { median: 12 },
@@ -174,6 +176,46 @@ test("missing RPM produces stop-port", () => {
   const result = evaluateDecision(evidence);
   assert.equal(result.decision, "stop-port");
   assert.match(result.reasons.join(" "), /RPM/);
+});
+
+test("missing daemon produces stop-port", () => {
+  const evidence = validEvidence();
+  evidence.platforms.darwin.artifact.includesDaemon = false;
+  const result = evaluateDecision(evidence);
+  assert.equal(result.decision, "stop-port");
+  assert.match(result.reasons.join(" "), /daemon/);
+});
+
+test("terminal-open median regression produces stop-port", () => {
+  const evidence = validEvidence();
+  evidence.platforms.darwin.terminal.tauri.terminalOpen.median = 180;
+  const result = evaluateDecision(evidence);
+  assert.equal(result.decision, "stop-port");
+  assert.match(result.reasons.join(" "), /terminal-open median/);
+});
+
+test("terminal-open p95 regression produces stop-port", () => {
+  const evidence = validEvidence();
+  evidence.platforms.win32.terminal.tauri.terminalOpen.p95 = 300;
+  const result = evaluateDecision(evidence);
+  assert.equal(result.decision, "stop-port");
+  assert.match(result.reasons.join(" "), /terminal-open p95/);
+});
+
+test("bridge handoff with invalid signature produces stop-port", () => {
+  const evidence = validEvidence();
+  evidence.platforms.darwin.legacyUpdate = { success: false, bridgeRequired: true, bridgeProven: true, handoff: { signed: false, replacesDirectly: true } };
+  const result = evaluateDecision(evidence);
+  assert.equal(result.decision, "stop-port");
+  assert.match(result.reasons.join(" "), /bridge handoff invalid/);
+});
+
+test("bridge handoff with non-replacing proof produces stop-port", () => {
+  const evidence = validEvidence();
+  evidence.platforms.linux.legacyUpdate = { success: false, bridgeRequired: true, bridgeProven: true, handoff: { signed: true, replacesDirectly: false } };
+  const result = evaluateDecision(evidence);
+  assert.equal(result.decision, "stop-port");
+  assert.match(result.reasons.join(" "), /bridge handoff invalid/);
 });
 
 test("changed application identity produces stop-port", () => {

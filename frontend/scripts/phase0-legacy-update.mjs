@@ -42,7 +42,7 @@ export function evaluateLegacyUpdate(migrations) {
     if (data.bridgeRequired === true && data.bridgeProven === true) {
       bridgeRequired = true;
       try {
-        validateBridgeHandoff({ signed: true, replacesDirectly: true });
+        validateBridgeHandoff(data.handoff ?? { signed: data.bridgeProven === true, replacesDirectly: data.replacesDirectly ?? true });
       } catch (error) {
         reasons.push(`bridge handoff invalid on ${platform}: ${error.message}`);
         continue;

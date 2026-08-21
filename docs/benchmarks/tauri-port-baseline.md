@@ -45,9 +45,13 @@ Both the absolute and relative artifact-size limits are binding. A Phase 0 resul
 
 Decision: `stop-port`
 
-Timestamp: 2026-08-21T07:45:26.841Z
+Timestamp: 2026-08-21T07:58:23.423Z
 
 Reasons:
+- missing evidence file: perf/results/phase0-evidence.json or perf/results/evidence.json
+- missing platform evidence: darwin
 - missing platform evidence: win32
 - missing platform evidence: linux
+- missing application identity evidence
+- missing updater-signing evidence
 

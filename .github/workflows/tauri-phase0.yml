@@ -151,13 +151,13 @@ jobs:
       - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
       - name: ephemeral updater signing
         run: |
-          mkdir -p /tmp/tauri-phase0-fixture
-          echo "tauri phase0 fixture $(date)" > /tmp/tauri-phase0-fixture/archive.tar
-          mkdir -p /tmp/tauri-phase0-output
-          node scripts/phase0-updater-signing.mjs --fixture /tmp/tauri-phase0-fixture/archive.tar --output /tmp/tauri-phase0-output --tmp-dir /tmp
-          cat /tmp/tauri-phase0-output/updater-signing-evidence.json
-          if grep -r "PRIVATE KEY" /tmp/tauri-phase0-output; then echo "private key leaked"; exit 1; fi
-          git status --porcelain -- /tmp/tauri-phase0-output || true
+          mkdir -p perf/updater-fixture
+          echo "tauri phase0 fixture $(date)" > perf/updater-fixture/archive.tar
+          mkdir -p perf/updater-output
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/archive.tar --output perf/updater-output --tmp-dir /tmp
+          cat perf/updater-output/updater-signing-evidence.json
+          if grep -r "PRIVATE KEY" perf/updater-output; then echo "private key leaked"; exit 1; fi
+          git status --porcelain -- perf/updater-output
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -180,13 +180,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: |
-          mkdir -p /tmp/tauri-updater-fixture
-          echo "fixture for updater signing gate" > /tmp/tauri-updater-fixture/fixture.tar
-          mkdir -p /tmp/tauri-updater-output
-          node scripts/phase0-updater-signing.mjs --fixture /tmp/tauri-updater-fixture/fixture.tar --output /tmp/tauri-updater-output --tmp-dir /tmp
-          ls -lh /tmp/tauri-updater-output/
-          cat /tmp/tauri-updater-output/updater-signing-evidence.json
-          if grep -R "PRIVATE KEY" /tmp/tauri-updater-output; then exit 1; fi
+          mkdir -p perf/updater-fixture
+          echo "fixture for updater signing gate" > perf/updater-fixture/fixture.tar
+          mkdir -p perf/updater-output
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/fixture.tar --output perf/updater-output --tmp-dir /tmp
+          ls -lh perf/updater-output/
+          cat perf/updater-output/updater-signing-evidence.json
+          if grep -R "PRIVATE KEY" perf/updater-output; then exit 1; fi
+          git status --porcelain -- perf/updater-output
   legacy-update:
     strategy:
       fail-fast: false
@@ -222,7 +223,7 @@ jobs:
       - run: npm ci
       - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
       - run: |
-          node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md || true
+          node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md
           cat ../docs/benchmarks/tauri-port-baseline.md | tail -n 20
       - uses: actions/upload-artifact@v4
         if: always()
