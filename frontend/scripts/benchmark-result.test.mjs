@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -77,6 +78,34 @@ async function createMacReleaseFixture(temporaryRoot) {
 	}));
 	await writeFile(path.join(resources, "acp-runtime", "package.json"), JSON.stringify({ name: "@operator-dev/acp-runtime", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.64.2" } }));
 	return { artifact, installedApp };
+}
+
+async function createReleaseAttestationFixture(temporaryRoot, artifact, overrides = {}) {
+	const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+	const publicKeyPath = path.join(temporaryRoot, "release-attestation-public.pem");
+	const attestationPath = path.join(temporaryRoot, "release-attestation.json");
+	const signaturePath = path.join(temporaryRoot, "release-attestation.sig");
+	const publicKeyDer = publicKey.export({ type: "spki", format: "der" });
+	const attestation = {
+		schemaVersion: 1,
+		artifactSha256: createHash("sha256").update(await readFile(artifact)).digest("hex"),
+		applicationVersion: "1.2.3",
+		architecture: process.arch,
+		sourceCommit: "8311fc6004cefc1146dc1ac2b13413cb801c835b",
+		publisherIdentity: "TEAM123456",
+		...overrides,
+	};
+	const serialized = `${JSON.stringify(attestation, null, "\t")}\n`;
+	await writeFile(publicKeyPath, publicKey.export({ type: "spki", format: "pem" }));
+	await writeFile(attestationPath, serialized);
+	await writeFile(signaturePath, sign(null, Buffer.from(serialized), privateKey));
+	return {
+		attestation,
+		attestationPath,
+		signaturePath,
+		publicKeyPath,
+		expectedKeySha256: createHash("sha256").update(publicKeyDer).digest("hex"),
+	};
 }
 
 test("summarizeSamples returns the median and nearest-rank p95", () => {
@@ -281,6 +310,35 @@ test("process-tree accounting includes the launched process and every descendant
 	assert.equal(processTreeBytesFromPosixTable(table, 100), 1_835_008);
 });
 
+test("idle-memory accounting excludes the daemon subtree and reports it separately", async () => {
+	const { processTreeMemoryFromPosixTable } = await import("./benchmark-shell.mjs");
+	const table = ["100 1 1024", "101 100 512", "102 100 256", "103 102 128", "200 1 8192"].join("\n");
+	assert.deepEqual(processTreeMemoryFromPosixTable(table, 100, 102), {
+		shellBytes: 1_572_864,
+		daemonBytes: 393_216,
+	});
+});
+
+test("unattested shell executables cannot inherit a requested binding profile", async () => {
+	const { resolveShellBenchmarkProvenance } = await import("./benchmark-shell.mjs");
+	const provenance = await resolveShellBenchmarkProvenance(
+		{
+			OPERATOR_BENCH_ELECTRON_EXECUTABLE: "/arbitrary/operator",
+			OPERATOR_BENCH_BUILD_PROFILE: "signed-release-attested",
+		},
+		{
+			resolveExecutable: async () => "/arbitrary/operator",
+			collectGitMetadata: async () => ({ commit: "751744d15340c3d65166023f8c358f9a2438af78", dirty: true }),
+		},
+	);
+	assert.deepEqual(provenance, {
+		executablePath: "/arbitrary/operator",
+		buildProfile: "local-installed-unattested-non-binding",
+		git: { commit: "751744d15340c3d65166023f8c358f9a2438af78", dirty: true },
+		attestation: undefined,
+	});
+});
+
 test("first-run completion observes daemon readiness while warm-start uses the renderer mark", async () => {
 	const { observeStartupCompletion } = await import("./benchmark-shell.mjs");
 	let requests = 0;
@@ -477,15 +535,91 @@ test("artifact arguments require explicit signed and installed inputs", async ()
 		parseArtifactArguments(["--shell", "electron"], {
 			OPERATOR_BENCH_SIGNED_ARTIFACT: "release.zip",
 			OPERATOR_BENCH_INSTALLED_APP: "installed-app",
+			OPERATOR_BENCH_RELEASE_ATTESTATION: "release-attestation.json",
+			OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE: "release-attestation.sig",
+			OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY: "release-attestation-public.pem",
+			OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256: "ab".repeat(32),
 		}),
 		{
 			shell: "electron",
 			signedArtifact: "release.zip",
 			installedApp: "installed-app",
+			attestationPath: "release-attestation.json",
+			signaturePath: "release-attestation.sig",
+			publicKeyPath: "release-attestation-public.pem",
+			expectedKeySha256: "ab".repeat(32),
 			managedBrowser: undefined,
 		},
 	);
 	assert.throws(() => parseArtifactArguments(["--shell", "electron"], {}), /OPERATOR_BENCH_SIGNED_ARTIFACT/);
+});
+
+test("release attestation rejects an artifact digest mismatch", async () => {
+	const { validateReleaseAttestation } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-release-artifact-mismatch-"));
+	try {
+		const artifact = path.join(temporaryRoot, "Operator-1.2.3-arm64.zip");
+		await writeFile(artifact, "signed-release");
+		const fixture = await createReleaseAttestationFixture(temporaryRoot, artifact);
+		await writeFile(artifact, "different-signed-release");
+		await assert.rejects(
+			validateReleaseAttestation({
+				signedArtifact: artifact,
+				...fixture,
+				applicationVersion: "1.2.3",
+				architecture: process.arch,
+				publisherIdentity: "TEAM123456",
+			}),
+			/artifact digest does not match/,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("release attestation rejects a source commit changed after publisher signing", async () => {
+	const { validateReleaseAttestation } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-release-commit-mismatch-"));
+	try {
+		const artifact = path.join(temporaryRoot, "Operator-1.2.3-arm64.zip");
+		await writeFile(artifact, "signed-release");
+		const fixture = await createReleaseAttestationFixture(temporaryRoot, artifact);
+		await writeFile(fixture.attestationPath, `${JSON.stringify({ ...fixture.attestation, sourceCommit: "751744d15340c3d65166023f8c358f9a2438af78" }, null, "\t")}\n`);
+		await assert.rejects(
+			validateReleaseAttestation({
+				signedArtifact: artifact,
+				...fixture,
+				applicationVersion: "1.2.3",
+				architecture: process.arch,
+				publisherIdentity: "TEAM123456",
+			}),
+			/release attestation signature is invalid/,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
+});
+
+test("release attestation accepts a signed artifact-bound provenance statement", async () => {
+	const { validateReleaseAttestation } = await import("./benchmark-artifact.mjs");
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-release-attestation-valid-"));
+	try {
+		const artifact = path.join(temporaryRoot, "Operator-1.2.3-arm64.zip");
+		await writeFile(artifact, "signed-release");
+		const fixture = await createReleaseAttestationFixture(temporaryRoot, artifact);
+		assert.deepEqual(
+			await validateReleaseAttestation({
+				signedArtifact: artifact,
+				...fixture,
+				applicationVersion: "1.2.3",
+				architecture: process.arch,
+				publisherIdentity: "TEAM123456",
+			}),
+			fixture.attestation,
+		);
+	} finally {
+		await rm(temporaryRoot, { recursive: true, force: true });
+	}
 });
 
 test("artifact preflight rejects arbitrary paths before signature and runtime collection", async () => {
@@ -513,8 +647,17 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-attested-"));
 	try {
 		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		const attestation = await createReleaseAttestationFixture(temporaryRoot, artifact);
 		const preflight = await preflightArtifactBenchmark(
-			{ shell: "electron", signedArtifact: artifact, installedApp },
+			{
+				shell: "electron",
+				signedArtifact: artifact,
+				installedApp,
+				attestationPath: attestation.attestationPath,
+				signaturePath: attestation.signaturePath,
+				publicKeyPath: attestation.publicKeyPath,
+				expectedKeySha256: attestation.expectedKeySha256,
+			},
 			{
 				platform: "darwin",
 				env: { OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456" },
@@ -522,6 +665,7 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 				verifyArtifactBinding: async () => {},
 				collectRuntimeMetadata: async () => ({
 					source: "installed-release-launch",
+					architecture: process.arch,
 					applicationVersion: "1.2.3",
 					webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 					rendererKind: "chromium",
@@ -532,6 +676,7 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 		assert.equal(preflight.buildProfile, "signed-release-attested");
 		assert.equal(preflight.renderer.webviewRuntimeVersion, "Electron 33.4.11 / Chromium 130.0.6723.191");
 		assert.equal(preflight.renderer.displayScale, 2);
+		assert.deepEqual(preflight.attestation, attestation.attestation);
 		assert.deepEqual(preflight.components, {
 			daemon: "opr 1.2.3",
 			agentBrowser: "agent-browser 0.33.1",
@@ -573,6 +718,7 @@ test("artifact preflight refuses absent or mismatched trusted publisher identity
 		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
 		const runtime = async () => ({
 			source: "installed-release-launch",
+			architecture: process.arch,
 			webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 			rendererKind: "chromium",
 			displayScale: 2,
@@ -644,6 +790,7 @@ test("artifact preflight rejects expected-path files with false component identi
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
 						displayScale: 2,
@@ -678,6 +825,7 @@ test("artifact preflight rejects an ACP package whose executable mapping is not 
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
 						displayScale: 2,
@@ -708,6 +856,7 @@ test("artifact preflight requires exact agent-browser version semantics", async 
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						applicationVersion: "1.2.3",
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
@@ -739,6 +888,7 @@ test("artifact preflight refuses a dev daemon for signed release evidence", asyn
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						applicationVersion: "1.2.3",
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
@@ -768,6 +918,7 @@ test("artifact preflight requires the daemon version to match the installed appl
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						applicationVersion: "1.2.4",
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
@@ -803,6 +954,7 @@ test("artifact preflight pins the installed Electron and Chromium runtime versio
 						verifyArtifactBinding: async () => {},
 						collectRuntimeMetadata: async () => ({
 							source: "installed-release-launch",
+							architecture: process.arch,
 							applicationVersion: "1.2.3",
 							webviewRuntimeVersion,
 							rendererKind: "chromium",
@@ -835,6 +987,7 @@ test("artifact preflight executes the packaged ACP adapter with the packaged Nod
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						applicationVersion: "1.2.3",
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
@@ -864,6 +1017,7 @@ test("artifact preflight refuses installed components not bound to the signed ar
 					verifyArtifactBinding: async () => { throw new Error("installed tree does not match the signed artifact payload"); },
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
 						displayScale: 2,
@@ -921,6 +1075,7 @@ test("artifact runner preflights every input before creating result files", asyn
 		const installedApp = path.join(temporaryRoot, "Operator.app");
 		await writeFile(artifact, "release");
 		await mkdir(installedApp);
+		const attestation = await createReleaseAttestationFixture(temporaryRoot, artifact);
 		await assert.rejects(
 			runArtifactBenchmark(
 				["--shell", "electron"],
@@ -928,6 +1083,10 @@ test("artifact runner preflights every input before creating result files", asyn
 					OPERATOR_BENCH_SIGNED_ARTIFACT: artifact,
 					OPERATOR_BENCH_INSTALLED_APP: installedApp,
 					OPERATOR_BENCH_MANAGED_BROWSER: path.join(temporaryRoot, "missing-browser"),
+					OPERATOR_BENCH_RELEASE_ATTESTATION: attestation.attestationPath,
+					OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE: attestation.signaturePath,
+					OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY: attestation.publicKeyPath,
+					OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256: attestation.expectedKeySha256,
 					OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456",
 				},
 				{ resultRoot },
@@ -945,6 +1104,7 @@ test("artifact runner rolls back the batch when a later result publication fails
 	const resultRoot = path.join(temporaryRoot, "perf", "results");
 	try {
 		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
+		const attestation = await createReleaseAttestationFixture(temporaryRoot, artifact);
 		let publicationAttempts = 0;
 		await assert.rejects(
 			runArtifactBenchmark(
@@ -952,6 +1112,10 @@ test("artifact runner rolls back the batch when a later result publication fails
 				{
 					OPERATOR_BENCH_SIGNED_ARTIFACT: artifact,
 					OPERATOR_BENCH_INSTALLED_APP: installedApp,
+					OPERATOR_BENCH_RELEASE_ATTESTATION: attestation.attestationPath,
+					OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE: attestation.signaturePath,
+					OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY: attestation.publicKeyPath,
+					OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256: attestation.expectedKeySha256,
 					OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID: "TEAM123456",
 				},
 				{
@@ -961,12 +1125,12 @@ test("artifact runner rolls back the batch when a later result publication fails
 					verifyArtifactBinding: async () => {},
 					collectRuntimeMetadata: async () => ({
 						source: "installed-release-launch",
+						architecture: process.arch,
 						applicationVersion: "1.2.3",
 						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
 						rendererKind: "chromium",
 						displayScale: 2,
 					}),
-					collectGitMetadata: async () => ({ commit: "8311fc6004cefc1146dc1ac2b13413cb801c835b", dirty: false }),
 					collectHostMetadata: () => ({
 						platform: "darwin",
 						architecture: "arm64",

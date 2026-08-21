@@ -38,6 +38,7 @@ const REQUIRED_SAMPLES = Object.freeze({
 	"warm-start": 10,
 	"first-run": 10,
 	"idle-memory": 5,
+	"idle-daemon-memory": 5,
 	vtebench: 10,
 	"large-output": 10,
 });

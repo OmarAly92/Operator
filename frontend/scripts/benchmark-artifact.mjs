@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
@@ -10,7 +11,6 @@ import { _electron as electron } from "playwright";
 import {
 	DEFAULT_RESULT_ROOT,
 	benchmarkResultPath,
-	collectGitMetadata,
 	collectHostMetadata,
 	createBenchmarkResult,
 	parseNamedArguments,
@@ -29,10 +29,21 @@ export function parseArtifactArguments(argv, env = process.env) {
 	if (Object.keys(namedArguments).some((key) => key !== "shell")) throw new Error("unknown artifact benchmark argument");
 	if (!env.OPERATOR_BENCH_SIGNED_ARTIFACT) throw new Error("OPERATOR_BENCH_SIGNED_ARTIFACT must name the native signed download artifact");
 	if (!env.OPERATOR_BENCH_INSTALLED_APP) throw new Error("OPERATOR_BENCH_INSTALLED_APP must name the installed application");
+	if (!env.OPERATOR_BENCH_RELEASE_ATTESTATION) throw new Error("OPERATOR_BENCH_RELEASE_ATTESTATION must name the publisher-signed release attestation");
+	if (!env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE) throw new Error("OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE must name its detached Ed25519 signature");
+	if (!env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY) throw new Error("OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY must name the trusted Ed25519 public key");
+	const expectedAttestationKeySha256 = env.OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256?.toLowerCase();
+	if (!/^[0-9a-f]{64}$/.test(expectedAttestationKeySha256 ?? "")) {
+		throw new Error("OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256 must contain the trusted public-key SHA-256 fingerprint");
+	}
 	return {
 		shell: namedArguments.shell,
 		signedArtifact: env.OPERATOR_BENCH_SIGNED_ARTIFACT,
 		installedApp: env.OPERATOR_BENCH_INSTALLED_APP,
+		attestationPath: env.OPERATOR_BENCH_RELEASE_ATTESTATION,
+		signaturePath: env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE,
+		publicKeyPath: env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY,
+		expectedKeySha256: expectedAttestationKeySha256,
 		managedBrowser: env.OPERATOR_BENCH_MANAGED_BROWSER,
 		...(env.OPERATOR_BENCH_ARTIFACT_SIGNATURE ? { artifactSignature: env.OPERATOR_BENCH_ARTIFACT_SIGNATURE } : {}),
 	};
@@ -51,6 +62,75 @@ export async function measurePathBytes(targetPath) {
 function requireString(value, location) {
 	if (typeof value !== "string" || value.trim() === "") throw new Error(`missing verified metadata: ${location}`);
 	return value;
+}
+
+async function fileSha256(targetPath) {
+	const hash = createHash("sha256");
+	for await (const chunk of createReadStream(targetPath)) hash.update(chunk);
+	return hash.digest("hex");
+}
+
+function observedPublisherIdentity(platform, observedPublisher) {
+	if (platform === "darwin") return observedPublisher?.teamId;
+	if (platform === "win32") return observedPublisher?.thumbprint?.replaceAll(" ", "").toUpperCase();
+	if (platform === "linux") return observedPublisher?.fingerprint?.replaceAll(" ", "").toUpperCase();
+	throw new Error(`unsupported native publisher platform: ${platform}`);
+}
+
+async function verifiedAttestationBytes({ attestationPath, signaturePath, publicKeyPath, expectedKeySha256 }) {
+	const [attestationBytes, signature, publicKeyBytes] = await Promise.all([
+		readFile(attestationPath),
+		readFile(signaturePath),
+		readFile(publicKeyPath),
+	]);
+	const publicKey = createPublicKey(publicKeyBytes);
+	if (publicKey.asymmetricKeyType !== "ed25519") throw new Error("release attestation public key must be Ed25519");
+	const publicKeySha256 = createHash("sha256").update(publicKey.export({ type: "spki", format: "der" })).digest("hex");
+	if (publicKeySha256 !== expectedKeySha256?.toLowerCase()) throw new Error("release attestation public key does not match the trusted fingerprint");
+	if (!verify(null, attestationBytes, publicKey, signature)) throw new Error("release attestation signature is invalid");
+	return attestationBytes;
+}
+
+function parseReleaseAttestation(attestationBytes) {
+	let attestation;
+	try {
+		attestation = JSON.parse(attestationBytes);
+	} catch {
+		throw new Error("release attestation must contain valid JSON");
+	}
+	const fields = ["schemaVersion", "artifactSha256", "applicationVersion", "architecture", "sourceCommit", "publisherIdentity"];
+	if (
+		attestation === null ||
+		typeof attestation !== "object" ||
+		Array.isArray(attestation) ||
+		Object.keys(attestation).length !== fields.length ||
+		fields.some((field) => !Object.hasOwn(attestation, field))
+	) {
+		throw new Error("release attestation must contain only the required provenance fields");
+	}
+	if (attestation.schemaVersion !== 1) throw new Error("release attestation schemaVersion must equal 1");
+	if (!/^[0-9a-f]{64}$/.test(attestation.artifactSha256 ?? "")) throw new Error("release attestation artifactSha256 must be a lowercase SHA-256 digest");
+	if (!/^[0-9a-f]{40}$/.test(attestation.sourceCommit ?? "")) throw new Error("release attestation sourceCommit must be a full lowercase Git object ID");
+	for (const field of ["applicationVersion", "architecture", "publisherIdentity"]) requireString(attestation[field], `attestation.${field}`);
+	return attestation;
+}
+
+function validateAttestationClaims(attestation, expected) {
+	const { artifactSha256, applicationVersion, architecture, publisherIdentity } = expected;
+	if (attestation.artifactSha256 !== artifactSha256) throw new Error("release attestation artifact digest does not match the signed artifact");
+	if (attestation.applicationVersion !== applicationVersion) throw new Error("release attestation application version does not match the installed runtime");
+	if (attestation.architecture !== architecture) throw new Error("release attestation architecture does not match the installed runtime");
+	if (attestation.publisherIdentity !== publisherIdentity) throw new Error("release attestation publisher identity does not match the native signature");
+	return attestation;
+}
+
+export async function validateReleaseAttestation(input) {
+	const [attestationBytes, artifactSha256] = await Promise.all([
+		verifiedAttestationBytes(input),
+		fileSha256(input.signedArtifact),
+	]);
+	const attestation = parseReleaseAttestation(attestationBytes);
+	return validateAttestationClaims(attestation, { artifactSha256, ...input });
 }
 
 function artifactExtension(platform) {
@@ -179,6 +259,7 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 		const page = await application.firstWindow({ timeout: 120_000 });
 		const versions = await application.evaluate(({ app }) => ({
 			application: app.getVersion(),
+			architecture: process.arch,
 			electron: process.versions.electron,
 			chromium: process.versions.chrome,
 		}));
@@ -186,6 +267,7 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 		return {
 			source: "installed-release-launch",
 			applicationVersion: versions.application,
+			architecture: versions.architecture,
 			webviewRuntimeVersion: `Electron ${versions.electron} / Chromium ${versions.chromium}`,
 			rendererKind,
 			displayScale: await page.evaluate(() => window.devicePixelRatio),
@@ -199,6 +281,7 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 function validateRuntime(runtime) {
 	if (runtime?.source !== "installed-release-launch") throw new Error("runtime metadata must come from an installed release launch");
 	const applicationVersion = requireString(runtime.applicationVersion, "runtime.applicationVersion");
+	const architecture = requireString(runtime.architecture, "runtime.architecture");
 	const webviewRuntimeVersion = requireString(runtime.webviewRuntimeVersion, "runtime.webviewRuntimeVersion");
 	const expectedWebviewRuntimeVersion = `Electron ${expectedRuntime.electron} / Chromium ${expectedRuntime.chromium}`;
 	if (webviewRuntimeVersion !== expectedWebviewRuntimeVersion) {
@@ -206,7 +289,7 @@ function validateRuntime(runtime) {
 	}
 	const rendererKind = requireString(runtime.rendererKind, "runtime.rendererKind");
 	if (!Number.isFinite(runtime.displayScale) || runtime.displayScale <= 0) throw new Error("runtime metadata must contain the observed positive display scale");
-	return { applicationVersion, webviewRuntimeVersion, rendererKind, displayScale: runtime.displayScale };
+	return { applicationVersion, architecture, webviewRuntimeVersion, rendererKind, displayScale: runtime.displayScale };
 }
 
 async function updateTreeDigest(hash, root, target) {
@@ -280,12 +363,18 @@ async function preflightRequestedPaths(options, platform) {
 		installedApp: options.installedApp,
 		...(options.managedBrowser ? { managedBrowser: options.managedBrowser } : {}),
 		...(options.artifactSignature ? { artifactSignature: options.artifactSignature } : {}),
+		...(options.attestationPath ? { attestationPath: options.attestationPath } : {}),
+		...(options.signaturePath ? { signaturePath: options.signaturePath } : {}),
+		...(options.publicKeyPath ? { publicKeyPath: options.publicKeyPath } : {}),
 	};
 	const requestedPathMetadata = Object.fromEntries(await Promise.all(Object.entries(requestedPaths).map(async ([name, target]) => [name, await lstat(target)])));
 	if (!requestedPathMetadata.signedArtifact.isFile() || requestedPathMetadata.signedArtifact.isSymbolicLink()) throw new Error("signed release artifact must be a regular file");
 	if (!requestedPathMetadata.installedApp.isDirectory() || requestedPathMetadata.installedApp.isSymbolicLink()) throw new Error("installed application must be a real directory");
 	if (requestedPathMetadata.managedBrowser && (!requestedPathMetadata.managedBrowser.isDirectory() || requestedPathMetadata.managedBrowser.isSymbolicLink())) throw new Error("managed browser input must be a real directory");
 	if (requestedPathMetadata.artifactSignature && (!requestedPathMetadata.artifactSignature.isFile() || requestedPathMetadata.artifactSignature.isSymbolicLink())) throw new Error("artifact signature must be a regular file");
+	for (const name of ["attestationPath", "signaturePath", "publicKeyPath"]) {
+		if (requestedPathMetadata[name] && (!requestedPathMetadata[name].isFile() || requestedPathMetadata[name].isSymbolicLink())) throw new Error(`${name} must be a regular file`);
+	}
 	if (platform === "darwin" && path.extname(options.installedApp) !== ".app") throw new Error("macOS installed application must be an Operator .app bundle");
 }
 
@@ -368,19 +457,29 @@ export async function preflightArtifactBenchmark(options, dependencies = {}) {
 	const observedRuntime = await (dependencies.collectRuntimeMetadata ?? collectInstalledRuntimeMetadata)({
 		executable: layout.executable,
 	});
-	const { applicationVersion, ...renderer } = validateRuntime(observedRuntime);
+	const { applicationVersion, architecture, ...renderer } = validateRuntime(observedRuntime);
 	if (components.daemon !== `opr ${applicationVersion}`) {
 		throw new Error(`packaged daemon version ${components.daemon.slice(4)} does not match installed application version ${applicationVersion}`);
 	}
+	const attestation = await (dependencies.validateAttestation ?? validateReleaseAttestation)({
+		signedArtifact: options.signedArtifact,
+		attestationPath: options.attestationPath,
+		signaturePath: options.signaturePath,
+		publicKeyPath: options.publicKeyPath,
+		expectedKeySha256: options.expectedKeySha256,
+		applicationVersion,
+		architecture,
+		publisherIdentity: observedPublisherIdentity(platform, observedPublisher),
+	});
 	const measured = await artifactMeasurements(options);
-	return { buildProfile: "signed-release-attested", components, measured, renderer };
+	return { buildProfile: "signed-release-attested", components, measured, renderer, executable: layout.executable, attestation };
 }
 
 export async function runArtifactBenchmark(argv = process.argv.slice(2), env = process.env, dependencies = {}) {
 	const options = parseArtifactArguments(argv, env);
 	const preflight = await preflightArtifactBenchmark(options, { ...dependencies, env });
-	const git = await (dependencies.collectGitMetadata ?? collectGitMetadata)();
-	const host = (dependencies.collectHostMetadata ?? collectHostMetadata)();
+	const host = { ...(dependencies.collectHostMetadata ?? collectHostMetadata)(), architecture: preflight.attestation.architecture };
+	const git = { commit: preflight.attestation.sourceCommit, dirty: false };
 	const benchmarkResults = preflight.measured.map((measurement) => createBenchmarkResult({
 		shell: options.shell,
 		scenario: measurement.scenario,
@@ -388,12 +487,18 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 		git,
 		host,
 		renderer: preflight.renderer,
-		scenarioConfiguration: {
+			scenarioConfiguration: {
 			artifactKind: measurement.artifactKind,
 			accounting: "recursive-regular-file-bytes",
 			baseContents: Object.values(preflight.components),
 			artifactIdentity: "native-signature-and-required-contents-verified",
-			runtimeMetadataSource: "installed-release-launch",
+				runtimeMetadataSource: "installed-release-launch",
+				releaseAttestation: {
+					artifactSha256: preflight.attestation.artifactSha256,
+					applicationVersion: preflight.attestation.applicationVersion,
+					publisherIdentity: preflight.attestation.publisherIdentity,
+					source: "publisher-ed25519-signed",
+				},
 		},
 		warmups: 0,
 		samples: [measurement.bytes],
@@ -416,7 +521,7 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 
 async function main() {
 	if (process.argv.includes("--help")) {
-		process.stdout.write("OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID=... node scripts/benchmark-artifact.mjs --shell electron\nWindows additionally requires OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER and OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT; Linux requires OPERATOR_BENCH_ARTIFACT_SIGNATURE and OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT.\n");
+		process.stdout.write("OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... OPERATOR_BENCH_RELEASE_ATTESTATION=... OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE=... OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY=... OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256=... OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID=... node scripts/benchmark-artifact.mjs --shell electron\nWindows additionally requires OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER and OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT; Linux requires OPERATOR_BENCH_ARTIFACT_SIGNATURE and OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT.\n");
 		return;
 	}
 	await runArtifactBenchmark();

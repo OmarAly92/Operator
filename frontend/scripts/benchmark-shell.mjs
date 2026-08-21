@@ -14,8 +14,9 @@ import {
 	createBenchmarkResult,
 	parseNamedArguments,
 	scenarioResultConfiguration,
-	writeBenchmarkResult,
+	writeBenchmarkResultBatch,
 } from "./benchmark-result.mjs";
+import { parseArtifactArguments, preflightArtifactBenchmark } from "./benchmark-artifact.mjs";
 
 const execFileAsync = promisify(execFile);
 const frontendRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -35,7 +36,11 @@ export function parseShellArguments(argv) {
 }
 
 export function processTreeBytesFromPosixTable(table, rootProcessId) {
-	const processes = table
+	return sumProcessTree(parsePosixProcessTable(table), rootProcessId);
+}
+
+function parsePosixProcessTable(table) {
+	return table
 		.trim()
 		.split("\n")
 		.map((line) => line.trim().split(/\s+/).map(Number))
@@ -43,10 +48,9 @@ export function processTreeBytesFromPosixTable(table, rootProcessId) {
 			[processId, parentProcessId, residentKilobytes].every(Number.isFinite),
 		)
 		.map(([processId, parentProcessId, residentKilobytes]) => ({ processId, parentProcessId, bytes: residentKilobytes * 1024 }));
-	return sumProcessTree(processes, rootProcessId);
 }
 
-function sumProcessTree(processes, rootProcessId) {
+function processTreeIds(processes, rootProcessId) {
 	const included = new Set([rootProcessId]);
 	let changed = true;
 	while (changed) {
@@ -58,26 +62,49 @@ function sumProcessTree(processes, rootProcessId) {
 			}
 		}
 	}
+	return included;
+}
+
+function sumProcesses(processes, included) {
 	return processes.filter((process) => included.has(process.processId)).reduce((total, process) => total + process.bytes, 0);
 }
 
-async function processTreeBytes(rootProcessId) {
+function sumProcessTree(processes, rootProcessId) {
+	return sumProcesses(processes, processTreeIds(processes, rootProcessId));
+}
+
+function processTreeMemory(processes, rootProcessId, daemonProcessId) {
+	const fullTree = processTreeIds(processes, rootProcessId);
+	if (!fullTree.has(daemonProcessId)) throw new Error("isolated daemon is not a descendant of the launched shell process");
+	const daemonTree = processTreeIds(processes, daemonProcessId);
+	return {
+		shellBytes: sumProcesses(processes, new Set([...fullTree].filter((processId) => !daemonTree.has(processId)))),
+		daemonBytes: sumProcesses(processes, daemonTree),
+	};
+}
+
+export function processTreeMemoryFromPosixTable(table, rootProcessId, daemonProcessId) {
+	return processTreeMemory(parsePosixProcessTable(table), rootProcessId, daemonProcessId);
+}
+
+async function collectProcessTreeMemory(rootProcessId, daemonProcessId) {
 	if (process.platform === "win32") {
 		const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize | ConvertTo-Json -Compress";
 		const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]);
 		const decoded = JSON.parse(stdout);
 		const rows = Array.isArray(decoded) ? decoded : [decoded];
-		return sumProcessTree(
+		return processTreeMemory(
 			rows.map((row) => ({
 				processId: Number(row.ProcessId),
 				parentProcessId: Number(row.ParentProcessId),
 				bytes: Number(row.WorkingSetSize),
 			})),
 			rootProcessId,
+			daemonProcessId,
 		);
 	}
 	const { stdout } = await execFileAsync("ps", ["-axo", "pid=,ppid=,rss="]);
-	return processTreeBytesFromPosixTable(stdout, rootProcessId);
+	return processTreeMemoryFromPosixTable(stdout, rootProcessId, daemonProcessId);
 }
 
 async function availablePort() {
@@ -112,6 +139,41 @@ async function resolveElectronExecutable(env) {
 		if (existsSync(candidate)) return candidate;
 	}
 	throw new Error("no installed Electron build found; set OPERATOR_BENCH_ELECTRON_EXECUTABLE to the native release executable");
+}
+
+const artifactProvenanceInputs = [
+	"OPERATOR_BENCH_SIGNED_ARTIFACT",
+	"OPERATOR_BENCH_INSTALLED_APP",
+	"OPERATOR_BENCH_RELEASE_ATTESTATION",
+	"OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE",
+	"OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY",
+	"OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256",
+];
+
+export async function resolveShellBenchmarkProvenance(env, dependencies = {}) {
+	const resolveExecutable = dependencies.resolveExecutable ?? resolveElectronExecutable;
+	if (!artifactProvenanceInputs.some((name) => env[name])) {
+		return {
+			executablePath: await resolveExecutable(env),
+			buildProfile: "local-installed-unattested-non-binding",
+			git: await (dependencies.collectGitMetadata ?? collectGitMetadata)(),
+			attestation: undefined,
+		};
+	}
+	const options = parseArtifactArguments(["--shell", "electron"], env);
+	const preflight = await (dependencies.preflightArtifactBenchmark ?? preflightArtifactBenchmark)(options, { ...dependencies, env });
+	if (
+		env.OPERATOR_BENCH_ELECTRON_EXECUTABLE &&
+		path.resolve(env.OPERATOR_BENCH_ELECTRON_EXECUTABLE) !== path.resolve(preflight.executable)
+	) {
+		throw new Error("configured Electron executable is not the executable bound to the verified signed artifact");
+	}
+	return {
+		executablePath: preflight.executable,
+		buildProfile: preflight.buildProfile,
+		git: { commit: preflight.attestation.sourceCommit, dirty: false },
+		attestation: preflight.attestation,
+	};
 }
 
 async function rendererMarkTimestamp(page, markName) {
@@ -279,7 +341,10 @@ export async function launchSample({ executablePath, scenario, stateRoot }, depe
 			await page.waitForTimeout(scenario.idleSeconds * 1000);
 			const rootProcessId = application.process().pid;
 			if (!rootProcessId) throw new Error("Electron process identifier unavailable for transient accounting");
-			return { sample: await (dependencies.processTreeBytes ?? processTreeBytes)(rootProcessId), renderer };
+			const runFile = JSON.parse(await (dependencies.readFile ?? readFile)(path.join(stateRoot, "running.json"), "utf8"));
+			if (!Number.isInteger(runFile.pid) || runFile.pid <= 0) throw new Error("isolated daemon process identifier unavailable for transient accounting");
+			const memory = await (dependencies.collectProcessTreeMemory ?? collectProcessTreeMemory)(rootProcessId, runFile.pid);
+			return { sample: memory.shellBytes, daemonSample: memory.daemonBytes, renderer };
 		}
 		const completionTimestamp = firstRunCompletion ?? (await observeCompletion({ scenario, page, daemonPort }));
 		return { sample: startupDurationFromSpawn(rawSpawnTimestamp, completionTimestamp), renderer };
@@ -298,10 +363,12 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 	const options = parseShellArguments(argv);
 	const scenarios = JSON.parse(await readFile(scenariosPath, "utf8"));
 	const scenario = scenarios[options.scenario];
-	const executablePath = await resolveElectronExecutable(env);
-	const git = await collectGitMetadata();
+	const provenance = await resolveShellBenchmarkProvenance(env);
+	const executablePath = provenance.executablePath;
+	const git = provenance.git;
 	const host = collectHostMetadata();
 	const measurements = [];
+	const daemonMeasurements = [];
 	let rendererMetadataSnapshot;
 	const sharedState = options.scenario === "warm-start" ? await stateDirectory("electron-warm") : undefined;
 	try {
@@ -311,7 +378,10 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 			try {
 				const launchMeasurement = await launchSample({ executablePath, scenario, stateRoot: launchState });
 				rendererMetadataSnapshot ??= launchMeasurement.renderer;
-				if (index >= scenario.warmups) measurements.push(launchMeasurement.sample);
+				if (index >= scenario.warmups) {
+					measurements.push(launchMeasurement.sample);
+					if (launchMeasurement.daemonSample !== undefined) daemonMeasurements.push(launchMeasurement.daemonSample);
+				}
 			} finally {
 				if (!sharedState) await rm(launchState, { recursive: true, force: true });
 			}
@@ -319,14 +389,24 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 	} finally {
 		if (sharedState) await rm(sharedState, { recursive: true, force: true });
 	}
+	const releaseAttestation = provenance.attestation ? {
+		artifactSha256: provenance.attestation.artifactSha256,
+		applicationVersion: provenance.attestation.applicationVersion,
+		publisherIdentity: provenance.attestation.publisherIdentity,
+		source: "publisher-ed25519-signed",
+	} : undefined;
 	const benchmarkResult = createBenchmarkResult({
 		shell: options.shell,
 		scenario: options.scenario,
-		buildProfile: env.OPERATOR_BENCH_BUILD_PROFILE || "local-packaged",
+		buildProfile: provenance.buildProfile,
 		git,
 		host,
 		renderer: rendererMetadataSnapshot,
-		scenarioConfiguration: scenarioResultConfiguration(scenario),
+		scenarioConfiguration: {
+			...scenarioResultConfiguration(scenario),
+			...(options.scenario === "idle-memory" ? { accounting: "shell-and-webview-process-tree-excluding-daemon" } : {}),
+			...(releaseAttestation ? { releaseAttestation } : { evidenceScope: "non-binding" }),
+		},
 		warmups: scenario.warmups,
 		samples: measurements,
 		unit: scenario.unit,
@@ -336,8 +416,35 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 		scenario: options.scenario,
 		variant: env.OPERATOR_BENCH_VARIANT,
 	});
-	await writeBenchmarkResult(outputPath, benchmarkResult);
-	process.stdout.write(`${path.relative(frontendRoot, outputPath)}\n`);
+	const entries = [{ outputPath, benchmarkResult }];
+	if (options.scenario === "idle-memory") {
+		const daemonResult = createBenchmarkResult({
+			shell: options.shell,
+			scenario: "idle-daemon-memory",
+			buildProfile: provenance.buildProfile,
+			git,
+			host,
+			renderer: rendererMetadataSnapshot,
+			scenarioConfiguration: {
+				idleSeconds: scenario.idleSeconds,
+				accounting: "isolated-go-daemon-process-tree",
+				...(releaseAttestation ? { releaseAttestation } : { evidenceScope: "non-binding" }),
+			},
+			warmups: scenario.warmups,
+			samples: daemonMeasurements,
+			unit: scenario.unit,
+		});
+		entries.push({
+			outputPath: benchmarkResultPath({
+				shell: options.shell,
+				scenario: daemonResult.scenario,
+				variant: env.OPERATOR_BENCH_VARIANT,
+			}),
+			benchmarkResult: daemonResult,
+		});
+	}
+	await writeBenchmarkResultBatch(entries);
+	for (const entry of entries) process.stdout.write(`${path.relative(frontendRoot, entry.outputPath)}\n`);
 	return benchmarkResult;
 }
 
