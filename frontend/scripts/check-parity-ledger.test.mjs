@@ -114,6 +114,27 @@ test("rejects an unrecorded renderer Browser import exception", async () => {
 	assert(errors.some((message) => message.includes("exception is not allowed for renderer/hooks/useUnknownBrowser.ts/../../main/browser-view-host")));
 });
 
+test("requires a known deferred Browser entry to use the exact deferred record", async () => {
+	const errors = await errorsFor((ledger) => {
+		ledger[2] = { source: "preload.browser", member: "navigate", disposition: "native", owner: "tauri", task: 13, exception: null };
+	});
+	assert(errors.some((message) => message.includes("deferred Browser entry must use the exact deferred record for preload.browser/navigate")));
+});
+
+test("requires a known deferred Browser entry to keep a deferred disposition", async () => {
+	const errors = await errorsFor((ledger) => {
+		ledger[2] = { source: "preload.browser", member: "navigate", disposition: "native", owner: null, task: null, exception: deferredBrowserRecord };
+	});
+	assert(errors.some((message) => message.includes("deferred Browser entry disposition must be deferred for preload.browser/navigate")));
+});
+
+test("requires a known deferred Browser entry to keep null owner and task", async () => {
+	const errors = await errorsFor((ledger) => {
+		ledger[2] = { source: "preload.browser", member: "navigate", disposition: "deferred", owner: "tauri", task: 8, exception: deferredBrowserRecord };
+	});
+	assert(errors.some((message) => message.includes("deferred Browser entry owner and task must be null for preload.browser/navigate")));
+});
+
 test("preload inventory survives regular-expression literals", async () => {
 	const errors = await errorsFor(
 		(ledger) => ledger.push({ source: "preload.app", member: "matchesBrace", disposition: "renderer utility", owner: "renderer", task: 8, exception: null }),

@@ -69,11 +69,6 @@ type TelemetryConfig struct {
 	AppVersion string
 }
 
-// DefaultAllowedOrigins is the exact packaged-desktop allowlist: Electron uses
-// app://renderer, Tauri uses tauri://localhost on macOS and Linux, and Windows
-// uses http://tauri.localhost because useHttpsScheme remains disabled. Generic
-// loopback-served content is handled separately by the middleware. Wildcards,
-// scheme variations, lookalikes, and the opaque "null" origin are not allowed.
 var DefaultAllowedOrigins = []string{
 	"app://renderer",
 	"tauri://localhost",

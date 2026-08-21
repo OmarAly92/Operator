@@ -161,6 +161,12 @@ export async function validateParityLedger({ rootDir, ledger }) {
 		if (!inventoryKeys.has(key)) errors.push(`stale ${display}`);
 		if (typeof entry.disposition !== "string" || entry.disposition.trim() === "") errors.push(`disposition must be non-empty for ${display}`);
 
+		if (isDeferredBrowserEntry({ source, member })) {
+			if (entry.exception !== deferredBrowserRecord) errors.push(`deferred Browser entry must use the exact deferred record for ${display}`);
+			if (entry.disposition !== "deferred") errors.push(`deferred Browser entry disposition must be deferred for ${display}`);
+			if (entry.owner !== null || entry.task !== null) errors.push(`deferred Browser entry owner and task must be null for ${display}`);
+		}
+
 		if (entry.exception !== null) {
 			if (entry.exception !== deferredBrowserRecord || !isDeferredBrowserEntry({ source, member })) errors.push(`exception is not allowed for ${display}`);
 			if (entry.disposition !== "deferred") errors.push(`exception disposition must be deferred for ${display}`);
