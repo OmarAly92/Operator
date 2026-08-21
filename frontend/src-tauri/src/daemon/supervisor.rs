@@ -1,19 +1,18 @@
 use crate::daemon::discovery::{
-    bundled_daemon_binary_name, keep_daemon_alive, parse_daemon_listen_port, parse_daemon_probe,
-    parse_run_file, resolve_acp_runtime_dir, resolve_agent_browser_binary_path,
+    keep_daemon_alive, parse_daemon_probe, parse_run_file, resolve_acp_runtime_dir,
     resolve_daemon_launch, resolve_data_dir, resolve_run_file_path, should_link_on_attach,
-    supervisor_addr, with_fallback_path, DaemonProbe, ListenPortScanner,
+    supervisor_addr, DaemonProbe, ListenPortScanner,
 };
 use crate::daemon::{DaemonLaunchSpec, DaemonStatus};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UnixStream};
 use tokio::process::{Child, Command};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 const PORT_DISCOVERY_TIMEOUT: Duration = Duration::from_millis(30000);
 const RUN_FILE_POLL_INTERVAL: Duration = Duration::from_millis(300);
@@ -21,6 +20,7 @@ const RUN_FILE_FRESHNESS_SKEW: Duration = Duration::from_millis(2000);
 const DAEMON_PROBE_TIMEOUT: Duration = Duration::from_millis(2000);
 const DAEMON_RESTART_STOP_TIMEOUT: Duration = Duration::from_millis(5000);
 const MAX_DAEMON_OUTPUT_CHARS: usize = 12000;
+const SHELL_ENV_TIMEOUT: Duration = Duration::from_millis(3000);
 
 #[derive(Debug)]
 pub struct SupervisorLink {
@@ -68,10 +68,6 @@ impl SupervisorLink {
         if let Some(h) = self.handle.take() {
             h.abort();
         }
-    }
-    pub fn dispose_ref(&self) {
-        self.disposed.store(true, Ordering::SeqCst);
-        self.connected.store(false, Ordering::SeqCst);
     }
 }
 
@@ -222,6 +218,9 @@ pub struct DaemonManager {
     inner: Arc<Mutex<Inner>>,
     config: DaemonConfig,
     discovery_timeout: Duration,
+    start_lock: Arc<Mutex<()>>,
+    shell_env_cell: Arc<OnceCell<Option<HashMap<String, String>>>>,
+    log_port: Arc<Mutex<Option<u16>>>,
 }
 
 impl DaemonManager {
@@ -243,6 +242,9 @@ impl DaemonManager {
             inner: Arc::new(Mutex::new(inner)),
             config,
             discovery_timeout: timeout,
+            start_lock: Arc::new(Mutex::new(())),
+            shell_env_cell: Arc::new(OnceCell::new()),
+            log_port: Arc::new(Mutex::new(None)),
         }
     }
     pub fn with_config_and_timeout(config: DaemonConfig, timeout: Duration) -> Self {
@@ -257,14 +259,54 @@ impl DaemonManager {
     pub fn data_dir(&self) -> PathBuf {
         self.config.data_dir.clone()
     }
-    pub async fn status(&self) -> DaemonStatus {
-        let guard = self.inner.lock().await;
-        if guard.child.is_some() {
-            return guard.status.clone();
+    pub fn supervisor_connected(&self) -> bool {
+        let inner = self.inner.try_lock();
+        if let Ok(g) = inner {
+            if let Some(s) = g.supervisor.as_ref() {
+                return s.connected();
+            }
         }
-        drop(guard);
-        if let Some(attached) = self.try_attach().await {
+        false
+    }
+    async fn ensure_shell_env(&self) -> Option<HashMap<String, String>> {
+        if cfg!(windows) {
+            return None;
+        }
+        let cell = self.shell_env_cell.clone();
+        let res = cell
+            .get_or_init(|| async {
+                let env: HashMap<String, String> = std::env::vars().collect();
+                let shell_path = crate::daemon::discovery::resolve_shell_path(&env);
+                let args = crate::daemon::discovery::shell_env_args();
+                let output = run_login_shell(&shell_path, &args).await;
+                if let Some(stdout) = output {
+                    let parsed = crate::daemon::discovery::parse_env_block(&stdout);
+                    if parsed.contains_key("PATH") {
+                        return Some(parsed);
+                    }
+                }
+                None
+            })
+            .await;
+        res.clone()
+    }
+    pub async fn status(&self) -> DaemonStatus {
+        {
+            let guard = self.inner.lock().await;
+            if guard.child.is_some() {
+                return guard.status.clone();
+            }
+        }
+        if let Some((attached, info)) = self.try_attach().await {
+            let should_link = info
+                .as_ref()
+                .and_then(|i| i.owner.as_deref())
+                .map(|o| should_link_on_attach(Some(o)))
+                .unwrap_or(false);
             let mut g = self.inner.lock().await;
+            if should_link {
+                self.establish_supervisor_link(&mut g).await;
+            }
             g.status = attached.clone();
             return attached;
         }
@@ -279,6 +321,7 @@ impl DaemonManager {
         g.status.clone()
     }
     pub async fn start(&self) -> DaemonStatus {
+        let guard = self.start_lock.lock().await;
         {
             let g = self.inner.lock().await;
             if g.child.is_some() {
@@ -288,9 +331,14 @@ impl DaemonManager {
                 return g.status.clone();
             }
         }
-        if let Some(attached) = self.try_attach().await {
+        if let Some((attached, info)) = self.try_attach().await {
+            let should_link = info
+                .as_ref()
+                .and_then(|i| i.owner.as_deref())
+                .map(|o| should_link_on_attach(Some(o)))
+                .unwrap_or(false);
             let mut g = self.inner.lock().await;
-            if should_link_on_attach(attached_owner(&attached).as_deref()) {
+            if should_link {
                 self.establish_supervisor_link(&mut g).await;
             }
             g.status = attached.clone();
@@ -298,11 +346,20 @@ impl DaemonManager {
         }
         {
             let mut g = self.inner.lock().await;
+            if g.child.is_some() {
+                return g.status.clone();
+            }
+            if g.status.state == "starting" {
+                return g.status.clone();
+            }
             g.status.state = "starting".to_string();
             g.status.message = None;
             g.status.code = None;
             g.start_epoch += 1;
+            let mut log = self.log_port.lock().await;
+            *log = None;
         }
+        drop(guard);
         let launch = self.config.launch_spec.clone().or_else(|| {
             let env: HashMap<String, String> = std::env::vars().collect();
             let platform = if cfg!(windows) { "win32" } else { "darwin" };
@@ -334,7 +391,10 @@ impl DaemonManager {
                 let mut g = self.inner.lock().await;
                 g.status = DaemonStatus {
                     state: "error".to_string(),
-                    message: Some(format!("Bundled Operator daemon binary was not found at {}. Rebuild the desktop package.", launch.command)),
+                    message: Some(format!(
+                        "Bundled Operator daemon binary was not found at {}. Rebuild the desktop package.",
+                        launch.command
+                    )),
                     code: Some("binary_missing".to_string()),
                     executable_path: Some(launch.command.clone()),
                     working_directory: Some(launch.cwd.to_string_lossy().to_string()),
@@ -376,7 +436,7 @@ impl DaemonManager {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
         cmd.stdin(std::process::Stdio::null());
-        let child = match cmd.spawn() {
+        let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
                 let mut g = self.inner.lock().await;
@@ -393,11 +453,14 @@ impl DaemonManager {
             }
         };
         let pid = child.id();
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
         {
             let mut g = self.inner.lock().await;
             g.child = Some(child);
             g.output.clear();
         }
+        self.spawn_drain_tasks(stdout, stderr);
         let spawned_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -408,6 +471,18 @@ impl DaemonManager {
             g.status = DaemonStatus {
                 state: "ready".to_string(),
                 port: Some(p),
+                pid: pid_result.or(pid),
+                ..Default::default()
+            };
+            if !keep {
+                self.establish_supervisor_link(&mut g).await;
+            }
+            return g.status.clone();
+        }
+        if let Some(existing_port) = *self.log_port.lock().await {
+            g.status = DaemonStatus {
+                state: "ready".to_string(),
+                port: Some(existing_port),
                 pid: pid_result.or(pid),
                 ..Default::default()
             };
@@ -459,6 +534,8 @@ impl DaemonManager {
             ..Default::default()
         };
         g.output.clear();
+        let mut log = self.log_port.lock().await;
+        *log = None;
         g.status.clone()
     }
     pub async fn restart(&self) -> DaemonStatus {
@@ -467,7 +544,7 @@ impl DaemonManager {
             return self.start().await;
         }
         let child_pid = {
-            let mut g = self.inner.lock().await;
+            let g = self.inner.lock().await;
             g.child.as_ref().and_then(|c| c.id())
         };
         self.stop().await;
@@ -478,7 +555,9 @@ impl DaemonManager {
                     let mut g = self.inner.lock().await;
                     g.status = DaemonStatus {
                         state: "error".to_string(),
-                        message: Some("Operator daemon is still stopping. It will restart automatically when shutdown completes.".to_string()),
+                        message: Some(
+                            "Operator daemon is still stopping. It will restart automatically when shutdown completes.".to_string(),
+                        ),
                         details: Some(g.output.trim().to_string()),
                         code: Some("not_ready".to_string()),
                         ..Default::default()
@@ -493,7 +572,9 @@ impl DaemonManager {
         }
         self.start().await
     }
-    async fn try_attach(&self) -> Option<DaemonStatus> {
+    async fn try_attach(
+        &self,
+    ) -> Option<(DaemonStatus, Option<crate::daemon::discovery::RunFileInfo>)> {
         let run_file = self.config.run_file.clone();
         let contents = tokio::fs::read_to_string(&run_file).await.ok();
         let is_alive = |pid: u32| crate::daemon::discovery::process_alive(pid);
@@ -523,7 +604,7 @@ impl DaemonManager {
                                 readiness_status_direct(info.port, health.pid, health, identity)
                                     .await
                             {
-                                return Some(status);
+                                return Some((status, Some(info)));
                             }
                         }
                     }
@@ -553,8 +634,8 @@ impl DaemonManager {
                 }
             })
             .await;
-            if status.is_some() {
-                return status;
+            if let Some(s) = status {
+                return Some((s, None));
             }
         }
         None
@@ -592,9 +673,23 @@ impl DaemonManager {
                     }
                 }
             }
+            if let Some(p) = *self.log_port.lock().await {
+                if let Ok(contents) = tokio::fs::read_to_string(&run_file).await {
+                    if let Some(info) = parse_run_file(&contents) {
+                        if info.started_at_ms
+                            >= spawned_at_ms - RUN_FILE_FRESHNESS_SKEW.as_millis() as i64
+                        {
+                            return (Some(p), Some(info.pid));
+                        }
+                    }
+                }
+                return (Some(p), None);
+            }
             if let Ok(contents) = tokio::fs::read_to_string(&run_file).await {
                 if let Some(info) = parse_run_file(&contents) {
-                    if info.started_at_ms >= spawned_at_ms - 2000 {
+                    if info.started_at_ms
+                        >= spawned_at_ms - RUN_FILE_FRESHNESS_SKEW.as_millis() as i64
+                    {
                         return (Some(info.port), Some(info.pid));
                     }
                 }
@@ -603,8 +698,72 @@ impl DaemonManager {
         }
         (None, None)
     }
-    async fn build_daemon_env(&self, launch: &DaemonLaunchSpec) -> HashMap<String, String> {
-        let mut env: HashMap<String, String> = std::env::vars().collect();
+    fn spawn_drain_tasks(
+        &self,
+        stdout: Option<tokio::process::ChildStdout>,
+        stderr: Option<tokio::process::ChildStderr>,
+    ) {
+        let inner_clone = self.inner.clone();
+        let log_port_clone = self.log_port.clone();
+        if let Some(mut out) = stdout {
+            let inner = inner_clone.clone();
+            let log_port = log_port_clone.clone();
+            tokio::spawn(async move {
+                let mut buf = [0u8; 1024];
+                let mut scanner = ListenPortScanner::new();
+                let mut pending = String::new();
+                loop {
+                    match out.read(&mut buf).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                            pending.push_str(&chunk);
+                            {
+                                let mut g = inner.lock().await;
+                                append_output(&mut g.output, &chunk);
+                            }
+                            if let Some(port) = scanner.feed(&chunk) {
+                                let mut lp = log_port.lock().await;
+                                if lp.is_none() {
+                                    *lp = Some(port);
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
+        if let Some(mut err) = stderr {
+            let inner = inner_clone.clone();
+            let log_port = log_port_clone.clone();
+            tokio::spawn(async move {
+                let mut buf = [0u8; 1024];
+                let mut scanner = ListenPortScanner::new();
+                loop {
+                    match err.read(&mut buf).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                            {
+                                let mut g = inner.lock().await;
+                                append_output(&mut g.output, &chunk);
+                            }
+                            if let Some(port) = scanner.feed(&chunk) {
+                                let mut lp = log_port.lock().await;
+                                if lp.is_none() {
+                                    *lp = Some(port);
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
+    }
+    async fn build_daemon_env(&self, _launch: &DaemonLaunchSpec) -> HashMap<String, String> {
+        let env: HashMap<String, String> = std::env::vars().collect();
         let mut overrides: HashMap<String, String> = HashMap::new();
         let owner = if keep_daemon_alive(&env) {
             "persistent"
@@ -654,7 +813,7 @@ impl DaemonManager {
             "OPERATOR_BROWSER_RUNTIME_TOKEN_STDIN".to_string(),
             "1".to_string(),
         );
-        let shell_env: Option<HashMap<String, String>> = None;
+        let shell_env = self.ensure_shell_env().await;
         crate::daemon::discovery::build_daemon_env(&env, shell_env.as_ref(), &overrides)
     }
     async fn establish_supervisor_link(&self, inner: &mut Inner) {
@@ -677,16 +836,45 @@ impl DaemonManager {
     }
 }
 
+async fn run_login_shell(shell_path: &str, args: &[String]) -> Option<String> {
+    let mut cmd = Command::new(shell_path);
+    cmd.args(args);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+    let mut child = cmd.spawn().ok()?;
+    let stdout = child.stdout.take()?;
+    let output = tokio::time::timeout(SHELL_ENV_TIMEOUT, async {
+        let mut out = Vec::new();
+        let mut reader = tokio::io::BufReader::new(stdout);
+        let mut buf = vec![0u8; 4096];
+        loop {
+            match reader.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => out.extend_from_slice(&buf[..n]),
+                Err(_) => break,
+            }
+        }
+        let _ = child.wait().await;
+        String::from_utf8(out).ok()
+    })
+    .await;
+    match output {
+        Ok(Some(s)) => Some(s),
+        _ => {
+            let _ = child.kill().await;
+            None
+        }
+    }
+}
+
 fn append_output(output: &mut String, text: &str) {
     output.push_str(text);
     if output.len() > MAX_DAEMON_OUTPUT_CHARS {
         let start = output.len() - MAX_DAEMON_OUTPUT_CHARS;
-        *output = output[start..].to_string();
+        let boundary = output.floor_char_boundary(start);
+        *output = output[boundary..].to_string();
     }
-}
-
-fn attached_owner(status: &DaemonStatus) -> Option<String> {
-    None
 }
 
 fn is_pid_alive(pid: u32) -> bool {

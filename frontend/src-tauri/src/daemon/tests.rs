@@ -305,7 +305,9 @@ async fn daemon_stale_runfile_treated_as_missing() {
     };
     let manager = DaemonManager::with_config(config);
     let status = manager.status().await;
-    assert!(status.state == "stopped" || status.state == "error" || status.port.is_none());
+    assert_eq!(status.state, "stopped");
+    assert!(status.port.is_none());
+    assert!(status.code.is_none());
     tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
 }
 
@@ -316,10 +318,14 @@ async fn daemon_one_start_concurrency() {
     let run_file = tmp.join("running.json");
     let data_dir = tmp.join("data");
     tokio::fs::create_dir_all(&data_dir).await.unwrap();
+    let count_file = tmp.join("spawn_count");
+    tokio::fs::write(&count_file, b"").await.unwrap();
     let fake_bin = tmp.join("fake-daemon.sh");
-    tokio::fs::write(&fake_bin, "#!/bin/sh\nsleep 2\n")
-        .await
-        .unwrap();
+    let script = format!(
+        "#!/bin/sh\necho 1 >> \"{}\"\nsleep 2\n",
+        count_file.display()
+    );
+    tokio::fs::write(&fake_bin, script).await.unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -356,8 +362,13 @@ async fn daemon_one_start_concurrency() {
     let (r1, r2) = tokio::join!(h1, h2);
     let s1 = r1.unwrap();
     let s2 = r2.unwrap();
-    assert!(s1.state == "starting" || s1.state == "error" || s1.state == "ready");
-    assert!(s2.state == "starting" || s2.state == "error" || s2.state == "ready");
+    assert!(s1.state == "starting" || s1.state == "error");
+    assert!(s2.state == "starting" || s2.state == "error");
+    assert!(s1.code == s2.code || s1.state == "starting" || s2.state == "starting");
+    let count = tokio::fs::read_to_string(&count_file)
+        .await
+        .unwrap_or_default();
+    assert_eq!(count.lines().count(), 1);
     let _ = manager.stop().await;
     tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
 }
@@ -448,11 +459,17 @@ async fn daemon_captured_error_output() {
     let manager = DaemonManager::with_timeout(config, Duration::from_millis(4000));
     let status = manager.start().await;
     assert_eq!(status.state, "error");
-    let details = status.details.unwrap_or_default();
     assert!(
-        details.contains("daemon failed")
+        status.code == Some("not_ready".to_string()) || status.code == Some("exited".to_string())
+    );
+    let details = status.details.unwrap_or_default();
+    assert!(details.contains("daemon failed") || details.contains("No startup output"));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let details2 = manager.status().await.details.unwrap_or_default();
+    assert!(
+        details2.contains("daemon failed")
+            || details.contains("daemon failed")
             || details.contains("No startup output")
-            || status.message.is_some()
     );
     let _ = manager.stop().await;
     tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
@@ -462,6 +479,12 @@ async fn daemon_captured_error_output() {
 async fn daemon_keep_daemon_env_disables_supervisor() {
     let env = env_from(&[("OPERATOR_KEEP_DAEMON", "1")]);
     assert!(keep_daemon_alive(&env));
+    assert!(!keep_daemon_alive(&env_from(&[(
+        "OPERATOR_KEEP_DAEMON",
+        "0"
+    )])));
+    assert!(!should_link_on_attach(Some("persistent")));
+    assert!(should_link_on_attach(Some("app")));
     let tmp = std::env::temp_dir().join(format!("daemon-test-keep-{}", uuid::Uuid::new_v4()));
     tokio::fs::create_dir_all(&tmp).await.unwrap();
     let run_file = tmp.join("running.json");
@@ -471,7 +494,6 @@ async fn daemon_keep_daemon_env_disables_supervisor() {
     tokio::fs::create_dir_all(&daemon_dir).await.unwrap();
     let daemon_bin = daemon_dir.join("opr");
     tokio::fs::write(&daemon_bin, b"").await.unwrap();
-    std::env::set_var("OPERATOR_KEEP_DAEMON", "1");
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let pid = std::process::id();
@@ -524,7 +546,7 @@ async fn daemon_keep_daemon_env_disables_supervisor() {
     let manager = DaemonManager::with_config(config);
     let status = manager.status().await;
     assert_eq!(status.state, "ready");
-    std::env::remove_var("OPERATOR_KEEP_DAEMON");
+    assert!(!manager.supervisor_connected());
     server.abort();
     tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
 }
@@ -555,18 +577,6 @@ async fn daemon_supervisor_reconnection_after_restart() {
             });
         }
     });
-    let manager_config = DaemonConfig {
-        run_file: tmp.join("running.json"),
-        data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
-        app_version: "0.10.3".to_string(),
-        resources_dir: tmp.clone(),
-        home_dir: tmp.clone(),
-        is_packaged: false,
-        app_run_id: format!("apprun-{}", uuid::Uuid::new_v4()),
-        launch_spec: None,
-    };
-    let manager = DaemonManager::with_config(manager_config);
     let link = crate::daemon::supervisor::SupervisorLink::new(sock_path.clone());
     for _ in 0..20 {
         if link.connected() {
@@ -653,9 +663,13 @@ async fn daemon_close_behavior() {
     tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
 }
 
-#[test]
-fn daemon_missing_resource_error() {
-    let tmp = PathBuf::from("/tmp/missing-test-xyz");
+#[tokio::test]
+async fn daemon_missing_resource_error() {
+    let tmp = PathBuf::from(format!(
+        "/tmp/missing-test-{}",
+        uuid::Uuid::new_v4().simple()
+    ));
+    tokio::fs::create_dir_all(&tmp).await.unwrap();
     let launch = crate::daemon::discovery::DaemonLaunchSpec {
         command: "/nonexistent/path/opr".to_string(),
         args: vec!["daemon".to_string()],
@@ -665,7 +679,26 @@ fn daemon_missing_resource_error() {
     };
     assert_eq!(bundled_daemon_binary_name("darwin"), "opr");
     assert_eq!(bundled_daemon_binary_name("win32"), "opr.exe");
-    assert!(launch.command.contains("opr"));
+    let config = DaemonConfig {
+        run_file: tmp.join("running.json"),
+        data_dir: tmp.join("data"),
+        acp_runtime_dir: tmp.join("acp"),
+        app_version: "0.10.3".to_string(),
+        resources_dir: tmp.clone(),
+        home_dir: tmp.clone(),
+        is_packaged: true,
+        app_run_id: format!("apprun-{}", uuid::Uuid::new_v4()),
+        launch_spec: Some(launch),
+    };
+    let manager = DaemonManager::with_config(config);
+    let status = manager.start().await;
+    assert_eq!(status.state, "error");
+    assert_eq!(status.code, Some("binary_missing".to_string()));
+    assert!(status
+        .message
+        .unwrap_or_default()
+        .contains("/nonexistent/path/opr"));
+    tokio::fs::remove_dir_all(&tmp).await.unwrap_or(());
 }
 
 #[test]

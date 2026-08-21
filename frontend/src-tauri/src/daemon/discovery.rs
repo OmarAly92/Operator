@@ -575,5 +575,20 @@ pub fn process_alive(pid: u32) -> bool {
 
 #[cfg(windows)]
 pub fn process_alive(pid: u32) -> bool {
-    pid != 0
+    if pid == 0 {
+        return false;
+    }
+    unsafe {
+        let handle = windows_sys::Win32::System::Threading::OpenProcess(
+            windows_sys::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION,
+            0,
+            pid,
+        );
+        if handle != 0 {
+            windows_sys::Win32::System::Threading::CloseHandle(handle);
+            return true;
+        }
+        let err = windows_sys::Win32::Foundation::GetLastError();
+        err == 5
+    }
 }
