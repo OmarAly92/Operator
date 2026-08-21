@@ -1,10 +1,16 @@
-import type { OperatorBridge } from "../../preload";
+import type { OperatorBridge } from "../../shared/operator-bridge";
 import { coerceLocale } from "../../shared/ui-locale";
-export type { FeatureBuild } from "../../main/feature-builds";
+import type { FeatureBuild } from "../../shared/feature-builds";
 
-export const operatorBridge: OperatorBridge =
-	window.operator ??
-	({
+export type { FeatureBuild };
+
+export function createElectronBridge(windowBridge: OperatorBridge | undefined): OperatorBridge {
+	if (windowBridge) return windowBridge;
+	return createBrowserPreviewBridge();
+}
+
+function createBrowserPreviewBridge(): OperatorBridge {
+	return {
 		app: {
 			getVersion: async () => "0.0.0-preview",
 			chooseDirectory: async () => null,
@@ -179,4 +185,58 @@ export const operatorBridge: OperatorBridge =
 			list: async () => [],
 			getActive: async () => null,
 		},
-	} satisfies OperatorBridge);
+	};
+}
+
+const tauriInternalsPresent = (): boolean =>
+	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
+async function selectShellBridge(): Promise<OperatorBridge> {
+	if (window.operator) return createElectronBridge(window.operator);
+	if (tauriInternalsPresent()) {
+		const { createTauriBridge } = await import("./tauri-bridge");
+		const core = await import("@tauri-apps/api/core");
+		const event = await import("@tauri-apps/api/event");
+		const invoke: (command: string, payload?: unknown) => Promise<unknown> = (command, payload) =>
+			core.invoke(command, payload as never);
+		const unlisteners = new Map<(event: { payload: unknown }) => void, () => void>();
+		const tauriBridge = createTauriBridge({
+			invoke,
+			listen: (eventName, handler) => {
+				let disposed = false;
+				void event
+					.listen(eventName, handler as never)
+					.then((unlisten) => {
+						if (disposed) unlisten();
+						else unlisteners.set(handler, unlisten);
+					})
+					.catch(() => {
+						unlisteners.delete(handler);
+					});
+				return () => {
+					disposed = true;
+					const dispose = unlisteners.get(handler);
+					unlisteners.delete(handler);
+					dispose?.();
+				};
+			},
+		});
+		return tauriBridge as OperatorBridge;
+	}
+	return createElectronBridge(undefined);
+}
+
+const bridgePromise: Promise<OperatorBridge> = selectShellBridge();
+
+void bridgePromise;
+
+export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
+	return bridgePromise;
+}
+
+export const operatorBridge: OperatorBridge = new Proxy(createBrowserPreviewBridge(), {
+	get(_target, property, receiver) {
+		if (window.operator) return Reflect.get(window.operator, property);
+		return Reflect.get(_target as object, property, receiver);
+	},
+});

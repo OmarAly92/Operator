@@ -17,12 +17,12 @@ import {
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
 import type { TelemetryBootstrap } from "./shared/telemetry";
-import type { MigrationState } from "./main/app-state";
-import type { UpdateSettings, UpdateStatus } from "./main/update-settings";
+import type { MigrationState } from "./shared/app-state";
+import type { UpdateSettings, UpdateStatus } from "./shared/update-settings";
 import type { UpdateOutcome } from "./shared/update-telemetry";
-import type { UiSettings } from "./main/ui-settings";
-import type { UpdateCheckOptions } from "./main/auto-updater";
-import type { FeatureBuild } from "./main/feature-builds";
+import type { UiSettings } from "./shared/ui-locale";
+import type { UpdateCheckOptions } from "./shared/operator-bridge";
+import type { FeatureBuild } from "./shared/feature-builds";
 import type {
 	BrowserAnnotationCancelPayload,
 	BrowserAnnotationModeInput,

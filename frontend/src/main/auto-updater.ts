@@ -609,10 +609,8 @@ export async function setUpdateSettings(
   );
 }
 
-export interface UpdateCheckOptions {
-  settings?: UpdateSettings;
-  requestId?: string;
-}
+export type { UpdateCheckOptions } from "../shared/operator-bridge";
+import type { UpdateCheckOptions } from "../shared/operator-bridge";
 
 // checkForUpdatesNow runs a manual update check regardless of the auto-update
 // opt-in, so a user who never enabled auto-updates can still pull the latest

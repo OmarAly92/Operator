@@ -101,10 +101,5 @@
 	{"source":"preload.window","member":"onFullScreen","disposition":"port fullscreen event","owner":"tauri","task":13,"exception":null},
 	{"source":"preload.window","member":"setOverlay","disposition":"port window overlay","owner":"tauri","task":13,"exception":null},
 	{"source":"renderer/components/BrowserTabsRail.tsx","member":"../../main/browser-view-host","disposition":"deferred","owner":null,"task":null,"exception":"docs/todo/browser-panel-webview.md"},
-	{"source":"renderer/components/MigrationSection.tsx","member":"../../main/app-state","disposition":"move migration type to shell-neutral shared contract","owner":"renderer","task":8,"exception":null},
-	{"source":"renderer/components/Sidebar.tsx","member":"../../main/update-settings","disposition":"move update status type to shell-neutral shared contract","owner":"renderer","task":8,"exception":null},
-	{"source":"renderer/hooks/useBrowserView.ts","member":"../../main/browser-view-host","disposition":"deferred","owner":null,"task":null,"exception":"docs/todo/browser-panel-webview.md"},
-	{"source":"renderer/hooks/useMigrationOffer.ts","member":"../../main/app-state","disposition":"move migration type to shell-neutral shared contract","owner":"renderer","task":8,"exception":null},
-	{"source":"renderer/hooks/useUpdateStatus.ts","member":"../../main/update-settings","disposition":"move update status type to shell-neutral shared contract","owner":"renderer","task":8,"exception":null},
-	{"source":"renderer/lib/bridge.ts","member":"../../main/feature-builds","disposition":"move feature build type to shell-neutral shared contract","owner":"renderer","task":8,"exception":null}
+	{"source":"renderer/hooks/useBrowserView.ts","member":"../../main/browser-view-host","disposition":"deferred","owner":null,"task":null,"exception":"docs/todo/browser-panel-webview.md"}
 ]

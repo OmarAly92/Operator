@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import type { OperatorBridge } from "../../src/preload";
+import type { OperatorBridge } from "../../src/shared/operator-bridge";
 import type { DaemonStatus } from "../../src/shared/daemon-status";
 
 // The e2e suite runs the renderer under `dev:web` (VITE_NO_ELECTRON=1) with no

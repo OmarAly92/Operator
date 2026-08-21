@@ -8,15 +8,8 @@ import path from "node:path";
  * below MUST match its struct tags exactly (camelCase).
  */
 
-export type MigrationStatus = "pending" | "completed" | "declined" | "failed";
-
-export interface MigrationState {
-	status: MigrationStatus;
-	lastAttemptAt?: string;
-	completedAt?: string;
-	report?: { projectsImported: number; projectsSkipped: number };
-	error?: string;
-}
+export type { MigrationStatus, MigrationState } from "../shared/app-state";
+import type { MigrationState } from "../shared/app-state";
 
 export interface AppStateMarker {
 	schemaVersion: number;

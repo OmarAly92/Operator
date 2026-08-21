@@ -1,4 +1,4 @@
-import type { OperatorBridge } from "../preload";
+import type { OperatorBridge } from "../shared/operator-bridge";
 
 declare global {
 	interface Window {
