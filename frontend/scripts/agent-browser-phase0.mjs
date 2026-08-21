@@ -159,8 +159,10 @@ async function runCommand(spawnImpl, request) {
 				env: request.env,
 				timeoutMs: request.timeoutMs,
 				signal: request.signal,
+				scanStep: request.scanStep,
 				registerKill: (fn) => {
 					killFunction = fn;
+					if (timedOut || cancelled) fn();
 				},
 			})
 			.then(
@@ -189,14 +191,18 @@ async function runCommand(spawnImpl, request) {
 		});
 	});
 	const result = await execution;
-	const stdoutBytes = Buffer.byteLength(result.stdout ?? "");
-	const stderrBytes = Buffer.byteLength(result.stderr ?? "");
+	const originalStdoutBytes = Buffer.byteLength(result.stdout ?? "");
+	const originalStderrBytes = Buffer.byteLength(result.stderr ?? "");
 	const limit = request.outputLimitBytes;
-	const truncated = limit !== undefined && (stdoutBytes > limit || stderrBytes > limit);
+	const truncated = limit !== undefined && (originalStdoutBytes > limit || originalStderrBytes > limit);
+	const stdoutText = truncateText(result.stdout ?? "", limit);
+	const stderrText = truncateText(result.stderr ?? "", limit);
+	const stdoutBytes = Buffer.byteLength(stdoutText);
+	const stderrBytes = Buffer.byteLength(stderrText);
 	return {
 		code: result.code,
-		stdout: truncateText(result.stdout ?? "", limit),
-		stderr: truncateText(result.stderr ?? "", limit),
+		stdout: stdoutText,
+		stderr: stderrText,
 		signal: result.signal ?? null,
 		timedOut: result.timedOut || timedOut,
 		cancelled: result.cancelled || cancelled,
@@ -227,7 +233,7 @@ export function sanitizeDoctorReport(raw) {
 
 export function locateManagedExecutable(files, root, platform) {
 	void root;
-	const keys = files instanceof Map ? [...files.keys()] : Object.keys(files);
+	const keys = files instanceof Map ? [...files.keys()] : files instanceof Set ? [...files] : Object.keys(files);
 	const suffixes =
 		platform === "darwin"
 			? ["Google Chrome for Testing"]
@@ -385,66 +391,96 @@ export async function runMode(mode, options) {
 
 	try {
 		const doctorResult = await invoke(["doctor", "--json"], doctorTimeoutMs);
-		let doctorRaw = null;
-		try {
-			doctorRaw = JSON.parse(doctorResult.stdout);
-		} catch {
-			doctorRaw = null;
-		}
-		const doctor = sanitizeDoctorReport(doctorRaw);
-		evidence.doctor = doctor;
-		const browserDiscovered =
-			doctor.success &&
-			doctor.checks.some((check) => check.category === "browser" && check.status === "pass");
-		if (!browserDiscovered && mode === "system") {
-			outcome = "browser-absent";
-		} else if (mode === "managed") {
-			const installOnce = serializeInstall(async () => invoke(["install", "--json"], installTimeoutMs));
-			const installResult = await installOnce();
-			if (installResult.timedOut) outcome = "timeout";
-			else if (installResult.cancelled) outcome = "cancelled";
-			else if (installResult.code !== 0) outcome = "network";
-			else {
-				const files = await walkFiles(path.join(sessionRoot, ".agent-browser", "browsers"), platform);
-				const managedPath = locateManagedExecutable(files, sessionRoot, platform);
-				if (!managedPath) outcome = "browser-absent";
+		if (doctorResult.timedOut) outcome = "timeout";
+		else if (doctorResult.cancelled) outcome = "cancelled";
+		else {
+			let doctorRaw = null;
+			try {
+				doctorRaw = JSON.parse(doctorResult.stdout);
+			} catch {
+				doctorRaw = null;
 			}
-		}
-		if (outcome === "action-failed") {
-			await mkdir(artifactsDir, { recursive: true });
-			const fixtureUrl = `http://127.0.0.1:${fixturePort}/`;
-			const substitutions = [
-				[/\{fixture\}/g, fixtureUrl],
-				[/\{artifacts\}/g, artifactsDir],
-			];
-			for (const action of scenario.actions) {
-				const args = action
-					.split(" ")
-					.map((token) => substitutions.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), token))
-					.filter(Boolean);
-				const result = await invoke(args, actionTimeoutMs);
-				if (result.timedOut) {
-					outcome = "timeout";
-					break;
+			const doctor = sanitizeDoctorReport(doctorRaw);
+			evidence.doctor = doctor;
+			const browserDiscovered =
+				doctor.success &&
+				doctor.checks.some((check) => {
+					const cat = String(check.category).toLowerCase();
+					const id = String(check.id).toLowerCase();
+					const isBrowser =
+						cat.includes("browser") ||
+						cat.includes("chrome") ||
+						cat.includes("chromium") ||
+						cat.includes("edge") ||
+						id.includes("chrome") ||
+						id.includes("browser") ||
+						id.includes("chromium") ||
+						id.includes("edge");
+					return isBrowser && check.status === "pass";
+				});
+			if (!browserDiscovered && mode === "system") {
+				outcome = "browser-absent";
+			} else if (mode === "managed") {
+				const installOnce = serializeInstall(async () => invoke(["install", "--json"], installTimeoutMs));
+				const installResult = await installOnce();
+				if (installResult.timedOut) outcome = "timeout";
+				else if (installResult.cancelled) outcome = "cancelled";
+				else if (installResult.code !== 0) outcome = "network";
+				else {
+					const files = await walkFiles(path.join(sessionRoot, ".agent-browser", "browsers"), platform);
+					const managedPath = locateManagedExecutable(files, sessionRoot, platform);
+					if (!managedPath) outcome = "browser-absent";
 				}
-				if (result.cancelled) {
-					outcome = "cancelled";
-					break;
-				}
-				if (result.code !== 0) {
-					outcome = "action-failed";
-					break;
-				}
-				outcome = "pass";
 			}
-		}
-		if (outcome === "pass") {
-			const detected = await scan();
-			evidence.electronProcessesInSession = detected.map((finding) => ({
-				pid: finding.pid,
-				command: sanitizeEvidenceText(finding.command, sessionTokens),
-			}));
-			if (detected.length > 0) outcome = "electron-detected";
+			if (outcome === "action-failed") {
+				await mkdir(artifactsDir, { recursive: true });
+				const fixtureUrl = `http://127.0.0.1:${fixturePort}/`;
+				const substitutions = [
+					[/\{fixture\}/g, fixtureUrl],
+					[/\{artifacts\}/g, artifactsDir],
+				];
+				const rawActions = scenario?.actions ?? [
+					"open {fixture} --json",
+					"snapshot -i --json",
+					"click @e1 --json",
+					"console --json",
+					"errors --json",
+					"screenshot {artifacts}/page.png --json",
+					"tab new {fixture} --json",
+					"tab list --json",
+					"tab close --json",
+					"close --json",
+				];
+				const actions = rawActions.filter((action) => !action.startsWith("doctor") && !action.startsWith("install"));
+				for (const action of actions) {
+					const args = action
+						.split(" ")
+						.map((token) => substitutions.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), token))
+						.filter(Boolean);
+					const result = await invoke(args, actionTimeoutMs);
+					if (result.timedOut) {
+						outcome = "timeout";
+						break;
+					}
+					if (result.cancelled) {
+						outcome = "cancelled";
+						break;
+					}
+					if (result.code !== 0) {
+						outcome = "action-failed";
+						break;
+					}
+					outcome = "pass";
+				}
+			}
+			if (outcome === "pass") {
+				const detected = await scan();
+				evidence.electronProcessesInSession = detected.map((finding) => ({
+					pid: finding.pid,
+					command: sanitizeEvidenceText(finding.command, sessionTokens),
+				}));
+				if (detected.length > 0) outcome = "electron-detected";
+			}
 		}
 	} finally {
 		evidence.finishedAt = new Date(now()).toISOString();
@@ -521,6 +557,7 @@ export async function main(argv) {
 	try {
 		server = await startFixtureServer(preferredPort);
 		const port = server.address().port;
+		const resolvedArtifacts = artifactsOutput ?? path.join(os.tmpdir(), `agent-browser-phase0-${mode}-artifacts`);
 		const result = await runMode(mode, {
 			sessionRoot,
 			spawnImpl: (request) =>
@@ -547,12 +584,13 @@ export async function main(argv) {
 			binaryPath,
 			scenario,
 			parentEnv: process.env,
+			cleanupHook: async (root) => {
+				await exportArtifacts(root, resolvedArtifacts);
+				await rm(root, { recursive: true, force: true });
+			},
 		});
-		await exportArtifacts(sessionRoot, artifactsOutput ?? path.join(os.tmpdir(), `agent-browser-phase0-${mode}-artifacts`));
-		const evidencePath = path.join(
-			artifactsOutput ?? path.join(os.tmpdir(), `agent-browser-phase0-${mode}-artifacts`),
-			`evidence-${mode}.json`,
-		);
+		await exportArtifacts(sessionRoot, resolvedArtifacts);
+		const evidencePath = path.join(resolvedArtifacts, `evidence-${mode}.json`);
 		await mkdir(path.dirname(evidencePath), { recursive: true });
 		const { writeFile } = await import("node:fs/promises");
 		await writeFile(evidencePath, `${JSON.stringify(result.evidence, null, "\t")}\n`, "utf8");

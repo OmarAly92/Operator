@@ -13,6 +13,10 @@ on:
       - "frontend/rust-toolchain.toml"
       - "frontend/scripts/audit-tauri-state.mjs"
       - "frontend/scripts/audit-tauri-state.test.mjs"
+      - "frontend/scripts/agent-browser-phase0.mjs"
+      - "frontend/scripts/agent-browser-phase0.test.mjs"
+      - "frontend/scripts/prepare-agent-browser.mjs"
+      - "frontend/perf/browser/**"
       - "frontend/src-tauri/**"
       - ".github/workflows/tauri-phase0.yml"
 
@@ -54,3 +58,45 @@ jobs:
         run: npm run audit:tauri-state
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run audit:tauri-state
+  agent-browser-probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: npm ci
+      - run: node scripts/prepare-agent-browser.mjs --quiet
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
+        continue-on-error: true
+      - if: runner.os != 'Linux'
+        run: node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
+        continue-on-error: true
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
+        continue-on-error: true
+      - if: runner.os != 'Linux'
+        run: node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-browser-phase0-${{ matrix.os }}
+          path: |
+            frontend/agent-browser-phase0-system/evidence-*.json
+            frontend/agent-browser-phase0-system/*.png
+            frontend/agent-browser-phase0-managed/evidence-*.json
+            frontend/agent-browser-phase0-managed/*.png
+          if-no-files-found: warn
