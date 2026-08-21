@@ -142,8 +142,34 @@ committed them):
 
 1. **revive `exported` lint.** The repo gates merges on `golangci-lint` (`.github/workflows/go.yml`)
    with `revive` rule `exported` enabled (`.golangci.yml`), which requires a doc comment on
-   package-level exported variables. Removing the `DefaultAllowedOrigins` comment entirely will
-   likely surface `exported var DefaultAllowedOrigins should have comment or be unexported` on the
-   next CI ran. The brief instructed removal with no replacement comment, so I did not add one; the
-   lint trade-off is the controller's call. The alternative would be a minimal (non-explanatory)
-   doc comment, which the brief explicitly forbade.
+   package-level exported variables. Removing the `DefaultAllowedOrigins` comment entirely would
+   surface `exported var DefaultAllowedOrigins should have comment or be unexported` on the next CI
+   run. The brief instructed removal with no replacement comment, so I did not add one; the lint
+   trade-off was the controller's call. **Resolved by controller ruling — see the fix note below.**
+
+## Fix note — 2026-08-21 (controller ruling)
+
+The controller ruled that the brief's intent was to strip Task 3's unauthorized five-line
+explanatory rewrite, not the mandatory exported-symbol doc comment. A single factual one-liner was
+restored in `backend/internal/config/config.go` immediately before the declaration:
+
+```go
+// DefaultAllowedOrigins is the exact packaged-desktop origin allowlist, overridden by OPERATOR_ALLOWED_ORIGINS.
+var DefaultAllowedOrigins = []string{
+```
+
+Covering commands on this host:
+
+```text
+cd backend
+golangci-lint run ./internal/config/...   # NOT INSTALLED on this host — the zero-findings
+                                          # revive/exported gate is CI-verified only.
+go vet ./internal/config/...              # VET PASS
+go build ./...                            # BUILD PASS
+go test ./internal/config ./internal/httpd -run 'AllowedOrigins|CORS' -count=1   # both ok
+git diff --check                          # clean
+```
+
+`golangci-lint` is not installed locally, so the revive/exported gate itself was not executed here;
+`go vet` and `go build ./...` pass, and the lint gate remains CI-verified only. Namespaced,
+single-line, followed by exactly the three origin values. This supersedes Concern 1.
