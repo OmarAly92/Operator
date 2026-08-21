@@ -2,7 +2,6 @@ import type {
 	IpcMain,
 	IpcMainEvent,
 	IpcMainInvokeEvent,
-	Rectangle,
 	Session,
 	View,
 	WebContents,
@@ -63,58 +62,26 @@ function isValidAnnotationSelection(value: unknown): value is BrowserAnnotationS
 	return false;
 }
 
-export type BrowserRect = Pick<Rectangle, "x" | "y" | "width" | "height">;
-
-export type BrowserNavState = {
-	viewId: string;
-	url: string;
-	title: string;
-	canGoBack: boolean;
-	canGoForward: boolean;
-	isLoading: boolean;
-	error?: string;
-};
-
-export type BrowserTabState = {
-	id: string;
-	url: string;
-	title: string;
-	active: boolean;
-	favicon?: string;
-};
-
-export type BrowserTabsState = {
-	viewId: string;
-	activeTabId: string;
-	tabs: BrowserTabState[];
-	change?: {
-		kind: "opened" | "popup" | "selected" | "closed";
-		tabId: string;
-	};
-};
-
-export type BrowserAgentActivityState = {
-	viewId: string;
-	active: boolean;
-	action: string;
-	phase?: "started" | "finished";
-	commandId?: string;
-};
-
-export type BrowserDevToolsState = {
-	viewId: string;
-	open: boolean;
-	activeTabId: string;
-	placement?: BrowserDevToolsPlacement;
-};
-
-export type BrowserDevToolsPlacement = "right" | "bottom" | "left" | "undocked";
-
-export type BrowserDevToolsInput = {
-	viewId: string;
-	operation: "open" | "close" | "setPlacement";
-	placement?: BrowserDevToolsPlacement;
-};
+export type {
+	BrowserRect,
+	BrowserNavState,
+	BrowserTabState,
+	BrowserTabsState,
+	BrowserAgentActivityState,
+	BrowserDevToolsPlacement,
+	BrowserDevToolsState,
+	BrowserDevToolsInput,
+} from "../shared/browser-view-types";
+import type {
+	BrowserRect,
+	BrowserNavState,
+	BrowserTabState,
+	BrowserTabsState,
+	BrowserAgentActivityState,
+	BrowserDevToolsPlacement,
+	BrowserDevToolsState,
+	BrowserDevToolsInput,
+} from "../shared/browser-view-types";
 
 type InternalBrowserDevToolsOperation = BrowserDevToolsInput["operation"] | "toggle";
 

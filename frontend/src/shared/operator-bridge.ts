@@ -20,7 +20,7 @@ import type {
 	BrowserNavState,
 	BrowserRect,
 	BrowserTabsState,
-} from "../main/browser-view-host";
+} from "./browser-view-types";
 
 export type BrowserBoundsInput = {
 	viewId: string;
