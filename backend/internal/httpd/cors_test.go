@@ -12,7 +12,7 @@ import (
 // get per-origin CORS headers (REST reads and preflights), everything else —
 // including the opaque "null" origin and no-Origin CLI traffic — gets none.
 func TestCORS(t *testing.T) {
-	cfg := config.Config{AllowedOrigins: []string{"app://renderer"}}
+	cfg := config.Config{AllowedOrigins: config.DefaultAllowedOrigins}
 	router := newTestRouter(cfg, discardLogger(), nil)
 	srv := httptest.NewServer(router)
 	defer srv.Close()
@@ -30,6 +30,20 @@ func TestCORS(t *testing.T) {
 			headers:    map[string]string{"Origin": "app://renderer"},
 			wantStatus: http.StatusOK,
 			wantACAO:   "app://renderer",
+		},
+		{
+			name:       "packaged Tauri origin gets ACAO",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "tauri://localhost"},
+			wantStatus: http.StatusOK,
+			wantACAO:   "tauri://localhost",
+		},
+		{
+			name:       "Windows packaged Tauri origin gets ACAO",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "http://tauri.localhost"},
+			wantStatus: http.StatusOK,
+			wantACAO:   "http://tauri.localhost",
 		},
 		{
 			// Not in the allowlist — trusted because loopback-served content
@@ -82,9 +96,37 @@ func TestCORS(t *testing.T) {
 			wantACAO:   "",
 		},
 		{
+			name:       "Windows Tauri lookalike rejected",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "http://tauri.localhost.evil.example"},
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
+		},
+		{
+			name:       "HTTPS Windows Tauri origin rejected",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "https://tauri.localhost"},
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
+		},
+		{
+			name:       "Tauri host lookalike rejected",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "tauri://evil.example"},
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
+		},
+		{
 			name:       "null origin is rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "null"},
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
+		},
+		{
+			name:       "wildcard origin is rejected",
+			method:     http.MethodGet,
+			headers:    map[string]string{"Origin": "*"},
 			wantStatus: http.StatusForbidden,
 			wantACAO:   "",
 		},

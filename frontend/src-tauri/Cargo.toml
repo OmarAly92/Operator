@@ -1,0 +1,17 @@
+[package]
+name = "operator"
+version = "0.10.3"
+description = "Operator desktop application"
+authors = ["Operator"]
+edition = "2021"
+rust-version = "1.96.0"
+
+[lib]
+name = "operator_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }

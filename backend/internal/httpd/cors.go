@@ -84,6 +84,9 @@ func isLoopbackOrigin(origin string) bool {
 		return false
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if host == "tauri.localhost" {
+		return false
+	}
 	// RFC 6761 reserves localhost and every name below it for loopback.
 	// Workspace previews use a per-session subdomain so browser-enforced CORS
 	// requests (ES modules and fetch) remain isolated without being rejected by

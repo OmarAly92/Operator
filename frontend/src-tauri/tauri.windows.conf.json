@@ -1,0 +1,11 @@
+{
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"create": false,
+				"useHttpsScheme": false
+			}
+		]
+	}
+}

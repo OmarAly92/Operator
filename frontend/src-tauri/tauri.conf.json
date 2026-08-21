@@ -1,0 +1,27 @@
+{
+	"$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+	"productName": "Operator",
+	"version": "../package.json",
+	"identifier": "dev.operator.desktop",
+	"mainBinaryName": "operator",
+	"build": {
+		"beforeDevCommand": "npm run dev:web -- --host 127.0.0.1",
+		"devUrl": "http://127.0.0.1:5173",
+		"beforeBuildCommand": "npm exec -- vite build --config vite.renderer.config.ts",
+		"frontendDist": "../dist"
+	},
+	"app": {
+		"windows": [],
+		"security": {
+			"capabilities": ["phase0"],
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": false,
+		"icon": ["../assets/icon.png", "../assets/icon.icns", "../assets/icon.ico"],
+		"macOS": {
+			"minimumSystemVersion": "10.15"
+		}
+	}
+}
