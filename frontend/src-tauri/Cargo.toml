@@ -14,5 +14,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
+chrono = { version = "=0.4.45", features = [] }
+libc = { version = "=0.2.189", features = [] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = [] }
 tauri = { version = "=2.11.5", features = [] }
 tauri-plugin-updater = { version = "=2.10.1", features = [] }
+tokio = { version = "=1.53.1", features = ["full"] }
+uuid = { version = "=1.24.1", features = ["v4"] }

@@ -88,7 +88,7 @@ type Config struct {
 	// ShutdownTimeout is the hard graceful-shutdown deadline.
 	ShutdownTimeout time.Duration
 	// RunFilePath is where the PID + port handshake file (running.json) is
-	// written so the Electron supervisor can discover and reap the daemon.
+	// written so the desktop supervisor can discover and reap the daemon.
 	RunFilePath string
 	// DataDir is the directory holding durable SQLite state: DB and WAL files.
 	// It is created on first use by the storage layer.
@@ -96,7 +96,7 @@ type Config struct {
 	// Agent is the compatibility agent adapter id selected by OPERATOR_AGENT;
 	// startSession fails fast if no adapter with this id is registered.
 	Agent string
-	// AppRunID identifies one desktop-app launch. The Electron supervisor mints
+	// AppRunID identifies one desktop-app launch. The desktop supervisor mints
 	// it and passes it down (OPERATOR_APP_RUN_ID), holding it constant across daemon
 	// restarts it performs, so standalone shell terminals can survive a daemon
 	// restart while still being reaped when the APP itself goes away.
@@ -134,7 +134,7 @@ func (c Config) Addr() string {
 //	OPERATOR_RUN_FILE          running.json path   (default ~/.operator/running.json)
 //	OPERATOR_DATA_DIR          durable state dir   (default ~/.operator/data)
 //	OPERATOR_AGENT             compatibility agent id (default claude-code)
-//	OPERATOR_APP_RUN_ID        desktop-app launch id, set by the Electron supervisor
+//	OPERATOR_APP_RUN_ID        desktop-app launch id, set by the desktop supervisor
 //	                     (default: a fresh id minted per daemon boot)
 //	OPERATOR_ALLOWED_ORIGINS   CORS origins, comma-separated (default DefaultAllowedOrigins)
 //	OPERATOR_TELEMETRY_EVENTS  local event capture off|on (default off)
@@ -332,7 +332,7 @@ func newAppRunID() string {
 
 // resolveRunFilePath picks where running.json lives. An explicit OPERATOR_RUN_FILE
 // wins; otherwise it sits under the canonical Operator home directory so the CLI and
-// Electron supervisor share one handshake location.
+// desktop supervisor share one handshake location.
 func resolveRunFilePath() (string, error) {
 	if p, ok := os.LookupEnv("OPERATOR_RUN_FILE"); ok && p != "" {
 		return absOverride("OPERATOR_RUN_FILE", p)

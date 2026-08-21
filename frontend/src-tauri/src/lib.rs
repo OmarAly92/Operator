@@ -1,5 +1,9 @@
 use std::{env, error::Error, fs, path::Path, path::PathBuf};
 
+pub mod daemon;
+use daemon::supervisor::DaemonManager;
+use daemon::DaemonStatus;
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum StateProfile {
     Development,
@@ -131,6 +135,26 @@ fn terminal_benchmark_runtime_identity() -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn daemon_status(manager: tauri::State<'_, DaemonManager>) -> Result<DaemonStatus, String> {
+    Ok(manager.status().await)
+}
+
+#[tauri::command]
+async fn daemon_start(manager: tauri::State<'_, DaemonManager>) -> Result<DaemonStatus, String> {
+    Ok(manager.start().await)
+}
+
+#[tauri::command]
+async fn daemon_stop(manager: tauri::State<'_, DaemonManager>) -> Result<DaemonStatus, String> {
+    Ok(manager.stop().await)
+}
+
+#[tauri::command]
+async fn daemon_restart(manager: tauri::State<'_, DaemonManager>) -> Result<DaemonStatus, String> {
+    Ok(manager.restart().await)
+}
+
+#[tauri::command]
 fn complete_state_audit(app: tauri::AppHandle) -> Result<(), String> {
     let mode = env::var("OPERATOR_TAURI_STATE_AUDIT_MODE").map_err(|error| error.to_string())?;
     let state_root = resolved_state_root().map_err(|error| error.to_string())?;
@@ -193,15 +217,31 @@ void (async () => {
         .to_owned()
     });
 
-    let mut builder = tauri::Builder::default();
+    let daemon_manager = DaemonManager::new();
+    let mut builder = tauri::Builder::default().manage(daemon_manager);
     if audit_mode.is_some() {
         builder = builder.invoke_handler(tauri::generate_handler![
+            daemon_status,
+            daemon_start,
+            daemon_stop,
+            daemon_restart,
             complete_state_audit,
             fail_state_audit
         ]);
     } else if terminal_benchmark {
         builder = builder.invoke_handler(tauri::generate_handler![
+            daemon_status,
+            daemon_start,
+            daemon_stop,
+            daemon_restart,
             terminal_benchmark_runtime_identity
+        ]);
+    } else {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            daemon_status,
+            daemon_start,
+            daemon_stop,
+            daemon_restart
         ]);
     }
     builder
