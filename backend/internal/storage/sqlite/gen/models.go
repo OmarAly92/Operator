@@ -22,15 +22,15 @@ type AgentModelCatalog struct {
 }
 
 type AgentNativeSession struct {
-	ID                domain.AgentNativeSessionID
-	OperatorSessionID domain.SessionID
-	Harness           domain.AgentHarness
-	ConfigDir         string
-	NativeSessionID   string
-	TranscriptPath    string
-	LastGenerationID  domain.AgentGenerationID
-	CreatedAt         time.Time
-	LastUsedAt        time.Time
+	ID               domain.AgentNativeSessionID
+	AoSessionID      domain.SessionID
+	Harness          domain.AgentHarness
+	ConfigDir        string
+	NativeSessionID  string
+	TranscriptPath   string
+	LastGenerationID domain.AgentGenerationID
+	CreatedAt        time.Time
+	LastUsedAt       time.Time
 }
 
 type AgentSwitch struct {
@@ -60,9 +60,17 @@ type AgentSwitch struct {
 }
 
 type AppSetting struct {
-	ID                 int64
-	DefaultSessionMode domain.SessionMode
-	UpdatedAt          time.Time
+	ID                      int64
+	DefaultSessionMode      domain.SessionMode
+	UpdatedAt               time.Time
+	UiLocale                string
+	UpdateOptIn             bool
+	UpdateChannel           string
+	UpdateNightlyAck        bool
+	UpdateFeaturePR         sql.NullInt64
+	KeybindingsJson         string
+	MigrationJson           string
+	LegacyDesktopImportedAt sql.NullTime
 }
 
 type ChangeLog struct {

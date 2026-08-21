@@ -49,7 +49,7 @@ func (s *Store) CreateAgentNativeSession(ctx context.Context, rec domain.AgentNa
 
 	if rec.NativeSessionID != "" {
 		row, err := s.qw.FindAgentNativeSession(ctx, gen.FindAgentNativeSessionParams{
-			OperatorSessionID: rec.OperatorSessionID, Harness: rec.Harness,
+			AoSessionID: rec.OperatorSessionID, Harness: rec.Harness,
 			ConfigDir: rec.ConfigDir, NativeSessionID: rec.NativeSessionID,
 		})
 		if err == nil {
@@ -103,7 +103,7 @@ func (s *Store) UpdateAgentNativeSession(ctx context.Context, rec domain.AgentNa
 		ConfigDir: rec.ConfigDir, NativeSessionID: rec.NativeSessionID,
 		TranscriptPath:   rec.TranscriptPath,
 		NextGenerationID: rec.LastGenerationID, LastUsedAt: rec.LastUsedAt,
-		ID: rec.ID, OperatorSessionID: rec.OperatorSessionID,
+		ID: rec.ID, AoSessionID: rec.OperatorSessionID,
 		ExpectedGenerationID: expectedGenerationID,
 	})
 	if err != nil {
@@ -700,7 +700,7 @@ func validSHA256Hex(value string) bool {
 
 func agentNativeSessionToInsert(rec domain.AgentNativeSession) gen.InsertAgentNativeSessionParams {
 	return gen.InsertAgentNativeSessionParams{
-		ID: rec.ID, OperatorSessionID: rec.OperatorSessionID, Harness: rec.Harness, ConfigDir: rec.ConfigDir,
+		ID: rec.ID, AoSessionID: rec.OperatorSessionID, Harness: rec.Harness, ConfigDir: rec.ConfigDir,
 		NativeSessionID: rec.NativeSessionID, TranscriptPath: rec.TranscriptPath,
 		LastGenerationID: rec.LastGenerationID, CreatedAt: rec.CreatedAt,
 		LastUsedAt: rec.LastUsedAt,
@@ -709,7 +709,7 @@ func agentNativeSessionToInsert(rec domain.AgentNativeSession) gen.InsertAgentNa
 
 func agentNativeSessionFromGen(row gen.AgentNativeSession) domain.AgentNativeSession {
 	return domain.AgentNativeSession{
-		ID: row.ID, OperatorSessionID: row.OperatorSessionID, Harness: row.Harness, ConfigDir: row.ConfigDir,
+		ID: row.ID, OperatorSessionID: row.AoSessionID, Harness: row.Harness, ConfigDir: row.ConfigDir,
 		NativeSessionID: row.NativeSessionID, TranscriptPath: row.TranscriptPath,
 		LastGenerationID: row.LastGenerationID, CreatedAt: row.CreatedAt,
 		LastUsedAt: row.LastUsedAt,
@@ -781,8 +781,8 @@ func ensureNativeSessionRefBelongsTo(ctx context.Context, q *gen.Queries, sessio
 	if err != nil {
 		return fmt.Errorf("read %s native session %s: %w", role, *ref, err)
 	}
-	if row.OperatorSessionID != sessionID {
-		return fmt.Errorf("%s native session %s belongs to Operator session %s, not %s", role, *ref, row.OperatorSessionID, sessionID)
+	if row.AoSessionID != sessionID {
+		return fmt.Errorf("%s native session %s belongs to Operator session %s, not %s", role, *ref, row.AoSessionID, sessionID)
 	}
 	if row.Harness != harness {
 		return fmt.Errorf("%s native session %s belongs to harness %s, not %s", role, *ref, row.Harness, harness)

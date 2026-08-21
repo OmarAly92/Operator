@@ -18,6 +18,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
+	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
 )
 
 // Build reflects the Go contract types and the operation registry below into
@@ -140,6 +141,13 @@ func schemaName(_ reflect.Type, defaultName string) string {
 var schemaNames = map[string]string{
 	"ControllersSettingsResponse":                     "SettingsResponse",
 	"ControllersUpdateSessionInterfaceRequest":        "UpdateSessionInterfaceRequest",
+	"ControllersUiSettings":                           "UiSettings",
+	"ControllersMigrationState":                       "MigrationState",
+	"SettingsUpdateSettings":                          "UpdateSettings",
+	"SettingsFeaturePin":                              "FeaturePin",
+	"SettingsKeybindingOverrides":                     "KeybindingOverrides",
+	"SettingsShortcutBinding":                         "ShortcutBinding",
+	"SettingsMigrationReport":                         "MigrationReport",
 	"ControllersConversationSnapshotResponse":         "ConversationSnapshotResponse",
 	"ControllersConversationTurnResponse":             "ConversationTurnResponse",
 	"ControllersConversationTurnDiffResponse":         "ConversationTurnDiffResponse",
@@ -520,6 +528,50 @@ func shellTerminalOperations() []operation {
 			method: http.MethodPatch, path: "/api/v1/settings/session-interface", id: "updateSessionInterface", tag: "settings",
 			summary: "Choose the default interface for new sessions",
 			reqBody: controllers.UpdateSessionInterfaceRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SettingsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/ui", id: "updateUiSettings", tag: "settings",
+			summary: "Set the desktop presentation locale",
+			reqBody: controllers.UiSettings{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SettingsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/updates", id: "setUpdateSettings", tag: "settings",
+			summary: "Set the desktop auto-update opt-in state",
+			reqBody: settingssvc.UpdateSettings{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SettingsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/keybindings", id: "setKeybindingOverrides", tag: "settings",
+			summary: "Set the persisted desktop shortcut overrides",
+			reqBody: settingssvc.KeybindingOverrides{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SettingsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/migration", id: "setMigrationState", tag: "settings",
+			summary: "Record the legacy desktop import decision",
+			reqBody: settingssvc.MigrationState{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},

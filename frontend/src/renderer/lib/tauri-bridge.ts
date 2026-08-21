@@ -1,7 +1,9 @@
+import type { components } from "../../api/schema";
 import type { DaemonStatus } from "../../shared/daemon-status";
 import type { MigrationState } from "../../shared/app-state";
 import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
 import type { UiSettings } from "../../shared/ui-locale";
+import { coerceLocale } from "../../shared/ui-locale";
 import type { FeatureBuild } from "../../shared/feature-builds";
 import type { ImportFolderScan } from "../../shared/import-folder-scan";
 import type { TrayAttentionState, TrayOpenSessionTarget } from "../../shared/tray";
@@ -9,6 +11,22 @@ import type { KeybindingOverrides } from "../../shared/shortcuts";
 import type { TelemetryBootstrap } from "../../shared/telemetry";
 import type { UpdateOutcome } from "../../shared/update-telemetry";
 import type { OperatorBridgeWithoutBrowser } from "../../shared/operator-bridge";
+import { apiClient, apiErrorMessage } from "./api-client";
+
+type SettingsPayload = components["schemas"]["SettingsResponse"];
+
+const PENDING_MIGRATION: MigrationState = { status: "pending" };
+const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
+	enabled: false,
+	channel: "latest",
+	nightlyAck: false,
+	feature: null,
+};
+
+async function fetchSettings(): Promise<SettingsPayload | null> {
+	const { data } = await apiClient.GET("/api/v1/settings");
+	return data ?? null;
+}
 
 export interface TauriBridgeTransports {
 	invoke: (command: string, payload?: unknown) => Promise<unknown>;
@@ -134,25 +152,57 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				subscribe<TrayOpenSessionTarget>("tray:open-session", listener),
 		},
 		appState: {
-			getMigration: async () => (await invoke("migration_get")) as MigrationState,
+			getMigration: async () => (await fetchSettings())?.migration ?? PENDING_MIGRATION,
 			setMigration: async (migration: MigrationState) => {
-				await invoke("migration_set", migration);
+				const { error } = await apiClient.PATCH("/api/v1/settings/migration", { body: migration });
+				if (error) throw new Error(apiErrorMessage(error));
 			},
 		},
 		updateSettings: {
-			get: async () => (await invoke("update_settings_get")) as UpdateSettings,
+			get: async () => {
+				const updates = (await fetchSettings())?.updates;
+				if (!updates) return DEFAULT_UPDATE_SETTINGS;
+				return {
+					enabled: updates.enabled,
+					channel: updates.channel,
+					nightlyAck: updates.nightlyAck,
+					feature: updates.feature ?? null,
+				};
+			},
 			set: async (settings: UpdateSettings) => {
-				await invoke("update_settings_set", settings);
+				const { error } = await apiClient.PATCH("/api/v1/settings/updates", {
+					body: {
+						enabled: settings.enabled,
+						channel: settings.channel,
+						nightlyAck: settings.nightlyAck,
+						...(settings.feature ? { feature: { pr: settings.feature.pr } } : {}),
+					},
+				});
+				if (error) throw new Error(apiErrorMessage(error));
 			},
 		},
 		uiSettings: {
-			get: async () => (await invoke("ui_settings_get")) as UiSettings,
-			set: async (settings: UiSettings) => (await invoke("ui_settings_set", settings)) as UiSettings,
+			get: async () => ({ locale: coerceLocale((await fetchSettings())?.ui?.locale) }),
+			set: async (settings: UiSettings) => {
+				const { data, error } = await apiClient.PATCH("/api/v1/settings/ui", {
+					body: { locale: settings.locale },
+				});
+				if (error) throw new Error(apiErrorMessage(error));
+				return { locale: coerceLocale(data?.ui?.locale ?? settings.locale) };
+			},
 		},
 		keybindings: {
-			get: async () => (await invoke("keybindings_get")) as KeybindingOverrides,
-			set: async (overrides: KeybindingOverrides) =>
-				(await invoke("keybindings_set", overrides)) as KeybindingOverrides,
+			get: async () => (await fetchSettings())?.keybindings ?? {},
+			set: async (overrides: KeybindingOverrides) => {
+				const body = Object.fromEntries(
+					Object.entries(overrides).map(([id, bindings]) => [id, bindings.map((binding) => ({ ...binding }))]),
+				);
+				const { data, error } = await apiClient.PATCH("/api/v1/settings/keybindings", {
+					body,
+				});
+				if (error) throw new Error(apiErrorMessage(error));
+				return data?.keybindings ?? {};
+			},
 			setRecording: async (active: boolean) => {
 				await invoke("keybindings_recording", { active });
 			},

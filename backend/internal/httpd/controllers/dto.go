@@ -13,6 +13,7 @@ import (
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
 )
 
 // HTTP response envelopes for the projects surface — the SINGLE definition of
@@ -1701,11 +1702,39 @@ type SettingsResponse struct {
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
 	ChatHarnesses []string `json:"chatHarnesses"`
+	// UI holds the desktop presentation preferences.
+	UI UiSettings `json:"ui"`
+	// Updates is the auto-update opt-in state shared by desktop clients.
+	Updates settingssvc.UpdateSettings `json:"updates"`
+	// Keybindings are the persisted shortcut overrides; absent IDs fall back to
+	// client defaults.
+	Keybindings settingssvc.KeybindingOverrides `json:"keybindings"`
+	// Migration is the legacy desktop-import decision.
+	Migration MigrationState `json:"migration"`
+	// LegacyDesktopImportedAt records when legacy JSON settings were imported.
+	// Null until the import runs; once set it never clears or moves.
+	LegacyDesktopImportedAt *time.Time `json:"legacyDesktopImportedAt"`
 }
 
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.
 type UpdateSessionInterfaceRequest struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
+}
+
+// UiSettings holds the desktop presentation preferences.
+type UiSettings struct {
+	Locale string `json:"locale" enum:"en,zh-CN,ja,ko,es,fr,de,pt-BR"`
+}
+
+// MigrationState is the wire form of the legacy desktop-import decision.
+// Timestamps are RFC3339 strings and absent when unset, mirroring the desktop
+// client's MigrationState shape exactly.
+type MigrationState struct {
+	Status        string                       `json:"status" enum:"pending,completed,declined,failed"`
+	LastAttemptAt string                       `json:"lastAttemptAt,omitempty"`
+	CompletedAt   string                       `json:"completedAt,omitempty"`
+	Report        *settingssvc.MigrationReport `json:"report,omitempty"`
+	Error         string                       `json:"error,omitempty"`
 }
 
 // capabilityNames lists the abilities a provider has, sorted so a client sees a
