@@ -218,7 +218,15 @@ async function runCommand(spawnImpl, request) {
 function truncateText(text, limit) {
 	if (limit === undefined) return text;
 	if (Buffer.byteLength(text) <= limit) return text;
-	return Buffer.from(text, "utf8").subarray(0, limit).toString("utf8");
+	let result = "";
+	let bytes = 0;
+	for (const char of text) {
+		const charBytes = Buffer.byteLength(char);
+		if (bytes + charBytes > limit) break;
+		result += char;
+		bytes += charBytes;
+	}
+	return result;
 }
 
 export function sanitizeDoctorReport(raw) {
@@ -236,7 +244,6 @@ export function sanitizeDoctorReport(raw) {
 
 export function locateManagedExecutable(files, root, platform) {
 	const keys = files instanceof Map ? [...files.keys()] : files instanceof Set ? [...files] : Object.keys(files);
-	const rootResolved = root ? path.resolve(root) : null;
 	const suffixes =
 		platform === "darwin"
 			? ["Google Chrome for Testing"]
@@ -247,7 +254,7 @@ export function locateManagedExecutable(files, root, platform) {
 		if (!key.includes(".agent-browser")) continue;
 		for (const suffix of suffixes) {
 			if (key.endsWith(suffix)) {
-				if (rootResolved) {
+				if (root) {
 					const resolver = platform === "win32" ? path.win32 : path;
 					const relative = resolver.relative(resolver.resolve(root), resolver.resolve(key));
 					if (relative.startsWith("..") || resolver.isAbsolute(relative)) continue;
@@ -387,7 +394,7 @@ export async function runMode(mode, options) {
 	const scan = async () => {
 		const listArgs = platform === "win32" ? ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"] : ["-axo", "pid=,args="];
 		const result = await runCommand(spawnImpl, {
-			file: platform === "win32" ? "powershell" : "ps",
+			file: platform === "win32" ? "powershell" : "/bin/ps",
 			args: listArgs,
 			env: {},
 			timeoutMs: actionTimeoutMs,
