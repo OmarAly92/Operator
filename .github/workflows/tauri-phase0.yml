@@ -1,0 +1,235 @@
+name: Tauri Phase 0
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - "backend/internal/config/**"
+      - "backend/internal/httpd/cors.go"
+      - "backend/internal/httpd/cors_test.go"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/rust-toolchain.toml"
+      - "frontend/scripts/audit-tauri-state.mjs"
+      - "frontend/scripts/audit-tauri-state.test.mjs"
+      - "frontend/scripts/agent-browser-phase0.mjs"
+      - "frontend/scripts/agent-browser-phase0.test.mjs"
+      - "frontend/scripts/prepare-agent-browser.mjs"
+      - "frontend/scripts/phase0-decision.mjs"
+      - "frontend/scripts/phase0-decision.test.mjs"
+      - "frontend/scripts/phase0-legacy-update.mjs"
+      - "frontend/scripts/phase0-legacy-update.test.mjs"
+      - "frontend/scripts/phase0-updater-signing.mjs"
+      - "frontend/perf/browser/**"
+      - "frontend/perf/results/**"
+      - "frontend/src-tauri/**"
+      - "docs/benchmarks/tauri-port-baseline.md"
+      - ".github/workflows/tauri-phase0.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  state-boundary:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb rpm
+      - run: npm ci
+      - run: npm run test:tauri-state
+      - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cd ../backend && go test ./internal/config ./internal/httpd -run 'AllowedOrigins|CORS'
+      - run: npm run typecheck
+      - run: npm run tauri:build -- --debug --no-bundle
+      - if: runner.os != 'Linux'
+        run: npm run audit:tauri-state
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run audit:tauri-state
+  agent-browser-probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: npm ci
+      - run: node scripts/prepare-agent-browser.mjs --quiet
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
+        continue-on-error: true
+      - if: runner.os != 'Linux'
+        run: node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
+        continue-on-error: true
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
+        continue-on-error: true
+      - if: runner.os != 'Linux'
+        run: node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-browser-phase0-${{ matrix.os }}
+          path: |
+            frontend/agent-browser-phase0-system/evidence-*.json
+            frontend/agent-browser-phase0-system/*.png
+            frontend/agent-browser-phase0-managed/evidence-*.json
+            frontend/agent-browser-phase0-managed/*.png
+          if-no-files-found: warn
+  bundle-feasibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm
+      - run: npm ci
+      - run: npm run build:daemon
+      - run: node scripts/prepare-agent-browser.mjs --quiet
+      - run: npm run build:acp-runtime
+      - run: npm run tauri:build
+      - if: runner.os == 'macOS'
+        run: |
+          ls -lh src-tauri/target/release/bundle/macos/*.app src-tauri/target/release/bundle/dmg/*.dmg src-tauri/target/release/bundle/macos/*.zip 2>&1 | head -n 50
+          ./scripts/verify-mac-artifact.sh src-tauri/target/release/bundle/macos/*.app 2>&1 | head -n 100 || true
+      - if: runner.os == 'Windows'
+        run: |
+          ls -lh src-tauri/target/release/bundle/nsis/*.exe 2>&1 | head -n 50
+          powershell -Command "Get-AuthenticodeSignature src-tauri/target/release/bundle/nsis/*.exe | Format-List"
+      - if: runner.os == 'Linux'
+        run: |
+          ls -lh src-tauri/target/release/bundle/appimage/*.AppImage src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm 2>&1 | head -n 50
+          rpm -qip src-tauri/target/release/bundle/rpm/*.rpm 2>&1 | head -n 50
+          file src-tauri/target/release/bundle/appimage/*.AppImage src-tauri/target/release/bundle/deb/*.deb
+      - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
+      - name: ephemeral updater signing
+        run: |
+          mkdir -p perf/updater-fixture
+          echo "tauri phase0 fixture $(date)" > perf/updater-fixture/archive.tar
+          mkdir -p perf/updater-output
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/archive.tar --output perf/updater-output --tmp-dir /tmp
+          cat perf/updater-output/updater-signing-evidence.json
+          if grep -r "PRIVATE KEY" perf/updater-output; then echo "private key leaked"; exit 1; fi
+          git status --porcelain -- perf/updater-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-bundle-${{ matrix.os }}
+          path: |
+            frontend/src-tauri/target/release/bundle/**
+            frontend/perf/results/**
+          if-no-files-found: warn
+  updater-signing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: |
+          mkdir -p perf/updater-fixture
+          echo "fixture for updater signing gate" > perf/updater-fixture/fixture.tar
+          mkdir -p perf/updater-output
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/fixture.tar --output perf/updater-output --tmp-dir /tmp
+          ls -lh perf/updater-output/
+          cat perf/updater-output/updater-signing-evidence.json
+          if grep -R "PRIVATE KEY" perf/updater-output; then exit 1; fi
+          git status --porcelain -- perf/updater-output
+  legacy-update:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: node --test scripts/phase0-legacy-update.test.mjs
+      - run: node scripts/phase0-legacy-update.mjs --results perf/results || echo "legacy update evidence pending"
+  phase0-decision:
+    needs: [state-boundary, agent-browser-probe, bundle-feasibility, updater-signing, legacy-update]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
+      - run: |
+          node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md
+          cat ../docs/benchmarks/tauri-port-baseline.md | tail -n 20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-decision
+          path: |
+            docs/benchmarks/tauri-port-baseline.md
+            frontend/perf/results/**
+          if-no-files-found: warn

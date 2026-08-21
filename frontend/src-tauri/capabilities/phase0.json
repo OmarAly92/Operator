@@ -1,0 +1,6 @@
+{
+	"identifier": "phase0",
+	"description": "Phase 0 window lifecycle and event access",
+	"windows": ["main"],
+	"permissions": ["core:event:default", "core:window:allow-close"]
+}

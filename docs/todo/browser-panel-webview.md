@@ -4,14 +4,24 @@
 **Status:** deferred, not scheduled
 **Context:** `docs/superpowers/specs/2026-08-16-tauri-port-design.md`
 
-## What was removed and why
+## What this records
 
-The Tauri port removes the embedded browser panel (the inspector rail's Browser tab, and the
-in-window target of `opr preview`). It was `frontend/src/main/browser-view-host.ts`, 2,079
-lines built on Electron `WebContentsView`.
+The Tauri base port defers the embedded browser panel (the inspector rail's Browser tab, and the
+in-window target of `opr preview`) and, with it, the Electron implementation it depends on:
+`frontend/src/main/browser-view-host.ts`, 2,079 lines built on Electron `WebContentsView`.
 
-It was removed rather than ported because it depends on Chromium APIs that WKWebView and
-WebKitGTK do not have:
+The approved future disposition is Task 16: remove the embedded panel from the Tauri base port and
+replace it with two daemon-side paths — automatic external preview, and agent-facing automation in
+the standalone browser owned by the Go daemon.
+
+**Nothing here has shipped yet.** The embedded Electron Browser panel still exists in the desktop
+app today, and neither replacement path is implemented. This page is a decision record for the
+approved Task 16 disposition, not a change log.
+
+## Why the embedded panel is removed rather than ported
+
+The panel is not ported to the OS webview target (WKWebView / WebKitGTK / WebView2) because it
+depends on Chromium APIs that target does not have:
 
 | Capability | Electron API | OS webview |
 |---|---|---|
@@ -21,16 +31,33 @@ WebKitGTK do not have:
 | Popup interception | `setWindowOpenHandler` | none |
 | In-window embedding | `WebContentsView` + synced bounds | partial, platform-divergent |
 
-Keeping it would have meant shipping a Chromium — the 242 MB the port exists to remove.
+Keeping full parity would require embedding a separate Chromium-class runtime or accepting the
+capability losses above. Either choice conflicts with this port's size and parity goals.
 
-## What replaced it
+## Approved future disposition
 
-Agent-facing browsing is unaffected: `agent-browser` (vercel-labs, 12 MB) is already a
-separate browser process driven over CDP, orchestrated by the Go daemon. `opr preview` opens
-and drives the user's real browser.
+Two deliberately separate paths replace the panel. Both are approved and implemented by later
+tasks, not by the base port:
 
-What is actually lost is the *in-window* panel: browsing beside the session instead of in
-another application.
+- **Automatic external preview (Task 16).** The daemon exposes `previewUrl`, `previewRevision`, and
+  `previewOpenedRevision` on session updates. The desktop client preserves the daemon-owned preview
+  target, opens each new revision once in the user's default browser through the validated HTTP(S)
+  opener, and acknowledges it over a loopback-only route. The session inspector also keeps a manual
+  reopen action that never changes the automatic-open acknowledgement.
+- **Standalone agent automation (Task 15).** Agent-facing browsing uses the packaged
+  `agent-browser` command against an isolated standalone Chromium owned by the Go daemon. It does
+  not attach to the user's default-browser profile. Operator discovers an installed compatible
+  browser first and otherwise installs the pinned managed browser beneath `~/.operator/browser-engine`
+  on first automation use. Because it is separate from the base application, it is installed only
+  on demand and measured separately.
+
+Neither path exists today. `agent-browser` still receives `AGENT_BROWSER_CDP` for a bridge whose
+targets are Electron `WebContents`; it is not already independent of the embedded panel. Task 15
+must pass the standalone-browser Phase 0 gate before that bridge is deleted, and Task 16 removes
+the embedded panel's renderer consumers before Task 21 deletes the now-dead Electron code.
+
+Until Task 16 lands, the visible preview and the agent-controlled target remain coupled inside the
+embedded panel. User preview and agent automation become separate windows only after it ships.
 
 ## If we rebuild it
 
@@ -39,9 +66,9 @@ Scope it to what the OS webview can actually do, and do not try to recover the C
 **In scope:** a child webview in the main window, navigation (back/forward/reload/stop),
 address bar, tabs, bounds synced to the panel layout.
 
-**Out of scope, permanently:** network capture, `capturePage` annotation, per-tab partitions,
-popup interception. If an agent needs those, it uses `agent-browser`, which is the right tool
-and already exists.
+**Out of scope, permanently:** panel-owned network capture, `capturePage` annotation, per-tab
+partitions, and popup interception. Standalone agent automation retains its own console,
+network, screenshot, and tab commands, but those results are not rendered as a native panel.
 
 **Open questions to answer first:**
 

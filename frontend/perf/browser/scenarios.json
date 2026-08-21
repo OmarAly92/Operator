@@ -1,0 +1,48 @@
+{
+	"system": {
+		"kind": "browser",
+		"mode": "system",
+		"description": "Discovered Chrome/Edge/Chromium drives the full action suite against the local fixture page.",
+		"actions": [
+			"doctor --json",
+			"open {fixture} --json",
+			"snapshot -i --json",
+			"click @e1 --json",
+			"console --json",
+			"errors --json",
+			"screenshot {artifacts}/page.png --json",
+			"tab new {fixture} --json",
+			"tab list --json",
+			"tab close --json",
+			"close --json"
+		],
+		"timeouts": {
+			"doctorMs": 60000,
+			"actionMs": 30000
+		}
+	},
+	"managed": {
+		"kind": "browser",
+		"mode": "managed",
+		"description": "Managed engine install, then the same action suite on the isolated managed executable.",
+		"actions": [
+			"doctor --json",
+			"install --json",
+			"open {fixture} --json",
+			"snapshot -i --json",
+			"click @e1 --json",
+			"console --json",
+			"errors --json",
+			"screenshot {artifacts}/page.png --json",
+			"tab new {fixture} --json",
+			"tab list --json",
+			"tab close --json",
+			"close --json"
+		],
+		"timeouts": {
+			"doctorMs": 60000,
+			"installMs": 600000,
+			"actionMs": 30000
+		}
+	}
+}
