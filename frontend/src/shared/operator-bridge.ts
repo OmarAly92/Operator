@@ -7,6 +7,7 @@ import type { UpdateSettings, UpdateStatus } from "./update-settings";
 import type { UpdateOutcome } from "./update-telemetry";
 import type { UiSettings } from "./ui-locale";
 import type { FeatureBuild } from "./feature-builds";
+import type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
 import type {
 	BrowserAnnotationCancelPayload,
 	BrowserAnnotationModeInput,
@@ -32,24 +33,7 @@ export type BrowserNavigateInput = {
 	url: string;
 };
 
-export type ImportFolderMode = "project" | "workspace";
-
-export type ImportRepoScan = {
-	name: string;
-	path: string;
-	relativePath: string;
-	branch: string;
-	remote: string;
-	hasRemote: boolean;
-	status?: "ok" | "error";
-	reason?: string;
-};
-
-export type ImportFolderScan = {
-	path: string;
-	repos: ImportRepoScan[];
-	setupWarning?: string;
-};
+export type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
 
 export interface UpdateCheckOptions {
 	settings?: UpdateSettings;
@@ -60,7 +44,9 @@ export interface FeatureBuildRef {
 	pr: number;
 }
 
-export type OperatorBridgeWithoutBrowser = Omit<OperatorBridge, "browser">;export type OperatorBridge = {
+export type OperatorBridgeWithoutBrowser = Omit<OperatorBridge, "browser">;
+
+export type OperatorBridge = {
 	app: {
 		getVersion: () => Promise<string>;
 		chooseDirectory: (title?: string) => Promise<string | null>;
@@ -174,7 +160,3 @@ export type OperatorBridgeWithoutBrowser = Omit<OperatorBridge, "browser">;expor
 		getActive: () => Promise<FeatureBuildRef | null>;
 	};
 };
-
-export function createElectronBridge(preloadBridge: OperatorBridge): OperatorBridge {
-	return preloadBridge;
-}

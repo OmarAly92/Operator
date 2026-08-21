@@ -1,7 +1,4 @@
-import type {
-	DaemonFailureCode,
-	DaemonStatus,
-} from "../../shared/daemon-status";
+import type { DaemonStatus } from "../../shared/daemon-status";
 import type { MigrationState } from "../../shared/app-state";
 import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
 import type { UiSettings } from "../../shared/ui-locale";
@@ -187,5 +184,3 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 }
 
 export type TauriBridge = ReturnType<typeof createTauriBridge>;
-
-export type { DaemonFailureCode };

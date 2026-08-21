@@ -228,7 +228,10 @@ async function selectShellBridge(): Promise<OperatorBridge> {
 
 const bridgePromise: Promise<OperatorBridge> = selectShellBridge();
 
-void bridgePromise;
+let resolvedBridge: OperatorBridge | null = null;
+void bridgePromise.then((bridge) => {
+	resolvedBridge = bridge;
+});
 
 export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
 	return bridgePromise;
@@ -237,6 +240,7 @@ export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
 export const operatorBridge: OperatorBridge = new Proxy(createBrowserPreviewBridge(), {
 	get(_target, property, receiver) {
 		if (window.operator) return Reflect.get(window.operator, property);
+		if (resolvedBridge) return Reflect.get(resolvedBridge as object, property, receiver);
 		return Reflect.get(_target as object, property, receiver);
 	},
 });

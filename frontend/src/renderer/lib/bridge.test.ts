@@ -1,4 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, expectTypeOf } from "vitest";
+import type { OperatorBridge, OperatorBridgeWithoutBrowser } from "../../shared/operator-bridge";
+import type { DaemonStatus } from "../../shared/daemon-status";
+import type { MigrationState } from "../../shared/app-state";
+import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
+import type { UiSettings } from "../../shared/ui-locale";
+import type { FeatureBuild } from "../../shared/feature-builds";
+import type { ImportFolderScan } from "../../shared/import-folder-scan";
+import type { TrayAttentionState, TrayOpenSessionTarget } from "../../shared/tray";
+import type { KeybindingOverrides } from "../../shared/shortcuts";
+import type { TelemetryBootstrap } from "../../shared/telemetry";
+import type { UpdateOutcome } from "../../shared/update-telemetry";
 
 vi.mock("@tauri-apps/api/core", () => ({
 	invoke: (...args: unknown[]) => (globalThis as { __tauriInvoke?: (...args: unknown[]) => unknown }).__tauriInvoke?.(...(args as [])),
@@ -59,6 +70,20 @@ describe("shell selection", () => {
 		expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "ready" });
 	});
 
+	it("serves the resolved Tauri bridge through the production proxy", async () => {
+		setTauriInternals(true);
+		const invokeStub = vi.fn<Invoke>().mockResolvedValue({ state: "starting" });
+		const listenStub = vi.fn<Listen>().mockReturnValue(() => undefined);
+		const holder = globalThis as { __tauriInvoke?: unknown; __tauriListen?: unknown };
+		holder.__tauriInvoke = invokeStub;
+		holder.__tauriListen = listenStub;
+		const { operatorBridge } = await importBridge();
+		await vi.waitFor(async () => {
+			expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "starting" });
+		});
+		expect(invokeStub).toHaveBeenCalledWith("daemon_status", undefined);
+	});
+
 	it("falls back to the browser preview bridge under VITE_NO_ELECTRON=1", async () => {
 		vi.stubEnv("VITE_NO_ELECTRON", "1");
 		const { operatorBridge } = await importBridge();
@@ -115,5 +140,28 @@ describe("createTauriBridge", async () => {
 	it("exposes no browser namespace on the Tauri bridge", async () => {
 		const bridge = await create();
 		expect("browser" in bridge).toBe(false);
+	});
+});
+
+describe("compile-time ownership of shared types", () => {
+	it("pins every non-browser namespace to its shared contract", () => {
+		type Bridge = OperatorBridgeWithoutBrowser;
+		expectTypeOf<Bridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
+		expectTypeOf<Bridge["appState"]["getMigration"]>().returns.resolves.toEqualTypeOf<MigrationState>();
+		expectTypeOf<Bridge["updateSettings"]["get"]>().returns.resolves.toEqualTypeOf<UpdateSettings>();
+		expectTypeOf<Bridge["updates"]["getStatus"]>().returns.resolves.toEqualTypeOf<UpdateStatus>();
+		expectTypeOf<Bridge["uiSettings"]["get"]>().returns.resolves.toEqualTypeOf<UiSettings>();
+		expectTypeOf<Bridge["featureBuilds"]["list"]>().returns.resolves.toEqualTypeOf<FeatureBuild[]>();
+		expectTypeOf<Bridge["app"]["scanImportFolder"]>().returns.resolves.toEqualTypeOf<ImportFolderScan>();
+		expectTypeOf<Bridge["tray"]["setAttentionState"]>().parameter(0).toEqualTypeOf<TrayAttentionState>();
+		expectTypeOf<Bridge["tray"]["onOpenSession"]>().parameter(0).toEqualTypeOf<(target: TrayOpenSessionTarget) => void>();
+		expectTypeOf<Bridge["keybindings"]["get"]>().returns.resolves.toEqualTypeOf<KeybindingOverrides>();
+		expectTypeOf<Bridge["telemetry"]["getBootstrap"]>().returns.resolves.toEqualTypeOf<TelemetryBootstrap | null>();
+		expectTypeOf<Bridge["updates"]["onTelemetry"]>().parameter(0).toEqualTypeOf<(outcome: UpdateOutcome) => void>();
+	});
+
+	it("keeps the full Electron bridge assignable to the shared contract", () => {
+		expectTypeOf<OperatorBridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
+		expectTypeOf<keyof OperatorBridgeWithoutBrowser>().toExtend<string>();
 	});
 });
