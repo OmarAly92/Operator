@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { watch, watchFile } from "node:fs";
 import { access, lstat, mkdir, mkdtemp, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -34,6 +35,7 @@ function macOSStateTargets(operatorDirectory, platformHomeDirectory) {
 		...cookieNames.map((cookieName) => ({
 			statePath: path.join(cookieDirectory, cookieName),
 			depth: Number.POSITIVE_INFINITY,
+			exact: true,
 		})),
 	];
 }
@@ -121,6 +123,168 @@ function operatorOwnedStatePath(statePath) {
 		.some((component) => /^(?:dev\.)?operator(?:[.\s_-]|$)|^tauri(?:[.\s_-]|$)/i.test(component));
 }
 
+function operatorOwnedComponent(component) {
+	return /^(?:dev\.)?operator(?:[.\s_-]|$)|^tauri(?:[.\s_-]|$)/i.test(component);
+}
+
+function createObserverState(options) {
+	let rejectFailure;
+	const failure = new Promise((_, reject) => {
+		rejectFailure = reject;
+	});
+	failure.catch(() => {});
+	return {
+		watchDirectory: options.watchDirectory ?? watch,
+		watchExactFile: options.watchExactFile ?? watchFile,
+		directoryWatchers: new Map(),
+		exactWatchers: [],
+		observedSnapshot: new Map(),
+		pendingTasks: new Set(),
+		observationIndex: 0,
+		failureError: undefined,
+		stopping: false,
+		stopped: false,
+		failure,
+		rejectFailure,
+	};
+}
+
+function failObservation(observer, error) {
+	if (observer.stopped) return;
+	observer.failureError ??= error instanceof Error ? error : new Error(String(error));
+	observer.rejectFailure(observer.failureError);
+}
+
+function scheduleObservation(observer, operation) {
+	const task = Promise.resolve()
+		.then(operation)
+		.catch((error) => failObservation(observer, error))
+		.finally(() => observer.pendingTasks.delete(task));
+	observer.pendingTasks.add(task);
+}
+
+function recordObservation(observer, statePath) {
+	if (observer.stopped) return;
+	observer.observationIndex += 1;
+	observer.observedSnapshot.set(statePath, `observed:${observer.observationIndex}`);
+}
+
+async function metadataIfExists(statePath) {
+	try {
+		return await lstat(statePath);
+	} catch (error) {
+		if (error?.code === "ENOENT") return undefined;
+		throw error;
+	}
+}
+
+function addDirectoryWatcher(observer, directoryPath, recursive, listener) {
+	if (observer.stopping || observer.stopped) return;
+	const resolvedDirectory = path.resolve(directoryPath);
+	const watcherKey = `${recursive}:${resolvedDirectory}`;
+	const existing = observer.directoryWatchers.get(watcherKey);
+	if (existing) {
+		existing.listeners.add(listener);
+		return;
+	}
+	const listeners = new Set([listener]);
+	const filesystemWatcher = observer.watchDirectory(resolvedDirectory, { recursive }, (_eventType, filename) => {
+		if (filename === null) return failObservation(observer, new Error(`state observation lost the changed path beneath ${resolvedDirectory}`));
+		for (const watcherListener of listeners) scheduleObservation(observer, () => watcherListener(filename.toString()));
+	});
+	filesystemWatcher.once("error", (error) => failObservation(observer, error));
+	observer.directoryWatchers.set(watcherKey, { filesystemWatcher, listeners });
+}
+
+async function observeDirectoryWhenPresent(observer, directoryPath, observeDirectory) {
+	const metadata = await metadataIfExists(directoryPath);
+	if (metadata) {
+		if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error(`required state target is not an observable directory: ${directoryPath}`);
+		await observeDirectory();
+		return;
+	}
+	const parentDirectory = path.dirname(directoryPath);
+	if (parentDirectory === directoryPath) throw new Error(`required state target cannot be observed: ${directoryPath}`);
+	await observeDirectoryWhenPresent(observer, parentDirectory, () => {
+		addDirectoryWatcher(observer, parentDirectory, false, (changedName) => {
+			const changedComponent = changedName.split(/[\\/]/, 1)[0];
+			if (changedComponent === path.basename(directoryPath) || changedComponent === path.basename(parentDirectory)) {
+				throw new Error(`required state target changed without continuous observation coverage: ${directoryPath}`);
+			}
+		});
+	});
+}
+
+async function observeTree(observer, directoryPath) {
+	addDirectoryWatcher(observer, directoryPath, true, async (changedName) => {
+		const changedPath = path.resolve(directoryPath, changedName);
+		if (!pathInside(changedPath, directoryPath)) throw new Error(`state observation escaped its target: ${changedPath}`);
+		const metadata = await metadataIfExists(changedPath);
+		if (changedName === path.basename(directoryPath) && !metadata) return;
+		recordObservation(observer, changedPath);
+	});
+}
+
+async function observeShallowTarget(observer, target) {
+	await observeDirectoryWhenPresent(observer, target.statePath, async () => {
+		addDirectoryWatcher(observer, target.statePath, false, async (changedName) => {
+			const firstComponent = changedName.split(/[\\/]/, 1)[0];
+			if (!operatorOwnedComponent(firstComponent)) return;
+			const changedPath = path.resolve(target.statePath, changedName);
+			recordObservation(observer, changedPath);
+			const appStateRoot = path.join(target.statePath, firstComponent);
+			const metadata = await metadataIfExists(appStateRoot);
+			if (metadata?.isDirectory() && !metadata.isSymbolicLink()) await observeTree(observer, appStateRoot);
+		});
+		const entries = await readdir(target.statePath, { withFileTypes: true });
+		for (const entry of entries) {
+			if (operatorOwnedComponent(entry.name) && entry.isDirectory() && !entry.isSymbolicLink()) await observeTree(observer, path.join(target.statePath, entry.name));
+		}
+	});
+}
+
+function observeExactTarget(observer, target) {
+	const statWatcher = observer.watchExactFile(target.statePath, { interval: 25, persistent: true }, (current, previous) => {
+		const currentSignature = `${current.dev}:${current.ino}:${current.size}:${current.mtimeMs}:${current.nlink}`;
+		const previousSignature = `${previous.dev}:${previous.ino}:${previous.size}:${previous.mtimeMs}:${previous.nlink}`;
+		if (currentSignature !== previousSignature) recordObservation(observer, target.statePath);
+	});
+	statWatcher.once("error", (error) => failObservation(observer, error));
+	observer.exactWatchers.push(statWatcher);
+}
+
+async function stopObservation(observer) {
+	if (observer.stopping || observer.stopped) return;
+	observer.stopping = true;
+	for (const { filesystemWatcher } of observer.directoryWatchers.values()) filesystemWatcher.close();
+	for (const statWatcher of observer.exactWatchers) statWatcher.stop();
+	while (observer.pendingTasks.size > 0) await Promise.allSettled([...observer.pendingTasks]);
+	observer.stopped = true;
+}
+
+export async function observeStateTargets(stateTargets, options = {}) {
+	const observer = createObserverState(options);
+
+	try {
+		for (const target of stateTargets) {
+			if (target.exact) observeExactTarget(observer, target);
+			else if (target.depth === Number.POSITIVE_INFINITY) {
+				await observeDirectoryWhenPresent(observer, target.statePath, () => observeTree(observer, target.statePath));
+			} else if (target.depth > 0) await observeShallowTarget(observer, target);
+		}
+	} catch (error) {
+		await stopObservation(observer);
+		throw error;
+	}
+
+	return {
+		error: () => observer.failureError,
+		failure: observer.failure,
+		snapshot: () => new Map(observer.observedSnapshot),
+		stop: () => stopObservation(observer),
+	};
+}
+
 export async function settledStateSnapshot(readSnapshot, options = {}) {
 	const now = options.now ?? Date.now;
 	const pause = options.pause ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
@@ -168,29 +332,87 @@ function auditExecutable() {
 	return path.join(targetDirectory, "debug", executableName);
 }
 
-async function launchPhase(executablePath, launchEnvironment, mode, completionMarker) {
-	await access(executablePath);
-	await new Promise((resolveLaunch, rejectLaunch) => {
-		const application = spawn(executablePath, [], {
-			env: { ...process.env, ...launchEnvironment, OPERATOR_TAURI_STATE_AUDIT_MODE: mode },
-			stdio: "inherit",
-		});
+function phaseExitExpected(mode, exitCode, signal) {
+	if (mode === "shutdown") return exitCode === 0 && signal === null;
+	return signal !== null || (exitCode !== null && exitCode !== 0 && exitCode !== 70);
+}
+
+function spawnPhaseProcess(executablePath, launchEnvironment, mode, options) {
+	const application = spawn(executablePath, options.launchArguments ?? [], {
+		env: { ...process.env, ...launchEnvironment, OPERATOR_TAURI_STATE_AUDIT_MODE: mode },
+		stdio: "inherit",
+	});
+	const completion = new Promise((resolveLaunch, rejectLaunch) => {
+		let completed = false;
+		const finish = (settle, value) => {
+			if (completed) return;
+			completed = true;
+			clearTimeout(timeout);
+			settle(value);
+		};
 		const timeout = setTimeout(() => {
 			application.kill("SIGKILL");
-			rejectLaunch(new Error(`${mode} phase timed out`));
-		}, 30_000);
-		application.once("error", rejectLaunch);
+			finish(rejectLaunch, new Error(`${mode} phase timed out`));
+		}, options.timeoutMs ?? 30_000);
+		application.once("error", (error) => finish(rejectLaunch, error));
 		application.once("exit", (exitCode, signal) => {
-			clearTimeout(timeout);
-			const expectedExit =
-				mode === "shutdown"
-					? exitCode === 0 && signal === null
-					: signal !== null || (exitCode !== null && exitCode !== 0 && exitCode !== 70);
-			if (expectedExit) resolveLaunch();
-			else rejectLaunch(new Error(`${mode} phase exited unexpectedly with code ${exitCode} and signal ${signal}`));
+			if (phaseExitExpected(mode, exitCode, signal)) finish(resolveLaunch);
+			else finish(rejectLaunch, new Error(`${mode} phase exited unexpectedly with code ${exitCode} and signal ${signal}`));
 		});
 	});
-	await access(completionMarker);
+	return { application, completion };
+}
+
+export async function launchPhase(executablePath, launchEnvironment, mode, completionMarker, options = {}) {
+	const accessPath = options.accessPath ?? access;
+	await accessPath(executablePath);
+	const observer = await observeStateTargets(options.stateTargets ?? [], {
+		watchDirectory: options.watchDirectory,
+		watchExactFile: options.watchExactFile,
+	});
+	let application;
+	let phaseError;
+	try {
+		const phaseProcess = spawnPhaseProcess(executablePath, launchEnvironment, mode, options);
+		application = phaseProcess.application;
+		await Promise.race([phaseProcess.completion, observer.failure]);
+		if (completionMarker) await accessPath(completionMarker);
+	} catch (error) {
+		phaseError = error;
+		if (application && application.exitCode === null && application.signalCode === null) application.kill("SIGKILL");
+	} finally {
+		await observer.stop();
+	}
+	if (phaseError) throw phaseError;
+	if (observer.error()) throw observer.error();
+	return observer.snapshot();
+}
+
+function mergeSnapshots(settledSnapshot, observedSnapshot) {
+	const mergedSnapshot = new Map(settledSnapshot);
+	for (const [statePath, signature] of observedSnapshot) mergedSnapshot.set(statePath, signature);
+	return mergedSnapshot;
+}
+
+export async function auditPhase(options) {
+	const observedSnapshot = await launchPhase(
+		options.executablePath,
+		options.launchEnvironment,
+		options.mode,
+		options.completionMarker,
+		{
+			launchArguments: options.launchArguments,
+			stateTargets: options.stateTargets,
+			timeoutMs: options.timeoutMs,
+		},
+	);
+	const snapshot = await settledStateSnapshot(() => snapshotTargets(options.stateTargets), options.settlementOptions);
+	const changes = assertConfined(
+		options.beforeSnapshot,
+		mergeSnapshots(snapshot, observedSnapshot),
+		options.confinement,
+	);
+	return { changes, snapshot };
 }
 
 async function main() {
@@ -208,14 +430,28 @@ async function main() {
 	};
 
 	const initialSnapshot = await snapshotTargets(stateTargets);
-	await launchPhase(executablePath, launchEnvironment, "shutdown", path.join(allowedRoot, "tauri", "renderer-shutdown-complete"));
-	const shutdownSnapshot = await settledStateSnapshot(() => snapshotTargets(stateTargets));
 	const confinement = { allowedRoot, operatorDirectory, phase: "shutdown" };
-	const shutdownChanges = assertConfined(initialSnapshot, shutdownSnapshot, confinement);
-	await launchPhase(executablePath, launchEnvironment, "crash", path.join(allowedRoot, "tauri", "renderer-crash-complete"));
-	const crashSnapshot = await settledStateSnapshot(() => snapshotTargets(stateTargets));
-	const crashChanges = assertConfined(shutdownSnapshot, crashSnapshot, { ...confinement, phase: "crash" });
-	process.stdout.write(`${JSON.stringify({ platform: process.platform, shutdownChanges, crashChanges })}\n`);
+	const shutdown = await auditPhase({
+		beforeSnapshot: initialSnapshot,
+		stateTargets,
+		executablePath,
+		launchEnvironment,
+		mode: "shutdown",
+		completionMarker: path.join(allowedRoot, "tauri", "renderer-shutdown-complete"),
+		confinement,
+	});
+	const crash = await auditPhase({
+		beforeSnapshot: shutdown.snapshot,
+		stateTargets,
+		executablePath,
+		launchEnvironment,
+		mode: "crash",
+		completionMarker: path.join(allowedRoot, "tauri", "renderer-crash-complete"),
+		confinement: { ...confinement, phase: "crash" },
+	});
+	process.stdout.write(
+		`${JSON.stringify({ platform: process.platform, shutdownChanges: shutdown.changes, crashChanges: crash.changes })}\n`,
+	);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
