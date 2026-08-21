@@ -106,6 +106,30 @@ fn install_panic_reporter(state_root: &Path) {
     }));
 }
 
+fn terminal_benchmark_context(raw: Option<&str>) -> Result<bool, &'static str> {
+    match raw {
+        None => Ok(false),
+        Some("1") => Ok(true),
+        Some(_) => Err("invalid OPERATOR_TAURI_TERMINAL_BENCHMARK"),
+    }
+}
+
+fn native_runtime_identity(webview_version: Result<String, String>) -> Result<String, String> {
+    let webview_version = webview_version?;
+    Ok(format!(
+        "{} {} / WebView {} / Tauri {}",
+        env::consts::OS,
+        env::consts::ARCH,
+        webview_version,
+        tauri::VERSION
+    ))
+}
+
+#[tauri::command]
+fn terminal_benchmark_runtime_identity() -> Result<String, String> {
+    native_runtime_identity(tauri::webview_version().map_err(|error| error.to_string()))
+}
+
 #[tauri::command]
 fn complete_state_audit(app: tauri::AppHandle) -> Result<(), String> {
     let mode = env::var("OPERATOR_TAURI_STATE_AUDIT_MODE").map_err(|error| error.to_string())?;
@@ -143,6 +167,15 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     ) {
         return Err(std::io::Error::other("invalid OPERATOR_TAURI_STATE_AUDIT_MODE").into());
     }
+    let terminal_benchmark = terminal_benchmark_context(
+        env::var("OPERATOR_TAURI_TERMINAL_BENCHMARK")
+            .ok()
+            .as_deref(),
+    )
+    .map_err(std::io::Error::other)?;
+    if terminal_benchmark && audit_mode.is_some() {
+        return Err(std::io::Error::other("Tauri audit contexts are mutually exclusive").into());
+    }
     let audit_script = audit_mode.as_ref().map(|_| {
         r##"
 void (async () => {
@@ -165,6 +198,10 @@ void (async () => {
         builder = builder.invoke_handler(tauri::generate_handler![
             complete_state_audit,
             fail_state_audit
+        ]);
+    } else if terminal_benchmark {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            terminal_benchmark_runtime_identity
         ]);
     }
     builder
@@ -193,8 +230,10 @@ mod tests {
     use std::{env, fs, path::Path, path::PathBuf, process, process::Command};
 
     use super::install_panic_reporter;
+    use super::native_runtime_identity;
     use super::resolve_state_root;
     use super::state_environment;
+    use super::terminal_benchmark_context;
     use super::StateProfile;
 
     fn test_root() -> PathBuf {
@@ -219,6 +258,36 @@ mod tests {
         .unwrap();
 
         assert_eq!(root, override_root.join("tauri"));
+    }
+
+    #[test]
+    fn terminal_runtime_command_requires_exact_benchmark_context() {
+        assert!(!terminal_benchmark_context(None).unwrap());
+        assert!(terminal_benchmark_context(Some("1")).unwrap());
+        assert_eq!(
+            terminal_benchmark_context(Some("true")).unwrap_err(),
+            "invalid OPERATOR_TAURI_TERMINAL_BENCHMARK"
+        );
+    }
+
+    #[test]
+    fn terminal_runtime_identity_fails_without_native_webview_version() {
+        assert_eq!(
+            native_runtime_identity(Err("unavailable".to_owned())).unwrap_err(),
+            "unavailable"
+        );
+    }
+
+    #[test]
+    fn terminal_runtime_identity_contains_only_native_runtime_fields() {
+        let identity = native_runtime_identity(Ok("WebKit 619.3".to_owned())).unwrap();
+
+        assert!(identity.contains(std::env::consts::OS));
+        assert!(identity.contains(std::env::consts::ARCH));
+        assert!(identity.contains("WebKit 619.3"));
+        assert!(identity.contains(tauri::VERSION));
+        assert!(!identity.contains("http"));
+        assert!(!identity.contains('@'));
     }
 
     #[test]

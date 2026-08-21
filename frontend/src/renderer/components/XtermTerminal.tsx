@@ -58,6 +58,7 @@ export type XtermTerminalProps = {
 	className?: string;
 	columns?: number;
 	fontSize?: number;
+	geometryMode?: "fit" | "fixed";
 	theme: Theme;
 	rows?: number;
 	scrollback?: number;
@@ -112,7 +113,11 @@ function loadRenderer(
 		const webgl = new WebglAddon();
 		webgl.onContextLoss(() => {
 			webgl.dispose();
-			if (loadCanvasFallback()) onRendererRecovery?.();
+			if (!loadCanvasFallback() || !onRendererRecovery) return;
+			const recoveredFrame = term.onRender(() => {
+				recoveredFrame.dispose();
+				onRendererRecovery();
+			});
 		});
 		term.loadAddon(webgl);
 		onRendererKind?.("webgl");
@@ -399,6 +404,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 		termRef.current = term;
 
 		const fit = new FitAddon();
+		const fixedGeometry = props.geometryMode === "fixed";
 		term.loadAddon(fit);
 		const unicode = new Unicode11Addon();
 		term.loadAddon(unicode);
@@ -605,6 +611,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			// Parked terminals keep their last measured box and continue parsing
 			// output, but must not refit or emit PTY resizes while hidden.
 			if (callbacksRef.current.isVisible === false) return;
+			if (fixedGeometry) return;
 			try {
 				fit.fit();
 			} catch {
@@ -648,6 +655,10 @@ export function XtermTerminal(props: XtermTerminalProps) {
 		};
 		const scheduleStableFit = (allowHidden = false, onSettled?: () => void) => {
 			if (disposed) return;
+			if (fixedGeometry) {
+				onSettled?.();
+				return;
+			}
 			if (!allowHidden && callbacksRef.current.isVisible === false) return;
 			fitAllowsHidden ||= allowHidden;
 			if (onSettled) fitSettledListeners.add(onSettled);
@@ -705,7 +716,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 		let stableFrames = 0;
 		let refits = 0;
 		let pending: { cols: number; rows: number } | null = null;
-		const stabilizer = term.onRender(() => {
+		const stabilizer = fixedGeometry ? { dispose: () => undefined } : term.onRender(() => {
 			const proposed = fit.proposeDimensions();
 			if (!proposed || !proposed.cols || !proposed.rows) return;
 			if (proposed.cols !== term.cols || proposed.rows !== term.rows) {

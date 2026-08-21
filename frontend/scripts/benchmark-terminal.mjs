@@ -199,10 +199,15 @@ function requiredTauriInput(env, name) {
 	return input;
 }
 
-function tauriDaemonUrl(env) {
+export function tauriDaemonUrl(env) {
 	const rawUrl = requiredTauriInput(env, "OPERATOR_BENCH_DAEMON_URL");
 	const url = new URL(rawUrl);
-	if (!["http:", "https:"].includes(url.protocol) || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+	if (
+		!["http:", "https:"].includes(url.protocol) ||
+		!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
+		url.username ||
+		url.password
+	) {
 		throw new Error("OPERATOR_BENCH_DAEMON_URL must use a loopback HTTP(S) origin");
 	}
 	url.pathname = "/";
@@ -352,6 +357,7 @@ function spawnTauriHarness(harnessUrl, stateRoot, env) {
 				...process.env,
 				...env,
 				OPERATOR_DATA_DIR: path.join(stateRoot, "operator", "data"),
+				OPERATOR_TAURI_TERMINAL_BENCHMARK: "1",
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 		},

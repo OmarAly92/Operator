@@ -9,6 +9,7 @@ import {
 	terminalHarnessConfiguration,
 	type TerminalAcknowledgement,
 } from "./harness";
+import { nativeTerminalRuntimeIdentity } from "./runtime";
 
 type ReporterMessage =
 	| TerminalAcknowledgement
@@ -73,9 +74,10 @@ function workloadController(
 	};
 }
 
-function renderHarness() {
+async function renderHarness() {
 	const parameters = new URLSearchParams(window.location.search);
 	const report = reporter(reporterUrl(parameters));
+	const webviewRuntimeVersion = await nativeTerminalRuntimeIdentity();
 	const root = createRoot(document.getElementById("root") as HTMLElement);
 	const onAcknowledgement = workloadController(parameters, report, () => root.unmount());
 	root.render(
@@ -89,7 +91,7 @@ function renderHarness() {
 							displayScale: window.devicePixelRatio,
 							name: "renderer",
 							rendererKind,
-							webviewRuntimeVersion: navigator.userAgent,
+							webviewRuntimeVersion,
 						});
 					}}
 				/>
@@ -98,10 +100,10 @@ function renderHarness() {
 	);
 }
 
-try {
-	renderHarness();
-} catch (error) {
+function renderFailure(error: unknown) {
 	const root = document.getElementById("root") as HTMLElement;
 	root.setAttribute("role", "alert");
 	root.textContent = error instanceof Error ? error.message : String(error);
 }
+
+void renderHarness().catch(renderFailure);

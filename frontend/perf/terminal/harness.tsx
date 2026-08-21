@@ -190,7 +190,10 @@ export function TerminalBenchmarkHarness({
 			mux.onData(configuration.terminalId, (bytes) => {
 				if (seesWorkloadMarker(bytes) && requestedWorkloadsRef.current > 0) {
 					requestedWorkloadsRef.current -= 1;
-					pendingWorkloadsRef.current += 1;
+					terminal.write(bytes, () => {
+						pendingWorkloadsRef.current += 1;
+					});
+					return;
 				}
 				terminal.write(bytes);
 			}),
@@ -214,14 +217,19 @@ export function TerminalBenchmarkHarness({
 		const runWorkload = (event: Event) => {
 			const request = (event as CustomEvent<WorkloadRequest>).detail;
 			const mux = muxRef.current;
-			if (!mux) return;
+			if (!mux || !terminal) return;
+			if (terminal.cols !== configuration.columns || terminal.rows !== configuration.rows) {
+				throw new Error(
+					`terminal benchmark grid drifted from ${configuration.columns}x${configuration.rows} to ${terminal.cols}x${terminal.rows}`,
+				);
+			}
 			const input = workloadInput(request);
 			requestedWorkloadsRef.current += 1;
 			mux.sendInput(configuration.terminalId, input);
 		};
 		window.addEventListener("operator:terminal-benchmark-run", runWorkload);
 		return () => window.removeEventListener("operator:terminal-benchmark-run", runWorkload);
-	}, [configuration.terminalId]);
+	}, [configuration.columns, configuration.rows, configuration.terminalId, terminal]);
 
 	return (
 		<div
@@ -232,6 +240,7 @@ export function TerminalBenchmarkHarness({
 		>
 			<XtermTerminal
 				columns={configuration.columns}
+				geometryMode="fixed"
 				onReady={setTerminal}
 				onRendererKind={rendererChanged}
 				onTimestamp={onTimestamp}
