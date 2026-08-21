@@ -14,38 +14,61 @@ function operatorRoot() {
 	return path.join(homeDirectory, ".operator");
 }
 
-function nativeStateTargets(operatorDirectory) {
-	if (process.platform === "darwin") {
-		const libraryDirectory = path.join(homeDirectory, "Library");
-		return [
-			{ statePath: operatorDirectory, depth: Number.POSITIVE_INFINITY },
-			...[
-				"Application Support",
-				"Caches",
-				"HTTPStorages",
-				path.join("Logs", "DiagnosticReports"),
-				"Saved Application State",
-				"WebKit",
-			].map((stateDirectory) => ({ statePath: path.join(libraryDirectory, stateDirectory), depth: 1 })),
-			{ statePath: path.join(libraryDirectory, "Cookies"), depth: 0 },
-			...["dev.operator.desktop.binarycookies", "operator.binarycookies", "Operator.binarycookies"].map((cookieName) => ({
-				statePath: path.join(libraryDirectory, "Cookies", cookieName),
-				depth: Number.POSITIVE_INFINITY,
-			})),
-		];
-	}
-	if (process.platform === "win32") {
-		return [...new Set([operatorDirectory, process.env.APPDATA, process.env.LOCALAPPDATA].filter(Boolean).map(path.resolve))].map(
-			(statePath) => ({ statePath, depth: statePath === operatorDirectory ? Number.POSITIVE_INFINITY : 1 }),
-		);
-	}
+function macOSStateTargets(operatorDirectory, platformHomeDirectory) {
+	const libraryDirectory = path.join(platformHomeDirectory, "Library");
+	const shallowDirectories = [
+		"Application Support",
+		"Caches",
+		"HTTPStorages",
+		path.join("Logs", "DiagnosticReports"),
+		"Preferences",
+		"Saved Application State",
+		"WebKit",
+	];
+	const cookieDirectory = path.join(libraryDirectory, "Cookies");
+	const cookieNames = ["dev.operator.desktop.binarycookies", "operator.binarycookies", "Operator.binarycookies"];
+	return [
+		{ statePath: operatorDirectory, depth: Number.POSITIVE_INFINITY },
+		...shallowDirectories.map((stateDirectory) => ({ statePath: path.join(libraryDirectory, stateDirectory), depth: 1 })),
+		{ statePath: cookieDirectory, depth: 0 },
+		...cookieNames.map((cookieName) => ({
+			statePath: path.join(cookieDirectory, cookieName),
+			depth: Number.POSITIVE_INFINITY,
+		})),
+	];
+}
+
+function windowsStateTargets(operatorDirectory, platformEnvironment) {
+	const platformRoots = [operatorDirectory, platformEnvironment.APPDATA, platformEnvironment.LOCALAPPDATA]
+		.filter(Boolean)
+		.map((platformRoot) => path.resolve(platformRoot));
+	const roots = [...new Set(platformRoots)].map((statePath) => ({
+		statePath,
+		depth: statePath === operatorDirectory ? Number.POSITIVE_INFINITY : 1,
+	}));
+	if (!platformEnvironment.LOCALAPPDATA) return roots;
+	return [...roots, { statePath: path.resolve(platformEnvironment.LOCALAPPDATA, "CrashDumps"), depth: 1 }];
+}
+
+function linuxStateTargets(operatorDirectory, platformEnvironment, platformHomeDirectory) {
 	return [
 		operatorDirectory,
-		path.resolve(process.env.XDG_CACHE_HOME ?? path.join(homeDirectory, ".cache")),
-		path.resolve(process.env.XDG_CONFIG_HOME ?? path.join(homeDirectory, ".config")),
-		path.resolve(process.env.XDG_DATA_HOME ?? path.join(homeDirectory, ".local", "share")),
-		path.resolve(process.env.XDG_STATE_HOME ?? path.join(homeDirectory, ".local", "state")),
+		path.resolve(platformEnvironment.XDG_CACHE_HOME ?? path.join(platformHomeDirectory, ".cache")),
+		path.resolve(platformEnvironment.XDG_CONFIG_HOME ?? path.join(platformHomeDirectory, ".config")),
+		path.resolve(platformEnvironment.XDG_DATA_HOME ?? path.join(platformHomeDirectory, ".local", "share")),
+		path.resolve(platformEnvironment.XDG_STATE_HOME ?? path.join(platformHomeDirectory, ".local", "state")),
 	].map((statePath) => ({ statePath, depth: statePath === operatorDirectory ? Number.POSITIVE_INFINITY : 1 }));
+}
+
+export function nativeStateTargets(
+	operatorDirectory,
+	platform = process.platform,
+	platformEnvironment = process.env,
+	platformHomeDirectory = homeDirectory,
+) {
+	if (platform === "darwin") return macOSStateTargets(operatorDirectory, platformHomeDirectory);
+	if (platform === "win32") return windowsStateTargets(operatorDirectory, platformEnvironment);
+	return linuxStateTargets(operatorDirectory, platformEnvironment, platformHomeDirectory);
 }
 
 async function recordTree(currentPath, filesystemSnapshot, remainingDepth, readDirectory) {
@@ -118,10 +141,13 @@ export async function settledStateSnapshot(readSnapshot, options = {}) {
 	throw new Error(`state did not settle within ${timeoutMs}ms`);
 }
 
-export function assertConfined(beforeSnapshot, afterSnapshot, allowedRoot, phase) {
+export function assertConfined(beforeSnapshot, afterSnapshot, confinement) {
+	const { allowedRoot, operatorDirectory, phase } = confinement;
 	const changedStatePaths = changedPaths(beforeSnapshot, afterSnapshot);
 	const outsidePaths = changedStatePaths.filter(
-		(statePath) => !pathInside(statePath, allowedRoot) && operatorOwnedStatePath(statePath),
+		(statePath) =>
+			!pathInside(statePath, allowedRoot) &&
+			(pathInside(statePath, operatorDirectory) || operatorOwnedStatePath(statePath)),
 	);
 	if (outsidePaths.length > 0) {
 		const displayedPaths = outsidePaths.slice(0, 20).map((statePath) => path.relative(homeDirectory, statePath));
@@ -184,10 +210,11 @@ async function main() {
 	const initialSnapshot = await snapshotTargets(stateTargets);
 	await launchPhase(executablePath, launchEnvironment, "shutdown", path.join(allowedRoot, "tauri", "renderer-shutdown-complete"));
 	const shutdownSnapshot = await settledStateSnapshot(() => snapshotTargets(stateTargets));
-	const shutdownChanges = assertConfined(initialSnapshot, shutdownSnapshot, allowedRoot, "shutdown");
+	const confinement = { allowedRoot, operatorDirectory, phase: "shutdown" };
+	const shutdownChanges = assertConfined(initialSnapshot, shutdownSnapshot, confinement);
 	await launchPhase(executablePath, launchEnvironment, "crash", path.join(allowedRoot, "tauri", "renderer-crash-complete"));
 	const crashSnapshot = await settledStateSnapshot(() => snapshotTargets(stateTargets));
-	const crashChanges = assertConfined(shutdownSnapshot, crashSnapshot, allowedRoot, "crash");
+	const crashChanges = assertConfined(shutdownSnapshot, crashSnapshot, { ...confinement, phase: "crash" });
 	process.stdout.write(`${JSON.stringify({ platform: process.platform, shutdownChanges, crashChanges })}\n`);
 }
 

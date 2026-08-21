@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { assertConfined, settledStateSnapshot, snapshotTargets } from "./audit-tauri-state.mjs";
+import { assertConfined, nativeStateTargets, settledStateSnapshot, snapshotTargets } from "./audit-tauri-state.mjs";
 
 test("exact Operator state is audited without enumerating its protected parent", async () => {
 	const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "operator-state-audit-test-"));
@@ -49,9 +49,67 @@ test("an exact Operator state target outside the allowed root fails the audit", 
 	const afterSnapshot = await snapshotTargets(targets);
 
 	assert.throws(
-		() => assertConfined(beforeSnapshot, afterSnapshot, allowedRoot, "shutdown"),
+		() =>
+			assertConfined(beforeSnapshot, afterSnapshot, {
+				allowedRoot,
+				operatorDirectory: path.join(fixtureRoot, "canonical"),
+				phase: "shutdown",
+			}),
 		/wrote state outside the allowed root/,
 	);
+});
+
+for (const operatorDirectoryName of [".operator", "neutral-state-root"]) {
+	test(`state inside ${operatorDirectoryName} but outside the audit root fails confinement`, async () => {
+		const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "state-boundary-test-"));
+		const operatorDirectory = path.join(fixtureRoot, operatorDirectoryName);
+		const allowedRoot = path.join(operatorDirectory, "audit");
+		const outsideState = path.join(operatorDirectory, "electron", "state");
+		await mkdir(allowedRoot, { recursive: true });
+		const targets = [{ statePath: operatorDirectory, depth: Number.POSITIVE_INFINITY }];
+		const beforeSnapshot = await snapshotTargets(targets);
+		await writeFile(path.join(allowedRoot, "allowed"), "allowed");
+		await mkdir(path.dirname(outsideState), { recursive: true });
+		await writeFile(outsideState, "outside");
+		const afterSnapshot = await snapshotTargets(targets);
+
+		assert.throws(
+			() => assertConfined(beforeSnapshot, afterSnapshot, { allowedRoot, operatorDirectory, phase: "shutdown" }),
+			/wrote state outside the allowed root/,
+		);
+	});
+}
+
+test("macOS targets include nested app-owned Preferences state", async () => {
+	const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "state-boundary-test-"));
+	const operatorDirectory = path.join(fixtureRoot, "canonical");
+	const preferencesState = path.join(fixtureRoot, "home", "Library", "Preferences", "dev.operator.desktop", "state");
+	await mkdir(path.dirname(preferencesState), { recursive: true });
+	await writeFile(preferencesState, "preference");
+
+	const targets = nativeStateTargets(operatorDirectory, "darwin", {}, path.join(fixtureRoot, "home"));
+	const snapshot = await snapshotTargets(targets);
+
+	assert.equal(snapshot.has(preferencesState), true);
+});
+
+test("Windows targets include nested app-owned CrashDumps state", async () => {
+	const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "state-boundary-test-"));
+	const operatorDirectory = path.join(fixtureRoot, "canonical");
+	const localAppData = path.join(fixtureRoot, "local-app-data");
+	const crashDump = path.join(localAppData, "CrashDumps", "dev.operator.desktop", "operator.dmp");
+	await mkdir(path.dirname(crashDump), { recursive: true });
+	await writeFile(crashDump, "crash");
+
+	const targets = nativeStateTargets(
+		operatorDirectory,
+		"win32",
+		{ APPDATA: path.join(fixtureRoot, "app-data"), LOCALAPPDATA: localAppData },
+		path.join(fixtureRoot, "home"),
+	);
+	const snapshot = await snapshotTargets(targets);
+
+	assert.equal(snapshot.has(crashDump), true);
 });
 
 test("the audit entry point reaches executable validation", async () => {

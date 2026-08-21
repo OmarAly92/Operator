@@ -69,14 +69,11 @@ type TelemetryConfig struct {
 	AppVersion string
 }
 
-// DefaultAllowedOrigins are the browser origins the daemon's CORS boundary
-// trusts, beyond loopback-served content (which the middleware always trusts —
-// local pages can reach the no-auth daemon directly anyway). The daemon has no
-// auth, so every entry must be an origin web content cannot present:
-// app://renderer is the packaged Electron renderer, served from a custom
-// scheme only the desktop app registers — no website can bear it. The opaque
-// "null" origin (file:// pages, sandboxed iframes on any website) must never
-// be added.
+// DefaultAllowedOrigins is the exact packaged-desktop allowlist: Electron uses
+// app://renderer, Tauri uses tauri://localhost on macOS and Linux, and Windows
+// uses http://tauri.localhost because useHttpsScheme remains disabled. Generic
+// loopback-served content is handled separately by the middleware. Wildcards,
+// scheme variations, lookalikes, and the opaque "null" origin are not allowed.
 var DefaultAllowedOrigins = []string{
 	"app://renderer",
 	"tauri://localhost",

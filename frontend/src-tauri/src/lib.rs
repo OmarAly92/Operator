@@ -94,6 +94,18 @@ fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
     .map_err(Into::into)
 }
 
+fn install_panic_reporter(state_root: &Path) {
+    let panic_report = state_root.join("rust-panic-report");
+    std::panic::set_hook(Box::new(move |_| {
+        let exit_code = if fs::write(&panic_report, b"panic").is_ok() {
+            101
+        } else {
+            70
+        };
+        std::process::exit(exit_code);
+    }));
+}
+
 #[tauri::command]
 fn complete_state_audit(app: tauri::AppHandle) -> Result<(), String> {
     let mode = env::var("OPERATOR_TAURI_STATE_AUDIT_MODE").map_err(|error| error.to_string())?;
@@ -119,6 +131,7 @@ fn fail_state_audit(app: tauri::AppHandle, failure: String) {
 pub fn run() -> Result<(), Box<dyn Error>> {
     let state_root = resolved_state_root()?;
     fs::create_dir_all(&state_root)?;
+    install_panic_reporter(&state_root);
     for (name, path) in state_environment(&state_root) {
         env::set_var(name, path);
     }
@@ -129,17 +142,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         None | Some("shutdown") | Some("crash")
     ) {
         return Err(std::io::Error::other("invalid OPERATOR_TAURI_STATE_AUDIT_MODE").into());
-    }
-    if audit_mode.as_deref() == Some("crash") {
-        let crash_report = state_root.join("rust-panic-report");
-        std::panic::set_hook(Box::new(move |_| {
-            let exit_code = if fs::write(&crash_report, b"panic").is_ok() {
-                101
-            } else {
-                70
-            };
-            std::process::exit(exit_code);
-        }));
     }
     let audit_script = audit_mode.as_ref().map(|_| {
         r##"
@@ -188,8 +190,9 @@ void (async () => {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::{env, fs, path::Path, path::PathBuf, process, process::Command};
 
+    use super::install_panic_reporter;
     use super::resolve_state_root;
     use super::state_environment;
     use super::StateProfile;
@@ -277,5 +280,28 @@ mod tests {
             environment,
             vec![("WEBVIEW2_USER_DATA_FOLDER", root.join("webview"))]
         );
+    }
+
+    #[test]
+    fn panic_reporter_writes_under_state_root() {
+        if let Some(probe_root) = env::var_os("OPERATOR_TAURI_PANIC_PROBE_ROOT") {
+            install_panic_reporter(Path::new(&probe_root));
+            panic!("panic reporter probe");
+        }
+
+        let probe_root = env::temp_dir().join(format!("tauri-panic-test-{}", process::id()));
+        fs::create_dir(&probe_root).unwrap();
+        let status = Command::new(env::current_exe().unwrap())
+            .args(["--exact", "tests::panic_reporter_writes_under_state_root"])
+            .env("OPERATOR_TAURI_PANIC_PROBE_ROOT", &probe_root)
+            .status()
+            .unwrap();
+
+        assert_eq!(status.code(), Some(101));
+        assert_eq!(
+            fs::read(probe_root.join("rust-panic-report")).unwrap(),
+            b"panic"
+        );
+        fs::remove_dir_all(probe_root).unwrap();
     }
 }
