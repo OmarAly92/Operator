@@ -18,10 +18,28 @@
 		}
 	},
 	"bundle": {
-		"active": false,
+		"active": true,
+		"targets": ["app", "dmg", "nsis", "deb", "rpm", "appimage"],
 		"icon": ["../assets/icon.png", "../assets/icon.icns", "../assets/icon.ico"],
+		"resources": ["../daemon", "../agent-browser", "../resources/acp-runtime"],
+		"createUpdaterArtifacts": false,
+		"publisher": "Operator",
 		"macOS": {
-			"minimumSystemVersion": "10.15"
+			"minimumSystemVersion": "10.15",
+			"dmg": {
+				"windowSize": { "width": 660, "height": 400 },
+				"appPosition": { "x": 180, "y": 170 },
+				"applicationFolderPosition": { "x": 480, "y": 170 }
+			}
+		},
+		"linux": {
+			"deb": { "files": {} },
+			"rpm": { "files": {}, "release": "1", "epoch": 0 },
+			"appimage": { "bundleMediaFramework": false, "files": {} }
+		},
+		"windows": {
+			"nsis": {},
+			"webviewInstallMode": { "type": "downloadBootstrapper", "silent": true }
 		}
 	}
 }

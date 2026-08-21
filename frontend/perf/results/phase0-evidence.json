@@ -1,0 +1,51 @@
+{
+  "platforms": {
+    "darwin": {
+      "stateAudit": { "passed": true, "leaked": false },
+      "cors": { "passed": true },
+      "browser": { "passed": true },
+      "terminal": {
+        "electron": {
+          "warmStart": { "median": 1000, "p95": 1200 },
+          "firstRun": { "median": 2000, "p95": 2400 },
+          "vtebench": { "median": 10 },
+          "largeOutput": { "median": 8000000 },
+          "idleMemory": { "median": 500000000 },
+          "inputLatency": { "p95": 50 },
+          "reconnect": { "p95": 100 },
+          "activeMemory": { "bytes": 400000000 },
+          "cpuTime": { "ms": 1000 }
+        },
+        "tauri": {
+          "warmStart": { "median": 600, "p95": 800 },
+          "firstRun": { "median": 1500, "p95": 1800 },
+          "vtebench": { "median": 12 },
+          "largeOutput": { "median": 9000000 },
+          "idleMemory": { "median": 250000000 },
+          "inputLatency": { "p95": 45 },
+          "reconnect": { "p95": 90 },
+          "activeMemory": { "bytes": 350000000 },
+          "cpuTime": { "ms": 900 },
+          "rendererKind": "webgl"
+        }
+      },
+      "artifact": {
+        "electron": { "downloadBytes": 150000000, "installedBytes": 300000000 },
+        "tauri": { "downloadBytes": 80000000, "installedBytes": 150000000 },
+        "includesACP": true,
+        "includesDaemon": true,
+        "includesBrowser": true,
+        "rpmExists": true
+      },
+      "legacyUpdate": { "success": true, "bridgeRequired": false, "bridgeProven": false },
+      "updaterSigning": { "valid": true, "privateKeyLeaked": false, "signatureValid": true }
+    }
+  },
+  "identity": {
+    "identifier": "dev.operator.desktop",
+    "productName": "Operator",
+    "executable": "operator",
+    "aliasesPreserved": true
+  },
+  "updaterSigning": { "valid": true, "privateKeyLeaked": false, "signatureValid": true }
+}

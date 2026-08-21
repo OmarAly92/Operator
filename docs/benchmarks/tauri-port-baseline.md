@@ -40,3 +40,14 @@ Results must not contain private paths, environment values, process IDs, termina
 | Functional parity | Every ledger entry passes except exact exceptions linked to `docs/todo/browser-panel-webview.md`. |
 
 Both the absolute and relative artifact-size limits are binding. A Phase 0 result of `continue` or `linux-canvas` is required before product port work begins.
+
+## Phase 0 decision
+
+Decision: `stop-port`
+
+Timestamp: 2026-08-21T07:45:26.841Z
+
+Reasons:
+- missing platform evidence: win32
+- missing platform evidence: linux
+
