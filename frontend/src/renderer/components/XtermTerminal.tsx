@@ -46,11 +46,21 @@ import {
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
+export type TerminalRendererKind = "webgl" | "canvas";
+
+export type XtermTerminalTimestamp = {
+	kind: "render" | "resize" | "renderer-recovery" | "disposal";
+	timestamp: number;
+};
+
 export type XtermTerminalProps = {
 	ariaLabel?: string;
 	className?: string;
+	columns?: number;
 	fontSize?: number;
 	theme: Theme;
+	rows?: number;
+	scrollback?: number;
 	/**
 	 * The pane app scrolls its transcript by keyboard (PageUp/PageDown) rather
 	 * than acting on SGR wheel reports — e.g. opencode, which enables mouse
@@ -64,6 +74,8 @@ export type XtermTerminalProps = {
 	onLinkOpen?: (uri: string) => void;
 	/** Publish the positive grid after a retained terminal becomes visible. */
 	onVisibleSize?: (cols: number, rows: number) => void;
+	onRendererKind?: (kind: TerminalRendererKind) => void;
+	onTimestamp?: (event: XtermTerminalTimestamp) => void;
 	/** Hidden retained terminals keep parsing output but expose no UI overlays. */
 	isVisible?: boolean;
 	/** Move keyboard focus into xterm when a controller needs human input. */
@@ -78,24 +90,32 @@ export type XtermTerminalProps = {
 // Prefer the WebGL renderer, fall back to 2D canvas. Both rasterize box-drawing
 // glyphs themselves onto a fixed cell grid; the DOM renderer does not, so TUI
 // borders would drift. Loaded after open().
-function loadRenderer(term: Terminal): void {
+function loadRenderer(
+	term: Terminal,
+	onRendererKind?: (kind: TerminalRendererKind) => void,
+	onRendererRecovery?: () => void,
+): void {
 	let fallbackLoaded = false;
 	const loadCanvasFallback = () => {
-		if (fallbackLoaded) return;
+		if (fallbackLoaded) return true;
 		fallbackLoaded = true;
 		try {
 			term.loadAddon(new CanvasAddon());
+			onRendererKind?.("canvas");
+			return true;
 		} catch (error) {
 			console.warn("xterm: WebGL and canvas renderers unavailable; box-drawing may drift", error);
+			return false;
 		}
 	};
 	try {
 		const webgl = new WebglAddon();
 		webgl.onContextLoss(() => {
 			webgl.dispose();
-			loadCanvasFallback();
+			if (loadCanvasFallback()) onRendererRecovery?.();
 		});
 		term.loadAddon(webgl);
+		onRendererKind?.("webgl");
 		return;
 	} catch {
 		// WebGL context unavailable — fall through to the canvas renderer.
@@ -340,6 +360,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			term = new Terminal({
 				// Required for the Unicode 11 width addon below.
 				allowProposedApi: true,
+				cols: props.columns,
 				cursorBlink: true,
 				// Resolve the Nerd Font stack from --font-mono (styles.css) at
 				// construction so terminal glyphs follow the app's font tokens. The
@@ -359,6 +380,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				// contrast transform changes their RGB values and makes syntax and diff
 				// colors diverge from the same CLI in a native terminal.
 				minimumContrastRatio: 1,
+				rows: props.rows,
 				// Alt-buffer panes (tmux attach, mouse-tracking agent TUIs) never feed
 				// this buffer — the alt screen doesn't accumulate scrollback — so this
 				// only matters for normal-buffer panes that print their transcript and
@@ -366,7 +388,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				// so that history survives to be scrolled locally (see the wheel
 				// handler's normal-buffer branch). The scrollbar itself is hidden in
 				// CSS; its matching FitAddon reservation is removed after open() below.
-				scrollback: 5000,
+				scrollback: props.scrollback ?? 5000,
 				theme: skinToXtermTheme(skinRef.current, props.theme),
 			});
 		} catch (error) {
@@ -402,7 +424,24 @@ export function XtermTerminal(props: XtermTerminalProps) {
 		// every width proposal, leaving a conspicuous empty strip on the right. The
 		// viewport still scrolls normally without the invisible reservation.
 		removeHiddenScrollbarReservation(term);
-		loadRenderer(term);
+		const renderTimestamps = callbacksRef.current.onTimestamp
+			? term.onRender(() => {
+					callbacksRef.current.onTimestamp?.({ kind: "render", timestamp: performance.now() });
+				})
+			: undefined;
+		const resizeTimestamps = callbacksRef.current.onTimestamp
+			? term.onResize(() => {
+					callbacksRef.current.onTimestamp?.({ kind: "resize", timestamp: performance.now() });
+				})
+			: undefined;
+		loadRenderer(
+			term,
+			(kind) => callbacksRef.current.onRendererKind?.(kind),
+			() => callbacksRef.current.onTimestamp?.({ kind: "renderer-recovery", timestamp: performance.now() }),
+		);
+		const timestampPaintFrame = renderTimestamps
+			? requestAnimationFrame(() => term.refresh(0, term.rows - 1))
+			: undefined;
 		term.options.macOptionClickForcesSelection = true;
 		forceSelectionMode(term);
 
@@ -881,6 +920,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			termRef.current = null;
 			fitRef.current = null;
 			cancelAnimationFrame(raf);
+			if (timestampPaintFrame !== undefined) cancelAnimationFrame(timestampPaintFrame);
 			for (const timer of settleTimers) window.clearTimeout(timer);
 			if (fitQuietTimer !== null) clearTimeout(fitQuietTimer);
 			if (fitCapTimer !== null) clearTimeout(fitCapTimer);
@@ -891,6 +931,8 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			host.removeEventListener("copy", copyInput);
 			window.removeEventListener("keydown", copyShortcut, true);
 			selectionChange.dispose();
+			renderTimestamps?.dispose();
+			resizeTimestamps?.dispose();
 			host.removeEventListener("contextmenu", openContextMenu);
 			host.removeEventListener("paste", pasteInput, true);
 			host.removeEventListener("compositionend", compositionInput, true);
@@ -907,6 +949,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				// Some renderer addons can throw during dispose in certain GPU
 				// environments; the terminal is being torn down regardless.
 			}
+			callbacksRef.current.onTimestamp?.({ kind: "disposal", timestamp: performance.now() });
 		};
 	}, []);
 
