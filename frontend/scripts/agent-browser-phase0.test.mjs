@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -142,6 +142,7 @@ test("failed install cleans partial engine directories from the session root", a
 	await mkdir(engineDir, { recursive: true });
 	await writeFile(path.join(engineDir, "partial.download"), "bytes");
 	const { spawn, calls } = fakeSpawn([
+		{ code: 0, stdout: JSON.stringify({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }), stderr: "" },
 		{ code: 1, stdout: "", stderr: "download interrupted" },
 	]);
 	let cleaned = [];
@@ -153,11 +154,12 @@ test("failed install cleans partial engine directories from the session root", a
 		now: () => 0,
 		cleanupHook: async (root) => {
 			cleaned.push(root);
+			await rm(root, { recursive: true, force: true });
 		},
-		installFailureMode: "fail",
 	});
 	assert.equal(calls.length >= 1, true);
 	assert.equal(cleaned.includes(sessionRoot), true);
+	await assert.rejects(() => readdir(engineDir), { code: "ENOENT" });
 	assert.equal(outcome.outcome !== "pass", true);
 });
 
@@ -404,7 +406,7 @@ test("scenarios file defines both modes within the policy vocabulary", async () 
 		assert.ok(scenarios[mode], `missing scenario ${mode}`);
 		assert.ok(scenarios[mode].actions.length > 0);
 		for (const action of scenarios[mode].actions) {
-			assertSafeArguments(action.split(" ").filter((token) => !token.startsWith("@")), {
+			assertSafeArguments(action.split(" ").filter(Boolean), {
 				sessionRoot: "/tmp/root",
 				platform: "darwin",
 			});

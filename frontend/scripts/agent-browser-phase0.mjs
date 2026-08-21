@@ -96,7 +96,9 @@ export function assertSafeArguments(args, options) {
 		}
 		if (value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value)) {
 			const resolved = path.resolve(value);
-			if (!resolved.startsWith(path.resolve(sessionRoot))) {
+			const rootResolved = path.resolve(sessionRoot);
+			const relative = path.relative(rootResolved, resolved);
+			if (relative.startsWith("..") || path.isAbsolute(relative)) {
 				throw new Error(`policy: path outside session root: ${value}`);
 			}
 		}
@@ -214,8 +216,9 @@ async function runCommand(spawnImpl, request) {
 }
 
 function truncateText(text, limit) {
-	if (limit === undefined || text.length <= limit) return text;
-	return text.slice(0, limit);
+	if (limit === undefined) return text;
+	if (Buffer.byteLength(text) <= limit) return text;
+	return Buffer.from(text, "utf8").subarray(0, limit).toString("utf8");
 }
 
 export function sanitizeDoctorReport(raw) {
@@ -232,8 +235,8 @@ export function sanitizeDoctorReport(raw) {
 }
 
 export function locateManagedExecutable(files, root, platform) {
-	void root;
 	const keys = files instanceof Map ? [...files.keys()] : files instanceof Set ? [...files] : Object.keys(files);
+	const rootResolved = root ? path.resolve(root) : null;
 	const suffixes =
 		platform === "darwin"
 			? ["Google Chrome for Testing"]
@@ -243,7 +246,14 @@ export function locateManagedExecutable(files, root, platform) {
 	for (const key of keys) {
 		if (!key.includes(".agent-browser")) continue;
 		for (const suffix of suffixes) {
-			if (key.endsWith(suffix)) return key;
+			if (key.endsWith(suffix)) {
+				if (rootResolved) {
+					const resolver = platform === "win32" ? path.win32 : path;
+					const relative = resolver.relative(resolver.resolve(root), resolver.resolve(key));
+					if (relative.startsWith("..") || resolver.isAbsolute(relative)) continue;
+				}
+				return key;
+			}
 		}
 	}
 	return null;
@@ -296,7 +306,8 @@ async function walkFiles(directory, platform) {
 		let entries;
 		try {
 			entries = await readdir(current, { withFileTypes: true });
-		} catch {
+		} catch (error) {
+			if (error?.code !== "ENOENT") throw error;
 			return;
 		}
 		for (const entry of entries) {
@@ -589,7 +600,6 @@ export async function main(argv) {
 				await rm(root, { recursive: true, force: true });
 			},
 		});
-		await exportArtifacts(sessionRoot, resolvedArtifacts);
 		const evidencePath = path.join(resolvedArtifacts, `evidence-${mode}.json`);
 		await mkdir(path.dirname(evidencePath), { recursive: true });
 		const { writeFile } = await import("node:fs/promises");
