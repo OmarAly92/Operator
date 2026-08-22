@@ -650,9 +650,13 @@ export async function initTelemetry(): Promise<boolean> {
 	initPromise = (async () => {
 		if (!POSTHOG_KEY) return false;
 		const bootstrap = await operatorBridge.telemetry.getBootstrap();
-		// Null means the supervisor withheld it: no key, no data dir, or an
-		// unpackaged build that has not opted in. The client is never created.
-		if (!bootstrap) return false;
+		// Null means the source withheld it: no key, no data dir, an unpackaged
+		// build that has not opted in, or a daemon that could not be reached. A
+		// payload without a usable distinct id counts as withheld too — the
+		// client is never created on a half-read identity.
+		if (!bootstrap || typeof bootstrap.distinctId !== "string" || bootstrap.distinctId.trim() === "") {
+			return false;
+		}
 		disabledEventMatchers = bootstrap.disabledEvents ?? [];
 		telemetryContext = buildTelemetryContext(
 			bootstrap.appVersion,

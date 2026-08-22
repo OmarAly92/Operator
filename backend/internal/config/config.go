@@ -67,6 +67,11 @@ type TelemetryConfig struct {
 	// binary has no reliable version of its own (see cli.Version, which release
 	// tooling does not currently override), so the supervisor passes it in.
 	AppVersion string
+	// Renderer reports that the supervising desktop app opted the renderer into
+	// telemetry (packaged default on, development opt-in via the supervisor).
+	// Only then does the desktop bootstrap endpoint hand out the install
+	// identity; a bare CLI-started daemon never serves one.
+	Renderer bool
 }
 
 // DefaultAllowedOrigins is the exact packaged-desktop origin allowlist, overridden by OPERATOR_ALLOWED_ORIGINS.
@@ -142,6 +147,7 @@ func (c Config) Addr() string {
 //	OPERATOR_TELEMETRY_REMOTE  remote exporter off|posthog (default off)
 //	OPERATOR_TELEMETRY_POSTHOG_KEY   PostHog project key
 //	OPERATOR_TELEMETRY_POSTHOG_HOST  PostHog host (default DefaultTelemetryPostHogHost)
+//	OPERATOR_TELEMETRY_RENDERER      desktop renderer telemetry intent off|on, set by the supervisor (default off)
 //
 // The bind host is not configurable: the daemon is loopback-only by design.
 func Load() (Config, error) {
@@ -249,6 +255,13 @@ func Load() (Config, error) {
 	}
 	if raw := os.Getenv("OPERATOR_TELEMETRY_APP_VERSION"); raw != "" {
 		cfg.Telemetry.AppVersion = strings.TrimSpace(raw)
+	}
+	if raw := os.Getenv("OPERATOR_TELEMETRY_RENDERER"); raw != "" {
+		v, err := parseToggleEnv("OPERATOR_TELEMETRY_RENDERER", raw)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.Telemetry.Renderer = v
 	}
 
 	runFile, err := resolveRunFilePath()

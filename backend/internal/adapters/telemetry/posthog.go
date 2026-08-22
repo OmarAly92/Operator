@@ -236,7 +236,7 @@ func NewPostHogSink(dataDir, apiKey, host, appVersion, defaultAgent string, clie
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
-	distinctID, err := loadOrCreateInstallID(dataDir)
+	distinctID, err := LoadOrCreateInstallID(dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +508,9 @@ func versionChannel(appVersion string) string {
 	return "stable"
 }
 
-func loadOrCreateInstallID(dataDir string) (string, error) {
+// LoadOrCreateInstallID returns the stable per-install distinct ID stored in
+// telemetry_install_id under dataDir, creating it on first use.
+func LoadOrCreateInstallID(dataDir string) (string, error) {
 	path := filepath.Join(dataDir, "telemetry_install_id")
 	if b, err := os.ReadFile(path); err == nil {
 		if id := strings.TrimSpace(string(b)); id != "" {

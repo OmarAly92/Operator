@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PostHog } from "posthog-js/dist/module.full.no-external";
 import {
 	buildPostHogConfig,
@@ -19,6 +19,94 @@ import {
 	versionChannelFrom,
 } from "./telemetry";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
+
+const { getBootstrapMock, updateSettingsGetMock, posthogInitMock, posthogRegisterMock } = vi.hoisted(() => ({
+	getBootstrapMock: vi.fn(),
+	updateSettingsGetMock: vi.fn(),
+	posthogInitMock: vi.fn(),
+	posthogRegisterMock: vi.fn(),
+}));
+
+vi.mock("./bridge", () => ({
+	operatorBridge: {
+		telemetry: { getBootstrap: getBootstrapMock },
+		updateSettings: { get: updateSettingsGetMock },
+	},
+}));
+
+vi.mock("posthog-js/dist/module.full.no-external", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("posthog-js/dist/module.full.no-external")>();
+	return {
+		...actual,
+		default: { init: posthogInitMock, register: posthogRegisterMock, capture: vi.fn(), captureException: vi.fn(), addExceptionStep: vi.fn() },
+	};
+});
+
+async function importFreshTelemetry() {
+	vi.stubEnv("VITE_OPERATOR_POSTHOG_KEY", "phc_test");
+	vi.resetModules();
+	return await import("./telemetry");
+}
+
+describe("initTelemetry bootstrap source", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.resetModules();
+		getBootstrapMock.mockReset();
+		updateSettingsGetMock.mockReset();
+		posthogInitMock.mockReset();
+		posthogRegisterMock.mockReset();
+	});
+
+	it("initializes PostHog with the identity served by the daemon", async () => {
+		getBootstrapMock.mockResolvedValue({
+			distinctId: "ins_daemon-install-id",
+			appVersion: "0.11.3",
+			platform: "darwin",
+			disabledEvents: ["opr.v2.app.active"],
+		});
+		updateSettingsGetMock.mockRejectedValue(new Error("settings unavailable"));
+
+		const telemetry = await importFreshTelemetry();
+
+		await expect(telemetry.initTelemetry()).resolves.toBe(true);
+		expect(getBootstrapMock).toHaveBeenCalledTimes(1);
+		expect(posthogInitMock).toHaveBeenCalledWith(
+			"phc_test",
+			expect.objectContaining({
+				bootstrap: { distinctID: "ins_daemon-install-id", isIdentifiedID: false },
+			}),
+		);
+		expect(telemetry.isDeniedEvent("opr.app.active")).toBe(true);
+	});
+
+	it("degrades to disabled telemetry when the bootstrap cannot be fetched", async () => {
+		getBootstrapMock.mockRejectedValue(new Error("daemon unreachable"));
+
+		const telemetry = await importFreshTelemetry();
+
+		await expect(telemetry.initTelemetry()).resolves.toBe(false);
+		expect(posthogInitMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps telemetry disabled when the daemon withholds the bootstrap", async () => {
+		getBootstrapMock.mockResolvedValue(null);
+
+		const telemetry = await importFreshTelemetry();
+
+		await expect(telemetry.initTelemetry()).resolves.toBe(false);
+		expect(posthogInitMock).not.toHaveBeenCalled();
+	});
+
+	it("refuses to initialize PostHog from a malformed bootstrap payload", async () => {
+		getBootstrapMock.mockResolvedValue({ appVersion: "0.11.3" });
+
+		const telemetry = await importFreshTelemetry();
+
+		await expect(telemetry.initTelemetry()).resolves.toBe(false);
+		expect(posthogInitMock).not.toHaveBeenCalled();
+	});
+});
 
 function memoryStorage(initial: Record<string, string> = {}) {
 	const values = new Map(Object.entries(initial));

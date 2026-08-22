@@ -10,7 +10,7 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	// Clear every recognised var so we observe pure defaults regardless of the
 	// surrounding environment.
-	for _, k := range []string{"OPERATOR_PORT", "OPERATOR_REQUEST_TIMEOUT", "OPERATOR_SHUTDOWN_TIMEOUT", "OPERATOR_RUN_FILE", "OPERATOR_DATA_DIR", "OPERATOR_AGENT", "OPERATOR_ALLOWED_ORIGINS", "OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_POSTHOG_KEY", "OPERATOR_TELEMETRY_POSTHOG_HOST", "OPERATOR_TELEMETRY_DISABLED_EVENTS", "OPERATOR_TELEMETRY_APP_VERSION"} {
+	for _, k := range []string{"OPERATOR_PORT", "OPERATOR_REQUEST_TIMEOUT", "OPERATOR_SHUTDOWN_TIMEOUT", "OPERATOR_RUN_FILE", "OPERATOR_DATA_DIR", "OPERATOR_AGENT", "OPERATOR_ALLOWED_ORIGINS", "OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_POSTHOG_KEY", "OPERATOR_TELEMETRY_POSTHOG_HOST", "OPERATOR_TELEMETRY_DISABLED_EVENTS", "OPERATOR_TELEMETRY_APP_VERSION", "OPERATOR_TELEMETRY_RENDERER"} {
 		t.Setenv(k, "")
 	}
 
@@ -233,4 +233,47 @@ func TestLoadTelemetryDisabledEventsBlankIsInert(t *testing.T) {
 	if cfg.Telemetry.AppVersion != "" {
 		t.Fatalf("AppVersion = %q, want empty", cfg.Telemetry.AppVersion)
 	}
+}
+
+func TestLoadTelemetryRendererIntent(t *testing.T) {
+	t.Run("defaults to disabled so a bare daemon never serves a desktop bootstrap", func(t *testing.T) {
+		for _, k := range []string{"OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_RENDERER"} {
+			t.Setenv(k, "")
+		}
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Telemetry.Renderer {
+			t.Fatalf("Telemetry.Renderer = true, want false by default")
+		}
+	})
+
+	t.Run("supervisor-injected on and off values resolve", func(t *testing.T) {
+		t.Setenv("OPERATOR_TELEMETRY_APP_VERSION", "")
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "on")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load on: %v", err)
+		}
+		if !cfg.Telemetry.Renderer {
+			t.Fatal("Telemetry.Renderer = false, want true for on")
+		}
+
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "off")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("Load off: %v", err)
+		}
+		if cfg.Telemetry.Renderer {
+			t.Fatal("Telemetry.Renderer = true, want false for off")
+		}
+	})
+
+	t.Run("a malformed value fails fast like the other telemetry toggles", func(t *testing.T) {
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "maybe")
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() = nil error, want error")
+		}
+	})
 }

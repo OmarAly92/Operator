@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { postStub } = vi.hoisted(() => ({ postStub: vi.fn() }));
+const { postStub, getApiBaseUrlMock, hasTrustedApiBaseUrlMock, subscribeApiBaseUrlMock } = vi.hoisted(() => ({
+	postStub: vi.fn(),
+	getApiBaseUrlMock: vi.fn(() => "http://127.0.0.1:3001"),
+	hasTrustedApiBaseUrlMock: vi.fn(() => true),
+	subscribeApiBaseUrlMock: vi.fn(),
+}));
 
 vi.mock("./api-client", () => ({
 	apiClient: { POST: postStub },
@@ -8,9 +13,12 @@ vi.mock("./api-client", () => ({
 		typeof error === "object" && error !== null && "message" in error
 			? String((error as { message: unknown }).message)
 			: "Request failed",
+	getApiBaseUrl: getApiBaseUrlMock,
+	hasTrustedApiBaseUrl: hasTrustedApiBaseUrlMock,
+	subscribeApiBaseUrl: subscribeApiBaseUrlMock,
 }));
 
-import { createTauriBridge } from "./tauri-bridge";
+import { createTauriBridge, parseTelemetryBootstrap } from "./tauri-bridge";
 
 function bridge() {
 	return createTauriBridge({ invoke: vi.fn(), listen: vi.fn() });
@@ -19,6 +27,9 @@ function bridge() {
 describe("tauri-bridge local folder scans", () => {
 	beforeEach(() => {
 		postStub.mockReset();
+		getApiBaseUrlMock.mockReturnValue("http://127.0.0.1:3001");
+		hasTrustedApiBaseUrlMock.mockReturnValue(true);
+		subscribeApiBaseUrlMock.mockReset().mockReturnValue(() => undefined);
 	});
 
 	it("scans an import folder through the LAN-blocked dev route", async () => {
@@ -82,5 +93,82 @@ describe("tauri-bridge local folder scans", () => {
 		postStub.mockResolvedValue({ data: {} });
 
 		expect(await bridge().app.checkAncestorRepo("/plain")).toBeUndefined();
+	});
+});
+
+describe("tauri-bridge telemetry bootstrap", () => {
+	beforeEach(() => {
+		getApiBaseUrlMock.mockReturnValue("http://127.0.0.1:3001");
+		hasTrustedApiBaseUrlMock.mockReturnValue(true);
+		subscribeApiBaseUrlMock.mockReset().mockReturnValue(() => undefined);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.useRealTimers();
+	});
+
+	it("fetches the loopback bootstrap from the trusted daemon base URL", async () => {
+		const fetchStub = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ distinctId: "ins_daemon", appVersion: "0.11.3", platform: "darwin", disabledEvents: ["opr.v2.app.active"] }), {
+				status: 200,
+			}),
+		);
+		vi.stubGlobal("fetch", fetchStub);
+
+		await expect(bridge().telemetry.getBootstrap()).resolves.toEqual({
+			distinctId: "ins_daemon",
+			appVersion: "0.11.3",
+			platform: "darwin",
+			disabledEvents: ["opr.v2.app.active"],
+		});
+		expect(fetchStub).toHaveBeenCalledWith(new URL("http://127.0.0.1:3001/internal/desktop/telemetry-bootstrap"));
+	});
+
+	it("degrades to a withheld bootstrap on any failure", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("null", { status: 200 })));
+		await expect(bridge().telemetry.getBootstrap()).resolves.toBeNull();
+
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("server exploded", { status: 500 })));
+		await expect(bridge().telemetry.getBootstrap()).resolves.toBeNull();
+
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+		await expect(bridge().telemetry.getBootstrap()).resolves.toBeNull();
+	});
+
+	it("gives up when the daemon port never becomes trusted", async () => {
+		hasTrustedApiBaseUrlMock.mockReturnValue(false);
+		subscribeApiBaseUrlMock.mockImplementation(() => () => undefined);
+		vi.useFakeTimers();
+
+		const pending = bridge().telemetry.getBootstrap();
+		const settled = await Promise.race([
+			pending.then(() => true),
+			vi.advanceTimersByTimeAsync(5_000).then(() => false),
+		]);
+		expect(settled).toBe(false);
+		expect(subscribeApiBaseUrlMock).toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(5_001);
+		await expect(pending).resolves.toBeNull();
+	});
+});
+
+describe("parseTelemetryBootstrap", () => {
+	it("accepts the daemon wire shape and drops unusable payloads", () => {
+		expect(parseTelemetryBootstrap(null)).toBeNull();
+		expect(parseTelemetryBootstrap({})).toBeNull();
+		expect(parseTelemetryBootstrap({ distinctId: "  ", appVersion: "0.11.3", platform: "win32", disabledEvents: [] })).toBeNull();
+		expect(parseTelemetryBootstrap({ distinctId: "ins_1", appVersion: "0.11.3" })).toBeNull();
+		expect(parseTelemetryBootstrap({ distinctId: "ins_1", appVersion: "0.11.3", platform: "linux", disabledEvents: "nope" })).toBeNull();
+
+		expect(
+			parseTelemetryBootstrap({
+				distinctId: "ins_1",
+				appVersion: "",
+				platform: "linux",
+				disabledEvents: ["a", 7, "b"],
+			}),
+		).toEqual({ distinctId: "ins_1", appVersion: "", platform: "linux", disabledEvents: ["a", "b"] });
 	});
 });

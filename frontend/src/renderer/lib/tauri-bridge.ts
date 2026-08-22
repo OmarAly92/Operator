@@ -11,7 +11,7 @@ import type { KeybindingOverrides } from "../../shared/shortcuts";
 import type { TelemetryBootstrap } from "../../shared/telemetry";
 import type { UpdateOutcome } from "../../shared/update-telemetry";
 import type { OperatorBridgeWithoutBrowser } from "../../shared/operator-bridge";
-import { apiClient, apiErrorMessage } from "./api-client";
+import { apiClient, apiErrorMessage, getApiBaseUrl, hasTrustedApiBaseUrl, subscribeApiBaseUrl } from "./api-client";
 
 type SettingsPayload = components["schemas"]["SettingsResponse"];
 
@@ -22,6 +22,56 @@ const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
 	nightlyAck: false,
 	feature: null,
 };
+const BOOTSTRAP_BASE_URL_TIMEOUT_MS = 10_000;
+
+/**
+ * Resolves once the daemon port is known, or null if that does not happen
+ * within timeoutMs — initTelemetry runs before the shell loader reports daemon
+ * readiness, and without this first call would race the handshake and disable
+ * telemetry for the whole session.
+ */
+async function waitForTrustedApiBaseUrl(timeoutMs: number): Promise<string | null> {
+	if (hasTrustedApiBaseUrl()) return getApiBaseUrl();
+	return new Promise((resolve) => {
+		const finish = (baseUrl: string | null) => {
+			clearTimeout(timer);
+			unsubscribe();
+			resolve(baseUrl);
+		};
+		const timer = setTimeout(() => finish(null), timeoutMs);
+		const unsubscribe = subscribeApiBaseUrl(() => {
+			if (hasTrustedApiBaseUrl()) finish(getApiBaseUrl());
+		});
+	});
+}
+
+/** Parses the wire shape, treating anything unusable as a withheld bootstrap. */
+export function parseTelemetryBootstrap(payload: unknown): TelemetryBootstrap | null {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+	const record = payload as Record<string, unknown>;
+	if (typeof record.distinctId !== "string" || record.distinctId.trim() === "") return null;
+	if (typeof record.appVersion !== "string") return null;
+	if (typeof record.platform !== "string") return null;
+	if (!Array.isArray(record.disabledEvents)) return null;
+	return {
+		distinctId: record.distinctId,
+		appVersion: record.appVersion,
+		platform: record.platform as TelemetryBootstrap["platform"],
+		disabledEvents: record.disabledEvents.filter((name): name is string => typeof name === "string"),
+	};
+}
+
+async function fetchTelemetryBootstrap(): Promise<TelemetryBootstrap | null> {
+	const baseUrl = await waitForTrustedApiBaseUrl(BOOTSTRAP_BASE_URL_TIMEOUT_MS);
+	if (!baseUrl) return null;
+	try {
+		const response = await fetch(new URL("/internal/desktop/telemetry-bootstrap", baseUrl));
+		if (!response.ok) return null;
+		return parseTelemetryBootstrap(await response.json());
+	} catch {
+		return null;
+	}
+}
 
 async function fetchSettings(): Promise<SettingsPayload | null> {
 	const { data } = await apiClient.GET("/api/v1/settings");
@@ -149,7 +199,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				subscribe<DaemonStatus>("daemon:status", listener),
 		},
 		telemetry: {
-			getBootstrap: async (): Promise<TelemetryBootstrap | null> => null,
+			getBootstrap: () => fetchTelemetryBootstrap(),
 		},
 		notifications: {
 			show: async (notification: { id: string; title: string; body?: string; type?: string }) => {

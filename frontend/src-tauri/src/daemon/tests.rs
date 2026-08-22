@@ -4,7 +4,7 @@ use crate::daemon::discovery::{
     resolve_daemon_launch, resolve_data_dir, resolve_run_file_path, should_link_on_attach,
     supervisor_addr, with_fallback_path, ListenPortScanner,
 };
-use crate::daemon::supervisor::{DaemonConfig, DaemonManager};
+use crate::daemon::supervisor::{telemetry_renderer_env, DaemonConfig, DaemonManager};
 use crate::daemon::DaemonStatus;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -114,6 +114,24 @@ fn daemon_discovery_acp_runtime_dev_and_packaged() {
     assert!(dev.to_string_lossy().contains("resources/acp-runtime"));
     let prod = resolve_acp_runtime_dir(&env, true, &resources, &app_path);
     assert_eq!(prod, PathBuf::from("/resources/acp-runtime"));
+}
+
+#[test]
+fn daemon_telemetry_renderer_intent_defaults_to_packaging() {
+    assert_eq!(telemetry_renderer_env(&env_from(&[]), true), "on");
+    assert_eq!(telemetry_renderer_env(&env_from(&[]), false), "off");
+    assert_eq!(
+        telemetry_renderer_env(&env_from(&[("OPERATOR_TELEMETRY_RENDERER", "off")]), true),
+        "off"
+    );
+    assert_eq!(
+        telemetry_renderer_env(&env_from(&[("OPERATOR_TELEMETRY_RENDERER", "on")]), false),
+        "on"
+    );
+    assert_eq!(
+        telemetry_renderer_env(&env_from(&[("OPERATOR_TELEMETRY_RENDERER", "  ")]), true),
+        "on"
+    );
 }
 
 #[test]

@@ -22,6 +22,23 @@ const DAEMON_RESTART_STOP_TIMEOUT: Duration = Duration::from_millis(5000);
 const MAX_DAEMON_OUTPUT_CHARS: usize = 12000;
 const SHELL_ENV_TIMEOUT: Duration = Duration::from_millis(3000);
 
+/// Effective desktop renderer telemetry intent stamped on the daemon env: an
+/// explicit non-empty `OPERATOR_TELEMETRY_RENDERER` wins, otherwise packaging
+/// decides — packaged builds report, development builds stay silent unless
+/// opted in.
+pub fn telemetry_renderer_env(process_env: &HashMap<String, String>, is_packaged: bool) -> String {
+    match process_env.get("OPERATOR_TELEMETRY_RENDERER") {
+        Some(v) if !v.trim().is_empty() => v.trim().to_string(),
+        _ => {
+            if is_packaged {
+                "on".to_string()
+            } else {
+                "off".to_string()
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SupervisorLink {
     disposed: Arc<AtomicBool>,
@@ -790,6 +807,10 @@ impl DaemonManager {
         overrides.insert(
             "OPERATOR_TELEMETRY_APP_VERSION".to_string(),
             self.config.app_version.clone(),
+        );
+        overrides.insert(
+            "OPERATOR_TELEMETRY_RENDERER".to_string(),
+            telemetry_renderer_env(&env, self.config.is_packaged),
         );
         if !self.config.is_packaged {
             if !env.contains_key("OPERATOR_PORT") {
