@@ -18,6 +18,7 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
 	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
 	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/config"
@@ -192,6 +193,21 @@ func Run() error {
 		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
 	)
+
+	// One-time legacy desktop preference import (Electron's ui-settings.json,
+	// update-settings.json, keybindings.json, and the app-state.json migration
+	// block). Runs before HTTP serves settings so no client ever sees
+	// pre-import values; failures never block boot because every facet already
+	// has a validated default and the marker stays unset for a safe re-attempt.
+	if err := settingsSvc.ImportLegacyDesktop(ctx, settingssvc.LegacyFilesUnder(filepath.Dir(cfg.RunFilePath))); err != nil {
+		log.Warn("legacy desktop settings import failed; will retry next boot", "err", err)
+	}
+
+	homeDir, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		log.Warn("resolve home dir; project scans lose the ~/.operator safety guard", "err", homeErr)
+	}
+	folderScanner := projectscan.New(projectscan.Options{HomeDir: homeDir})
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
@@ -390,6 +406,7 @@ func Run() error {
 		ShellTerminals:     shellTermSvc,
 		Conversations:      chatSvc,
 		Settings:           settingsSvc,
+		DevScan:            folderScanner,
 		CDC:                store,
 		Events:             cdcPipe.Broadcaster,
 		Activity:           lcStack.LCM,

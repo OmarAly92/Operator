@@ -142,7 +142,7 @@ func CoerceKeybindingOverrides(raw KeybindingOverrides, isMac bool) KeybindingOv
 }
 
 func coerceBinding(chord ShortcutBinding, isMac bool) (ShortcutBinding, bool) {
-	if len(chord.Key) == 0 || len(chord.Key) > 32 {
+	if chord.Key == "" || len(chord.Key) > 32 {
 		return ShortcutBinding{}, false
 	}
 	if len(chord.Code) > 32 {

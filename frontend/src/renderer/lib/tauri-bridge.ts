@@ -72,10 +72,29 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			openExternal: async (url: string) => {
 				await invoke("open_external", { url });
 			},
-			scanImportFolder: async (input: { path: string; mode: "project" | "workspace" }) =>
-				(await invoke("import_scan", input)) as ImportFolderScan,
-			checkAncestorRepo: async (path: string) =>
-				(await invoke("ancestor_repository", { path })) as string | undefined,
+			scanImportFolder: async (input: { path: string; mode: "project" | "workspace" }) => {
+				const { data, error } = await apiClient.POST("/api/v1/dev/import-scan", { body: input });
+				if (error) throw new Error(apiErrorMessage(error));
+				return {
+					path: data?.path ?? input.path,
+					repos: (data?.repos ?? []).map((repo) => ({
+						name: repo.name,
+						path: repo.path,
+						relativePath: repo.relativePath,
+						branch: repo.branch,
+						remote: repo.remote,
+						hasRemote: repo.hasRemote,
+						status: repo.status,
+						...(repo.reason ? { reason: repo.reason } : {}),
+					})),
+					...(data?.setupWarning ? { setupWarning: data.setupWarning } : {}),
+				} satisfies ImportFolderScan;
+			},
+			checkAncestorRepo: async (path: string) => {
+				const { data, error } = await apiClient.POST("/api/v1/dev/ancestor-repository", { body: { path } });
+				if (error) throw new Error(apiErrorMessage(error));
+				return data?.setupWarning || undefined;
+			},
 			onNewSessionShortcut: (listener: () => void) => subscribe("shortcut:new-session", listener),
 			onKeyboardShortcutsHelp: (listener: () => void) => subscribe("shortcut:help", listener),
 			onNewShellTerminalShortcut: (listener: () => void) => subscribe("shortcut:new-shell-terminal", listener),

@@ -15,6 +15,7 @@ import (
 	openapi "github.com/swaggest/openapi-go"
 	"github.com/swaggest/openapi-go/openapi31"
 
+	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
@@ -327,8 +328,14 @@ var schemaNames = map[string]string{
 	"ControllersImportStatusResponse": "ImportStatusResponse",
 	"ControllersImportRunResponse":    "ImportRunResponse",
 	// httpd/controllers: dev wire envelopes
-	"ControllersDevImportProjectsRequest":  "DevImportProjectsRequest",
-	"ControllersDevImportProjectsResponse": "DevImportProjectsResponse",
+	"ControllersDevImportProjectsRequest":      "DevImportProjectsRequest",
+	"ControllersDevImportProjectsResponse":     "DevImportProjectsResponse",
+	"ControllersDevImportScanRequest":          "DevImportScanRequest",
+	"ControllersDevAncestorRepositoryRequest":  "DevAncestorRepositoryRequest",
+	"ControllersDevAncestorRepositoryResponse": "DevAncestorRepositoryResponse",
+	// projectscan folder-scan shapes
+	"ProjectscanRepo":   "ImportFolderScanRepo",
+	"ProjectscanResult": "ImportFolderScanResult",
 	// httpd/controllers: mobile wire envelopes
 	"ControllersMobileStatusResponse": "MobileStatusResponse",
 	// devimport report
@@ -986,6 +993,28 @@ func devOperations() []operation {
 			reqBody: controllers.DevImportProjectsRequest{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.DevImportProjectsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/dev/import-scan", id: "runDevImportScan", tag: "dev",
+			summary: "Scan a local folder for importable Git repositories",
+			reqBody: controllers.DevImportScanRequest{},
+			resps: []respUnit{
+				{http.StatusOK, projectscan.Result{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/dev/ancestor-repository", id: "findDevAncestorRepository", tag: "dev",
+			summary: "Report whether a folder sits inside an existing Git repository",
+			reqBody: controllers.DevAncestorRepositoryRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.DevAncestorRepositoryResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},

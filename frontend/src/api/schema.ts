@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dev/ancestor-repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report whether a folder sits inside an existing Git repository */
+        post: operations["findDevAncestorRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dev/import-projects": {
         parameters: {
             query?: never;
@@ -134,6 +151,23 @@ export interface paths {
         put?: never;
         /** Run the developer project-registry import through the daemon store */
         post: operations["runDevImportProjects"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dev/import-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan a local folder for importable Git repositories */
+        post: operations["runDevImportScan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1987,6 +2021,12 @@ export interface components {
             orchestratorId?: string;
             workerId: string;
         };
+        DevAncestorRepositoryRequest: {
+            path: string;
+        };
+        DevAncestorRepositoryResponse: {
+            setupWarning?: string;
+        };
         DevImportProjectsConflict: {
             path: string;
             projectId: string;
@@ -2009,6 +2049,11 @@ export interface components {
         };
         DevImportProjectsResponse: {
             report: components["schemas"]["DevImportProjectsReport"];
+        };
+        DevImportScanRequest: {
+            /** @enum {string} */
+            mode: "project" | "workspace";
+            path: string;
         };
         DomainActivity: {
             /** Format: date-time */
@@ -2033,6 +2078,22 @@ export interface components {
         FeaturePin: {
             /** Format: int64 */
             pr: number;
+        };
+        ImportFolderScanRepo: {
+            branch: string;
+            hasRemote: boolean;
+            name: string;
+            path: string;
+            reason?: string;
+            relativePath: string;
+            remote: string;
+            /** @enum {string} */
+            status: "ok" | "error";
+        };
+        ImportFolderScanResult: {
+            path: string;
+            repos: components["schemas"]["ImportFolderScanRepo"][];
+            setupWarning?: string;
         };
         ImportReport: {
             dryRun: boolean;
@@ -3308,6 +3369,57 @@ export interface operations {
             };
         };
     };
+    findDevAncestorRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevAncestorRepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevAncestorRepositoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     runDevImportProjects: {
         parameters: {
             query?: never;
@@ -3328,6 +3440,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DevImportProjectsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    runDevImportScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevImportScanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportFolderScanResult"];
                 };
             };
             /** @description Bad Request */

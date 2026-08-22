@@ -45,6 +45,7 @@ type APIDeps struct {
 	// Settings is the daemon-owned preference surface.
 	Settings            controllers.SettingsService
 	DevImport           controllers.DevImportService
+	DevScan             controllers.DevScanService
 	CDC                 cdc.Source
 	Events              cdcSubscriber
 	Telemetry           ports.EventSink
@@ -103,7 +104,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
-		dev:           &controllers.DevController{Import: deps.DevImport},
+		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan},
 		browser:       &controllers.BrowserController{Svc: deps.Browser},
 		events:        &EventsController{Source: deps.CDC, Live: deps.Events},
 	}
