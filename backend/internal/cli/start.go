@@ -197,7 +197,8 @@ func operatorStateDir() (string, error) {
 }
 
 // knownAppLocations lists the platform's standard install paths to scan when the
-// marker misses (covers website installs and stale markers, spec §6.2).
+// marker misses (covers website installs and stale markers, spec §6.2). Tauri
+// layouts rank ahead of the legacy electron-builder ones they replace.
 func knownAppLocations() []string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -208,17 +209,22 @@ func knownAppLocations() []string {
 		return paths
 	case "windows":
 		var paths []string
-		// Default electron-builder NSIS per-user install (perMachine:false).
 		if local := os.Getenv("LOCALAPPDATA"); local != "" {
-			paths = append(paths, windowsInstalledExe(local))
+			paths = append(paths,
+				// Tauri NSIS currentUser install ($LOCALAPPDATA\<productName>).
+				tauriWindowsInstalledExe(local),
+				// Default electron-builder NSIS per-user install (perMachine:false).
+				windowsInstalledExe(local),
+			)
 		}
-		// Per-machine fallback (if a user chose an all-users install).
+		// Per-machine fallback (if a user chose an all-users install); the Tauri
+		// NSIS perMachine default lands in the same Program Files directory.
 		if pf := os.Getenv("ProgramFiles"); pf != "" {
 			paths = append(paths, filepath.Join(pf, "Operator", "operator.exe"))
 		}
 		return paths
 	case "linux":
-		paths := []string{linuxAppImagePath()}
+		paths := []string{linuxDebRpmExe(), linuxAppImagePath()}
 		if home, err := os.UserHomeDir(); err == nil {
 			paths = append(paths, filepath.Join(home, "Applications", "operator.AppImage"))
 		}
@@ -226,6 +232,17 @@ func knownAppLocations() []string {
 	default:
 		return nil
 	}
+}
+
+// tauriWindowsInstalledExe is the Tauri NSIS currentUser install target for the
+// app exe: $LOCALAPPDATA\<productName>\<mainBinaryName>.exe.
+func tauriWindowsInstalledExe(localAppData string) string {
+	return filepath.Join(localAppData, "Operator", "operator.exe")
+}
+
+// linuxDebRpmExe is where the Tauri deb/rpm packages install the binary.
+func linuxDebRpmExe() string {
+	return "/usr/bin/operator"
 }
 
 // windowsInstalledExe is the default per-user electron-builder NSIS install

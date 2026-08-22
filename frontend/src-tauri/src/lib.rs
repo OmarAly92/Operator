@@ -1,8 +1,183 @@
-use std::{env, error::Error, fs, path::Path, path::PathBuf};
+use std::collections::HashMap;
+use std::{env, error::Error, fs, io, path::Path, path::PathBuf};
 
+use chrono::Utc;
+
+pub mod app_state;
 pub mod daemon;
+pub mod relocation;
 use daemon::supervisor::DaemonManager;
 use daemon::DaemonStatus;
+
+#[cfg(test)]
+mod app_state_tests;
+
+/// Launch-time action derived from the macOS relocation decision.
+#[cfg(target_os = "macos")]
+enum MacosLaunchAction {
+    Continue,
+    HandOff(PathBuf),
+    MoveTo(PathBuf, PathBuf),
+}
+
+fn marker_state_dir(home: &Path) -> Option<PathBuf> {
+    let process_env: HashMap<String, String> = env::vars().collect();
+    daemon::discovery::resolve_run_file_path(&process_env, home, daemon::is_packaged())
+        .and_then(|run_file| run_file.parent().map(Path::to_path_buf))
+}
+
+/// Write the ~/.operator/app-state.json launch marker so `opr start`'s
+/// resolveApp() can find this bundle. The app is the sole writer and writes on
+/// every launch; a failure must not block startup.
+fn write_launch_marker(home: &Path, installed_via: Option<&str>) -> Result<(), Box<dyn Error>> {
+    let Some(state_dir) = marker_state_dir(home) else {
+        return Err(std::io::Error::other(
+            "cannot resolve the Operator run-file path; skipping app-state marker",
+        )
+        .into());
+    };
+    let exec_path = env::current_exe()?;
+    let bundle_path = app_state::resolve_bundle_path(&exec_path);
+    app_state::write_marker(
+        &state_dir,
+        &bundle_path.to_string_lossy(),
+        &daemon::app_version(),
+        installed_via,
+        Utc::now(),
+    )?;
+    Ok(())
+}
+
+/// Capture install provenance BEFORE relocation, decide the macOS relocation,
+/// then refresh the marker so appPath records the final bundle path while the
+/// sticky installSource survives (mirrors main.ts app.whenReady ordering).
+fn launch_app_state_flow() {
+    let home = daemon::home_dir();
+    let argv: Vec<String> = env::args().collect();
+    let installed_via = app_state::parse_installed_via(&argv);
+
+    // moveToApplicationsFolder relaunches without forwarding --installed-via, and
+    // code past a successful move never runs in this instance, so the source must
+    // be persisted first or the sticky logic would lock in "unknown".
+    if installed_via.as_deref().is_some_and(|via| !via.is_empty()) {
+        if let Err(error) = write_launch_marker(&home, installed_via.as_deref()) {
+            eprintln!("failed to write pre-relocation app-state marker: {error}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    if daemon::is_packaged() {
+        if let Some(action) = macos_relocation_action() {
+            match action {
+                MacosLaunchAction::Continue => {}
+                MacosLaunchAction::HandOff(installed) => {
+                    eprintln!(
+                        "newer install at {}; handing off and quitting",
+                        installed.display()
+                    );
+                    let _ = open_macos_bundle(&installed);
+                    std::process::exit(0);
+                }
+                MacosLaunchAction::MoveTo(running, installed) => {
+                    if let Err(error) = perform_macos_move(&home, &running, &installed) {
+                        eprintln!("relocation to Applications failed: {error}");
+                    } else {
+                        let _ = open_macos_bundle(&installed);
+                        std::process::exit(0);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Err(error) = write_launch_marker(&home, installed_via.as_deref()) {
+        eprintln!("failed to write app-state marker: {error}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_relocation_action() -> Option<MacosLaunchAction> {
+    let exec_path = env::current_exe().ok()?;
+    let bundle = app_state::resolve_bundle_path(&exec_path);
+    let (installed_present, installed_version) = relocation::inspect_installed_bundle(&bundle);
+    let action = relocation::decide_relocation(relocation::RelocationInputs {
+        in_applications_folder: relocation::is_in_applications_folder(&bundle, &daemon::home_dir()),
+        installed_present,
+        installed_version: installed_version.as_deref(),
+        running_version: &daemon::app_version(),
+    });
+    Some(match action {
+        relocation::RelocationAction::Stay => MacosLaunchAction::Continue,
+        relocation::RelocationAction::Handoff => {
+            MacosLaunchAction::HandOff(relocation::installed_bundle_path(&bundle))
+        }
+        relocation::RelocationAction::Relocate => {
+            let installed = relocation::installed_bundle_path(&bundle);
+            MacosLaunchAction::MoveTo(bundle, installed)
+        }
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn open_macos_bundle(path: &Path) -> bool {
+    std::process::Command::new("open")
+        .arg(path)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+/// Replace a strictly-older /Applications bundle with the running one via ditto,
+/// preserving the code signature. Like Electron's default
+/// moveToApplicationsFolder conflict handling, the old bundle first moves to the
+/// user's Trash under a uniquified name; when it cannot be trashed (all names
+/// taken, cross-volume rename, no Trash) it stays in place and the move is
+/// declined rather than deleting it. The decision layer guarantees `installed`
+/// is either absent or strictly older before this runs.
+#[cfg(target_os = "macos")]
+fn perform_macos_move(home: &Path, running: &Path, installed: &Path) -> Result<(), Box<dyn Error>> {
+    if installed.exists() {
+        let Some(bundle_name) = installed.file_name().and_then(|name| name.to_str()) else {
+            return Err(std::io::Error::other(format!(
+                "cannot move unnameable install {} to the Trash; keeping it in place",
+                installed.display()
+            ))
+            .into());
+        };
+        let destination =
+            relocation::trashed_bundle_destination(home, bundle_name, |path| path.exists());
+        match destination {
+            Some(destination) => match fs::rename(installed, &destination) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {
+                    return Err(std::io::Error::other(format!(
+                        "old install {} sits on another volume than {}; keeping it in place",
+                        installed.display(),
+                        home.join(".Trash").display()
+                    ))
+                    .into());
+                }
+                Err(error) => return Err(error.into()),
+            },
+            None => {
+                return Err(std::io::Error::other(format!(
+                    "no free name in {} for {}; keeping it in place",
+                    home.join(".Trash").display(),
+                    installed.display()
+                ))
+                .into());
+            }
+        }
+    }
+    let status = std::process::Command::new("ditto")
+        .arg(running)
+        .arg(installed)
+        .status()?;
+    if !status.success() {
+        return Err(std::io::Error::other(format!("ditto exited with {status}")).into());
+    }
+    Ok(())
+}
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum StateProfile {
@@ -180,6 +355,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let state_root = resolved_state_root()?;
     fs::create_dir_all(&state_root)?;
     install_panic_reporter(&state_root);
+    launch_app_state_flow();
     for (name, path) in state_environment(&state_root) {
         env::set_var(name, path);
     }

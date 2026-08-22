@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/config"
 )
 
 // writeMarker writes a ~/.operator/app-state.json marker pointing at appPath into the
@@ -205,6 +207,129 @@ func TestWindowsInstalledExe(t *testing.T) {
 	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Operator", "operator.exe")
 	if got != want {
 		t.Fatalf("windowsInstalledExe = %q, want %q", got, want)
+	}
+}
+
+// TestTauriWindowsInstalledExe locks the Tauri NSIS currentUser layout:
+// $LOCALAPPDATA\<productName>\<mainBinaryName>.exe with product Operator and
+// executable operator.exe.
+func TestTauriWindowsInstalledExe(t *testing.T) {
+	got := tauriWindowsInstalledExe("C:\\Users\\me\\AppData\\Local")
+	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Operator", "operator.exe")
+	if got != want {
+		t.Fatalf("tauriWindowsInstalledExe = %q, want %q", got, want)
+	}
+}
+
+// TestLinuxDebRpmExe locks the Tauri deb/rpm install path and executable name.
+func TestLinuxDebRpmExe(t *testing.T) {
+	if got := linuxDebRpmExe(); got != "/usr/bin/operator" {
+		t.Fatalf("linuxDebRpmExe = %q, want /usr/bin/operator", got)
+	}
+}
+
+func TestKnownAppLocations_IncludesTauriLayouts(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin":
+		got := knownAppLocations()
+		want := []string{
+			"/Applications/" + appBundleName,
+			filepath.Join(homeDirForTest(t), "Applications", appBundleName),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("knownAppLocations() darwin = %v, want %v", got, want)
+		}
+	case "windows":
+		t.Setenv("LOCALAPPDATA", "C:\\Users\\me\\AppData\\Local")
+		t.Setenv("ProgramFiles", "C:\\Program Files")
+		got := knownAppLocations()
+		want := []string{
+			filepath.Join("C:\\Users\\me\\AppData\\Local", "Operator", "operator.exe"),
+			filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Operator", "operator.exe"),
+			filepath.Join("C:\\Program Files", "Operator", "operator.exe"),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("knownAppLocations() windows = %v, want %v", got, want)
+		}
+	case "linux":
+		got := knownAppLocations()
+		want := []string{
+			"/usr/bin/operator",
+			filepath.Join(cfgStateDirForTest(t), "operator.AppImage"),
+			filepath.Join(homeDirForTest(t), "Applications", "operator.AppImage"),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("knownAppLocations() linux = %v, want %v", got, want)
+		}
+	}
+}
+
+// homeDirForTest returns the host home dir os.UserHomeDir would report, so
+// location-list assertions stay deterministic.
+func homeDirForTest(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+// cfgStateDirForTest resolves the state dir the same way setConfigEnv's
+// OPERATOR_RUN_FILE flows through config.Load into operatorStateDir.
+func cfgStateDirForTest(t *testing.T) string {
+	t.Helper()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Dir(cfg.RunFilePath)
+}
+
+// TestResolveApp_SchemaV2MarkerHit pins the camelCase wire shape the Rust
+// writer produces so marker validation keeps accepting it.
+func TestResolveApp_SchemaV2MarkerHit(t *testing.T) {
+	cfg := setConfigEnv(t)
+	bundle := makeBundle(t, appBundleName)
+	marker := map[string]any{
+		"schemaVersion":    2,
+		"appPath":          bundle,
+		"version":          "0.10.3",
+		"installedAt":      "2026-08-22T00:00:00.000Z",
+		"lastReconciledAt": "2026-08-22T00:00:00.000Z",
+		"installSource":    "npm-bootstrap",
+		"migration":        map[string]any{"status": "pending"},
+	}
+	data, err := json.Marshal(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(cfg.runFile), appStateFileName), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(swapScanLocations(func() []string { return nil }))
+	t.Cleanup(swapPreferredAppPath(func() string { return "" }))
+
+	c := &commandContext{deps: Deps{}.withDefaults()}
+	if got := c.resolveApp(); got != bundle {
+		t.Fatalf("resolveApp = %q, want schema-v2 marker path %q", got, bundle)
+	}
+}
+
+// A corrupt marker must self-heal by falling through to the scan, never by
+// aborting resolution.
+func TestResolveApp_CorruptMarkerFallsThroughToScan(t *testing.T) {
+	cfg := setConfigEnv(t)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(cfg.runFile), appStateFileName), []byte("{corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scanBundle := makeBundle(t, appBundleName)
+	t.Cleanup(swapScanLocations(func() []string { return []string{scanBundle} }))
+	t.Cleanup(swapPreferredAppPath(func() string { return "" }))
+
+	c := &commandContext{deps: Deps{}.withDefaults()}
+	if got := c.resolveApp(); got != scanBundle {
+		t.Fatalf("resolveApp = %q, want scan path %q despite corrupt marker", got, scanBundle)
 	}
 }
 
