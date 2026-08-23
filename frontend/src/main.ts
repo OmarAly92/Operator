@@ -66,7 +66,7 @@ import {
 	resolveDaemonFromRunFile,
 } from "./shared/daemon-attach";
 import { browserDaemonOwnershipDecision, shouldReplacePortHolder } from "./shared/daemon-takeover";
-import { buildDaemonEnv, resolveShellEnv, type ShellRunner } from "./shared/shell-env";
+import { buildDaemonEnv, devAllowedOriginsOverride, resolveShellEnv, type ShellRunner } from "./shared/shell-env";
 import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from "./shared/posthog-config";
 import { buildTelemetryBootstrap } from "./shared/telemetry";
 import { createBrowserViewHost, type BrowserViewHost } from "./main/browser-view-host";
@@ -666,6 +666,11 @@ function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv 
 		if (!process.env.OPERATOR_PORT) devExtras.OPERATOR_PORT = String(DEV_DAEMON_PORT);
 		if (!process.env.OPERATOR_RUN_FILE) devExtras.OPERATOR_RUN_FILE = runFilePath() ?? "";
 		if (!process.env.OPERATOR_DATA_DIR) devExtras.OPERATOR_DATA_DIR = path.join(os.homedir(), ".operator", DEV_STATE_SUBDIR, "data");
+		const allowedOrigins = devAllowedOriginsOverride(
+			typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== "undefined" ? MAIN_WINDOW_VITE_DEV_SERVER_URL : undefined,
+			process.env.OPERATOR_ALLOWED_ORIGINS,
+		);
+		if (allowedOrigins) devExtras.OPERATOR_ALLOWED_ORIGINS = allowedOrigins;
 	}
 	// Windows keeps the old behavior exactly: no shell probe, no unix PATH floor.
 	if (process.platform === "win32") {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildDaemonEnv,
+	devAllowedOriginsOverride,
 	FALLBACK_PATH_DIRS,
 	parseEnvBlock,
 	resolveShellEnv,
@@ -137,5 +138,23 @@ describe("resolveShellEnv", () => {
 	it("returns null when the parsed env lacks PATH", async () => {
 		const run: ShellRunner = async () => `${SHELL_ENV_SENTINEL}FOO=bar\0`;
 		expect(await resolveShellEnv({}, run)).toBeNull();
+	});
+});
+
+describe("devAllowedOriginsOverride", () => {
+	it("stamps the dev renderer origin when nothing is configured", () => {
+		expect(devAllowedOriginsOverride("http://localhost:5181/", undefined)).toBe("http://localhost:5181");
+	});
+
+	it("keeps an explicitly configured origin list untouched", () => {
+		expect(devAllowedOriginsOverride("http://localhost:5181/", "app://renderer")).toBeUndefined();
+	});
+
+	it("treats a blank configured value as unset", () => {
+		expect(devAllowedOriginsOverride("http://localhost:5181/", "")).toBe("http://localhost:5181");
+	});
+
+	it("returns nothing without a dev server URL", () => {
+		expect(devAllowedOriginsOverride(undefined, undefined)).toBeUndefined();
 	});
 });

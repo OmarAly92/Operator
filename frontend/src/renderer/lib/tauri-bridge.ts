@@ -73,9 +73,11 @@ async function fetchTelemetryBootstrap(): Promise<TelemetryBootstrap | null> {
 	}
 }
 
-async function fetchSettings(): Promise<SettingsPayload | null> {
-	const { data } = await apiClient.GET("/api/v1/settings");
-	return data ?? null;
+async function fetchSettings(): Promise<SettingsPayload> {
+	const { data, error } = await apiClient.GET("/api/v1/settings");
+	if (error) throw new Error(apiErrorMessage(error));
+	if (!data) throw new Error("Settings response was empty");
+	return data;
 }
 
 export interface TauriBridgeTransports {
@@ -100,10 +102,13 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			if (!disposed) listener(event.payload as T);
 		}) as Promise<() => void> | (() => void);
 		if (registered && typeof (registered as Promise<() => void>).then === "function") {
-			void (registered as Promise<() => void>).then((dispose) => {
-				if (disposed) dispose();
-				else unlisten = dispose;
-			});
+			void (registered as Promise<() => void>)
+				.then((dispose) => {
+					if (typeof dispose !== "function") return;
+					if (disposed) dispose();
+					else unlisten = dispose;
+				})
+				.catch(() => undefined);
 		} else if (typeof registered === "function") {
 			unlisten = registered;
 		}
@@ -116,7 +121,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 
 	return {
 		app: {
-			getVersion: async () => (await invoke("app_version")) as string,
+			getVersion: async () => (await invoke("plugin:app|version")) as string,
 			chooseDirectory: async (title?: string) =>
 				(await invoke("choose_directory", { title })) as string | null,
 			openExternal: async (url: string) => {
@@ -221,7 +226,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				subscribe<TrayOpenSessionTarget>("tray:open-session", listener),
 		},
 		appState: {
-			getMigration: async () => (await fetchSettings())?.migration ?? PENDING_MIGRATION,
+			getMigration: async () => (await fetchSettings()).migration ?? PENDING_MIGRATION,
 			setMigration: async (migration: MigrationState) => {
 				const { error } = await apiClient.PATCH("/api/v1/settings/migration", { body: migration });
 				if (error) throw new Error(apiErrorMessage(error));
@@ -229,7 +234,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		},
 		updateSettings: {
 			get: async () => {
-				const updates = (await fetchSettings())?.updates;
+				const updates = (await fetchSettings()).updates;
 				if (!updates) return DEFAULT_UPDATE_SETTINGS;
 				return {
 					enabled: updates.enabled,
@@ -251,7 +256,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			},
 		},
 		uiSettings: {
-			get: async () => ({ locale: coerceLocale((await fetchSettings())?.ui?.locale) }),
+			get: async () => ({ locale: coerceLocale((await fetchSettings()).ui?.locale) }),
 			set: async (settings: UiSettings) => {
 				const { data, error } = await apiClient.PATCH("/api/v1/settings/ui", {
 					body: { locale: settings.locale },
@@ -261,7 +266,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			},
 		},
 		keybindings: {
-			get: async () => (await fetchSettings())?.keybindings ?? {},
+			get: async () => (await fetchSettings()).keybindings ?? {},
 			set: async (overrides: KeybindingOverrides) => {
 				const body = Object.fromEntries(
 					Object.entries(overrides).map(([id, bindings]) => [id, bindings.map((binding) => ({ ...binding }))]),

@@ -47,6 +47,20 @@ pub fn bundled_agent_browser_binary_name(platform: &str) -> &'static str {
     }
 }
 
+pub fn configured_shell_invocation(platform: &str, command: &str) -> (String, Vec<String>) {
+    if platform == "win32" {
+        (
+            "cmd.exe".to_string(),
+            vec!["/S".to_string(), "/C".to_string(), command.to_string()],
+        )
+    } else {
+        (
+            "sh".to_string(),
+            vec!["-c".to_string(), command.to_string()],
+        )
+    }
+}
+
 pub fn keep_daemon_alive(env: &HashMap<String, String>) -> bool {
     match env
         .get("OPERATOR_KEEP_DAEMON")
@@ -89,7 +103,7 @@ pub fn resolve_daemon_launch(
                 "./cmd/opr".to_string(),
                 "daemon".to_string(),
             ],
-            cwd: app_path.join("../backend"),
+            cwd: normalize_path(&app_path.join("../backend")),
             shell: false,
             source: "dev".to_string(),
         });
@@ -104,6 +118,24 @@ pub fn resolve_daemon_launch(
         shell: false,
         source: "bundled".to_string(),
     })
+}
+
+pub fn normalize_path(path: &Path) -> PathBuf {
+    use std::path::Component;
+
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::Normal(part) => normalized.push(part),
+        }
+    }
+    normalized
 }
 
 pub fn resolve_agent_browser_binary_path(
@@ -228,7 +260,7 @@ pub fn expected_daemon_port(env: &HashMap<String, String>, is_dev: bool) -> u16 
     if let Some(raw) = env.get("OPERATOR_PORT") {
         let trimmed = raw.trim();
         if let Ok(n) = trimmed.parse::<u32>() {
-            if n >= 1 && n <= 65535 {
+            if (1..=65535).contains(&n) {
                 if trimmed
                     .parse::<f64>()
                     .map(|f| f.fract() == 0.0)
@@ -268,7 +300,7 @@ fn port_from_addr(addr: &str) -> Option<u16> {
     let sep = addr.rfind(':')?;
     let port_str = &addr[sep + 1..];
     let port = port_str.parse::<u32>().ok()?;
-    if port >= 1 && port <= 65535 {
+    if (1..=65535).contains(&port) {
         Some(port as u16)
     } else {
         None
@@ -278,7 +310,6 @@ fn port_from_addr(addr: &str) -> Option<u16> {
 pub struct ListenPortScanner {
     pending: String,
     done: bool,
-    found: Option<u16>,
 }
 
 impl ListenPortScanner {
@@ -286,7 +317,6 @@ impl ListenPortScanner {
         Self {
             pending: String::new(),
             done: false,
-            found: None,
         }
     }
     pub fn feed(&mut self, chunk: &str) -> Option<u16> {
@@ -300,7 +330,6 @@ impl ListenPortScanner {
         for line in lines.iter().take(lines.len().saturating_sub(1)) {
             if let Some(port) = parse_daemon_listen_port(line) {
                 self.done = true;
-                self.found = Some(port);
                 return Some(port);
             }
         }
@@ -311,9 +340,6 @@ impl ListenPortScanner {
             return None;
         }
         None
-    }
-    pub fn found(&self) -> Option<u16> {
-        self.found
     }
 }
 
@@ -327,7 +353,7 @@ pub fn parse_run_file(contents: &str) -> Option<RunFileInfo> {
     let v: serde_json::Value = serde_json::from_str(contents).ok()?;
     let obj = v.as_object()?;
     let port_u64 = obj.get("port")?.as_u64()?;
-    if port_u64 < 1 || port_u64 > 65535 {
+    if !(1..=65535).contains(&port_u64) {
         return None;
     }
     let port = port_u64 as u16;
@@ -335,7 +361,7 @@ pub fn parse_run_file(contents: &str) -> Option<RunFileInfo> {
     let started_at_ms = obj
         .get("startedAt")
         .and_then(|x| x.as_str())
-        .and_then(|s| parse_started_at_ms(s))
+        .and_then(parse_started_at_ms)
         .unwrap_or(0);
     let owner = obj
         .get("owner")
@@ -440,29 +466,20 @@ pub fn parse_daemon_probe(endpoint: &str, body: &serde_json::Value) -> Option<Da
     })
 }
 
-pub fn should_replace_port_holder(probe: Option<&DaemonProbe>, holder_pid_alive: bool) -> bool {
-    probe.is_some() || holder_pid_alive
-}
-
-#[derive(Debug, PartialEq)]
-pub enum BrowserDaemonOwnershipDecision {
-    Attach,
-    Replace { keep_alive: bool },
-}
-
-pub fn browser_daemon_ownership_decision(
-    current_app_run_id: &str,
-    existing: &RunFileInfo,
-) -> BrowserDaemonOwnershipDecision {
-    if existing.app_run_id.as_deref() == Some(current_app_run_id) {
-        BrowserDaemonOwnershipDecision::Attach
-    } else {
-        let keep_alive = existing.owner.as_deref() != Some("app");
-        BrowserDaemonOwnershipDecision::Replace { keep_alive }
-    }
-}
-
 pub fn with_fallback_path(current_path: Option<&str>) -> String {
+    with_fallback_path_for(current_path, crate::daemon::runtime_platform())
+}
+
+pub fn with_fallback_path_for(current_path: Option<&str>, platform: &str) -> String {
+    if platform == "win32" {
+        return current_path
+            .unwrap_or("")
+            .split(';')
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(";");
+    }
+
     let mut result: Vec<String> = current_path
         .unwrap_or("")
         .split(':')
@@ -584,8 +601,8 @@ pub fn process_alive(pid: u32) -> bool {
             0,
             pid,
         );
-        if handle != 0 {
-            windows_sys::Win32::System::Threading::CloseHandle(handle);
+        if !handle.is_null() {
+            windows_sys::Win32::Foundation::CloseHandle(handle);
             return true;
         }
         let err = windows_sys::Win32::Foundation::GetLastError();

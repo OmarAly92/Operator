@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { postStub, getApiBaseUrlMock, hasTrustedApiBaseUrlMock, subscribeApiBaseUrlMock } = vi.hoisted(() => ({
+const { getStub, patchStub, postStub, getApiBaseUrlMock, hasTrustedApiBaseUrlMock, subscribeApiBaseUrlMock } = vi.hoisted(() => ({
+	getStub: vi.fn(),
+	patchStub: vi.fn(),
 	postStub: vi.fn(),
 	getApiBaseUrlMock: vi.fn(() => "http://127.0.0.1:3001"),
 	hasTrustedApiBaseUrlMock: vi.fn(() => true),
@@ -8,7 +10,7 @@ const { postStub, getApiBaseUrlMock, hasTrustedApiBaseUrlMock, subscribeApiBaseU
 }));
 
 vi.mock("./api-client", () => ({
-	apiClient: { POST: postStub },
+	apiClient: { GET: getStub, PATCH: patchStub, POST: postStub },
 	apiErrorMessage: (error: unknown) =>
 		typeof error === "object" && error !== null && "message" in error
 			? String((error as { message: unknown }).message)
@@ -26,6 +28,8 @@ function bridge() {
 
 describe("tauri-bridge local folder scans", () => {
 	beforeEach(() => {
+		getStub.mockReset();
+		patchStub.mockReset();
 		postStub.mockReset();
 		getApiBaseUrlMock.mockReturnValue("http://127.0.0.1:3001");
 		hasTrustedApiBaseUrlMock.mockReturnValue(true);
@@ -93,6 +97,33 @@ describe("tauri-bridge local folder scans", () => {
 		postStub.mockResolvedValue({ data: {} });
 
 		expect(await bridge().app.checkAncestorRepo("/plain")).toBeUndefined();
+	});
+});
+
+describe("tauri-bridge settings errors", () => {
+	beforeEach(() => {
+		getStub.mockReset().mockResolvedValue({ data: undefined, error: { message: "settings unavailable" } });
+		patchStub.mockReset();
+	});
+
+	it("does not turn a failed settings read into local defaults", async () => {
+		const tauri = bridge();
+
+		await expect(tauri.appState.getMigration()).rejects.toThrow("settings unavailable");
+		await expect(tauri.updateSettings.get()).rejects.toThrow("settings unavailable");
+		await expect(tauri.uiSettings.get()).rejects.toThrow("settings unavailable");
+		await expect(tauri.keybindings.get()).rejects.toThrow("settings unavailable");
+	});
+});
+
+describe("tauri-bridge subscriptions", () => {
+	it("accepts an asynchronous listener registration without a disposer", async () => {
+		const listen = vi.fn().mockResolvedValue(undefined);
+		const tauri = createTauriBridge({ invoke: vi.fn(), listen });
+
+		expect(() => tauri.daemon.onStatus(() => undefined)()).not.toThrow();
+		await Promise.resolve();
+		expect(listen).toHaveBeenCalledWith("daemon:status", expect.any(Function));
 	});
 });
 

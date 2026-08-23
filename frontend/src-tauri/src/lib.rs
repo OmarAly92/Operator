@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{env, error::Error, fs, io, path::Path, path::PathBuf};
 
 use chrono::Utc;
+use tauri::{Emitter, Manager};
 
 pub mod app_state;
 pub mod daemon;
@@ -17,31 +18,46 @@ mod app_state_tests;
 enum MacosLaunchAction {
     Continue,
     HandOff(PathBuf),
-    MoveTo(PathBuf, PathBuf),
+    MoveTo(PathBuf, PathBuf, relocation::RelocationLock),
 }
 
-fn marker_state_dir(home: &Path) -> Option<PathBuf> {
-    let process_env: HashMap<String, String> = env::vars().collect();
-    daemon::discovery::resolve_run_file_path(&process_env, home, daemon::is_packaged())
+fn marker_state_dir(
+    process_env: &HashMap<String, String>,
+    home: &Path,
+    is_packaged: bool,
+) -> Option<PathBuf> {
+    daemon::discovery::resolve_run_file_path(process_env, home, is_packaged)
         .and_then(|run_file| run_file.parent().map(Path::to_path_buf))
 }
 
 /// Write the ~/.operator/app-state.json launch marker so `opr start`'s
 /// resolveApp() can find this bundle. The app is the sole writer and writes on
 /// every launch; a failure must not block startup.
-fn write_launch_marker(home: &Path, installed_via: Option<&str>) -> Result<(), Box<dyn Error>> {
-    let Some(state_dir) = marker_state_dir(home) else {
+fn write_launch_marker(
+    process_env: &HashMap<String, String>,
+    home: &Path,
+    is_packaged: bool,
+    app_version: &str,
+    installed_via: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
+    let Some(state_dir) = marker_state_dir(process_env, home, is_packaged) else {
         return Err(std::io::Error::other(
             "cannot resolve the Operator run-file path; skipping app-state marker",
         )
         .into());
     };
     let exec_path = env::current_exe()?;
-    let bundle_path = app_state::resolve_bundle_path(&exec_path);
+    let bundle_path = if is_packaged {
+        app_state::resolve_bundle_path(&exec_path).ok_or_else(|| {
+            std::io::Error::other("packaged executable is not inside a valid app bundle")
+        })?
+    } else {
+        exec_path
+    };
     app_state::write_marker(
         &state_dir,
         &bundle_path.to_string_lossy(),
-        &daemon::app_version(),
+        app_version,
         installed_via,
         Utc::now(),
     )?;
@@ -51,8 +67,13 @@ fn write_launch_marker(home: &Path, installed_via: Option<&str>) -> Result<(), B
 /// Capture install provenance BEFORE relocation, decide the macOS relocation,
 /// then refresh the marker so appPath records the final bundle path while the
 /// sticky installSource survives (mirrors main.ts app.whenReady ordering).
-fn launch_app_state_flow() {
-    let home = daemon::home_dir();
+fn launch_app_state_flow(
+    process_env: &HashMap<String, String>,
+    home: &Path,
+    is_packaged: bool,
+    app_version: &str,
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))] state_root: &Path,
+) {
     let argv: Vec<String> = env::args().collect();
     let installed_via = app_state::parse_installed_via(&argv);
 
@@ -60,14 +81,20 @@ fn launch_app_state_flow() {
     // code past a successful move never runs in this instance, so the source must
     // be persisted first or the sticky logic would lock in "unknown".
     if installed_via.as_deref().is_some_and(|via| !via.is_empty()) {
-        if let Err(error) = write_launch_marker(&home, installed_via.as_deref()) {
+        if let Err(error) = write_launch_marker(
+            process_env,
+            home,
+            is_packaged,
+            app_version,
+            installed_via.as_deref(),
+        ) {
             eprintln!("failed to write pre-relocation app-state marker: {error}");
         }
     }
 
     #[cfg(target_os = "macos")]
-    if daemon::is_packaged() {
-        if let Some(action) = macos_relocation_action() {
+    if is_packaged {
+        if let Some(action) = macos_relocation_action(home, app_version, state_root) {
             match action {
                 MacosLaunchAction::Continue => {}
                 MacosLaunchAction::HandOff(installed) => {
@@ -75,36 +102,59 @@ fn launch_app_state_flow() {
                         "newer install at {}; handing off and quitting",
                         installed.display()
                     );
-                    let _ = open_macos_bundle(&installed);
-                    std::process::exit(0);
-                }
-                MacosLaunchAction::MoveTo(running, installed) => {
-                    if let Err(error) = perform_macos_move(&home, &running, &installed) {
-                        eprintln!("relocation to Applications failed: {error}");
-                    } else {
-                        let _ = open_macos_bundle(&installed);
+                    if open_macos_bundle(&installed) {
                         std::process::exit(0);
+                    }
+                    eprintln!("failed to launch installed Operator bundle");
+                }
+                MacosLaunchAction::MoveTo(running, installed, lock) => {
+                    match perform_macos_move(home, &running, &installed, app_version, &lock) {
+                        Ok(true) => std::process::exit(0),
+                        Ok(false) => eprintln!("relocated Operator but failed to relaunch it"),
+                        Err(error) => eprintln!("relocation to Applications failed: {error}"),
                     }
                 }
             }
         }
     }
 
-    if let Err(error) = write_launch_marker(&home, installed_via.as_deref()) {
+    if let Err(error) = write_launch_marker(
+        process_env,
+        home,
+        is_packaged,
+        app_version,
+        installed_via.as_deref(),
+    ) {
         eprintln!("failed to write app-state marker: {error}");
     }
 }
 
+/// Decide the macOS launch action under the cross-process relocation lock so a
+/// second instance racing this one can never interleave with the decision or
+/// the move. A contended instance declines to Stay without side effects; an
+/// unobtainable lock also falls back to Stay rather than blocking startup.
 #[cfg(target_os = "macos")]
-fn macos_relocation_action() -> Option<MacosLaunchAction> {
+fn macos_relocation_action(
+    home: &Path,
+    app_version: &str,
+    state_root: &Path,
+) -> Option<MacosLaunchAction> {
+    let lock = match relocation::RelocationLock::try_acquire(state_root) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => return Some(MacosLaunchAction::Continue),
+        Err(error) => {
+            eprintln!("relocation lock unavailable; continuing in place: {error}");
+            return Some(MacosLaunchAction::Continue);
+        }
+    };
     let exec_path = env::current_exe().ok()?;
-    let bundle = app_state::resolve_bundle_path(&exec_path);
+    let bundle = app_state::resolve_bundle_path(&exec_path)?;
     let (installed_present, installed_version) = relocation::inspect_installed_bundle(&bundle);
     let action = relocation::decide_relocation(relocation::RelocationInputs {
-        in_applications_folder: relocation::is_in_applications_folder(&bundle, &daemon::home_dir()),
+        in_applications_folder: relocation::is_in_applications_folder(&bundle, home),
         installed_present,
         installed_version: installed_version.as_deref(),
-        running_version: &daemon::app_version(),
+        running_version: app_version,
     });
     Some(match action {
         relocation::RelocationAction::Stay => MacosLaunchAction::Continue,
@@ -113,7 +163,7 @@ fn macos_relocation_action() -> Option<MacosLaunchAction> {
         }
         relocation::RelocationAction::Relocate => {
             let installed = relocation::installed_bundle_path(&bundle);
-            MacosLaunchAction::MoveTo(bundle, installed)
+            MacosLaunchAction::MoveTo(bundle, installed, lock)
         }
     })
 }
@@ -127,56 +177,94 @@ fn open_macos_bundle(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
+fn open_new_macos_bundle_instance(path: &Path) -> bool {
+    std::process::Command::new("open")
+        .arg("-n")
+        .arg(path)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 /// Replace a strictly-older /Applications bundle with the running one via ditto,
 /// preserving the code signature. Like Electron's default
 /// moveToApplicationsFolder conflict handling, the old bundle first moves to the
 /// user's Trash under a uniquified name; when it cannot be trashed (all names
 /// taken, cross-volume rename, no Trash) it stays in place and the move is
 /// declined rather than deleting it. The decision layer guarantees `installed`
-/// is either absent or strictly older before this runs.
+/// is either absent or strictly older before this runs, and `lock` proves this
+/// process owns the cross-process relocation window.
 #[cfg(target_os = "macos")]
-fn perform_macos_move(home: &Path, running: &Path, installed: &Path) -> Result<(), Box<dyn Error>> {
-    if installed.exists() {
-        let Some(bundle_name) = installed.file_name().and_then(|name| name.to_str()) else {
-            return Err(std::io::Error::other(format!(
-                "cannot move unnameable install {} to the Trash; keeping it in place",
-                installed.display()
-            ))
-            .into());
-        };
-        let destination =
-            relocation::trashed_bundle_destination(home, bundle_name, |path| path.exists());
-        match destination {
-            Some(destination) => match fs::rename(installed, &destination) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {
-                    return Err(std::io::Error::other(format!(
-                        "old install {} sits on another volume than {}; keeping it in place",
-                        installed.display(),
-                        home.join(".Trash").display()
-                    ))
-                    .into());
-                }
-                Err(error) => return Err(error.into()),
-            },
-            None => {
-                return Err(std::io::Error::other(format!(
-                    "no free name in {} for {}; keeping it in place",
-                    home.join(".Trash").display(),
-                    installed.display()
-                ))
-                .into());
-            }
+fn perform_macos_move(
+    home: &Path,
+    running: &Path,
+    installed: &Path,
+    app_version: &str,
+    lock: &relocation::RelocationLock,
+) -> Result<bool, Box<dyn Error>> {
+    let mut executor = MacosRelocationExecutor;
+    Ok(relocation::execute_relocation(
+        &mut executor,
+        home,
+        running,
+        installed,
+        app_version,
+        &uuid::Uuid::new_v4().simple().to_string(),
+        lock,
+    )?)
+}
+
+#[cfg(target_os = "macos")]
+struct MacosRelocationExecutor;
+
+#[cfg(target_os = "macos")]
+impl relocation::RelocationExecutor for MacosRelocationExecutor {
+    fn exists(&self, path: &Path) -> bool {
+        path.exists()
+    }
+
+    fn move_path(&mut self, from: &Path, to: &Path) -> io::Result<()> {
+        fs::rename(from, to)
+    }
+
+    fn copy_bundle(&mut self, from: &Path, to: &Path) -> io::Result<()> {
+        let status = std::process::Command::new("ditto")
+            .arg(from)
+            .arg(to)
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!("ditto exited with {status}")))
         }
     }
-    let status = std::process::Command::new("ditto")
-        .arg(running)
-        .arg(installed)
-        .status()?;
-    if !status.success() {
-        return Err(std::io::Error::other(format!("ditto exited with {status}")).into());
+
+    fn valid_bundle(&self, path: &Path, expected_version: &str) -> bool {
+        relocation::valid_macos_bundle(path, expected_version)
     }
-    Ok(())
+
+    fn remove_staged(&mut self, path: &Path) -> io::Result<()> {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if !name.starts_with('.')
+            || !name.contains(".operator-stage-")
+            || path.extension().is_none_or(|ext| ext != "app")
+        {
+            return Err(io::Error::other("refusing to remove a non-staging path"));
+        }
+        match fs::remove_dir_all(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn launch_bundle(&mut self, path: &Path) -> bool {
+        open_new_macos_bundle_instance(path)
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -263,7 +351,7 @@ fn resolved_state_root() -> Result<PathBuf, Box<dyn Error>> {
         operator_data_dir.as_deref(),
         operator_run_file.as_deref(),
         home_dir.as_deref(),
-        if cfg!(debug_assertions) {
+        if tauri::is_dev() {
             StateProfile::Development
         } else {
             StateProfile::Production
@@ -352,10 +440,23 @@ fn fail_state_audit(app: tauri::AppHandle, failure: String) {
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
+    let context = tauri::generate_context!();
+    let process_env: HashMap<String, String> = env::vars().collect();
+    let original_home = daemon::home_dir()
+        .ok_or_else(|| std::io::Error::other("Operator home directory could not be resolved"))?;
+    let original_app_path = env::current_dir()?;
+    let is_packaged = !tauri::is_dev();
+    let app_version = context.package_info().version.to_string();
     let state_root = resolved_state_root()?;
     fs::create_dir_all(&state_root)?;
     install_panic_reporter(&state_root);
-    launch_app_state_flow();
+    launch_app_state_flow(
+        &process_env,
+        &original_home,
+        is_packaged,
+        &app_version,
+        &state_root,
+    );
     for (name, path) in state_environment(&state_root) {
         env::set_var(name, path);
     }
@@ -393,8 +494,7 @@ void (async () => {
         .to_owned()
     });
 
-    let daemon_manager = DaemonManager::new();
-    let mut builder = tauri::Builder::default().manage(daemon_manager);
+    let mut builder = tauri::Builder::default();
     if audit_mode.is_some() {
         builder = builder.invoke_handler(tauri::generate_handler![
             daemon_status,
@@ -420,8 +520,45 @@ void (async () => {
             daemon_restart
         ]);
     }
-    builder
+    let app = builder
         .setup(move |app| {
+            let resources_dir = app.path().resource_dir()?;
+            let daemon_config = daemon::supervisor::DaemonConfig::from_runtime(
+                &process_env,
+                original_home.clone(),
+                resources_dir,
+                original_app_path.clone(),
+                is_packaged,
+                app_version.clone(),
+            );
+            let daemon_manager = DaemonManager::with_runtime(
+                daemon_config,
+                process_env.clone(),
+                original_app_path.clone(),
+                std::time::Duration::from_secs(30),
+            );
+            if !app.manage(daemon_manager.clone()) {
+                return Err(std::io::Error::other("daemon manager was already initialized").into());
+            }
+            let app_handle = app.handle().clone();
+            let mut status_events = daemon_manager.subscribe();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    match status_events.recv().await {
+                        Ok(status) => {
+                            let _ = app_handle.emit("daemon:status", status);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
+            if audit_mode.is_none() && !terminal_benchmark {
+                let manager = daemon_manager.clone();
+                tauri::async_runtime::spawn(async move {
+                    manager.start().await;
+                });
+            }
             let mut window = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -437,7 +574,14 @@ void (async () => {
             window.build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())?;
+        .build(context)?;
+    app.run(|app_handle, event| {
+        if matches!(event, tauri::RunEvent::Exit) {
+            if let Some(manager) = app_handle.try_state::<DaemonManager>() {
+                manager.request_shutdown();
+            }
+        }
+    });
     Ok(())
 }
 

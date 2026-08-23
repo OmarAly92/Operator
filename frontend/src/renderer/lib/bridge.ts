@@ -1,6 +1,9 @@
 import type { OperatorBridge } from "../../shared/operator-bridge";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { coerceLocale } from "../../shared/ui-locale";
 import type { FeatureBuild } from "../../shared/feature-builds";
+import { createTauriBridge } from "./tauri-bridge";
 
 export type { FeatureBuild };
 
@@ -191,56 +194,22 @@ function createBrowserPreviewBridge(): OperatorBridge {
 const tauriInternalsPresent = (): boolean =>
 	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 
-async function selectShellBridge(): Promise<OperatorBridge> {
+function selectShellBridge(): OperatorBridge {
 	if (window.operator) return createElectronBridge(window.operator);
 	if (tauriInternalsPresent()) {
-		const { createTauriBridge } = await import("./tauri-bridge");
-		const core = await import("@tauri-apps/api/core");
-		const event = await import("@tauri-apps/api/event");
 		const invoke: (command: string, payload?: unknown) => Promise<unknown> = (command, payload) =>
-			core.invoke(command, payload as never);
-		const unlisteners = new Map<(event: { payload: unknown }) => void, () => void>();
+			tauriInvoke(command, payload as never);
 		const tauriBridge = createTauriBridge({
 			invoke,
-			listen: (eventName, handler) => {
-				let disposed = false;
-				void event
-					.listen(eventName, handler as never)
-					.then((unlisten) => {
-						if (disposed) unlisten();
-						else unlisteners.set(handler, unlisten);
-					})
-					.catch(() => {
-						unlisteners.delete(handler);
-					});
-				return () => {
-					disposed = true;
-					const dispose = unlisteners.get(handler);
-					unlisteners.delete(handler);
-					dispose?.();
-				};
-			},
+			listen: (eventName, handler) => tauriListen(eventName, handler as never),
 		});
 		return tauriBridge as OperatorBridge;
 	}
 	return createElectronBridge(undefined);
 }
 
-const bridgePromise: Promise<OperatorBridge> = selectShellBridge();
-
-let resolvedBridge: OperatorBridge | null = null;
-void bridgePromise.then((bridge) => {
-	resolvedBridge = bridge;
-});
-
 export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
-	return bridgePromise;
+	return selectShellBridge();
 }
 
-export const operatorBridge: OperatorBridge = new Proxy(createBrowserPreviewBridge(), {
-	get(_target, property, receiver) {
-		if (window.operator) return Reflect.get(window.operator, property);
-		if (resolvedBridge) return Reflect.get(resolvedBridge as object, property, receiver);
-		return Reflect.get(_target as object, property, receiver);
-	},
-});
+export const operatorBridge: OperatorBridge = selectShellBridge();

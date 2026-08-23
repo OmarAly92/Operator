@@ -5,20 +5,29 @@ pub mod supervisor;
 mod tests;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DaemonStatus {
     pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub executable_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub signal: Option<String>,
 }
 
@@ -41,42 +50,29 @@ impl Default for DaemonStatus {
 
 pub use discovery::DaemonLaunchSpec;
 
-pub fn env_map() -> HashMap<String, String> {
-    std::env::vars().collect()
-}
-
-pub fn home_dir() -> PathBuf {
+pub fn home_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         std::env::var_os("USERPROFILE")
+            .filter(|value| !value.is_empty())
             .map(PathBuf::from)
-            .unwrap_or(PathBuf::from("C:\\"))
+            .filter(|path| path.is_absolute())
     }
     #[cfg(not(windows))]
     {
         std::env::var_os("HOME")
+            .filter(|value| !value.is_empty())
             .map(PathBuf::from)
-            .unwrap_or(PathBuf::from("/tmp"))
+            .filter(|path| path.is_absolute())
     }
 }
 
-pub fn is_packaged() -> bool {
-    !cfg!(debug_assertions)
-}
-
-pub fn app_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
-}
-
-pub fn resource_dir() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            return parent.to_path_buf();
-        }
+pub const fn runtime_platform() -> &'static str {
+    if cfg!(windows) {
+        "win32"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "darwin"
     }
-    PathBuf::from(".")
-}
-
-pub fn app_path() -> PathBuf {
-    std::env::current_dir().unwrap_or(PathBuf::from("."))
 }

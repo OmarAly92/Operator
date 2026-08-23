@@ -91,6 +91,19 @@ export function buildDaemonEnv(
 
 export type ShellRunner = (shellPath: string, args: string[]) => Promise<string | null>;
 
+export function devAllowedOriginsOverride(
+	devServerUrl: string | undefined,
+	configuredOrigins: string | undefined,
+): string | undefined {
+	if (configuredOrigins?.trim()) return undefined;
+	if (!devServerUrl) return undefined;
+	try {
+		return new URL(devServerUrl).origin;
+	} catch {
+		return undefined;
+	}
+}
+
 // Run the probe via an injected runner (main.ts supplies the real spawn).
 // Returns null on any failure or if the result lacks PATH; the caller then falls
 // back to the static floor.

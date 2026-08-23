@@ -137,7 +137,35 @@ fn atomic_write(state_dir: &Path, marker: &AppStateMarker, now_millis: i64) -> i
         .truncate(true)
         .open(&tmp)?;
     file.write_all(data.as_bytes())?;
-    fs::rename(tmp, state_dir.join(APP_STATE_FILE_NAME))
+    atomic_replace(&tmp, &state_dir.join(APP_STATE_FILE_NAME))
+}
+
+#[cfg(not(windows))]
+fn atomic_replace(from: &Path, to: &Path) -> io::Result<()> {
+    fs::rename(from, to)
+}
+
+#[cfg(windows)]
+fn atomic_replace(from: &Path, to: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+
+    let from_wide: Vec<u16> = from.as_os_str().encode_wide().chain(Some(0)).collect();
+    let to_wide: Vec<u16> = to.as_os_str().encode_wide().chain(Some(0)).collect();
+    let result = unsafe {
+        MoveFileExW(
+            from_wide.as_ptr(),
+            to_wide.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }
 
 /// Parse the `--installed-via=<value>` flag out of argv; absent means the marker
@@ -152,20 +180,31 @@ pub fn parse_installed_via(argv: &[String]) -> Option<String> {
 
 /// Bundle path `opr start` later opens: on macOS walk the exec path up three
 /// levels (MacOS -> Contents -> .app); elsewhere record the executable itself.
-pub fn resolve_bundle_path(exec_path: &Path) -> PathBuf {
+pub fn resolve_bundle_path(exec_path: &Path) -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        let mut bundle = exec_path.to_path_buf();
-        for _ in 0..3 {
-            match bundle.parent() {
-                Some(parent) => bundle = parent.to_path_buf(),
-                None => break,
-            }
+        if !exec_path.is_file() {
+            return None;
         }
-        bundle
+        let macos = exec_path.parent()?;
+        if macos.file_name()? != "MacOS" {
+            return None;
+        }
+        let contents = macos.parent()?;
+        if contents.file_name()? != "Contents" {
+            return None;
+        }
+        let bundle = contents.parent()?;
+        if exec_path.file_name()? != "operator"
+            || bundle.extension()? != "app"
+            || !crate::relocation::macos_bundle_layout_valid(bundle)
+        {
+            return None;
+        }
+        Some(bundle.to_path_buf())
     }
     #[cfg(not(target_os = "macos"))]
     {
-        exec_path.to_path_buf()
+        Some(exec_path.to_path_buf())
     }
 }

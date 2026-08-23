@@ -70,7 +70,7 @@ describe("shell selection", () => {
 		expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "ready" });
 	});
 
-	it("serves the resolved Tauri bridge through the production proxy", async () => {
+	it("routes the first Tauri call without a preview-bridge race", async () => {
 		setTauriInternals(true);
 		const invokeStub = vi.fn<Invoke>().mockResolvedValue({ state: "starting" });
 		const listenStub = vi.fn<Listen>().mockReturnValue(() => undefined);
@@ -78,10 +78,25 @@ describe("shell selection", () => {
 		holder.__tauriInvoke = invokeStub;
 		holder.__tauriListen = listenStub;
 		const { operatorBridge } = await importBridge();
-		await vi.waitFor(async () => {
-			expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "starting" });
-		});
+		expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "starting" });
 		expect(invokeStub).toHaveBeenCalledWith("daemon_status", undefined);
+	});
+
+	it("registers a status listener requested on the first Tauri tick", async () => {
+		setTauriInternals(true);
+		const invokeStub = vi.fn<Invoke>().mockResolvedValue({ state: "stopped" });
+		const unsubscribe = vi.fn();
+		const listenStub = vi.fn<Listen>().mockReturnValue(unsubscribe);
+		const holder = globalThis as { __tauriInvoke?: unknown; __tauriListen?: unknown };
+		holder.__tauriInvoke = invokeStub;
+		holder.__tauriListen = listenStub;
+		const { operatorBridge } = await importBridge();
+
+		const dispose = operatorBridge.daemon.onStatus(() => undefined);
+
+		await vi.waitFor(() => expect(listenStub).toHaveBeenCalledWith("daemon:status", expect.any(Function)));
+		dispose();
+		expect(unsubscribe).toHaveBeenCalledOnce();
 	});
 
 	it("falls back to the browser preview bridge under VITE_NO_ELECTRON=1", async () => {
@@ -113,6 +128,14 @@ describe("createTauriBridge", async () => {
 		const bridge = await create();
 		expect(await bridge.daemon.getStatus()).toEqual(status);
 		expect(invoke).toHaveBeenCalledWith("daemon_status");
+	});
+
+	it("reads the application version from Tauri's app API command", async () => {
+		invoke.mockResolvedValue("1.2.3-beta.1");
+		const bridge = await create();
+
+		expect(await bridge.app.getVersion()).toBe("1.2.3-beta.1");
+		expect(invoke).toHaveBeenCalledWith("plugin:app|version");
 	});
 
 	it("subscribes and unsubscribes daemon status exactly once per listener", async () => {
