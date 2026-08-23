@@ -116,6 +116,61 @@ describe("tauri-bridge settings errors", () => {
 	});
 });
 
+describe("tauri-bridge native shortcut registration", () => {
+	const OVERRIDE = {
+		"new-session": [{ key: "j", ctrl: false, meta: true, shift: false, alt: false }],
+	};
+
+	it("persists through Go before applying the saved bindings natively", async () => {
+		const order: string[] = [];
+		patchStub.mockImplementation(async () => {
+			order.push("patch");
+			return { data: { keybindings: OVERRIDE } };
+		});
+		const invoke = vi.fn(async (command: string) => {
+			order.push(command);
+			return null;
+		});
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await tauri.keybindings.set(OVERRIDE);
+
+		expect(patchStub).toHaveBeenCalledWith("/api/v1/settings/keybindings", {
+			body: OVERRIDE,
+		});
+		expect(invoke).toHaveBeenCalledWith("keybindings_apply", { overrides: OVERRIDE });
+		expect(order.indexOf("patch")).toBeLessThan(order.indexOf("keybindings_apply"));
+	});
+
+	it("never touches native registration when the Go write fails", async () => {
+		patchStub.mockResolvedValue({ data: undefined, error: { message: "settings locked" } });
+		const invoke = vi.fn(async () => null);
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await expect(tauri.keybindings.set({})).rejects.toThrow("settings locked");
+		expect(invoke).not.toHaveBeenCalled();
+	});
+
+	it("applies overrides natively after loading them from Go", async () => {
+		getStub.mockReset().mockResolvedValue({ data: { keybindings: OVERRIDE } });
+		patchStub.mockReset();
+		const invoke = vi.fn(async () => null);
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await expect(tauri.keybindings.get()).resolves.toEqual(OVERRIDE);
+		expect(invoke).toHaveBeenCalledWith("keybindings_apply", { overrides: OVERRIDE });
+	});
+
+	it("survives a native registration failure after a successful Go write", async () => {
+		patchStub.mockResolvedValue({ data: { keybindings: OVERRIDE } });
+		const invoke = vi.fn().mockRejectedValue(new Error("plugin unavailable"));
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await expect(tauri.keybindings.set({})).resolves.toEqual(OVERRIDE);
+		expect(invoke).toHaveBeenCalledWith("keybindings_apply", { overrides: OVERRIDE });
+	});
+});
+
 describe("tauri-bridge subscriptions", () => {
 	it("accepts an asynchronous listener registration without a disposer", async () => {
 		const listen = vi.fn().mockResolvedValue(undefined);

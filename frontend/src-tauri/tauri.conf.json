@@ -13,7 +13,7 @@
 	"app": {
 		"windows": [],
 		"security": {
-			"capabilities": ["phase0"],
+			"capabilities": ["phase0", "default"],
 			"csp": null
 		}
 	},

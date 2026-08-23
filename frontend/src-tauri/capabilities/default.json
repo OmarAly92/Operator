@@ -1,0 +1,19 @@
+{
+	"identifier": "default",
+	"description": "Window, menu, theme, and shortcut behavior for the main Operator window",
+	"windows": ["main"],
+	"permissions": [
+		"core:event:allow-listen",
+		"core:event:allow-unlisten",
+		"global-shortcut:allow-register",
+		"global-shortcut:allow-unregister",
+		"allow-window-set-overlay",
+		"allow-window-is-fullscreen",
+		"allow-theme-set",
+		"allow-menu-action",
+		"allow-shell-focus",
+		"allow-keybindings-apply",
+		"allow-keybindings-recording",
+		"allow-set-close-shell-terminal-shortcut-enabled"
+	]
+}

@@ -6,12 +6,18 @@ use tauri::{Emitter, Manager};
 
 pub mod app_state;
 pub mod daemon;
+pub mod menu;
 pub mod relocation;
+pub mod shortcuts;
+pub mod window;
 use daemon::supervisor::DaemonManager;
 use daemon::DaemonStatus;
 
 #[cfg(test)]
 mod app_state_tests;
+
+#[cfg(test)]
+mod native_contract_tests;
 
 /// Launch-time action derived from the macOS relocation decision.
 #[cfg(target_os = "macos")]
@@ -439,6 +445,375 @@ fn fail_state_audit(app: tauri::AppHandle, failure: String) {
     app.exit(70);
 }
 
+struct ShortcutRegistry(
+    std::sync::Mutex<Option<shortcuts::ShortcutEngine<shortcuts::GlobalShortcutRegistrar>>>,
+);
+
+struct FullscreenState(std::sync::Mutex<window::FullscreenTracker>);
+
+struct ThemeState(std::sync::Mutex<window::ThemePreference>);
+
+fn menu_platform() -> menu::MenuPlatform {
+    if cfg!(target_os = "macos") {
+        menu::MenuPlatform::Macos
+    } else if cfg!(target_os = "windows") {
+        menu::MenuPlatform::Windows
+    } else {
+        menu::MenuPlatform::Linux
+    }
+}
+
+fn install_app_menu(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
+    let mut menu_builder = tauri::menu::MenuBuilder::new(app);
+    for submenu_spec in menu::app_menu_template(menu_platform()) {
+        let mut submenu = tauri::menu::SubmenuBuilder::new(app, submenu_spec.label);
+        for item in submenu_spec.items {
+            submenu = match item.kind {
+                menu::MenuItemKind::Action => submenu.item(&tauri::menu::MenuItem::with_id(
+                    app,
+                    item.action.unwrap_or_default(),
+                    item.label,
+                    true,
+                    Some(item.accelerator),
+                )?),
+                menu::MenuItemKind::Separator => submenu.separator(),
+                menu::MenuItemKind::NativeAbout => {
+                    submenu.item(&tauri::menu::PredefinedMenuItem::about(app, None, None)?)
+                }
+                menu::MenuItemKind::NativeQuit => {
+                    submenu.item(&tauri::menu::PredefinedMenuItem::quit(app, None)?)
+                }
+            };
+        }
+        menu_builder = menu_builder.item(&submenu.build()?);
+    }
+    let menu = menu_builder.build()?;
+    app.set_menu(menu)?;
+    if cfg!(target_os = "windows") {
+        app.hide_menu()?;
+    }
+    Ok(())
+}
+
+fn route_native_menu_event(app: &tauri::AppHandle, event: &tauri::menu::MenuEvent) {
+    let Some(window) = app.get_webview_window(shortcuts::MAIN_WINDOW_LABEL) else {
+        return;
+    };
+    let zoom = app.state::<menu::ZoomState>();
+    let mut host = ShellMenuHost {
+        app,
+        window: &window,
+    };
+    menu::dispatch_menu_action(event.id().as_ref(), &zoom, &mut host);
+}
+
+static WINDOW_FOCUS_DESIRED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(true);
+
+fn log_apply_report(context: &str, report: &shortcuts::ApplyReport) {
+    for conflict in &report.conflicts {
+        eprintln!(
+            "shortcut conflict ({context}): {} claimed by {} shadows {}",
+            conflict.accelerator,
+            conflict.winner.event_name(),
+            conflict.shadowed.event_name()
+        );
+    }
+    for failure in &report.failures {
+        eprintln!(
+            "shortcut registration failed ({}): {} for {}: {}",
+            context,
+            failure.error,
+            failure.accelerator,
+            failure.id.event_name()
+        );
+    }
+}
+
+fn mutate_shortcuts(
+    registry: &ShortcutRegistry,
+    mutate: impl FnOnce(
+        &mut shortcuts::ShortcutEngine<shortcuts::GlobalShortcutRegistrar>,
+    ) -> shortcuts::ApplyReport,
+) -> Result<(), String> {
+    let mut guard = registry
+        .0
+        .lock()
+        .map_err(|_| "shortcut registry poisoned".to_string())?;
+    match guard.as_mut() {
+        Some(engine) => {
+            log_apply_report("shortcuts", &mutate(engine));
+            Ok(())
+        }
+        None => {
+            eprintln!("global shortcuts unavailable on this platform; ignoring shortcut update");
+            Ok(())
+        }
+    }
+}
+
+#[tauri::command]
+async fn keybindings_apply(
+    registry: tauri::State<'_, ShortcutRegistry>,
+    overrides: HashMap<String, Vec<shortcuts::Binding>>,
+) -> Result<(), String> {
+    mutate_shortcuts(&registry, |engine| engine.set_overrides(overrides))
+}
+
+#[tauri::command]
+async fn keybindings_recording(
+    registry: tauri::State<'_, ShortcutRegistry>,
+    active: bool,
+) -> Result<(), String> {
+    mutate_shortcuts(&registry, |engine| engine.set_recording(active))
+}
+
+#[tauri::command]
+async fn set_close_shell_terminal_shortcut_enabled(
+    registry: tauri::State<'_, ShortcutRegistry>,
+    enabled: bool,
+) -> Result<(), String> {
+    mutate_shortcuts(&registry, |engine| {
+        engine.set_close_terminal_enabled(enabled)
+    })
+}
+
+fn set_window_focus_state(app: &tauri::AppHandle) {
+    let desired = WINDOW_FOCUS_DESIRED.load(std::sync::atomic::Ordering::SeqCst);
+    if let Some(registry) = app.try_state::<ShortcutRegistry>() {
+        let _ = mutate_shortcuts(&registry, |engine| engine.set_window_focused(desired));
+    }
+}
+
+fn request_window_focus_state(focused: bool) {
+    WINDOW_FOCUS_DESIRED.store(focused, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn push_fullscreen_state(app: &tauri::AppHandle, full_screen: bool) {
+    let _ = app.emit_to(
+        shortcuts::MAIN_WINDOW_LABEL,
+        "window:fullscreen",
+        full_screen,
+    );
+}
+
+fn poll_fullscreen_state(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(shortcuts::MAIN_WINDOW_LABEL) else {
+        return;
+    };
+    let current = window.is_fullscreen().unwrap_or(false);
+    let Some(state) = app.try_state::<FullscreenState>() else {
+        return;
+    };
+    let changed = state
+        .0
+        .lock()
+        .ok()
+        .and_then(|mut tracker| tracker.update(current));
+    if let Some(full_screen) = changed {
+        push_fullscreen_state(app, full_screen);
+    }
+}
+
+#[tauri::command]
+fn window_set_overlay(
+    window: tauri::WebviewWindow,
+    color: String,
+    symbol_color: String,
+) -> Result<(), String> {
+    let colors = window::overlay_colors(&color, &symbol_color)
+        .ok_or_else(|| format!("invalid title bar overlay colors: {color:?} / {symbol_color:?}"))?;
+    set_title_bar_overlay_colors(&window, colors)
+}
+
+#[cfg(target_os = "windows")]
+fn set_title_bar_overlay_colors(
+    window: &tauri::WebviewWindow,
+    colors: window::OverlayColors,
+) -> Result<(), String> {
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let hwnd = windows_sys::Win32::Foundation::HWND(hwnd.0);
+    for (attribute, value) in [
+        (
+            windows_sys::Win32::Graphics::Dwm::DWMWA_CAPTION_COLOR,
+            colors.caption_colorref(),
+        ),
+        (
+            windows_sys::Win32::Graphics::Dwm::DWMWA_TEXT_COLOR,
+            colors.text_colorref(),
+        ),
+    ] {
+        let result = unsafe {
+            windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+                hwnd,
+                attribute as u32,
+                std::ptr::from_ref(&value).cast(),
+                4,
+            )
+        };
+        if result < 0 {
+            eprintln!("this Windows build does not support title bar overlay tinting ({result})");
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_title_bar_overlay_colors(
+    _window: &tauri::WebviewWindow,
+    _colors: window::OverlayColors,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+fn window_is_fullscreen(window: tauri::WebviewWindow) -> Result<bool, String> {
+    window.is_fullscreen().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn theme_set(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    theme_state: tauri::State<'_, ThemeState>,
+    preference: String,
+) -> Result<(), String> {
+    let Some(preference) = window::theme_preference(&preference) else {
+        return Ok(());
+    };
+    if let Ok(mut current) = theme_state.0.lock() {
+        *current = preference;
+    }
+    apply_theme_preference(&app, &window, preference);
+    Ok(())
+}
+
+fn apply_theme_preference(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+    preference: window::ThemePreference,
+) {
+    let theme = match preference {
+        window::ThemePreference::Light => Some(tauri::Theme::Light),
+        window::ThemePreference::Dark => Some(tauri::Theme::Dark),
+        window::ThemePreference::System => None,
+    };
+    app.set_theme(theme);
+    apply_window_background(window, preference);
+}
+
+fn apply_window_background(window: &tauri::WebviewWindow, preference: window::ThemePreference) {
+    let os_dark = matches!(
+        window.theme().unwrap_or(tauri::Theme::Dark),
+        tauri::Theme::Dark
+    );
+    if let Some((red, green, blue)) = window::resolved_background(preference, os_dark) {
+        let _ = window.set_background_color(Some(tauri::window::Color(red, green, blue, 255)));
+    }
+}
+
+fn follow_system_theme(app: &tauri::AppHandle) {
+    let Some(theme_state) = app.try_state::<ThemeState>() else {
+        return;
+    };
+    let preference = match theme_state.0.lock() {
+        Ok(current) => *current,
+        Err(poisoned) => *poisoned.into_inner(),
+    };
+    if preference != window::ThemePreference::System {
+        return;
+    }
+    if let Some(window) = app.get_webview_window(shortcuts::MAIN_WINDOW_LABEL) {
+        apply_window_background(&window, preference);
+    }
+}
+
+struct ShellMenuHost<'a> {
+    app: &'a tauri::AppHandle,
+    window: &'a tauri::WebviewWindow,
+}
+
+impl menu::MenuHost for ShellMenuHost<'_> {
+    fn edit(&mut self, command: menu::EditCommand) {
+        let _ = self.window.eval(command.exec_script());
+    }
+
+    fn reload(&mut self) {
+        let _ = self.window.reload();
+    }
+
+    fn toggle_devtools(&mut self) {
+        if self.window.is_devtools_open() {
+            self.window.close_devtools();
+        } else {
+            self.window.open_devtools();
+        }
+    }
+
+    fn zoom(&mut self, scale: f64) {
+        let _ = self.window.set_zoom(scale);
+    }
+
+    fn toggle_fullscreen(&mut self) {
+        let current = self.window.is_fullscreen().unwrap_or(false);
+        if let Err(error) = self.window.set_fullscreen(!current) {
+            eprintln!("failed to toggle fullscreen: {error}");
+        }
+        push_fullscreen_state(self.app, !current);
+    }
+
+    fn minimize(&mut self) {
+        let _ = self.window.minimize();
+    }
+
+    fn toggle_maximize(&mut self) {
+        if self.window.is_maximized().unwrap_or(false) {
+            let _ = self.window.unmaximize();
+        } else {
+            let _ = self.window.maximize();
+        }
+    }
+
+    fn close(&mut self) {
+        let _ = self.window.close();
+    }
+
+    fn quit(&mut self) {
+        self.app.exit(0);
+    }
+
+    fn show_shortcuts_help(&mut self) {
+        push_shortcuts_help(self.app);
+    }
+
+    fn about(&mut self) {
+        eprintln!("the About dialog is deferred until the native dialog task lands");
+    }
+}
+
+fn push_shortcuts_help(app: &tauri::AppHandle) {
+    let _ = app.emit_to(shortcuts::MAIN_WINDOW_LABEL, "shortcut:help", ());
+}
+
+#[tauri::command]
+fn menu_action(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    action: String,
+    zoom: tauri::State<'_, menu::ZoomState>,
+) -> Result<(), String> {
+    let mut host = ShellMenuHost {
+        app: &app,
+        window: &window,
+    };
+    menu::dispatch_menu_action(&action, &zoom, &mut host);
+    Ok(())
+}
+
+#[tauri::command]
+fn shell_focus() {}
+
 pub fn run() -> Result<(), Box<dyn Error>> {
     let context = tauri::generate_context!();
     let process_env: HashMap<String, String> = env::vars().collect();
@@ -495,6 +870,13 @@ void (async () => {
     });
 
     let mut builder = tauri::Builder::default();
+    let mut global_shortcuts_available = false;
+    if audit_mode.is_none() && !terminal_benchmark {
+        global_shortcuts_available = shortcuts::probe_global_shortcuts();
+        if global_shortcuts_available {
+            builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+        }
+    }
     if audit_mode.is_some() {
         builder = builder.invoke_handler(tauri::generate_handler![
             daemon_status,
@@ -517,7 +899,15 @@ void (async () => {
             daemon_status,
             daemon_start,
             daemon_stop,
-            daemon_restart
+            daemon_restart,
+            window_set_overlay,
+            window_is_fullscreen,
+            theme_set,
+            menu_action,
+            shell_focus,
+            keybindings_apply,
+            keybindings_recording,
+            set_close_shell_terminal_shortcut_enabled
         ]);
     }
     let app = builder
@@ -561,26 +951,74 @@ void (async () => {
             }
             let mut window = tauri::WebviewWindowBuilder::new(
                 app,
-                "main",
+                shortcuts::MAIN_WINDOW_LABEL,
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .title("Operator")
-            .inner_size(1280.0, 800.0)
+            .inner_size(1320.0, 860.0)
+            .min_inner_size(960.0, 640.0)
+            .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
             .data_directory(state_root.join("webview"))
             .use_https_scheme(false);
             if let Some(script) = audit_script.clone() {
                 window = window.initialization_script(script);
             }
             window.build()?;
+            if !app.manage(ShortcutRegistry(std::sync::Mutex::new(
+                global_shortcuts_available.then(|| {
+                    shortcuts::ShortcutEngine::new(
+                        shortcuts::GlobalShortcutRegistrar {
+                            app: app.handle().clone(),
+                        },
+                        cfg!(target_os = "macos"),
+                    )
+                }),
+            ))) || !app.manage(FullscreenState(std::sync::Mutex::new(
+                window::FullscreenTracker::default(),
+            ))) || !app.manage(menu::ZoomState::default())
+                || !app.manage(ThemeState(std::sync::Mutex::new(
+                    window::ThemePreference::System,
+                )))
+            {
+                return Err(std::io::Error::other("shell state was already initialized").into());
+            }
+            if audit_mode.is_none() && !terminal_benchmark {
+                install_app_menu(app.handle())?;
+                app.handle().on_menu_event(|app_handle, event| {
+                    route_native_menu_event(app_handle, &event);
+                });
+            }
             Ok(())
         })
         .build(context)?;
-    app.run(|app_handle, event| {
-        if matches!(event, tauri::RunEvent::Exit) {
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::Exit => {
             if let Some(manager) = app_handle.try_state::<DaemonManager>() {
                 manager.request_shutdown();
             }
         }
+        tauri::RunEvent::WindowEvent { label, event, .. }
+            if label == shortcuts::MAIN_WINDOW_LABEL =>
+        {
+            match event {
+                tauri::WindowEvent::Resized(_) => poll_fullscreen_state(app_handle),
+                tauri::WindowEvent::Focused(focused) => {
+                    request_window_focus_state(focused);
+                    let app_handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        set_window_focus_state(&app_handle);
+                    });
+                }
+                tauri::WindowEvent::ThemeChanged(_) => {
+                    let app_handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        follow_system_theme(&app_handle);
+                    });
+                }
+                _ => {}
+            }
+        }
+        _ => {}
     });
     Ok(())
 }

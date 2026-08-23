@@ -15,14 +15,16 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 chrono = { version = "=0.4.45", features = [] }
+global-hotkey = { version = "=0.8.0", features = [] }
 libc = { version = "=0.2.189", features = [] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = [] }
 semver = { version = "=1.0.28", features = [] }
-tauri = { version = "=2.11.5", features = [] }
+tauri = { version = "=2.11.5", features = ["devtools"] }
+tauri-plugin-global-shortcut = { version = "=2.3.2", features = [] }
 tauri-plugin-updater = { version = "=2.10.1", features = [] }
 tokio = { version = "=1.53.1", features = ["full"] }
 uuid = { version = "=1.24.1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading"] }

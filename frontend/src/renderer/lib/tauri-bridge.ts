@@ -266,7 +266,13 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			},
 		},
 		keybindings: {
-			get: async () => (await fetchSettings()).keybindings ?? {},
+			get: async () => {
+				const keybindings = (await fetchSettings()).keybindings ?? {};
+				void Promise.resolve(invoke("keybindings_apply", { overrides: keybindings })).catch(
+					() => undefined,
+				);
+				return keybindings;
+			},
 			set: async (overrides: KeybindingOverrides) => {
 				const body = Object.fromEntries(
 					Object.entries(overrides).map(([id, bindings]) => [id, bindings.map((binding) => ({ ...binding }))]),
@@ -275,7 +281,11 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 					body,
 				});
 				if (error) throw new Error(apiErrorMessage(error));
-				return data?.keybindings ?? {};
+				const saved = data?.keybindings ?? {};
+				void Promise.resolve(invoke("keybindings_apply", { overrides: saved })).catch(
+					() => undefined,
+				);
+				return saved;
 			},
 			setRecording: async (active: boolean) => {
 				await invoke("keybindings_recording", { active });
