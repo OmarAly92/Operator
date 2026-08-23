@@ -13,6 +13,8 @@ import {
 	collectHostMetadata,
 	createBenchmarkResult,
 	parseNamedArguments,
+	resolveEvidenceScope,
+	sanitizedBindingEnvironment,
 	scenarioResultConfiguration,
 	writeBenchmarkResultBatch,
 } from "./benchmark-result.mjs";
@@ -173,6 +175,7 @@ export async function resolveShellBenchmarkProvenance(env, dependencies = {}) {
 		buildProfile: preflight.buildProfile,
 		git: { commit: preflight.attestation.sourceCommit, dirty: false },
 		attestation: preflight.attestation,
+		attestationVerification: preflight.attestationVerification,
 	};
 }
 
@@ -315,14 +318,13 @@ export async function launchSample({ executablePath, scenario, stateRoot }, depe
 	const spawnAttestation = await (dependencies.prepareSpawnAttestation ?? prepareSpawnAttestation)(executablePath, stateRoot);
 	const applicationPromise = (dependencies.launchElectron ?? ((options) => electron.launch(options)))({
 		executablePath: spawnAttestation.executablePath,
-		env: {
-			...process.env,
+		env: sanitizedBindingEnvironment(dependencies.parentEnv ?? process.env, {
 			...spawnAttestation.env,
 			OPERATOR_DATA_DIR: path.join(stateRoot, "data"),
 			OPERATOR_RUN_FILE: path.join(stateRoot, "running.json"),
 			OPERATOR_PORT: String(daemonPort),
 			OPERATOR_KEEP_DAEMON: "0",
-		},
+		}),
 		timeout: 120_000,
 	});
 	const observeCompletion = dependencies.observeStartupCompletion ?? observeStartupCompletion;
@@ -390,9 +392,8 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 		if (sharedState) await rm(sharedState, { recursive: true, force: true });
 	}
 	const releaseAttestation = provenance.attestation ? {
-		artifactSha256: provenance.attestation.artifactSha256,
-		applicationVersion: provenance.attestation.applicationVersion,
-		publisherIdentity: provenance.attestation.publisherIdentity,
+		statement: provenance.attestation,
+		verification: provenance.attestationVerification,
 		source: "publisher-ed25519-signed",
 	} : undefined;
 	const benchmarkResult = createBenchmarkResult({
@@ -405,7 +406,9 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 		scenarioConfiguration: {
 			...scenarioResultConfiguration(scenario),
 			...(options.scenario === "idle-memory" ? { accounting: "shell-and-webview-process-tree-excluding-daemon" } : {}),
-			...(releaseAttestation ? { releaseAttestation } : { evidenceScope: "non-binding" }),
+			...(releaseAttestation
+				? { releaseAttestation, evidenceScope: "binding" }
+				: { evidenceScope: resolveEvidenceScope(env) }),
 		},
 		warmups: scenario.warmups,
 		samples: measurements,
@@ -428,7 +431,9 @@ export async function runShellBenchmark(argv = process.argv.slice(2), env = proc
 			scenarioConfiguration: {
 				idleSeconds: scenario.idleSeconds,
 				accounting: "isolated-go-daemon-process-tree",
-				...(releaseAttestation ? { releaseAttestation } : { evidenceScope: "non-binding" }),
+				...(releaseAttestation
+					? { releaseAttestation, evidenceScope: "binding" }
+					: { evidenceScope: resolveEvidenceScope(env) }),
 			},
 			warmups: scenario.warmups,
 			samples: daemonMeasurements,

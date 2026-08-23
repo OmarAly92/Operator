@@ -34,21 +34,77 @@ export const DEFAULT_RESULT_ROOT = fileURLToPath(new URL("../perf/results/", imp
 
 const execFileAsync = promisify(execFile);
 
-const REQUIRED_SAMPLES = Object.freeze({
+export const REQUIRED_SAMPLES = Object.freeze({
 	"warm-start": 10,
 	"first-run": 10,
 	"idle-memory": 5,
 	"idle-daemon-memory": 5,
 	vtebench: 10,
 	"large-output": 10,
+	"input-latency": 10,
+	reconnect: 10,
+	"active-memory": 5,
+	"cpu-time": 10,
 });
 
-const REQUIRED_WARMUPS = Object.freeze({
+export const REQUIRED_WARMUPS = Object.freeze({
 	"warm-start": 3,
 	"first-run": 3,
 	vtebench: 3,
 	"large-output": 3,
+	"input-latency": 3,
+	reconnect: 3,
+	"cpu-time": 3,
 });
+
+const BINDING_ENVIRONMENT_PREFIXES = Object.freeze([
+	"OPERATOR_",
+	"AGENT_BROWSER_",
+	"ACP_",
+	"TAURI_",
+	"ELECTRON_",
+]);
+
+const BINDING_ENVIRONMENT_KEYS = new Set([
+	"NODE_OPTIONS",
+	"NODE_PATH",
+	"LD_PRELOAD",
+	"LD_LIBRARY_PATH",
+	"DYLD_INSERT_LIBRARIES",
+	"DYLD_LIBRARY_PATH",
+]);
+
+const EVIDENCE_SCOPES = Object.freeze(["binding", "non-binding"]);
+export const EVIDENCE_SCOPE_ENV = "OPERATOR_BENCH_EVIDENCE_SCOPE";
+
+export function resolveEvidenceScope(env = process.env) {
+	const rawValue = env[EVIDENCE_SCOPE_ENV];
+	if (rawValue === undefined || rawValue === "") return "non-binding";
+	if (!EVIDENCE_SCOPES.includes(rawValue)) {
+		throw new Error(`${EVIDENCE_SCOPE_ENV} must be one of ${EVIDENCE_SCOPES.join("|")}, received ${JSON.stringify(rawValue)}`);
+	}
+	return rawValue;
+}
+
+export function sanitizedBindingEnvironment(parentEnvironment, controlled = {}) {	const sanitized = {};
+	const controlledNames = new Set(Object.keys(controlled).map((name) => name.toUpperCase()));
+	const seenNames = new Set();
+	for (const [name, value] of Object.entries(parentEnvironment ?? {})) {
+		const normalizedName = name.toUpperCase();
+		if (BINDING_ENVIRONMENT_KEYS.has(normalizedName)) continue;
+		if (BINDING_ENVIRONMENT_PREFIXES.some((prefix) => normalizedName.startsWith(prefix))) continue;
+		if (controlledNames.has(normalizedName) || seenNames.has(normalizedName)) continue;
+		sanitized[name] = value;
+		seenNames.add(normalizedName);
+	}
+	for (const [name, value] of Object.entries(controlled)) {
+		const normalizedName = name.toUpperCase();
+		if (seenNames.has(normalizedName)) continue;
+		sanitized[name] = value;
+		seenNames.add(normalizedName);
+	}
+	return sanitized;
+}
 
 function isPlainObject(value) {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;

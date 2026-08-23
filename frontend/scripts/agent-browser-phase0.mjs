@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { copyFile, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ export const EXIT_CODES = {
 	ELECTRON_DETECTED: 7,
 	TIMEOUT: 8,
 	CANCELLED: 9,
+	OUTPUT_TRUNCATED: 10,
 };
 
 const AGENT_BROWSER_VERSION = "0.33.1";
@@ -21,8 +22,8 @@ const DEFAULT_DOCTOR_TIMEOUT_MS = 60_000;
 const DEFAULT_INSTALL_TIMEOUT_MS = 600_000;
 const DEFAULT_ACTION_TIMEOUT_MS = 30_000;
 
-const COMMANDS = new Set(["doctor", "install", "open", "snapshot", "click", "console", "errors", "screenshot", "tab", "close"]);
-const ALLOWED_FLAGS = new Set(["--json", "-i"]);
+const COMMANDS = new Set(["doctor", "install", "open", "snapshot", "click", "console", "errors", "screenshot", "tab", "close", "cookies"]);
+const ALLOWED_FLAGS = new Set(["--json", "-i", "--url", "--domain", "--path", "--httpOnly", "--secure", "--sameSite", "--expires"]);
 const FORBIDDEN_FLAGS = new Set([
 	"--cdp",
 	"--auto-connect",
@@ -41,6 +42,31 @@ const FORBIDDEN_FLAGS = new Set([
 	"--remote-debugging-pipe",
 	"--no-sandbox",
 ]);
+
+export function createBoundedOutput(limitBytes) {
+	let retained = Buffer.alloc(0);
+	let wasTruncated = false;
+	return {
+		append(chunk) {
+			const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+			const remaining = Math.max(0, limitBytes - retained.length);
+			if (bytes.length > remaining) wasTruncated = true;
+			if (remaining > 0) retained = Buffer.concat([retained, bytes.subarray(0, remaining)]);
+		},
+		text: () => retained.toString("utf8"),
+		truncated: () => wasTruncated,
+	};
+}
+
+async function pathIsMissing(target) {
+	try {
+		await lstat(target);
+		return false;
+	} catch (error) {
+		if (error?.code === "ENOENT") return true;
+		throw error;
+	}
+}
 
 export function buildProbeEnvironment(sessionRoot, parentEnv, platform) {
 	const parent = parentEnv ?? {};
@@ -160,6 +186,7 @@ async function runCommand(spawnImpl, request) {
 				args: request.args,
 				env: request.env,
 				timeoutMs: request.timeoutMs,
+				outputLimitBytes: request.outputLimitBytes,
 				signal: request.signal,
 				scanStep: request.scanStep,
 				registerKill: (fn) => {
@@ -196,7 +223,7 @@ async function runCommand(spawnImpl, request) {
 	const originalStdoutBytes = Buffer.byteLength(result.stdout ?? "");
 	const originalStderrBytes = Buffer.byteLength(result.stderr ?? "");
 	const limit = request.outputLimitBytes;
-	const truncated = limit !== undefined && (originalStdoutBytes > limit || originalStderrBytes > limit);
+	const truncated = Boolean(result.outputTruncated) || (limit !== undefined && (originalStdoutBytes > limit || originalStderrBytes > limit));
 	const stdoutText = truncateText(result.stdout ?? "", limit);
 	const stderrText = truncateText(result.stderr ?? "", limit);
 	const stdoutBytes = Buffer.byteLength(stdoutText);
@@ -267,15 +294,23 @@ export function locateManagedExecutable(files, root, platform) {
 }
 
 export function scanForSessionElectronProcesses(listing, sessionTokens) {
-	const findings = [];
+	return scanForSessionProcesses(listing, sessionTokens).electron;
+}
+
+export function scanForSessionProcesses(listing, sessionTokens) {
+	const electron = [];
+	const browser = [];
 	for (const line of String(listing).split("\n")) {
 		const match = line.match(/^\s*(\d+)\s+(.*)$/);
 		if (!match) continue;
 		const [, pid, command] = match;
 		const inScope = sessionTokens.some((token) => command.includes(token));
-		if (inScope && /electron/i.test(command)) findings.push({ pid, command });
+		if (!inScope) continue;
+		const finding = { pid, command };
+		if (/electron/i.test(command)) electron.push(finding);
+		else if (/(?:agent-browser|chrom(?:e|ium)|msedge)/i.test(command)) browser.push(finding);
 	}
-	return findings;
+	return { electron, browser };
 }
 
 export function mapOutcomeToExitCode(outcome) {
@@ -296,9 +331,69 @@ export function mapOutcomeToExitCode(outcome) {
 			return EXIT_CODES.TIMEOUT;
 		case "cancelled":
 			return EXIT_CODES.CANCELLED;
+		case "truncated":
+			return EXIT_CODES.OUTPUT_TRUNCATED;
 		default:
 			return EXIT_CODES.ACTION_FAILED;
 	}
+}
+
+export function crossModeCookieIsolation(evidenceByMode) {
+	const modes = Object.keys(evidenceByMode ?? {}).sort();
+	if (modes.length < 2) return false;
+	const seenMarkers = new Map();
+	for (const mode of modes) {
+		const cookies = evidenceByMode[mode]?.cookies;
+		if (!isCookieObservation(cookies)) return false;
+		const ownMarker = `phase0_${mode}_marker`;
+		if (!cookies.markerPresent || !cookies.observedNames.includes(ownMarker)) return false;
+		seenMarkers.set(mode, new Set(cookies.observedNames));
+	}
+	for (const [mode, names] of seenMarkers) {
+		for (const other of modes) {
+			if (other === mode) continue;
+			for (const name of names) {
+				if (name === `phase0_${other}_marker`) return false;
+			}
+		}
+	}
+	return true;
+}
+
+function isCookieObservation(value) {
+	return Boolean(value) && Array.isArray(value.observedNames) && typeof value.markerPresent === "boolean";
+}
+
+export function createConcurrencyCoordinator(expectedModes, hooks = {}) {
+	if (!Array.isArray(expectedModes) || expectedModes.length < 2) throw new Error("concurrency coordination requires at least two probe modes");
+	const arrived = new Set();
+	const waiters = [];
+	const notify = () => {
+		if (arrived.size >= expectedModes.length) {
+			for (const waiter of waiters.splice(0)) waiter();
+		}
+	};
+	return {
+		expectedModes: [...expectedModes],
+		forMode(mode) {
+			arrived.add(mode);
+			hooks.onArrival?.(mode);
+			notify();
+			let peerRootsPromise;
+			return {
+				expectedModes: [...expectedModes],
+				async peers() {
+					peerRootsPromise ??= (async () => {
+						if (arrived.size < expectedModes.length) {
+							await new Promise((resolve) => waiters.push(resolve));
+						}
+						return [...expectedModes].filter((peer) => peer !== mode);
+					})();
+					return await peerRootsPromise;
+				},
+			};
+		},
+	};
 }
 
 export function sanitizeEvidenceText(text, sessionTokens) {
@@ -343,12 +438,17 @@ export async function runMode(mode, options) {
 		binaryPath,
 		cleanupHook,
 		scenario,
+		concurrency,
 	} = options;
 	const steps = [];
 	const sessionTokens = [sessionRoot];
 	const sessionEnv = buildProbeEnvironment(sessionRoot, options.parentEnv, platform);
 	const artifactsDir = path.join(sessionRoot, "artifacts");
 	let outcome = "action-failed";
+	let browserOpened = false;
+	let isolationObserved = false;
+	let concurrentActiveObserved = false;
+	const cookieMarkerName = `phase0_${mode}_marker`;
 	const evidence = {
 		schemaVersion: 1,
 		mode,
@@ -359,6 +459,14 @@ export async function runMode(mode, options) {
 		steps: [],
 		doctor: null,
 		electronProcessesInSession: [],
+		browserProcessesWhileRunning: [],
+		isolatedWhileRunning: false,
+		cookies: { observedNames: [], markerPresent: false },
+		concurrentlyActiveModes: [],
+		peerBrowserProcessCount: 0,
+		cleanupPassed: false,
+		stateRootRemoved: false,
+		observedProcessCount: 0,
 		outcome: "action-failed",
 	};
 
@@ -391,7 +499,7 @@ export async function runMode(mode, options) {
 		return result;
 	};
 
-	const scan = async () => {
+	const scan = async (extraTokens = []) => {
 		const listArgs = platform === "win32" ? ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"] : ["-axo", "pid=,args="];
 		const result = await runCommand(spawnImpl, {
 			file: platform === "win32" ? "powershell" : "/bin/ps",
@@ -404,13 +512,30 @@ export async function runMode(mode, options) {
 			scanStep: true,
 		});
 		record("process-scan", result, { scanStep: true });
-		return scanForSessionElectronProcesses(result.stdout, sessionTokens);
+		return scanForSessionProcesses(result.stdout, [...sessionTokens, ...extraTokens]);
+	};
+
+	const observeCookies = (args, result) => {
+		if (args[0] !== "cookies") return true;
+		if (args[1] === "get" && result.code === 0) {
+			try {
+				const parsed = JSON.parse(result.stdout);
+				if (!Array.isArray(parsed)) return false;
+				const names = parsed.map((cookie) => String(cookie?.name ?? "")).filter((name) => name.length > 0);
+				evidence.cookies.observedNames = [...new Set([...evidence.cookies.observedNames, ...names])].sort();
+			} catch {
+				return false;
+			}
+		}
+		evidence.cookies.markerPresent = evidence.cookies.observedNames.includes(cookieMarkerName);
+		return true;
 	};
 
 	try {
 		const doctorResult = await invoke(["doctor", "--json"], doctorTimeoutMs);
 		if (doctorResult.timedOut) outcome = "timeout";
 		else if (doctorResult.cancelled) outcome = "cancelled";
+		else if (doctorResult.truncated) outcome = "truncated";
 		else {
 			let doctorRaw = null;
 			try {
@@ -443,6 +568,7 @@ export async function runMode(mode, options) {
 				const installResult = await installOnce();
 				if (installResult.timedOut) outcome = "timeout";
 				else if (installResult.cancelled) outcome = "cancelled";
+				else if (installResult.truncated) outcome = "truncated";
 				else if (installResult.code !== 0) outcome = "network";
 				else {
 					const files = await walkFiles(path.join(sessionRoot, ".agent-browser", "browsers"), platform);
@@ -484,31 +610,99 @@ export async function runMode(mode, options) {
 						outcome = "cancelled";
 						break;
 					}
+					if (result.truncated) {
+						outcome = "truncated";
+						break;
+					}
 					if (result.code !== 0) {
 						outcome = "action-failed";
 						break;
 					}
+					const cookiesObserved = observeCookies(args, result);
+					if (!cookiesObserved) {
+						outcome = "action-failed";
+						break;
+					}
+					if (args[0] === "open") {
+						browserOpened = true;
+						const activeProcesses = await scan();
+						evidence.electronProcessesInSession = activeProcesses.electron.map((finding) => ({
+							command: sanitizeEvidenceText(finding.command, sessionTokens),
+						}));
+						evidence.browserProcessesWhileRunning = activeProcesses.browser.map((finding) => ({
+							command: sanitizeEvidenceText(finding.command, sessionTokens),
+						}));
+						evidence.observedProcessCount = activeProcesses.browser.length;
+						if (activeProcesses.electron.length > 0) {
+							outcome = "electron-detected";
+							break;
+						}
+						if (activeProcesses.browser.length === 0) {
+							outcome = "action-failed";
+							break;
+						}
+						isolationObserved = true;
+						evidence.isolatedWhileRunning = true;
+						if (concurrency) {
+							evidence.concurrentlyActiveModes = concurrency.expectedModes.filter((peerMode) => peerMode !== mode);
+							const peerSessionRoots = await concurrency.peers();
+							const jointScan = await scan(peerSessionRoots);
+							evidence.peerBrowserProcessCount = jointScan.browser.filter((finding) => peerSessionRoots.some((peerRoot) => finding.command.includes(peerRoot))).length;
+							if (evidence.peerBrowserProcessCount > 0) {
+								concurrentActiveObserved = true;
+							} else {
+								outcome = "action-failed";
+								break;
+							}
+						}
+					}
+					if (args[0] === "close") browserOpened = false;
 					outcome = "pass";
 				}
 			}
-			if (outcome === "pass") {
-				const detected = await scan();
-				evidence.electronProcessesInSession = detected.map((finding) => ({
-					pid: finding.pid,
-					command: sanitizeEvidenceText(finding.command, sessionTokens),
-				}));
-				if (detected.length > 0) outcome = "electron-detected";
-			}
 		}
 	} finally {
-		evidence.finishedAt = new Date(now()).toISOString();
-		evidence.outcome = outcome;
+		if (browserOpened) {
+			try {
+				const closeResult = await invoke(["close", "--json"], actionTimeoutMs, { cleanupStep: true });
+				browserOpened = closeResult.code !== 0;
+			} catch {
+			}
+		}
+		if (isolationObserved || browserOpened) {
+			try {
+				const remainingProcesses = await scan();
+				if (remainingProcesses.electron.length > 0) {
+					evidence.electronProcessesInSession = remainingProcesses.electron.map((finding) => ({
+						command: sanitizeEvidenceText(finding.command, sessionTokens),
+					}));
+					outcome = "electron-detected";
+				}
+				evidence.cleanupPassed = !browserOpened && remainingProcesses.browser.length === 0 && remainingProcesses.electron.length === 0;
+				if (outcome === "pass" && (!isolationObserved || !evidence.cleanupPassed)) outcome = "action-failed";
+			} catch {
+				evidence.cleanupPassed = false;
+				if (outcome === "pass") outcome = "action-failed";
+			}
+		}
 		evidence.steps = steps.map((step) => ({
 			...step,
 			scanStep: undefined,
 		}));
-		if (cleanupHook) await cleanupHook(sessionRoot);
-		else await rm(sessionRoot, { recursive: true, force: true });
+		try {
+			if (cleanupHook) await cleanupHook(sessionRoot);
+		} finally {
+			await rm(sessionRoot, { recursive: true, force: true });
+		}
+		evidence.stateRootRemoved = await pathIsMissing(sessionRoot);
+		evidence.cleanupPassed = evidence.cleanupPassed && evidence.stateRootRemoved;
+		if (concurrency && !concurrentActiveObserved) {
+			if (outcome === "pass") outcome = "action-failed";
+		}
+		if (outcome === "pass" && !evidence.cleanupPassed) outcome = "action-failed";
+		evidence.finishedAt = new Date(now()).toISOString();
+		evidence.outcome = outcome;
+		evidence.passed = outcome === "pass";
 	}
 	return { outcome, steps, electronProcessesInSession: evidence.electronProcessesInSession, daemonStarted: false, evidence };
 }
@@ -525,10 +719,33 @@ async function loadScenarios() {
 	return JSON.parse(await readFile(scenariosFile, "utf8"));
 }
 
+function terminateChildProcess(child) {
+	if (!child || child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
+	if (process.platform === "win32") {
+		nodeSpawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+		return;
+	}
+	try {
+		process.kill(-child.pid, "SIGKILL");
+	} catch {
+		child.kill("SIGKILL");
+	}
+}
+
 async function startFixtureServer(preferredPort) {
 	const { createServer } = await import("node:http");
-	const html = "<!doctype html><html><head><title>Operator Phase 0 Fixture</title></head><body><h1 id='title'>ready</h1><button id='swap' onclick='document.getElementById(\"title\").textContent=\"clicked\"'>swap</button><script>console.log('fixture-loaded');</script></body></html>";
 	const server = createServer((request, response) => {
+		const url = new URL(request.url ?? "/", "http://127.0.0.1");
+		const label = (url.searchParams.get("tab") ?? "primary").replace(/[^A-Za-z0-9-]/g, "").slice(0, 40) || "primary";
+		const html = [
+			"<!doctype html><html><head>",
+			`<title>Operator Phase 0 Fixture ${label}</title>`,
+			"</head><body>",
+			`<h1 id='title' data-fixture-tab='${label}'>ready</h1>`,
+			"<button id='swap' onclick='document.getElementById(\"title\").textContent=\"clicked\"'>swap</button>",
+			"<script>console.log('fixture-loaded');</script>",
+			"</body></html>",
+		].join("");
 		response.writeHead(200, { "content-type": "text/html" });
 		response.end(html);
 	});
@@ -549,73 +766,117 @@ async function exportArtifacts(sessionRoot, artifactsOutput) {
 	}
 }
 
+function spawnAgentBrowserProcess(request) {
+	return new Promise((resolve) => {
+		const child = nodeSpawn(request.file, request.args, {
+			env: request.env,
+			stdio: ["ignore", "pipe", "pipe"],
+			windowsHide: true,
+			detached: process.platform !== "win32",
+		});
+		const stdout = createBoundedOutput(request.outputLimitBytes ?? DEFAULT_OUTPUT_LIMIT_BYTES);
+		const stderr = createBoundedOutput(request.outputLimitBytes ?? DEFAULT_OUTPUT_LIMIT_BYTES);
+		child.stdout.on("data", (chunk) => {
+			stdout.append(chunk);
+		});
+		child.stderr.on("data", (chunk) => {
+			stderr.append(chunk);
+		});
+		request.registerKill(() => terminateChildProcess(child));
+		child.on("error", (error) => resolve({ code: null, stdout: stdout.text(), stderr: String(error), outputTruncated: stdout.truncated() || stderr.truncated() }));
+		child.on("close", (code, signal) => resolve({ code, stdout: stdout.text(), stderr: stderr.text(), signal, outputTruncated: stdout.truncated() || stderr.truncated() }));
+	});
+}
+
+export async function runProbeModes(modes, options = {}) {
+	const operatorRoot = options.operatorRoot ?? (process.env.OPERATOR_DATA_DIR
+		? path.dirname(path.resolve(process.env.OPERATOR_DATA_DIR))
+		: path.join(os.homedir(), ".operator"));
+	const baseDirectory = path.join(operatorRoot, "dev");
+	await mkdir(baseDirectory, { recursive: true });
+	const binaryPath = resolveBinary(process.platform);
+	const scenarios = await loadScenarios();
+	const server = await startFixtureServer(options.preferredPort ?? 0);
+	const port = server.address().port;
+	const coordinator = createConcurrencyCoordinator(modes);
+	const sessionRoots = {};
+	const results = {};
+	try {
+		await Promise.all(modes.map(async (mode) => {
+			const { root } = await createSessionRoot(baseDirectory, mode);
+			sessionRoots[mode] = root;
+			const resolvedArtifacts = options.artifactsByMode?.[mode] ?? path.join(os.tmpdir(), `agent-browser-phase0-${mode}-artifacts`);
+			results[mode] = await runMode(mode, {
+				sessionRoot: root,
+				spawnImpl: spawnAgentBrowserProcess,
+				platform: process.platform,
+				fixturePort: port,
+				binaryPath,
+				scenario: scenarios[mode],
+				parentEnv: process.env,
+				concurrency: coordinator.forMode(mode),
+				cleanupHook: async (root_) => {
+					await exportArtifacts(root_, resolvedArtifacts);
+				},
+			});
+		}));
+	} finally {
+		server.close();
+	}
+	const cookieIsolation = crossModeCookieIsolation(Object.fromEntries(modes.map((mode) => [mode, results[mode].evidence])));
+	for (const mode of modes) {
+		results[mode].evidence.crossModeCookieIsolation = cookieIsolation;
+	}
+	return { results, sessionRoots, cookieIsolation };
+}
+
 export async function main(argv) {
-	let mode = null;
+	let mode;
+	let modeSpecified = false;
 	let artifactsOutput = null;
 	let preferredPort = 0;
 	for (let index = 0; index < argv.length; index += 1) {
-		if (argv[index] === "--mode") mode = argv[index + 1];
-		else if (argv[index] === "--artifacts") artifactsOutput = argv[index + 1];
-		else if (argv[index] === "--fixture-port") preferredPort = Number(argv[index + 1]);
+		if (argv[index] === "--mode") {
+			mode = argv[index + 1];
+			modeSpecified = true;
+			index += 1;
+		} else if (argv[index] === "--artifacts") {
+			artifactsOutput = argv[index + 1];
+			index += 1;
+		} else if (argv[index] === "--fixture-port") {
+			preferredPort = Number(argv[index + 1]);
+			index += 1;
+		} else {
+			console.error(`unrecognized argument: ${String(argv[index])}`);
+			return EXIT_CODES.USAGE;
+		}
 	}
-	if (mode !== "system" && mode !== "managed") {
-		console.error("usage: agent-browser-phase0.mjs --mode system|managed [--artifacts DIR] [--fixture-port PORT]");
+	if (modeSpecified && mode !== "system" && mode !== "managed" && mode !== "both") {
+		console.error("usage: agent-browser-phase0.mjs [--mode system|managed|both] [--artifacts DIR] [--fixture-port PORT]");
 		return EXIT_CODES.USAGE;
 	}
-	const operatorRoot = process.env.OPERATOR_DATA_DIR
-		? path.dirname(path.resolve(process.env.OPERATOR_DATA_DIR))
-		: path.join(os.homedir(), ".operator");
-	const baseDirectory = path.join(operatorRoot, "dev");
-	await mkdir(baseDirectory, { recursive: true });
-	const { root: sessionRoot } = await createSessionRoot(baseDirectory, mode);
-	const binaryPath = resolveBinary(process.platform);
-	const scenarios = await loadScenarios();
-	const scenario = scenarios[mode];
-	let server = null;
-	try {
-		server = await startFixtureServer(preferredPort);
-		const port = server.address().port;
-		const resolvedArtifacts = artifactsOutput ?? path.join(os.tmpdir(), `agent-browser-phase0-${mode}-artifacts`);
-		const result = await runMode(mode, {
-			sessionRoot,
-			spawnImpl: (request) =>
-				new Promise((resolve) => {
-					const child = nodeSpawn(request.file, request.args, {
-						env: request.env,
-						stdio: ["ignore", "pipe", "pipe"],
-						windowsHide: true,
-					});
-					let stdout = "";
-					let stderr = "";
-					child.stdout.on("data", (chunk) => {
-						stdout += chunk;
-					});
-					child.stderr.on("data", (chunk) => {
-						stderr += chunk;
-					});
-					request.registerKill(() => child.kill("SIGKILL"));
-					child.on("error", (error) => resolve({ code: null, stdout, stderr: String(error) }));
-					child.on("close", (code, signal) => resolve({ code, stdout, stderr, signal }));
-				}),
-			platform: process.platform,
-			fixturePort: port,
-			binaryPath,
-			scenario,
-			parentEnv: process.env,
-			cleanupHook: async (root) => {
-				await exportArtifacts(root, resolvedArtifacts);
-				await rm(root, { recursive: true, force: true });
-			},
-		});
-		const evidencePath = path.join(resolvedArtifacts, `evidence-${mode}.json`);
+	const modes = !mode || mode === "both" ? ["system", "managed"] : [mode];
+	const artifactsByMode = Object.fromEntries(modes.map((entry) => [
+		entry,
+		artifactsOutput && modes.length === 1 ? artifactsOutput : path.join(artifactsOutput ?? os.tmpdir(), entry),
+	]));
+	const { results, cookieIsolation } = await runProbeModes(modes, { artifactsByMode, preferredPort });
+	const { writeFile } = await import("node:fs/promises");
+	let worstExitCode = EXIT_CODES.PASS;
+	for (const mode of modes) {
+		const result = results[mode];
+		const evidencePath = path.join(artifactsByMode[mode], `evidence-${mode}.json`);
 		await mkdir(path.dirname(evidencePath), { recursive: true });
-		const { writeFile } = await import("node:fs/promises");
 		await writeFile(evidencePath, `${JSON.stringify(result.evidence, null, "\t")}\n`, "utf8");
 		console.log(`outcome=${result.outcome} evidence=${evidencePath}`);
-		return mapOutcomeToExitCode(result.outcome);
-	} finally {
-		server?.close();
+		const exitCode = mapOutcomeToExitCode(result.outcome);
+		if (exitCode > worstExitCode) worstExitCode = exitCode;
 	}
+	if (modes.length > 1 && !cookieIsolation) {
+		console.error("cross-mode cookie isolation failed: a mode observed another mode's marker cookie");
+		worstExitCode = Math.max(worstExitCode, EXIT_CODES.ACTION_FAILED);
+	}
+	return worstExitCode;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

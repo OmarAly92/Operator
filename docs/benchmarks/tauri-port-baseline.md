@@ -41,11 +41,21 @@ Results must not contain private paths, environment values, process IDs, termina
 
 Both the absolute and relative artifact-size limits are binding. A Phase 0 result of `continue` or `linux-canvas` is required before product port work begins.
 
+## Evidence provenance
+
+Binding artifact evidence requires repository-pinned release publisher identities and an attestation-key fingerprint in `frontend/scripts/phase0-release-trust.json`; caller-provided environment values cannot replace those anchors. The checked-in anchor remains deliberately unconfigured until the designated release conductor supplies the real macOS Team ID, Windows certificate identity and thumbprint, Linux GPG fingerprint, and attestation-key fingerprint. Artifact measurements fail closed until then and retain the signed statement, detached signature, public key, and verified digest needed for independent review.
+
+Platform summaries are derived by `frontend/scripts/phase0-platform-summary.mjs` from retained raw artifacts — validated benchmark results, state-audit output, per-mode browser probe records, recorded migration observations, CORS probe evidence, and updater material whose signature is re-verified against the retained fixture bytes before any summary is written. Every consumed file is bound by a recomputed SHA-256 manifest inside the summary; missing, unvalidated, or internally inconsistent inputs refuse the write and name each gap. The producer accepts only binding-scoped results whose commit matches the workflow commit, derives Linux Tauri metrics from the full `WEBKIT_DISABLE_COMPOSITING_MODE` on/off pair (worse-of-pair), and reports `compositingPairObserved` for the decision to enforce.
+
+Large-output results fail closed unless every measured workload reported its observed byte count within the configured output plus bounded shell overhead. Browser evidence must carry one record per concurrently active mode (system and managed), each proving isolation while running, guaranteed teardown with post-close verification, removal of the isolated state root, presence of its own cookie marker, and cross-mode cookie isolation between the two sessions. Migration evidence is compiled by `phase0-legacy-update.mjs --record` from machine-written exercise observations of locally built fixtures; incomplete exercises record truthful failure reasons instead of success claims.
+
+The Phase 0 decision accepts only CI-aggregated evidence tied to one full source commit and one workflow run. Every terminal metric must identify binding evidence, report an exact positive required and observed workload count, and prove successful completion. Native release, updater, migration, CORS-probe, and three-platform terminal evidence are still external runner requirements; their absence keeps the decision at `stop-port`.
+
 ## Phase 0 decision
 
 Decision: `stop-port`
 
-Timestamp: 2026-08-21T07:58:23.423Z
+Timestamp: 2026-08-23T18:13:04.302Z
 
 Reasons:
 - missing evidence file: perf/results/phase0-evidence.json or perf/results/evidence.json

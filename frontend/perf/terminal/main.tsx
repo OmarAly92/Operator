@@ -16,6 +16,26 @@ type ReporterMessage =
 	| { name: "workload-start"; timestamp: number }
 	| { name: "renderer"; rendererKind: "webgl" | "canvas"; webviewRuntimeVersion: string; displayScale: number };
 
+type ScenarioDriver = {
+	eventName: "operator:terminal-benchmark-run" | "operator:terminal-benchmark-input" | "operator:terminal-benchmark-reconnect";
+	ackName: TerminalAcknowledgement["name"];
+	detail?: (iteration: number) => WorkloadRequestDetail;
+};
+
+type WorkloadRequestDetail = {
+	scenario: "vtebench" | "large-output" | "cpu-time" | "active-memory";
+	iteration: number;
+};
+
+const scenarioDrivers: Record<string, ScenarioDriver> = {
+	vtebench: { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "vtebench", iteration }) },
+	"large-output": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "large-output", iteration }) },
+	"cpu-time": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "cpu-time", iteration }) },
+	"active-memory": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "active-memory", iteration }) },
+	"input-latency": { eventName: "operator:terminal-benchmark-input", ackName: "input-echo" },
+	reconnect: { eventName: "operator:terminal-benchmark-reconnect", ackName: "reconnect" },
+};
+
 function reporterUrl(parameters: URLSearchParams): string | undefined {
 	const rawUrl = parameters.get("reportUrl");
 	if (!rawUrl) return undefined;
@@ -38,36 +58,42 @@ function reporter(url: string | undefined) {
 	};
 }
 
-function workloadController(
+function scenarioController(
 	parameters: URLSearchParams,
 	report: (message: ReporterMessage) => void,
 	onComplete: () => void,
 ) {
 	const scenario = parameters.get("scenario");
 	if (!scenario) return (_acknowledgement: TerminalAcknowledgement) => undefined;
-	if (scenario !== "vtebench" && scenario !== "large-output") throw new Error("unsupported terminal benchmark workload");
+	const driver = scenarioDrivers[scenario];
+	if (!driver) throw new Error("unsupported terminal benchmark scenario");
 	const warmups = Number(parameters.get("warmups"));
 	const samples = Number(parameters.get("samples"));
-	if (!Number.isInteger(warmups) || warmups < 0 || !Number.isInteger(samples) || samples < 1) {
-		throw new Error("terminal benchmark requires valid warmups and samples");
+	const fixedWorkloads = Number(parameters.get("fixedWorkloads") ?? "1");
+	if (!Number.isInteger(warmups) || warmups < 0 || !Number.isInteger(samples) || samples < 1 || !Number.isInteger(fixedWorkloads) || fixedWorkloads < 1) {
+		throw new Error("terminal benchmark requires valid warmups samples and fixedWorkloads");
 	}
+	const totalIterations = warmups + samples * fixedWorkloads;
 	let iteration = 0;
 	let started = false;
-	const run = () => {
-		const timestamp = performance.now();
-		report({ name: "workload-start", timestamp });
-		window.dispatchEvent(new CustomEvent("operator:terminal-benchmark-run", { detail: { scenario, iteration } }));
+	const runIteration = () => {
+		requestAnimationFrame(() => {
+			const timestamp = performance.now();
+			report({ name: "workload-start", timestamp });
+			window.dispatchEvent(new CustomEvent(driver.eventName, { detail: driver.detail?.(iteration) }));
+		});
 	};
 	return (acknowledgement: TerminalAcknowledgement) => {
 		report(acknowledgement);
 		if (acknowledgement.name === "first-paint" && !started) {
 			started = true;
-			requestAnimationFrame(run);
+			runIteration();
+			return;
 		}
-		if (acknowledgement.name !== "workload") return;
+		if (acknowledgement.name !== driver.ackName) return;
 		iteration += 1;
-		if (iteration < warmups + samples) {
-			requestAnimationFrame(run);
+		if (iteration < totalIterations) {
+			runIteration();
 		} else {
 			requestAnimationFrame(onComplete);
 		}
@@ -79,7 +105,7 @@ async function renderHarness() {
 	const report = reporter(reporterUrl(parameters));
 	const webviewRuntimeVersion = await nativeTerminalRuntimeIdentity();
 	const root = createRoot(document.getElementById("root") as HTMLElement);
-	const onAcknowledgement = workloadController(parameters, report, () => root.unmount());
+	const onAcknowledgement = scenarioController(parameters, report, () => root.unmount());
 	root.render(
 		<I18nextProvider i18n={appI18n}>
 			<SkinProvider>

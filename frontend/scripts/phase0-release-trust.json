@@ -1,0 +1,10 @@
+{
+	"schemaVersion": 1,
+	"status": "unconfigured",
+	"attestationKeySha256": "",
+	"publishers": {
+		"darwin": { "teamId": "" },
+		"win32": { "identity": "", "thumbprint": "" },
+		"linux": { "fingerprint": "" }
+	}
+}

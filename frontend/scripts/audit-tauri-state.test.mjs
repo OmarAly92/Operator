@@ -86,6 +86,34 @@ test("an exact Operator state target outside the allowed root fails the audit", 
 	);
 });
 
+test("neutral-named platform state outside the allowed root fails confinement", async () => {
+	const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "neutral-state-boundary-test-"));
+	const operatorDirectory = path.join(fixtureRoot, "operator-root");
+	const allowedRoot = path.join(operatorDirectory, "audit");
+	const platformRoot = path.join(fixtureRoot, "platform-state");
+	const neutralState = path.join(platformRoot, "AcmeDesktop", "Cache", "state.bin");
+	await mkdir(allowedRoot, { recursive: true });
+	await mkdir(platformRoot, { recursive: true });
+	const targets = [
+		{ statePath: operatorDirectory, depth: Number.POSITIVE_INFINITY },
+		{ statePath: platformRoot, depth: 1 },
+	];
+	const beforeSnapshot = await snapshotTargets(targets);
+	await writeFile(path.join(allowedRoot, "state"), "allowed");
+	await mkdir(path.dirname(neutralState), { recursive: true });
+	await writeFile(neutralState, "outside");
+	const afterSnapshot = await snapshotTargets(targets);
+	assert.throws(
+		() => assertConfined(beforeSnapshot, afterSnapshot, {
+			allowedRoot,
+			operatorDirectory,
+			monitoredRoots: targets.map(({ statePath }) => statePath),
+			phase: "shutdown",
+		}),
+		/wrote state outside the allowed root/,
+	);
+});
+
 for (const operatorDirectoryName of [".operator", "neutral-state-root"]) {
 	test(`state inside ${operatorDirectoryName} but outside the audit root fails confinement`, async () => {
 		const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "state-boundary-test-"));
@@ -328,4 +356,33 @@ test("the audit fails closed when a required state target cannot be observed", a
 		/watch unavailable/,
 	);
 	await rm(fixtureRoot, { recursive: true });
+});
+
+test("the state audit summary is derived from recorded phase outcomes instead of constants", async () => {
+	const { deriveStateAuditSummary } = await import("./audit-tauri-state.mjs");
+	const passing = deriveStateAuditSummary({
+		scannedRoots: 4,
+		phaseResults: [
+			{ phase: "shutdown", changes: 6 },
+			{ phase: "crash", changes: 2 },
+		],
+	});
+	assert.deepEqual(passing, { passed: true, leaked: false, observedOutsideRoot: 0, scannedRoots: 4 });
+	const silentPhase = deriveStateAuditSummary({
+		scannedRoots: 4,
+		phaseResults: [
+			{ phase: "shutdown", changes: 0 },
+			{ phase: "crash", changes: 2 },
+		],
+	});
+	assert.equal(silentPhase.passed, false);
+	const leakedPhase = deriveStateAuditSummary({
+		scannedRoots: 4,
+		phaseResults: [
+			{ phase: "shutdown", changes: 6, observedOutsideRoot: 3 },
+		],
+	});
+	assert.equal(leakedPhase.leaked, true);
+	assert.equal(leakedPhase.observedOutsideRoot, 3);
+	assert.equal(leakedPhase.passed, false);
 });

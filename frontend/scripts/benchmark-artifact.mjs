@@ -11,31 +11,51 @@ import { _electron as electron } from "playwright";
 import {
 	DEFAULT_RESULT_ROOT,
 	benchmarkResultPath,
+	collectGitMetadata,
 	collectHostMetadata,
 	createBenchmarkResult,
 	parseNamedArguments,
+	resolveEvidenceScope,
+	sanitizedBindingEnvironment,
 	writeBenchmarkResultBatch,
 } from "./benchmark-result.mjs";
 
 const execFileAsync = promisify(execFile);
 const frontendRoot = fileURLToPath(new URL("../", import.meta.url));
 const macVerifier = fileURLToPath(new URL("./verify-mac-artifact.sh", import.meta.url));
+const releaseTrustPath = fileURLToPath(new URL("./phase0-release-trust.json", import.meta.url));
 const expectedComponents = Object.freeze({ agentBrowser: "0.33.1", node: "22.23.2", acp: "0.64.2" });
 const expectedRuntime = Object.freeze({ electron: "33.4.11", chromium: "130.0.6723.191" });
 
+function optionalPackageArguments(env) {
+	const packages = {};
+	if (env.OPERATOR_BENCH_PACKAGE_DEB) packages.deb = env.OPERATOR_BENCH_PACKAGE_DEB;
+	if (env.OPERATOR_BENCH_PACKAGE_RPM) packages.rpm = env.OPERATOR_BENCH_PACKAGE_RPM;
+	return packages;
+}
+
 export function parseArtifactArguments(argv, env = process.env) {
 	const namedArguments = parseNamedArguments(argv);
-	if (namedArguments.shell !== "electron") throw new Error("Task 2 supports only electron artifact measurements");
+	if (namedArguments.shell !== "electron" && namedArguments.shell !== "tauri") {
+		throw new Error("artifact benchmark supports only electron and tauri shells");
+	}
 	if (Object.keys(namedArguments).some((key) => key !== "shell")) throw new Error("unknown artifact benchmark argument");
+	if (namedArguments.shell === "tauri") {
+		if (!env.OPERATOR_BENCH_SIGNED_ARTIFACT) throw new Error("OPERATOR_BENCH_SIGNED_ARTIFACT must name the native signed download artifact");
+		return {
+			shell: "tauri",
+			signedArtifact: env.OPERATOR_BENCH_SIGNED_ARTIFACT,
+			installedApp: env.OPERATOR_BENCH_INSTALLED_APP,
+			packages: optionalPackageArguments(env),
+			...(env.OPERATOR_BENCH_ARTIFACT_SIGNATURE ? { artifactSignature: env.OPERATOR_BENCH_ARTIFACT_SIGNATURE } : {}),
+			...(env.OPERATOR_BENCH_MANAGED_BROWSER ? { managedBrowser: env.OPERATOR_BENCH_MANAGED_BROWSER } : {}),
+		};
+	}
 	if (!env.OPERATOR_BENCH_SIGNED_ARTIFACT) throw new Error("OPERATOR_BENCH_SIGNED_ARTIFACT must name the native signed download artifact");
 	if (!env.OPERATOR_BENCH_INSTALLED_APP) throw new Error("OPERATOR_BENCH_INSTALLED_APP must name the installed application");
 	if (!env.OPERATOR_BENCH_RELEASE_ATTESTATION) throw new Error("OPERATOR_BENCH_RELEASE_ATTESTATION must name the publisher-signed release attestation");
 	if (!env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE) throw new Error("OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE must name its detached Ed25519 signature");
 	if (!env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY) throw new Error("OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY must name the trusted Ed25519 public key");
-	const expectedAttestationKeySha256 = env.OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256?.toLowerCase();
-	if (!/^[0-9a-f]{64}$/.test(expectedAttestationKeySha256 ?? "")) {
-		throw new Error("OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256 must contain the trusted public-key SHA-256 fingerprint");
-	}
 	return {
 		shell: namedArguments.shell,
 		signedArtifact: env.OPERATOR_BENCH_SIGNED_ARTIFACT,
@@ -43,10 +63,32 @@ export function parseArtifactArguments(argv, env = process.env) {
 		attestationPath: env.OPERATOR_BENCH_RELEASE_ATTESTATION,
 		signaturePath: env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE,
 		publicKeyPath: env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY,
-		expectedKeySha256: expectedAttestationKeySha256,
 		managedBrowser: env.OPERATOR_BENCH_MANAGED_BROWSER,
 		...(env.OPERATOR_BENCH_ARTIFACT_SIGNATURE ? { artifactSignature: env.OPERATOR_BENCH_ARTIFACT_SIGNATURE } : {}),
 	};
+}
+
+export function validateReleaseTrust(trust) {
+	if (trust?.schemaVersion !== 1 || trust?.status !== "trusted" || !/^[0-9a-f]{64}$/.test(trust?.attestationKeySha256 ?? "")) {
+		throw new Error("repository-pinned release trust anchor is not configured");
+	}
+	const publishers = trust.publishers;
+	if (!publishers || !/^[A-Z0-9]{10}$/.test(publishers.darwin?.teamId ?? "") ||
+		!publishers.win32?.identity?.trim() || !/^[A-F0-9]{40,64}$/.test(publishers.win32?.thumbprint ?? "") ||
+		!/^[A-F0-9]{40,64}$/.test(publishers.linux?.fingerprint ?? "")) {
+		throw new Error("repository-pinned release publisher identities are not configured");
+	}
+	return trust;
+}
+
+export async function loadReleaseTrust(anchorPath = releaseTrustPath) {
+	let trust;
+	try {
+		trust = JSON.parse(await readFile(anchorPath, "utf8"));
+	} catch {
+		throw new Error("repository-pinned release trust anchor is missing or malformed");
+	}
+	return validateReleaseTrust(trust);
 }
 
 export async function measurePathBytes(targetPath) {
@@ -88,7 +130,14 @@ async function verifiedAttestationBytes({ attestationPath, signaturePath, public
 	const publicKeySha256 = createHash("sha256").update(publicKey.export({ type: "spki", format: "der" })).digest("hex");
 	if (publicKeySha256 !== expectedKeySha256?.toLowerCase()) throw new Error("release attestation public key does not match the trusted fingerprint");
 	if (!verify(null, attestationBytes, publicKey, signature)) throw new Error("release attestation signature is invalid");
-	return attestationBytes;
+	return {
+		attestationBytes,
+		verification: {
+			publicKeySha256,
+			publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
+			signatureBase64: signature.toString("base64"),
+		},
+	};
 }
 
 function parseReleaseAttestation(attestationBytes) {
@@ -125,12 +174,13 @@ function validateAttestationClaims(attestation, expected) {
 }
 
 export async function validateReleaseAttestation(input) {
-	const [attestationBytes, artifactSha256] = await Promise.all([
+	const [verified, artifactSha256] = await Promise.all([
 		verifiedAttestationBytes(input),
 		fileSha256(input.signedArtifact),
 	]);
-	const attestation = parseReleaseAttestation(attestationBytes);
-	return validateAttestationClaims(attestation, { artifactSha256, ...input });
+	const statement = parseReleaseAttestation(verified.attestationBytes);
+	validateAttestationClaims(statement, { artifactSha256, ...input });
+	return { statement, verification: verified.verification };
 }
 
 function artifactExtension(platform) {
@@ -152,22 +202,22 @@ function signingIdentity(verificationOutput) {
 	return verificationOutput.match(/(?:Authority|origin)=([^\r\n]+)/)?.[1]?.trim();
 }
 
-export function expectedPublisherForPlatform(platform, env) {
+export function expectedPublisherForPlatform(platform, trust) {
 	if (platform === "darwin") {
-		const teamId = env.OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID;
-		if (!/^[A-Z0-9]{10}$/.test(teamId ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID must contain the trusted 10-character Team ID");
+		const teamId = trust?.publishers?.darwin?.teamId;
+		if (!/^[A-Z0-9]{10}$/.test(teamId ?? "")) throw new Error("repository-pinned macOS Team ID is unavailable");
 		return { teamId };
 	}
 	if (platform === "win32") {
-		const identity = env.OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER;
-		const thumbprint = env.OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT?.replaceAll(" ", "").toUpperCase();
-		if (!identity?.trim()) throw new Error("OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER must contain the trusted certificate subject");
-		if (!/^[A-F0-9]{40,64}$/.test(thumbprint ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT must contain the trusted certificate thumbprint");
+		const identity = trust?.publishers?.win32?.identity;
+		const thumbprint = trust?.publishers?.win32?.thumbprint?.replaceAll(" ", "").toUpperCase();
+		if (!identity?.trim()) throw new Error("repository-pinned Windows certificate subject is unavailable");
+		if (!/^[A-F0-9]{40,64}$/.test(thumbprint ?? "")) throw new Error("repository-pinned Windows certificate thumbprint is unavailable");
 		return { identity: identity.trim(), thumbprint };
 	}
 	if (platform === "linux") {
-		const fingerprint = env.OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT?.replaceAll(" ", "").toUpperCase();
-		if (!/^[A-F0-9]{40,64}$/.test(fingerprint ?? "")) throw new Error("OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT must contain the trusted signing-key fingerprint");
+		const fingerprint = trust?.publishers?.linux?.fingerprint?.replaceAll(" ", "").toUpperCase();
+		if (!/^[A-F0-9]{40,64}$/.test(fingerprint ?? "")) throw new Error("repository-pinned Linux signing-key fingerprint is unavailable");
 		return { fingerprint };
 	}
 	throw new Error(`unsupported native publisher platform: ${platform}`);
@@ -247,13 +297,12 @@ async function collectInstalledRuntimeMetadata({ executable }) {
 	try {
 		application = await electron.launch({
 			executablePath: executable,
-			env: {
-				...process.env,
+			env: sanitizedBindingEnvironment(process.env, {
 				OPERATOR_DATA_DIR: path.join(stateRoot, "data"),
 				OPERATOR_RUN_FILE: path.join(stateRoot, "running.json"),
 				OPERATOR_PORT: String(await availablePort()),
 				OPERATOR_KEEP_DAEMON: "0",
-			},
+			}),
 			timeout: 120_000,
 		});
 		const page = await application.firstWindow({ timeout: 120_000 });
@@ -317,23 +366,268 @@ async function treeDigest(target) {
 	return hash.digest("hex");
 }
 
-export async function verifyInstalledArtifactBinding({ platform, signedArtifact, installedApp }) {
-	if (platform === "win32") throw new Error("cannot cryptographically bind the Windows installed tree to the signed installer payload");
-	if (platform === "linux") throw new Error("cannot cryptographically bind the Linux installed tree to the signed AppImage payload");
-	if (platform !== "darwin") throw new Error(`unsupported native artifact binding platform: ${platform}`);
+async function findFiles(root, predicate) {
+	const found = [];
+	async function visit(target) {
+		const metadata = await lstat(target);
+		if (metadata.isSymbolicLink()) return;
+		if (metadata.isFile()) {
+			if (predicate(target)) found.push(target);
+			return;
+		}
+		if (!metadata.isDirectory()) return;
+		for (const entry of await readdir(target)) await visit(path.join(target, entry));
+	}
+	await visit(root);
+	return found;
+}
+
+async function hasDirectory(target) {
+	try {
+		return (await lstat(target)).isDirectory();
+	} catch (error) {
+		if (error?.code === "ENOENT") return false;
+		throw error;
+	}
+}
+
+async function extractedApplicationRoot(extractionRoot, platform) {
+	if (platform === "darwin") {
+		const applications = (await readdir(extractionRoot)).filter((entry) => entry === "Operator.app");
+		if (applications.length !== 1) throw new Error("signed macOS artifact must contain exactly one Operator.app payload");
+		return path.join(extractionRoot, applications[0]);
+	}
+	const executableName = platform === "win32" ? "operator.exe" : "operator";
+	const executables = await findFiles(extractionRoot, (target) => path.basename(target).toLowerCase() === executableName);
+	const candidates = [];
+	for (const executable of executables) {
+		const candidate = path.dirname(executable);
+		if (await hasDirectory(path.join(candidate, "resources"))) candidates.push(candidate);
+	}
+	const uniqueCandidates = [...new Set(candidates)];
+	if (uniqueCandidates.length !== 1) throw new Error(`signed ${platform} artifact must contain exactly one Operator application payload`);
+	return uniqueCandidates[0];
+}
+
+async function extractNativePayload({ platform, signedArtifact, extractionRoot }, dependencies = {}) {
+	const execute = dependencies.execFile ?? execFileAsync;
+	if (platform === "darwin") {
+		await execute("ditto", ["-x", "-k", signedArtifact, extractionRoot]);
+		return await extractedApplicationRoot(extractionRoot, platform);
+	}
+	if (platform === "linux") {
+		await execute("unsquashfs", ["-f", "-d", extractionRoot, signedArtifact]);
+		return await extractedApplicationRoot(extractionRoot, platform);
+	}
+	if (platform === "win32") {
+		await execute("7z", ["x", "-y", `-o${extractionRoot}`, signedArtifact]);
+		try {
+			return await extractedApplicationRoot(extractionRoot, platform);
+		} catch (initialError) {
+			const nestedArchives = await findFiles(extractionRoot, (target) => target.toLowerCase().endsWith(".7z"));
+			for (let index = 0; index < nestedArchives.length; index += 1) {
+				await execute("7z", ["x", "-y", `-o${path.join(extractionRoot, `nested-${index}`)}`, nestedArchives[index]]);
+			}
+			if (nestedArchives.length === 0) throw initialError;
+			return await extractedApplicationRoot(extractionRoot, platform);
+		}
+	}
+	throw new Error(`unsupported native artifact binding platform: ${platform}`);
+}
+
+export async function verifyInstalledArtifactBinding({ platform, signedArtifact, installedApp }, dependencies = {}) {
 	const parent = path.join(os.homedir(), ".operator", "benchmarks");
 	await mkdir(parent, { recursive: true });
 	const extractionRoot = await mkdtemp(path.join(parent, "electron-artifact-binding-"));
 	try {
-		await execFileAsync("ditto", ["-x", "-k", signedArtifact, extractionRoot]);
-		const applications = (await readdir(extractionRoot)).filter((entry) => entry === "Operator.app");
-		if (applications.length !== 1) throw new Error("signed macOS artifact must contain exactly one Operator.app payload");
-		const artifactApplication = path.join(extractionRoot, applications[0]);
+		const artifactApplication = dependencies.extractPayload
+			? await dependencies.extractPayload({ platform, signedArtifact, extractionRoot })
+			: await extractNativePayload({ platform, signedArtifact, extractionRoot }, dependencies);
 		const [artifactDigest, installedDigest] = await Promise.all([
 			treeDigest(artifactApplication),
 			treeDigest(installedApp),
 		]);
 		if (artifactDigest !== installedDigest) throw new Error("installed tree does not match the signed artifact payload");
+	} finally {
+		await rm(extractionRoot, { recursive: true, force: true });
+	}
+}
+
+function commonAncestor(firstPath, secondPath) {
+	const firstParts = firstPath.split(path.sep);
+	const secondParts = secondPath.split(path.sep);
+	let shared = 0;
+	while (shared < firstParts.length && shared < secondParts.length && firstParts[shared] === secondParts[shared]) shared += 1;
+	return firstParts.slice(0, shared).join(path.sep) || path.sep;
+}
+
+async function discoverTauriApplicationRoot(extractionRoot, platform) {
+	const executableName = platform === "win32" ? "operator.exe" : "operator";
+	const acpPackages = await findFiles(extractionRoot, (target) => target.endsWith(`${path.sep}acp-runtime${path.sep}package.json`) || path.relative(extractionRoot, target).split(path.sep).slice(-2).join("/") === "acp-runtime/package.json");
+	if (acpPackages.length !== 1) throw new Error(`tauri bundle must contain exactly one packaged ACP runtime, found ${acpPackages.length}`);
+	const resourcesRoot = path.dirname(path.dirname(acpPackages[0]));
+	const daemons = await findFiles(resourcesRoot, (target) => path.basename(target).toLowerCase() === (platform === "win32" ? "opr.exe" : "opr"));
+	if (daemons.length !== 1) throw new Error("tauri bundle must contain exactly one packaged daemon binary");
+	const agentBrowsers = await findFiles(resourcesRoot, (target) => path.basename(target).toLowerCase() === (platform === "win32" ? "agent-browser.exe" : "agent-browser"));
+	if (agentBrowsers.length !== 1) throw new Error("tauri bundle must contain exactly one packaged agent-browser binary");
+	const executables = [];
+	for (const candidate of await findFiles(extractionRoot, (target) => path.basename(target).toLowerCase() === executableName)) {
+		if (!pathInside(candidate, resourcesRoot)) executables.push(candidate);
+	}
+	if (executables.length !== 1) throw new Error(`tauri bundle must contain exactly one application executable, found ${executables.length}`);
+	const executable = executables[0];
+	let applicationRoot;
+	if (platform === "darwin") {
+		applicationRoot = path.dirname(executable);
+		while (path.extname(applicationRoot) !== ".app" && applicationRoot !== extractionRoot) applicationRoot = path.dirname(applicationRoot);
+		if (path.extname(applicationRoot) !== ".app") throw new Error("tauri macOS bundle must contain an .app payload");
+	} else {
+		applicationRoot = commonAncestor(path.dirname(executable), resourcesRoot);
+	}
+	return {
+		resourcesRoot,
+		executable,
+		applicationRoot,
+		daemon: daemons[0],
+		agentBrowser: agentBrowsers[0],
+	};
+}
+
+function tauriComponentLayout(discovered) {
+	const { resourcesRoot } = discovered;
+	const acpRuntimePackage = path.join(resourcesRoot, "acp-runtime", "package.json");
+	return {
+		executable: discovered.executable,
+		daemon: discovered.daemon,
+		agentBrowser: discovered.agentBrowser,
+		node: path.join(resourcesRoot, "acp-runtime", "node", process.platform === "win32" ? "node.exe" : path.join("bin", "node")),
+		acpAdapter: path.join(resourcesRoot, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js"),
+		acpPackage: path.join(resourcesRoot, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "package.json"),
+		acpRuntimePackage,
+	};
+}
+
+async function extractTauriPayload({ platform, signedArtifact, extractionRoot }, dependencies = {}) {
+	const execute = dependencies.execFile ?? execFileAsync;
+	if (platform === "darwin") {
+		await execute("ditto", ["-x", "-k", signedArtifact, extractionRoot]);
+	} else if (platform === "win32") {
+		await execute("7z", ["x", "-y", `-o${extractionRoot}`, signedArtifact]);
+	} else if (platform === "linux") {
+		await execute(signedArtifact, ["--appimage-extract"], { cwd: extractionRoot });
+		extractionRoot = path.join(extractionRoot, "squashfs-root");
+	} else {
+		throw new Error(`unsupported tauri artifact extraction platform: ${platform}`);
+	}
+	return await discoverTauriApplicationRoot(extractionRoot, platform);
+}
+
+async function collectTauriRuntimeMetadata(discovered, env = {}, dependencies = {}) {
+	const commandOutput = dependencies.commandOutput ?? execFileAsync;
+	let versionOutput;
+	try {
+		const execution = await commandOutput(discovered.executable, ["--version"], { timeout: 10_000 });
+		versionOutput = String(execution.stdout ?? execution).trim();
+	} catch (error) {
+		throw new Error(`packaged tauri binary did not report its version: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	if (!versionOutput) throw new Error("packaged tauri binary reported an empty version");
+	const displayScale = Number(env.OPERATOR_BENCH_DISPLAY_SCALE || 1);
+	if (!Number.isFinite(displayScale) || displayScale <= 0) throw new Error("OPERATOR_BENCH_DISPLAY_SCALE must be a positive number when provided");
+	return {
+		source: "packaged-binary-probe",
+		applicationVersion: requireString(versionOutput.split(/\s+/).pop(), "runtime.applicationVersion"),
+		architecture: process.arch,
+		webviewRuntimeVersion: requireString(versionOutput, "runtime.webviewRuntimeVersion"),
+		rendererKind: "webview",
+		displayScale,
+	};
+}
+
+async function preflightTauriArtifactBenchmark(options, dependencies) {
+	const env = dependencies.env ?? process.env;
+	const platform = dependencies.platform ?? process.platform;
+	const evidenceScope = resolveEvidenceScope(env);
+	await lstat(options.signedArtifact).then(
+		(metadata) => {
+			if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("signed release artifact must be a regular file");
+		},
+		(error) => {
+			if (error?.code === "ENOENT") throw new Error(`signed release artifact must be a regular file: ${error.path ?? options.signedArtifact}`);
+			throw error;
+		},
+	);
+	for (const [name, packagePath] of Object.entries(options.packages ?? {})) {
+		const metadata = await lstat(packagePath);
+		if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error(`tauri ${name} package must be a regular file`);
+	}
+	if (options.installedApp) {
+		const metadata = await lstat(options.installedApp);
+		if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error("installed application must be a real directory");
+	}
+	const parent = path.join(os.homedir(), ".operator", "benchmarks");
+	await mkdir(parent, { recursive: true });
+	const extractionRoot = await mkdtemp(path.join(parent, "tauri-artifact-binding-"));
+	let discovered;
+	let attestation;
+	let attestationVerification;
+	let buildProfile;
+	try {
+		discovered = dependencies.extractPayload
+			? await dependencies.extractPayload({ platform, signedArtifact: options.signedArtifact, extractionRoot })
+			: await extractTauriPayload({ platform, signedArtifact: options.signedArtifact, extractionRoot }, dependencies);
+		const components = await verifyPackagedComponents(tauriComponentLayout(discovered), dependencies);
+		if (evidenceScope === "binding") {
+			const releaseTrust = validateReleaseTrust(dependencies.trustAnchor ?? await (dependencies.loadTrustAnchor ?? loadReleaseTrust)());
+			const expectedPublisher = expectedPublisherForPlatform(platform, releaseTrust);
+			if (!env.OPERATOR_BENCH_RELEASE_ATTESTATION || !env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE || !env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY) {
+				throw new Error("binding tauri artifact evidence requires the publisher attestation inputs");
+			}
+			if (platform === "linux" && !options.artifactSignature) throw new Error("binding Linux tauri evidence requires an explicit detached artifact signature");
+			const observedPublisher = await (dependencies.verifySignature ?? nativeSignatureVerification)({
+				signedArtifact: options.signedArtifact,
+				installedApp: options.installedApp ?? discovered.applicationRoot,
+				installedExecutable: discovered.executable,
+				artifactSignature: options.artifactSignature,
+				platform,
+			});
+			validatePublisherIdentity(platform, observedPublisher, expectedPublisher);
+			const validatedAttestation = await (dependencies.validateAttestation ?? validateReleaseAttestation)({
+				signedArtifact: options.signedArtifact,
+				attestationPath: env.OPERATOR_BENCH_RELEASE_ATTESTATION,
+				signaturePath: env.OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE,
+				publicKeyPath: env.OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY,
+				expectedKeySha256: releaseTrust.attestationKeySha256,
+				applicationVersion: components.daemon.slice(4),
+				architecture: process.arch,
+				publisherIdentity: observedPublisherIdentity(platform, observedPublisher),
+			});
+			attestation = validatedAttestation.statement;
+			attestationVerification = validatedAttestation.verification;
+			buildProfile = "signed-release-attested";
+		} else {
+			buildProfile = "local-tauri-bundle-unattested-non-binding";
+		}
+		const renderer = await (dependencies.collectRuntimeMetadata ?? collectTauriRuntimeMetadata)(discovered, env, dependencies);
+		const measured = [
+			{ scenario: "base-signed-download", artifactKind: "primary-signed-update", bytes: await measurePathBytes(options.signedArtifact) },
+			{ scenario: "base-installed-footprint", artifactKind: "installed-application", bytes: await measurePathBytes(options.installedApp ?? discovered.applicationRoot) },
+		];
+		if (options.managedBrowser) {
+			measured.push({ scenario: "managed-browser-footprint", artifactKind: "post-browser-install", bytes: await measurePathBytes(options.managedBrowser) });
+		}
+		const packages = {};
+		if (options.packages?.rpm) packages.rpmExists = true;
+		if (options.packages?.deb) packages.debExists = true;
+		return {
+			buildProfile,
+			components,
+			measured,
+			renderer,
+			executable: discovered.executable,
+			packages,
+			...(attestation ? { attestation, attestationVerification } : {}),
+		};
 	} finally {
 		await rm(extractionRoot, { recursive: true, force: true });
 	}
@@ -434,10 +728,12 @@ async function artifactMeasurements(options) {
 }
 
 export async function preflightArtifactBenchmark(options, dependencies = {}) {
+	if ((options.shell ?? "electron") === "tauri") return await preflightTauriArtifactBenchmark(options, dependencies);
 	const platform = dependencies.platform ?? process.platform;
 	assertReleaseArtifactPath(options.signedArtifact, platform);
 	if (platform === "linux" && !options.artifactSignature) throw new Error("Linux release evidence requires an explicit detached artifact signature");
-	const expectedPublisher = expectedPublisherForPlatform(platform, dependencies.env ?? process.env);
+	const releaseTrust = validateReleaseTrust(dependencies.trustAnchor ?? await (dependencies.loadTrustAnchor ?? loadReleaseTrust)());
+	const expectedPublisher = expectedPublisherForPlatform(platform, releaseTrust);
 	await preflightRequestedPaths(options, platform);
 	const layout = installedReleaseLayout(options.installedApp, platform);
 	const observedPublisher = await (dependencies.verifySignature ?? nativeSignatureVerification)({
@@ -461,27 +757,39 @@ export async function preflightArtifactBenchmark(options, dependencies = {}) {
 	if (components.daemon !== `opr ${applicationVersion}`) {
 		throw new Error(`packaged daemon version ${components.daemon.slice(4)} does not match installed application version ${applicationVersion}`);
 	}
-	const attestation = await (dependencies.validateAttestation ?? validateReleaseAttestation)({
+	const validatedAttestation = await (dependencies.validateAttestation ?? validateReleaseAttestation)({
 		signedArtifact: options.signedArtifact,
 		attestationPath: options.attestationPath,
 		signaturePath: options.signaturePath,
 		publicKeyPath: options.publicKeyPath,
-		expectedKeySha256: options.expectedKeySha256,
+		expectedKeySha256: releaseTrust.attestationKeySha256,
 		applicationVersion,
 		architecture,
 		publisherIdentity: observedPublisherIdentity(platform, observedPublisher),
 	});
 	const measured = await artifactMeasurements(options);
-	return { buildProfile: "signed-release-attested", components, measured, renderer, executable: layout.executable, attestation };
+	return {
+		buildProfile: "signed-release-attested",
+		components,
+		measured,
+		renderer,
+		executable: layout.executable,
+		attestation: validatedAttestation.statement,
+		attestationVerification: validatedAttestation.verification,
+	};
 }
 
 export async function runArtifactBenchmark(argv = process.argv.slice(2), env = process.env, dependencies = {}) {
 	const options = parseArtifactArguments(argv, env);
-	const preflight = await preflightArtifactBenchmark(options, { ...dependencies, env });
-	const host = { ...(dependencies.collectHostMetadata ?? collectHostMetadata)(), architecture: preflight.attestation.architecture };
-	const git = { commit: preflight.attestation.sourceCommit, dirty: false };
+	const shell = options.shell;
+	const preflight = await (dependencies.preflightArtifactBenchmark ?? preflightArtifactBenchmark)(options, { ...dependencies, env });
+	const host = { ...(dependencies.collectHostMetadata ?? collectHostMetadata)(), architecture: preflight.attestation?.architecture ?? process.arch };
+	const git = preflight.attestation
+		? { commit: preflight.attestation.sourceCommit, dirty: false }
+		: await (dependencies.collectGitMetadata ?? collectGitMetadata)();
+	const evidenceScope = shell === "electron" ? "binding" : resolveEvidenceScope(env);
 	const benchmarkResults = preflight.measured.map((measurement) => createBenchmarkResult({
-		shell: options.shell,
+		shell,
 		scenario: measurement.scenario,
 		buildProfile: preflight.buildProfile,
 		git,
@@ -490,15 +798,20 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 			scenarioConfiguration: {
 			artifactKind: measurement.artifactKind,
 			accounting: "recursive-regular-file-bytes",
+			evidenceScope,
 			baseContents: Object.values(preflight.components),
 			artifactIdentity: "native-signature-and-required-contents-verified",
-				runtimeMetadataSource: "installed-release-launch",
-				releaseAttestation: {
-					artifactSha256: preflight.attestation.artifactSha256,
-					applicationVersion: preflight.attestation.applicationVersion,
-					publisherIdentity: preflight.attestation.publisherIdentity,
-					source: "publisher-ed25519-signed",
-				},
+				runtimeMetadataSource: preflight.renderer?.source === "packaged-binary-probe" ? "packaged-binary-probe" : "installed-release-launch",
+				...(preflight.packages ?? {}),
+				...(preflight.attestation
+					? {
+							releaseAttestation: {
+								statement: preflight.attestation,
+								verification: preflight.attestationVerification,
+								source: "publisher-ed25519-signed",
+							},
+						}
+					: {}),
 		},
 		warmups: 0,
 		samples: [measurement.bytes],
@@ -521,7 +834,9 @@ export async function runArtifactBenchmark(argv = process.argv.slice(2), env = p
 
 async function main() {
 	if (process.argv.includes("--help")) {
-		process.stdout.write("OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... OPERATOR_BENCH_RELEASE_ATTESTATION=... OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE=... OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY=... OPERATOR_BENCH_EXPECTED_ATTESTATION_KEY_SHA256=... OPERATOR_BENCH_EXPECTED_MACOS_TEAM_ID=... node scripts/benchmark-artifact.mjs --shell electron\nWindows additionally requires OPERATOR_BENCH_EXPECTED_WINDOWS_PUBLISHER and OPERATOR_BENCH_EXPECTED_WINDOWS_CERTIFICATE_THUMBPRINT; Linux requires OPERATOR_BENCH_ARTIFACT_SIGNATURE and OPERATOR_BENCH_EXPECTED_LINUX_GPG_FINGERPRINT.\n");
+		process.stdout.write("Electron: OPERATOR_BENCH_SIGNED_ARTIFACT=... OPERATOR_BENCH_INSTALLED_APP=... OPERATOR_BENCH_RELEASE_ATTESTATION=... OPERATOR_BENCH_RELEASE_ATTESTATION_SIGNATURE=... OPERATOR_BENCH_ATTESTATION_PUBLIC_KEY=... node scripts/benchmark-artifact.mjs --shell electron\n");
+		process.stdout.write("Tauri:    OPERATOR_BENCH_SIGNED_ARTIFACT=... [OPERATOR_BENCH_INSTALLED_APP=...] [OPERATOR_BENCH_PACKAGE_DEB=...] [OPERATOR_BENCH_PACKAGE_RPM=...] [OPERATOR_BENCH_DISPLAY_SCALE=...] node scripts/benchmark-artifact.mjs --shell tauri\n");
+		process.stdout.write("Publisher identities and the attestation-key fingerprint come only from scripts/phase0-release-trust.json. Linux additionally requires OPERATOR_BENCH_ARTIFACT_SIGNATURE for binding evidence. Tauri binding evidence also requires the attestation inputs; without OPERATOR_BENCH_EVIDENCE_SCOPE=binding it records non-binding local measurements.\n");
 		return;
 	}
 	await runArtifactBenchmark();

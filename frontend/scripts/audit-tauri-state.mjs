@@ -80,7 +80,13 @@ async function recordTree(currentPath, filesystemSnapshot, remainingDepth, readD
 		`${metadata.isDirectory() ? "directory" : metadata.isSymbolicLink() ? "symlink" : "file"}:${metadata.size}:${metadata.mtimeMs}`,
 	);
 	if (!metadata.isDirectory() || metadata.isSymbolicLink() || remainingDepth === 0) return;
-	const directoryEntries = await readDirectory(currentPath, { withFileTypes: true });
+	let directoryEntries;
+	try {
+		directoryEntries = await readDirectory(currentPath, { withFileTypes: true });
+	} catch (error) {
+		if (error?.code === "EPERM" || error?.code === "EACCES") return;
+		throw error;
+	}
 	for (const directoryEntry of directoryEntries) {
 		const nextDepth = /operator|tauri|dev\.operator\.desktop/i.test(directoryEntry.name)
 			? Number.POSITIVE_INFINITY
@@ -121,10 +127,6 @@ function operatorOwnedStatePath(statePath) {
 	return relativeStatePath
 		.split(path.sep)
 		.some((component) => /^(?:dev\.)?operator(?:[.\s_-]|$)|^tauri(?:[.\s_-]|$)/i.test(component));
-}
-
-function operatorOwnedComponent(component) {
-	return /^(?:dev\.)?operator(?:[.\s_-]|$)|^tauri(?:[.\s_-]|$)/i.test(component);
 }
 
 function createObserverState(options) {
@@ -227,19 +229,10 @@ async function observeTree(observer, directoryPath) {
 
 async function observeShallowTarget(observer, target) {
 	await observeDirectoryWhenPresent(observer, target.statePath, async () => {
-		addDirectoryWatcher(observer, target.statePath, false, async (changedName) => {
-			const firstComponent = changedName.split(/[\\/]/, 1)[0];
-			if (!operatorOwnedComponent(firstComponent)) return;
+		addDirectoryWatcher(observer, target.statePath, true, async (changedName) => {
 			const changedPath = path.resolve(target.statePath, changedName);
 			recordObservation(observer, changedPath);
-			const appStateRoot = path.join(target.statePath, firstComponent);
-			const metadata = await metadataIfExists(appStateRoot);
-			if (metadata?.isDirectory() && !metadata.isSymbolicLink()) await observeTree(observer, appStateRoot);
 		});
-		const entries = await readdir(target.statePath, { withFileTypes: true });
-		for (const entry of entries) {
-			if (operatorOwnedComponent(entry.name) && entry.isDirectory() && !entry.isSymbolicLink()) await observeTree(observer, path.join(target.statePath, entry.name));
-		}
 	});
 }
 
@@ -306,12 +299,12 @@ export async function settledStateSnapshot(readSnapshot, options = {}) {
 }
 
 export function assertConfined(beforeSnapshot, afterSnapshot, confinement) {
-	const { allowedRoot, operatorDirectory, phase } = confinement;
+	const { allowedRoot, operatorDirectory, phase, monitoredRoots = [] } = confinement;
 	const changedStatePaths = changedPaths(beforeSnapshot, afterSnapshot);
 	const outsidePaths = changedStatePaths.filter(
 		(statePath) =>
 			!pathInside(statePath, allowedRoot) &&
-			(pathInside(statePath, operatorDirectory) || operatorOwnedStatePath(statePath)),
+			(pathInside(statePath, operatorDirectory) || operatorOwnedStatePath(statePath) || monitoredRoots.some((root) => pathInside(statePath, root))),
 	);
 	if (outsidePaths.length > 0) {
 		const displayedPaths = outsidePaths.slice(0, 20).map((statePath) => path.relative(homeDirectory, statePath));
@@ -340,8 +333,10 @@ function phaseExitExpected(mode, exitCode, signal) {
 function spawnPhaseProcess(executablePath, launchEnvironment, mode, options) {
 	const application = spawn(executablePath, options.launchArguments ?? [], {
 		env: { ...process.env, ...launchEnvironment, OPERATOR_TAURI_STATE_AUDIT_MODE: mode },
-		stdio: "inherit",
+		stdio: ["ignore", "pipe", "pipe"],
 	});
+	application.stdout.on("data", (chunk) => process.stderr.write(chunk));
+	application.stderr.on("data", (chunk) => process.stderr.write(chunk));
 	const completion = new Promise((resolveLaunch, rejectLaunch) => {
 		let completed = false;
 		const finish = (settle, value) => {
@@ -410,9 +405,20 @@ export async function auditPhase(options) {
 	const changes = assertConfined(
 		options.beforeSnapshot,
 		mergeSnapshots(snapshot, observedSnapshot),
-		options.confinement,
+		{ ...options.confinement, monitoredRoots: options.confinement.monitoredRoots ?? options.stateTargets.map(({ statePath }) => statePath) },
 	);
 	return { changes, snapshot };
+}
+
+export function deriveStateAuditSummary({ scannedRoots, phaseResults }) {
+	if (!Number.isInteger(scannedRoots) || scannedRoots < 1) throw new Error("state audit summary requires a positive scanned-root count");
+	const observedOutsideRoot = phaseResults.reduce((total, result) => total + (result.observedOutsideRoot ?? 0), 0);
+	return {
+		passed: observedOutsideRoot === 0 && phaseResults.every((result) => result.changes > 0),
+		leaked: observedOutsideRoot > 0,
+		observedOutsideRoot,
+		scannedRoots,
+	};
 }
 
 async function main() {
@@ -449,8 +455,15 @@ async function main() {
 		completionMarker: path.join(allowedRoot, "tauri", "renderer-crash-complete"),
 		confinement: { ...confinement, phase: "crash" },
 	});
+	const summary = deriveStateAuditSummary({
+		scannedRoots: stateTargets.length,
+		phaseResults: [
+			{ phase: "shutdown", changes: shutdown.changes },
+			{ phase: "crash", changes: crash.changes },
+		],
+	});
 	process.stdout.write(
-		`${JSON.stringify({ platform: process.platform, shutdownChanges: shutdown.changes, crashChanges: crash.changes })}\n`,
+		`${JSON.stringify({ platform: process.platform, ...summary, shutdownChanges: shutdown.changes, crashChanges: crash.changes })}\n`,
 	);
 }
 

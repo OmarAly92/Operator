@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -272,7 +272,7 @@ describe("terminal benchmark harness", () => {
 				evidenceScope: "non-binding",
 				runtimeAttestation: "tauri-dev-webview",
 			},
-			durations: [15, 30],
+			durations: { durations: [15, 30], observedBytes: [null, null] },
 			rejected: true,
 		});
 	});
@@ -313,8 +313,13 @@ describe("terminal benchmark harness", () => {
 		expect(acknowledgements.some(({ name }) => name === "workload")).toBe(false);
 		act(completeWrite);
 		act(() => emitRender(300));
-		expect(acknowledgements).toContainEqual({ name: "workload", timestamp: 300 });
-		expect(acknowledgements.every((acknowledgement) => Object.keys(acknowledgement).sort().join(",") === "name,timestamp")).toBe(true);
+		const workloadAcknowledgement = acknowledgements.find(({ name }) => name === "workload");
+		expect(workloadAcknowledgement).toMatchObject({ name: "workload", timestamp: 300 });
+		expect(acknowledgements.every((acknowledgement) => {
+			const keys = Object.keys(acknowledgement).sort().join(",");
+			if (keys === "name,timestamp") return true;
+			return acknowledgement.name === "workload" && keys === "bytes,name,timestamp" && typeof acknowledgement.bytes === "number";
+		})).toBe(true);
 		expect(JSON.stringify(acknowledgements)).not.toContain("secret terminal output");
 	});
 
@@ -330,7 +335,66 @@ describe("terminal benchmark harness", () => {
 
 			const input = vi.mocked(mux.sendInput).mock.calls[0]?.[1];
 			expect(input).toContain("[Console]::Out.Write(-join ('x' * 16777216))");
+			expect(input).toContain("if ($?)");
 			expect(input).not.toContain("__OPERATOR_TERMINAL_WORKLOAD_COMPLETE__");
+		} finally {
+			Object.defineProperty(navigator, "userAgent", { configurable: true, value: defaultUserAgent });
+		}
+	});
+
+	it("emits no success marker after a POSIX workload failure", async () => {
+		const defaultUserAgent = navigator.userAgent;
+		Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Linux" });
+		const mux = fakeMux();
+		try {
+			renderHarness(mux);
+			await waitFor(() => expect(mux.open).toHaveBeenCalled());
+			window.dispatchEvent(new CustomEvent("operator:terminal-benchmark-run", {
+				detail: { scenario: "vtebench", iteration: 0 },
+			}));
+			const input = vi.mocked(mux.sendInput).mock.calls[0]?.[1];
+			expect(input).toContain("vtebench && printf");
+			expect(input).not.toContain("vtebench; printf");
+		} finally {
+			Object.defineProperty(navigator, "userAgent", { configurable: true, value: defaultUserAgent });
+		}
+	});
+
+	it("drives cpu-time and active-memory workloads through the real shell on both platforms", async () => {
+		const cases = [
+			{ scenario: "cpu-time", posixLoop: 'while [ "$i" -lt 200000 ]', windowsLoop: "-lt 200000" },
+			{ scenario: "active-memory", posixLoop: 'while [ "$i" -lt 50000 ]', windowsLoop: "-lt 50000" },
+		] as const;
+		const defaultUserAgent = navigator.userAgent;
+		try {
+			for (const { scenario, posixLoop, windowsLoop } of cases) {
+				Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Macintosh" });
+				const posixMux = fakeMux();
+				renderHarness(posixMux);
+				await waitFor(() => expect(posixMux.open).toHaveBeenCalled());
+				act(() => {
+					window.dispatchEvent(new CustomEvent("operator:terminal-benchmark-run", { detail: { scenario, iteration: 0 } }));
+				});
+				const posixInput = vi.mocked(posixMux.sendInput).mock.calls[0]?.[1] as string;
+				expect(posixInput).toContain(posixLoop);
+				expect(posixInput).toContain("\\137\\137OPERATOR");
+				expect(posixInput).toContain("&&");
+				expect(posixInput.endsWith("\r")).toBe(true);
+
+				Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Windows" });
+				const windowsMux = fakeMux();
+				renderHarness(windowsMux);
+				await waitFor(() => expect(windowsMux.open).toHaveBeenCalled());
+				act(() => {
+					window.dispatchEvent(new CustomEvent("operator:terminal-benchmark-run", { detail: { scenario, iteration: 0 } }));
+				});
+				const windowsInput = vi.mocked(windowsMux.sendInput).mock.calls[0]?.[1] as string;
+				expect(windowsInput).toContain(windowsLoop);
+				expect(windowsInput).toContain("if ($?)");
+				expect(windowsInput).not.toContain("__OPERATOR_TERMINAL_WORKLOAD_COMPLETE__");
+
+				cleanup();
+			}
 		} finally {
 			Object.defineProperty(navigator, "userAgent", { configurable: true, value: defaultUserAgent });
 		}
@@ -423,4 +487,46 @@ describe("terminal benchmark harness", () => {
 		expect(xtermState.lastTerminal?.disposed).toBe(true);
 		expect(acknowledgements.some(({ name }) => name === "disposal")).toBe(true);
 	});
+});
+
+it("main.tsx resolves every callable identifier from its own declarations its imports or known globals", async () => {
+	const { readFileSync } = await import("node:fs");
+	const { dirname, join } = await import("node:path");
+	const { fileURLToPath } = await import("node:url");
+	const here = dirname(fileURLToPath(import.meta.url));
+	const mainSource = readFileSync(join(here, "main.tsx"), "utf8");
+
+	const harnessModule = await import("./harness");
+	for (const match of mainSource.matchAll(/import\s*\{([^}]+)\}\s*from\s*"\.\/harness";?/g)) {
+		for (const rawSpecifier of match[1].split(",")) {
+			const specifier = rawSpecifier.trim();
+			if (!specifier || specifier.startsWith("type ")) continue;
+			const name = specifier.split(/\s+as\s+/)[0];
+			if (!name) continue;
+			expect(harnessModule).toHaveProperty(name);
+		}
+	}
+
+	const declared = new Set<string>();
+	for (const match of mainSource.matchAll(/(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/g)) declared.add(match[1]);
+	for (const match of mainSource.matchAll(/import\s+(\w+)(?:\s*,)?[^;]*from/g)) declared.add(match[1]);
+	for (const match of mainSource.matchAll(/\*\s+as\s+(\w+)/g)) declared.add(match[1]);
+	for (const match of mainSource.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
+		for (const specifier of match[1].split(",")) {
+			const name = specifier.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0];
+			if (name && !name.startsWith('"')) declared.add(name);
+		}
+	}
+
+	const knownGlobals = new Set([
+		"if", "for", "while", "switch", "catch", "return", "function", "typeof", "new", "await",
+		"window", "document", "performance", "fetch", "requestAnimationFrame", "CustomEvent",
+		"URLSearchParams", "URL", "Error", "TypeError", "Number", "String", "Boolean", "Array",
+		"Object", "JSON", "Math", "Promise", "console", "undefined",
+	]);
+	for (const match of mainSource.matchAll(/(?<![\w$.{])([A-Za-z_$][\w$]*)\s*\(/g)) {
+		const callee = match[1];
+		if (knownGlobals.has(callee)) continue;
+		expect(declared.has(callee)).toBe(true);
+	}
 });

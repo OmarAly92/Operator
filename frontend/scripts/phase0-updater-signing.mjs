@@ -1,5 +1,5 @@
-import { createHash, generateKeyPairSync, sign, verify, createPublicKey, createPrivateKey } from "node:crypto";
-import { readdir, readFile, rm, writeFile, mkdir, mkdtemp } from "node:fs/promises";
+import { createHash, createPublicKey, verify } from "node:crypto";
+import { copyFile, readdir, readFile, rm, writeFile, mkdir, mkdtemp } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -7,39 +7,61 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const tauriCliPath = fileURLToPath(new URL("../node_modules/@tauri-apps/cli/tauri.js", import.meta.url));
+const tauriCliPackagePath = fileURLToPath(new URL("../node_modules/@tauri-apps/cli/package.json", import.meta.url));
+const PINNED_TAURI_CLI_VERSION = "2.11.4";
 
-export async function generateEphemeralKeypair(directory) {
-  await mkdir(directory, { recursive: true });
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-  const privatePem = privateKey.export({ type: "pkcs8", format: "pem" });
-  const publicPem = publicKey.export({ type: "spki", format: "pem" });
-  const privatePath = path.join(directory, "private.key");
-  const publicPath = path.join(directory, "public.key");
-  await writeFile(privatePath, privatePem, { mode: 0o600 });
-  await writeFile(publicPath, publicPem);
-  const publicDer = publicKey.export({ type: "spki", format: "der" });
-  const fingerprint = createHash("sha256").update(publicDer).digest("hex");
-  return { privatePath, publicPath, fingerprint, privatePem, publicPem };
+function decodeTauriMinisignMaterial(value, label) {
+  const encoded = value.trim();
+  if (!/^[A-Za-z0-9+/]+=*$/.test(encoded)) throw new Error(`Tauri signer did not produce a minisign ${label}`);
+  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+  if (!decoded.startsWith("untrusted comment:")) throw new Error(`Tauri signer did not produce a minisign ${label}`);
+  return decoded.trimEnd().split("\n");
 }
 
-export async function signFixture({ fixturePath, privateKeyPath, signaturePath }) {
-  const [fixtureBytes, privatePem] = await Promise.all([readFile(fixturePath), readFile(privateKeyPath, "utf8")]);
-  const privateKey = createPrivateKey(privatePem);
-  const signature = sign(null, fixtureBytes, privateKey);
-  await writeFile(signaturePath, signature);
+function assertTauriMinisignMaterial(value, label) {
+  decodeTauriMinisignMaterial(value, label);
+  return value.trim();
+}
+
+export async function generateEphemeralKeypair(directory, dependencies = {}) {
+  await mkdir(directory, { recursive: true });
+  const privatePath = path.join(directory, "private.key");
+  const publicPath = `${privatePath}.pub`;
+  await (dependencies.execFile ?? execFileAsync)(process.execPath, [tauriCliPath, "signer", "generate", "--ci", "--password", "", "--write-keys", privatePath]);
+  const publicKey = await readFile(publicPath, "utf8");
+  assertTauriMinisignMaterial(publicKey, "public key");
+  const fingerprint = createHash("sha256").update(publicKey).digest("hex");
+  return { privatePath, publicPath, fingerprint, publicKey };
+}
+
+export async function signFixture({ fixturePath, privateKeyPath, signaturePath }, dependencies = {}) {
+  await (dependencies.execFile ?? execFileAsync)(process.execPath, [tauriCliPath, "signer", "sign", "--password", "", "--private-key-path", privateKeyPath, fixturePath]);
+  const generatedSignaturePath = `${fixturePath}.sig`;
+  const signature = await readFile(generatedSignaturePath, "utf8");
+  assertTauriMinisignMaterial(signature, "signature");
+  if (path.resolve(generatedSignaturePath) !== path.resolve(signaturePath)) await copyFile(generatedSignaturePath, signaturePath);
   return signature;
 }
 
 export async function verifyFixture({ fixturePath, signaturePath, publicKeyPath }) {
-  const [fixtureBytes, signature, publicPem] = await Promise.all([
-    readFile(fixturePath),
-    readFile(signaturePath),
-    readFile(publicKeyPath, "utf8"),
-  ]);
-  const publicKey = createPublicKey(publicPem);
-  if (publicKey.asymmetricKeyType !== "ed25519") throw new Error("public key must be Ed25519");
-  const valid = verify(null, fixtureBytes, publicKey, signature);
-  if (!valid) throw new Error("signature is invalid");
+  const [fixtureBytes, signature, publicKey] = await Promise.all([readFile(fixturePath), readFile(signaturePath, "utf8"), readFile(publicKeyPath, "utf8")]);
+  const publicLines = decodeTauriMinisignMaterial(publicKey, "public key");
+  const signatureLines = decodeTauriMinisignMaterial(signature, "signature");
+  if (publicLines.length !== 2 || signatureLines.length !== 4 || !signatureLines[2].startsWith("trusted comment: ")) throw new Error("Tauri updater signing materials are invalid");
+  const publicPacket = Buffer.from(publicLines[1], "base64");
+  const signaturePacket = Buffer.from(signatureLines[1], "base64");
+  const globalSignature = Buffer.from(signatureLines[3], "base64");
+  if (publicPacket.length !== 42 || publicPacket.subarray(0, 2).toString("ascii") !== "Ed" || signaturePacket.length !== 74 || signaturePacket.subarray(0, 2).toString("ascii") !== "ED" || globalSignature.length !== 64 || !publicPacket.subarray(2, 10).equals(signaturePacket.subarray(2, 10))) {
+    throw new Error("Tauri updater signing materials are invalid");
+  }
+  const derPrefix = Buffer.from("302a300506032b6570032100", "hex");
+  const verifyingKey = createPublicKey({ key: Buffer.concat([derPrefix, publicPacket.subarray(10)]), format: "der", type: "spki" });
+  const artifactDigest = createHash("blake2b512").update(fixtureBytes).digest();
+  const artifactValid = verify(null, artifactDigest, verifyingKey, signaturePacket.subarray(10));
+  const trustedComment = signatureLines[2].slice("trusted comment: ".length);
+  const commentValid = verify(null, Buffer.concat([signaturePacket.subarray(10), Buffer.from(trustedComment)]), verifyingKey, globalSignature);
+  if (!artifactValid || !commentValid) throw new Error("signature is invalid");
   return true;
 }
 
@@ -98,19 +120,15 @@ export async function runEphemeralSigningFlow({ tmpDir, fixturePath, outputDir, 
   const keyDir = await mkdtemp(path.join(tmpDir, "ephemeral-keys-"));
   let result;
   try {
-    const { privatePath, publicPath } = await generateEphemeralKeypair(keyDir);
+    const cliPackage = JSON.parse(await readFile(tauriCliPackagePath, "utf8"));
+    if (cliPackage.version !== PINNED_TAURI_CLI_VERSION) throw new Error(`Tauri CLI must be pinned to ${PINNED_TAURI_CLI_VERSION}`);
+    const { privatePath, publicPath, fingerprint } = await generateEphemeralKeypair(keyDir);
     const signaturePath = path.join(outputDir, "fixture.sig");
     await mkdir(outputDir, { recursive: true });
     await signFixture({ fixturePath, privateKeyPath: privatePath, signaturePath });
     await verifyFixture({ fixturePath, signaturePath, publicKeyPath: publicPath });
-    const publicPem = await readFile(publicPath, "utf8");
-    const signatureValid = true;
-    const evidence = {
-      valid: true,
-      signatureValid,
-      privateKeyLeaked: false,
-      publicKey: publicPem.slice(0, 64),
-    };
+    await copyFile(publicPath, path.join(outputDir, "public.key"));
+    await copyFile(fixturePath, path.join(outputDir, "fixture.tar"));
     await assertNoPrivateKeyLeak({ outputDir, privateKeyPath: privatePath, gitRoot });
     const files = await walkFiles(outputDir);
     for (const file of files) {
@@ -118,7 +136,15 @@ export async function runEphemeralSigningFlow({ tmpDir, fixturePath, outputDir, 
         throw new Error("private key entered output directory");
       }
     }
-    result = { valid: true, signatureValid: true, privateKeyLeaked: false, publicFingerprint: createHash("sha256").update(publicPem).digest("hex") };
+    result = {
+      valid: true,
+      signatureValid: true,
+      privateKeyLeaked: false,
+      format: "tauri-minisign",
+      signer: `@tauri-apps/cli@${cliPackage.version}`,
+      publicKeyFingerprint: fingerprint,
+      signatureSha256: createHash("sha256").update(await readFile(signaturePath)).digest("hex"),
+    };
     await writeFile(path.join(outputDir, "updater-signing-evidence.json"), `${JSON.stringify(result, null, "\t")}\n`, "utf8");
   } finally {
     await rm(keyDir, { recursive: true, force: true });
