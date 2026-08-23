@@ -28,3 +28,7 @@ UPDATE app_settings SET migration_json = ?, updated_at = ? WHERE id = 1;
 -- name: MarkAppLegacyDesktopImported :exec
 UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
 WHERE id = 1 AND legacy_desktop_imported_at IS NULL;
+
+-- name: ClaimAppLegacyDesktopImport :execrows
+UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
+WHERE id = 1 AND legacy_desktop_imported_at IS NULL;

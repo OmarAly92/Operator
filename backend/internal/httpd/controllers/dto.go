@@ -1731,8 +1731,8 @@ type UiSettings struct {
 // client's MigrationState shape exactly.
 type MigrationState struct {
 	Status        string                       `json:"status" enum:"pending,completed,declined,failed"`
-	LastAttemptAt string                       `json:"lastAttemptAt,omitempty"`
-	CompletedAt   string                       `json:"completedAt,omitempty"`
+	LastAttemptAt string                       `json:"lastAttemptAt,omitempty" format:"date-time"`
+	CompletedAt   string                       `json:"completedAt,omitempty" format:"date-time"`
 	Report        *settingssvc.MigrationReport `json:"report,omitempty"`
 	Error         string                       `json:"error,omitempty"`
 }

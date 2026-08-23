@@ -22,6 +22,7 @@ import (
 // listener's /internal/ block are the boundaries.
 func mountDesktopTelemetry(r chi.Router, cfg config.Config) {
 	r.Get("/internal/desktop/telemetry-bootstrap", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		if !cfg.Telemetry.Renderer {
 			envelope.WriteJSON(w, http.StatusOK, nil)
 			return

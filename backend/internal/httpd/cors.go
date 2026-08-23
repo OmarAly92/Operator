@@ -23,12 +23,14 @@ import (
 // would hide the response but NOT the side effect — a hostile page can issue
 // "simple" cross-origin POSTs (no-cors mode, text/plain body) that handlers
 // would otherwise execute. Same philosophy as localControlRequest on
-// /shutdown, applied to the whole surface.
+// /shutdown, applied to the whole surface. Per-session workspace preview
+// origins cannot be enumerated in static config, so previewOriginMiddleware
+// runs ahead of this boundary and serves them without CORS headers.
 func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
 		origin = strings.TrimSpace(origin)
-		if origin == "" || origin == "null" || origin == "*" {
+		if origin == "" || origin == "null" || origin == "*" || !isSafeConfiguredOrigin(origin) {
 			continue
 		}
 		allowed[origin] = struct{}{}
@@ -44,7 +46,7 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 			// Cache keys must split on Origin even for rejected values, or a
 			// 403 could be replayed to an allowed origin.
 			w.Header().Add("Vary", "Origin")
-			if _, ok := allowed[origin]; !ok && !isLoopbackOrigin(origin) {
+			if _, ok := allowed[origin]; !ok {
 				envelope.WriteAPIError(w, r, http.StatusForbidden, "forbidden", "ORIGIN_FORBIDDEN",
 					"Origin is not allowed to access this daemon", nil)
 				return
@@ -73,12 +75,10 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// isLoopbackOrigin reports whether a browser origin is content served from
-// this machine's loopback (the Vite dev server / preview server on whatever
-// port it picked). Such content can already reach the no-auth daemon directly,
-// so granting it CORS adds no exposure — while a remote page can never bear a
-// loopback origin (DNS rebinding changes resolution, not the Origin header).
-func isLoopbackOrigin(origin string) bool {
+func isSafeConfiguredOrigin(origin string) bool {
+	if origin == "app://renderer" || origin == "tauri://localhost" || origin == "http://tauri.localhost" {
+		return true
+	}
 	u, err := url.Parse(origin)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false
@@ -87,10 +87,11 @@ func isLoopbackOrigin(origin string) bool {
 	if host == "tauri.localhost" {
 		return false
 	}
-	// RFC 6761 reserves localhost and every name below it for loopback.
-	// Workspace previews use a per-session subdomain so browser-enforced CORS
-	// requests (ES modules and fetch) remain isolated without being rejected by
-	// the daemon's origin boundary.
+	// RFC 6761 reserves localhost and every name below it for loopback, so an
+	// explicitly configured loopback-name origin (a dev renderer on
+	// http://localhost:<port>) stays admissible. Per-session workspace preview
+	// origins are never enumerated here; previewOriginMiddleware serves them
+	// ahead of this boundary.
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true
 	}

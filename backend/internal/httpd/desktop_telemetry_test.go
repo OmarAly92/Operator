@@ -44,6 +44,9 @@ func TestDesktopTelemetryBootstrapServesDaemonInstallIdentity(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
 	var payload desktopBootstrapPayload
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode %q: %v", rec.Body.String(), err)
@@ -95,6 +98,9 @@ func TestDesktopTelemetryBootstrapSerializesEmptyDenyListAsArray(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("decode %q: %v", rec.Body.String(), err)
@@ -121,6 +127,9 @@ func TestDesktopTelemetryBootstrapWithheldWhenRendererTelemetryDisabled(t *testi
 	rec := getDesktopTelemetryBootstrap(t, r)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
 	var payload *desktopBootstrapPayload
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {

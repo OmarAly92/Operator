@@ -578,7 +578,7 @@ func shellTerminalOperations() []operation {
 		{
 			method: http.MethodPatch, path: "/api/v1/settings/migration", id: "setMigrationState", tag: "settings",
 			summary: "Record the legacy desktop import decision",
-			reqBody: settingssvc.MigrationState{},
+			reqBody: controllers.MigrationState{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},

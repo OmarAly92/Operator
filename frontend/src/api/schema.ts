@@ -2210,8 +2210,10 @@ export interface components {
             projectsSkipped: number;
         };
         MigrationState: {
+            /** Format: date-time */
             completedAt?: string;
             error?: string;
+            /** Format: date-time */
             lastAttemptAt?: string;
             report?: components["schemas"]["MigrationReport"];
             /** @enum {string} */
@@ -2701,16 +2703,6 @@ export interface components {
         SetSessionReviewerRequest: {
             /** @enum {string} */
             harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
-        };
-        SettingsMigrationState: {
-            /** Format: date-time */
-            completedAt?: null | string;
-            error?: null | string;
-            /** Format: date-time */
-            lastAttemptAt?: null | string;
-            report?: components["schemas"]["MigrationReport"];
-            /** @enum {string} */
-            status: "pending" | "completed" | "declined" | "failed";
         };
         SettingsResponse: {
             chatHarnesses: string[];
@@ -8495,7 +8487,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SettingsMigrationState"];
+                "application/json": components["schemas"]["MigrationState"];
             };
         };
         responses: {

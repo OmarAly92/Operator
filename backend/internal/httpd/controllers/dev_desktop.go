@@ -13,7 +13,7 @@ import (
 // DevScanService is the controller-facing local folder-scan contract.
 type DevScanService interface {
 	ScanFolder(ctx context.Context, rootPath string, mode projectscan.Mode) (projectscan.Result, error)
-	AncestorRepository(ctx context.Context, rootPath string) string
+	AncestorRepository(ctx context.Context, rootPath string) (string, error)
 }
 
 // DevImportScanRequest is the body of POST /api/v1/dev/import-scan.
@@ -84,6 +84,10 @@ func (c *DevController) ancestorRepository(w http.ResponseWriter, r *http.Reques
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SCAN_PATH_REQUIRED", "path is required", nil)
 		return
 	}
-	warning := c.Scan.AncestorRepository(r.Context(), req.Path)
+	warning, err := c.Scan.AncestorRepository(r.Context(), req.Path)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
 	envelope.WriteJSON(w, http.StatusOK, DevAncestorRepositoryResponse{SetupWarning: warning})
 }

@@ -92,3 +92,40 @@ func (s settingsStore) SetMigrationState(
 func (s settingsStore) MarkLegacyDesktopImported(ctx context.Context, importedAt time.Time) error {
 	return s.store.MarkAppLegacyDesktopImported(ctx, importedAt)
 }
+
+func (s settingsStore) ApplyLegacyDesktopImport(
+	ctx context.Context,
+	legacyImport settingssvc.LegacyDesktopImport,
+	importedAt time.Time,
+) error {
+	stored := sqlite.LegacyDesktopSettingsImport{UILocale: legacyImport.UILocale}
+	if legacyImport.Updates != nil {
+		updates := &sqlite.LegacyDesktopUpdateSettings{
+			OptIn:      legacyImport.Updates.Enabled,
+			Channel:    string(legacyImport.Updates.Channel),
+			NightlyAck: legacyImport.Updates.NightlyAck,
+		}
+		if legacyImport.Updates.Feature != nil {
+			pr := legacyImport.Updates.Feature.PR
+			updates.FeaturePR = &pr
+		}
+		stored.Updates = updates
+	}
+	if legacyImport.Keybindings != nil {
+		raw, err := json.Marshal(legacyImport.Keybindings)
+		if err != nil {
+			return err
+		}
+		encoded := string(raw)
+		stored.KeybindingsJSON = &encoded
+	}
+	if legacyImport.Migration != nil {
+		raw, err := json.Marshal(legacyImport.Migration)
+		if err != nil {
+			return err
+		}
+		encoded := string(raw)
+		stored.MigrationJSON = &encoded
+	}
+	return s.store.ImportLegacyDesktopSettings(ctx, stored, importedAt)
+}

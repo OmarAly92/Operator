@@ -42,10 +42,9 @@ func LegacyFilesUnder(stateDir string) LegacyFiles {
 // A previous import (the write-once marker) skips everything so stale files can
 // never overwrite newer SQLite values. A missing or unparseable file means that
 // facet is absent: it is skipped, never an error, and never blocks startup —
-// the same self-healing semantics the desktop readers had. Each file maps to
-// one facet write, so every file's fields land together or not at all; the
-// marker is stamped only after all facet writes commit, leaving any crash a
-// safe re-attempt on the next boot.
+// the same self-healing semantics the desktop readers had. The marker and all
+// present facets share one guarded transaction, so a failed write leaves a safe
+// re-attempt on the next boot.
 func (s *Service) ImportLegacyDesktop(ctx context.Context, files LegacyFiles) error {
 	record, err := s.store.GetAppSettings(ctx)
 	if err != nil {
@@ -55,36 +54,35 @@ func (s *Service) ImportLegacyDesktop(ctx context.Context, files LegacyFiles) er
 		return nil
 	}
 
+	legacyImport := LegacyDesktopImport{}
 	if raw, ok := readLegacyFile(files.UiSettings); ok {
 		if locale, ok := parseLegacyLocale(raw); ok {
-			if _, err := s.SetUILocale(ctx, locale); err != nil {
-				return fmt.Errorf("import legacy ui settings: %w", err)
-			}
+			locale = CoerceUILocale(locale)
+			legacyImport.UILocale = &locale
 		}
 	}
 	if raw, ok := readLegacyFile(files.UpdateSettings); ok {
 		if prefs, ok := parseLegacyUpdateSettings(raw); ok {
-			if _, err := s.SetUpdateSettings(ctx, prefs); err != nil {
-				return fmt.Errorf("import legacy update settings: %w", err)
-			}
+			prefs = coerceUpdateSettings(prefs)
+			legacyImport.Updates = &prefs
 		}
 	}
 	if raw, ok := readLegacyFile(files.Keybindings); ok {
 		if overrides, ok := parseLegacyKeybindings(raw); ok {
-			if _, err := s.SetKeybindings(ctx, overrides); err != nil {
-				return fmt.Errorf("import legacy keybindings: %w", err)
-			}
+			overrides = CoerceKeybindingOverrides(overrides, macHost())
+			legacyImport.Keybindings = &overrides
 		}
 	}
 	if raw, ok := readLegacyFile(files.AppState); ok {
 		if state, ok := parseLegacyMigration(raw); ok {
-			if _, err := s.SetMigrationState(ctx, state); err != nil {
-				return fmt.Errorf("import legacy migration state: %w", err)
-			}
+			legacyImport.Migration = &state
 		}
 	}
 
-	return s.MarkLegacyDesktopImported(ctx, s.now())
+	if err := s.store.ApplyLegacyDesktopImport(ctx, legacyImport, s.now()); err != nil {
+		return fmt.Errorf("import legacy desktop settings: %w", err)
+	}
+	return nil
 }
 
 func readLegacyFile(path string) (json.RawMessage, bool) {

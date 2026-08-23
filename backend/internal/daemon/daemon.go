@@ -203,11 +203,10 @@ func Run() error {
 		log.Warn("legacy desktop settings import failed; will retry next boot", "err", err)
 	}
 
-	homeDir, homeErr := os.UserHomeDir()
-	if homeErr != nil {
-		log.Warn("resolve home dir; project scans lose the ~/.operator safety guard", "err", homeErr)
-	}
-	folderScanner := projectscan.New(projectscan.Options{HomeDir: homeDir})
+	folderScanner := projectscan.New(projectscan.Options{ProtectedRoots: []string{
+		filepath.Dir(cfg.RunFilePath),
+		cfg.DataDir,
+	}})
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails

@@ -26,6 +26,12 @@ import (
 // Store is the SQLite-backed persistence layer.
 type Store = sqlitestore.Store
 
+// LegacyDesktopSettingsImport contains the optional facets of one guarded legacy import.
+type LegacyDesktopSettingsImport = sqlitestore.LegacyDesktopSettingsImport
+
+// LegacyDesktopUpdateSettings contains one imported update-settings facet.
+type LegacyDesktopUpdateSettings = sqlitestore.LegacyDesktopUpdateSettings
+
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 

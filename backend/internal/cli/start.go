@@ -251,6 +251,18 @@ func windowsInstalledExe(localAppData string) string {
 	return filepath.Join(localAppData, "Programs", "Operator", "operator.exe")
 }
 
+func resolveWindowsInstalledExe(localAppData string, usable func(string) bool) string {
+	for _, path := range []string{
+		tauriWindowsInstalledExe(localAppData),
+		windowsInstalledExe(localAppData),
+	} {
+		if usable(path) {
+			return path
+		}
+	}
+	return ""
+}
+
 // linuxAppImagePath is the stable location `opr start` downloads the AppImage to
 // and scans for. Keeping it out of the cleared staging dir lets re-runs resolve
 // the existing download instead of re-fetching (spec §6.2/§6.3).
@@ -387,9 +399,9 @@ func (c *commandContext) fetchAppWindows(ctx context.Context, w io.Writer) (stri
 	if local == "" {
 		return "", fmt.Errorf("opr start: LOCALAPPDATA not set; cannot locate installed app")
 	}
-	appPath := windowsInstalledExe(local)
-	if !isUsableBundle(appPath) {
-		return "", fmt.Errorf("opr start: installed app not found at %s", appPath)
+	appPath := resolveWindowsInstalledExe(local, isUsableBundle)
+	if appPath == "" {
+		return "", fmt.Errorf("opr start: installed app not found at %s or %s", tauriWindowsInstalledExe(local), windowsInstalledExe(local))
 	}
 	return appPath, nil
 }

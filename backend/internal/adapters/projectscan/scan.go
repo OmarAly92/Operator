@@ -78,15 +78,16 @@ type Result struct {
 
 // Options tune the scanner. Zero values resolve to the desktop defaults.
 type Options struct {
-	GitBin  string
-	Timeout time.Duration
-	HomeDir string
+	GitBin         string
+	Timeout        time.Duration
+	ProtectedRoots []string
 }
 
 // Scanner runs bounded local folder scans.
 type Scanner struct {
-	opts   Options
-	runner gitRunner
+	runner         gitRunner
+	protectedRoots []string
+	protectionErr  error
 }
 
 type gitRunner interface {
@@ -101,7 +102,19 @@ func New(opts Options) *Scanner {
 	if opts.Timeout <= 0 {
 		opts.Timeout = defaultTimeout
 	}
-	return &Scanner{opts: opts, runner: execRunner{opts: opts}}
+	scanner := &Scanner{runner: execRunner{opts: opts}}
+	for _, root := range opts.ProtectedRoots {
+		if strings.TrimSpace(root) == "" {
+			continue
+		}
+		resolved, err := strictComparablePath(root)
+		if err != nil {
+			scanner.protectionErr = fmt.Errorf("resolve protected Operator state root %q: %w", root, err)
+			break
+		}
+		scanner.protectedRoots = append(scanner.protectedRoots, resolved)
+	}
+	return scanner
 }
 
 type execRunner struct{ opts Options }
@@ -133,34 +146,14 @@ func (s *Scanner) ScanFolder(ctx context.Context, rootPath string, mode Mode) (R
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	switch mode {
-	case ModeProject:
-		return s.scanProject(ctx, rootPath)
-	case ModeWorkspace:
-		return s.scanWorkspace(ctx, rootPath)
-	default:
+	if mode != ModeProject && mode != ModeWorkspace {
 		return Result{}, fmt.Errorf("unknown scan mode %q", mode)
 	}
-}
-
-// AncestorRepository returns the desktop's setup warning when repoPath sits
-// inside an enclosing Git repository, or "" when it does not. Any git failure
-// means "no ancestor", matching the desktop reader it replaces.
-func (s *Scanner) AncestorRepository(ctx context.Context, repoPath string) string {
-	top, err := s.gitOutput(ctx, repoPath, []string{"rev-parse", "--show-toplevel"})
+	reason, err := s.projectSafetyReason(rootPath)
 	if err != nil {
-		return ""
+		return Result{}, err
 	}
-	top = normalizeReportedPath(repoPath, top)
-	if top == "" || samePath(top, repoPath) {
-		return ""
-	}
-	return fmt.Sprintf("Selected folder is inside an existing Git repository at %s. "+
-		"Operator will initialize this folder as a separate repository.", top)
-}
-
-func (s *Scanner) scanProject(ctx context.Context, rootPath string) (Result, error) {
-	if reason := s.projectSafetyReason(rootPath); reason != "" {
+	if reason != "" {
 		return Result{
 			Path: rootPath,
 			Repos: []Repo{{
@@ -173,16 +166,52 @@ func (s *Scanner) scanProject(ctx context.Context, rootPath string) (Result, err
 			}},
 		}, nil
 	}
-	if repo := s.scanGitRepo(ctx, rootPath, rootPath); repo != nil {
+	if mode == ModeProject {
+		return s.scanProject(ctx, rootPath)
+	}
+	return s.scanWorkspace(ctx, rootPath)
+}
+
+// AncestorRepository returns the desktop's setup warning when repoPath sits
+// inside an enclosing Git repository, or "" when it does not. Caller
+// cancellation is returned; ordinary git failure means "no ancestor".
+func (s *Scanner) AncestorRepository(ctx context.Context, repoPath string) (string, error) {
+	top, err := s.gitOutput(ctx, repoPath, []string{"rev-parse", "--show-toplevel"})
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", ctxErr
+		}
+		return "", nil
+	}
+	top = normalizeReportedPath(repoPath, top)
+	if top == "" || samePath(top, repoPath) {
+		return "", nil
+	}
+	return fmt.Sprintf("Selected folder is inside an existing Git repository at %s. "+
+		"Operator will initialize this folder as a separate repository.", top), nil
+}
+
+func (s *Scanner) scanProject(ctx context.Context, rootPath string) (Result, error) {
+	repo, err := s.scanGitRepo(ctx, rootPath, rootPath)
+	if err != nil {
+		return Result{}, err
+	}
+	if repo != nil {
 		return Result{Path: rootPath, Repos: []Repo{*repo}}, nil
 	}
 	result := Result{Path: rootPath, Repos: []Repo{}}
-	result.SetupWarning = s.AncestorRepository(ctx, rootPath)
+	result.SetupWarning, err = s.AncestorRepository(ctx, rootPath)
+	if err != nil {
+		return Result{}, err
+	}
 	return result, nil
 }
 
 func (s *Scanner) scanWorkspace(ctx context.Context, rootPath string) (Result, error) {
-	warning := s.AncestorRepository(ctx, rootPath)
+	warning, err := s.AncestorRepository(ctx, rootPath)
+	if err != nil {
+		return Result{}, err
+	}
 
 	entries, err := os.ReadDir(rootPath)
 	if err != nil {
@@ -201,8 +230,9 @@ func (s *Scanner) scanWorkspace(ctx context.Context, rootPath string) (Result, e
 
 	scanned := make([]*Repo, len(candidates))
 	err = mapLimited(ctx, candidates, scanConcurrency, func(ctx context.Context, dir string, index int) error {
-		scanned[index] = s.scanGitRepo(ctx, dir, rootPath)
-		return nil
+		var err error
+		scanned[index], err = s.scanGitRepo(ctx, dir, rootPath)
+		return err
 	})
 	if err != nil {
 		return Result{}, err
@@ -219,7 +249,7 @@ func (s *Scanner) scanWorkspace(ctx context.Context, rootPath string) (Result, e
 	return Result{Path: rootPath, Repos: repos, SetupWarning: warning}, nil
 }
 
-func (s *Scanner) scanGitRepo(ctx context.Context, repoPath, rootPath string) *Repo {
+func (s *Scanner) scanGitRepo(ctx context.Context, repoPath, rootPath string) (*Repo, error) {
 	relativePath := "."
 	if repoPath != rootPath {
 		rel, err := filepath.Rel(rootPath, repoPath)
@@ -238,20 +268,27 @@ func (s *Scanner) scanGitRepo(ctx context.Context, repoPath, rootPath string) *R
 	gitInfo, statErr := os.Stat(filepath.Join(repoPath, ".git"))
 	if statErr != nil {
 		out, bareErr := s.gitOutput(ctx, repoPath, []string{"rev-parse", "--is-bare-repository"})
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		if bareErr == nil && out == "true" {
 			base.Status = StatusError
 			base.Reason = "Bare repositories cannot be imported."
-			return &base
+			return &base, nil
 		}
-		return nil
+		return nil, nil
 	}
 	if !gitInfo.IsDir() {
 		base.Status = StatusError
 		base.Reason = "Linked worktree children cannot be imported."
-		return &base
+		return &base, nil
 	}
-	if !s.isGitRepo(ctx, repoPath) {
-		return nil
+	isRepo, err := s.isGitRepo(ctx, repoPath)
+	if err != nil {
+		return nil, err
+	}
+	if !isRepo {
+		return nil, nil
 	}
 
 	var (
@@ -284,6 +321,9 @@ func (s *Scanner) scanGitRepo(ctx context.Context, repoPath, rootPath string) *R
 		hasHead = err == nil
 	}()
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	base.Branch = branch
 	base.Remote = remote
@@ -294,16 +334,15 @@ func (s *Scanner) scanGitRepo(ctx context.Context, repoPath, rootPath string) *R
 	} else {
 		base.Status = StatusOK
 	}
-	return &base
+	return &base, nil
 }
 
-func (s *Scanner) isGitRepo(ctx context.Context, repoPath string) bool {
-	info, err := os.Stat(filepath.Join(repoPath, ".git"))
-	if err != nil || !info.IsDir() {
-		return false
+func (s *Scanner) isGitRepo(ctx context.Context, repoPath string) (bool, error) {
+	_, gitErr := s.gitOutput(ctx, repoPath, []string{"rev-parse", "--show-toplevel"})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return false, ctxErr
 	}
-	_, err = s.gitOutput(ctx, repoPath, []string{"rev-parse", "--show-toplevel"})
-	return err == nil
+	return gitErr == nil, nil
 }
 
 func (s *Scanner) resolveDefaultBranch(ctx context.Context, repoPath string) string {
@@ -332,15 +371,48 @@ func validationReason(name, branch string, hasRemote, isBare, hasHead bool) stri
 	return ""
 }
 
-func (s *Scanner) projectSafetyReason(repoPath string) string {
-	home := strings.TrimSpace(s.opts.HomeDir)
-	if home == "" {
-		return ""
+func (s *Scanner) projectSafetyReason(repoPath string) (string, error) {
+	if s.protectionErr != nil {
+		return "", s.protectionErr
 	}
-	if isDescendantPath(repoPath, filepath.Join(home, ".operator")) {
-		return "Selected folder is inside Operator's internal data directory. Select a project folder outside ~/.operator."
+	if len(s.protectedRoots) == 0 {
+		return "", nil
 	}
-	return ""
+	resolved, err := strictComparablePath(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve project scan path %q safely: %w", repoPath, err)
+	}
+	for _, root := range s.protectedRoots {
+		if pathWithinRoot(resolved, root, string(os.PathSeparator)) {
+			return "Selected folder is inside Operator's internal data directory. Select a project folder outside ~/.operator.", nil
+		}
+	}
+	return "", nil
+}
+
+func pathWithinRoot(path, root, separator string) bool {
+	if path == root {
+		return true
+	}
+	if strings.HasSuffix(root, separator) {
+		return strings.HasPrefix(path, root)
+	}
+	return strings.HasPrefix(path, root+separator)
+}
+
+func strictComparablePath(value string) (string, error) {
+	resolved, err := filepath.Abs(value)
+	if err != nil {
+		return "", err
+	}
+	resolved, err = filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return "", err
+	}
+	if runtime.GOOS == "windows" {
+		resolved = strings.ToLower(resolved)
+	}
+	return resolved, nil
 }
 
 func normalizeReportedPath(cwd, value string) string {
@@ -369,12 +441,6 @@ func comparablePath(value string) string {
 
 func samePath(a, b string) bool {
 	return comparablePath(a) == comparablePath(b)
-}
-
-func isDescendantPath(child, parent string) bool {
-	childKey := comparablePath(child)
-	parentKey := comparablePath(parent)
-	return childKey == parentKey || strings.HasPrefix(childKey, parentKey+string(os.PathSeparator))
 }
 
 func mapLimited[T any](ctx context.Context, items []T, limit int, fn func(context.Context, T, int) error) error {
@@ -420,6 +486,6 @@ func mapLimited[T any](ctx context.Context, items []T, limit int, fn func(contex
 	case err := <-firstErr:
 		return err
 	default:
-		return nil
+		return ctx.Err()
 	}
 }

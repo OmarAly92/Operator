@@ -109,6 +109,51 @@ func (f *fakeStore) MarkLegacyDesktopImported(_ context.Context, importedAt time
 	return nil
 }
 
+func (f *fakeStore) ApplyLegacyDesktopImport(_ context.Context, values LegacyDesktopImport, importedAt time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	if f.rec.LegacyDesktopImportedAt != nil {
+		return nil
+	}
+	next := f.rec
+	if values.UILocale != nil {
+		next.UILocale = *values.UILocale
+	}
+	if values.Updates != nil {
+		next.UpdateOptIn = values.Updates.Enabled
+		next.UpdateChannel = string(values.Updates.Channel)
+		next.UpdateNightlyAck = values.Updates.NightlyAck
+		if values.Updates.Feature != nil {
+			pr := values.Updates.Feature.PR
+			next.UpdateFeaturePR = &pr
+		} else {
+			next.UpdateFeaturePR = nil
+		}
+	}
+	if values.Keybindings != nil {
+		raw, err := json.Marshal(values.Keybindings)
+		if err != nil {
+			return err
+		}
+		next.KeybindingsJSON = string(raw)
+	}
+	if values.Migration != nil {
+		raw, err := json.Marshal(values.Migration)
+		if err != nil {
+			return err
+		}
+		next.MigrationJSON = string(raw)
+	}
+	stamp := importedAt
+	next.LegacyDesktopImportedAt = &stamp
+	next.UpdatedAt = importedAt
+	f.rec = next
+	return nil
+}
+
 func newTestService(store *fakeStore) *Service {
 	return New(store, nil, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)

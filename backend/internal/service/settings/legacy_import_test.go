@@ -177,7 +177,7 @@ func TestImportLegacyDesktopSkipsStaleFilesAfterImport(t *testing.T) {
 
 type markFailingStore struct{ *fakeStore }
 
-func (f *markFailingStore) MarkLegacyDesktopImported(context.Context, time.Time) error {
+func (f *markFailingStore) ApplyLegacyDesktopImport(context.Context, LegacyDesktopImport, time.Time) error {
 	return errors.New("marker write failed")
 }
 
@@ -185,7 +185,7 @@ func TestImportLegacyDesktopMarkerFailureLeavesRetryWindowOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeLegacyFile(t, filepath.Join(dir, "ui-settings.json"), `{"locale":"ja"}`)
 
-	store := &markFailingStore{&fakeStore{}}
+	store := &markFailingStore{&fakeStore{rec: Record{UILocale: "fr"}}}
 	svc := New(store, nil, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	})
@@ -195,11 +195,14 @@ func TestImportLegacyDesktopMarkerFailureLeavesRetryWindowOpen(t *testing.T) {
 	if store.rec.LegacyDesktopImportedAt != nil {
 		t.Error("marker recorded despite the failed write")
 	}
+	if store.rec.UILocale != "fr" {
+		t.Errorf("locale = %q, want original value after rollback", store.rec.UILocale)
+	}
 }
 
 type facetFailingStore struct{ *fakeStore }
 
-func (f *facetFailingStore) SetUILocale(context.Context, string, time.Time) error {
+func (f *facetFailingStore) ApplyLegacyDesktopImport(context.Context, LegacyDesktopImport, time.Time) error {
 	return errors.New("locale write failed")
 }
 

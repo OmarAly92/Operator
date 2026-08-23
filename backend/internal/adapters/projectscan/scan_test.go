@@ -60,7 +60,11 @@ func makeImportableRepo(t *testing.T, path string) {
 }
 
 func newRealScanner(homeDir string) *Scanner {
-	return New(Options{HomeDir: homeDir})
+	var roots []string
+	if homeDir != "" {
+		roots = []string{filepath.Join(homeDir, ".operator")}
+	}
+	return New(Options{ProtectedRoots: roots})
 }
 
 func findRepo(repos []Repo, name string) (Repo, bool) {
@@ -202,11 +206,14 @@ func TestScanFolderProjectMode(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	warning := scanner.AncestorRepository(context.Background(), nested)
+	warning, err := scanner.AncestorRepository(context.Background(), nested)
+	if err != nil {
+		t.Fatalf("ancestor repository: %v", err)
+	}
 	if !strings.Contains(warning, repoA) {
 		t.Errorf("warning = %q, want it to mention %q", warning, repoA)
 	}
-	if warning := scanner.AncestorRepository(context.Background(), repoA); warning != "" {
+	if warning, err := scanner.AncestorRepository(context.Background(), repoA); err != nil || warning != "" {
 		t.Errorf("warning = %q, want none for the repository root itself", warning)
 	}
 }
@@ -220,7 +227,10 @@ func TestAncestorRepositoryWarnsWhenParentIsRepository(t *testing.T) {
 	}
 
 	scanner := newRealScanner("")
-	warning := scanner.AncestorRepository(context.Background(), inner)
+	warning, err := scanner.AncestorRepository(context.Background(), inner)
+	if err != nil {
+		t.Fatalf("ancestor repository: %v", err)
+	}
 	if warning == "" {
 		t.Fatal("warning = empty, want an ancestor-repository warning")
 	}
@@ -229,6 +239,81 @@ func TestAncestorRepositoryWarnsWhenParentIsRepository(t *testing.T) {
 	}
 	if !strings.Contains(warning, "Selected folder is inside an existing Git repository at ") {
 		t.Errorf("warning = %q, want the desktop wording", warning)
+	}
+}
+
+func TestScanFolderProtectsConfiguredRootsAndSymlinkAliases(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), "custom-operator-state")
+	inside := filepath.Join(stateRoot, "data", "repo")
+	makeImportableRepo(t, inside)
+	alias := filepath.Join(t.TempDir(), "state-alias")
+	if err := os.Symlink(stateRoot, alias); err != nil {
+		t.Fatal(err)
+	}
+
+	scanner := New(Options{ProtectedRoots: []string{stateRoot}})
+	for _, path := range []string{inside, filepath.Join(alias, "data", "repo")} {
+		for _, mode := range []Mode{ModeProject, ModeWorkspace} {
+			res, err := scanner.ScanFolder(context.Background(), path, mode)
+			if err != nil {
+				t.Fatalf("scan %s via %s: %v", mode, path, err)
+			}
+			if len(res.Repos) != 1 || res.Repos[0].Status != StatusError || !strings.Contains(res.Repos[0].Reason, "Operator's internal data directory") {
+				t.Fatalf("scan %s via %s = %+v, want safety rejection", mode, path, res)
+			}
+		}
+	}
+}
+
+func TestScanFolderProtectsPOSIXFilesystemRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX root semantics")
+	}
+	project := t.TempDir()
+	res, err := New(Options{ProtectedRoots: []string{string(os.PathSeparator)}}).ScanFolder(context.Background(), project, ModeProject)
+	if err != nil {
+		t.Fatalf("scan below filesystem root: %v", err)
+	}
+	if len(res.Repos) != 1 || res.Repos[0].Status != StatusError || !strings.Contains(res.Repos[0].Reason, "Operator's internal data directory") {
+		t.Fatalf("scan below filesystem root = %+v, want safety rejection", res)
+	}
+}
+
+func TestPathWithinRootHandlesVolumeRootsAndSiblingBoundaries(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		root      string
+		separator string
+		want      bool
+	}{
+		{name: "POSIX root", path: "/projects/operator", root: "/", separator: "/", want: true},
+		{name: "Windows volume root", path: `c:\projects\operator`, root: `c:\`, separator: `\`, want: true},
+		{name: "Windows other volume", path: `d:\projects\operator`, root: `c:\`, separator: `\`, want: false},
+		{name: "POSIX sibling", path: "/state-other/project", root: "/state", separator: "/", want: false},
+		{name: "Windows sibling", path: `c:\state-other\project`, root: `c:\state`, separator: `\`, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pathWithinRoot(tt.path, tt.root, tt.separator); got != tt.want {
+				t.Fatalf("pathWithinRoot(%q, %q, %q) = %v, want %v", tt.path, tt.root, tt.separator, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScanFolderFailsClosedWhenProtectedRootCannotBeResolved(t *testing.T) {
+	root := t.TempDir()
+	broken := filepath.Join(root, "broken-state-link")
+	if err := os.Symlink(filepath.Join(root, "missing-state"), broken); err != nil {
+		t.Fatal(err)
+	}
+	project := filepath.Join(root, "project")
+	makeImportableRepo(t, project)
+
+	_, err := New(Options{ProtectedRoots: []string{broken}}).ScanFolder(context.Background(), project, ModeProject)
+	if err == nil {
+		t.Fatal("scan error = nil, want unresolved protection root to fail closed")
 	}
 }
 
@@ -292,6 +377,62 @@ func TestScanFolderCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := newRealScanner("").ScanFolder(ctx, root, ModeWorkspace); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+type cancelGit struct {
+	once    sync.Once
+	started chan struct{}
+}
+
+func (f *cancelGit) gitOutput(ctx context.Context, _ string, _ []string) (string, error) {
+	f.once.Do(func() { close(f.started) })
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestScanFolderPropagatesCancellationDuringGitInEveryMode(t *testing.T) {
+	for _, mode := range []Mode{ModeProject, ModeWorkspace} {
+		t.Run(string(mode), func(t *testing.T) {
+			root := t.TempDir()
+			if mode == ModeProject {
+				if err := os.Mkdir(filepath.Join(root, ".git"), 0o750); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runner := &cancelGit{started: make(chan struct{})}
+			scanner := New(Options{})
+			scanner.runner = runner
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan error, 1)
+			go func() {
+				_, err := scanner.ScanFolder(ctx, root, mode)
+				done <- err
+			}()
+			<-runner.started
+			cancel()
+			if err := <-done; !errors.Is(err, context.Canceled) {
+				t.Fatalf("err = %v, want context.Canceled", err)
+			}
+		})
+	}
+}
+
+func TestAncestorRepositoryPropagatesCancellation(t *testing.T) {
+	runner := &cancelGit{started: make(chan struct{})}
+	scanner := New(Options{})
+	scanner.runner = runner
+	repoPath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := scanner.AncestorRepository(ctx, repoPath)
+		done <- err
+	}()
+	<-runner.started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }

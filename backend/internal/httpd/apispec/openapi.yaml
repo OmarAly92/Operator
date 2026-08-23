@@ -4394,7 +4394,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SettingsMigrationState'
+              $ref: '#/components/schemas/MigrationState'
         required: true
       responses:
         "200":
@@ -6451,10 +6451,12 @@ components:
     MigrationState:
       properties:
         completedAt:
+          format: date-time
           type: string
         error:
           type: string
         lastAttemptAt:
+          format: date-time
           type: string
         report:
           $ref: '#/components/schemas/MigrationReport'
@@ -7714,34 +7716,6 @@ components:
           - cline
           - autohand
           type: string
-      type: object
-    SettingsMigrationState:
-      properties:
-        completedAt:
-          format: date-time
-          type:
-          - "null"
-          - string
-        error:
-          type:
-          - "null"
-          - string
-        lastAttemptAt:
-          format: date-time
-          type:
-          - "null"
-          - string
-        report:
-          $ref: '#/components/schemas/MigrationReport'
-        status:
-          enum:
-          - pending
-          - completed
-          - declined
-          - failed
-          type: string
-      required:
-      - status
       type: object
     SettingsResponse:
       properties:

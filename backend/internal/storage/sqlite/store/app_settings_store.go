@@ -35,6 +35,22 @@ type AppSettings struct {
 	LegacyDesktopImportedAt *time.Time
 }
 
+// LegacyDesktopSettingsImport contains the optional facets of one guarded legacy import.
+type LegacyDesktopSettingsImport struct {
+	UILocale        *string
+	Updates         *LegacyDesktopUpdateSettings
+	KeybindingsJSON *string
+	MigrationJSON   *string
+}
+
+// LegacyDesktopUpdateSettings contains one imported update-settings facet.
+type LegacyDesktopUpdateSettings struct {
+	OptIn      bool
+	Channel    string
+	NightlyAck bool
+	FeaturePR  *int64
+}
+
 // GetAppSettings reads the preference row.
 func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 	row, err := s.qr.GetAppSettings(ctx)
@@ -147,6 +163,58 @@ func (s *Store) MarkAppLegacyDesktopImported(ctx context.Context, importedAt tim
 		UpdatedAt:               importedAt,
 	}); err != nil {
 		return fmt.Errorf("mark legacy desktop imported: %w", err)
+	}
+	return nil
+}
+
+// ImportLegacyDesktopSettings applies all present facets and the write-once marker atomically.
+func (s *Store) ImportLegacyDesktopSettings(ctx context.Context, legacyImport LegacyDesktopSettingsImport, importedAt time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return s.inTx(ctx, "import legacy desktop settings", func(q *gen.Queries) error {
+		claimed, err := q.ClaimAppLegacyDesktopImport(ctx, gen.ClaimAppLegacyDesktopImportParams{
+			LegacyDesktopImportedAt: sql.NullTime{Time: importedAt, Valid: true},
+			UpdatedAt:               importedAt,
+		})
+		if err != nil {
+			return fmt.Errorf("claim legacy desktop import: %w", err)
+		}
+		if claimed == 0 {
+			return nil
+		}
+		return applyLegacyDesktopSettings(ctx, q, legacyImport, importedAt)
+	})
+}
+
+func applyLegacyDesktopSettings(ctx context.Context, q *gen.Queries, legacyImport LegacyDesktopSettingsImport, importedAt time.Time) error {
+	if legacyImport.UILocale != nil {
+		if err := q.SetAppUILocale(ctx, gen.SetAppUILocaleParams{UiLocale: *legacyImport.UILocale, UpdatedAt: importedAt}); err != nil {
+			return fmt.Errorf("set ui locale: %w", err)
+		}
+	}
+	if legacyImport.Updates != nil {
+		updateParams := gen.SetAppUpdateSettingsParams{
+			UpdateOptIn:      legacyImport.Updates.OptIn,
+			UpdateChannel:    legacyImport.Updates.Channel,
+			UpdateNightlyAck: legacyImport.Updates.NightlyAck,
+			UpdatedAt:        importedAt,
+		}
+		if legacyImport.Updates.FeaturePR != nil {
+			updateParams.UpdateFeaturePR = sql.NullInt64{Int64: *legacyImport.Updates.FeaturePR, Valid: true}
+		}
+		if err := q.SetAppUpdateSettings(ctx, updateParams); err != nil {
+			return fmt.Errorf("set update settings: %w", err)
+		}
+	}
+	if legacyImport.KeybindingsJSON != nil {
+		if err := q.SetAppKeybindings(ctx, gen.SetAppKeybindingsParams{KeybindingsJson: *legacyImport.KeybindingsJSON, UpdatedAt: importedAt}); err != nil {
+			return fmt.Errorf("set keybindings: %w", err)
+		}
+	}
+	if legacyImport.MigrationJSON != nil {
+		if err := q.SetAppMigrationState(ctx, gen.SetAppMigrationStateParams{MigrationJson: *legacyImport.MigrationJSON, UpdatedAt: importedAt}); err != nil {
+			return fmt.Errorf("set migration state: %w", err)
+		}
 	}
 	return nil
 }

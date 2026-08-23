@@ -13,6 +13,24 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const claimAppLegacyDesktopImport = `-- name: ClaimAppLegacyDesktopImport :execrows
+UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
+WHERE id = 1 AND legacy_desktop_imported_at IS NULL
+`
+
+type ClaimAppLegacyDesktopImportParams struct {
+	LegacyDesktopImportedAt sql.NullTime
+	UpdatedAt               time.Time
+}
+
+func (q *Queries) ClaimAppLegacyDesktopImport(ctx context.Context, arg ClaimAppLegacyDesktopImportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimAppLegacyDesktopImport, arg.LegacyDesktopImportedAt, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getAppSettings = `-- name: GetAppSettings :one
 
 SELECT id, default_session_mode, updated_at, ui_locale, update_opt_in, update_channel, update_nightly_ack, update_feature_pr, keybindings_json, migration_json, legacy_desktop_imported_at FROM app_settings WHERE id = 1

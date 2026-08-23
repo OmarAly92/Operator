@@ -1,15 +1,188 @@
 package telemetry
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
+
+func TestLoadOrCreateInstallIDHelperProcess(t *testing.T) {
+	if os.Getenv("OPERATOR_INSTALL_ID_HELPER") != "1" {
+		return
+	}
+	readyPath := os.Getenv("OPERATOR_INSTALL_ID_READY")
+	startPath := os.Getenv("OPERATOR_INSTALL_ID_START")
+	if err := os.WriteFile(readyPath, []byte("ready"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(startPath); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for install-ID start barrier")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	id, err := LoadOrCreateInstallID(os.Getenv("OPERATOR_INSTALL_ID_DATA_DIR"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("INSTALL_ID=%s\n", id)
+}
+
+func TestLoadOrCreateInstallIDIsConsistentAcrossProcesses(t *testing.T) {
+	dataDir := t.TempDir()
+	syncDir := t.TempDir()
+	startPath := filepath.Join(syncDir, "start")
+	const processCount = 8
+	type process struct {
+		cmd    *exec.Cmd
+		output bytes.Buffer
+		ready  string
+	}
+	processes := make([]process, processCount)
+	for i := range processes {
+		processes[i].ready = filepath.Join(syncDir, fmt.Sprintf("ready-%d", i))
+		processes[i].cmd = exec.Command(os.Args[0], "-test.run=^TestLoadOrCreateInstallIDHelperProcess$")
+		processes[i].cmd.Env = append(os.Environ(),
+			"OPERATOR_INSTALL_ID_HELPER=1",
+			"OPERATOR_INSTALL_ID_DATA_DIR="+dataDir,
+			"OPERATOR_INSTALL_ID_READY="+processes[i].ready,
+			"OPERATOR_INSTALL_ID_START="+startPath,
+		)
+		processes[i].cmd.Stdout = &processes[i].output
+		processes[i].cmd.Stderr = &processes[i].output
+		if err := processes[i].cmd.Start(); err != nil {
+			t.Fatalf("start helper %d: %v", i, err)
+		}
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		ready := 0
+		for i := range processes {
+			if _, err := os.Stat(processes[i].ready); err == nil {
+				ready++
+			}
+		}
+		if ready == processCount {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d/%d install-ID helpers reached the barrier", ready, processCount)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := os.WriteFile(startPath, []byte("start"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var want string
+	for i := range processes {
+		if err := processes[i].cmd.Wait(); err != nil {
+			t.Fatalf("helper %d: %v\n%s", i, err, processes[i].output.String())
+		}
+		const marker = "INSTALL_ID="
+		output := processes[i].output.String()
+		start := strings.Index(output, marker)
+		if start < 0 {
+			t.Fatalf("helper %d output missing install ID: %q", i, output)
+		}
+		id := strings.TrimSpace(strings.SplitN(output[start+len(marker):], "\n", 2)[0])
+		if want == "" {
+			want = id
+		}
+		if id != want {
+			t.Fatalf("cross-process install IDs diverged: %q and %q", want, id)
+		}
+	}
+	assertInstallIDFile(t, dataDir, want)
+}
+
+func TestLoadOrCreateInstallIDIsConsistentAcrossConcurrentCallers(t *testing.T) {
+	dataDir := t.TempDir()
+	start := make(chan struct{})
+	results := make(chan string, 128)
+	errs := make(chan error, 128)
+	var wg sync.WaitGroup
+	for i := 0; i < cap(results); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			id, err := LoadOrCreateInstallID(dataDir)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- id
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errs)
+	for err := range errs {
+		t.Fatalf("load or create install id: %v", err)
+	}
+	var want string
+	for id := range results {
+		if want == "" {
+			want = id
+		}
+		if id != want {
+			t.Fatalf("concurrent install IDs diverged: %q and %q", want, id)
+		}
+	}
+	assertInstallIDFile(t, dataDir, want)
+}
+
+func assertInstallIDFile(t *testing.T, dataDir, want string) {
+	t.Helper()
+	path := filepath.Join(dataDir, "telemetry_install_id")
+	encodedID, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read final install ID: %v", err)
+	}
+	if got := strings.TrimSpace(string(encodedID)); got != want {
+		t.Fatalf("final install ID = %q, want winning ID %q", got, want)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat final install ID: %v", err)
+	}
+	if permissions := info.Mode().Perm(); permissions&^os.FileMode(0o600) != 0 {
+		t.Fatalf("final install ID permissions = %04o, want no broader than 0600", permissions)
+	}
+}
+
+func TestLoadOrCreateInstallIDRejectsEmptyIdentityFile(t *testing.T) {
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "telemetry_install_id"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreateInstallID(dataDir); err == nil {
+		t.Fatal("empty install identity error = nil")
+	}
+}
 
 func TestPostHogSinkCapturesEvent(t *testing.T) {
 	requests := make(chan map[string]any, 1)

@@ -32,6 +32,14 @@ type Record struct {
 	LegacyDesktopImportedAt *time.Time
 }
 
+// LegacyDesktopImport contains the normalized optional facets of one legacy import pass.
+type LegacyDesktopImport struct {
+	UILocale    *string
+	Updates     *UpdateSettings
+	Keybindings *KeybindingOverrides
+	Migration   *MigrationState
+}
+
 // Store is the durable preference surface.
 type Store interface {
 	GetAppSettings(ctx context.Context) (Record, error)
@@ -41,6 +49,7 @@ type Store interface {
 	SetKeybindings(ctx context.Context, overrides KeybindingOverrides, now time.Time) error
 	SetMigrationState(ctx context.Context, state MigrationState, now time.Time) error
 	MarkLegacyDesktopImported(ctx context.Context, importedAt time.Time) error
+	ApplyLegacyDesktopImport(ctx context.Context, legacyImport LegacyDesktopImport, importedAt time.Time) error
 }
 
 // Snapshot is the current preference set.

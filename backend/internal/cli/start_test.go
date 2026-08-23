@@ -221,6 +221,39 @@ func TestTauriWindowsInstalledExe(t *testing.T) {
 	}
 }
 
+func TestResolveWindowsInstalledExePrefersTauriThenFallsBackToLegacy(t *testing.T) {
+	local := "C:\\Users\\me\\AppData\\Local"
+	tauri := tauriWindowsInstalledExe(local)
+	legacy := windowsInstalledExe(local)
+
+	var checked []string
+	got := resolveWindowsInstalledExe(local, func(path string) bool {
+		checked = append(checked, path)
+		return true
+	})
+	if got != tauri || !reflect.DeepEqual(checked, []string{tauri}) {
+		t.Fatalf("both installed: got %q checked %v, want Tauri first", got, checked)
+	}
+
+	checked = nil
+	got = resolveWindowsInstalledExe(local, func(path string) bool {
+		checked = append(checked, path)
+		return path == legacy
+	})
+	if got != legacy || !reflect.DeepEqual(checked, []string{tauri, legacy}) {
+		t.Fatalf("legacy fallback: got %q checked %v, want Tauri then legacy", got, checked)
+	}
+
+	checked = nil
+	got = resolveWindowsInstalledExe(local, func(path string) bool {
+		checked = append(checked, path)
+		return false
+	})
+	if got != "" || !reflect.DeepEqual(checked, []string{tauri, legacy}) {
+		t.Fatalf("neither installed: got %q checked %v, want both checked then empty", got, checked)
+	}
+}
+
 // TestLinuxDebRpmExe locks the Tauri deb/rpm install path and executable name.
 func TestLinuxDebRpmExe(t *testing.T) {
 	if got := linuxDebRpmExe(); got != "/usr/bin/operator" {

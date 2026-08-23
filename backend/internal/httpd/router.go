@@ -39,7 +39,13 @@ type ControlDeps struct {
 //	RealIP         → normalise client IP (loopback proxy from the dev server)
 //	requestLogger  → slog-backed access log + 5xx telemetry, carries the request id
 //	recoverer      → turn a handler panic into 500 instead of crashing the daemon
-//	cors           → CORS allowlist for the Electron renderer / dev origins
+//	previewOrigin  → serve per-session workspace previews from their
+//	                 opr-preview.<session>.localhost origin; these origins are
+//	                 per-session and cannot be enumerated in the CORS allowlist,
+//	                 and preview responses carry no Access-Control-Allow-Origin,
+//	                 so cross-origin reads stay browser-blocked
+//	cors           → CORS allowlist for the Electron renderer / dev origins;
+//	                 rejects every other Origin-bearing request before handlers
 //
 // The per-request timeout is deliberately not global: it wraps only bounded
 // REST routes, never long-lived terminal streams or health probes.
@@ -52,8 +58,8 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	r.Use(middleware.RealIP)
 	r.Use(requestLogger(log, deps.Telemetry))
 	r.Use(recoverTelemetry(log, deps.Telemetry))
-	r.Use(corsMiddleware(cfg.AllowedOrigins))
 	r.Use(previewOriginMiddleware(api.sessions))
+	r.Use(corsMiddleware(cfg.AllowedOrigins))
 
 	// JSON envelopes for unmatched routes / methods — chi's defaults are
 	// text/plain, which would break consumers that parse every response as

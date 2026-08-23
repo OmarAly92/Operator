@@ -20,6 +20,7 @@ type fakeDevScan struct {
 	scanResult   projectscan.Result
 	scanErr      error
 	warning      string
+	ancestorErr  error
 	gotScanPath  string
 	gotScanMode  projectscan.Mode
 	gotAncesPath string
@@ -31,9 +32,9 @@ func (f *fakeDevScan) ScanFolder(_ context.Context, rootPath string, mode projec
 	return f.scanResult, f.scanErr
 }
 
-func (f *fakeDevScan) AncestorRepository(_ context.Context, rootPath string) string {
+func (f *fakeDevScan) AncestorRepository(_ context.Context, rootPath string) (string, error) {
 	f.gotAncesPath = rootPath
-	return f.warning
+	return f.warning, f.ancestorErr
 }
 
 func newDevDesktopServer(t *testing.T, svc controllers.DevScanService) *httptest.Server {
@@ -150,6 +151,15 @@ func TestDevAncestorRepositoryWithoutWarningOmitsField(t *testing.T) {
 	}
 	if strings.Contains(string(body), `"setupWarning"`) {
 		t.Fatalf("body = %s, want setupWarning omitted", body)
+	}
+}
+
+func TestDevAncestorRepositoryPropagatesScannerError(t *testing.T) {
+	srv := newDevDesktopServer(t, &fakeDevScan{ancestorErr: context.Canceled})
+
+	_, status, _ := doRequest(t, srv, "POST", "/api/v1/dev/ancestor-repository", `{"path":"/plain"}`)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
 	}
 }
 

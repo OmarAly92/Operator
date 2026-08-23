@@ -2,11 +2,17 @@ package store_test
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
+	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
+	sqlitestore "github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
 )
 
 func TestAppSettingsMigrationSeedsDesktopDefaults(t *testing.T) {
@@ -219,4 +225,139 @@ func TestMarkAppLegacyDesktopImportedIsWriteOnce(t *testing.T) {
 	if row.LegacyDesktopImportedAt == nil || !row.LegacyDesktopImportedAt.Equal(first) {
 		t.Errorf("marker = %v, want the first stamp %v kept forever", row.LegacyDesktopImportedAt, first)
 	}
+}
+
+func TestImportLegacyDesktopSettingsRollsBackEveryWriteBoundary(t *testing.T) {
+	tests := []struct {
+		name   string
+		column string
+	}{
+		{name: "marker", column: "legacy_desktop_imported_at"},
+		{name: "locale", column: "ui_locale"},
+		{name: "updates", column: "update_opt_in"},
+		{name: "keybindings", column: "keybindings_json"},
+		{name: "migration", column: "migration_json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			s := sqlitetest.MustOpenAt(t, dataDir)
+			before, err := s.GetAppSettings(context.Background())
+			if err != nil {
+				t.Fatalf("read initial app settings: %v", err)
+			}
+			db, err := sql.Open("sqlite", "file:"+filepath.Join(dataDir, "opr.db"))
+			if err != nil {
+				t.Fatalf("open trigger connection: %v", err)
+			}
+			t.Cleanup(func() { _ = db.Close() })
+			if _, err := db.Exec(`CREATE TRIGGER fail_import_write
+BEFORE UPDATE OF ` + tt.column + ` ON app_settings
+BEGIN
+  SELECT RAISE(ABORT, 'injected import failure');
+END`); err != nil {
+				t.Fatalf("create failure trigger: %v", err)
+			}
+
+			locale := "ja"
+			featurePR := int64(42)
+			keybindings := `{"new-session":[{"key":"n","ctrl":true}]}`
+			migration := `{"status":"completed"}`
+			now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+			err = s.ImportLegacyDesktopSettings(context.Background(), sqlitestore.LegacyDesktopSettingsImport{
+				UILocale: &locale,
+				Updates: &sqlitestore.LegacyDesktopUpdateSettings{
+					OptIn:      true,
+					Channel:    "nightly",
+					NightlyAck: true,
+					FeaturePR:  &featurePR,
+				},
+				KeybindingsJSON: &keybindings,
+				MigrationJSON:   &migration,
+			}, now)
+			if err == nil {
+				t.Fatal("import error = nil, want injected failure")
+			}
+
+			row, err := s.GetAppSettings(context.Background())
+			if err != nil {
+				t.Fatalf("read app settings: %v", err)
+			}
+			if !reflect.DeepEqual(row, before) {
+				t.Fatalf("partially committed import after %s failure: before=%+v after=%+v", tt.name, before, row)
+			}
+		})
+	}
+}
+
+func TestImportLegacyDesktopSettingsConcurrentStoresCommitOneCompleteImport(t *testing.T) {
+	dataDir := t.TempDir()
+	firstStore := sqlitetest.MustOpenAt(t, dataDir)
+	secondStore, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open second store: %v", err)
+	}
+	t.Cleanup(func() { _ = secondStore.Close() })
+
+	firstLocale, secondLocale := "ja", "fr"
+	firstKeys, secondKeys := `{"new-session":[]}`, `{"toggle-sidebar":[]}`
+	firstMigration, secondMigration := `{"status":"completed"}`, `{"status":"declined"}`
+	firstAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	secondAt := firstAt.Add(time.Second)
+	imports := []struct {
+		store     *sqlite.Store
+		locale    *string
+		keys      *string
+		migration *string
+		at        time.Time
+	}{
+		{store: firstStore, locale: &firstLocale, keys: &firstKeys, migration: &firstMigration, at: firstAt},
+		{store: secondStore, locale: &secondLocale, keys: &secondKeys, migration: &secondMigration, at: secondAt},
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, len(imports))
+	var wg sync.WaitGroup
+	for _, candidate := range imports {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- candidate.store.ImportLegacyDesktopSettings(context.Background(), sqlitestore.LegacyDesktopSettingsImport{
+				UILocale:        candidate.locale,
+				KeybindingsJSON: candidate.keys,
+				MigrationJSON:   candidate.migration,
+			}, candidate.at)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent import: %v", err)
+		}
+	}
+
+	row, err := firstStore.GetAppSettings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.LegacyDesktopImportedAt == nil {
+		t.Fatal("legacy import marker is nil")
+	}
+	if row.LegacyDesktopImportedAt.Equal(firstAt) {
+		if row.UILocale != firstLocale || row.KeybindingsJSON != firstKeys || row.MigrationJSON != firstMigration {
+			t.Fatalf("first import was mixed with second: %+v", row)
+		}
+		return
+	}
+	if row.LegacyDesktopImportedAt.Equal(secondAt) {
+		if row.UILocale != secondLocale || row.KeybindingsJSON != secondKeys || row.MigrationJSON != secondMigration {
+			t.Fatalf("second import was mixed with first: %+v", row)
+		}
+		return
+	}
+	t.Fatalf("unexpected import marker: %v", row.LegacyDesktopImportedAt)
 }
