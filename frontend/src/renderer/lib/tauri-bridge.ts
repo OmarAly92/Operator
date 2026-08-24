@@ -246,7 +246,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		},
 		notifications: {
 			show: async (notification: { id: string; title: string; body?: string; type?: string }) => {
-				await invoke("notification_show", notification);
+				await invoke("notification_show", { notification });
 			},
 			setBadge: async (count: number) => {
 				await invoke("notification_badge", { count });
@@ -258,7 +258,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		},
 		tray: {
 			setAttentionState: (state: TrayAttentionState) => {
-				void invoke("tray_attention_state", state);
+				void invoke("tray_attention_state", { attention: state });
 			},
 			onOpenSession: (listener: (target: TrayOpenSessionTarget) => void) => {
 				void Promise.resolve(invoke("tray_renderer_ready")).catch(() => undefined);

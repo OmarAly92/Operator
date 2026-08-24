@@ -1,0 +1,15 @@
+{
+	// Typechecks the native Tauri E2E suite (e2e-tauri/), which the main tsconfig
+	// does not include. WebdriverIO transpiles specs without typechecking, so
+	// without this project nothing would ever verify the suite's types. Node and
+	// mocha typings resolve from the hoisted @types packages that the pinned
+	// @wdio toolchain pulls in; browser/$ are declared locally in
+	// e2e-tauri/wdio-globals.d.ts because the embedded-provider suite only uses
+	// that slice of the WebDriver surface. Wired into CI via
+	// `npm run typecheck:e2e-tauri`.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": ["node", "mocha"]
+	},
+	"include": ["e2e-tauri/**/*.ts", "package.json"]
+}

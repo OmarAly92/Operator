@@ -16,6 +16,7 @@ import { OrchestratorReplacementDialog } from "../components/OrchestratorReplace
 import { Sidebar } from "../components/Sidebar";
 import { SidebarProvider } from "../components/ui/sidebar";
 import { TitlebarNav } from "../components/TitlebarNav";
+import { UpdateOptInPrompt } from "../components/UpdateOptInPrompt";
 import { WindowTitlebar } from "../components/WindowTitlebar";
 import { TerminalCacheProvider } from "../components/TerminalPane";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
@@ -656,6 +657,10 @@ function ShellLayout() {
 	return (
 		<ShellProvider value={{ daemonStatus, workspaceStartupState, createProject, initializeProjectRepository }}>
 			<SessionTopbarProvider>
+				{/* The first-run update opt-in lives at the shell level so the board's
+				    scratch-project redirect cannot unmount it mid-ask. It waits for a
+				    ready daemon because the answer is read from shared settings. */}
+				{daemonStatus.state === "ready" && <UpdateOptInPrompt />}
 				<NotificationRuntime />
 				<TrayRuntime />
 				<GlobalNewTaskDialog />

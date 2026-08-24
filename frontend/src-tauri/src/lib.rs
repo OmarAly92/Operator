@@ -974,6 +974,18 @@ void (async () => {
             terminal_benchmark_runtime_identity
         ]);
     } else {
+        // The WebdriverIO plugins exist ONLY in e2e-feature builds: tauri-plugin-wdio-webdriver
+        // opens an in-process WebDriver HTTP server (TAURI_WEBDRIVER_PORT, default 4445) and
+        // tauri-plugin-wdio exposes execute/log commands to the page. Normal dev and
+        // production builds compile without the `e2e` feature, so neither plugin, its ACL,
+        // nor the driver port exists there — scripts/e2e-tauri-build-contract.mjs holds
+        // that line.
+        #[cfg(feature = "e2e")]
+        {
+            builder = builder
+                .plugin(tauri_plugin_wdio::init())
+                .plugin(tauri_plugin_wdio_webdriver::init());
+        }
         builder = builder.invoke_handler(tauri::generate_handler![
             daemon_status,
             daemon_start,

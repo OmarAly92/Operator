@@ -239,7 +239,7 @@ describe("tauri-bridge native integrations", () => {
 
 		expect(() => tauri.tray.setAttentionState(state)).not.toThrow();
 		await vi.waitFor(() =>
-			expect(invoke).toHaveBeenCalledWith("tray_attention_state", state),
+			expect(invoke).toHaveBeenCalledWith("tray_attention_state", { attention: state }),
 		);
 	});
 
@@ -279,10 +279,12 @@ describe("tauri-bridge native integrations", () => {
 
 		await tauri.notifications.show({ id: "n1", title: "Needs input", body: "hi", type: "needs_input" });
 		expect(invoke).toHaveBeenCalledWith("notification_show", {
-			id: "n1",
-			title: "Needs input",
-			body: "hi",
-			type: "needs_input",
+			notification: {
+				id: "n1",
+				title: "Needs input",
+				body: "hi",
+				type: "needs_input",
+			},
 		});
 
 		await tauri.notifications.setBadge(3);
