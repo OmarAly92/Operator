@@ -289,3 +289,26 @@ Task 14: fix round 1 DONE — is_allowed_app_external_url (http/https/mailto, WH
 Task 14 round-1 scoped re-review verdict: CLEAN. Line-by-line allowlist parity vs Electron confirmed via node WHATWG cross-probe (literal-CRLF and backslash-authority cases stricter than Electron — safe direction); bridge pin revert-sensitive; symlink tests proven load-bearing by gate-removal thought experiment. New informational Low parked below.
 Task 14: minor (deferred): http_s_authority accepts malformed hosts (spaces, forbidden chars) that WHATWG rejects — same-scheme string handed to OS/browser; unexploitable mirror-divergence
 Task 14: complete pending domain commit (review chain: split security/fidelity halves after gateway instability + fix round 1 + scoped re-review CLEAN; RELEASE-GATING DEFERRAL outstanding: notifications:click real OS delivery needs UNUserNotificationCenter/WinRT follow-up before any release ships)
+Task 14: complete (commit 782dfa909 "feat(tauri): port desktop native integrations"; completion recorded in ledger commit 9271ff7b0)
+
+## Session 2026-08-24 — Tasks 15–22 continuation
+
+Resumed from HANDOFF-TASKS-15-22.md at HEAD 9271ff7b0, tree clean. Preflight scan rows for Tasks 15–22 already recorded above; no new contradictions found against current HEAD.
+Task 15: dispatched (base 9271ff7b0e364ad87879bbe0f64ca2adcf6c4fe3, fresh opus implementer, UNCOMMITTED contract, brief task-15-brief.md regenerated from plan)
+Task 15: implementer DONE_WITH_CONCERNS (adapters/agentbrowser install/policy/runtime + process_alive_{unix,windows}, service/browser/runtime.go contract, 5 tracked files modified; RED→GREEN adapter 48/48, Browser suite 30, build/vet/gofmt/-race/full go suite green, real-binary fixture PASS on agent-browser 0.33.1). Concerns to reviewer: load-sensitive rerun protocol applied (17 captured reruns green), in-process-only install serialization, Windows paths uncompiled locally (standing caveat), stream-disable non-port + no Electron-field synthesis disclosed, panel-only actions 503 with public names preserved, extra process_alive files beyond brief list.
+Task 15: review package review-task15.diff (4249 lines incl. untracked contents); opus reviewer dispatched for SPEC + quality verdicts.
+Task 15 review verdict: SPEC ❌ / QUALITY NOT APPROVED — 0 Critical, 1 Important, 6 Minor. Strengths noted: clean contract seam, real-process tests, careful containment, live-binary fixture validation.
+Task 15 Important #1: stateRoot() = filepath.Dir(DataDir) (runtime.go:820-821) escapes Operator-owned roots under OPERATOR_DATA_DIR override — override replaces DataDir wholesale (config.go resolveDataDir), so OPERATOR_DATA_DIR=/tmp/op puts browser-engine/browser-runtime at /tmp/*, outside any Operator root; repo's own e2e harness sets this override (internal/cli/e2e_test.go:92). Fix: explicit state root threaded through Options resolved from canonical ~/.operator logic or supplied by config.
+Task 15: minor (deferred): timing-bounded assertions tighter than legal worst case (runtime_test.go:538 <3s, :812 <5s vs awaitExit up to 5s post-kill) — widen to ~8s
+Task 15: minor (deferred): explanatory comments on unexported symbols (install.go locateManagedExecutable, policy.go inheritAllowedEnv/flattenEnv, runtime.go sessionCall/prepareSessionCommand + Options field comments, daemon.go browserTeardown/resolveAgentBrowserBinary, test helpers)
+Task 15: minor (deferred): screenshot size check after full read instead of Stat-first (runtime.go:266)
+Task 15: minor (deferred): Engine.Resolve waiters ignore ctx cancellation (install.go waiter branch, bounded ≤660s)
+Task 15: minor (deferred): resolveAgentBrowserBinary third candidate reaches ../../frontend/agent-browser source-tree path (daemon.go:559 area; Task 18 packaging should own)
+Task 15: minor (deferred): policy_test.go hand-rolls contains/indexOf while importing strings
+Task 15: fix round 1/5 dispatched to same implementer (Important #1 state-root containment only; minors parked)
+Task 15: fix round 1 DONE — Options.StateRoot threaded (explicit → canonical ~/.operator → fail-closed), config.StateRoot() exported wrapper, daemon passes it with warn-and-disable on failure, fixture tests moved to explicit StateRoot; RED captured then GREEN (adapter/service/daemon/config suites + -race + gofmt clean). Scoped re-review dispatched (sonnet, review-task15-fixscope.diff).
+Task 15: fix round 1/5 (1 addressed, 0 open — state-root containment ADDRESSED with file:line evidence; no new Critical/Important breakage)
+Task 15: minor (deferred): test sites bind newTestAdapter's 4th return value to stale name dataDir (runtime_test.go:163,~510,735,759) — assertions correct
+Task 15: minor (deferred): Options.DataDir dead in production code post-fix (set only by tests)
+Task 15: complete pending domain commit (review chain: full opus review SPEC❌/QUALITY❌ on 1 Important → fix round 1 → scoped re-review ALL ADDRESSED — CLEAN; ⚠️ items resolved by controller: TDD ordering evidenced by captured RED compile failures in report; real managed-mode close deferred with fixture evidence noted as system-discovery-mode — carried as informational for Task 20 E2E; Windows compile = standing three-platform CI caveat)
+Task 15: complete (commit 5004bfe2a "feat(browser): own standalone automation in daemon", 16 files +3836/−47, base 9271ff7b0)
