@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notification-dev-bounce"
+description = "Enables the notification_dev_bounce command without any pre-configured scope."
+commands.allow = ["notification_dev_bounce"]
+
+[[permission]]
+identifier = "deny-notification-dev-bounce"
+description = "Denies the notification_dev_bounce command without any pre-configured scope."
+commands.deny = ["notification_dev_bounce"]

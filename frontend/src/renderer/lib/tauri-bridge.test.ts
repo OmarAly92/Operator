@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TrayAttentionState } from "../../shared/tray";
 
 const { getStub, patchStub, postStub, getApiBaseUrlMock, hasTrustedApiBaseUrlMock, subscribeApiBaseUrlMock } = vi.hoisted(() => ({
 	getStub: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock("./api-client", () => ({
 	subscribeApiBaseUrl: subscribeApiBaseUrlMock,
 }));
 
-import { createTauriBridge, parseTelemetryBootstrap } from "./tauri-bridge";
+import { createTauriBridge, encodeBase64, parseTelemetryBootstrap } from "./tauri-bridge";
 
 function bridge() {
 	return createTauriBridge({ invoke: vi.fn(), listen: vi.fn() });
@@ -179,6 +180,160 @@ describe("tauri-bridge subscriptions", () => {
 		expect(() => tauri.daemon.onStatus(() => undefined)()).not.toThrow();
 		await Promise.resolve();
 		expect(listen).toHaveBeenCalledWith("daemon:status", expect.any(Function));
+	});
+});
+
+describe("tauri-bridge native integrations", () => {
+	type Invoke = (command: string, payload?: unknown) => Promise<unknown>;
+
+	function bridgeWith(invoke: Invoke) {
+		const listen = (): (() => void) => () => undefined;
+		return createTauriBridge({ invoke, listen });
+	}
+
+	it("stages dropped files as base64 payloads and returns the staged path", async () => {
+		const invoke = vi.fn().mockResolvedValue("/state/terminal-drops/1-abc-notes.txt");
+		const tauri = bridgeWith(invoke);
+
+		await expect(
+			tauri.terminal.saveDroppedFile({ name: "notes.txt", bytes: new Uint8Array([104, 105, 0, 255]) }),
+		).resolves.toBe("/state/terminal-drops/1-abc-notes.txt");
+		expect(invoke).toHaveBeenCalledWith("stage_dropped_file", {
+			name: "notes.txt",
+			data: "aGkA/w==",
+		});
+	});
+
+	it("encodes empty and large-ish byte arrays without mangling values", () => {
+		expect(encodeBase64(new Uint8Array([]))).toBe("");
+
+		const source = Array.from({ length: 0x8001 }, (_, i) => i % 256);
+		const encoded = encodeBase64(new Uint8Array(source));
+		const decoded = Array.from(atob(encoded), (char) => char.charCodeAt(0));
+		expect(decoded).toEqual(source);
+	});
+
+	it("signals renderer readiness when subscribing to tray open-session events", async () => {
+		const invoke = vi.fn(async (command: string) => {
+			if (command === "tray_renderer_ready") throw new Error("no tray");
+			return null;
+		});
+		const listen = vi.fn().mockReturnValue(() => undefined);
+		const tauri = createTauriBridge({ invoke, listen });
+
+		const dispose = tauri.tray.onOpenSession(() => undefined);
+
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("tray_renderer_ready"));
+		expect(listen).toHaveBeenCalledWith("tray:open-session", expect.any(Function));
+		dispose();
+	});
+
+	it("pushes attention state without awaiting the native update", async () => {
+		const invoke = vi.fn<Invoke>(async () => null);
+		const tauri = bridgeWith(invoke);
+		const state: TrayAttentionState = {
+			sessions: [
+				{ projectId: "p1", projectName: "Alpha", sessionId: "s1", title: "t", zone: "merge" },
+			],
+		};
+
+		expect(() => tauri.tray.setAttentionState(state)).not.toThrow();
+		await vi.waitFor(() =>
+			expect(invoke).toHaveBeenCalledWith("tray_attention_state", state),
+		);
+	});
+
+	it("keeps the tray locale in sync from ui settings reads and writes", async () => {
+		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "de" } } });
+		patchStub.mockReset().mockResolvedValue({ data: { ui: { locale: "fr" } } });
+		const invoke = vi.fn(async () => null);
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "de" });
+		await expect(tauri.uiSettings.set({ locale: "fr" })).resolves.toEqual({ locale: "fr" });
+		await vi.waitFor(() => {
+			expect(invoke).toHaveBeenNthCalledWith(1, "tray_set_locale", { locale: "de" });
+			expect(invoke).toHaveBeenNthCalledWith(2, "tray_set_locale", { locale: "fr" });
+		});
+	});
+
+	it("never fails a settings read when the tray locale push is rejected", async () => {
+		getStub.mockReset().mockResolvedValue({ data: { ui: { locale: "ja" } } });
+		const invoke = vi.fn(async (command: string) => {
+			if (command === "tray_set_locale") throw new Error("tray unavailable");
+			return null;
+		});
+		const tauri = createTauriBridge({ invoke, listen: vi.fn() });
+
+		await expect(tauri.uiSettings.get()).resolves.toEqual({ locale: "ja" });
+	});
+
+	it("routes notifications through the shell commands with exact channels", async () => {
+		const invoke = vi.fn(async () => null);
+		const wrappedHandlers: Array<(event: { payload: unknown }) => void> = [];
+		const listen = vi.fn((_event: string, handler: (event: { payload: unknown }) => void) => {
+			wrappedHandlers.push(handler);
+			return () => undefined;
+		});
+		const tauri = createTauriBridge({ invoke, listen });
+
+		await tauri.notifications.show({ id: "n1", title: "Needs input", body: "hi", type: "needs_input" });
+		expect(invoke).toHaveBeenCalledWith("notification_show", {
+			id: "n1",
+			title: "Needs input",
+			body: "hi",
+			type: "needs_input",
+		});
+
+		await tauri.notifications.setBadge(3);
+		await tauri.notifications.devBounce();
+		expect(invoke).toHaveBeenCalledWith("notification_badge", { count: 3 });
+		expect(invoke).toHaveBeenCalledWith("notification_dev_bounce");
+
+		const seen: string[] = [];
+		const stop = tauri.notifications.onClick((id) => seen.push(id));
+		wrappedHandlers[0]({ payload: "n9" });
+		stop();
+		expect(seen).toEqual(["n9"]);
+	});
+
+	it("validates external URLs through the Electron allowlist on the Rust opener command", async () => {
+		const invoke = vi.fn<Invoke>(async (_command, payload) => {
+			const url = (payload as { url?: string })?.url;
+			if (!url || !["https://example.com", "http://127.0.0.1:3001/x", "mailto:user@example.com"].includes(url)) {
+				throw new Error("Unsupported external URL");
+			}
+			return null;
+		});
+		const tauri = bridgeWith(invoke);
+
+		await expect(tauri.app.openExternal("https://example.com")).resolves.toBeUndefined();
+		await expect(tauri.app.openExternal("mailto:user@example.com")).resolves.toBeUndefined();
+		expect(invoke).toHaveBeenCalledWith("open_external", { url: "mailto:user@example.com" });
+		await expect(tauri.app.openExternal("javascript:alert(1)")).rejects.toThrow(
+			"Unsupported external URL",
+		);
+		await expect(tauri.app.openExternal("data:text/html,hi")).rejects.toThrow(
+			"Unsupported external URL",
+		);
+		await expect(tauri.app.openExternal("file:///etc/passwd")).rejects.toThrow(
+			"Unsupported external URL",
+		);
+		await expect(tauri.app.openExternal("slack://channel?id=1")).rejects.toThrow(
+			"Unsupported external URL",
+		);
+	});
+
+	it("passes the chooser title through and surfaces cancellation as null", async () => {
+		const invoke = vi.fn<Invoke>(async (_command, payload) =>
+			(payload as { title?: string })?.title ? "/repos/picked" : null,
+		);
+		const tauri = bridgeWith(invoke);
+
+		await expect(tauri.app.chooseDirectory("Pick a workspace")).resolves.toBe("/repos/picked");
+		expect(invoke).toHaveBeenCalledWith("choose_directory", { title: "Pick a workspace" });
+		await expect(tauri.app.chooseDirectory()).resolves.toBeNull();
+		expect(invoke).toHaveBeenLastCalledWith("choose_directory", { title: undefined });
 	});
 });
 

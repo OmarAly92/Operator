@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tray-attention-state"
+description = "Enables the tray_attention_state command without any pre-configured scope."
+commands.allow = ["tray_attention_state"]
+
+[[permission]]
+identifier = "deny-tray-attention-state"
+description = "Denies the tray_attention_state command without any pre-configured scope."
+commands.deny = ["tray_attention_state"]

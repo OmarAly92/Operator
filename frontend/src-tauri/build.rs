@@ -15,6 +15,18 @@ fn main() {
         "keybindings_apply",
         "keybindings_recording",
         "set_close_shell_terminal_shortcut_enabled",
+        "choose_directory",
+        "open_external",
+        "clipboard_write",
+        "clipboard_read",
+        "notification_show",
+        "notification_badge",
+        "notification_dev_bounce",
+        "stage_dropped_file",
+        "delete_dropped_file",
+        "tray_attention_state",
+        "tray_renderer_ready",
+        "tray_set_locale",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest)).unwrap();
 }

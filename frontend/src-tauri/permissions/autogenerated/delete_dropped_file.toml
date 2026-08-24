@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-dropped-file"
+description = "Enables the delete_dropped_file command without any pre-configured scope."
+commands.allow = ["delete_dropped_file"]
+
+[[permission]]
+identifier = "deny-delete-dropped-file"
+description = "Denies the delete_dropped_file command without any pre-configured scope."
+commands.deny = ["delete_dropped_file"]

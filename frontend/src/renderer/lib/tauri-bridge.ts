@@ -23,6 +23,22 @@ const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
 	feature: null,
 };
 const BOOTSTRAP_BASE_URL_TIMEOUT_MS = 10_000;
+const BASE64_CHUNK_SIZE = 0x8000;
+
+/** Encodes raw dropped-file bytes as base64 so they survive Tauri's JSON IPC. */
+export function encodeBase64(bytes: Uint8Array): string {
+	let binary = "";
+	for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK_SIZE) {
+		const chunk = bytes.subarray(offset, offset + BASE64_CHUNK_SIZE);
+		binary += String.fromCharCode(...chunk);
+	}
+	if (typeof btoa === "function") return btoa(binary);
+	return Buffer.from(bytes).toString("base64");
+}
+
+function applyTrayLocale(invoke: TauriBridgeTransports["invoke"], locale: string): void {
+	void Promise.resolve(invoke("tray_set_locale", { locale })).catch(() => undefined);
+}
 
 /**
  * Resolves once the daemon port is known, or null if that does not happen
@@ -166,7 +182,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		},
 		terminal: {
 			saveDroppedFile: async (input: { name: string; bytes: Uint8Array }) =>
-				(await invoke("stage_dropped_file", input)) as string,
+				(await invoke("stage_dropped_file", { name: input.name, data: encodeBase64(input.bytes) })) as string,
 		},
 		window: {
 			setOverlay: async (overlay: { color: string; symbolColor: string }) => {
@@ -222,8 +238,10 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			setAttentionState: (state: TrayAttentionState) => {
 				void invoke("tray_attention_state", state);
 			},
-			onOpenSession: (listener: (target: TrayOpenSessionTarget) => void) =>
-				subscribe<TrayOpenSessionTarget>("tray:open-session", listener),
+			onOpenSession: (listener: (target: TrayOpenSessionTarget) => void) => {
+				void Promise.resolve(invoke("tray_renderer_ready")).catch(() => undefined);
+				return subscribe<TrayOpenSessionTarget>("tray:open-session", listener);
+			},
 		},
 		appState: {
 			getMigration: async () => (await fetchSettings()).migration ?? PENDING_MIGRATION,
@@ -256,13 +274,19 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 			},
 		},
 		uiSettings: {
-			get: async () => ({ locale: coerceLocale((await fetchSettings()).ui?.locale) }),
+			get: async () => {
+				const locale = coerceLocale((await fetchSettings()).ui?.locale);
+				applyTrayLocale(invoke, locale);
+				return { locale };
+			},
 			set: async (settings: UiSettings) => {
 				const { data, error } = await apiClient.PATCH("/api/v1/settings/ui", {
 					body: { locale: settings.locale },
 				});
 				if (error) throw new Error(apiErrorMessage(error));
-				return { locale: coerceLocale(data?.ui?.locale ?? settings.locale) };
+				const locale = coerceLocale(data?.ui?.locale ?? settings.locale);
+				applyTrayLocale(invoke, locale);
+				return { locale };
 			},
 		},
 		keybindings: {

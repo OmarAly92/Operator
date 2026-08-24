@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notification-badge"
+description = "Enables the notification_badge command without any pre-configured scope."
+commands.allow = ["notification_badge"]
+
+[[permission]]
+identifier = "deny-notification-badge"
+description = "Denies the notification_badge command without any pre-configured scope."
+commands.deny = ["notification_badge"]

@@ -3,18 +3,26 @@ use std::{env, error::Error, fs, io, path::Path, path::PathBuf};
 
 use chrono::Utc;
 use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 pub mod app_state;
 pub mod daemon;
+pub mod dropped_files;
 pub mod menu;
+pub mod native;
+pub mod notification_policy;
 pub mod relocation;
 pub mod shortcuts;
+pub mod tray;
 pub mod window;
 use daemon::supervisor::DaemonManager;
 use daemon::DaemonStatus;
 
 #[cfg(test)]
 mod app_state_tests;
+
+#[cfg(test)]
+mod dropped_files_tests;
 
 #[cfg(test)]
 mod native_contract_tests;
@@ -379,6 +387,50 @@ fn install_panic_reporter(state_root: &Path) {
     }));
 }
 
+fn build_main_window(
+    app: &tauri::AppHandle,
+    state_root: &Path,
+    audit_script: Option<String>,
+) -> Result<tauri::WebviewWindow, tauri::Error> {
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        app,
+        shortcuts::MAIN_WINDOW_LABEL,
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("Operator")
+    .inner_size(1320.0, 860.0)
+    .min_inner_size(960.0, 640.0)
+    .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
+    .data_directory(state_root.join("webview"))
+    .use_https_scheme(false)
+    .on_page_load(|webview, payload| {
+        if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+            if let Some(shell) = webview.app_handle().try_state::<native::ShellState>() {
+                native::reset_native_shell(&shell);
+                let sessions = shell
+                    .sessions
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default();
+                let _ = tray::apply_state(webview.app_handle(), &sessions);
+            }
+        }
+    });
+    if let Some(script) = audit_script {
+        builder = builder.initialization_script(script);
+    }
+    builder.build()
+}
+
+fn rebuild_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
+    let state_root = app
+        .try_state::<native::ShellState>()
+        .map(|shell| shell.state_root.clone())
+        .ok_or_else(|| std::io::Error::other("Operator shell state was not initialized"))?;
+    build_main_window(app, &state_root, None)?;
+    Ok(())
+}
+
 fn terminal_benchmark_context(raw: Option<&str>) -> Result<bool, &'static str> {
     match raw {
         None => Ok(false),
@@ -453,19 +505,9 @@ struct FullscreenState(std::sync::Mutex<window::FullscreenTracker>);
 
 struct ThemeState(std::sync::Mutex<window::ThemePreference>);
 
-fn menu_platform() -> menu::MenuPlatform {
-    if cfg!(target_os = "macos") {
-        menu::MenuPlatform::Macos
-    } else if cfg!(target_os = "windows") {
-        menu::MenuPlatform::Windows
-    } else {
-        menu::MenuPlatform::Linux
-    }
-}
-
 fn install_app_menu(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
     let mut menu_builder = tauri::menu::MenuBuilder::new(app);
-    for submenu_spec in menu::app_menu_template(menu_platform()) {
+    for submenu_spec in menu::app_menu_template(native::menu_platform()) {
         let mut submenu = tauri::menu::SubmenuBuilder::new(app, submenu_spec.label);
         for item in submenu_spec.items {
             submenu = match item.kind {
@@ -788,7 +830,16 @@ impl menu::MenuHost for ShellMenuHost<'_> {
     }
 
     fn about(&mut self) {
-        eprintln!("the About dialog is deferred until the native dialog task lands");
+        self.app
+            .dialog()
+            .message(format!(
+                "Operator\nVersion {}",
+                self.app.package_info().version
+            ))
+            .title("About Operator")
+            .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+            .buttons(tauri_plugin_dialog::MessageDialogButtons::Ok)
+            .show(|_| {});
     }
 }
 
@@ -825,6 +876,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let state_root = resolved_state_root()?;
     fs::create_dir_all(&state_root)?;
     install_panic_reporter(&state_root);
+    match dropped_files::prune_stale(&state_root, dropped_files::unix_millis_now()) {
+        Ok(removed) if removed > 0 => {
+            eprintln!("pruned {removed} staged terminal drops older than seven days");
+        }
+        Ok(_) => {}
+        Err(error) => eprintln!("failed to prune staged terminal drops: {error}"),
+    }
     launch_app_state_flow(
         &process_env,
         &original_home,
@@ -872,6 +930,15 @@ void (async () => {
     let mut builder = tauri::Builder::default();
     let mut global_shortcuts_available = false;
     if audit_mode.is_none() && !terminal_benchmark {
+        builder = builder
+            .plugin(tauri_plugin_clipboard_manager::init())
+            .plugin(tauri_plugin_dialog::init())
+            .plugin(tauri_plugin_notification::init())
+            .plugin(
+                tauri_plugin_opener::Builder::new()
+                    .open_js_links_on_click(false)
+                    .build(),
+            );
         global_shortcuts_available = shortcuts::probe_global_shortcuts();
         if global_shortcuts_available {
             builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
@@ -907,7 +974,19 @@ void (async () => {
             shell_focus,
             keybindings_apply,
             keybindings_recording,
-            set_close_shell_terminal_shortcut_enabled
+            set_close_shell_terminal_shortcut_enabled,
+            native::choose_directory,
+            native::open_external,
+            native::clipboard_write,
+            native::clipboard_read,
+            native::notification_show,
+            native::notification_badge,
+            native::notification_dev_bounce,
+            native::stage_dropped_file,
+            native::delete_dropped_file,
+            native::tray_attention_state,
+            native::tray_renderer_ready,
+            native::tray_set_locale
         ]);
     }
     let app = builder
@@ -949,22 +1028,14 @@ void (async () => {
                     manager.start().await;
                 });
             }
-            let mut window = tauri::WebviewWindowBuilder::new(
-                app,
-                shortcuts::MAIN_WINDOW_LABEL,
-                tauri::WebviewUrl::App("index.html".into()),
-            )
-            .title("Operator")
-            .inner_size(1320.0, 860.0)
-            .min_inner_size(960.0, 640.0)
-            .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
-            .data_directory(state_root.join("webview"))
-            .use_https_scheme(false);
-            if let Some(script) = audit_script.clone() {
-                window = window.initialization_script(script);
-            }
-            window.build()?;
-            if !app.manage(ShortcutRegistry(std::sync::Mutex::new(
+            build_main_window(app.handle(), &state_root, audit_script.clone())?;
+            if !app.manage(native::ShellState {
+                state_root: state_root.clone(),
+                tray: std::sync::Mutex::new(None),
+                gate: std::sync::Mutex::new(tray::PendingTarget::default()),
+                sessions: std::sync::Mutex::new(Vec::new()),
+                locale: std::sync::Mutex::new("en".to_string()),
+            }) || !app.manage(ShortcutRegistry(std::sync::Mutex::new(
                 global_shortcuts_available.then(|| {
                     shortcuts::ShortcutEngine::new(
                         shortcuts::GlobalShortcutRegistrar {
@@ -983,6 +1054,24 @@ void (async () => {
                 return Err(std::io::Error::other("shell state was already initialized").into());
             }
             if audit_mode.is_none() && !terminal_benchmark {
+                match tray::create_tray(app.handle(), "en") {
+                    Ok(Some(handle)) => {
+                        if let Some(shell) = app.try_state::<native::ShellState>() {
+                            match shell.tray.lock() {
+                                Ok(mut slot) => *slot = Some(handle),
+                                Err(_) => {
+                                    return Err(
+                                        std::io::Error::other("tray state was poisoned").into()
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        eprintln!("failed to initialize the Operator tray icon: {error}")
+                    }
+                }
                 install_app_menu(app.handle())?;
                 app.handle().on_menu_event(|app_handle, event| {
                     route_native_menu_event(app_handle, &event);
@@ -995,6 +1084,19 @@ void (async () => {
         tauri::RunEvent::Exit => {
             if let Some(manager) = app_handle.try_state::<DaemonManager>() {
                 manager.request_shutdown();
+            }
+        }
+        tauri::RunEvent::ExitRequested { code, api, .. } if code.is_none() => {
+            if cfg!(target_os = "macos") {
+                api.prevent_exit();
+            }
+        }
+        tauri::RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } => {
+            if !has_visible_windows {
+                native::focus_main_window(app_handle);
             }
         }
         tauri::RunEvent::WindowEvent { label, event, .. }

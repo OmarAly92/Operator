@@ -14,6 +14,18 @@
 		"allow-shell-focus",
 		"allow-keybindings-apply",
 		"allow-keybindings-recording",
-		"allow-set-close-shell-terminal-shortcut-enabled"
+		"allow-set-close-shell-terminal-shortcut-enabled",
+		"allow-choose-directory",
+		"allow-open-external",
+		"allow-clipboard-write",
+		"allow-clipboard-read",
+		"allow-notification-show",
+		"allow-notification-badge",
+		"allow-notification-dev-bounce",
+		"allow-stage-dropped-file",
+		"allow-delete-dropped-file",
+		"allow-tray-attention-state",
+		"allow-tray-renderer-ready",
+		"allow-tray-set-locale"
 	]
 }
