@@ -275,13 +275,16 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		updateSettings: {
 			get: async () => {
 				const updates = (await fetchSettings()).updates;
-				if (!updates) return DEFAULT_UPDATE_SETTINGS;
-				return {
-					enabled: updates.enabled,
-					channel: updates.channel,
-					nightlyAck: updates.nightlyAck,
-					feature: updates.feature ?? null,
-				};
+				const settings: UpdateSettings = updates
+					? {
+							enabled: updates.enabled,
+							channel: updates.channel,
+							nightlyAck: updates.nightlyAck,
+							feature: updates.feature ?? null,
+						}
+					: DEFAULT_UPDATE_SETTINGS;
+				void Promise.resolve(invoke("updates_apply_settings", { settings })).catch(() => undefined);
+				return settings;
 			},
 			set: async (settings: UpdateSettings) => {
 				const { error } = await apiClient.PATCH("/api/v1/settings/updates", {
@@ -293,6 +296,7 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 					},
 				});
 				if (error) throw new Error(apiErrorMessage(error));
+				void Promise.resolve(invoke("updates_apply_settings", { settings })).catch(() => undefined);
 			},
 		},
 		uiSettings: {

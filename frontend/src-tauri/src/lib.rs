@@ -14,6 +14,7 @@ pub mod notification_policy;
 pub mod relocation;
 pub mod shortcuts;
 pub mod tray;
+pub mod updater;
 pub mod window;
 use daemon::supervisor::DaemonManager;
 use daemon::DaemonStatus;
@@ -326,18 +327,25 @@ fn absolute_environment_path(name: &str) -> Result<Option<PathBuf>, Box<dyn Erro
     }
 }
 
+fn updater_temp_dir(state_root: &Path) -> PathBuf {
+    state_root.join(updater::UPDATER_STATE_DIR_NAME).join("tmp")
+}
+
 fn state_environment(state_root: &Path) -> Vec<(&'static str, PathBuf)> {
+    let temp = updater_temp_dir(state_root);
     #[cfg(target_os = "macos")]
     {
         vec![
             ("CFFIXED_USER_HOME", state_root.to_path_buf()),
             ("HOME", state_root.to_path_buf()),
+            ("TMPDIR", temp),
         ]
     }
     #[cfg(target_os = "linux")]
     {
         vec![
             ("HOME", state_root.to_path_buf()),
+            ("TMPDIR", temp),
             ("XDG_CACHE_HOME", state_root.join("cache")),
             ("XDG_CONFIG_HOME", state_root.join("config")),
             ("XDG_DATA_HOME", state_root.join("data")),
@@ -345,7 +353,11 @@ fn state_environment(state_root: &Path) -> Vec<(&'static str, PathBuf)> {
     }
     #[cfg(target_os = "windows")]
     {
-        vec![("WEBVIEW2_USER_DATA_FOLDER", state_root.join("webview"))]
+        vec![
+            ("TMP", temp.clone()),
+            ("TEMP", temp),
+            ("WEBVIEW2_USER_DATA_FOLDER", state_root.join("webview")),
+        ]
     }
 }
 
@@ -975,6 +987,14 @@ void (async () => {
             keybindings_apply,
             keybindings_recording,
             set_close_shell_terminal_shortcut_enabled,
+            updater::updates_status,
+            updater::updates_check,
+            updater::updates_return_home,
+            updater::updates_download,
+            updater::updates_install,
+            updater::feature_builds_list,
+            updater::feature_builds_active,
+            updater::updates_apply_settings,
             native::choose_directory,
             native::open_external,
             native::clipboard_write,
@@ -1054,6 +1074,26 @@ void (async () => {
                 return Err(std::io::Error::other("shell state was already initialized").into());
             }
             if audit_mode.is_none() && !terminal_benchmark {
+                match updater::open_shell_engine(
+                    app.handle(),
+                    &state_root,
+                    is_packaged,
+                    &app_version,
+                    daemon_manager.clone(),
+                ) {
+                    Ok(engine) => {
+                        if !app.manage(updater::UpdaterShell(engine.clone())) {
+                            return Err(std::io::Error::other(
+                                "updater shell state was already initialized",
+                            )
+                            .into());
+                        }
+                        updater::spawn_updater_timers(engine);
+                    }
+                    Err(error) => {
+                        eprintln!("updater unavailable in this build: {error}");
+                    }
+                }
                 match tray::create_tray(app.handle(), "en") {
                     Ok(Some(handle)) => {
                         if let Some(shell) = app.try_state::<native::ShellState>() {
@@ -1134,6 +1174,7 @@ mod tests {
     use super::resolve_state_root;
     use super::state_environment;
     use super::terminal_benchmark_context;
+    use super::updater_temp_dir;
     use super::StateProfile;
 
     fn test_root() -> PathBuf {
@@ -1225,6 +1266,9 @@ mod tests {
     fn state_root_reparents_platform_state() {
         let root = Path::new("/tmp/operator/tauri");
         let environment = state_environment(root);
+        let updater_temp = updater_temp_dir(root);
+
+        assert!(updater_temp.starts_with(root.join("updater")));
 
         #[cfg(target_os = "macos")]
         assert_eq!(
@@ -1232,6 +1276,7 @@ mod tests {
             vec![
                 ("CFFIXED_USER_HOME", root.to_path_buf()),
                 ("HOME", root.to_path_buf()),
+                ("TMPDIR", updater_temp),
             ]
         );
         #[cfg(target_os = "linux")]
@@ -1239,6 +1284,7 @@ mod tests {
             environment,
             vec![
                 ("HOME", root.to_path_buf()),
+                ("TMPDIR", updater_temp.clone()),
                 ("XDG_CACHE_HOME", root.join("cache")),
                 ("XDG_CONFIG_HOME", root.join("config")),
                 ("XDG_DATA_HOME", root.join("data")),
@@ -1247,7 +1293,11 @@ mod tests {
         #[cfg(target_os = "windows")]
         assert_eq!(
             environment,
-            vec![("WEBVIEW2_USER_DATA_FOLDER", root.join("webview"))]
+            vec![
+                ("TMP", updater_temp.clone()),
+                ("TEMP", updater_temp),
+                ("WEBVIEW2_USER_DATA_FOLDER", root.join("webview")),
+            ]
         );
     }
 
