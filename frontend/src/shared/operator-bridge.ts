@@ -8,29 +8,12 @@ import type { UpdateOutcome } from "./update-telemetry";
 import type { UiSettings } from "./ui-locale";
 import type { FeatureBuild } from "./feature-builds";
 import type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
-import type {
-	BrowserAnnotationCancelPayload,
-	BrowserAnnotationModeInput,
-	BrowserAnnotationSubmitPayload,
-} from "./browser-annotations";
-import type {
-	BrowserAgentActivityState,
-	BrowserDevToolsInput,
-	BrowserDevToolsState,
-	BrowserNavState,
-	BrowserRect,
-	BrowserTabsState,
-} from "./browser-view-types";
 
-export type BrowserBoundsInput = {
-	viewId: string;
-	rect: BrowserRect;
-	visible: boolean;
-};
-
-export type BrowserNavigateInput = {
-	viewId: string;
+/** One automatic external-preview open the shell should acknowledge durably. */
+export type ExternalPreviewOpenInput = {
+	sessionId: string;
 	url: string;
+	revision: number;
 };
 
 export type { ImportFolderMode, ImportFolderScan } from "./import-folder-scan";
@@ -43,8 +26,6 @@ export interface UpdateCheckOptions {
 export interface FeatureBuildRef {
 	pr: number;
 }
-
-export type OperatorBridgeWithoutBrowser = Omit<OperatorBridge, "browser">;
 
 export type OperatorBridge = {
 	app: {
@@ -94,30 +75,8 @@ export type OperatorBridge = {
 	telemetry: {
 		getBootstrap: () => Promise<TelemetryBootstrap | null>;
 	};
-	browser: {
-		nativeCompositionEnabled: boolean;
-		ensure: (sessionId: string) => Promise<BrowserNavState>;
-		setBounds: (input: BrowserBoundsInput) => void;
-		setOverlayOpen: (open: boolean) => void;
-		navigate: (input: BrowserNavigateInput) => Promise<BrowserNavState>;
-		clear: (viewId: string) => Promise<BrowserNavState>;
-		goBack: (viewId: string) => Promise<BrowserNavState>;
-		goForward: (viewId: string) => Promise<BrowserNavState>;
-		reload: (viewId: string) => Promise<BrowserNavState>;
-		stop: (viewId: string) => Promise<BrowserNavState>;
-		getTabs: (viewId: string) => Promise<BrowserTabsState>;
-		selectTab: (input: { viewId: string; tabId: string }) => Promise<BrowserTabsState>;
-		closeTab: (input: { viewId: string; tabId: string }) => Promise<BrowserTabsState>;
-		openTab: (input: { viewId: string; url?: string }) => Promise<BrowserTabsState>;
-		devtools: (input: BrowserDevToolsInput) => Promise<BrowserDevToolsState>;
-		destroy: (viewId: string) => void;
-		setAnnotationMode: (input: BrowserAnnotationModeInput) => Promise<void>;
-		onNavState: (listener: (state: BrowserNavState) => void) => () => void;
-		onTabsState: (listener: (state: BrowserTabsState) => void) => () => void;
-		onAgentActivity: (listener: (state: BrowserAgentActivityState) => void) => () => void;
-		onDevToolsState: (listener: (state: BrowserDevToolsState) => void) => () => void;
-		onAnnotationSubmit: (listener: (payload: BrowserAnnotationSubmitPayload) => void) => () => void;
-		onAnnotationCancel: (listener: (payload: BrowserAnnotationCancelPayload) => void) => () => void;
+	preview: {
+		openExternalPreview: (input: ExternalPreviewOpenInput) => Promise<void>;
 	};
 	notifications: {
 		show: (notification: { id: string; title: string; body?: string; type?: string }) => Promise<void>;

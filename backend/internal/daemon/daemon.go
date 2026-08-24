@@ -436,6 +436,7 @@ func Run() error {
 		Browser:             browserService,
 		PreviewServer:       managedPreview,
 		SessionCapabilities: browserAuthority,
+		DesktopPreview:      sessionSvc,
 	})
 	if err != nil {
 		stop()

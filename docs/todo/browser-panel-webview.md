@@ -1,26 +1,48 @@
 # Future: rebuild the browser panel on the OS webview
 
 **Recorded:** 2026-08-16
+**Updated:** 2026-08-24 (Task 16 shipped)
 **Status:** deferred, not scheduled
 **Context:** `docs/superpowers/specs/2026-08-16-tauri-port-design.md`
 
 ## What this records
 
-The Tauri base port defers the embedded browser panel (the inspector rail's Browser tab, and the
-in-window target of `opr preview`) and, with it, the Electron implementation it depends on:
-`frontend/src/main/browser-view-host.ts`, 2,079 lines built on Electron `WebContentsView`.
+The Tauri port removed the embedded browser panel (the inspector rail's Browser tab, and the
+in-window target of `opr preview`) instead of porting it to the OS webview target. The renderer
+side is gone as of Task 16; what remains is the Electron-only implementation it depended on —
+`frontend/src/main/browser-view-host.ts` and the `preload.browser` namespace — which keeps
+compiling for the Electron shell until Task 21 deletes Electron.
 
-The approved future disposition is Task 16: remove the embedded panel from the Tauri base port and
-replace it with two daemon-side paths — automatic external preview, and agent-facing automation in
-the standalone browser owned by the Go daemon.
+Two daemon-side paths replace the panel:
 
-**Nothing here has shipped yet.** The embedded Electron Browser panel still exists in the desktop
-app today, and neither replacement path is implemented. This page is a decision record for the
-approved Task 16 disposition, not a change log.
+- **Automatic external preview (Task 16, shipped).** The daemon persists a durable
+  `preview_opened_revision` per session (`0089_preview_open_ack.sql`). A validated HTTP(S)
+  preview target opens once per new revision in the user's default browser through the existing
+  `open_external` opener command, then acknowledges it over the loopback-only route
+  `POST /internal/desktop/sessions/{id}/preview-opened`. Acknowledged revisions never re-open
+  after a restart or rerender; pending ones do. Manual reopen from the session inspector opens
+  externally and never touches the acknowledgement.
+- **Standalone agent automation (Task 15, shipped).** Agent-facing browsing uses the packaged
+  `agent-browser` command against an isolated standalone Chromium owned by the Go daemon,
+  separate from the user's default browser.
 
-## Why the embedded panel is removed rather than ported
+## What was deliberately dropped with the panel
 
-The panel is not ported to the OS webview target (WKWebView / WebKitGTK / WebView2) because it
+| Capability | Disposition |
+|---|---|
+| In-window page rendering | Dropped — previews open in the user's default browser |
+| Tabs, address bar, back/forward/reload controls | Dropped with the panel |
+| DevTools toggle inside the app | Dropped — use the browser's own tools |
+| Annotation capture (`capturePage` snapshots sent to the agent) | Dropped; agents screenshot via the standalone browser instead |
+| Native composition overlay handling | Dropped — no native view is composited over the window |
+| Agent-browser activity glow / unseen indicator on the Browser tab | Dropped with the tab |
+
+`opr preview start/status/stop/clear`, relative-file previews, the preview-server lifecycle, and
+the daemon preview routes are preserved unchanged; only where the target renders changed.
+
+## Why the embedded panel was removed rather than ported
+
+The panel was not ported to the OS webview target (WKWebView / WebKitGTK / WebView2) because it
 depends on Chromium APIs that target does not have:
 
 | Capability | Electron API | OS webview |
@@ -31,33 +53,8 @@ depends on Chromium APIs that target does not have:
 | Popup interception | `setWindowOpenHandler` | none |
 | In-window embedding | `WebContentsView` + synced bounds | partial, platform-divergent |
 
-Keeping full parity would require embedding a separate Chromium-class runtime or accepting the
-capability losses above. Either choice conflicts with this port's size and parity goals.
-
-## Approved future disposition
-
-Two deliberately separate paths replace the panel. Both are approved and implemented by later
-tasks, not by the base port:
-
-- **Automatic external preview (Task 16).** The daemon exposes `previewUrl`, `previewRevision`, and
-  `previewOpenedRevision` on session updates. The desktop client preserves the daemon-owned preview
-  target, opens each new revision once in the user's default browser through the validated HTTP(S)
-  opener, and acknowledges it over a loopback-only route. The session inspector also keeps a manual
-  reopen action that never changes the automatic-open acknowledgement.
-- **Standalone agent automation (Task 15).** Agent-facing browsing uses the packaged
-  `agent-browser` command against an isolated standalone Chromium owned by the Go daemon. It does
-  not attach to the user's default-browser profile. Operator discovers an installed compatible
-  browser first and otherwise installs the pinned managed browser beneath `~/.operator/browser-engine`
-  on first automation use. Because it is separate from the base application, it is installed only
-  on demand and measured separately.
-
-Neither path exists today. `agent-browser` still receives `AGENT_BROWSER_CDP` for a bridge whose
-targets are Electron `WebContents`; it is not already independent of the embedded panel. Task 15
-must pass the standalone-browser Phase 0 gate before that bridge is deleted, and Task 16 removes
-the embedded panel's renderer consumers before Task 21 deletes the now-dead Electron code.
-
-Until Task 16 lands, the visible preview and the agent-controlled target remain coupled inside the
-embedded panel. User preview and agent automation become separate windows only after it ships.
+Keeping full parity would have required embedding a separate Chromium-class runtime or accepting
+the capability losses above. Either choice conflicted with this port's size and parity goals.
 
 ## If we rebuild it
 

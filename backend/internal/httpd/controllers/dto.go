@@ -149,8 +149,13 @@ type SessionView struct {
 	// unchanged) so the desktop browser panel can re-navigate / refresh on a
 	// repeated preview of the same target. Pulled from the json:"-" domain
 	// Metadata.
-	PreviewRevision int64            `json:"previewRevision,omitempty"`
-	PRs             []SessionPRFacts `json:"prs"`
+	PreviewRevision int64 `json:"previewRevision,omitempty"`
+	// PreviewOpenedRevision is the highest previewRevision a desktop shell has
+	// acknowledged opening externally. A pending revision (previewRevision ahead
+	// of this value) opens once; an acknowledged one never re-opens after a
+	// restart or rerender. Pulled from the json:"-" domain Metadata.
+	PreviewOpenedRevision int64            `json:"previewOpenedRevision,omitempty"`
+	PRs                   []SessionPRFacts `json:"prs"`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.

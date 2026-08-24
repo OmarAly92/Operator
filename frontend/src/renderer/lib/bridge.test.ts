@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, expectTypeOf } from "vitest";
-import type { OperatorBridge, OperatorBridgeWithoutBrowser } from "../../shared/operator-bridge";
+import type { OperatorBridge } from "../../shared/operator-bridge";
 import type { DaemonStatus } from "../../shared/daemon-status";
 import type { MigrationState } from "../../shared/app-state";
 import type { UpdateSettings, UpdateStatus } from "../../shared/update-settings";
@@ -7,9 +7,12 @@ import type { UiSettings } from "../../shared/ui-locale";
 import type { FeatureBuild } from "../../shared/feature-builds";
 import type { ImportFolderScan } from "../../shared/import-folder-scan";
 import type { TrayAttentionState, TrayOpenSessionTarget } from "../../shared/tray";
+
 import type { KeybindingOverrides } from "../../shared/shortcuts";
 import type { TelemetryBootstrap } from "../../shared/telemetry";
 import type { UpdateOutcome } from "../../shared/update-telemetry";
+
+type SharedOperatorBridge = OperatorBridge;
 
 vi.mock("@tauri-apps/api/core", () => ({
 	invoke: (...args: unknown[]) => (globalThis as { __tauriInvoke?: (...args: unknown[]) => unknown }).__tauriInvoke?.(...(args as [])),
@@ -164,11 +167,16 @@ describe("createTauriBridge", async () => {
 		const bridge = await create();
 		expect("browser" in bridge).toBe(false);
 	});
+
+	it("exposes a preview namespace on the Tauri bridge", async () => {
+		const bridge = await create();
+		expect("preview" in bridge).toBe(true);
+	});
 });
 
 describe("compile-time ownership of shared types", () => {
 	it("pins every non-browser namespace to its shared contract", () => {
-		type Bridge = OperatorBridgeWithoutBrowser;
+		type Bridge = SharedOperatorBridge;
 		expectTypeOf<Bridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
 		expectTypeOf<Bridge["appState"]["getMigration"]>().returns.resolves.toEqualTypeOf<MigrationState>();
 		expectTypeOf<Bridge["updateSettings"]["get"]>().returns.resolves.toEqualTypeOf<UpdateSettings>();
@@ -185,6 +193,6 @@ describe("compile-time ownership of shared types", () => {
 
 	it("keeps the full Electron bridge assignable to the shared contract", () => {
 		expectTypeOf<OperatorBridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
-		expectTypeOf<keyof OperatorBridgeWithoutBrowser>().toExtend<string>();
+		expectTypeOf<keyof SharedOperatorBridge>().toExtend<string>();
 	});
 });

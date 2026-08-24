@@ -1,19 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession } from "../../types/workspace";
-import { useUiStore } from "../../stores/ui-store";
-import { workspaceQueryKey } from "../../hooks/useWorkspaceQuery";
 
 const LINK = "http://localhost:5173";
+const NON_WEB_LINK = "mailto:dev@example.com";
 
-const { postMock } = vi.hoisted(() => ({ postMock: vi.fn() }));
+const { openExternalMock } = vi.hoisted(() => ({ openExternalMock: vi.fn() }));
 
-vi.mock("../../lib/api-client", () => ({
-	apiClient: { POST: postMock },
-}));
+vi.mock("../../lib/external-link-policy", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../lib/external-link-policy")>();
+	return {
+		...actual,
+		openLinkInSystemBrowser: (url: string) => openExternalMock(url),
+	};
+});
 
 vi.mock("../../hooks/useConversation", () => ({
 	useConversation: () => ({
@@ -33,12 +36,17 @@ vi.mock("../../hooks/useConversation", () => ({
 	useWorkspaceFilePaths: () => ({ paths: [], truncated: false }),
 }));
 
+const chatLinkHandlers = { onLinkOpen: undefined as ((url: string) => void) | undefined };
+
 vi.mock("./ChatWorkspace", () => ({
-	ChatWorkspace: ({ onLinkOpen }: { onLinkOpen?: (url: string) => void }) => (
-		<button type="button" onClick={() => onLinkOpen?.(LINK)}>
-			Open chat link
-		</button>
-	),
+	ChatWorkspace: ({ onLinkOpen }: { onLinkOpen?: (url: string) => void }) => {
+		chatLinkHandlers.onLinkOpen = onLinkOpen;
+		return (
+			<button type="button" onClick={() => onLinkOpen?.(LINK)}>
+				Open chat link
+			</button>
+		);
+	},
 }));
 
 import { SessionChatSurface } from "./SessionChatSurface";
@@ -61,33 +69,30 @@ function Wrapper({ client, children }: { client: QueryClient; children: ReactNod
 }
 
 beforeEach(() => {
-	postMock.mockReset().mockResolvedValue({ data: {}, error: undefined });
-	useUiStore.setState({ inspectorSessions: {} });
+	openExternalMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("SessionChatSurface link routing", () => {
-	it("opens a plain Chat link in the active worker Operator Browser", async () => {
+	it("opens a plain Chat web link in the system browser", async () => {
 		const user = userEvent.setup();
-		const queryClient = new QueryClient({
-			defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-		});
-		const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
-
 		render(
-			<Wrapper client={queryClient}>
+			<Wrapper client={new QueryClient()}>
 				<SessionChatSurface session={session} />
 			</Wrapper>,
 		);
 		await user.click(screen.getByRole("button", { name: "Open chat link" }));
 
-		expect(useUiStore.getState().inspectorSessions[session.id]).toMatchObject({
-			isOpen: true,
-			view: "browser",
-		});
-		expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/preview", {
-			params: { path: { sessionId: session.id } },
-			body: { url: LINK },
-		});
-		await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceQueryKey }));
+		expect(openExternalMock).toHaveBeenCalledWith(LINK);
+	});
+
+	it("does not route non-web links through the system browser", () => {
+		render(
+			<Wrapper client={new QueryClient()}>
+				<SessionChatSurface session={session} />
+			</Wrapper>,
+		);
+		chatLinkHandlers.onLinkOpen?.(NON_WEB_LINK);
+
+		expect(openExternalMock).not.toHaveBeenCalled();
 	});
 });

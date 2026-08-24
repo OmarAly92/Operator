@@ -42,6 +42,16 @@ const {
 );
 let terminalLinkHandler: ((uri: string) => void) | undefined;
 
+const openExternalMock = vi.hoisted(() => vi.fn(async (_url: string) => undefined));
+
+vi.mock("../lib/external-link-policy", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../lib/external-link-policy")>();
+	return {
+		...actual,
+		openLinkInSystemBrowser: (url: string) => openExternalMock(url),
+	};
+});
+
 vi.mock("../lib/api-client", () => ({
 	apiClient: {
 		GET: (
@@ -122,6 +132,8 @@ const orchestrator = {
 beforeEach(() => {
 	getMock.mockClear();
 	postMock.mockReset();
+	openExternalMock.mockClear();
+	postMock.mockResolvedValue({ data: {} });
 	postMock.mockResolvedValue({ data: {} });
 	terminalError.value = undefined;
 	terminalState.value = "idle";
@@ -620,120 +632,36 @@ describe("providerScrollsByKeyboard", () => {
 });
 
 describe("terminal link preview", () => {
-	it.each(["http://localhost:3000/simple", "https://app.localhost:5173", "http://127.0.0.1:8080", "http://[::1]:4173"])(
-		"mirrors worker loopback link %s into the session Browser preview",
-		async (url) => {
-			const view = renderPane(worker);
-			try {
-				expect(terminalLinkHandler).toBeTypeOf("function");
-				act(() => terminalLinkHandler?.(url));
-
-				await waitFor(() =>
-					expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/preview", {
-						params: { path: { sessionId: "sess-1" } },
-						body: { url },
-					}),
-				);
-			} finally {
-				view.restore();
-			}
-		},
-	);
-
-	it("mirrors an external (non-loopback) terminal link into the Browser preview", async () => {
+	it("opens worker terminal web links in the system browser", async () => {
 		const view = renderPane(worker);
 		try {
+			expect(terminalLinkHandler).toBeTypeOf("function");
+			act(() => terminalLinkHandler?.("http://localhost:3000/simple"));
+			await waitFor(() => expect(openExternalMock).toHaveBeenCalledWith("http://localhost:3000/simple"));
+
 			act(() => terminalLinkHandler?.("https://example.com/pull/42"));
-			await waitFor(() =>
-				expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/preview", {
-					params: { path: { sessionId: "sess-1" } },
-					body: { url: "https://example.com/pull/42" },
-				}),
-			);
+			await waitFor(() => expect(openExternalMock).toHaveBeenCalledWith("https://example.com/pull/42"));
 		} finally {
 			view.restore();
 		}
 	});
 
-	it("does not mirror a non-web (mailto:) link", () => {
+	it("does not open a non-web (mailto:) terminal link externally", () => {
 		const view = renderPane(worker);
 		try {
 			act(() => terminalLinkHandler?.("mailto:dev@example.com"));
-			expect(postMock).not.toHaveBeenCalled();
+			expect(openExternalMock).not.toHaveBeenCalled();
 		} finally {
 			view.restore();
 		}
 	});
 
-	it("does not POST without a selected session", () => {
-		const view = renderPane();
-		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			expect(postMock).not.toHaveBeenCalled();
-		} finally {
-			view.restore();
-		}
-	});
-
-	it("does not mirror orchestrator links because orchestrators have no Browser inspector", () => {
+	it("opens terminal links for orchestrator and terminated sessions too", async () => {
 		const view = renderPane(orchestrator);
 		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			expect(postMock).not.toHaveBeenCalled();
+			act(() => terminalLinkHandler?.("http://localhost:3000/simple"));
+			await waitFor(() => expect(openExternalMock).toHaveBeenCalledWith("http://localhost:3000/simple"));
 		} finally {
-			view.restore();
-		}
-	});
-
-	it("does not mirror links for terminated workers because their Browser inspector is cleared", () => {
-		const view = renderPane({ ...worker, status: "terminated" });
-		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			expect(postMock).not.toHaveBeenCalled();
-		} finally {
-			view.restore();
-		}
-	});
-
-	it("does not mirror links for merged workers whose session is terminated", () => {
-		const view = renderPane({ ...worker, status: "merged", isTerminated: true });
-		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			expect(postMock).not.toHaveBeenCalled();
-		} finally {
-			view.restore();
-		}
-	});
-
-	it("does not invalidate workspace data when the preview endpoint returns an error", async () => {
-		postMock.mockResolvedValueOnce({ error: { code: "INVALID_PREVIEW_URL" } });
-		const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-		const view = renderPane(worker);
-		const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
-		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			await waitFor(() => expect(warning).toHaveBeenCalled());
-			expect(invalidate).not.toHaveBeenCalled();
-		} finally {
-			warning.mockRestore();
-			view.restore();
-		}
-	});
-
-	it("handles a rejected preview request without an unhandled rejection", async () => {
-		const error = new Error("daemon unavailable");
-		postMock.mockRejectedValueOnce(error);
-		const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-		const view = renderPane(worker);
-		const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
-		try {
-			act(() => terminalLinkHandler?.("http://localhost:3000"));
-			await waitFor(() =>
-				expect(warning).toHaveBeenCalledWith("Unable to open link in Browser preview", error),
-			);
-			expect(invalidate).not.toHaveBeenCalled();
-		} finally {
-			warning.mockRestore();
 			view.restore();
 		}
 	});

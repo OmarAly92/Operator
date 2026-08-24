@@ -22,7 +22,7 @@ import {
 	type AttachableTerminal,
 	type TerminalSessionState,
 } from "../hooks/useTerminalSession";
-import { useSessionBrowserLink } from "../hooks/useSessionBrowserLink";
+import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { getApiBaseUrl } from "../lib/api-client";
 import {
 	createTerminalMux,
@@ -763,9 +763,9 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 	}
 	if (session?.id === "demo-review-stack") {
 		return [
-			'$ rg "previewUrl|Browser" frontend/src/renderer',
-			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after opr preview",
-			"frontend/src/renderer/hooks/useBrowserView.ts: preview revision re-navigates the view",
+			'$ rg "previewUrl|previewRevision" frontend/src/renderer',
+			"frontend/src/renderer/hooks/useExternalPreview.ts: pending revision opens in the default browser",
+			"backend/internal/httpd/desktop_preview.go: preview-opened acknowledgement recorded",
 			"$ opr preview http://localhost:5173",
 			"DONE preview target set for demo-review-stack",
 			"$ npm --prefix frontend run typecheck",
@@ -946,7 +946,13 @@ function AttachedTerminal({
 			return;
 		}
 	}, [initFailed, onFatal]);
-	const handleLinkOpen = useSessionBrowserLink(session);
+	const handleLinkOpen = useCallback(
+		(uri: string) => {
+			if (!isWebLink(uri)) return;
+			void openLinkInSystemBrowser(uri);
+		},
+		[],
+	);
 	const restoreSession = useCallback(async () => {
 		if (!session?.id || !canRestoreSession || isRestoring) return;
 		setIsRestoring(true);

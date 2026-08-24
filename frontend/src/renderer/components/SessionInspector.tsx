@@ -39,9 +39,6 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { findProjectOrchestrator, sortedPRs } from "../types/workspace";
 import { getAgentActivityView, getSessionTimelinePillView } from "../lib/session-presentation";
 import { operatorBridge } from "../lib/bridge";
-import { BrowserPanelView, type BrowserAnnotationQueueModel } from "./BrowserPanel";
-import type { BrowserViewModel } from "../hooks/useBrowserView";
-import { useUiStore } from "../stores/ui-store";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
@@ -61,9 +58,9 @@ type ReviewsResponse = components["schemas"]["ListReviewsResponse"];
 type ReviewRunFacts = components["schemas"]["ReviewRun"];
 type OpenReviewerTerminal = (target: { handleId: string; harness: string }) => void;
 
-export type InspectorView = "summary" | "browser" | "files";
+export type InspectorView = "summary" | "files";
 
-const VIEW_DEFS: { id: InspectorView; labelKey: "inspector.summary" | "inspector.browser" | "inspector.files"; icon: ReactNode }[] = [
+const VIEW_DEFS: { id: InspectorView; labelKey: "inspector.summary" | "inspector.files"; icon: ReactNode }[] = [
 	{
 		id: "summary",
 		labelKey: "inspector.summary",
@@ -75,17 +72,6 @@ const VIEW_DEFS: { id: InspectorView; labelKey: "inspector.summary" | "inspector
 				<circle cx="4" cy="7" r="1" />
 				<circle cx="4" cy="12" r="1" />
 				<circle cx="4" cy="17" r="1" />
-			</svg>
-		),
-	},
-	{
-		id: "browser",
-		labelKey: "inspector.browser",
-		icon: (
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-				<circle cx="12" cy="12" r="9" />
-				<line x1="3" y1="12" x2="21" y2="12" />
-				<path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18" />
 			</svg>
 		),
 	},
@@ -140,41 +126,36 @@ function VerdictBadge({ label, tone }: { label: string; tone: "neutral" | "runni
 }
 
 /**
- * Tabbed inspector rail beside the terminal (Summary · Browser · Files).
+ * Tabbed inspector rail beside the terminal (Summary · Files).
  */
 export function SessionInspector({
 	session,
 	onOpenReviewerTerminal,
-	browserPoppedOut = false,
-	browserAnnotationQueue,
-	isInspectorVisible = true,
-	onToggleBrowserPopOut,
 	onOpenFiles,
 	filesView,
-	browserView,
 	view: viewProp,
 	onViewChange,
+	previewUrl,
+	previewError,
+	onReopenPreview,
+	onRetryPreview,
 }: {
 	session?: WorkspaceSession;
 	onOpenReviewerTerminal?: OpenReviewerTerminal;
-	browserPoppedOut?: boolean;
-	browserAnnotationQueue?: BrowserAnnotationQueueModel;
 	isInspectorVisible?: boolean;
-	onToggleBrowserPopOut?: (next: boolean) => void;
 	onOpenFiles?: () => void;
 	filesView?: ReactNode;
-	browserView?: BrowserViewModel;
 	/** Controlled active tab. Omit to let the inspector own its own selection. */
 	view?: InspectorView;
 	onViewChange?: (view: InspectorView) => void;
+	previewUrl?: string;
+	previewError?: string;
+	onReopenPreview?: () => void;
+	onRetryPreview?: () => void;
 }) {
 	const { t } = useTranslation();
 	const [internalView, setInternalView] = useState<InspectorView>("summary");
 	const requestedView = viewProp ?? internalView;
-	// Badge the Browser tab when a preview target arrived without us opening it.
-	const browserUnseen = useUiStore((state) =>
-		session ? Boolean(state.inspectorSessions[session.id]?.browserUnseen) : false,
-	);
 	const filesChangedCount = useSessionWorkspaceFilesChangedCount(session?.id);
 	const setView = (next: InspectorView) => {
 		setInternalView(next);
@@ -213,16 +194,6 @@ export function SessionInspector({
 					>
 						<span className="relative inline-flex shrink-0 [&_svg]:size-icon-md">
 							{entry.icon}
-							{entry.id === "browser" && browserUnseen ? (
-								<span
-									aria-hidden="true"
-									className="absolute -right-1 -top-1 inline-flex size-dot-sm"
-									data-testid="browser-unseen-indicator"
-								>
-									<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-									<span className="relative inline-flex size-dot-sm rounded-full bg-primary ring-2 ring-background" />
-								</span>
-							) : null}
 						</span>
 						<span className="truncate @max-[350px]/inspector:hidden">
 							{entry.id === "files" && filesChangedCount !== undefined
@@ -236,24 +207,17 @@ export function SessionInspector({
 			<div
 				className={cn(
 					inspectorBodyBaseClass,
-					view !== "browser" && view !== "files" && inspectorScrollableBodyClass,
-					// Browser and Files own their viewport spacing. Keep their body
-					// padding out of the class list entirely so a shorthand `p-3`
-					// cannot win over `p-0` through generated utility ordering.
-					view === "browser" &&
-						!browserPoppedOut &&
-						"session-inspector__body--browser p-0 overflow-hidden [&>[role=tabpanel]]:border-0 [&>[role=tabpanel]]:rounded-none",
+					view !== "files" && inspectorScrollableBodyClass,
 					view === "files" && "p-0 overflow-hidden [&>[role=tabpanel]]:h-full",
 				)}
 			>
-				{view === "summary" ? <SummaryView onOpenReviewerTerminal={onOpenReviewerTerminal} session={session} /> : null}
-				{view === "browser" ? (
-					<BrowserView
-						browserPoppedOut={browserPoppedOut}
-						browserAnnotationQueue={browserAnnotationQueue}
-						browserView={browserView}
-						isActive={isInspectorVisible && !browserPoppedOut}
-						onTogglePopOut={onToggleBrowserPopOut}
+				{view === "summary" ? (
+					<SummaryView
+						onOpenReviewerTerminal={onOpenReviewerTerminal}
+						onReopenPreview={onReopenPreview}
+						onRetryPreview={onRetryPreview}
+						previewError={previewError}
+						previewUrl={previewUrl}
 						session={session}
 					/>
 				) : null}
@@ -301,9 +265,17 @@ function Section({
 function SummaryView({
 	session,
 	onOpenReviewerTerminal,
+	previewUrl,
+	previewError,
+	onReopenPreview,
+	onRetryPreview,
 }: {
 	session: WorkspaceSession;
 	onOpenReviewerTerminal?: OpenReviewerTerminal;
+	previewUrl?: string;
+	previewError?: string;
+	onReopenPreview?: () => void;
+	onRetryPreview?: () => void;
 }) {
 	const { t } = useTranslation();
 	const query = useSessionScmSummary(session.id);
@@ -314,6 +286,14 @@ function SummaryView({
 
 	return (
 		<div role="tabpanel">
+			<PreviewSection
+				onReopen={onReopenPreview}
+				onRetry={onRetryPreview}
+				previewError={previewError}
+				previewUrl={previewUrl}
+				sessionId={session.id}
+			/>
+
 			<Section surface={false} title={prSectionTitle}>
 				<div className="flex flex-col gap-1.5">
 					{hasPRs ? (
@@ -335,6 +315,57 @@ function SummaryView({
 				<ResumeAgentControl session={session} />
 			</Section>
 		</div>
+	);
+}
+
+function PreviewSection({
+	previewUrl,
+	previewError,
+	onReopen,
+	onRetry,
+	sessionId,
+}: {
+	previewUrl?: string;
+	previewError?: string;
+	onReopen?: () => void;
+	onRetry?: () => void;
+	sessionId: string;
+}) {
+	const { t } = useTranslation();
+	if (!previewUrl) return null;
+	return (
+		<Section
+			action={
+				onReopen ? (
+					<Button
+						aria-label={t("inspector.reopenPreview")}
+						className="gap-1 px-1.5 [&_svg]:size-icon-sm"
+						onClick={onReopen}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						<ArrowUpRight aria-hidden="true" />
+						{t("inspector.reopenPreview")}
+					</Button>
+				) : undefined
+			}
+			title={t("inspector.preview")}
+		>
+			<p className="truncate py-1 font-mono text-xs text-accent" data-testid={`preview-target-${sessionId}`}>
+				{previewUrl}
+			</p>
+			{previewError ? (
+				<div className="flex items-center justify-between gap-2 pb-1.5" role="status">
+					<span className="min-w-0 text-2xs leading-normal text-error">{previewError}</span>
+					{onRetry ? (
+						<Button aria-label={t("inspector.retryPreview")} onClick={onRetry} size="sm" type="button" variant="outline">
+							{t("inspector.retryPreview")}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+		</Section>
 	);
 }
 
@@ -2032,55 +2063,6 @@ function reviewSessionRunAction(reviewStates: PRReviewState[], isTriggering: boo
 		return appI18n.t("inspector.review.rerun");
 	}
 	return appI18n.t("inspector.review.run");
-}
-
-function BrowserView({
-	session,
-	isActive,
-	browserPoppedOut,
-	browserAnnotationQueue,
-	onTogglePopOut,
-	browserView,
-}: {
-	session: WorkspaceSession;
-	isActive: boolean;
-	browserPoppedOut: boolean;
-	browserAnnotationQueue?: BrowserAnnotationQueueModel;
-	onTogglePopOut?: (next: boolean) => void;
-	browserView?: BrowserViewModel;
-}) {
-	// While maximized, the browser is a full-window overlay that covers the rail,
-	// so the inspector's Browser tab has nothing to show (and must not mount a
-	// second BrowserPanelView — it would fight the overlay over the shared native
-	// view slot). Exit is via the overlay's own minimize button.
-	const { t } = useTranslation();
-	if (browserPoppedOut) {
-		return (
-			<div role="tabpanel">
-				<div className={cn(inspectorEmptyClass, "flex flex-col items-center gap-2 py-10 px-5 text-center")}>
-					<p className="text-md-sm text-muted-foreground">{t("inspector.browserInCenter")}</p>
-					<Button onClick={() => onTogglePopOut?.(false)} size="sm" type="button" variant="outline">
-						{t("inspector.returnToPanel")}
-					</Button>
-				</div>
-			</div>
-		);
-	}
-
-	if (!browserView || !browserAnnotationQueue) {
-		return null;
-	}
-
-	return (
-		<BrowserPanelView
-			active={isActive}
-			annotationQueue={browserAnnotationQueue}
-			browserView={browserView}
-			onTogglePopOut={(next) => onTogglePopOut?.(next)}
-			poppedOut={false}
-			session={session}
-		/>
-	);
 }
 
 function FilesView({ filesView, onOpenFiles }: { filesView?: ReactNode; onOpenFiles?: () => void }) {

@@ -65,6 +65,11 @@ type SessionMetadata struct {
 	// even when PreviewURL is unchanged. The desktop browser panel keys
 	// navigation on it so a repeated `opr preview <same-url>` still refreshes.
 	PreviewRevision int64 `json:"previewRevision,omitempty"`
+	// PreviewOpenedRevision is the highest PreviewRevision the desktop shell has
+	// confirmed opening externally for this session. It is durable so an
+	// acknowledged target never re-opens after a restart or rerender, while an
+	// unacked (pending) revision still opens once.
+	PreviewOpenedRevision int64 `json:"previewOpenedRevision,omitempty"`
 	// BrowserCapabilityVerifier is a one-way verifier for the random browser
 	// capability held by this session's worker process. The bearer token itself
 	// is never persisted, so reading the database cannot grant access to another

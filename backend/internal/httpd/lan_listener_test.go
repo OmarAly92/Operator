@@ -66,6 +66,7 @@ func TestLANManagerBlocksLoopbackOnlyControlRoutes(t *testing.T) {
 		"/shutdown",
 		"/internal/telemetry/cli-invoked",
 		"/internal/desktop/telemetry-bootstrap",
+		"/internal/desktop/sessions/mer-1/preview-opened",
 		"/api/v1/mobile/status",
 		"/api/v1/dev/import-projects",
 		"/api/v1/dev/import-scan",

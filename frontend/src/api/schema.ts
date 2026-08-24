@@ -1752,6 +1752,8 @@ export interface components {
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */
+            previewOpenedRevision?: number;
+            /** Format: int64 */
             previewRevision?: number;
             previewUrl?: string;
             projectId: string;

@@ -72,6 +72,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountControl(r, control)
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountDesktopTelemetry(r, cfg)
+	mountDesktopPreview(r, deps.DesktopPreview)
 	mountMobile(r, deps.Mobile)
 	api.Register(r)
 

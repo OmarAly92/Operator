@@ -184,6 +184,27 @@ func (s *Store) SetSessionPreviewURL(ctx context.Context, id domain.SessionID, p
 	return rows > 0, nil
 }
 
+// MarkSessionPreviewOpened advances preview_opened_revision to a revision only
+// while it still equals the session's current preview_revision and only moves
+// forward. It returns applied=false when the session is absent, the revision no
+// longer matches (stale or future), or the acknowledgement was already recorded
+// — the last case being how an idempotent repeat settles.
+func (s *Store) MarkSessionPreviewOpened(ctx context.Context, id domain.SessionID, revision int64, updatedAt time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.MarkSessionPreviewOpened(ctx, gen.MarkSessionPreviewOpenedParams{
+		PreviewOpenedRevision:   revision,
+		UpdatedAt:               updatedAt,
+		ID:                      id,
+		PreviewRevision:         revision,
+		PreviewOpenedRevision_2: revision,
+	})
+	if err != nil {
+		return false, fmt.Errorf("mark preview opened for session %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
 // SetSessionTerminateOnPRMerge updates the user's merge-completion lifecycle
 // policy. It returns ok=false when the session id does not exist.
 func (s *Store) SetSessionTerminateOnPRMerge(ctx context.Context, id domain.SessionID, terminate bool, updatedAt time.Time) (bool, error) {
@@ -388,6 +409,7 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 			NativeTranscriptPath:      row.NativeTranscriptPath,
 			PreviewURL:                row.PreviewURL,
 			PreviewRevision:           row.PreviewRevision,
+			PreviewOpenedRevision:     row.PreviewOpenedRevision,
 			BrowserCapabilityVerifier: row.BrowserCapabilityVerifier,
 			ProviderConversationID:    row.ProviderConversationID,
 			ControllerGeneration:      row.ControllerGeneration,
@@ -441,6 +463,7 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		NativeTranscriptPath:      rec.Metadata.NativeTranscriptPath,
 		PreviewURL:                rec.Metadata.PreviewURL,
 		PreviewRevision:           rec.Metadata.PreviewRevision,
+		PreviewOpenedRevision:     rec.Metadata.PreviewOpenedRevision,
 		TerminateOnPRMerge:        rec.TerminateOnPRMerge,
 		AutoInjectReview:          rec.AutoInjectReview,
 		CleanupGeneration:         rec.CleanupGeneration,
@@ -482,6 +505,7 @@ func recordToUpdate(rec domain.SessionRecord) gen.UpdateSessionParams {
 		NativeTranscriptPath:      rec.Metadata.NativeTranscriptPath,
 		PreviewURL:                rec.Metadata.PreviewURL,
 		PreviewRevision:           rec.Metadata.PreviewRevision,
+		PreviewOpenedRevision:     rec.Metadata.PreviewOpenedRevision,
 		TerminateOnPRMerge:        rec.TerminateOnPRMerge,
 		AutoInjectReview:          rec.AutoInjectReview,
 		CleanupGeneration:         rec.CleanupGeneration,

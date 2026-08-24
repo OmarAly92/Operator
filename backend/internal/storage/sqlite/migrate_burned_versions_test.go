@@ -92,6 +92,7 @@ var shippedMigrations = map[int64]string{
 	86: "0086_workspace_repo_default_branch.sql",
 	87: "0087_conversation_branches.sql",
 	88: "0088_desktop_settings.sql",
+	89: "0089_preview_open_ack.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

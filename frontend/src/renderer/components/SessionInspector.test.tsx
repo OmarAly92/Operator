@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -206,15 +206,22 @@ afterEach(() => {
 });
 
 describe("SessionInspector tabs", () => {
-	it("gives the Browser viewport the full inspector body without the default content gutter", async () => {
-		renderWithQuery(<SessionInspector session={session([])} />);
+	it("keeps every embedded browser control absent from the inspector", () => {
+		renderWithQuery(<SessionInspector session={session([pr(1, "open")])} previewUrl="http://localhost:5173/" />);
 
-		const tablist = screen.getByRole("tablist");
-		await userEvent.click(screen.getByRole("tab", { name: "Browser" }));
-
-		const body = tablist.nextElementSibling;
-		expect(body).toHaveClass("session-inspector__body--browser", "p-0", "overflow-hidden");
-		expect(body).not.toHaveClass("p-3", "pb-4", "@max-[300px]/inspector:px-2.5");
+		expect(screen.queryByRole("tab", { name: "Browser" })).not.toBeInTheDocument();
+		expect(screen.queryByTestId("browser-panel")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("browser-toolbar")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("browser-viewport")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("browser-url-icon")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("browser-unseen-indicator")).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /devtools/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /annotate/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /^Back$/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /^Forward$/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Reload|Stop/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /new tab/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /tabs/i })).not.toBeInTheDocument();
 	});
 
 	it("sizes rail tabs to their labels instead of stretching across the inspector", () => {
@@ -226,20 +233,6 @@ describe("SessionInspector tabs", () => {
 		expect(summaryTab).toHaveClass("h-control-md", "px-1.5");
 		expect(summaryTab).toHaveAttribute("title", "Summary");
 		expect(within(summaryTab).getByText("Summary")).toHaveClass("@max-[350px]/inspector:hidden");
-	});
-
-	it("shows the glow only while real browser activity is unseen", () => {
-		const currentSession = session([]);
-		const view = renderWithQuery(<SessionInspector session={currentSession} />);
-		expect(screen.queryByTestId("browser-unseen-indicator")).not.toBeInTheDocument();
-		view.unmount();
-
-		useUiStore.getState().setBrowserUnseen(currentSession.id, true);
-		renderWithQuery(<SessionInspector session={currentSession} />);
-		expect(screen.getByTestId("browser-unseen-indicator")).toBeInTheDocument();
-
-		act(() => useUiStore.getState().setInspectorView(currentSession.id, "browser"));
-		expect(screen.queryByTestId("browser-unseen-indicator")).not.toBeInTheDocument();
 	});
 
 	it("renders the supplied files view when the Files tab opens", async () => {
@@ -851,11 +844,51 @@ describe("SessionInspector Activity section", () => {
 });
 
 describe("SessionInspector tabs", () => {
-	it("exposes Summary, Browser, and Files as inspector tabs", () => {
+	it("exposes Summary and Files as inspector tabs", () => {
 		renderWithQuery(<SessionInspector session={session([pr(1, "open")])} />);
 		const tabs = screen.getAllByRole("tab").map((el) => el.textContent?.trim());
-		expect(tabs).toEqual(["Summary", "Browser", "Files"]);
+		expect(tabs).toEqual(["Summary", "Files"]);
 		expect(screen.queryByRole("tab", { name: /Reviews/ })).not.toBeInTheDocument();
+	});
+
+	it("offers the manual preview reopen action without embedded panel chrome", async () => {
+		const onReopenPreview = vi.fn();
+
+		function inspectorTree(withPreview: boolean): ReactNode {
+			return withPreview ? (
+				<SessionInspector onReopenPreview={onReopenPreview} session={session([])} previewUrl="http://localhost:5173/" />
+			) : (
+				<SessionInspector session={session([])} />
+			);
+		}
+
+		const view = renderWithQuery(inspectorTree(true));
+
+		await userEvent.click(screen.getByRole("button", { name: "Reopen in browser" }));
+		expect(onReopenPreview).toHaveBeenCalledTimes(1);
+		expect(screen.getByText("http://localhost:5173/")).toBeInTheDocument();
+
+		view.rerender(
+			<QueryClientProvider client={view.queryClient}>
+				<TooltipProvider>{inspectorTree(false)}</TooltipProvider>
+			</QueryClientProvider>,
+		);
+		expect(screen.queryByText("http://localhost:5173/")).not.toBeInTheDocument();
+	});
+
+	it("surfaces a retryable external-preview failure beside the reopen action", async () => {
+		const onRetryPreview = vi.fn();
+		renderWithQuery(
+			<SessionInspector
+				onRetryPreview={onRetryPreview}
+				previewError="Operator could not open http://localhost:5173/ in your default browser."
+				session={session([])}
+				previewUrl="http://localhost:5173/"
+			/>,
+		);
+
+		await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetryPreview).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not render the overview card in the summary", () => {

@@ -279,6 +279,9 @@ func TestPreview_HelpIncludesExamples(t *testing.T) {
 	if !strings.Contains(out, "opr preview start") {
 		t.Errorf("help output missing managed server example:\n%s", out)
 	}
+	if !strings.Contains(out, "default browser") {
+		t.Errorf("help output must say validated targets open in the default browser:\n%s", out)
+	}
 }
 
 func TestPreview_BlankSessionIDIsUsageError(t *testing.T) {

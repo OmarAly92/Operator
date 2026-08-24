@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
 import type { components } from "../../api/schema";
-import { BrowserPanelView, useBrowserAnnotationQueue } from "./BrowserPanel";
 import { CenterPane } from "./CenterPane";
 import { SessionChatSurface } from "./chat/SessionChatSurface";
 import { SessionFilesView } from "./SessionFilesView";
@@ -17,7 +16,7 @@ import {
 } from "./SessionInterfaceSwitch";
 import { ShellTopbar } from "./ShellTopbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
-import { useBrowserView } from "../hooks/useBrowserView";
+import { useExternalPreview } from "../hooks/useExternalPreview";
 import {
 	useCloseShellTerminal,
 	useOpenShellTerminal,
@@ -52,19 +51,6 @@ function initialSplitPercent(): number {
 	const parsed = raw === null ? Number.NaN : Number(raw);
 	if (!Number.isFinite(parsed)) return INSPECTOR_MIN_PERCENT;
 	return Math.min(INSPECTOR_MAX_PERCENT, Math.max(INSPECTOR_MIN_PERCENT, parsed));
-}
-
-function previewRevealKey(previewUrl?: string, previewRevision?: number): string {
-	const target = previewUrl?.trim();
-	if (!target) return "";
-	if (typeof previewRevision === "number") return `revision:${previewRevision}`;
-	return `url:${target}`;
-}
-
-function browserIsVisible(sessionId: string, browserPoppedOut: boolean): boolean {
-	if (browserPoppedOut) return true;
-	const current = useUiStore.getState().inspectorSessions[sessionId];
-	return (current?.isOpen ?? true) && (current?.view ?? "summary") === "browser";
 }
 
 function reviewerTerminalFromReviews(data?: ReviewsResponse): ReviewerTerminalTarget | undefined {
@@ -105,16 +91,11 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const setInspectorOpenForSession = useUiStore((state) => state.setInspectorOpen);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
 	const setInspectorViewForSession = useUiStore((state) => state.setInspectorView);
-	const markInspectorPreviewSeen = useUiStore((state) => state.markInspectorPreviewSeen);
-	const setBrowserContentRevealed = useUiStore((state) => state.setBrowserContentRevealed);
-	const setBrowserUnseen = useUiStore((state) => state.setBrowserUnseen);
 	const { daemonStatus } = useShell();
 	const inspectorRef = useRef<PanelImperativeHandle | null>(null);
 	const inspectorSeparatorRef = useRef<HTMLDivElement | null>(null);
 	const [terminalTarget, setTerminalTarget] = useState<TerminalTarget>({ kind: "worker" });
-	const [browserPopOutState, setBrowserPopOutState] = useState({ sessionId, poppedOut: false });
 	const [filesPoppedOut, setFilesPoppedOut] = useState(false);
-	const browserPoppedOut = browserPopOutState.sessionId === sessionId && browserPopOutState.poppedOut;
 	const [interfaceSwitchDialogOpen, setInterfaceSwitchDialogOpen] = useState(false);
 	const [dismissedTransitionID, setDismissedTransitionID] = useState("");
 	const isNativeFullScreen = useWindowFullScreen();
@@ -362,32 +343,21 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	);
 	const previewUrl = session?.previewUrl?.trim() || undefined;
 	const previewRevision = session?.previewRevision;
-	const browserSlotVisible = Boolean(
-		session && hasInspector && (browserPoppedOut || (isInspectorOpen && inspectorView === "browser")),
-	);
 	const terminated = session ? !sessionIsActive(session) : false;
-	const browserView = useBrowserView({
-		sessionId,
-		active: browserSlotVisible,
-		poppedOut: browserPoppedOut,
-		terminated,
+	const externalPreview = useExternalPreview({
+		sessionId: session?.id,
 		previewUrl,
 		previewRevision,
+		previewOpenedRevision: session?.previewOpenedRevision,
+		terminated,
 	});
-	const browserAnnotationQueue = useBrowserAnnotationQueue({
-		sessionId: session?.id,
-		navUrl: browserView.navState.url,
-	});
-	const browserUrl = browserView.navState.url.trim();
-	// A terminated session's `previewUrl` is a stale DB fact; useBrowserView
-	// suppresses and destroys the live preview for it, so it must not count as
-	// content here either — otherwise a merged/terminated session with an old
-	// preview auto-opens Browser onto a view the hook has already torn down.
-	const hasBrowserContent = !terminated && Boolean(previewUrl || browserUrl);
+	const handleReopenPreview = useCallback(() => {
+		if (!previewUrl) return;
+		void externalPreview.reopen(previewUrl);
+	}, [externalPreview, previewUrl]);
 
 	useLayoutEffect(() => {
 		setTerminalTarget({ kind: "worker" });
-		setBrowserPopOutState({ sessionId, poppedOut: false });
 		setFilesPoppedOut(false);
 	}, [sessionId]);
 
@@ -409,7 +379,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	}, [clearVisibleTerminalKind, routedTerminalTarget.kind, sessionId, setVisibleTerminalKind]);
 
 	const handleOpenFiles = useCallback(() => {
-		setBrowserPopOutState({ sessionId, poppedOut: false });
 		setFilesPoppedOut(false);
 		setInspectorViewForSession(sessionId, "files");
 		setInspectorOpenForSession(sessionId, true);
@@ -417,7 +386,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 
 	const handleToggleFilesPopOut = useCallback(
 		(next: boolean) => {
-			if (next) setBrowserPopOutState({ sessionId, poppedOut: false });
 			setFilesPoppedOut(next);
 			setInspectorViewForSession(sessionId, "files");
 			setInspectorOpenForSession(sessionId, true);
@@ -425,109 +393,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 		[sessionId, setInspectorOpenForSession, setInspectorViewForSession],
 	);
 
-	const handleToggleBrowserPopOut = useCallback(
-		(next: boolean) => {
-			if (next) setFilesPoppedOut(false);
-			setBrowserPopOutState({ sessionId, poppedOut: next });
-		},
-		[sessionId],
-	);
-
-	// Reveal the first real content in each non-empty browser lifecycle. Once the
-	// user leaves Browser, subsequent work respects that choice and uses the
-	// unseen indicator instead of repeatedly stealing the active inspector tab.
-	// previewRevision intentionally retriggers the empty branch so an explicit
-	// clear consumes unseen activity even when the browser was already empty.
-	useEffect(() => {
-		if (!hasInspector) return;
-		const current = useUiStore.getState().inspectorSessions[sessionId];
-		if (!hasBrowserContent) {
-			if (current?.browserContentRevealed) setBrowserContentRevealed(sessionId, false);
-			else if (current?.browserUnseen) setBrowserUnseen(sessionId, false);
-			return;
-		}
-		if (current?.browserContentRevealed) return;
-		setBrowserContentRevealed(sessionId, true);
-		setInspectorViewForSession(sessionId, "browser");
-		setInspectorOpenForSession(sessionId, true);
-	}, [
-		hasBrowserContent,
-		hasInspector,
-		previewRevision,
-		sessionId,
-		setBrowserContentRevealed,
-		setBrowserUnseen,
-		setInspectorOpenForSession,
-		setInspectorViewForSession,
-		terminated,
-	]);
-
-	// `opr preview` is authoritative browser work, including a same-URL rerun
-	// whose revision advances. The first target is handled by the lifecycle
-	// effect above; later targets glow only while Browser is not visible.
-	useEffect(() => {
-		if (!hasInspector) return;
-		const previewKey = previewRevealKey(previewUrl, previewRevision);
-		const seenKey = useUiStore.getState().inspectorSessions[sessionId]?.previewKey;
-		if (seenKey === undefined) {
-			markInspectorPreviewSeen(sessionId, previewKey);
-			return;
-		}
-		if (seenKey === previewKey) return;
-		markInspectorPreviewSeen(sessionId, previewKey);
-		if (!previewKey) return;
-		const current = useUiStore.getState().inspectorSessions[sessionId];
-		const viewingBrowser = browserIsVisible(sessionId, browserPoppedOut);
-		if (current?.browserContentRevealed && !viewingBrowser) setBrowserUnseen(sessionId, true);
-	}, [
-		browserPoppedOut,
-		hasInspector,
-		markInspectorPreviewSeen,
-		previewRevision,
-		previewUrl,
-		sessionId,
-		setBrowserUnseen,
-	]);
-
-	// Agent browser commands are genuine browser activity even when they do not
-	// navigate (fill, click, snapshot, etc.) or land on an empty target — e.g. a
-	// command that runs before any page has loaded. When Browser is hidden,
-	// surface that activity as unseen rather than reopening the tab; gating this
-	// on hasBrowserContent/browserContentRevealed missed exactly that case.
-	useEffect(() => {
-		if (!hasInspector || terminated || !browserView.agentBrowserActive) return;
-		if (!browserIsVisible(sessionId, browserPoppedOut)) setBrowserUnseen(sessionId, true);
-	}, [
-		browserPoppedOut,
-		browserView.agentBrowserActive,
-		hasInspector,
-		inspectorView,
-		isInspectorOpen,
-		sessionId,
-		setBrowserUnseen,
-		terminated,
-	]);
-
-	// Opening Browser consumes the pending activity indicator, including the
-	// case where the inspector was collapsed while already parked on Browser.
-	useEffect(() => {
-		if (hasInspector && browserIsVisible(sessionId, browserPoppedOut)) {
-			setBrowserUnseen(sessionId, false);
-		}
-	}, [browserPoppedOut, hasInspector, inspectorView, isInspectorOpen, sessionId, setBrowserUnseen]);
-
-	// Computed when the inspector panel mounts and frozen while it stays
-	// mounted: rrp re-registers the panel (a layout effect keyed on defaultSize,
-	// among others) whenever this prop's identity changes, and the imperative
-	// collapse()/resize() below can race that re-registration within the same
-	// commit — rrp then throws "Panel constraints not found for Panel
-	// inspector", which unwinds the whole route to the router's CatchBoundary
-	// (the toggle button looks dead and the session view is torn down).
-	// Re-derived per panel mount (not once per SessionView mount — navigating
-	// orchestrator → worker keeps this component mounted while the panel
-	// remounts) so a freshly mounted panel reflects the store on its own,
-	// without an imperative fix-up in the mount commit. Afterwards the
-	// imperative API owns the size, so this must never track live open state.
 	const inspectorDefaultSizeRef = useRef<string | null>(null);
 	if (!hasInspector) {
 		inspectorDefaultSizeRef.current = null;
@@ -699,8 +564,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
                   the pane clips instead of reflowing the inspector mid-collapse. */}
 							<div className="h-full min-w-inspector-min">
 								<SessionInspector
-									browserAnnotationQueue={browserAnnotationQueue}
-									browserPoppedOut={browserPoppedOut}
 									filesView={
 										session ? (
 											<SessionFilesView onToggleMaximized={handleToggleFilesPopOut} sessionId={session.id} />
@@ -709,10 +572,12 @@ export function SessionView({ sessionId }: SessionViewProps) {
 									isInspectorVisible={isInspectorOpen}
 									onOpenFiles={handleOpenFiles}
 									onOpenReviewerTerminal={selectReviewerTerminal}
-									onToggleBrowserPopOut={handleToggleBrowserPopOut}
+									onReopenPreview={handleReopenPreview}
+									onRetryPreview={externalPreview.retry}
 									onViewChange={(next: InspectorView) => setInspectorViewForSession(sessionId, next)}
+									previewError={externalPreview.error || undefined}
+									previewUrl={previewUrl}
 									view={inspectorView}
-									browserView={browserView}
 									session={session}
 								/>
 							</div>
@@ -746,31 +611,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 						document.body,
 					)
 				: null}
-			{/* Maximized browser: a fixed overlay across the app workspace,
-          portaled to <body> so it escapes the shell layout (covering the
-          sidebar + topbar, not just the session area) and sits outside any
-          `[data-panel]` column, so the native WebContentsView is not clamped
-          and fills the window below any native titlebar overlay. */}
-			{browserPoppedOut && session
-				? createPortal(
-						<div
-							className={cn(
-								"browser-popout-overlay",
-								shellTopbarHiddenByPlatform && !isNativeFullScreen && "browser-popout-overlay--mac-windowed",
-							)}
-						>
-							<BrowserPanelView
-								active
-								annotationQueue={browserAnnotationQueue}
-								browserView={browserView}
-								onTogglePopOut={handleToggleBrowserPopOut}
-								poppedOut
-								session={session}
-							/>
-						</div>,
-						document.body,
-					)
-				: null}
-		</div>
+</div>
 	);
 }

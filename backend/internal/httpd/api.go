@@ -43,7 +43,10 @@ type APIDeps struct {
 	// answers 501 rather than panicking, matching the other optional surfaces.
 	Conversations controllers.ConversationService
 	// Settings is the daemon-owned preference surface.
-	Settings            controllers.SettingsService
+	Settings controllers.SettingsService
+	// DesktopPreview records the external preview-open acknowledgements sent by
+	// the desktop shell. Nil keeps the loopback-only route unmounted.
+	DesktopPreview      DesktopPreviewService
 	DevImport           controllers.DevImportService
 	DevScan             controllers.DevScanService
 	CDC                 cdc.Source

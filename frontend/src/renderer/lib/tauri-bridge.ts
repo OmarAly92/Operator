@@ -10,8 +10,9 @@ import type { TrayAttentionState, TrayOpenSessionTarget } from "../../shared/tra
 import type { KeybindingOverrides } from "../../shared/shortcuts";
 import type { TelemetryBootstrap } from "../../shared/telemetry";
 import type { UpdateOutcome } from "../../shared/update-telemetry";
-import type { OperatorBridgeWithoutBrowser } from "../../shared/operator-bridge";
+import type { ExternalPreviewOpenInput, OperatorBridge } from "../../shared/operator-bridge";
 import { apiClient, apiErrorMessage, getApiBaseUrl, hasTrustedApiBaseUrl, subscribeApiBaseUrl } from "./api-client";
+import { isAllowedPreviewUrl } from "./preview-url";
 
 type SettingsPayload = components["schemas"]["SettingsResponse"];
 
@@ -96,6 +97,20 @@ async function fetchSettings(): Promise<SettingsPayload> {
 	return data;
 }
 
+/** Records the durable preview-opened acknowledgement on the loopback daemon. */
+export async function postPreviewOpenedAck(input: ExternalPreviewOpenInput): Promise<void> {
+	if (!hasTrustedApiBaseUrl()) return;
+	try {
+		await fetch(new URL(`/internal/desktop/sessions/${encodeURIComponent(input.sessionId)}/preview-opened`, getApiBaseUrl()), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ revision: input.revision }),
+		});
+	} catch (error) {
+		console.warn("Unable to record the preview-opened acknowledgement", error);
+	}
+}
+
 export interface TauriBridgeTransports {
 	invoke: (command: string, payload?: unknown) => Promise<unknown>;
 	listen: (
@@ -104,7 +119,7 @@ export interface TauriBridgeTransports {
 	) => void | Promise<void> | (() => void) | Promise<() => void>;
 }
 
-export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): OperatorBridgeWithoutBrowser {
+export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): OperatorBridge {
 	const invokeDaemon = async (command: string): Promise<DaemonStatus> =>
 		(await invoke(command)) as DaemonStatus;
 
@@ -221,6 +236,13 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 		},
 		telemetry: {
 			getBootstrap: () => fetchTelemetryBootstrap(),
+		},
+		preview: {
+			openExternalPreview: async ({ url, sessionId, revision }: ExternalPreviewOpenInput) => {
+				if (!isAllowedPreviewUrl(url)) throw new Error(`Preview target must be an HTTP(S) URL: ${url}`);
+				await invoke("open_external", { url });
+				await postPreviewOpenedAck({ sessionId, url, revision });
+			},
 		},
 		notifications: {
 			show: async (notification: { id: string; title: string; body?: string; type?: string }) => {
