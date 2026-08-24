@@ -1986,3 +1986,79 @@ impl HarnessExtras for Harness {
         self.engine.begin_bytes_for_test(version, at)
     }
 }
+
+// ---------------------------------------------------------------- release config
+
+#[test]
+fn baked_release_config_feed_base_url_is_used_when_env_absent() {
+    let plugins = json!({"operator-updates": {"feedBaseUrl": "https://github.com/OmarAly92/operator/releases/latest/download/"}});
+    assert_eq!(
+        super::resolve_feed_base_url(None, Some(&plugins)),
+        Some("https://github.com/OmarAly92/operator/releases/latest/download/".to_string())
+    );
+}
+
+#[test]
+fn env_feed_url_overrides_the_baked_release_config() {
+    let plugins = json!({"operator-updates": {"feedBaseUrl": "https://github.com/OmarAly92/operator/releases/latest/download/"}});
+    assert_eq!(
+        super::resolve_feed_base_url(Some("http://127.0.0.1:9876/".to_string()), Some(&plugins)),
+        Some("http://127.0.0.1:9876/".to_string())
+    );
+    assert_eq!(
+        super::resolve_feed_base_url(Some(String::new()), Some(&plugins)),
+        Some("https://github.com/OmarAly92/operator/releases/latest/download/".to_string())
+    );
+}
+
+#[test]
+fn empty_or_absent_baked_config_falls_through_to_none() {
+    assert_eq!(super::resolve_feed_base_url(None, None), None);
+    assert_eq!(super::resolve_feed_base_url(None, Some(&json!({}))), None);
+    assert_eq!(
+        super::resolve_feed_base_url(None, Some(&json!({"operator-updates": {}}))),
+        None
+    );
+    assert_eq!(
+        super::resolve_feed_base_url(
+            None,
+            Some(&json!({"operator-updates": {"feedBaseUrl": ""}}))
+        ),
+        None
+    );
+    assert_eq!(
+        super::resolve_feed_base_url(
+            None,
+            Some(&json!({"operator-updates": {"feedBaseUrl": 42}}))
+        ),
+        None
+    );
+}
+
+#[test]
+fn tauri_release_conf_bakes_the_production_updater_surface() {
+    let raw = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tauri.release.conf.json"
+    ))
+    .expect("tauri.release.conf.json must exist beside the crate");
+    let conf: serde_json::Value = serde_json::from_str(&raw).expect("release conf is valid JSON");
+    assert_eq!(conf["bundle"]["createUpdaterArtifacts"], json!(true));
+    // The bundler refuses createUpdaterArtifacts unless plugins > updater
+    // exists; the verification key itself is compiled in, not configured here.
+    assert!(
+        conf["plugins"].get("updater").is_some(),
+        "release conf must declare the updater plugin config for the bundler"
+    );
+    let base = conf["plugins"]["operator-updates"]["feedBaseUrl"]
+        .as_str()
+        .expect("release conf bakes feedBaseUrl");
+    assert!(
+        base.starts_with("https://"),
+        "production feed base must be https"
+    );
+    assert!(
+        base.ends_with("/releases/latest/download/"),
+        "feed base must target the latest download root, got {base}"
+    );
+}

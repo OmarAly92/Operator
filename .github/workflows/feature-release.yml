@@ -1,20 +1,20 @@
 name: Desktop feature release
 
-# Manual-only, per-unmerged-PR prerelease build. Produces a signed Electron
+# Manual-only, per-unmerged-PR prerelease build. Produces a signed Tauri
 # installer for a single PR's head SHA, published as a prerelease under the
-# isolated `pr<N>` electron-updater channel. This channel NEVER writes
-# `latest*` or `nightly*` manifests, so it cannot disrupt stable or nightly
-# auto-updates. Only one live feature build per PR is allowed; a new run
-# deletes the previous one before publishing. The build jobs are gated by the
-# `release` environment (same required-reviewer approval as the stable release
-# workflow). Cross-repository PRs are rejected unless `allow_fork` is set.
+# isolated `pr<N>` channel. This channel writes ONLY pr<N>.json plus pr<N>*.yml
+# compatibility feeds — it can never disrupt stable or nightly auto-updates.
+# Only one live feature build per PR is allowed; a new run deletes the previous
+# one before publishing. The build jobs are gated by the `release` environment
+# (same required-reviewer approval as the stable release workflow).
+# Cross-repository PRs are rejected unless `allow_fork` is set.
 #
 # QUOTA: at most 5 active feature releases are allowed at once. If the limit
 # is hit, retire (delete) an old one before triggering a new build.
 #
 # Version format: <base>-pr<N>.<UTCts>+<sha>  (computed in the guard job via
 # the GitHub contents API + bash; no PR-controlled code ever executes there)
-# Feed channel:   pr<N>          (e.g. pr42.yml, pr42-mac.yml, pr42-linux.yml)
+# Feed channel:   pr<N>          (e.g. pr42.json, pr42.yml, pr42-mac.yml)
 
 on:
   workflow_dispatch:
@@ -90,22 +90,14 @@ jobs:
         run: |
           # Count UNIQUE, non-expired feature releases whose associated PR is
           # still open. If >= 5, fail fast.
-          #  - dedupe by PR number: stray duplicate marked releases for the
-          #    same PR must not each count against the quota.
-          #  - ignore releases older than 7 days: a stale/abandoned build
-          #    should not block new ones from being started.
           cutoff="$(date -u -d '7 days ago' +%s)"
           declare -A seen
           active=0
           while IFS=$'\t' read -r published_at body; do
-            # Extract the JSON payload from the marker line and read .pr from it.
             json="$(echo "$body" | sed -n 's/.*<!-- opr-feature-build: \(.*\) -->.*/\1/p')"
             if [ -z "$json" ]; then continue; fi
             pr_num="$(echo "$json" | jq -r '.pr' 2>/dev/null)" || true
             if [ -z "$pr_num" ] || [ "$pr_num" = "null" ]; then continue; fi
-            # A rebuild of a PR that already has a live build is net-zero (the
-            # "delete prior build" step retires it before publishing), so
-            # don't let it count against the quota.
             if [ "$pr_num" = "$PR_NUMBER" ]; then continue; fi
             if [ -n "${seen[$pr_num]:-}" ]; then continue; fi
             published_ts="$(date -u -d "$published_at" +%s 2>/dev/null || echo 0)"
@@ -148,7 +140,6 @@ jobs:
           fi
 
           short_sha="${head_sha:0:7}"
-          # Escape newlines/special chars in title for output; use printf for title.
           {
             echo "headSha=$head_sha"
             echo "shortSha=$short_sha"
@@ -167,16 +158,14 @@ jobs:
         run: |
           # Fetch frontend/package.json AT THE PR HEAD via the contents API
           # and read .version with jq. This never checks out the PR head and
-          # never runs any file from it (no node, no feature-version.mjs) -
-          # guard has no `environment:` gate, so anything it executed from
-          # PR-controlled content would bypass the release approval gate.
+          # never runs any file from it - guard has no `environment:` gate,
+          # so anything it executed from PR-controlled content would bypass
+          # the release approval gate.
           base="$(gh api "repos/$REPO/contents/frontend/package.json?ref=$HEAD_SHA" --jq '.content' | base64 -d | jq -r '.version')"
           if [ -z "$base" ] || [ "$base" = "null" ]; then
             echo "::error::Could not read frontend/package.json version at $HEAD_SHA"
             exit 1
           fi
-          # Mirror feature-version.mjs's bare-version normalization (strip an
-          # optional desktop-/v prefix) before appending the pr/timestamp/sha.
           bare="${base#desktop-}"
           bare="${bare#v}"
           ts="$(date -u +%Y%m%d%H%M)"
@@ -191,10 +180,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Computed version: $version  tag: $tag  channel: $channel"
 
-  # ── release (matrix: macos-latest, windows-latest, ubuntu-latest) ─────────
-  # Mirrors frontend-nightly.yml's build steps exactly. Gated by the `release`
-  # environment (same required-reviewer approval as stable). Checks out the PR
-  # head SHA so we build exactly what the PR author pushed.
+  # ── release (matrix) ──────────────────────────────────────────────────────
+  # Gated by the `release` environment (same required-reviewer approval as
+  # stable). Checks out the PR head SHA so we build exactly what the PR author
+  # pushed.
   release:
     needs: guard
     if: >-
@@ -218,12 +207,19 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      CGO_ENABLED: 0
+      # Selects the pinned toolchain for every cargo/rustc invocation in this
+      # job (npm run tauri:* shells out to cargo); installing alone never
+      # selects it, and the build would otherwise run on the runner's stable.
+      RUSTUP_TOOLCHAIN: "1.96.0"
     steps:
       - name: Skip if platform not requested
         id: gate
         shell: bash
-        # Runs before checkout, so it must not use the job's `frontend`
-        # working-directory (that dir does not exist yet). Read env only.
         working-directory: ${{ github.workspace }}
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -257,8 +253,22 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
+      - run: rustup toolchain install 1.96.0 --profile minimal
+        if: steps.gate.outputs.skip != 'true'
+
+      - name: Install Linux webview and packaging tooling
+        if: steps.gate.outputs.skip != 'true' && runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm squashfs-tools gnupg
+
       - run: npm ci
         if: steps.gate.outputs.skip != 'true'
+
+      - name: Build runtime dependencies into the bundle resources
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          npm run build:daemon
+          npm run browser-runtime:prepare -- --quiet
+          npm run build:acp-runtime
 
       - name: Stamp feature version
         if: steps.gate.outputs.skip != 'true'
@@ -266,8 +276,8 @@ jobs:
         env:
           FEATURE_VERSION: ${{ needs.guard.outputs.version }}
         run: |
-          # Strip +build metadata: Forge stamps package.json with the semver
-          # pre-release portion only; publisher-github names the release v<that>.
+          # Strip +build metadata: Tauri stamps package.json's version with the
+          # semver pre-release portion only; the release is tagged v<that>.
           node -e "const v=process.env.FEATURE_VERSION.split('+')[0]; const fs=require('fs'); const p=require('./package.json'); p.version=v; fs.writeFileSync('./package.json', JSON.stringify(p,null,'\t')+'\n');"
 
       - name: macOS signing setup
@@ -281,30 +291,101 @@ jobs:
           apple-api-issuer: ${{ secrets.APPLE_API_ISSUER }}
           apple-signing-identity: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
-      - name: Publish
+      - name: Build (signed, updater artifacts)
         if: steps.gate.outputs.skip != 'true'
         shell: bash
         run: |
-          # Retry transient macOS sign/notary flakes (Apple notary -1009,
-          # osx-sign keychain races) so the build self-heals instead of failing.
+          UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
+          # The conf file carries an empty plugins.updater.pubkey placeholder;
+          # the operational public key arrives as this build-time overlay (the
+          # same key the shell compiles in via OPERATOR_UPDATER_PUBLIC_KEY).
           for i in 1 2 3; do
-            if npm run publish; then exit 0; fi
-            echo "::warning::publish attempt $i/3 failed (likely a transient macOS sign/notary flake)"
+            if npm run tauri:release -- --config "$UPDATER_PUBKEY_OVERLAY_JSON"; then exit 0; fi
+            echo "::warning::tauri build attempt $i/3 failed"
             [ "$i" -lt 3 ] && sleep 30
           done
-          echo "::error::publish failed after 3 attempts" >&2
+          echo "::error::tauri build failed after 3 attempts" >&2
           exit 1
+
+      - name: Notarize, staple and collect macOS artifacts
+        if: steps.gate.outputs.skip != 'true' && startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          APP="src-tauri/target/release/bundle/macos/Operator.app"
+          DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
+          codesign --verify --deep --strict "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
+            --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler staple "$DMG"
+          mkdir -p dist
+          ARCH="$(uname -m | sed 's/x86_64/x64/')"
+          ./scripts/package-tauri-mac-zip.sh "$APP" "dist/operator-darwin-${ARCH}-${VERSION}.zip"
+          cp "$DMG" "dist/operator-darwin-${ARCH}.dmg"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz \
+            "dist/operator-darwin-${ARCH}-${VERSION}.app.tar.gz"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz.sig \
+            "dist/operator-darwin-${ARCH}-${VERSION}.app.tar.gz.sig"
+
+      - name: Collect Windows artifacts
+        if: steps.gate.outputs.skip != 'true' && matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/release/bundle"
+          mkdir -p dist
+          cp "$BUNDLE/nsis/"*-setup.exe dist/
+          cp "$BUNDLE/nsis/"*-setup.exe.sig dist/
+
+      - name: Collect Linux artifacts
+        if: steps.gate.outputs.skip != 'true' && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/release/bundle"
+          mkdir -p dist
+          cp "$BUNDLE/appimage/"*.AppImage dist/
+          cp "$BUNDLE/appimage/"*.AppImage.sig dist/ 2>/dev/null || true
+          cp "$BUNDLE/deb/"*.deb dist/
+          cp "$BUNDLE/rpm/"*.rpm dist/
+
+      - name: Verify artifacts (structural, strict trust on this runner)
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        # --strict-trust fails this leg on structural violations and on a
+        # FAILED seal/notarization/staple check; gaps needing conductor-held
+        # material (Authenticode evidence, smoke installs, rpm -K) stay
+        # recorded gates, never fatal. --arch scopes absence checks to THIS
+        # leg's artifacts: each matrix runner only ever holds its own arch,
+        # so sibling-arch absence is matrix topology, not a defect.
+        run: >
+          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust
+          --arch "$(uname -m | sed 's/x86_64/x64/')"
+          --expect-version "$(node -p "require('./package.json').version")"
+          --emit-gates artifact-gates.json
+
+      - name: Publish to the v<version> prerelease
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPERATOR_RELEASE_REPO: ${{ github.repository }}
-          OPERATOR_RELEASE_PRERELEASE: "true"
-          # macOS signing + notarization env is exported by the "macOS signing
-          # setup" step above via $GITHUB_ENV; the cert is in the keychain.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "$TAG" \
+            --notes "Operator desktop feature build ${TAG}." || true
+          find dist -type f -print0 | while IFS= read -r -d '' f; do
+            echo "uploading: $f"
+            gh release upload "$TAG" "$f" --clobber
+          done
 
   # ── release-intel (dedicated darwin-x64 leg) ──────────────────────────────
-  # Mirrors the release-intel job in frontend-nightly.yml. Only macOS can build
-  # the x64 installer; this job is separate from the matrix so publish-feed can
-  # wait on it. Runner is macos-15-intel (macos-13 deprecated/no capacity).
+  # Only macOS can build the x64 installer; this job is separate from the
+  # matrix so publish-feed can wait on it. Runner is macos-15-intel.
   release-intel:
     needs: guard
     if: needs.guard.outputs.build_mac == 'true'
@@ -315,6 +396,13 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      CGO_ENABLED: 0
+      # Same toolchain pin as the matrix release leg (see the comment there).
+      RUSTUP_TOOLCHAIN: "1.96.0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -331,7 +419,15 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
+      - run: rustup toolchain install 1.96.0 --profile minimal
+
       - run: npm ci
+
+      - name: Build runtime dependencies into the bundle resources
+        run: |
+          npm run build:daemon
+          npm run browser-runtime:prepare -- --quiet
+          npm run build:acp-runtime
 
       - name: Stamp feature version
         shell: bash
@@ -350,35 +446,67 @@ jobs:
           apple-api-issuer: ${{ secrets.APPLE_API_ISSUER }}
           apple-signing-identity: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
-      - name: Publish
+      - name: Build (signed, updater artifacts)
         shell: bash
         run: |
-          # Retry transient macOS sign/notary flakes (Apple notary -1009,
-          # osx-sign keychain races) so the build self-heals instead of failing.
+          UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
+          # The conf file carries an empty plugins.updater.pubkey placeholder;
+          # the operational public key arrives as this build-time overlay (the
+          # same key the shell compiles in via OPERATOR_UPDATER_PUBLIC_KEY).
           for i in 1 2 3; do
-            if npm run publish; then exit 0; fi
-            echo "::warning::publish attempt $i/3 failed (likely a transient macOS sign/notary flake)"
+            if npm run tauri:release -- --config "$UPDATER_PUBKEY_OVERLAY_JSON"; then exit 0; fi
+            echo "::warning::tauri build attempt $i/3 failed"
             [ "$i" -lt 3 ] && sleep 30
           done
-          echo "::error::publish failed after 3 attempts" >&2
+          echo "::error::tauri build failed after 3 attempts" >&2
           exit 1
+
+      - name: Notarize, staple and collect macOS x64 artifacts
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPERATOR_RELEASE_REPO: ${{ github.repository }}
-          OPERATOR_RELEASE_PRERELEASE: "true"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          APP="src-tauri/target/release/bundle/macos/Operator.app"
+          DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
+          codesign --verify --deep --strict "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
+            --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler staple "$DMG"
+          mkdir -p dist
+          ./scripts/package-tauri-mac-zip.sh "$APP" "dist/operator-darwin-x64-${VERSION}.zip"
+          cp "$DMG" "dist/operator-darwin-x64.dmg"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz \
+            "dist/operator-darwin-x64-${VERSION}.app.tar.gz"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz.sig \
+            "dist/operator-darwin-x64-${VERSION}.app.tar.gz.sig"
+          # Same strict-trust posture as the matrix leg's verify step. This
+          # leg's dist holds ONLY x64 artifacts, so scope the absence checks
+          # to darwin/x64: arm64 classes are matrix topology (the matrix leg
+          # builds them), not defects.
+          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust \
+            --platform darwin --arch x64 \
+            --expect-version "$VERSION" --emit-gates artifact-gates.json
+          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "$TAG" \
+            --notes "Operator desktop feature build ${TAG}." || true
+          gh release upload "$TAG" dist/* --clobber
 
   # ── publish-feed ──────────────────────────────────────────────────────────
-  # Generates the pr<N> electron-updater feed from the versioned prerelease
-  # assets. Mirrors nightly's publish-feed but uses the pr<N> channel. Includes
-  # a hard guard that rejects any feed file that would write latest* or nightly*
-  # manifests, protecting stable and nightly channels from accidental clobber.
-  # Gated by the `release` environment: this job also deletes/renames GitHub
-  # releases with `contents: write`, so it must never run on PR-controlled
-  # code without the same approval the build jobs require. `always()` is kept
-  # so our own success checks below run instead of the default "skip if any
-  # need failed or was skipped" behavior (release-intel is legitimately
-  # skipped when mac isn't requested); we then require release to have
-  # actually succeeded and release-intel to not have failed.
+  # Generates the pr<N> feeds from the versioned prerelease assets — BOTH feed
+  # families: pr<N>.json (Tauri updater) and pr<N>*.yml (Electron
+  # compatibility). Includes a hard guard that rejects any feed file that
+  # would write latest* or nightly* manifests. Gated by the `release`
+  # environment: this job also deletes/renames GitHub releases with
+  # `contents: write`, so it must never run on PR-controlled code without the
+  # same approval the build jobs require. `always()` is kept so our own
+  # success checks below run instead of the default skip behavior
+  # (release-intel is legitimately skipped when mac isn't requested); we then
+  # require release to have actually succeeded and release-intel to not have
+  # failed.
   publish-feed:
     needs: [guard, release, release-intel]
     if: >-
@@ -404,24 +532,22 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # feed.mjs imports app-builder-lib's blockmap generator, so deps are needed.
       - run: npm ci
 
-      - name: Generate and upload the pr<N> feed
+      - name: Generate the pr<N> feeds
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FEATURE_VERSION: ${{ needs.guard.outputs.version }}
           PR_NUMBER: ${{ inputs.pr }}
         run: |
-          # Forge stamps package.json to VERSION without +build metadata and
-          # publishes to v<that>. Match it.
+          set -euo pipefail
           version="${FEATURE_VERSION%%+*}"
           tag="v$version"
           channel="pr${PR_NUMBER}"
           mkdir -p dist
           gh release download "$tag" --dir dist --clobber
-          node scripts/feed.mjs dist "$version" "$channel"
+          node scripts/tauri-feed.mjs dist "$version" "$channel" --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: "Guard: assert feed channel and reject latest*/nightly* assets"
         shell: bash
@@ -435,12 +561,9 @@ jobs:
             exit 1
           fi
           # Reject any generated feed file that matches latest* or nightly*.
-          # Paths are relative to the job's `working-directory: frontend`, so
-          # this must be dist/*, not frontend/dist/* (which would resolve to
-          # the nonexistent frontend/frontend/dist and never match anything).
           shopt -s nullglob
           bad_files=()
-          for f in dist/latest*.yml dist/nightly*.yml; do
+          for f in dist/latest*.yml dist/latest*.json dist/nightly*.yml dist/nightly*.json; do
             [ -f "$f" ] && bad_files+=("$f")
           done
           if [ ${#bad_files[@]} -gt 0 ]; then
@@ -456,17 +579,12 @@ jobs:
           PR_NUMBER: ${{ inputs.pr }}
           FEATURE_VERSION: ${{ needs.guard.outputs.version }}
         run: |
+          set -euo pipefail
           version="${FEATURE_VERSION%%+*}"
           tag="v$version"
           channel="pr${PR_NUMBER}"
           shopt -s nullglob
-          feed_ymls=()
-          blockmaps=()
-          # Collect into separate arrays first (avoids SC2206 word-splitting on
-          # a variable-containing glob pattern; nullglob means empty if no match).
-          for f in dist/"${channel}"*.yml; do feed_ymls+=("$f"); done
-          for f in dist/*.blockmap;        do blockmaps+=("$f"); done
-          assets=("${feed_ymls[@]}" "${blockmaps[@]}")
+          assets=(dist/"${channel}".json dist/"${channel}"*.yml)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "::error::No feed assets generated for channel '$channel'" >&2
             exit 1
@@ -481,14 +599,6 @@ jobs:
           PR_NUMBER: ${{ inputs.pr }}
           TAG: ${{ needs.guard.outputs.tag }}
         run: |
-          # Find and delete any existing prerelease tagged v*-pr<N>.* for this
-          # PR, EXCEPT the one we just built (TAG). This used to run once from
-          # the ubuntu-latest leg of the `release` matrix, which meant it (and
-          # the annotate step below) were skipped entirely when
-          # platforms=mac/win only - the prior build was never retired and the
-          # new one never got its opr-feature-build marker. publish-feed runs
-          # exactly once regardless of which platforms were built, so both
-          # steps belong here instead.
           matching="$(gh api "repos/$REPO/releases?per_page=100" --jq \
             ".[] | select(.prerelease) | select(.tag_name | test(\"-pr${PR_NUMBER}\\\\.\")) | select(.tag_name != \"${TAG}\") | .tag_name")"
           if [ -z "$matching" ]; then
@@ -512,10 +622,6 @@ jobs:
           SHORT_SHA: ${{ needs.guard.outputs.shortSha }}
           SLUG: ${{ inputs.slug }}
         run: |
-          # Set the release name and append the machine-readable marker to the
-          # body so the quota check can find it by PR number and the app can
-          # parse it. Payload is JSON (matches feature-builds.ts parseMarker);
-          # jq builds it so pr stays a number and slug is safely escaped.
           payload="$(jq -nc \
             --argjson pr "${PR_NUMBER}" \
             --arg base "${BASE}" \

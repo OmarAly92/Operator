@@ -1,172 +1,154 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertSentinelCapable, launchEnv, parseArgs, removeRunFile, seedUpdateSettings } from "./e2e-mac-update.mjs";
+import test from "node:test";
 
-// The harness itself needs a real macOS runner, a real signed N-1 install and a
-// real published N feed, so it cannot run here. What IS testable anywhere is the
-// flag contract: a typo in the CI job's arguments should fail loudly at parse
-// time rather than half-run an update test and report a confusing timeout.
+import {
+	launchEnv,
+	parseArgs,
+	patchUpdateSettings,
+	removeRunFile,
+	stagedMarkerPath,
+	updateSettingsPayload,
+} from "./e2e-mac-update.mjs";
 
-describe("e2e-mac-update parseArgs", () => {
-	const required = ["--app", "/Applications/Operator.app", "--expect-version", "0.10.4"];
+const REQUIRED = ["--app", "/Applications/Operator.app", "--expect-version", "0.10.4"];
 
-	it("parses the required flags and defaults the state dir to ~/.operator", () => {
-		const opts = parseArgs(required);
-		expect(opts.app).toBe("/Applications/Operator.app");
-		expect(opts.expectVersion).toBe("0.10.4");
-		expect(opts.appName).toBe("Operator");
-		// All app state lives under ~/.operator only (see AGENTS.md hard rules).
-		expect(opts.stateDir).toBe(join(homedir(), ".operator"));
-		expect(opts.runFile).toBe(join(homedir(), ".operator", "running.json"));
-		expect(opts.channel).toBe("latest");
-	});
-
-	it("requires --app and --expect-version", () => {
-		expect(() => parseArgs([])).toThrow(/--app is required/);
-		expect(() => parseArgs(["--app", "/x/Foo.app"])).toThrow(/--expect-version is required/);
-	});
-
-	it("rejects an --app path that is not a bundle", () => {
-		expect(() => parseArgs(["--app", "/Applications/Foo", "--expect-version", "1.0.0"])).toThrow(/\.app bundle/);
-	});
-
-	it("rejects an unknown channel", () => {
-		expect(() => parseArgs([...required, "--channel", "beta"])).toThrow(/latest or nightly/);
-	});
-
-	it("accepts the nightly channel", () => {
-		expect(parseArgs([...required, "--channel", "nightly"]).channel).toBe("nightly");
-	});
-
-	it("rejects a flag with a missing value", () => {
-		expect(() => parseArgs(["--app", "--expect-version", "0.10.4"])).toThrow(/--app needs a value/);
-	});
-
-	it("rejects unknown flags", () => {
-		expect(() => parseArgs([...required, "--turbo"])).toThrow(/unknown flag: --turbo/);
-	});
-
-	it("converts timeout flags from seconds to milliseconds and rejects nonpositive values", () => {
-		expect(parseArgs([...required, "--swap-timeout", "90"]).swapTimeoutMs).toBe(90_000);
-		expect(() => parseArgs([...required, "--swap-timeout", "0"])).toThrow(/positive number of seconds/);
-		expect(() => parseArgs([...required, "--download-timeout", "soon"])).toThrow(/positive number of seconds/);
-	});
-
-	it("allows overriding the state dir and run file", () => {
-		const opts = parseArgs([...required, "--state-dir", "/tmp/opr-e2e", "--run-file", "/tmp/opr-e2e/run.json"]);
-		expect(opts.stateDir).toBe("/tmp/opr-e2e");
-		expect(opts.runFile).toBe("/tmp/opr-e2e/run.json");
-	});
-
-	// The app does `stateDir = path.dirname(runFilePath())` and reads
-	// update-settings.json from there (main.ts initAutoUpdates), so the settings
-	// directory follows --run-file, not --state-dir, when the two diverge.
-	it("derives the settings dir from the run file, which is what the app reads", () => {
-		expect(parseArgs(required).settingsDir).toBe(join(homedir(), ".operator"));
-		const moved = parseArgs([...required, "--state-dir", "/tmp/opr-e2e", "--run-file", "/tmp/elsewhere/run.json"]);
-		expect(moved.settingsDir).toBe("/tmp/elsewhere");
-	});
-
-	// Mirrors backend/internal/config resolveDataDir's default of <opr home>/data,
-	// so an overridden --state-dir keeps the daemon's SQLite out of the real ~/.operator.
-	it("derives the daemon data dir under the state dir", () => {
-		expect(parseArgs([...required, "--state-dir", "/tmp/opr-e2e"]).dataDir).toBe(join("/tmp/opr-e2e", "data"));
-	});
-
-	it("constrains --run-file to an absolute path", () => {
-		expect(() => parseArgs([...required, "--run-file", "run.json"])).toThrow(/absolute path/);
-		expect(() => parseArgs([...required, "--state-dir", "relative/dir"])).toThrow(/absolute path/);
-	});
-
-	it("refuses to delete an unrelated absolute JSON file passed as --run-file", () => {
-		const dir = mkdtempSync(join(tmpdir(), "opr-e2e-run-file-"));
-		const unrelated = join(dir, "package.json");
-		writeFileSync(unrelated, '{"name":"not-a-run-file"}\n');
-		try {
-			expect(() => removeRunFile(unrelated)).toThrow(/not an Operator running\.json handshake/);
-			expect(readFileSync(unrelated, "utf8")).toContain("not-a-run-file");
-		} finally {
-			rmSync(dir, { recursive: true, force: true });
-		}
-	});
+test("parseArgs keeps the flag contract and defaults the state dir to ~/.operator", () => {
+	const opts = parseArgs(REQUIRED);
+	assert.equal(opts.app, "/Applications/Operator.app");
+	assert.equal(opts.expectVersion, "0.10.4");
+	assert.equal(opts.appName, "Operator");
+	assert.equal(opts.stateDir, join(homedir(), ".operator"));
+	assert.equal(opts.runFile, join(homedir(), ".operator", "running.json"));
 });
 
-// The bug these cover: --state-dir and --run-file were parsed and used by the
-// harness, but neither launch passed OPERATOR_DATA_DIR or OPERATOR_RUN_FILE to the app. The
-// harness seeded and polled paths the app never used, so it could only time out.
-describe("e2e-mac-update launch environment", () => {
+test("parseArgs rejects misuse loudly before any slow work", () => {
+	assert.throws(() => parseArgs(["--app"]), /needs a value/);
+	assert.throws(() => parseArgs(["--app", "/Applications/Operator.app"]), /expect-version/);
+	assert.throws(() => parseArgs([...REQUIRED, "--wat"]), /unknown flag/);
+	assert.throws(() => parseArgs([...REQUIRED, "--app", "/Applications/Operator"]), /\.app bundle/);
+	assert.throws(() => parseArgs([...REQUIRED, "--state-dir", "relative/path"]), /absolute/);
+	assert.throws(() => parseArgs([...REQUIRED, "--run-file", "running.json"]), /absolute/);
+	assert.throws(() => parseArgs([...REQUIRED, "--channel", "beta"]), /latest or nightly/);
+});
+
+test("parseArgs accepts latest and nightly channels", () => {
+	assert.equal(parseArgs([...REQUIRED, "--channel", "latest"]).channel, "latest");
+	assert.equal(parseArgs([...REQUIRED, "--channel", "nightly"]).channel, "nightly");
+});
+
+test("parseArgs accepts timeouts as positive seconds", () => {
 	const opts = parseArgs([
-		"--app",
-		"/Applications/Operator.app",
-		"--expect-version",
-		"0.10.4",
-		"--state-dir",
-		"/tmp/opr-e2e",
+		...REQUIRED,
+		"--download-timeout",
+		"30",
+		"--swap-timeout",
+		"60",
+		"--launch-timeout",
+		"45",
 	]);
-
-	it("hands the app every override the harness itself relies on", () => {
-		const env = launchEnv(opts, "/tmp/sentinel.json", { PATH: "/usr/bin" });
-		expect(env.OPERATOR_E2E_UPDATE_SENTINEL).toBe("/tmp/sentinel.json");
-		expect(env.OPERATOR_RUN_FILE).toBe(opts.runFile);
-		expect(env.OPERATOR_DATA_DIR).toBe(opts.dataDir);
-		// Still an inherited environment, not a replacement one.
-		expect(env.PATH).toBe("/usr/bin");
-	});
-
-	it("seeds update settings where the app will look for them", () => {
-		const dir = mkdtempSync(join(tmpdir(), "opr-e2e-settings-"));
-		try {
-			const moved = parseArgs([
-				"--app",
-				"/Applications/Operator.app",
-				"--expect-version",
-				"0.10.4",
-				"--run-file",
-				join(dir, "nested", "running.json"),
-			]);
-			seedUpdateSettings(moved.settingsDir, "nightly");
-			const written = JSON.parse(readFileSync(join(dir, "nested", "update-settings.json"), "utf8"));
-			// Shape must match UpdateSettings in src/main/update-settings.ts, and
-			// enabled:true is what makes startAutoUpdates run without a dialog.
-			expect(written).toEqual({ enabled: true, channel: "nightly", nightlyAck: true, feature: null });
-		} finally {
-			rmSync(dir, { recursive: true, force: true });
-		}
-	});
+	assert.equal(opts.downloadTimeoutMs, 30_000);
+	assert.equal(opts.swapTimeoutMs, 60_000);
+	assert.equal(opts.launchTimeoutMs, 45_000);
 });
 
-// A baseline published before the OPERATOR_E2E_UPDATE_SENTINEL listener existed
-// ignores the env var, so the harness could only ever burn its full download
-// timeout and report a "never staged" failure that looks like a broken update.
-describe("e2e-mac-update assertSentinelCapable", () => {
-	let dir;
-	const bundle = (name, asarContents) => {
-		const app = join(dir, `${name}.app`);
-		mkdirSync(join(app, "Contents", "Resources"), { recursive: true });
-		if (asarContents !== null) writeFileSync(join(app, "Contents", "Resources", "app.asar"), asarContents);
-		return app;
+test("parseArgs rejects non-positive timeouts", () => {
+	for (const flag of ["--download-timeout", "--swap-timeout", "--launch-timeout"]) {
+		assert.throws(() => parseArgs([...REQUIRED, flag, "0"]), /positive number/);
+		assert.throws(() => parseArgs([...REQUIRED, flag, "-5"]), /positive number/);
+		assert.throws(() => parseArgs([...REQUIRED, flag, "soon"]), /positive number/);
+	}
+});
+
+test("parseArgs supports stage-only mode for builds without a verified apply path", () => {
+	const staged = parseArgs([...REQUIRED, "--expect-stage-only"]);
+	assert.equal(staged.expectStageOnly, true);
+	const full = parseArgs(REQUIRED);
+	assert.equal(full.expectStageOnly, false);
+});
+
+test("parseArgs validates --feed-url as https or loopback http", () => {
+	const opts = parseArgs([
+		...REQUIRED,
+		"--feed-url",
+		"https://github.com/OmarAly92/operator/releases/latest/download/",
+	]);
+	assert.equal(opts.feedUrl, "https://github.com/OmarAly92/operator/releases/latest/download/");
+	assert.equal(
+		parseArgs([...REQUIRED, "--feed-url", "http://127.0.0.1:9876/"]).feedUrl,
+		"http://127.0.0.1:9876/",
+	);
+	assert.throws(
+		() => parseArgs([...REQUIRED, "--feed-url", "http://github.com/OmarAly92/operator/"]),
+		/insecure|https/,
+	);
+});
+
+test("launchEnv hands the app the sentinel-free Tauri harness environment", () => {
+	const base = { PATH: "/usr/bin" };
+	const env = launchEnv({ runFile: "/tmp/x/running.json", dataDir: "/tmp/x/data" }, base);
+	assert.equal(env.PATH, "/usr/bin");
+	assert.equal(env.OPERATOR_RUN_FILE, "/tmp/x/running.json");
+	assert.equal(env.OPERATOR_DATA_DIR, "/tmp/x/data");
+	const withFeed = launchEnv(
+		{
+			runFile: "/tmp/x/running.json",
+			dataDir: "/tmp/x/data",
+			feedUrl: "http://127.0.0.1:9876/",
+		},
+		base,
+	);
+	assert.equal(withFeed.OPERATOR_UPDATER_FEED_URL, "http://127.0.0.1:9876/");
+});
+
+test("stagedMarkerPath points at the engine's staging record under the state root", () => {
+	assert.equal(
+		stagedMarkerPath("/tmp/state", "0.10.4"),
+		join("/tmp/state", "updater", "staged", "0.10.4", "meta.json"),
+	);
+});
+
+test("updateSettingsPayload matches the Go updates-settings PATCH shape", () => {
+	assert.deepEqual(updateSettingsPayload("latest"), { enabled: true, channel: "latest", nightlyAck: false });
+	assert.deepEqual(updateSettingsPayload("nightly"), { enabled: true, channel: "nightly", nightlyAck: true });
+});
+
+test("patchUpdateSettings PATCHes the daemon loopback endpoint", async () => {
+	let seen;
+	const fakeFetch = async (url, init) => {
+		seen = { url, init };
+		return { ok: true };
 	};
+	await patchUpdateSettings(43110, "nightly", { fetchImpl: fakeFetch });
+	assert.equal(seen.url, "http://127.0.0.1:43110/api/v1/settings/updates");
+	assert.equal(seen.init.method, "PATCH");
+	assert.deepEqual(JSON.parse(seen.init.body), { enabled: true, channel: "nightly", nightlyAck: true });
+	const failing = async () => ({ ok: false, status: 500 });
+	await assert.rejects(() => patchUpdateSettings(43110, "latest", { fetchImpl: failing }), /500|failed/i);
+});
 
-	beforeAll(() => {
-		dir = mkdtempSync(join(tmpdir(), "opr-e2e-baseline-"));
-	});
-	afterAll(() => {
-		rmSync(dir, { recursive: true, force: true });
-	});
+test("removeRunFile deletes only a genuine Operator running.json handshake", () => {
+	const dir = mkdtempSync(join(tmpdir(), "e2e-mac-update-test-"));
+	const runFile = join(dir, "running.json");
 
-	it("accepts a bundle whose app.asar carries the sentinel env var", () => {
-		expect(() => assertSentinelCapable(bundle("Capable", 'process.env["OPERATOR_E2E_UPDATE_SENTINEL"]'))).not.toThrow();
-	});
+	removeRunFile(runFile);
+	assert.equal(existsSync(runFile), false);
 
-	it("fails fast, naming the cause, on a baseline that predates the listener", () => {
-		expect(() => assertSentinelCapable(bundle("Old", "some older bundle without it"))).toThrow(
-			/no OPERATOR_E2E_UPDATE_SENTINEL listener/,
-		);
-	});
+	writeFileSync(runFile, JSON.stringify({ pid: 42, port: 43110, startedAt: "2026-08-24T00:00:00.000Z" }));
+	removeRunFile(runFile);
+	assert.equal(existsSync(runFile), false);
 
-	it("fails when the path is not a packaged bundle at all", () => {
-		expect(() => assertSentinelCapable(bundle("Unpackaged", null))).toThrow(/packaged build/);
-	});
+	for (const bad of [
+		"not json",
+		JSON.stringify({ pid: -1, port: 43110, startedAt: "2026-08-24T00:00:00.000Z" }),
+		JSON.stringify({ pid: 42, port: 0, startedAt: "2026-08-24T00:00:00.000Z" }),
+		JSON.stringify({ pid: 42, port: 43110 }),
+	]) {
+		writeFileSync(runFile, bad);
+		assert.throws(() => removeRunFile(runFile), /handshake/);
+	}
+
+	rmSync(dir, { recursive: true, force: true });
 });

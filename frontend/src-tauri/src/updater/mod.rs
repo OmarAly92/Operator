@@ -825,6 +825,32 @@ pub const COMPILED_UPDATER_PUBLIC_KEY: &str = match core::option_env!("OPERATOR_
 
 pub const FEED_BASE_ENV: &str = "OPERATOR_UPDATER_FEED_URL";
 
+/// The `plugins` key under which tauri.release.conf.json bakes the production
+/// updater surface into packaged shells.
+pub const RELEASE_PLUGIN_CONFIG_KEY: &str = "operator-updates";
+
+/// Feed base resolution order: the runtime environment wins (dev, tests, and
+/// the update-E2E harness), then the release config baked at build time, then
+/// nothing — an unconfigured build fails closed at check time.
+pub fn resolve_feed_base_url(
+    env_override: Option<String>,
+    plugins: Option<&serde_json::Value>,
+) -> Option<String> {
+    if let Some(value) = env_override {
+        if !value.is_empty() {
+            return Some(value);
+        }
+    }
+    let baked = plugins?
+        .get(RELEASE_PLUGIN_CONFIG_KEY)?
+        .get("feedBaseUrl")?
+        .as_str()?;
+    if baked.is_empty() {
+        return None;
+    }
+    Some(baked.to_string())
+}
+
 /// Forwards updater events to the main renderer window. Rust-side emission is
 /// always scoped to that window.
 pub struct WindowStatusSink {
@@ -1170,8 +1196,12 @@ pub async fn updates_apply_settings(
 
 /// Arms the three periodic loops: hourly automatic checks, 30-minute staged-
 /// update escalation re-evaluations, and 30-minute feature-pin retirement
-/// polls. Ticks coalesce behind in-flight operations inside the engine.
+/// polls. The shell also checks ONCE at launch — Electron's initAutoUpdates
+/// checked at startup, and both the update E2E harness and packaged users
+/// depend on availability surfacing without waiting out the first hour.
 pub fn spawn_updater_timers(engine: Arc<ShellEngine>) {
+    let launch_check = engine.clone();
+    tauri::async_runtime::spawn(async move { launch_check.run_hourly_tick().await });
     let hourly = engine.clone();
     tauri::async_runtime::spawn(async move {
         let mut timer = tokio::time::interval(std::time::Duration::from_millis(
@@ -1237,9 +1267,10 @@ pub fn open_shell_engine(
     let config = EngineConfig {
         packaged,
         app_version: app_version.to_string(),
-        feed_base_url: std::env::var(FEED_BASE_ENV)
-            .ok()
-            .filter(|base| !base.is_empty()),
+        feed_base_url: resolve_feed_base_url(
+            std::env::var(FEED_BASE_ENV).ok(),
+            app.config().plugins.0.get(RELEASE_PLUGIN_CONFIG_KEY),
+        ),
         public_key: COMPILED_UPDATER_PUBLIC_KEY.to_string(),
     };
     let sink = Arc::new(WindowStatusSink::new(app.clone()));
