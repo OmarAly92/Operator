@@ -371,6 +371,14 @@ func resolveDataDir() (string, error) {
 	return filepath.Join(stateDir, "data"), nil
 }
 
+// StateRoot returns the canonical Operator state directory (~/.operator).
+// Desktop-owned shared surfaces like the browser engine root hang off this
+// canonical location; they must not be derived from DataDir, which
+// OPERATOR_DATA_DIR can point anywhere.
+func StateRoot() (string, error) {
+	return defaultStateDir()
+}
+
 func defaultStateDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

@@ -277,3 +277,17 @@ func TestLoadTelemetryRendererIntent(t *testing.T) {
 		}
 	})
 }
+
+func TestStateRootMatchesCanonicalOperatorHome(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	stateRoot, err := StateRoot()
+	if err != nil {
+		t.Fatalf("StateRoot: %v", err)
+	}
+	if stateRoot != filepath.Join(homeDir, ".operator") {
+		t.Errorf("StateRoot = %q, want %q", stateRoot, filepath.Join(homeDir, ".operator"))
+	}
+}

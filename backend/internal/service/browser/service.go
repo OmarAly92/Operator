@@ -6,7 +6,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
@@ -25,30 +24,25 @@ type sessionReader interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 }
 
-type runtime interface {
-	Status() browserruntime.Status
-	Execute(ctx context.Context, sessionID domain.SessionID, action string, args map[string]interface{}) (browserruntime.Result, error)
-}
-
 // Service validates worker ownership and lifecycle state before dispatching to
-// the Electron runtime.
+// the configured browser runtime adapter.
 type Service struct {
 	sessions  sessionReader
-	runtime   runtime
+	runtime   Runtime
 	authority *Authority
 }
 
-// New creates a browser service.
-func New(sessions sessionReader, runtime runtime, authority *Authority) *Service {
+// New creates a browser service over an adapter-neutral runtime.
+func New(sessions sessionReader, runtime Runtime, authority *Authority) *Service {
 	return &Service{sessions: sessions, runtime: runtime, authority: authority}
 }
 
 // Status returns transport state after validating the session owner.
-func (s *Service) Status(ctx context.Context, sessionID domain.SessionID, capability string) (browserruntime.Status, error) {
+func (s *Service) Status(ctx context.Context, sessionID domain.SessionID, capability string) (RuntimeStatus, error) {
 	if err := s.authorize(ctx, sessionID, capability); err != nil {
-		return browserruntime.Status{}, err
+		return RuntimeStatus{}, err
 	}
-	return s.runtime.Status(), nil
+	return s.runtime.Status(sessionID), nil
 }
 
 // Execute validates ownership and dispatches one supported action.
@@ -58,13 +52,13 @@ func (s *Service) Execute(
 	capability string,
 	action string,
 	args map[string]interface{},
-) (browserruntime.Result, string, error) {
+) (RuntimeResult, string, error) {
 	action = strings.ToLower(strings.TrimSpace(action))
 	if err := s.authorize(ctx, sessionID, capability); err != nil {
-		return browserruntime.Result{}, action, err
+		return RuntimeResult{}, action, err
 	}
 	if _, ok := actions[action]; !ok {
-		return browserruntime.Result{}, action, apierr.Invalid(
+		return RuntimeResult{}, action, apierr.Invalid(
 			"BROWSER_ACTION_UNSUPPORTED",
 			"Unsupported browser action",
 			nil,

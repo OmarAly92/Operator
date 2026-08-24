@@ -11,12 +11,15 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
+	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
 	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
@@ -80,6 +83,16 @@ func Run() error {
 	}
 	browserAuthority := browsersvc.NewAuthority()
 	browserBroker := browserruntime.New(log, browserRuntimeToken)
+	browserStateRoot, browserStateRootErr := config.StateRoot()
+	if browserStateRootErr != nil {
+		log.Warn("browser runtime: operator state root unavailable; standalone browser stays disabled", "err", browserStateRootErr)
+	}
+	standaloneBrowser := agentbrowser.New(agentbrowser.Options{
+		BinaryPath: resolveAgentBrowserBinary(),
+		DataDir:    cfg.DataDir,
+		StateRoot:  browserStateRoot,
+		Log:        log,
+	})
 
 	// Fail fast only if a daemon is genuinely still serving the recorded port.
 	// CheckStale confirms the run-file's PID is alive, but that alone is not
@@ -254,7 +267,7 @@ func Run() error {
 		NewID:    uuid.NewString,
 	})
 
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserBroker, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserTeardown{broker: browserBroker, standalone: standaloneBrowser}, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -298,7 +311,7 @@ func Run() error {
 		DefaultPort: mobilebridge.DefaultPort,
 	}
 	mc := &controllers.MobileController{Bridge: bs}
-	browserService := browsersvc.New(sessionSvc, browserBroker, browserAuthority)
+	browserService := browsersvc.New(sessionSvc, standaloneBrowser, browserAuthority)
 
 	// Standalone shell terminals: user-opened shells with no agent session
 	// behind them. They reuse the same runtime adapter (and therefore the same
@@ -527,6 +540,49 @@ func seedScratchProjectOnBoot(ctx context.Context, cfg config.Config, projects *
 		return fmt.Errorf("seed scratch project: %w", err)
 	}
 	return nil
+}
+
+// browserTeardown fans session destruction out to both browser transports while
+// the Electron panel and the standalone runtime coexist. The standalone adapter
+// owns the public API surface; the broker call remains best-effort so a mounted
+// desktop panel still releases its targets until Task 16 removes it.
+type browserTeardown struct {
+	broker     *browserruntime.Broker
+	standalone *agentbrowser.Adapter
+}
+
+// DestroySession implements sessionmanager.BrowserLifecycle.
+func (t browserTeardown) DestroySession(ctx context.Context, id domain.SessionID) error {
+	_ = t.standalone.DestroySession(ctx, id)
+	return t.broker.DestroySession(ctx, id)
+}
+
+// resolveAgentBrowserBinary locates the packaged agent-browser binary the same
+// way the desktop app does: an explicit override wins, then the packaged
+// resources layout. An empty result leaves the adapter reporting not-installed.
+func resolveAgentBrowserBinary() string {
+	if override := strings.TrimSpace(os.Getenv("OPERATOR_AGENT_BROWSER_PATH")); override != "" {
+		return override
+	}
+	binaryName := "agent-browser"
+	if runtime.GOOS == "windows" {
+		binaryName = "agent-browser.exe"
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(executable)
+	for _, candidate := range []string{
+		filepath.Join(dir, "agent-browser", binaryName),
+		filepath.Join(dir, "..", "agent-browser", binaryName),
+		filepath.Join(dir, "..", "..", "frontend", "agent-browser", binaryName),
+	} {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // newLogger returns the daemon's slog logger. It writes to stderr so supervisors

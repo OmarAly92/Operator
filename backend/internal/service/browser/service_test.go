@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
@@ -23,8 +22,8 @@ type fakeRuntime struct {
 	action string
 }
 
-func (f *fakeRuntime) Status() browserruntime.Status {
-	return browserruntime.Status{Connected: true}
+func (f *fakeRuntime) Status(_ domain.SessionID) RuntimeStatus {
+	return RuntimeStatus{Ready: true}
 }
 
 func (f *fakeRuntime) Execute(
@@ -32,10 +31,12 @@ func (f *fakeRuntime) Execute(
 	_ domain.SessionID,
 	action string,
 	_ map[string]interface{},
-) (browserruntime.Result, error) {
+) (RuntimeResult, error) {
 	f.action = action
-	return browserruntime.Result{RequestID: "r1"}, nil
+	return RuntimeResult{RequestID: "r1"}, nil
 }
+
+func (f *fakeRuntime) DestroySession(context.Context, domain.SessionID) error { return nil }
 
 func TestServiceRequiresOwningCapabilityAndLiveSession(t *testing.T) {
 	authority := NewAuthority()
@@ -85,6 +86,35 @@ func TestServiceRequiresOwningCapabilityAndLiveSession(t *testing.T) {
 		t.Fatalf("terminated error = %v", err)
 	}
 }
+
+func TestServiceSurfacesNeutralRuntimeErrors(t *testing.T) {
+	authority := NewAuthority()
+	token, verifier, err := authority.Issue("s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := New(
+		fakeSessions{session: domain.Session{SessionRecord: domain.SessionRecord{
+			ID:       "s1",
+			Metadata: domain.SessionMetadata{BrowserCapabilityVerifier: verifier},
+		}}},
+		&failingRuntime{err: ErrUnavailable},
+		authority,
+	)
+	if _, _, err := service.Execute(context.Background(), "s1", token, "snapshot", nil); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("unavailable error = %v", err)
+	}
+}
+
+type failingRuntime struct{ err error }
+
+func (f *failingRuntime) Status(domain.SessionID) RuntimeStatus { return RuntimeStatus{} }
+
+func (f *failingRuntime) Execute(context.Context, domain.SessionID, string, map[string]interface{}) (RuntimeResult, error) {
+	return RuntimeResult{}, f.err
+}
+
+func (f *failingRuntime) DestroySession(context.Context, domain.SessionID) error { return f.err }
 
 func TestAuthorityUsesLaunchScopedSessionSecrets(t *testing.T) {
 	authority := NewAuthority()
