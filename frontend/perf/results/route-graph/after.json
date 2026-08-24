@@ -1,0 +1,149 @@
+{
+	"schemaVersion": 1,
+	"label": "after",
+	"commit": "84aec025f8e9416a53b3296f0a3f011734df9996",
+	"dirty": true,
+	"platform": "darwin",
+	"architecture": "arm64",
+	"generatedAt": "2026-08-24T18:46:29.899Z",
+	"bundle": {
+		"chunkCount": 45,
+		"totalBytes": 3973936,
+		"largestChunks": [
+			{
+				"bytes": 920949,
+				"file": "assets/index-CAAIRWIO.js"
+			},
+			{
+				"bytes": 560405,
+				"file": "assets/XtermTerminal-YehpDiEl.js"
+			},
+			{
+				"bytes": 518723,
+				"file": "assets/module.full.no-external-g-CNW-85.js"
+			},
+			{
+				"bytes": 451668,
+				"file": "assets/SessionView-BOuzJ2ae.js"
+			},
+			{
+				"bytes": 288290,
+				"file": "assets/index-D7Rh1Bus.css"
+			},
+			{
+				"bytes": 215537,
+				"file": "assets/_shell-CubkDmq5.js"
+			},
+			{
+				"bytes": 177532,
+				"file": "assets/ui-store-VB4AWwU8.js"
+			},
+			{
+				"bytes": 159896,
+				"file": "assets/ShellTopbar-BYYppted.js"
+			},
+			{
+				"bytes": 94692,
+				"file": "assets/effects-BMngHySc.js"
+			},
+			{
+				"bytes": 93930,
+				"file": "assets/aider-kaM6RQXN.png"
+			}
+		]
+	},
+	"board": {
+		"entryHtmlId": "index.html",
+		"boardEntryId": "src/renderer/routes/_shell.index.tsx?tsr-split=component",
+		"moduleCount": 17,
+		"parsedBytes": 2047720,
+		"files": [
+			{
+				"bytes": 1209239,
+				"file": "assets/index-CAAIRWIO.js",
+				"id": "index.html"
+			},
+			{
+				"bytes": 215537,
+				"file": "assets/_shell-CubkDmq5.js",
+				"id": "src/renderer/routes/_shell.tsx?tsr-split=component"
+			},
+			{
+				"bytes": 177532,
+				"file": "assets/ui-store-VB4AWwU8.js",
+				"id": "_ui-store-VB4AWwU8.js"
+			},
+			{
+				"bytes": 159896,
+				"file": "assets/ShellTopbar-BYYppted.js",
+				"id": "_ShellTopbar-BYYppted.js"
+			},
+			{
+				"bytes": 94692,
+				"file": "assets/effects-BMngHySc.js",
+				"id": "_effects-BMngHySc.js"
+			},
+			{
+				"bytes": 35708,
+				"file": "assets/RestoreUnavailableDialog-BLaI2PB0.js",
+				"id": "_RestoreUnavailableDialog-BLaI2PB0.js"
+			},
+			{
+				"bytes": 35145,
+				"file": "assets/opr-logo-B0TOMTRv.js",
+				"id": "_opr-logo-B0TOMTRv.js"
+			},
+			{
+				"bytes": 33321,
+				"file": "assets/TerminalPane-Cg6S2VYR.js",
+				"id": "_TerminalPane-Cg6S2VYR.js"
+			},
+			{
+				"bytes": 24672,
+				"file": "assets/SessionsBoard-BJfoA37K.js",
+				"id": "_SessionsBoard-BJfoA37K.js"
+			},
+			{
+				"bytes": 23365,
+				"file": "assets/dropdown-menu-CIGzOkBL.js",
+				"id": "_dropdown-menu-CIGzOkBL.js"
+			},
+			{
+				"bytes": 13713,
+				"file": "assets/ClientOnly-DAr73ggL.js",
+				"id": "_ClientOnly-DAr73ggL.js"
+			},
+			{
+				"bytes": 8245,
+				"file": "assets/pr-display-3sXSi_xJ.js",
+				"id": "_pr-display-3sXSi_xJ.js"
+			},
+			{
+				"bytes": 5890,
+				"file": "assets/preload-helper-DaRbZex7.js",
+				"id": "_preload-helper-DaRbZex7.js"
+			},
+			{
+				"bytes": 5304,
+				"file": "assets/useParams-uV0K7v5x.js",
+				"id": "_useParams-uV0K7v5x.js"
+			},
+			{
+				"bytes": 3807,
+				"file": "assets/_shell.index-Bzz2weAw.js",
+				"id": "src/renderer/routes/_shell.index.tsx?tsr-split=component"
+			},
+			{
+				"bytes": 828,
+				"file": "assets/useNavigate-TjkSzMXa.js",
+				"id": "_useNavigate-TjkSzMXa.js"
+			},
+			{
+				"bytes": 826,
+				"file": "assets/chunk-Cyuzqnbw.js",
+				"id": "_chunk-Cyuzqnbw.js"
+			}
+		],
+		"violations": []
+	}
+}

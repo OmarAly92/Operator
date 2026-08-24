@@ -522,7 +522,7 @@ it("main.tsx resolves every callable identifier from its own declarations its im
 		"if", "for", "while", "switch", "catch", "return", "function", "typeof", "new", "await",
 		"window", "document", "performance", "fetch", "requestAnimationFrame", "CustomEvent",
 		"URLSearchParams", "URL", "Error", "TypeError", "Number", "String", "Boolean", "Array",
-		"Object", "JSON", "Math", "Promise", "console", "undefined",
+		"Object", "JSON", "Math", "Promise", "console", "undefined", "setTimeout", "clearTimeout",
 	]);
 	for (const match of mainSource.matchAll(/(?<![\w$.{])([A-Za-z_$][\w$]*)\s*\(/g)) {
 		const callee = match[1];

@@ -1,8 +1,23 @@
-import posthog from "posthog-js/dist/module.full.no-external";
 import { operatorBridge } from "./bridge";
 import { isLoopbackHostname } from "./loopback";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
 import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from "../../shared/posthog-config";
+
+// The PostHog SDK measured 518,723 bytes when inlined into the 1,729,775-byte
+// renderer entry chunk, and nothing on the critical paint path needs it: every
+// consumer here already awaits initTelemetry(). Loading it through a dynamic
+// import keeps it out of the eager parse set entirely
+// (route-bundle-report before.json/after.json, 2026-08-24).
+type PostHogClient = typeof import("posthog-js/dist/module.full.no-external").default;
+
+let posthogModulePromise: Promise<PostHogClient> | null = null;
+
+function loadPostHog(): Promise<PostHogClient> {
+	posthogModulePromise ??= import("posthog-js/dist/module.full.no-external").then((module) => module.default);
+	return posthogModulePromise;
+}
+
+let posthog: PostHogClient | undefined;
 
 const POSTHOG_KEY = import.meta.env.VITE_OPERATOR_POSTHOG_KEY?.trim() || DEFAULT_POSTHOG_PROJECT_KEY;
 const POSTHOG_HOST = import.meta.env.VITE_OPERATOR_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
@@ -603,7 +618,7 @@ function bindErrorHandlers() {
 	});
 }
 
-type PostHogInitOptions = NonNullable<Parameters<typeof posthog.init>[1]>;
+type PostHogInitOptions = NonNullable<Parameters<PostHogClient["init"]>[1]>;
 
 export function buildPostHogConfig(distinctId: string): PostHogInitOptions {
 	return {
@@ -657,17 +672,19 @@ export async function initTelemetry(): Promise<boolean> {
 		if (!bootstrap || typeof bootstrap.distinctId !== "string" || bootstrap.distinctId.trim() === "") {
 			return false;
 		}
+		const client = await loadPostHog();
 		disabledEventMatchers = bootstrap.disabledEvents ?? [];
 		telemetryContext = buildTelemetryContext(
 			bootstrap.appVersion,
 			bootstrap.platform,
 			releaseChannelFrom(await readUpdateSettingsForTelemetry()),
 		);
-		posthog.init(POSTHOG_KEY, buildPostHogConfig(bootstrap.distinctId));
-		posthog.register({
+		client.init(POSTHOG_KEY, buildPostHogConfig(bootstrap.distinctId));
+		client.register({
 			...telemetryContext,
 			surface: "renderer",
 		});
+		posthog = client;
 		bindErrorHandlers();
 		startDailyActiveHeartbeat({
 			storage: telemetryStorage(),
@@ -682,14 +699,14 @@ export async function initTelemetry(): Promise<boolean> {
 				isDeniedEvent("opr.app.active")
 					? true
 					: Boolean(
-					posthog.capture(
+					client.capture(
 						postHogEventName("opr.app.active"),
 						withTelemetryContext(await sanitizeRendererProperties("opr.app.active", { channel: "renderer" })),
 					),
 				),
 		});
 		if (!isDeniedEvent("opr.renderer.loaded")) {
-			posthog.capture(
+			client.capture(
 				postHogEventName("opr.renderer.loaded"),
 				withTelemetryContext(await sanitizeRendererProperties("opr.renderer.loaded")),
 			);
@@ -711,7 +728,7 @@ export async function captureRendererEvent(event: string, properties?: Record<st
 	} else if (!reserveCapture(event)) {
 		return;
 	}
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(sanitizedProperties);
 	posthog.capture(postHogEventName(event), safeProperties);
 }
@@ -721,13 +738,13 @@ export async function captureRendererException(error: unknown, properties?: Reco
 	// operator would type to silence a crash loop.
 	if (isDeniedEvent("$exception")) return;
 	if (!reserveCapture(`exception:${exceptionName(error)}`)) return;
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(await sanitizeRendererExceptionProperties(error, properties));
 	posthog.captureException(normalizeException(error), safeProperties);
 }
 
 export async function addRendererExceptionStep(message: string, properties?: Record<string, unknown>): Promise<void> {
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(await sanitizeRendererContextProperties(properties));
 	posthog.addExceptionStep(message, safeProperties);
 }

@@ -14,10 +14,15 @@ import { nativeTerminalRuntimeIdentity } from "./runtime";
 type ReporterMessage =
 	| TerminalAcknowledgement
 	| { name: "workload-start"; timestamp: number }
+	| { name: "disposal-baseline"; timestamp: number }
 	| { name: "renderer"; rendererKind: "webgl" | "canvas"; webviewRuntimeVersion: string; displayScale: number };
 
 type ScenarioDriver = {
-	eventName: "operator:terminal-benchmark-run" | "operator:terminal-benchmark-input" | "operator:terminal-benchmark-reconnect";
+	eventName:
+		| "operator:terminal-benchmark-run"
+		| "operator:terminal-benchmark-input"
+		| "operator:terminal-benchmark-reconnect"
+		| "operator:terminal-benchmark-disposal";
 	ackName: TerminalAcknowledgement["name"];
 	detail?: (iteration: number) => WorkloadRequestDetail;
 };
@@ -34,6 +39,7 @@ const scenarioDrivers: Record<string, ScenarioDriver> = {
 	"active-memory": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "active-memory", iteration }) },
 	"input-latency": { eventName: "operator:terminal-benchmark-input", ackName: "input-echo" },
 	reconnect: { eventName: "operator:terminal-benchmark-reconnect", ackName: "reconnect" },
+	disposal: { eventName: "operator:terminal-benchmark-disposal", ackName: "disposal" },
 };
 
 function reporterUrl(parameters: URLSearchParams): string | undefined {
@@ -83,6 +89,13 @@ function scenarioController(
 			window.dispatchEvent(new CustomEvent(driver.eventName, { detail: driver.detail?.(iteration) }));
 		});
 	};
+	if (scenario === "disposal") {
+		// No base terminal mounts in disposal mode, so there is no first-paint ack
+		// to start from. Announce the baseline, then begin cycling after a fixed
+		// delay so the outer probe can sample pre-cycles memory.
+		report({ name: "disposal-baseline", timestamp: performance.now() });
+		setTimeout(runIteration, Math.max(0, Number(parameters.get("disposalStartMs") ?? 3000)));
+	}
 	return (acknowledgement: TerminalAcknowledgement) => {
 		report(acknowledgement);
 		if (acknowledgement.name === "first-paint" && !started) {
@@ -111,6 +124,8 @@ async function renderHarness() {
 			<SkinProvider>
 				<TerminalBenchmarkHarness
 					configuration={terminalHarnessConfiguration(window.location.search)}
+					disposalBytes={Number(parameters.get("disposalBytes") ?? 2_097_152)}
+					mode={parameters.get("scenario") === "disposal" ? "disposal" : "workload"}
 					onAcknowledgement={onAcknowledgement}
 					onRendererKind={(rendererKind) => {
 						report({

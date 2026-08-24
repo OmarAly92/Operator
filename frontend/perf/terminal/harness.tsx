@@ -33,6 +33,9 @@ export type TerminalAcknowledgement = {
 
 type TerminalBenchmarkHarnessProps = {
 	configuration: TerminalHarnessConfiguration;
+	mode?: "workload" | "disposal";
+	disposalBytes?: number;
+	disposalSettleMs?: number;
 	createMux?: (url: string) => TerminalMux;
 	onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void;
 	onRendererKind?: (kind: TerminalRendererKind) => void;
@@ -172,6 +175,9 @@ declare global {
 
 export function TerminalBenchmarkHarness({
 	configuration,
+	mode = "workload",
+	disposalBytes = 2_097_152,
+	disposalSettleMs = 200,
 	createMux = defaultCreateMux,
 	onAcknowledgement,
 	onRendererKind,
@@ -179,6 +185,15 @@ export function TerminalBenchmarkHarness({
 	const [terminal, setTerminal] = useState<AttachableTerminal | null>(null);
 	const [rendererKind, setRendererKind] = useState<TerminalRendererKind | undefined>();
 	const [attachmentGeneration, setAttachmentGeneration] = useState(0);
+	// Disposal-retention mode: each "operator:terminal-benchmark-disposal" event
+	// mounts a fresh XtermTerminal, feeds it synthetic output, then unmounts it so
+	// the outer probe can sample retained memory after every disposal ack.
+	const [disposalCycle, setDisposalCycle] = useState<{ id: number } | null>(null);
+	const disposalCycleIdRef = useRef(0);
+	const disposalBytesRef = useRef(disposalBytes);
+	disposalBytesRef.current = disposalBytes;
+	const disposalSettleMsRef = useRef(disposalSettleMs);
+	disposalSettleMsRef.current = disposalSettleMs;
 	const muxRef = useRef<TerminalMux | null>(null);
 	const requestedWorkloadsRef = useRef(0);
 	const pendingWorkloadsRef = useRef(0);
@@ -231,7 +246,47 @@ export function TerminalBenchmarkHarness({
 	}, []);
 
 	useEffect(() => {
-		if (!terminal) return undefined;
+		if (mode !== "disposal") return undefined;
+		const startDisposalCycle = () => {
+			disposalCycleIdRef.current += 1;
+			setDisposalCycle({ id: disposalCycleIdRef.current });
+		};
+		window.addEventListener("operator:terminal-benchmark-disposal", startDisposalCycle);
+		return () => window.removeEventListener("operator:terminal-benchmark-disposal", startDisposalCycle);
+	}, [mode]);
+
+	useEffect(() => {
+		if (mode !== "disposal" || !terminal) return undefined;
+		let cancelled = false;
+		const timers: ReturnType<typeof setTimeout>[] = [];
+		const runCycle = async () => {
+			const chunkSize = 65_536;
+			const line = "\x1b[38;5;46mheap-probe\x1b[0m 0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz\r\n";
+			const lineBytes = new TextEncoder().encode(line);
+			for (let offset = 0; offset < disposalBytesRef.current; offset += chunkSize) {
+				if (cancelled) return;
+				const chunk = new Uint8Array(Math.min(chunkSize, disposalBytesRef.current - offset));
+				for (let index = 0; index < chunk.byteLength; index += lineBytes.length) {
+					chunk.set(lineBytes.subarray(0, Math.min(lineBytes.length, chunk.byteLength - index)), index);
+				}
+				await new Promise<void>((resolve) => terminal.write(chunk, resolve));
+			}
+			if (cancelled) return;
+			timers.push(setTimeout(() => {
+				if (cancelled) return;
+				setTerminal(null);
+				setDisposalCycle(null);
+			}, disposalSettleMsRef.current));
+		};
+		void runCycle();
+		return () => {
+			cancelled = true;
+			for (const timer of timers) clearTimeout(timer);
+		};
+	}, [mode, terminal]);
+
+	useEffect(() => {
+		if (!terminal || mode === "disposal") return undefined;
 		const mux = createMux(muxUrlFromApiBase(configuration.daemonBaseUrl));
 		const seesWorkloadMarker = markerMatcher();
 		const reconnecting = attachmentGeneration > 0;
@@ -268,7 +323,7 @@ export function TerminalBenchmarkHarness({
 			mux.close(configuration.terminalId);
 			mux.dispose();
 		};
-	}, [acknowledge, attachmentGeneration, configuration, createMux, terminal]);
+	}, [acknowledge, attachmentGeneration, configuration, createMux, mode, terminal]);
 
 	useEffect(() => {
 		const runWorkload = (event: Event) => {
@@ -314,16 +369,32 @@ export function TerminalBenchmarkHarness({
 			data-testid="terminal-benchmark-root"
 			style={{ height: "100vh", width: "100vw" }}
 		>
-			<XtermTerminal
-				columns={configuration.columns}
-				geometryMode="fixed"
-				onReady={setTerminal}
-				onRendererKind={rendererChanged}
-				onTimestamp={onTimestamp}
-				rows={configuration.rows}
-				scrollback={configuration.scrollback}
-				theme="dark"
-			/>
+			{mode === "disposal" ? (
+				disposalCycle ? (
+					<XtermTerminal
+						columns={configuration.columns}
+						geometryMode="fixed"
+						key={`disposal-cycle-${disposalCycle.id}`}
+						onReady={setTerminal}
+						onRendererKind={rendererChanged}
+						onTimestamp={onTimestamp}
+						rows={configuration.rows}
+						scrollback={configuration.scrollback}
+						theme="dark"
+					/>
+				) : null
+			) : (
+				<XtermTerminal
+					columns={configuration.columns}
+					geometryMode="fixed"
+					onReady={setTerminal}
+					onRendererKind={rendererChanged}
+					onTimestamp={onTimestamp}
+					rows={configuration.rows}
+					scrollback={configuration.scrollback}
+					theme="dark"
+				/>
+			)}
 		</div>
 	);
 }

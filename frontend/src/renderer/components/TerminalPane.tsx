@@ -2,6 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import {
 	createContext,
+	lazy,
+	Suspense,
 	useCallback,
 	useContext,
 	useEffect,
@@ -35,8 +37,15 @@ import { cn } from "../lib/utils";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
-import { XtermTerminal } from "./XtermTerminal";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
+
+// The xterm renderer stack (~570KB parsed) is the single largest eager edge
+// from the shell route (route-bundle-report before.json, 2026-08-24) and no
+// board paint ever mounts it. Splitting the renderer behind this boundary
+// keeps TerminalPane's cache provider eager while xterm parses on first pane.
+const XtermTerminal = lazy(() =>
+	import("./XtermTerminal").then((module) => ({ default: module.XtermTerminal })),
+);
 
 type TerminalPaneProps = {
 	session?: WorkspaceSession;
@@ -1041,18 +1050,20 @@ function AttachedTerminal({
 			    content box, so FitAddon still measures it correctly and the absolute
 			    overlays (empty state, banner) keep covering the full padding box. */}
 			<div className="relative min-h-0 flex-1 pl-2">
-				<XtermTerminal
-					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
-					fontSize={fontSize}
-					focusRequested={focusRequested}
-					isVisible={isVisible}
-					onError={handleInitError}
-					onLinkOpen={handleLinkOpen}
-					onReady={handleReady}
-					onVisibleSize={syncVisibleSize}
-					paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
-					theme={theme}
-				/>
+				<Suspense fallback={null}>
+					<XtermTerminal
+						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
+						fontSize={fontSize}
+						focusRequested={focusRequested}
+						isVisible={isVisible}
+						onError={handleInitError}
+						onLinkOpen={handleLinkOpen}
+						onReady={handleReady}
+						onVisibleSize={syncVisibleSize}
+						paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
+						theme={theme}
+					/>
+				</Suspense>
 				{showEmptyState && (
 					<div className="terminal-surface absolute inset-0 grid place-items-center font-mono text-control">
 						<div className="text-center">

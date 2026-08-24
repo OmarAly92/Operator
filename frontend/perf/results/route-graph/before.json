@@ -1,0 +1,149 @@
+{
+	"schemaVersion": 1,
+	"label": "before",
+	"commit": "84aec025f8e9416a53b3296f0a3f011734df9996",
+	"dirty": true,
+	"platform": "darwin",
+	"architecture": "arm64",
+	"generatedAt": "2026-08-24T18:08:39.007Z",
+	"bundle": {
+		"chunkCount": 42,
+		"totalBytes": 3973375,
+		"largestChunks": [
+			{
+				"bytes": 1441485,
+				"file": "assets/index-C0SjQ3Xa.js"
+			},
+			{
+				"bytes": 592905,
+				"file": "assets/TerminalPane-hZ6qon73.js"
+			},
+			{
+				"bytes": 451631,
+				"file": "assets/SessionView-BcZUzEVm.js"
+			},
+			{
+				"bytes": 288290,
+				"file": "assets/index-D7Rh1Bus.css"
+			},
+			{
+				"bytes": 215523,
+				"file": "assets/_shell-1-xKpSas.js"
+			},
+			{
+				"bytes": 177532,
+				"file": "assets/ui-store-VB4AWwU8.js"
+			},
+			{
+				"bytes": 159885,
+				"file": "assets/ShellTopbar-gdFlagfF.js"
+			},
+			{
+				"bytes": 94650,
+				"file": "assets/effects-CgpO0FZ0.js"
+			},
+			{
+				"bytes": 93930,
+				"file": "assets/aider-kaM6RQXN.png"
+			},
+			{
+				"bytes": 70776,
+				"file": "assets/code-highlight-engine-B_AlTbRZ.js"
+			}
+		]
+	},
+	"board": {
+		"entryHtmlId": "index.html",
+		"boardEntryId": "src/renderer/routes/_shell.index.tsx?tsr-split=component",
+		"moduleCount": 16,
+		"parsedBytes": 3126370,
+		"files": [
+			{
+				"bytes": 1729775,
+				"file": "assets/index-C0SjQ3Xa.js",
+				"id": "index.html"
+			},
+			{
+				"bytes": 592905,
+				"file": "assets/TerminalPane-hZ6qon73.js",
+				"id": "_TerminalPane-hZ6qon73.js"
+			},
+			{
+				"bytes": 215523,
+				"file": "assets/_shell-1-xKpSas.js",
+				"id": "src/renderer/routes/_shell.tsx?tsr-split=component"
+			},
+			{
+				"bytes": 177532,
+				"file": "assets/ui-store-VB4AWwU8.js",
+				"id": "_ui-store-VB4AWwU8.js"
+			},
+			{
+				"bytes": 159885,
+				"file": "assets/ShellTopbar-gdFlagfF.js",
+				"id": "_ShellTopbar-gdFlagfF.js"
+			},
+			{
+				"bytes": 94650,
+				"file": "assets/effects-CgpO0FZ0.js",
+				"id": "_effects-CgpO0FZ0.js"
+			},
+			{
+				"bytes": 58875,
+				"file": "assets/RestoreUnavailableDialog-DG7tAg4z.js",
+				"id": "_RestoreUnavailableDialog-DG7tAg4z.js"
+			},
+			{
+				"bytes": 35157,
+				"file": "assets/opr-logo-iL5biu-K.js",
+				"id": "_opr-logo-iL5biu-K.js"
+			},
+			{
+				"bytes": 24673,
+				"file": "assets/SessionsBoard-CMNOjUX5.js",
+				"id": "_SessionsBoard-CMNOjUX5.js"
+			},
+			{
+				"bytes": 13698,
+				"file": "assets/ClientOnly-CP0AxTUh.js",
+				"id": "_ClientOnly-CP0AxTUh.js"
+			},
+			{
+				"bytes": 8245,
+				"file": "assets/pr-display-KbnZFQwH.js",
+				"id": "_pr-display-KbnZFQwH.js"
+			},
+			{
+				"bytes": 5294,
+				"file": "assets/useParams-_wlKAFba.js",
+				"id": "_useParams-_wlKAFba.js"
+			},
+			{
+				"bytes": 4704,
+				"file": "assets/shim-DcmtHp2T.js",
+				"id": "_shim-DcmtHp2T.js"
+			},
+			{
+				"bytes": 3800,
+				"file": "assets/_shell.index-GWMrfgjV.js",
+				"id": "src/renderer/routes/_shell.index.tsx?tsr-split=component"
+			},
+			{
+				"bytes": 828,
+				"file": "assets/useNavigate-TjkSzMXa.js",
+				"id": "_useNavigate-TjkSzMXa.js"
+			},
+			{
+				"bytes": 826,
+				"file": "assets/chunk-Cyuzqnbw.js",
+				"id": "_chunk-Cyuzqnbw.js"
+			}
+		],
+		"violations": [
+			{
+				"id": "_TerminalPane-hZ6qon73.js",
+				"category": "terminal"
+			}
+		]
+	}
+}
