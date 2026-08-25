@@ -76,7 +76,6 @@ type TelemetryConfig struct {
 
 // DefaultAllowedOrigins is the exact packaged-desktop origin allowlist, overridden by OPERATOR_ALLOWED_ORIGINS.
 var DefaultAllowedOrigins = []string{
-	"app://renderer",
 	"tauri://localhost",
 	"http://tauri.localhost",
 }

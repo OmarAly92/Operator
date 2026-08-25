@@ -37,6 +37,7 @@ import { cn } from "../lib/utils";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
+import { nativeShellBridgePresent } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 
 // The xterm renderer stack (~570KB parsed) is the single largest eager edge
@@ -664,7 +665,7 @@ export function TerminalPane({
 			? terminalTarget.handleId
 			: (session?.terminalHandleId ?? "empty");
 
-	if (!window.operator) {
+	if (!nativeShellBridgePresent()) {
 		// A standalone shell has no agent and no branch, so it previews as a plain
 		// prompt rather than borrowing the session's agent transcript.
 		if (terminalTarget?.kind === "shell") {

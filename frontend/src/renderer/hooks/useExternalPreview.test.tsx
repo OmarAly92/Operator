@@ -196,6 +196,25 @@ describe("useExternalPreview", () => {
 		await waitFor(() => expect(view.result.current.error).toBe(""));
 	});
 
+	it("does not expose or retry a previous session's failed preview", async () => {
+		let rejectFirst: ((error: Error) => void) | undefined;
+		openExternalPreviewMock.mockImplementationOnce(
+			() =>
+				new Promise<undefined>((_resolve, reject) => {
+					rejectFirst = reject;
+				}),
+		);
+		const view = renderPreview({ sessionId: "mer-1", previewUrl: "http://localhost:5173/", previewRevision: 3 });
+		await waitFor(() => expect(openExternalPreviewMock).toHaveBeenCalledTimes(1));
+
+		view.rerender({ sessionId: "mer-2" });
+		await act(async () => rejectFirst?.(new Error("opener unavailable")));
+
+		expect(view.result.current.error).toBe("");
+		act(() => view.result.current.retry());
+		expect(openExternalPreviewMock).toHaveBeenCalledTimes(1);
+	});
+
 	it("manual reopen validates HTTP(S), invokes the opener, and never acknowledges", async () => {
 		const view = renderPreview({ sessionId: "mer-1" });
 

@@ -914,6 +914,7 @@
 		"disposition": "open validated previews in the user's default browser",
 		"owner": "tauri",
 		"task": 16,
-		"exception": null
+		"exception": null,
+		"status": "e2e-tauri:desktop+contract:renderer-bridge-vitest"
 	}
 ]

@@ -100,15 +100,12 @@ async function fetchSettings(): Promise<SettingsPayload> {
 /** Records the durable preview-opened acknowledgement on the loopback daemon. */
 export async function postPreviewOpenedAck(input: ExternalPreviewOpenInput): Promise<void> {
 	if (!hasTrustedApiBaseUrl()) return;
-	try {
-		await fetch(new URL(`/internal/desktop/sessions/${encodeURIComponent(input.sessionId)}/preview-opened`, getApiBaseUrl()), {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ revision: input.revision }),
-		});
-	} catch (error) {
-		console.warn("Unable to record the preview-opened acknowledgement", error);
-	}
+	const response = await fetch(new URL(`/internal/desktop/sessions/${encodeURIComponent(input.sessionId)}/preview-opened`, getApiBaseUrl()), {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ revision: input.revision }),
+	});
+	if (!response.ok) throw new Error(`Unable to record the preview-opened acknowledgement (${response.status})`);
 }
 
 export interface TauriBridgeTransports {

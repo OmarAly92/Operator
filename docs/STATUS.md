@@ -194,7 +194,9 @@ surface (`npm run sqlc`, `npm run api`).
   ships: the project-owned verified-apply updater path (updates currently fail
   closed at apply) and real OS toast-click activation. See
   [`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md)
-  for the measurement contract and gate table.
+  for the measurement contract and gate table. The complete release-blocker and
+  deferred-work ledger is
+  [`docs/todo/tauri-port-release-and-follow-ups.md`](todo/tauri-port-release-and-follow-ups.md).
 - **Release sign-off ledger**: recorded here so release sign-off is auditable
   without the SDD workspace. Window chrome diverges from the Electron shell by
   explicit deferral: Electron's `hidden`/`hiddenInset` titlebars were not ported,

@@ -186,6 +186,9 @@ test("the go browser broker package stays deleted and unimported", async () => {
 test("app://renderer disappears from every live surface", async () => {
 	const surfaces = [
 		...(await sourceFilesUnder("frontend", "src")),
+		...(await walk(path.join(repoRoot, "backend"), { extension: /\.go$/, skip: [".git"] })).filter(
+			(filePath) => !filePath.endsWith("_test.go"),
+		),
 		...(await walk(path.join(frontendRoot, "src-tauri", "src"), { extension: /\.(rs|toml)$/ })),
 		...(await walk(path.join(repoRoot, ".github", "workflows"), { extension: /\.yml$/ })),
 	];

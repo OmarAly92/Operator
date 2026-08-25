@@ -155,7 +155,7 @@ export function launchEnv(opts, baseEnv = process.env) {
 // stagedMarkerPath is the durable proof an update staged: the engine writes
 // meta.json only after the downloaded artifact passed minisign verification.
 export function stagedMarkerPath(stateDir, version) {
-	return join(stateDir, "updater", "staged", version, "meta.json");
+	return join(stateDir, "tauri", "updater", "staged", version, "meta.json");
 }
 
 // updateSettingsPayload matches the Go PATCH /api/v1/settings/updates body

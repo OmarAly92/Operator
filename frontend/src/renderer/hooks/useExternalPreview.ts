@@ -40,6 +40,12 @@ export function useExternalPreview({
 	const generationRef = useRef(0);
 
 	useEffect(() => {
+		generationRef.current += 1;
+		pendingRef.current = null;
+		setError("");
+	}, [sessionId, terminated]);
+
+	useEffect(() => {
 		if (!sessionId) return;
 		if (terminated) {
 			consumedRef.current.delete(sessionId);

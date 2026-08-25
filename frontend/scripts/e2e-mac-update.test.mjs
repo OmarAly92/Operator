@@ -106,7 +106,7 @@ test("launchEnv hands the app the sentinel-free Tauri harness environment", () =
 test("stagedMarkerPath points at the engine's staging record under the state root", () => {
 	assert.equal(
 		stagedMarkerPath("/tmp/state", "0.10.4"),
-		join("/tmp/state", "updater", "staged", "0.10.4", "meta.json"),
+		join("/tmp/state", "tauri", "updater", "staged", "0.10.4", "meta.json"),
 	);
 });
 

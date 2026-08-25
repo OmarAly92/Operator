@@ -136,8 +136,7 @@ func (c *commandContext) openPreview(ctx context.Context, target string) error {
 	return c.postJSON(ctx, path, previewAPIRequest{Url: target}, nil)
 }
 
-// clearPreview empties the desktop browser panel for the current session
-// (`opr preview clear`) by deleting the session's stored preview target.
+// clearPreview removes the current session's stored external preview target.
 func (c *commandContext) clearPreview(ctx context.Context) error {
 	path, err := sessionPreviewPath()
 	if err != nil {

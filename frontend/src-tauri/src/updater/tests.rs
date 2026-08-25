@@ -1338,6 +1338,27 @@ async fn manual_check_carries_request_ids_and_reports_available() {
 }
 
 #[tokio::test]
+async fn no_update_check_clears_the_previous_download_candidate() {
+    let h = harness().build(
+        FakeClient::new()
+            .release_check("2.0.0")
+            .no_release()
+            .download_bytes(b"stale-package"),
+    );
+
+    h.engine.manual_check(CheckOptions::default()).await;
+    h.engine.manual_check(CheckOptions::default()).await;
+    h.engine.download_now(None).await;
+
+    let status = h.engine.status();
+    assert_eq!(status.state, UpdateState::Error);
+    assert_eq!(
+        status.message.as_deref(),
+        Some("no update is ready to download; check for updates first")
+    );
+}
+
+#[tokio::test]
 async fn concurrent_operations_leave_the_latest_owned_status_visible() {
     let h = harness().build(
         FakeClient::new()

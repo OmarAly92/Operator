@@ -124,8 +124,12 @@ func (e *Engine) Resolve(ctx context.Context) (EngineResolution, error) {
 		waiter := make(chan *engineOutcome, 1)
 		e.waiters = append(e.waiters, waiter)
 		e.mu.Unlock()
-		outcome := <-waiter
-		return outcome.resolution, outcome.err
+		select {
+		case outcome := <-waiter:
+			return outcome.resolution, outcome.err
+		case <-ctx.Done():
+			return EngineResolution{}, ctx.Err()
+		}
 	}
 	e.busy = true
 	e.mu.Unlock()

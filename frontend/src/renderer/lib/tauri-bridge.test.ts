@@ -21,11 +21,24 @@ vi.mock("./api-client", () => ({
 	subscribeApiBaseUrl: subscribeApiBaseUrlMock,
 }));
 
-import { createTauriBridge, encodeBase64, parseTelemetryBootstrap } from "./tauri-bridge";
+import { createTauriBridge, encodeBase64, parseTelemetryBootstrap, postPreviewOpenedAck } from "./tauri-bridge";
 
 function bridge() {
 	return createTauriBridge({ invoke: vi.fn(), listen: vi.fn() });
 }
+
+describe("tauri-bridge preview acknowledgement", () => {
+	it("rejects a non-success acknowledgement response", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 409 }));
+		try {
+			await expect(
+				postPreviewOpenedAck({ sessionId: "mer-1", url: "http://localhost:5173/", revision: 6 }),
+			).rejects.toThrow("409");
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+});
 
 describe("tauri-bridge local folder scans", () => {
 	beforeEach(() => {

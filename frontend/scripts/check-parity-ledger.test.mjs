@@ -43,7 +43,7 @@ function completeLedger() {
 		{ source: "renderer/hooks/useBrowserView.ts", member: "../../main/browser-view-host", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
 		{ source: "main", member: "app-state.ts", disposition: "native", owner: "tauri", task: 12, exception: null },
 		{ source: "main", member: "browser-view-host.ts", disposition: "deferred", owner: null, task: null, exception: deferredBrowserRecord },
-	];
+	].map((entry) => ({ ...entry, status: "contract:test" }));
 }
 
 async function errorsFor(change, arrange = async () => {}) {
@@ -161,7 +161,7 @@ test("rejects ledger rows outside the live and archived source classes", async (
 
 test("bridge inventory survives regular-expression literals and non-bridge returns", async () => {
 	const errors = await errorsFor(
-		(ledger) => ledger.push({ source: "bridge.app", member: "matchesBrace", disposition: "renderer utility", owner: "renderer", task: 8, exception: null }),
+		(ledger) => ledger.push({ source: "bridge.app", member: "matchesBrace", disposition: "renderer utility", owner: "renderer", task: 8, exception: null, status: "contract:test" }),
 		async (rootDir) => {
 			const bridgePath = join(rootDir, "src", "renderer", "lib", "tauri-bridge.ts");
 			const source = await readFile(bridgePath, "utf8");
@@ -173,7 +173,7 @@ test("bridge inventory survives regular-expression literals and non-bridge retur
 
 test("renderer inventory accepts single-quoted main-process imports", async () => {
 	const errors = await errorsFor(
-		(ledger) => ledger.push({ source: "renderer/hooks/useSingleQuote.ts", member: "../../main/app-state", disposition: "shared type", owner: "renderer", task: 8, exception: null }),
+		(ledger) => ledger.push({ source: "renderer/hooks/useSingleQuote.ts", member: "../../main/app-state", disposition: "shared type", owner: "renderer", task: 8, exception: null, status: "contract:test" }),
 		async (rootDir) => {
 			await writeFile(join(rootDir, "src", "renderer", "hooks", "useSingleQuote.ts"), "import type { Migration } from '../../main/app-state';\n");
 		},
@@ -183,7 +183,7 @@ test("renderer inventory accepts single-quoted main-process imports", async () =
 
 test("renderer inventory includes main-process re-exports", async () => {
 	const errors = await errorsFor(
-		(ledger) => ledger.push({ source: "renderer/lib/reexport.ts", member: "../../main/feature-builds", disposition: "shared type", owner: "renderer", task: 8, exception: null }),
+		(ledger) => ledger.push({ source: "renderer/lib/reexport.ts", member: "../../main/feature-builds", disposition: "shared type", owner: "renderer", task: 8, exception: null, status: "contract:test" }),
 		async (rootDir) => {
 			await writeFile(join(rootDir, "src", "renderer", "lib", "reexport.ts"), `export type { FeatureBuild } from "../../main/feature-builds";\n`);
 		},
@@ -198,6 +198,13 @@ test("requires a task number and an allowed owner for live entries", async () =>
 	});
 	assert(errors.some((message) => message.includes("task must be a positive integer for bridge.app/getVersion")));
 	assert(errors.some((message) => message.includes("owner must be tauri, go, or renderer for bridge.app/openExternal")));
+});
+
+test("requires verification status for live entries", async () => {
+	const errors = await errorsFor((ledger) => {
+		delete ledger[0].status;
+	});
+	assert(errors.some((message) => message.includes("status must be non-empty for bridge.app/getVersion")));
 });
 
 test("accepts a complete ledger", async () => {

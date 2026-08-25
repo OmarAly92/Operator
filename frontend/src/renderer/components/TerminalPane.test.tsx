@@ -280,6 +280,28 @@ describe("TerminalPane empty states", () => {
 			view.restore();
 		}
 	});
+
+	it("uses the live terminal path in Tauri without an Electron preload", () => {
+		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const previousOperator = window.operator;
+		const holder = window as typeof window & { __TAURI_INTERNALS__?: unknown };
+		const previousTauriInternals = holder.__TAURI_INTERNALS__;
+		window.operator = undefined;
+		holder.__TAURI_INTERNALS__ = {};
+		try {
+			render(
+				<QueryClientProvider client={queryClient}>
+					<TerminalPane daemonReady fontSize={12} session={worker} theme="dark" />
+				</QueryClientProvider>,
+			);
+			expect(screen.getByText("Starting session")).toBeInTheDocument();
+			expect(screen.queryByText("PASS demo terminal is populated for screenshots")).not.toBeInTheDocument();
+		} finally {
+			window.operator = previousOperator;
+			if (previousTauriInternals === undefined) delete holder.__TAURI_INTERNALS__;
+			else holder.__TAURI_INTERNALS__ = previousTauriInternals;
+		}
+	});
 });
 
 // Initial-replay cover (issue #3160): xterm stays mounted and ingesting behind

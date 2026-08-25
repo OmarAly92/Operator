@@ -30,6 +30,7 @@ import {
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
+import { nativeShellBridgePresent } from "../lib/bridge";
 import { hidesShellTopbar } from "../lib/platform";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
@@ -105,7 +106,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
-			window.operator && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
+			nativeShellBridgePresent() && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
 		),
 		refetchInterval: (query) => {
 			const data = query.state.data as ReviewsResponse | undefined;

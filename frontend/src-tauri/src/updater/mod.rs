@@ -417,6 +417,10 @@ impl<C: FeedClient> UpdaterEngine<C> {
             state: UpdateState::Checking,
             ..UpdateStatus::idle()
         });
+        self.release_slot
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
         match self.client.check(feed_url.clone()).await {
             Err(message) => self.record_error(op, &message),
             Ok(None) => {
@@ -1245,7 +1249,7 @@ pub fn open_shell_engine(
     app_version: &str,
     manager: crate::daemon::supervisor::DaemonManager,
 ) -> Result<Arc<ShellEngine>, Box<dyn std::error::Error>> {
-    let storage = UpdaterStorage::open(&state_root.join(UPDATER_STATE_DIR_NAME))?;
+    let storage = UpdaterStorage::open(state_root)?;
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as i64)

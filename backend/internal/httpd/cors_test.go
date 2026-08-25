@@ -89,11 +89,11 @@ func TestCORS(t *testing.T) {
 		wantACAO   string
 	}{
 		{
-			name:       "allowed origin gets ACAO",
+			name:       "removed Electron origin is rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "app://renderer"},
-			wantStatus: http.StatusOK,
-			wantACAO:   "app://renderer",
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
 		},
 		{
 			name:       "packaged Tauri origin gets ACAO",
@@ -202,12 +202,12 @@ func TestCORS(t *testing.T) {
 			name:   "preflight from allowed origin",
 			method: http.MethodOptions,
 			headers: map[string]string{
-				"Origin":                         "app://renderer",
+				"Origin":                         "tauri://localhost",
 				"Access-Control-Request-Method":  "POST",
 				"Access-Control-Request-Headers": "content-type",
 			},
 			wantStatus: http.StatusNoContent,
-			wantACAO:   "app://renderer",
+			wantACAO:   "tauri://localhost",
 		},
 		{
 			name:   "preflight from unknown origin is rejected",
@@ -266,6 +266,7 @@ func TestCORSAllowsOnlyExactSafeConfiguredOrigins(t *testing.T) {
 		wantStatus int
 	}{
 		{origin: "http://localhost:5181", wantStatus: http.StatusOK},
+		{origin: "app://renderer", wantStatus: http.StatusForbidden},
 		{origin: "http://localhost:5182", wantStatus: http.StatusForbidden},
 		{origin: "http://evil.example", wantStatus: http.StatusForbidden},
 		{origin: "https://operator.example", wantStatus: http.StatusForbidden},
@@ -289,7 +290,7 @@ func TestCORSAllowsOnlyExactSafeConfiguredOrigins(t *testing.T) {
 // TestCORSPreflightHeaders pins the preflight grant shape: methods, echoed
 // request headers, max-age, and the private-network opt-in.
 func TestCORSPreflightHeaders(t *testing.T) {
-	cfg := config.Config{AllowedOrigins: []string{"app://renderer"}}
+	cfg := config.Config{AllowedOrigins: []string{"tauri://localhost"}}
 	router := newTestRouter(cfg, discardLogger(), nil)
 	srv := httptest.NewServer(router)
 	defer srv.Close()
@@ -298,7 +299,7 @@ func TestCORSPreflightHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	req.Header.Set("Origin", "app://renderer")
+	req.Header.Set("Origin", "tauri://localhost")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "content-type")
 	req.Header.Set("Access-Control-Request-Private-Network", "true")
@@ -313,7 +314,7 @@ func TestCORSPreflightHeaders(t *testing.T) {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
 	for header, want := range map[string]string{
-		"Access-Control-Allow-Origin":          "app://renderer",
+		"Access-Control-Allow-Origin":          "tauri://localhost",
 		"Access-Control-Allow-Methods":         "GET, POST, PATCH, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers":         "content-type",
 		"Access-Control-Max-Age":               "600",

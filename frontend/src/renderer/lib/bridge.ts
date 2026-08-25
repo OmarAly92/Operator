@@ -118,8 +118,10 @@ function createBrowserPreviewBridge(): OperatorBridge {
 	};
 }
 
-const tauriInternalsPresent = (): boolean =>
+export const tauriInternalsPresent = (): boolean =>
 	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
+export const nativeShellBridgePresent = (): boolean => Boolean(window.operator) || tauriInternalsPresent();
 
 function selectShellBridge(): OperatorBridge {
 	if (window.operator) return createWindowBridge(window.operator);

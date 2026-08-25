@@ -245,6 +245,40 @@ func TestEngineResolveSerializesConcurrentDiscoveryAndInstall(t *testing.T) {
 	}
 }
 
+func TestEngineResolveWaitingCallerHonorsCancellation(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	engine, _, _ := newTestEngine(t, func(CommandRequest, string) (CommandResult, error) {
+		close(started)
+		<-release
+		return doctorResult(true, true), nil
+	})
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := engine.Resolve(context.Background())
+		firstDone <- err
+	}()
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := engine.Resolve(ctx)
+		secondDone <- err
+	}()
+
+	select {
+	case err := <-secondDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Resolve error = %v, want context canceled", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("waiting Resolve ignored context cancellation")
+	}
+}
+
 func TestEngineResolveCleansPartialInstallBeforeDownloading(t *testing.T) {
 	engine, _, engineRoot := newTestEngine(t, func(request CommandRequest, root string) (CommandResult, error) {
 		if request.Args[0] == "install" {

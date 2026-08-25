@@ -163,7 +163,7 @@ func TestLoadAllowedOrigins(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		want := []string{"app://renderer", "tauri://localhost", "http://tauri.localhost"}
+		want := []string{"tauri://localhost", "http://tauri.localhost"}
 		if len(cfg.AllowedOrigins) != len(want) {
 			t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
 		}
@@ -175,12 +175,12 @@ func TestLoadAllowedOrigins(t *testing.T) {
 	})
 
 	t.Run("override replaces defaults and trims entries", func(t *testing.T) {
-		t.Setenv("OPERATOR_ALLOWED_ORIGINS", " app://renderer , http://localhost:9999 ,")
+		t.Setenv("OPERATOR_ALLOWED_ORIGINS", " tauri://localhost , http://localhost:9999 ,")
 		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		want := []string{"app://renderer", "http://localhost:9999"}
+		want := []string{"tauri://localhost", "http://localhost:9999"}
 		if len(cfg.AllowedOrigins) != len(want) {
 			t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
 		}

@@ -14,9 +14,6 @@ import (
 // boundary between it and hostile browser content running on the same
 // machine: the allowlist must never contain "*" or the opaque "null" origin
 // (every file:// page and sandboxed iframe on any website presents "null").
-// The packaged Electron renderer is served from app://renderer specifically
-// so it has a distinct, unforgeable origin this allowlist can name.
-//
 // Requests without an Origin header (the CLI, curl, health probes) pass
 // through untouched. Requests bearing an Origin outside the allowlist are
 // rejected with 403 before any handler runs: merely omitting CORS headers
@@ -76,7 +73,7 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 }
 
 func isSafeConfiguredOrigin(origin string) bool {
-	if origin == "app://renderer" || origin == "tauri://localhost" || origin == "http://tauri.localhost" {
+	if origin == "tauri://localhost" || origin == "http://tauri.localhost" {
 		return true
 	}
 	u, err := url.Parse(origin)
