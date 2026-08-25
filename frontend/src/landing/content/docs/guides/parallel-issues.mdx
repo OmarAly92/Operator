@@ -28,7 +28,7 @@ opr spawn --project api --name auth-fix --prompt "Fix token refresh" --harness c
 | Agent controller | One committed Chat or Terminal UI controller per session |
 | Chat history | Durable, session-scoped conversation projection |
 | Terminal | Session runtime or session-scoped worktree shell |
-| Browser preview | Dedicated selected-session browser target and ephemeral profile |
+| External preview | A selected-session target that opens once in your default browser |
 
 Operator-managed worktrees live under `~/.operator/data/worktrees`, not `~/.worktrees`. External side effects such as pushes, pull requests, CI runs, and review comments are naturally shared with the repository host.
 
@@ -49,4 +49,4 @@ Cleanup reclaims eligible workspaces for terminated sessions. Dirty registered w
 
 ## Follow the work
 
-Open a session to see its Chat timeline or live terminal, pull-request summary, review runs, changed files, and browser preview. Lifecycle updates keep CI, reviews, mergeability, activity, and notifications attached to the owning session.
+Open a session to see its Chat timeline or live terminal, pull-request summary, review runs, and changed files; `opr preview` opens a session's local app in your default browser. Lifecycle updates keep CI, reviews, mergeability, activity, and notifications attached to the owning session.

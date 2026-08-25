@@ -1,9 +1,11 @@
 # operator status
 
-Current `master` ships a working single-user local loop: the Go daemon and the
-Electron/React frontend both drive a live daemon over HTTP/SSE/WebSocket. The
-core GitHub flow works end-to-end: add project → spawn session/orchestrator →
-attach terminal → observe PR → merge.
+Current `codex/tauri-port` ships a working single-user local loop: the Go daemon
+and the Tauri + React desktop shell both drive a live daemon over HTTP/SSE/WebSocket.
+The core GitHub flow works end-to-end: add project → spawn session/orchestrator →
+attach terminal → observe PR → merge. The Electron shell was removed with Task 21
+of the Tauri port (`docs/benchmarks/tauri-port-baseline.md` records the port's
+measurement contract and its still-open external gates).
 
 This file tracks progress. For what the product _is_ and how to run it, see the
 top-level [`README.md`](../README.md); for the backend mental model see
@@ -17,9 +19,12 @@ The local gate is the backend Go build and race-enabled test suite:
 cd backend && go build ./... && go test -race ./...
 ```
 
-`npm run lint` (from the repo root) runs `go test ./...` plus golangci-lint.
-Frontend checks live under `frontend/` (`npm run typecheck`, `npm run build`).
-See [`AGENTS.md`](../AGENTS.md) for the regen workflow when touching the API
+`npm run lint` (from the repo root) runs `go test ./...` plus golangci-lint v2.12.2.
+Frontend checks live under `frontend/` (`npm run typecheck`, `npm run tauri:build`,
+Playwright renderer E2E, WebdriverIO native-shell E2E,
+`npm run check:desktop-parity`, `node --test scripts/no-electron.test.mjs`).
+See [`docs/development.md`](development.md) for the full command matrix and
+[`AGENTS.md`](../AGENTS.md) for the regen workflow when touching the API
 surface (`npm run sqlc`, `npm run api`).
 
 ## Shipped
@@ -87,40 +92,44 @@ surface (`npm run sqlc`, `npm run api`).
 - OpenAPI spec generated from Go DTOs; frontend TS types generated from it and
   drift-checked in CI.
 
-### Frontend (Electron + React)
+### Frontend (Tauri + React)
 
-- Electron + React 19 + TanStack Router/Query + Tailwind + shadcn primitives.
-- Target-isolated per-session browser-control spike: a dedicated local
-  daemon↔Electron bridge drives only the selected session's `WebContentsView`
-  through Electron's bound debugger transport. `opr browser` supports open,
-  compact accessibility snapshots and refs, click/fill/type, keyboard input,
-  hover and non-mutating element highlighting, scrolling, selection and checked
-  state, property reads, stable logical tabs and captured popups, a compact
-  user-facing tab selector for switching/closing tabs and popup notices, waits,
-  including load/disappearance/DOM-stability conditions, screenshots, console
-  messages, page errors, and explicit temporary network-metadata capture while
-  the Browser panel is hidden. Network capture is off by default, tab-scoped,
-  bounded, automatically expires, and omits bodies and sensitive values. Tabs
-  within one worker share an ephemeral Electron profile; different workers
-  have isolated cookies and web storage. The browser tab menu is only a tab
-  navigation control: it does not render a global activity pill or a
-  tab-specific agent marker. Annotation progress is separate and its
-  successful-delivery confirmation clears automatically.
-- Chromium's official DevTools frontend is available from the direct Browser
-  toolbar button, `Ctrl+Shift+I` (Cmd+Option+I on macOS), the titlebar View menu,
-  and `opr browser devtools`. It opens in a detached desktop window with normal
-  OS close controls and is attached through the same worker-scoped CDP
-  multiplexer as the agent, so Elements, Console, Network, Sources, and other
-  DevTools panels can remain open while agent automation continues. The
-  user-facing DevTools connection is unrestricted; agent CDP commands remain
-  policy-limited.
-- Preview targets are explicit: `opr preview`, `opr preview <target>`, or
-  `opr preview start` selects what the panel shows. The desktop poller no longer
-  auto-discovers a static entry point merely because a fresh worker exists.
+- Tauri 2 + React 19 + TanStack Router/Query + Tailwind + shadcn primitives.
+  The Rust shell (`frontend/src-tauri`) supervises the daemon, owns native
+  integrations, and pins every webview/state path under `~/.operator`. The
+  Electron main process, preload, Forge pipeline, and broker were deleted with
+  Task 21 of the Tauri port; `node --test scripts/no-electron.test.mjs` and the
+  parity checker guard that absence.
+- Desktop parity is ledgered row by row in `frontend/perf/parity-ledger.json`
+  (102 entries; `npm run check:desktop-parity` verifies the live Tauri bridge
+  against it and rejects reappearance of archived surfaces). WebdriverIO E2E
+  drives the real binary through Tauri's embedded WebDriver (`npm run
+  test:e2e:tauri`); Windows/Linux legs are authored but await their first
+  native CI runs.
+- Native integrations live in Rust behind narrow ACLs: window
+  overlay/fullscreen/theme events, application menus and keyboard shortcuts
+  (persisted through Go settings), tray with attention/session actions,
+  notifications with attention/toast policy, clipboard including Linux primary
+  selection, directory chooser, HTTP(S)-validated external opener plus
+  mailto, and dropped-file staging under `<state-root>/terminal-drops`.
+- Browser automation is owned by the Go daemon through the packaged
+  checksum-pinned `agent-browser` binary — discovery, per-session isolated
+  Chromium profiles under the state root, closed command policy, session
+  teardown. Panel-only capabilities (DevTools control, network capture) have no
+  standalone implementation and fail closed with stable error codes. See
+  [`architecture.md`](architecture.md), "Standalone Browser Runtime".
+- Previews are external: `opr preview` publishes a validated target that opens
+  once in the user's default browser; `opr preview clear` removes it without
+  opening anything. The embedded Browser panel was removed with the Tauri port
+  (`docs/todo/browser-panel-webview.md` records the deferral).
+- Updates: a pinned-plugin updater engine with staged downloads under
+  `<state-root>/updater`, latest/nightly/feature channels, downgrade support,
+  interrupted-download recovery, and first-run opt-in that keeps updates
+  disabled until accepted. Applying an update still fails closed
+  (`APPLY_DEFERRED_MESSAGE`) pending the project-owned verified-apply path — a
+  release-gating follow-up.
 - Real daemon wiring via the generated `openapi-fetch` typed client
   (`src/api/schema.ts`); mock data only in `VITE_RENDERER_PREVIEW` web-preview mode.
-- The Tauri shell and the daemon handle desktop integration; the Electron main
-  process was removed with Task 21 of the Tauri port.
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
   session view + inspector, project settings, pull-requests page,
   spawn-orchestrator flow.
@@ -139,16 +148,21 @@ surface (`npm run sqlc`, `npm run api`).
   and links, human reviewer IDs/counts/links for unresolved review comments,
   and mergeability reasons. Raw CI logs and review comment bodies are
   intentionally not part of the desktop V1 API/UI.
-- Terminal pane (xterm) over the mux WebSocket, with a live SSE events
-  connection and port-rebind on daemon restart.
+- Terminal pane (xterm over WebGL where the platform allows) rides the mux
+  WebSocket, with a live SSE events connection and port-rebind on daemon
+  restart. Startup parse weight dropped ~34.5% via route-level code splitting;
+  binding warm-start/idle-memory comparisons remain unmeasured pending native
+  runners (`docs/benchmarks/tauri-port-baseline.md`).
 - Chat history uses bounded pages and targeted CDC/SSE invalidation rather than
   polling and transferring the full lifetime of a conversation.
 - In-app notification center with click access, Unread/All filters, paginated
   REST catch-up, live notification stream updates, separate PR/session target
-  actions, persistent read history, mark-read controls, and Electron app toasts
-  while the app is running.
+  actions, persistent read history, mark-read controls, and native app toasts
+  while the app is running. Clicking a toast to focus the window needs real OS
+  notification activation (UNUserNotificationCenter/WinRT) — implemented at the
+  routing layer, release-gating follow-up for delivery.
 
-### Mobile (Expo + React Native)
+### Mobile (Flutter)
 
 - Connect Mobile pairs with the daemon's opt-in authenticated LAN listener; the
   loopback listener and its security model remain unchanged.
@@ -171,16 +185,23 @@ surface (`npm run sqlc`, `npm run api`).
 
 ## In flight / not yet a runtime feature
 
+- **Tauri release gates (external, native-runner work)**: Phase 0 still records
+  `stop-port` because signed native artifacts, all-platform evidence, updater
+  signing, and authorized-runner trust anchors are not yet supplied; warm-start,
+  first-run, idle-memory, download-size, and installed-footprint comparisons are
+  unmeasured pending native runners; Windows/Linux WebdriverIO legs await their
+  first native runs. Release-gating follow-ups that must land before any release
+  ships: the project-owned verified-apply updater path (updates currently fail
+  closed at apply) and real OS toast-click activation. See
+  [`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md)
+  for the measurement contract and gate table.
 - **Browser automation acceptance**: the runtime implementation is complete.
-  Operator packages one
-  checksum-pinned Vercel `agent-browser` Rust binary and routes a deliberately
-  limited semantic command set through an authenticated, worker-scoped CDP
-  bridge to the existing Operator Preview. The binary is prepared automatically for
-  desktop development and releases and is the single engine behind ordinary
-  `opr browser` inspection and interaction commands. Operator retains only its
-  sanitized network observer and temporary highlight cleanup as safety/UI
-  plumbing. Focused checks and a fresh Windows x64 package pass; macOS/Linux
-  packaging and manual lifecycle acceptance remain release verification work.
+  Browser automation is owned by the daemon: one checksum-pinned `agent-browser`
+  binary, per-session isolated Chromium profiles under the state root, a closed
+  command policy, and teardown on session end — see
+  [`architecture.md`](architecture.md), "Standalone Browser Runtime". Manual
+  lifecycle acceptance across all three platforms remains native verification
+  work.
 - **Cross-interface visual history import**: provider-native context continues
   across a compatible handoff, and Chat history already recorded by Operator remains
   durable. A first TUI→Chat switch does not reconstruct terminal screen output

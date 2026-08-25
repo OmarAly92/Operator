@@ -35,8 +35,9 @@ deviate without explicit user approval. In QA/review, flag any renderer code tha
 diverges from **agent-orchestrator** — do **not** re-flag old design-reference mismatches.
 
 When showing or demoing frontend changes, run `opr preview [url]` from inside the
-session so the change renders in the desktop browser panel (the inspector rail's
-Browser tab); do not just describe it.
+session so the change opens in the user's default browser as an external preview
+(`opr preview clear` removes the target without opening anything); do not just
+describe it.
 
 ## Mobile client (`packages/mobile`)
 

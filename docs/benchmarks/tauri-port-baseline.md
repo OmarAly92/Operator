@@ -75,3 +75,18 @@ Task 19 added two measurement producers for the renderer startup and retained-me
 
 Honest scope of these probes as of 2026-08-24, darwin/arm64: the Tauri binary used is `target/debug/operator`, which loads its dev URL, so renderer bytes match a production Vite build but the Rust side is a debug build (`buildKind: "debug-devurl"`); memory is process-tree RSS from `ps`, not an in-webview JS heap reading, because WKWebView exposes no heap endpoint to this harness; warm-start p50/p95 and first-run comparisons for the Tauri webview stay unobservable here because WKWebView has no automation channel on macOS, so those remain native-runner work, and `scripts/benchmark-shell.mjs` still supports only the Electron shell. Binding comparisons continue to require like-for-like signed release builds per the sections above.
 
+## Status after Task 22 (2026-08-25)
+
+The Electron shell is deleted and every locally runnable gate is green (see
+`.superpowers/sdd/2026-08-20-tauri-port/task-22-report.md` for the full matrix).
+Every gate in the binding table above that compares Tauri against Electron
+numbers remains **open pending native runners**: terminal open/throughput/input/
+reconnect, active-memory and workload-CPU, warm start, first-run start, idle
+shell memory, base signed download, and installed footprint have no measured
+Electron baseline on this branch and no signed Tauri artifacts to compare
+against. The Phase 0 decision stays `stop-port` for exactly the reasons recorded
+above. Release-gating work outstanding beyond measurement: the project-owned
+verified-apply updater path (apply currently fails closed) and real OS
+toast-click activation; the Windows/Linux WebdriverIO legs are authored and
+await their first native runs.
+

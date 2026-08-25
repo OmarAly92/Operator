@@ -3,7 +3,7 @@ title: Examples
 description: Practical workflows for desktop sessions, Chat and TUI, pull requests, reviews, previews, and mobile.
 ---
 
-These examples use capabilities shipped in the current Go daemon and Electron desktop app. They do not rely on the retired TypeScript plugin configuration or an `examples/` directory.
+These examples use capabilities shipped in the current Go daemon and Tauri desktop app. They do not rely on the retired TypeScript plugin configuration or an `examples/` directory.
 
 ## Start A Focused Chat Worker
 
@@ -77,11 +77,11 @@ opr preview start
 opr preview status
 ```
 
-Open the Browser tab in the session inspector. Preview targets are session-scoped; Operator does not auto-discover one when a worker starts.
+The target opens once in your system's default browser. Preview targets are session-scoped; Operator does not auto-discover one when a worker starts.
 
 ## Use Browser Controls From An Agent
 
-When the Browser tab is attached to the session, the optional CLI exposes commands such as:
+The optional CLI drives the daemon-owned standalone browser runtime for the selected session — no desktop window needs to be open:
 
 ```bash
 opr browser snapshot
@@ -90,7 +90,7 @@ opr browser fill <ref> "hello"
 opr browser screenshot
 ```
 
-Temporary network-metadata capture must be started explicitly and expires automatically. It omits request and response bodies plus sensitive values.
+Each session gets an isolated Chromium profile that is discarded when the session ends. DevTools control and network-metadata capture are not part of the standalone runtime: `opr browser devtools` fails with `BROWSER_DEVTOOLS_UNAVAILABLE`, and network capture fails with `BROWSER_AUTOMATION_UNAVAILABLE`.
 
 ## Pair The Mobile App
 

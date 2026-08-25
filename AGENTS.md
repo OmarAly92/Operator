@@ -19,7 +19,7 @@ npm run lint                         # backend go test ./... + golangci-lint v2.
 npm run frontend:typecheck           # frontend TypeScript check
 npm run sqlc                         # regenerate backend/internal/storage/sqlite/gen from queries/schema
 npm run api                          # regenerate OpenAPI spec + frontend TS types (see API contract changes below)
-npx @redwoodjs/agent-ci run --all    # local workflow validation; requires Docker socket
+npx @redwoodjs/agent-ci run --all    # local workflow validation via Docker; upstream renamed the package to run-local-ci and npx prints a notice
 ```
 
 Backend-specific checks:
@@ -38,10 +38,18 @@ Frontend-specific checks:
 ```bash
 cd frontend
 npm run typecheck
-npm run build
+npm run check:desktop-parity   # desktop parity ledger (frontend/perf/parity-ledger.json)
+node --test scripts/no-electron.test.mjs   # Electron-absence gate
 ```
 
-When showing or demoing frontend changes, run `opr preview [url]` from inside the session so the change renders in the desktop browser panel (the inspector rail's Browser tab); do not just describe it.
+Desktop development and packaging:
+
+```bash
+cd frontend && npm run tauri:dev     # Tauri shell against the Vite dev server; supervises the daemon
+cd frontend && npm run tauri:build   # unsigned release-style bundle for the current platform
+```
+
+When showing or demoing frontend changes, run `opr preview [url]` from inside the session so the change opens in the user's default browser as an external preview; `opr preview clear` removes the target without opening anything.
 
 ## Where to look first
 
@@ -96,7 +104,7 @@ For code entry points:
 - Keep generated OpenAPI/API DTO drift in mind: controller response shapes live in `backend/internal/httpd/controllers/dto.go` and tests may assert CLI/HTTP wire compatibility.
 - Do not add network calls to tests unless the package already has an integration/e2e pattern for them. Prefer `httptest`, fakes, and injected dependencies.
 - Do not commit local run state, daemon data, temporary worktrees, build outputs, or credentials.
-- All app state lives under `~/.operator` only. The daemon's data dir, `running.json`, worktrees, and the desktop shell's webview data (cache, cookies, local/session storage, crash dumps) must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`). Never write to or read from `~/Library/Application Support` or any other OS default app-data location. The Tauri shell pins its webview `data_directory` under the operator state root (`src-tauri/src/lib.rs`, `.data_directory(state_root.join("webview"))`); do not move it off `~/.operator` or rely on any OS-default webview data path.
+- All app state lives under `~/.operator` only. The daemon's data dir, `running.json`, worktrees, and the desktop shell's webview data (cache, cookies, local/session storage, crash dumps) must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`). Never write to or read from `~/Library/Application Support` or any other OS default app-data location. The Tauri shell pins its webview `data_directory` under the operator state root (`frontend/src-tauri/src/lib.rs`, `.data_directory(state_root.join("webview"))`); do not move it off `~/.operator` or rely on any OS-default webview data path.
 
 ## API contract changes
 

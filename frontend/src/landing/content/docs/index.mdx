@@ -5,7 +5,7 @@ description: Learn what Operator does, when to use it, and where to start.
 
 Operator (**Operator**) is a desktop IDE for supervising AI coding agents. It gives workers isolated workspaces, keeps each conversation or terminal available, and connects Git-project work to pull requests, CI, reviews, and merge conflicts.
 
-The agents still write the code. Operator provides the control layer around them: projects, sessions, workspaces, status, follow-up messages, review runs, notifications, and browser previews in one place.
+The agents still write the code. Operator provides the control layer around them: projects, sessions, workspaces, status, follow-up messages, review runs, notifications, and external browser previews in one place.
 
 <Callout type="info" title="Fastest path">
 	Download the desktop app, add a repository, and start one small session. See [Installation](/docs/installation), then [Quickstart](/docs/quickstart).
@@ -44,7 +44,7 @@ Chat is currently available for installed Codex, Claude Code, OpenCode, and Droi
 
 ## Local By Design
 
-The desktop app runs a Go daemon on `127.0.0.1` and communicates with it over a local API. Durable product state, Electron data, and worktree metadata live under `~/.operator` by default. Your agent CLIs and source-control credentials remain your own; Operator does not bundle provider CLIs.
+The desktop app runs a Go daemon on `127.0.0.1` and communicates with it over a local API. Durable product state, desktop webview data, and worktree metadata live under `~/.operator` by default. Your agent CLIs and source-control credentials remain your own; Operator does not bundle provider CLIs.
 
 Connect Mobile is a separate, opt-in home-network listener protected by a connection password. It is off until you enable it in the desktop app.
 
@@ -60,6 +60,6 @@ GitHub is the currently shipped source-control observation path. Broader tracker
 	<Card title="Installation" description="Download the desktop app and connect your tools." href="/docs/installation" />
 	<Card title="Quickstart" description="Run one worker session from task to pull request." href="/docs/quickstart" />
 	<Card title="Dashboard" description="Learn the desktop board, session view, Chat, terminal, and inspector." href="/docs/dashboard" />
-	<Card title="Architecture" description="Understand the Go daemon, Electron app, storage, and session modes." href="/docs/architecture" />
+	<Card title="Architecture" description="Understand the Go daemon, desktop app, storage, and session modes." href="/docs/architecture" />
 	<Card title="Troubleshooting" description="Resolve common desktop, daemon, agent, and session problems." href="/docs/troubleshooting" />
 </Cards>

@@ -51,7 +51,7 @@ The result is a local control layer for agentic coding: agents still do the codi
 
 ## Features
 
-The desktop app is the main control surface: projects on the left, active sessions in the center, and the selected session's Chat or terminal interface, pull request state, review runs, and browser preview in the inspector.
+The desktop app is the main control surface: projects on the left, active sessions in the center, and the selected session's Chat or terminal interface, pull request state, and review runs in the inspector.
 
 <table>
   <tr>
@@ -83,11 +83,11 @@ The desktop app is the main control surface: projects on the left, active sessio
   </tr>
   <tr>
     <td width="36%">
-      <h3>In-app browser preview</h3>
-      <p>Preview a session's local app beside the terminal so UI work, browser state, and agent output stay together.</p>
+      <h3>External browser previews</h3>
+      <p>Open a session's local app in your own browser with one command, so UI work keeps your devtools, extensions, and profile while the agent keeps working.</p>
     </td>
     <td width="64%">
-      <img src="docs/assets/readme/browser-preview.png" alt="Browser preview tab showing a local app preview" />
+      <p><code>opr preview &lt;target&gt;</code> publishes a validated preview target that opens once in your default browser; <code>opr preview clear</code> removes it without opening anything.</p>
     </td>
   </tr>
 </table>

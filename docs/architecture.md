@@ -53,8 +53,8 @@ Display status like `working`, `needs_input`, `ci_failed`, `mergeable` are **com
 ```mermaid
 graph TB
     subgraph Frontend
-        FE[Electron + React UI]
-        Mobile[Expo + React Native UI]
+        FE[Tauri + React UI]
+        Mobile[Flutter Mobile UI]
         CLI[opr CLI]
     end
 
@@ -859,7 +859,7 @@ branches on the session's persisted `mode`: TUI attaches the existing mux PTY,
 while Chat reads the paged conversation projection and uses the durable CDC SSE
 stream only for targeted invalidation/reconnect. Sends, approvals, input,
 provider configuration, compaction, rollback, and shell creation remain daemon
-commands; no provider or lifecycle policy is implemented in React Native.
+commands; no provider or lifecycle policy is implemented in the Flutter client.
 
 For implementation details and security model, consult `docs/adr/0001-lan-listener-for-mobile.md` and the glossary in `CONTEXT.md`.
 

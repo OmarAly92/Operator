@@ -3,7 +3,7 @@ title: Dashboard
 description: Use the Operator desktop app to supervise projects, sessions, pull requests, reviews, and previews.
 ---
 
-The Operator desktop app is the main control surface. It runs the local daemon, keeps projects and sessions visible, and lets you move between a worker's Chat or terminal, pull-request context, review runs, changed files, and browser preview.
+The Operator desktop app is the main control surface. It runs the local daemon, keeps projects and sessions visible, and lets you move between a worker's Chat or terminal, pull-request context, review runs, changed files, and external previews.
 
 ## The App Shell
 
@@ -12,7 +12,7 @@ The Operator desktop app is the main control surface. It runs the local daemon, 
 | **Sidebar** | Registered projects and their worker or orchestrator sessions. |
 | **Board / center pane** | Sessions grouped by their current derived state. |
 | **Session view** | Structured Chat or the live native Terminal UI. |
-| **Inspector** | Pull request, reviews, files, and browser preview for the selected session. |
+| **Inspector** | Pull request, reviews, and files for the selected session. |
 
 Operator remembers the session's committed interface mode. Opening a Chat session restores its paged conversation timeline; opening a TUI session reconnects to its terminal through the daemon mux.
 
@@ -57,15 +57,15 @@ Once a session has a linked pull request, the inspector shows a concise summary:
 
 Operator can run configured reviewer agents, send review findings back to the worker, resolve review comments, and request a merge. Raw CI logs and full review bodies are not part of the concise desktop summary.
 
-## Browser Preview
+## Previews
 
-The Browser tab displays the preview target explicitly selected for the session with `opr preview`, `opr preview <url>`, or `opr preview start`. Each worker receives an isolated ephemeral browser profile, while tabs inside one worker share cookies and web storage.
+Previews open outside the app: `opr preview <url>` (or `opr preview start` with a configured server from `.operator/launch.json`) publishes a validated target that opens once in your system's default browser, and `opr preview clear` removes the target without opening anything. Operator does not auto-discover a preview for every new worker.
 
-Operator's browser bridge can support agent-driven navigation, snapshots, clicks, typing, screenshots, console inspection, and temporary network-metadata capture. Network capture is off by default, bounded, omits bodies and sensitive values, and expires automatically.
+Agent-driven browser automation is owned by the daemon through a standalone browser runtime with a per-session isolated Chromium profile under the Operator state root; ending the session discards it. DevTools control and network-metadata capture are not part of the standalone runtime — those commands fail closed with `BROWSER_DEVTOOLS_UNAVAILABLE` and `BROWSER_AUTOMATION_UNAVAILABLE`.
 
 ## Notifications
 
-The notification center keeps durable alerts for sessions that need input, pull requests ready to merge, merged pull requests, and pull requests closed without merging. Use **Unread** and **All**, mark items read, or click through to the relevant session or pull request. Electron also shows app toasts while Operator is running.
+The notification center keeps durable alerts for sessions that need input, pull requests ready to merge, merged pull requests, and pull requests closed without merging. Use **Unread** and **All**, mark items read, or click through to the relevant session or pull request. The desktop app also shows native toasts while Operator is running.
 
 ## Connect Mobile
 
