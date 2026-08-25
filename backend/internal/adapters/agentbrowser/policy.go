@@ -71,10 +71,10 @@ func ValidateArguments(args []string) error {
 			return err
 		}
 	}
-	if command == "diff" && (len(args) < 2 || strings.ToLower(args[1]) != "snapshot") {
+	if command == "diff" && (len(args) < 2 || !strings.EqualFold(args[1], "snapshot")) {
 		return commandError("AGENT_BROWSER_COMMAND_BLOCKED", "Only snapshot diff is enabled in Operator")
 	}
-	if command == "get" && len(args) > 1 && strings.ToLower(args[1]) == "cdp-url" {
+	if command == "get" && len(args) > 1 && strings.EqualFold(args[1], "cdp-url") {
 		return commandError("AGENT_BROWSER_COMMAND_BLOCKED", "The private Operator CDP endpoint cannot be displayed")
 	}
 	return nil
@@ -338,7 +338,7 @@ func numericField(args map[string]interface{}, key string) (float64, bool) {
 	}
 }
 
-func numberArg(args map[string]interface{}, key string, fallback float64, minimum, maximum float64) (float64, error) {
+func numberArg(args map[string]interface{}, key string, fallback, minimum, maximum float64) (float64, error) {
 	value, present := numericField(args, key)
 	if !present {
 		return fallback, nil

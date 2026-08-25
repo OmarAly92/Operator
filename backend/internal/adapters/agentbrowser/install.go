@@ -199,7 +199,7 @@ func (e *Engine) ensureManagedInstall(ctx context.Context) (string, error) {
 	if err := os.RemoveAll(e.options.EngineRoot); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("reset managed browser engine: %w", err)
 	}
-	if err := os.MkdirAll(e.options.EngineRoot, 0o755); err != nil {
+	if err := os.MkdirAll(e.options.EngineRoot, 0o750); err != nil {
 		return "", fmt.Errorf("create managed browser engine root: %w", err)
 	}
 	result, err := e.run(ctx, []string{"install", "--json"}, InstallTimeout)
@@ -237,7 +237,7 @@ func (e *Engine) ensureManagedInstall(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("encode engine manifest: %w", err)
 	}
 	temporary := filepath.Join(e.options.EngineRoot, "."+engineManifestName+".tmp")
-	if err := os.WriteFile(temporary, payload, 0o644); err != nil {
+	if err := os.WriteFile(temporary, payload, 0o600); err != nil {
 		return "", fmt.Errorf("write engine manifest: %w", err)
 	}
 	if err := os.Rename(temporary, filepath.Join(e.options.EngineRoot, engineManifestName)); err != nil {
@@ -301,7 +301,7 @@ func (e *Engine) isolatedEnv() map[string]string {
 	env["HOME"] = e.options.EngineRoot
 	env["USERPROFILE"] = e.options.EngineRoot
 	installTemp := filepath.Join(e.options.EngineRoot, ".install-tmp")
-	_ = os.MkdirAll(installTemp, 0o755)
+	_ = os.MkdirAll(installTemp, 0o700)
 	env["TMPDIR"] = installTemp
 	env["TEMP"] = installTemp
 	env["TMP"] = installTemp

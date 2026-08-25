@@ -386,7 +386,7 @@ func (a *Adapter) DestroySession(ctx context.Context, sessionID domain.SessionID
 			a.mu.Unlock()
 			call.wg.Wait()
 			if call.err != nil {
-				return nil
+				return nil //nolint:nilerr // teardown succeeds when init already failed; there is nothing left to destroy.
 			}
 			continue
 		}
@@ -491,7 +491,7 @@ func (a *Adapter) createSession(sessionID domain.SessionID) (*sessionState, erro
 	if err := os.MkdirAll(filepath.Join(dir, "tmp"), 0o700); err != nil {
 		return nil, commandError("AGENT_BROWSER_START_FAILED", fmt.Sprintf("create session state: %v", err))
 	}
-	_ = os.Chmod(dir, 0o700)
+	_ = os.Chmod(dir, 0o700) //nolint:gosec // G302 assumes a file; this hardens the per-session state directory to owner-only.
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(sessionConfigBody), 0o600); err != nil {
 		return nil, commandError("AGENT_BROWSER_START_FAILED", fmt.Sprintf("write session config: %v", err))
 	}
@@ -632,13 +632,13 @@ var desktopOnlyActionCodes = map[string]string{
 func desktopOnlyMessage(action string) string {
 	switch desktopOnlyActionCodes[action] {
 	case "BROWSER_DEVTOOLS_UNAVAILABLE":
-		return "DevTools control requires the desktop browser panel runtime"
+		return "DevTools control is not available in the standalone browser runtime"
 	default:
-		return "This action requires the desktop browser panel runtime and is not available in the standalone browser"
+		return "This action is not available in the standalone browser runtime"
 	}
 }
 
-func shapeActionValue(action string, args map[string]interface{}, parsed map[string]interface{}) map[string]interface{} {
+func shapeActionValue(action string, args, parsed map[string]interface{}) map[string]interface{} {
 	switch action {
 	case "snapshot":
 		if snapshot, ok := parsed["snapshot"].(string); ok {
@@ -685,7 +685,8 @@ func normalizeNativeMessages(parsed map[string]interface{}, action string) map[s
 			"level":     defaultLevel,
 			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 		}
-		if record, ok := item.(map[string]interface{}); ok {
+		switch record := item.(type) {
+		case map[string]interface{}:
 			if level, ok := record["level"].(string); ok && level != "" {
 				entry["level"] = level
 			} else if level, ok := record["type"].(string); ok && level != "" {
@@ -693,18 +694,18 @@ func normalizeNativeMessages(parsed map[string]interface{}, action string) map[s
 			}
 			switch {
 			case isString(record["message"]):
-				entry["message"] = markUntrusted(externalText(record["message"].(string)))
+				entry["message"] = markUntrusted(externalText(tostring(record["message"])))
 			case isString(record["text"]):
-				entry["message"] = markUntrusted(externalText(record["text"].(string)))
+				entry["message"] = markUntrusted(externalText(tostring(record["text"])))
 			default:
 				entry["message"] = markUntrusted(externalText(jsonRecordText(record)))
 			}
 			if timestamp, ok := record["timestamp"].(string); ok && timestamp != "" {
 				entry["timestamp"] = timestamp
 			}
-		} else if text, ok := item.(string); ok {
-			entry["message"] = markUntrusted(externalText(text))
-		} else {
+		case string:
+			entry["message"] = markUntrusted(externalText(record))
+		default:
 			entry["message"] = markUntrusted(externalText(fmt.Sprintf("%v", item)))
 		}
 		messages = append(messages, entry)
@@ -743,12 +744,12 @@ func shapeTabs(parsed map[string]interface{}) map[string]interface{} {
 			"active": boolValue(record["active"], index == 0),
 		}
 		if tab["active"] == true && activeTabID == "" {
-			activeTabID = tab["id"].(string)
+			activeTabID = tostring(tab["id"])
 		}
 		tabs = append(tabs, tab)
 	}
 	if activeTabID == "" && len(tabs) > 0 {
-		activeTabID = tabs[0]["id"].(string)
+		activeTabID = tostring(tabs[0]["id"])
 	}
 	return map[string]interface{}{
 		"tabs":                     tabs,
@@ -782,7 +783,7 @@ func shapeSingleTab(parsed map[string]interface{}) map[string]interface{} {
 	}
 }
 
-func shapeTabClose(args map[string]interface{}, parsed map[string]interface{}) map[string]interface{} {
+func shapeTabClose(args, parsed map[string]interface{}) map[string]interface{} {
 	closedTabID := tostring(args["tabId"])
 	if closedTabID == "" {
 		closedTabID = tabRecordID(parsed)
@@ -833,8 +834,8 @@ func sessionHash(sessionID string) string {
 	return hex.EncodeToString(sum[:])[:4]
 }
 
-func randomHex(bytes int) string {
-	raw := make([]byte, bytes)
+func randomHex(size int) string {
+	raw := make([]byte, size)
 	if _, err := rand.Read(raw); err != nil {
 		panic(fmt.Sprintf("generate randomness: %v", err))
 	}

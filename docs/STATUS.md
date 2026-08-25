@@ -195,6 +195,18 @@ surface (`npm run sqlc`, `npm run api`).
   closed at apply) and real OS toast-click activation. See
   [`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md)
   for the measurement contract and gate table.
+- **Release sign-off ledger**: recorded here so release sign-off is auditable
+  without the SDD workspace. Window chrome diverges from the Electron shell by
+  explicit deferral: Electron's `hidden`/`hiddenInset` titlebars were not ported,
+  so macOS and Windows ship fully decorated native chrome until a coordinated
+  drag-region migration lands, and that divergence requires explicit user
+  sign-off before any release (Task 13 ruling). The nightly channel has updater
+  tooling but no schedule-triggered nightly producer workflow on this branch.
+  The shell-side GitHub HTTPS transports (`ReleasesSource`, `EscalationFeeds`)
+  remain unwired by design after the Task 17 TLS-surface ruling; the stopped
+  transports degrade safely and parity holds without them, with a dedicated
+  non-gating follow-up brief
+  ([`.superpowers/sdd/2026-08-20-tauri-port/followup-github-transports-brief.md`](../.superpowers/sdd/2026-08-20-tauri-port/followup-github-transports-brief.md)).
 - **Browser automation acceptance**: the runtime implementation is complete.
   Browser automation is owned by the daemon: one checksum-pinned `agent-browser`
   binary, per-session isolated Chromium profiles under the state root, a closed

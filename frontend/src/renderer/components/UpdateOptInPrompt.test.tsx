@@ -63,15 +63,16 @@ describe("UpdateOptInPrompt", () => {
 		expect(screen.queryByTestId("updates-opt-in")).not.toBeInTheDocument();
 	});
 
-	it("declining persists disabled defaults and remembers the answer", async () => {
+	it("declining persists disabled defaults and remembers the answer only after the settings write lands", async () => {
 		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		const setItem = vi.spyOn(window.localStorage, "setItem");
 		renderPrompt();
 		await userEvent.click(await screen.findByTestId("updates-opt-in-decline"));
-		await waitFor(() =>
-			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
-		);
-		expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBe("1");
+		await waitFor(() => expect(setItem).toHaveBeenCalledWith(UPDATE_OPT_IN_ASKED_KEY, "1"));
+		expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		expect(setUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(setItem.mock.invocationCallOrder[0]);
 		await waitFor(() => expect(screen.queryByTestId("updates-opt-in")).not.toBeInTheDocument());
+		vi.restoreAllMocks();
 	});
 
 	it("accepting enables stable-channel updates and remembers the answer", async () => {
@@ -81,17 +82,31 @@ describe("UpdateOptInPrompt", () => {
 		await waitFor(() =>
 			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: true, channel: "latest", nightlyAck: false, feature: null }),
 		);
-		expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBe("1");
+		await waitFor(() => expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBe("1"));
 	});
 
-	it("does not record the answer when storage is unavailable so the ask can retry next launch", async () => {
+	it("does not remember the answer when persisting settings fails so the ask can retry next launch", async () => {
+		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		setUpdateSettings.mockRejectedValue(new Error("settings write failed"));
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		renderPrompt();
+		await userEvent.click(await screen.findByTestId("updates-opt-in-decline"));
+		await waitFor(() => expect(warn).toHaveBeenCalledWith("Unable to persist the auto-update opt-in choice", expect.any(Error)));
+		expect(setUpdateSettings).toHaveBeenCalledTimes(1);
+		expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBeNull();
+		vi.restoreAllMocks();
+	});
+
+	it("still records the choice when the asked-flag cannot be stored; the prompt re-asks next launch", async () => {
 		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
 		vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
 			throw new Error("storage blocked");
 		});
 		renderPrompt();
 		await userEvent.click(await screen.findByTestId("updates-opt-in-decline"));
-		expect(setUpdateSettings).not.toHaveBeenCalled();
+		await waitFor(() =>
+			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
+		);
 		expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBeNull();
 		vi.restoreAllMocks();
 	});

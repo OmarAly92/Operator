@@ -681,10 +681,9 @@ function ShellLayout() {
 					daemonReady={daemonStatus.state === "ready"}
 					theme={resolvedTheme}
 				>
-
-			{/* Shell chrome: Win/Linux hang the sidebar under a topbar. macOS uses a
-          titlebar strip above the off-canvas sidebar. Session and board actions
-          render inside the center panel when the shell topbar is hidden. */}
+					{/* Shell chrome: Win/Linux hang the sidebar under a topbar. macOS uses a
+					    titlebar strip above the off-canvas sidebar. Session and board actions
+					    render inside the center panel when the shell topbar is hidden. */}
 			<div
 				className={cn(
 					"flex h-screen min-h-0 flex-col bg-sidebar text-foreground",

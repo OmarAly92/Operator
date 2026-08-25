@@ -1074,7 +1074,7 @@ impl SettingsSource for DaemonSettingsSource {
 pub struct StoppedReleasesSource;
 
 const RELEASES_TRANSPORT_STOPPED: &str =
-    "feature-build listing is not wired in this shell yet; the GitHub HTTPS transport lands with the packaging task";
+    "feature-build listing is unavailable in this shell: no GitHub releases transport is wired in yet";
 
 impl ReleasesSource for StoppedReleasesSource {
     fn list_releases<'a>(&'a self) -> BoxFuture<'a, Result<Vec<channel::GitHubRelease>, String>> {

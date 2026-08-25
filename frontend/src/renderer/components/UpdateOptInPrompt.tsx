@@ -53,16 +53,16 @@ export function UpdateOptInPrompt() {
 	const answer = async (settings: UpdateSettings) => {
 		setAnswered(true);
 		try {
+			await operatorBridge.updateSettings.set(settings);
+		} catch (error) {
+			console.warn("Unable to persist the auto-update opt-in choice", error);
+			return;
+		}
+		try {
 			window.localStorage.setItem(UPDATE_OPT_IN_ASKED_KEY, "1");
 		} catch {
 			// Storage can be unavailable; the prompt then re-shows next launch,
 			// which is the honest fallback for an unrecorded answer.
-			return;
-		}
-		try {
-			await operatorBridge.updateSettings.set(settings);
-		} catch (error) {
-			console.warn("Unable to persist the auto-update opt-in choice", error);
 		}
 	};
 
