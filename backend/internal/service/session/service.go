@@ -26,6 +26,7 @@ type Store interface {
 	ListAllSessions(ctx context.Context) ([]domain.SessionRecord, error)
 	RenameSession(ctx context.Context, id domain.SessionID, displayName string, updatedAt time.Time) (bool, error)
 	SetSessionPreviewURL(ctx context.Context, id domain.SessionID, previewURL string, updatedAt time.Time) (bool, error)
+	MarkSessionPreviewOpened(ctx context.Context, id domain.SessionID, revision int64, updatedAt time.Time) (bool, error)
 	SetSessionTerminateOnPRMerge(ctx context.Context, id domain.SessionID, terminate bool, updatedAt time.Time) (bool, error)
 	SetSessionAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool, updatedAt time.Time) (bool, error)
 	SetSessionPinned(ctx context.Context, id domain.SessionID, isPinned bool, pinnedAt *time.Time, updatedAt time.Time) (bool, error)
@@ -653,6 +654,39 @@ func (s *Service) SetPreview(ctx context.Context, id domain.SessionID, previewUR
 		return domain.Session{}, apierr.NotFound("SESSION_NOT_FOUND", "Unknown session")
 	}
 	return s.Get(ctx, id)
+}
+
+// AckPreviewOpened records that a desktop shell opened this session's preview
+// target in the user's default browser. Only the session's exact current
+// preview revision is acceptable: an older (stale) or newer (future) revision
+// is rejected so acknowledgements can never race ahead of or behind the target
+// they describe. Repeating the acknowledgement of the current revision is
+// idempotent. The durable write is what keeps an acknowledged target from
+// re-opening after a daemon restart while leaving a pending revision armed.
+func (s *Service) AckPreviewOpened(ctx context.Context, id domain.SessionID, revision int64) error {
+	rec, ok, err := s.store.GetSession(ctx, id)
+	if err != nil {
+		return fmt.Errorf("get %s for preview acknowledgement: %w", id, err)
+	}
+	if !ok {
+		return apierr.NotFound("SESSION_NOT_FOUND", "Unknown session")
+	}
+	if revision != rec.Metadata.PreviewRevision {
+		return apierr.Conflict("PREVIEW_ACK_REJECTED",
+			"Preview-opened acknowledgement does not match the current preview revision", nil)
+	}
+	if revision <= rec.Metadata.PreviewOpenedRevision {
+		return nil
+	}
+	applied, err := s.store.MarkSessionPreviewOpened(ctx, id, revision, s.now())
+	if err != nil {
+		return fmt.Errorf("mark preview opened %s: %w", id, err)
+	}
+	if !applied {
+		return apierr.Conflict("PREVIEW_ACK_REJECTED",
+			"Preview-opened acknowledgement does not match the current preview revision", nil)
+	}
+	return nil
 }
 
 // SetTerminateOnPRMerge persists the user's merge-completion lifecycle policy

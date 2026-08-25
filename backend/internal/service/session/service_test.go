@@ -162,6 +162,21 @@ func (f *fakeStore) SetSessionPreviewURL(_ context.Context, id domain.SessionID,
 		return false, nil
 	}
 	r.Metadata.PreviewURL = previewURL
+	r.Metadata.PreviewRevision++
+	r.UpdatedAt = updatedAt
+	f.sessions[id] = r
+	return true, nil
+}
+
+func (f *fakeStore) MarkSessionPreviewOpened(_ context.Context, id domain.SessionID, revision int64, updatedAt time.Time) (bool, error) {
+	r, ok := f.sessions[id]
+	if !ok {
+		return false, nil
+	}
+	if r.Metadata.PreviewRevision != revision || r.Metadata.PreviewOpenedRevision >= revision {
+		return false, nil
+	}
+	r.Metadata.PreviewOpenedRevision = revision
 	r.UpdatedAt = updatedAt
 	f.sessions[id] = r
 	return true, nil
@@ -2755,4 +2770,100 @@ func sameStrings(got, want []string) bool {
 		}
 	}
 	return true
+}
+
+func TestSessionAckPreviewOpenedRecordsCurrentRevision(t *testing.T) {
+	st := newFakeStore()
+	seeded := domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
+	seeded.Metadata.PreviewURL = "http://localhost:5173"
+	seeded.Metadata.PreviewRevision = 5
+	st.sessions["mer-1"] = seeded
+
+	if err := (&Service{store: st, clock: time.Now}).AckPreviewOpened(context.Background(), "mer-1", 5); err != nil {
+		t.Fatalf("ack current revision: %v", err)
+	}
+	if got := st.sessions["mer-1"].Metadata.PreviewOpenedRevision; got != 5 {
+		t.Fatalf("persisted previewOpenedRevision = %d, want 5", got)
+	}
+}
+
+func TestSessionAckPreviewOpenedIsIdempotent(t *testing.T) {
+	st := newFakeStore()
+	seeded := domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
+	seeded.Metadata.PreviewRevision = 5
+	st.sessions["mer-1"] = seeded
+	svc := &Service{store: st, clock: time.Now}
+
+	for i := 0; i < 2; i++ {
+		if err := svc.AckPreviewOpened(context.Background(), "mer-1", 5); err != nil {
+			t.Fatalf("ack %d: %v", i+1, err)
+		}
+	}
+	if got := st.sessions["mer-1"].Metadata.PreviewOpenedRevision; got != 5 {
+		t.Fatalf("previewOpenedRevision = %d, want 5 after a repeated ack", got)
+	}
+}
+
+func TestSessionAckPreviewOpenedRejectsStaleAndFutureRevisions(t *testing.T) {
+	st := newFakeStore()
+	seeded := domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
+	seeded.Metadata.PreviewRevision = 5
+	st.sessions["mer-1"] = seeded
+	svc := &Service{store: st}
+
+	for name, revision := range map[string]int64{"stale": 4, "future": 6} {
+		err := svc.AckPreviewOpened(context.Background(), "mer-1", revision)
+		var apiErr *apierr.Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "PREVIEW_ACK_REJECTED" {
+			t.Fatalf("%s ack %d: err = %v, want PREVIEW_ACK_REJECTED", name, revision, err)
+		}
+	}
+	if got := st.sessions["mer-1"].Metadata.PreviewOpenedRevision; got != 0 {
+		t.Fatalf("previewOpenedRevision = %d, want 0 after rejected acknowledgements", got)
+	}
+}
+
+func TestSessionAckPreviewOpenedUnknownSession(t *testing.T) {
+	st := newFakeStore()
+	err := (&Service{store: st}).AckPreviewOpened(context.Background(), "ghost-1", 1)
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "SESSION_NOT_FOUND" {
+		t.Fatalf("err = %v, want SESSION_NOT_FOUND", err)
+	}
+}
+
+func TestSessionAckPreviewOpenedSurvivesRestart(t *testing.T) {
+	ctx := context.Background()
+	st := newFakeStore()
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
+
+	first := &Service{store: st, clock: time.Now}
+	if _, err := first.SetPreview(ctx, "mer-1", "http://localhost:5173"); err != nil {
+		t.Fatalf("set preview: %v", err)
+	}
+	if err := first.AckPreviewOpened(ctx, "mer-1", 1); err != nil {
+		t.Fatalf("ack revision 1: %v", err)
+	}
+
+	restarted := &Service{store: st, clock: time.Now}
+	if err := restarted.AckPreviewOpened(ctx, "mer-1", 1); err != nil {
+		t.Fatalf("repeated ack after restart: %v", err)
+	}
+	rec := st.sessions["mer-1"]
+	if rec.Metadata.PreviewOpenedRevision != 1 || rec.Metadata.PreviewRevision != 1 {
+		t.Fatalf("after restart: opened=%d revision=%d, want acknowledged revision to stay put",
+			rec.Metadata.PreviewOpenedRevision, rec.Metadata.PreviewRevision)
+	}
+
+	if _, err := restarted.SetPreview(ctx, "mer-1", "http://localhost:5173/?v=2"); err != nil {
+		t.Fatalf("set second preview: %v", err)
+	}
+	rec = st.sessions["mer-1"]
+	if rec.Metadata.PreviewOpenedRevision != 1 || rec.Metadata.PreviewRevision != 2 {
+		t.Fatalf("pending revision state = opened:%d revision:%d, want the new revision pending",
+			rec.Metadata.PreviewOpenedRevision, rec.Metadata.PreviewRevision)
+	}
+	if err := restarted.AckPreviewOpened(ctx, "mer-1", 2); err != nil {
+		t.Fatalf("ack pending revision after restart: %v", err)
+	}
 }

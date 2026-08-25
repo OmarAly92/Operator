@@ -162,15 +162,21 @@ export type WorkspaceSession = {
 	activity?: SessionActivity;
 	/**
 	 * Live preview target set by the daemon (via `opr preview`) and streamed over
-	 * CDC. When non-empty, the browser panel opens and navigates here.
+	 * CDC. When non-empty, the desktop shell opens it once in the default browser.
 	 */
 	previewUrl?: string;
 	/**
 	 * Monotonic counter the daemon bumps on every `opr preview` call (even when
-	 * previewUrl is unchanged), so the browser panel can re-navigate / refresh on
-	 * a repeated preview of the same target.
+	 * previewUrl is unchanged), so a repeated preview of the same target still
+	 * counts as new preview work.
 	 */
 	previewRevision?: number;
+	/**
+	 * Highest previewRevision durably acknowledged as opened externally. A
+	 * revision ahead of this value is pending and opens once; an acknowledged one
+	 * never re-opens after a restart or rerender.
+	 */
+	previewOpenedRevision?: number;
 	/** The session's git diff against its base, when known. */
 	changedFiles?: ChangedFile[];
 	/** Pre-filled commit subject for the Git rail, when known. */

@@ -45,5 +45,55 @@
 		"rows": 40,
 		"scrollback": 5000,
 		"outputBytes": 16777216
+	},
+	"input-latency": {
+		"kind": "terminal",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "milliseconds",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000
+	},
+	"reconnect": {
+		"kind": "terminal",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "milliseconds",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000
+	},
+	"cpu-time": {
+		"kind": "terminal",
+		"warmups": 3,
+		"samples": 10,
+		"unit": "cpu-ms-per-workload",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000,
+		"fixedWorkloads": 5,
+		"workloadIterations": 200000
+	},
+	"active-memory": {
+		"kind": "memory",
+		"warmups": 0,
+		"samples": 5,
+		"unit": "bytes",
+		"completionMark": "operator:terminal-ready",
+		"transport": "daemon-terminal-mux",
+		"columns": 120,
+		"rows": 40,
+		"scrollback": 5000,
+		"idleSeconds": 60,
+		"steadyStateWorkloads": 5,
+		"accounting": "launched-application-full-process-tree-at-idle-stability",
+		"workloadIterations": 50000
 	}
 }

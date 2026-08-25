@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateBridgeHandoff, validateMigrationExercise } from "./phase0-legacy-update.mjs";
 
 export const DECISIONS = Object.freeze(["continue", "linux-canvas", "drop-platform", "stop-port"]);
 const REQUIRED_PLATFORMS = Object.freeze(["darwin", "win32", "linux"]);
@@ -22,13 +23,154 @@ function pushReason(reasons, message) {
   reasons.push(message);
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function finiteNonnegative(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function validUpdaterEvidence(value) {
+  return isRecord(value) &&
+    value.valid === true &&
+    value.signatureValid === true &&
+    value.privateKeyLeaked === false &&
+    value.format === "tauri-minisign" &&
+    value.signer === "@tauri-apps/cli@2.11.4" &&
+    /^[0-9a-f]{64}$/.test(value.publicKeyFingerprint ?? "") &&
+    /^[0-9a-f]{64}$/.test(value.signatureSha256 ?? "");
+}
+
+function validMetric(profile, metric, fields) {
+  const value = profile?.[metric];
+  return isRecord(value) &&
+    fields.every((field) => finiteNonnegative(value[field])) &&
+    value.evidenceScope === "binding" &&
+    value.workloadSuccess === true &&
+    Number.isInteger(value.requiredCount) &&
+    value.requiredCount > 0 &&
+    value.observedCount === value.requiredCount;
+}
+
+function validateTerminalShape(terminal, platform, reasons) {
+  if (!isRecord(terminal) || !isRecord(terminal.electron) || !isRecord(terminal.tauri)) {
+    pushReason(reasons, `missing terminal evidence on ${platform}`);
+    return false;
+  }
+  const metrics = [
+    ["terminalOpen", ["median", "p95"]],
+    ["warmStart", ["median", "p95"]],
+    ["firstRun", ["median", "p95"]],
+    ["vtebench", ["median"]],
+    ["largeOutput", ["median"]],
+    ["idleMemory", ["median"]],
+    ["inputLatency", ["p95"]],
+    ["reconnect", ["p95"]],
+    ["activeMemory", ["bytes"]],
+    ["cpuTime", ["ms"]],
+  ];
+  let valid = true;
+  for (const shell of ["electron", "tauri"]) {
+    for (const [metric, fields] of metrics) {
+      if (!validMetric(terminal[shell], metric, fields)) {
+        pushReason(reasons, `malformed terminal evidence on ${platform}: ${shell}.${metric}`);
+        valid = false;
+      }
+    }
+  }
+  if (platform === "linux") {
+    const tauriProfile = terminal?.tauri;
+    if (!isRecord(tauriProfile) || tauriProfile.compositingPairObserved !== true) {
+      pushReason(reasons, `malformed terminal evidence on ${platform}: linux requires the WEBKIT_DISABLE_COMPOSITING_MODE on/off measurement pair`);
+      valid = false;
+    }
+  }
+  return valid;
+}
+
+const BROWSER_MODES = Object.freeze(["system", "managed"]);
+
+function validateBrowserMode(modeEvidence, platform, mode, reasons) {
+  if (!isRecord(modeEvidence) || modeEvidence.passed !== true || modeEvidence.isolatedWhileRunning !== true || modeEvidence.cleanupPassed !== true || modeEvidence.stateRootRemoved !== true || !Number.isInteger(modeEvidence.observedProcessCount) || modeEvidence.observedProcessCount < 1 || modeEvidence.cookieMarkerPresent !== true) {
+    pushReason(reasons, `per-mode browser evidence is malformed on ${platform}: ${mode}`);
+    return false;
+  }
+  return true;
+}
+
+function validatePlatformShape(data, platform, sourceCommit, reasons) {
+  if (!isRecord(data.provenance) || data.provenance.sourceCommit !== sourceCommit || !/^[0-9a-f]{64}$/.test(data.provenance.artifactSha256 ?? "")) {
+    pushReason(reasons, `platform provenance source commit or artifact digest is invalid on ${platform}`);
+  }
+  if (!isRecord(data.stateAudit) || data.stateAudit.passed !== true || data.stateAudit.leaked !== false || !Number.isInteger(data.stateAudit.scannedRoots) || data.stateAudit.scannedRoots < 1 || data.stateAudit.observedOutsideRoot !== 0) {
+    pushReason(reasons, `state audit evidence is malformed on ${platform}`);
+  }
+  if (!isRecord(data.cors) || data.cors.passed !== true || data.cors.exactAllowlist !== true) {
+    pushReason(reasons, `CORS evidence is malformed on ${platform}`);
+  }
+  let browserShapeValid = true;
+  if (!isRecord(data.browser)) {
+    pushReason(reasons, `per-mode browser evidence is missing on ${platform}`);
+    browserShapeValid = false;
+  } else {
+    for (const mode of BROWSER_MODES) {
+      if (!validateBrowserMode(data.browser[mode], platform, mode, reasons)) browserShapeValid = false;
+    }
+    if (data.browser.crossModeCookieIsolation !== true) {
+      pushReason(reasons, `cross-mode cookie isolation is not proven on ${platform}`);
+      browserShapeValid = false;
+    }
+  }
+  if (!isRecord(data.artifact) || !isRecord(data.artifact.electron) || !isRecord(data.artifact.tauri) ||
+      !finiteNonnegative(data.artifact.electron.downloadBytes) || !finiteNonnegative(data.artifact.electron.installedBytes) ||
+      !finiteNonnegative(data.artifact.tauri.downloadBytes) || !finiteNonnegative(data.artifact.tauri.installedBytes) ||
+      !/^[0-9a-f]{64}$/.test(data.artifact.electron.sha256 ?? "") || !/^[0-9a-f]{64}$/.test(data.artifact.tauri.sha256 ?? "") ||
+      data.artifact.includesACP !== true || data.artifact.includesDaemon !== true || data.artifact.includesBrowser !== true ||
+      (platform === "linux" && data.artifact.rpmExists !== true)) {
+    pushReason(reasons, `artifact evidence is malformed on ${platform}`);
+  }
+  if (!validUpdaterEvidence(data.updaterSigning)) {
+    pushReason(reasons, `updater-signing evidence is malformed on ${platform}`);
+  }
+  const legacy = data.legacyUpdate;
+  const exercise = legacy?.exercise;
+  let directMigration = false;
+  if (isRecord(legacy) && legacy.success === true && legacy.bridgeRequired === false && legacy.bridgeProven === false && legacy.migrationObserved === true && isRecord(exercise)) {
+    try {
+      validateMigrationExercise(exercise);
+      directMigration = exercise.legacyArtifactSha256 === data.artifact?.electron?.sha256 && exercise.targetArtifactSha256 === data.artifact?.tauri?.sha256;
+    } catch {
+      directMigration = false;
+    }
+  }
+  let bridgeMigration = false;
+  if (isRecord(legacy) && legacy.success === false && legacy.bridgeRequired === true && legacy.bridgeProven === true && isRecord(legacy.handoff)) {
+    try {
+      validateBridgeHandoff(legacy.handoff);
+      bridgeMigration = legacy.handoff.targetArtifactSha256 === data.artifact?.tauri?.sha256;
+    } catch {
+      bridgeMigration = false;
+    }
+  }
+  if (!directMigration && !bridgeMigration) pushReason(reasons, `legacy-update evidence is malformed on ${platform}`);
+  return validateTerminalShape(data.terminal, platform, reasons);
+}
+
 export function evaluateDecision(evidence) {
   const reasons = [];
+  const bridgeAdvisories = [];
   let linuxCanvas = false;
   let hasBridgeRollout = false;
 
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
     return { decision: "stop-port", reasons: ["evidence is missing or malformed"] };
+  }
+
+  if (evidence.schemaVersion !== 1) pushReason(reasons, "evidence schemaVersion must equal 1");
+  const provenance = evidence.provenance;
+  if (!isRecord(provenance) || provenance.kind !== "phase0-ci-aggregate" || !/^[0-9a-f]{40}$/.test(provenance.sourceCommit ?? "") || !Number.isFinite(Date.parse(provenance.generatedAt ?? "")) || !isRecord(provenance.workflowRun) || typeof provenance.workflowRun.repository !== "string" || provenance.workflowRun.repository === "" || typeof provenance.workflowRun.runId !== "string" || provenance.workflowRun.runId === "" || !Number.isInteger(provenance.workflowRun.attempt) || provenance.workflowRun.attempt < 1) {
+    pushReason(reasons, "missing or malformed aggregate provenance");
   }
 
   if (!evidence.platforms || typeof evidence.platforms !== "object") {
@@ -51,7 +193,7 @@ export function evaluateDecision(evidence) {
     if (evidence.identity.executable !== EXPECTED_IDENTITY.executable) {
       pushReason(reasons, `application identity changed: executable ${String(evidence.identity.executable)} != ${EXPECTED_IDENTITY.executable}`);
     }
-    if (evidence.identity.aliasesPreserved === false) {
+    if (evidence.identity.aliasesPreserved !== true) {
       pushReason(reasons, "application identity changed: version-free aliases not preserved");
     }
   } else {
@@ -59,12 +201,8 @@ export function evaluateDecision(evidence) {
   }
 
   if (evidence.updaterSigning) {
-    if (evidence.updaterSigning.valid === false || evidence.updaterSigning.signatureValid === false) {
-      pushReason(reasons, "invalid updater signature");
-    }
-    if (evidence.updaterSigning.privateKeyLeaked === true) {
-      pushReason(reasons, "updater private key leaked");
-    }
+    if (!validUpdaterEvidence(evidence.updaterSigning)) pushReason(reasons, "invalid updater signature or non-Tauri updater format");
+    if (evidence.updaterSigning.privateKeyLeaked === true) pushReason(reasons, "updater private key leaked");
   } else {
     pushReason(reasons, "missing updater-signing evidence");
   }
@@ -72,6 +210,8 @@ export function evaluateDecision(evidence) {
   for (const platform of REQUIRED_PLATFORMS) {
     const data = evidence.platforms[platform];
     if (!data) continue;
+
+    validatePlatformShape(data, platform, provenance?.sourceCommit, reasons);
 
     if (!data.stateAudit || data.stateAudit.passed !== true || data.stateAudit.leaked === true) {
       if (data.stateAudit && data.stateAudit.leaked === true) {
@@ -85,8 +225,11 @@ export function evaluateDecision(evidence) {
       pushReason(reasons, `CORS boundary failed on ${platform}`);
     }
 
-    if (!data.browser || data.browser.passed !== true) {
-      pushReason(reasons, `standalone browser automation failed on ${platform}`);
+    for (const mode of BROWSER_MODES) {
+      const modeEvidence = data.browser?.[mode];
+      if (!isRecord(modeEvidence) || modeEvidence.passed !== true) {
+        pushReason(reasons, `standalone browser automation failed on ${platform}: ${mode}`);
+      }
     }
 
     if (data.updaterSigning) {
@@ -102,25 +245,16 @@ export function evaluateDecision(evidence) {
     if (!legacy) {
       pushReason(reasons, `missing legacy-update migration evidence on ${platform}`);
     } else if (legacy.success !== true) {
-      if (legacy.bridgeRequired === true && legacy.bridgeProven === true) {
-        const handoff = legacy.handoff ?? { signed: legacy.bridgeProven === true, replacesDirectly: legacy.bridgeReplacesDirectly ?? true };
-        if (handoff.signed !== true) {
-          pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must be signed`);
-        } else if (handoff.replacesDirectly !== true) {
-          pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must replace direct migration proof`);
-        } else {
+      if (isRecord(legacy.handoff)) {
+        try {
+          validateBridgeHandoff(legacy.handoff);
           hasBridgeRollout = true;
-          pushReason(reasons, `bridge handoff required on ${platform} and proven as mandatory rollout work`);
+          bridgeAdvisories.push(`bridge handoff required on ${platform} and proven as mandatory rollout work`);
+        } catch (error) {
+          pushReason(reasons, `bridge handoff invalid on ${platform}: ${error.message}`);
         }
       } else {
         pushReason(reasons, `legacy-update migration failed on ${platform}`);
-      }
-    } else if (legacy.bridgeRequired === true && legacy.bridgeProven === true) {
-      const handoff = legacy.handoff ?? { signed: true, replacesDirectly: true };
-      if (handoff.signed !== true || handoff.replacesDirectly !== true) {
-        pushReason(reasons, `bridge handoff invalid on ${platform}: bridge handoff must be signed`);
-      } else {
-        hasBridgeRollout = true;
       }
     }
 
@@ -158,7 +292,6 @@ export function evaluateDecision(evidence) {
     }
 
     if (!data.terminal || !data.terminal.electron || !data.terminal.tauri) {
-      pushReason(reasons, `missing terminal evidence on ${platform}`);
       continue;
     }
 
@@ -273,22 +406,15 @@ export function evaluateDecision(evidence) {
   }
 
   if (reasons.length > 0) {
-    const onlyBridge = reasons.every((r) => r.includes("bridge"));
-    if (onlyBridge && hasBridgeRollout) {
-      if (linuxCanvas) {
-        return { decision: "linux-canvas", reasons: ["linux-canvas: Linux uses canvas but all terminal gates pass", ...reasons] };
-      }
-      return { decision: "continue", reasons };
-    }
     return { decision: "stop-port", reasons };
   }
 
   if (linuxCanvas) {
-    return { decision: "linux-canvas", reasons: ["linux-canvas: Linux uses canvas but all terminal gates pass"] };
+    return { decision: "linux-canvas", reasons: ["linux-canvas: Linux uses canvas but all terminal gates pass", ...bridgeAdvisories] };
   }
 
   if (hasBridgeRollout) {
-    return { decision: "continue", reasons: ["bridge handoff required on one or more platforms and proven as mandatory rollout work"] };
+    return { decision: "continue", reasons: bridgeAdvisories.length > 0 ? bridgeAdvisories : ["bridge handoff required on one or more platforms and proven as mandatory rollout work"] };
   }
 
   return { decision: "continue", reasons: [] };
@@ -341,11 +467,8 @@ export async function loadIdentity(configPath) {
 export async function collectEvidence(resultsDir, options = {}) {
   const evidence = await loadEvidence(resultsDir);
   if (options.configPath) {
-    try {
-      const identity = await loadIdentity(options.configPath);
-      evidence.identity = { ...evidence.identity, ...identity, aliasesPreserved: evidence.identity?.aliasesPreserved ?? true };
-    } catch {
-    }
+    const identity = await loadIdentity(options.configPath);
+    evidence.identity = { ...evidence.identity, ...identity, aliasesPreserved: evidence.identity?.aliasesPreserved };
   }
   return evidence;
 }

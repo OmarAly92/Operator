@@ -13,6 +13,7 @@ type TerminalScenario = {
 	rows: number;
 	scrollback: number;
 	outputBytes?: number;
+	workloadIterations?: number;
 };
 
 export type TerminalHarnessConfiguration = {
@@ -25,19 +26,23 @@ export type TerminalHarnessConfiguration = {
 };
 
 export type TerminalAcknowledgement = {
-	name: "first-paint" | "workload" | "resize" | "reconnect" | "renderer-recovery" | "disposal";
+	name: "first-paint" | "workload" | "input-echo" | "resize" | "reconnect" | "renderer-recovery" | "disposal";
 	timestamp: number;
+	bytes?: number;
 };
 
 type TerminalBenchmarkHarnessProps = {
 	configuration: TerminalHarnessConfiguration;
+	mode?: "workload" | "disposal";
+	disposalBytes?: number;
+	disposalSettleMs?: number;
 	createMux?: (url: string) => TerminalMux;
 	onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void;
 	onRendererKind?: (kind: TerminalRendererKind) => void;
 };
 
 type WorkloadRequest = {
-	scenario: "vtebench" | "large-output";
+	scenario: "vtebench" | "large-output" | "cpu-time" | "active-memory";
 	iteration: number;
 };
 
@@ -47,6 +52,7 @@ const workloadMarkerBytes = new TextEncoder().encode(workloadMarker);
 const acknowledgementMarks: Record<TerminalAcknowledgement["name"], string> = {
 	"first-paint": "operator:terminal-first-paint",
 	workload: "operator:terminal-ready",
+	"input-echo": "operator:terminal-input-echo",
 	resize: "operator:terminal-resize",
 	reconnect: "operator:terminal-reconnect",
 	"renderer-recovery": "operator:terminal-renderer-recovery",
@@ -117,20 +123,35 @@ function markerMatcher(): (bytes: Uint8Array) => boolean {
 	};
 }
 
+function fixedComputeWorkload(request: WorkloadRequest): string {
+	const scenarioConfig = scenarios[request.scenario] as TerminalScenario | undefined;
+	const iterations = scenarioConfig?.workloadIterations ?? 100_000;
+	if (!Number.isInteger(iterations) || iterations < 1) throw new Error(`${request.scenario} requires a positive workloadIterations count`);
+	const windows = navigator.userAgent.includes("Windows");
+	const markerCommand = windows
+		? `[Console]::Out.Write(([char]95).ToString() + [char]95 + 'OPERATOR_TERMINAL_WORKLOAD_COMPLETE' + [char]95 + [char]95)`
+		: `printf '\\137\\137OPERATOR_TERMINAL_WORKLOAD_COMPLETE\\137\\137'`;
+	if (windows) return `for($i=0;$i -lt ${iterations};$i++){}; if ($?) { ${markerCommand} }`;
+	return `i=0; while [ "$i" -lt ${iterations} ]; do i=$((i+1)); done && ${markerCommand}`;
+}
+
 function workloadInput(request: WorkloadRequest): string {
 	if (!Number.isInteger(request.iteration) || request.iteration < 0) throw new Error("invalid terminal benchmark iteration");
 	const windows = navigator.userAgent.includes("Windows");
 	const markerCommand = windows
 		? `[Console]::Out.Write(([char]95).ToString() + [char]95 + 'OPERATOR_TERMINAL_WORKLOAD_COMPLETE' + [char]95 + [char]95)`
 		: `printf '\\137\\137OPERATOR_TERMINAL_WORKLOAD_COMPLETE\\137\\137'`;
-	if (request.scenario === "vtebench") return `vtebench; ${markerCommand}\r`;
+	if (request.scenario === "vtebench") return windows ? `vtebench; if ($?) { ${markerCommand} }\r` : `vtebench && ${markerCommand}\r`;
 	if (request.scenario === "large-output") {
 		const outputBytes = (scenarios["large-output"] as TerminalScenario).outputBytes;
 		if (!outputBytes) throw new Error("large-output scenario requires outputBytes");
 		const outputCommand = windows
 			? `[Console]::Out.Write(-join ('x' * ${outputBytes}))`
 			: `LC_ALL=C head -c ${outputBytes} /dev/zero | tr '\\0' x`;
-		return `${outputCommand}; ${markerCommand}\r`;
+		return windows ? `${outputCommand}; if ($?) { ${markerCommand} }\r` : `${outputCommand} && ${markerCommand}\r`;
+	}
+	if (request.scenario === "cpu-time" || request.scenario === "active-memory") {
+		return `${fixedComputeWorkload(request)}\r`;
 	}
 	throw new Error("unsupported terminal benchmark workload");
 }
@@ -138,14 +159,25 @@ function workloadInput(request: WorkloadRequest): string {
 function useAcknowledgements(onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void) {
 	const callbackRef = useRef(onAcknowledgement);
 	callbackRef.current = onAcknowledgement;
-	return useCallback((name: TerminalAcknowledgement["name"], timestamp = performance.now()) => {
+	return useCallback((name: TerminalAcknowledgement["name"], timestamp = performance.now(), bytes?: number) => {
 		performance.mark(acknowledgementMarks[name]);
-		callbackRef.current?.({ name, timestamp });
+		callbackRef.current?.({ name, timestamp, ...(typeof bytes === "number" ? { bytes } : {}) });
 	}, []);
+}
+
+declare global {
+	interface Window {
+		__operatorTerminalBenchmark?: {
+			takeLastPrimaryBytes: () => number | undefined;
+		};
+	}
 }
 
 export function TerminalBenchmarkHarness({
 	configuration,
+	mode = "workload",
+	disposalBytes = 2_097_152,
+	disposalSettleMs = 200,
 	createMux = defaultCreateMux,
 	onAcknowledgement,
 	onRendererKind,
@@ -153,9 +185,22 @@ export function TerminalBenchmarkHarness({
 	const [terminal, setTerminal] = useState<AttachableTerminal | null>(null);
 	const [rendererKind, setRendererKind] = useState<TerminalRendererKind | undefined>();
 	const [attachmentGeneration, setAttachmentGeneration] = useState(0);
+	// Disposal-retention mode: each "operator:terminal-benchmark-disposal" event
+	// mounts a fresh XtermTerminal, feeds it synthetic output, then unmounts it so
+	// the outer probe can sample retained memory after every disposal ack.
+	const [disposalCycle, setDisposalCycle] = useState<{ id: number } | null>(null);
+	const disposalCycleIdRef = useRef(0);
+	const disposalBytesRef = useRef(disposalBytes);
+	disposalBytesRef.current = disposalBytes;
+	const disposalSettleMsRef = useRef(disposalSettleMs);
+	disposalSettleMsRef.current = disposalSettleMs;
 	const muxRef = useRef<TerminalMux | null>(null);
 	const requestedWorkloadsRef = useRef(0);
 	const pendingWorkloadsRef = useRef(0);
+	const workloadByteWindowRef = useRef(false);
+	const accumulatedWorkloadBytesRef = useRef(0);
+	const lastPrimaryBytesRef = useRef<number | undefined>(undefined);
+	const inputEchoPendingRef = useRef(0);
 	const firstPaintRef = useRef(false);
 	const acknowledge = useAcknowledgements(onAcknowledgement);
 
@@ -167,7 +212,14 @@ export function TerminalBenchmarkHarness({
 			}
 			if (pendingWorkloadsRef.current > 0) {
 				pendingWorkloadsRef.current -= 1;
-				acknowledge("workload", event.timestamp);
+				const observedBytes = lastPrimaryBytesRef.current;
+				lastPrimaryBytesRef.current = undefined;
+				acknowledge("workload", event.timestamp, typeof observedBytes === "number" ? observedBytes : undefined);
+				return;
+			}
+			if (inputEchoPendingRef.current > 0) {
+				inputEchoPendingRef.current -= 1;
+				acknowledge("input-echo", event.timestamp);
 			}
 			return;
 		}
@@ -181,20 +233,80 @@ export function TerminalBenchmarkHarness({
 	}, [onRendererKind]);
 
 	useEffect(() => {
-		if (!terminal) return undefined;
+		window.__operatorTerminalBenchmark = {
+			takeLastPrimaryBytes: () => {
+				const observed = lastPrimaryBytesRef.current;
+				lastPrimaryBytesRef.current = undefined;
+				return observed;
+			},
+		};
+		return () => {
+			delete window.__operatorTerminalBenchmark;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (mode !== "disposal") return undefined;
+		const startDisposalCycle = () => {
+			disposalCycleIdRef.current += 1;
+			setDisposalCycle({ id: disposalCycleIdRef.current });
+		};
+		window.addEventListener("operator:terminal-benchmark-disposal", startDisposalCycle);
+		return () => window.removeEventListener("operator:terminal-benchmark-disposal", startDisposalCycle);
+	}, [mode]);
+
+	useEffect(() => {
+		if (mode !== "disposal" || !terminal) return undefined;
+		let cancelled = false;
+		const timers: ReturnType<typeof setTimeout>[] = [];
+		const runCycle = async () => {
+			const chunkSize = 65_536;
+			const line = "\x1b[38;5;46mheap-probe\x1b[0m 0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz\r\n";
+			const lineBytes = new TextEncoder().encode(line);
+			for (let offset = 0; offset < disposalBytesRef.current; offset += chunkSize) {
+				if (cancelled) return;
+				const chunk = new Uint8Array(Math.min(chunkSize, disposalBytesRef.current - offset));
+				for (let index = 0; index < chunk.byteLength; index += lineBytes.length) {
+					chunk.set(lineBytes.subarray(0, Math.min(lineBytes.length, chunk.byteLength - index)), index);
+				}
+				await new Promise<void>((resolve) => terminal.write(chunk, resolve));
+			}
+			if (cancelled) return;
+			timers.push(setTimeout(() => {
+				if (cancelled) return;
+				setTerminal(null);
+				setDisposalCycle(null);
+			}, disposalSettleMsRef.current));
+		};
+		void runCycle();
+		return () => {
+			cancelled = true;
+			for (const timer of timers) clearTimeout(timer);
+		};
+	}, [mode, terminal]);
+
+	useEffect(() => {
+		if (!terminal || mode === "disposal") return undefined;
 		const mux = createMux(muxUrlFromApiBase(configuration.daemonBaseUrl));
 		const seesWorkloadMarker = markerMatcher();
 		const reconnecting = attachmentGeneration > 0;
 		muxRef.current = mux;
 		const subscriptions = [
 			mux.onData(configuration.terminalId, (bytes) => {
-				if (seesWorkloadMarker(bytes) && requestedWorkloadsRef.current > 0) {
+				if (requestedWorkloadsRef.current > 0 && seesWorkloadMarker(bytes)) {
 					requestedWorkloadsRef.current -= 1;
+					if (workloadByteWindowRef.current) {
+						accumulatedWorkloadBytesRef.current += bytes.byteLength;
+						lastPrimaryBytesRef.current = accumulatedWorkloadBytesRef.current;
+						workloadByteWindowRef.current = false;
+						accumulatedWorkloadBytesRef.current = 0;
+					}
 					terminal.write(bytes, () => {
 						pendingWorkloadsRef.current += 1;
 					});
 					return;
 				}
+				if (workloadByteWindowRef.current) accumulatedWorkloadBytesRef.current += bytes.byteLength;
 				terminal.write(bytes);
 			}),
 			mux.onOpened(configuration.terminalId, () => {
@@ -211,7 +323,7 @@ export function TerminalBenchmarkHarness({
 			mux.close(configuration.terminalId);
 			mux.dispose();
 		};
-	}, [acknowledge, attachmentGeneration, configuration, createMux, terminal]);
+	}, [acknowledge, attachmentGeneration, configuration, createMux, mode, terminal]);
 
 	useEffect(() => {
 		const runWorkload = (event: Event) => {
@@ -224,11 +336,30 @@ export function TerminalBenchmarkHarness({
 				);
 			}
 			const input = workloadInput(request);
+			workloadByteWindowRef.current = true;
+			accumulatedWorkloadBytesRef.current = 0;
 			requestedWorkloadsRef.current += 1;
 			mux.sendInput(configuration.terminalId, input);
 		};
+		const sendInputProbe = () => {
+			const mux = muxRef.current;
+			if (!mux || !terminal) return;
+			inputEchoPendingRef.current += 1;
+			mux.sendInput(configuration.terminalId, "x");
+		};
+		const forceDisconnect = () => {
+			const mux = muxRef.current;
+			if (!mux) return;
+			mux.dispose();
+		};
 		window.addEventListener("operator:terminal-benchmark-run", runWorkload);
-		return () => window.removeEventListener("operator:terminal-benchmark-run", runWorkload);
+		window.addEventListener("operator:terminal-benchmark-input", sendInputProbe);
+		window.addEventListener("operator:terminal-benchmark-reconnect", forceDisconnect);
+		return () => {
+			window.removeEventListener("operator:terminal-benchmark-run", runWorkload);
+			window.removeEventListener("operator:terminal-benchmark-input", sendInputProbe);
+			window.removeEventListener("operator:terminal-benchmark-reconnect", forceDisconnect);
+		};
 	}, [configuration.columns, configuration.rows, configuration.terminalId, terminal]);
 
 	return (
@@ -238,16 +369,32 @@ export function TerminalBenchmarkHarness({
 			data-testid="terminal-benchmark-root"
 			style={{ height: "100vh", width: "100vw" }}
 		>
-			<XtermTerminal
-				columns={configuration.columns}
-				geometryMode="fixed"
-				onReady={setTerminal}
-				onRendererKind={rendererChanged}
-				onTimestamp={onTimestamp}
-				rows={configuration.rows}
-				scrollback={configuration.scrollback}
-				theme="dark"
-			/>
+			{mode === "disposal" ? (
+				disposalCycle ? (
+					<XtermTerminal
+						columns={configuration.columns}
+						geometryMode="fixed"
+						key={`disposal-cycle-${disposalCycle.id}`}
+						onReady={setTerminal}
+						onRendererKind={rendererChanged}
+						onTimestamp={onTimestamp}
+						rows={configuration.rows}
+						scrollback={configuration.scrollback}
+						theme="dark"
+					/>
+				) : null
+			) : (
+				<XtermTerminal
+					columns={configuration.columns}
+					geometryMode="fixed"
+					onReady={setTerminal}
+					onRendererKind={rendererChanged}
+					onTimestamp={onTimestamp}
+					rows={configuration.rows}
+					scrollback={configuration.scrollback}
+					theme="dark"
+				/>
+			)}
 		</div>
 	);
 }

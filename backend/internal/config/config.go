@@ -67,11 +67,15 @@ type TelemetryConfig struct {
 	// binary has no reliable version of its own (see cli.Version, which release
 	// tooling does not currently override), so the supervisor passes it in.
 	AppVersion string
+	// Renderer reports that the supervising desktop app opted the renderer into
+	// telemetry (packaged default on, development opt-in via the supervisor).
+	// Only then does the desktop bootstrap endpoint hand out the install
+	// identity; a bare CLI-started daemon never serves one.
+	Renderer bool
 }
 
 // DefaultAllowedOrigins is the exact packaged-desktop origin allowlist, overridden by OPERATOR_ALLOWED_ORIGINS.
 var DefaultAllowedOrigins = []string{
-	"app://renderer",
 	"tauri://localhost",
 	"http://tauri.localhost",
 }
@@ -88,7 +92,7 @@ type Config struct {
 	// ShutdownTimeout is the hard graceful-shutdown deadline.
 	ShutdownTimeout time.Duration
 	// RunFilePath is where the PID + port handshake file (running.json) is
-	// written so the Electron supervisor can discover and reap the daemon.
+	// written so the desktop supervisor can discover and reap the daemon.
 	RunFilePath string
 	// DataDir is the directory holding durable SQLite state: DB and WAL files.
 	// It is created on first use by the storage layer.
@@ -96,7 +100,7 @@ type Config struct {
 	// Agent is the compatibility agent adapter id selected by OPERATOR_AGENT;
 	// startSession fails fast if no adapter with this id is registered.
 	Agent string
-	// AppRunID identifies one desktop-app launch. The Electron supervisor mints
+	// AppRunID identifies one desktop-app launch. The desktop supervisor mints
 	// it and passes it down (OPERATOR_APP_RUN_ID), holding it constant across daemon
 	// restarts it performs, so standalone shell terminals can survive a daemon
 	// restart while still being reaped when the APP itself goes away.
@@ -134,7 +138,7 @@ func (c Config) Addr() string {
 //	OPERATOR_RUN_FILE          running.json path   (default ~/.operator/running.json)
 //	OPERATOR_DATA_DIR          durable state dir   (default ~/.operator/data)
 //	OPERATOR_AGENT             compatibility agent id (default claude-code)
-//	OPERATOR_APP_RUN_ID        desktop-app launch id, set by the Electron supervisor
+//	OPERATOR_APP_RUN_ID        desktop-app launch id, set by the desktop supervisor
 //	                     (default: a fresh id minted per daemon boot)
 //	OPERATOR_ALLOWED_ORIGINS   CORS origins, comma-separated (default DefaultAllowedOrigins)
 //	OPERATOR_TELEMETRY_EVENTS  local event capture off|on (default off)
@@ -142,6 +146,7 @@ func (c Config) Addr() string {
 //	OPERATOR_TELEMETRY_REMOTE  remote exporter off|posthog (default off)
 //	OPERATOR_TELEMETRY_POSTHOG_KEY   PostHog project key
 //	OPERATOR_TELEMETRY_POSTHOG_HOST  PostHog host (default DefaultTelemetryPostHogHost)
+//	OPERATOR_TELEMETRY_RENDERER      desktop renderer telemetry intent off|on, set by the supervisor (default off)
 //
 // The bind host is not configurable: the daemon is loopback-only by design.
 func Load() (Config, error) {
@@ -250,6 +255,13 @@ func Load() (Config, error) {
 	if raw := os.Getenv("OPERATOR_TELEMETRY_APP_VERSION"); raw != "" {
 		cfg.Telemetry.AppVersion = strings.TrimSpace(raw)
 	}
+	if raw := os.Getenv("OPERATOR_TELEMETRY_RENDERER"); raw != "" {
+		v, err := parseToggleEnv("OPERATOR_TELEMETRY_RENDERER", raw)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.Telemetry.Renderer = v
+	}
 
 	runFile, err := resolveRunFilePath()
 	if err != nil {
@@ -332,7 +344,7 @@ func newAppRunID() string {
 
 // resolveRunFilePath picks where running.json lives. An explicit OPERATOR_RUN_FILE
 // wins; otherwise it sits under the canonical Operator home directory so the CLI and
-// Electron supervisor share one handshake location.
+// desktop supervisor share one handshake location.
 func resolveRunFilePath() (string, error) {
 	if p, ok := os.LookupEnv("OPERATOR_RUN_FILE"); ok && p != "" {
 		return absOverride("OPERATOR_RUN_FILE", p)
@@ -356,6 +368,14 @@ func resolveDataDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(stateDir, "data"), nil
+}
+
+// StateRoot returns the canonical Operator state directory (~/.operator).
+// Desktop-owned shared surfaces like the browser engine root hang off this
+// canonical location; they must not be derived from DataDir, which
+// OPERATOR_DATA_DIR can point anywhere.
+func StateRoot() (string, error) {
+	return defaultStateDir()
 }
 
 func defaultStateDir() (string, error) {

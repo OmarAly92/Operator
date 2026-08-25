@@ -1,7 +1,7 @@
 # Telemetry
 
 Operator uses anonymous telemetry to understand reliability and product usage. The
-Electron renderer sends sanitized PostHog events directly, and the Go daemon can
+desktop renderer (the Tauri webview) sends sanitized PostHog events directly, and the Go daemon can
 persist allowlisted events locally and fan them out to PostHog when remote
 telemetry is enabled.
 
@@ -34,14 +34,15 @@ ingestion drop rules, see [posthog-cost-controls.md](posthog-cost-controls.md).
   and local staging paths; it is bucketed into a category first. Progress is not
   reported, since it fires per percent tick and the UI already shows it.
 
-  These are decided in the **main process**, at the updater's operation
-  boundary, and pushed to the renderer on a channel separate from
-  `updates:status`. That separation matters: `auto-updater.ts` deliberately
-  suppresses the UI status when an *automatic* check fails, and automatic checks
-  run hourly. A renderer observer watching statuses would therefore miss the
-  silent-failure case these exist to diagnose. Owning it in main also makes
-  `phase` and `to_version` authoritative, since only main knows which operation
-  was running and what it was fetching
+  These are decided in the **updater engine** (the Rust shell's `updater`
+  module), at the updater's operation boundary, and pushed to the renderer on a
+  telemetry channel separate from the status broadcast. That separation matters:
+  the engine deliberately suppresses the UI status when an *automatic* check
+  fails, and automatic checks run hourly. A renderer observer watching statuses
+  would therefore miss the silent-failure case these exist to diagnose. Owning
+  the outcome at the engine also makes `phase` and `to_version` authoritative,
+  since only the engine knows which operation was running and what it was
+  fetching
 - Agent inventory: `opr.renderer.agents_available`, reported once per app launch
   with `installed_count`, `authorized_count`, `supported_count`, and a sorted list
   of authorized agent ids. Agent ids are a fixed vocabulary from Operator's own
@@ -84,8 +85,8 @@ Before any renderer event or recording is transmitted:
 
 - Absolute file paths (`/home/...`, `/Users/...`, `C:\...`) are replaced with
   `[redacted-local-path]`
-- Local URLs (`file://`, `app://renderer`, `localhost`, `127.0.0.1`, `[::1]`)
-  are replaced with `[redacted-local-url]`
+- Local URLs (`file://`, `tauri://`, `localhost`, `127.0.0.1`, `[::1]`,
+  `tauri.localhost`) are replaced with `[redacted-local-url]`
 - Project IDs are one-way hashed and never sent in plain text
 
 Daemon events use a remote payload allowlist before PostHog export. Project and
@@ -224,9 +225,11 @@ VITE_OPERATOR_POSTHOG_KEY=phc_yourkey
 VITE_OPERATOR_POSTHOG_HOST=https://your-posthog-host.com
 ```
 
-Daemon event capture is off by default when the daemon is launched directly. The
-Electron supervisor starts the daemon with these defaults unless the environment
-already provides explicit values:
+Daemon event capture is off by default in every launch path, including the
+desktop shell: the Tauri supervisor stamps only `OPERATOR_TELEMETRY_APP_VERSION`
+and the renderer intent (`OPERATOR_TELEMETRY_RENDERER`), never the sink toggles.
+To enable local/remote daemon capture, set these before the daemon starts (the
+environment already provides explicit values win over any defaults):
 
 ```bash
 OPERATOR_TELEMETRY_EVENTS=on
@@ -235,11 +238,11 @@ OPERATOR_TELEMETRY_POSTHOG_KEY=phc_yourkey
 OPERATOR_TELEMETRY_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-The supervisor also passes `OPERATOR_TELEMETRY_APP_VERSION` (the Electron app version)
-so daemon events carry `app_version`/`ao_version`. The daemon binary has no
-version of its own that release tooling sets, so without this every daemon event
-arrives unattributable to a release and a failure rate cannot be traced to the
-build that caused it.
+The supervisor also passes `OPERATOR_TELEMETRY_APP_VERSION` (the desktop app
+version from `frontend/package.json`) so daemon events carry
+`app_version`/`ao_version`. The daemon binary has no version of its own that
+release tooling sets, so without this every daemon event arrives unattributable
+to a release and a failure rate cannot be traced to the build that caused it.
 
 Local daemon telemetry is retained in SQLite for 30 days.
 

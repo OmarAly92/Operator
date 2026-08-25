@@ -113,11 +113,11 @@ export const mockWorkspaces: WorkspaceSummary[] = [
 				previewUrl: "http://localhost:5173",
 				previewRevision: 4,
 				changedFiles: [
-					{ path: "frontend/src/renderer/components/BrowserPanel.tsx", additions: 52, deletions: 11 },
-					{ path: "frontend/src/renderer/hooks/useBrowserView.ts", additions: 33, deletions: 6 },
+					{ path: "frontend/src/renderer/hooks/useExternalPreview.ts", additions: 52, deletions: 11 },
+					{ path: "frontend/src/renderer/components/SessionInspector.tsx", additions: 33, deletions: 6 },
 					{ path: "docs/assets/readme/browser-preview.png", additions: 1, deletions: 0 },
 				],
-				commitMessage: "wire readme browser preview",
+				commitMessage: "wire readme external preview",
 				prs: [
 					demoPr(319, "open", "passing", "none"),
 					demoPr(320, "open", "pending", "none", "unknown"),

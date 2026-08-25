@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,19 +65,25 @@ func TestLANManagerBlocksLoopbackOnlyControlRoutes(t *testing.T) {
 	blocked := []string{
 		"/shutdown",
 		"/internal/telemetry/cli-invoked",
+		"/internal/desktop/telemetry-bootstrap",
+		"/internal/desktop/sessions/mer-1/preview-opened",
 		"/api/v1/mobile/status",
 		"/api/v1/dev/import-projects",
+		"/api/v1/dev/import-scan",
+		"/api/v1/dev/ancestor-repository",
 		"/api/v1/browser/status",
 		"/api/v1/sessions/opr-1/preview/server",
 	}
 	for _, path := range blocked {
-		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), nil)
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), strings.NewReader("{}"))
 		req.Host = "127.0.0.1" // spoofed loopback Host
 		req.Header.Set("Authorization", "Bearer secret12")
+		req.Header.Set("Content-Type", "application/json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("%s: request failed: %v", path, err)
 		}
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("%s: got %d want 404 (Host-spoof + valid auth must not reach control routes)", path, resp.StatusCode)
 		}

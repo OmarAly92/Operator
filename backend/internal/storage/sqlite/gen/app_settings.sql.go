@@ -7,23 +7,140 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const claimAppLegacyDesktopImport = `-- name: ClaimAppLegacyDesktopImport :execrows
+UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
+WHERE id = 1 AND legacy_desktop_imported_at IS NULL
+`
+
+type ClaimAppLegacyDesktopImportParams struct {
+	LegacyDesktopImportedAt sql.NullTime
+	UpdatedAt               time.Time
+}
+
+func (q *Queries) ClaimAppLegacyDesktopImport(ctx context.Context, arg ClaimAppLegacyDesktopImportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimAppLegacyDesktopImport, arg.LegacyDesktopImportedAt, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, ui_locale, update_opt_in, update_channel, update_nightly_ack, update_feature_pr, keybindings_json, migration_json, legacy_desktop_imported_at FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
-// never has to handle absence.
+// never has to handle absence. Desktop preference columns arrive in migration
+// 0088; each setter below updates only its own facet plus updated_at, so
+// concurrent facet writes cannot clobber each other.
 func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 	row := q.db.QueryRowContext(ctx, getAppSettings)
 	var i AppSetting
-	err := row.Scan(&i.ID, &i.DefaultSessionMode, &i.UpdatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.DefaultSessionMode,
+		&i.UpdatedAt,
+		&i.UiLocale,
+		&i.UpdateOptIn,
+		&i.UpdateChannel,
+		&i.UpdateNightlyAck,
+		&i.UpdateFeaturePR,
+		&i.KeybindingsJson,
+		&i.MigrationJson,
+		&i.LegacyDesktopImportedAt,
+	)
 	return i, err
+}
+
+const markAppLegacyDesktopImported = `-- name: MarkAppLegacyDesktopImported :exec
+UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
+WHERE id = 1 AND legacy_desktop_imported_at IS NULL
+`
+
+type MarkAppLegacyDesktopImportedParams struct {
+	LegacyDesktopImportedAt sql.NullTime
+	UpdatedAt               time.Time
+}
+
+// The legacy-import marker is write-once at the database level: once set, a
+// later import attempt must not move it or re-open the import window.
+func (q *Queries) MarkAppLegacyDesktopImported(ctx context.Context, arg MarkAppLegacyDesktopImportedParams) error {
+	_, err := q.db.ExecContext(ctx, markAppLegacyDesktopImported, arg.LegacyDesktopImportedAt, arg.UpdatedAt)
+	return err
+}
+
+const setAppKeybindings = `-- name: SetAppKeybindings :exec
+UPDATE app_settings SET keybindings_json = ?, updated_at = ? WHERE id = 1
+`
+
+type SetAppKeybindingsParams struct {
+	KeybindingsJson string
+	UpdatedAt       time.Time
+}
+
+func (q *Queries) SetAppKeybindings(ctx context.Context, arg SetAppKeybindingsParams) error {
+	_, err := q.db.ExecContext(ctx, setAppKeybindings, arg.KeybindingsJson, arg.UpdatedAt)
+	return err
+}
+
+const setAppMigrationState = `-- name: SetAppMigrationState :exec
+UPDATE app_settings SET migration_json = ?, updated_at = ? WHERE id = 1
+`
+
+type SetAppMigrationStateParams struct {
+	MigrationJson string
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) SetAppMigrationState(ctx context.Context, arg SetAppMigrationStateParams) error {
+	_, err := q.db.ExecContext(ctx, setAppMigrationState, arg.MigrationJson, arg.UpdatedAt)
+	return err
+}
+
+const setAppUILocale = `-- name: SetAppUILocale :exec
+UPDATE app_settings SET ui_locale = ?, updated_at = ? WHERE id = 1
+`
+
+type SetAppUILocaleParams struct {
+	UiLocale  string
+	UpdatedAt time.Time
+}
+
+func (q *Queries) SetAppUILocale(ctx context.Context, arg SetAppUILocaleParams) error {
+	_, err := q.db.ExecContext(ctx, setAppUILocale, arg.UiLocale, arg.UpdatedAt)
+	return err
+}
+
+const setAppUpdateSettings = `-- name: SetAppUpdateSettings :exec
+UPDATE app_settings
+SET update_opt_in = ?, update_channel = ?, update_nightly_ack = ?, update_feature_pr = ?, updated_at = ?
+WHERE id = 1
+`
+
+type SetAppUpdateSettingsParams struct {
+	UpdateOptIn      bool
+	UpdateChannel    string
+	UpdateNightlyAck bool
+	UpdateFeaturePR  sql.NullInt64
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) SetAppUpdateSettings(ctx context.Context, arg SetAppUpdateSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, setAppUpdateSettings,
+		arg.UpdateOptIn,
+		arg.UpdateChannel,
+		arg.UpdateNightlyAck,
+		arg.UpdateFeaturePR,
+		arg.UpdatedAt,
+	)
+	return err
 }
 
 const setDefaultSessionMode = `-- name: SetDefaultSessionMode :exec

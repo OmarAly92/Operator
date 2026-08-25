@@ -236,7 +236,7 @@ func NewPostHogSink(dataDir, apiKey, host, appVersion, defaultAgent string, clie
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
-	distinctID, err := loadOrCreateInstallID(dataDir)
+	distinctID, err := LoadOrCreateInstallID(dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -508,20 +508,72 @@ func versionChannel(appVersion string) string {
 	return "stable"
 }
 
-func loadOrCreateInstallID(dataDir string) (string, error) {
+// LoadOrCreateInstallID returns the stable per-install distinct ID stored in
+// telemetry_install_id under dataDir, creating it on first use.
+func LoadOrCreateInstallID(dataDir string) (string, error) {
 	path := filepath.Join(dataDir, "telemetry_install_id")
-	if b, err := os.ReadFile(path); err == nil {
-		if id := strings.TrimSpace(string(b)); id != "" {
-			return id, nil
+	for {
+		installID, exists, err := readInstallID(path)
+		if err != nil {
+			return "", err
 		}
-	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("read telemetry install id: %w", err)
+		if exists {
+			return installID, nil
+		}
+
+		installID = "ins_" + uuid.NewString()
+		candidatePath, err := writeInstallIDCandidate(dataDir, installID)
+		if err != nil {
+			return "", err
+		}
+		linkErr := os.Link(candidatePath, path)
+		_ = os.Remove(candidatePath)
+		if linkErr == nil {
+			return installID, nil
+		}
+		if !os.IsExist(linkErr) {
+			return "", fmt.Errorf("publish telemetry install id: %w", linkErr)
+		}
 	}
-	id := "ins_" + uuid.NewString()
-	if err := os.WriteFile(path, []byte(id+"\n"), 0o600); err != nil {
-		return "", fmt.Errorf("write telemetry install id: %w", err)
+}
+
+func readInstallID(path string) (string, bool, error) {
+	encodedID, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return "", false, nil
 	}
-	return id, nil
+	if err != nil {
+		return "", false, fmt.Errorf("read telemetry install id: %w", err)
+	}
+	installID := strings.TrimSpace(string(encodedID))
+	if installID == "" {
+		return "", false, fmt.Errorf("telemetry install id is empty")
+	}
+	return installID, true, nil
+}
+
+func writeInstallIDCandidate(dataDir, installID string) (string, error) {
+	candidatePath := filepath.Join(dataDir, ".telemetry_install_id."+uuid.NewString()+".tmp")
+	file, err := os.OpenFile(candidatePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", fmt.Errorf("create telemetry install id candidate: %w", err)
+	}
+	encodedID := []byte(installID + "\n")
+	written, writeErr := file.Write(encodedID)
+	if writeErr == nil && written != len(encodedID) {
+		writeErr = fmt.Errorf("short write: wrote %d of %d bytes", written, len(encodedID))
+	}
+	if writeErr == nil {
+		writeErr = file.Sync()
+	}
+	if closeErr := file.Close(); writeErr == nil {
+		writeErr = closeErr
+	}
+	if writeErr != nil {
+		_ = os.Remove(candidatePath)
+		return "", fmt.Errorf("write telemetry install id candidate: %w", writeErr)
+	}
+	return candidatePath, nil
 }
 
 func sha256String(raw string) string {

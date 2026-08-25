@@ -74,7 +74,9 @@ async function renderApp(): Promise<void> {
 	// Resolve the persisted locale before mounting so translated text never
 	// flashes in English for users who selected another language.
 	await useLocaleStore.getState().load();
-	createRoot(document.getElementById("root") as HTMLElement).render(
+	const container = document.getElementById("root") as HTMLElement;
+	container.setAttribute("data-testid", "app-shell-ready");
+	createRoot(container).render(
 		<React.StrictMode>
 			<I18nextProvider i18n={appI18n}>
 				<TelemetryBoundary>

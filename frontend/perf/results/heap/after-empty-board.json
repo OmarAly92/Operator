@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"label": "after",
+	"commit": "84aec025f8e9416a53b3296f0a3f011734df9996",
+	"dirty": true,
+	"platform": "darwin",
+	"architecture": "arm64",
+	"osVersion": "25.5.0",
+	"cpu": "Apple M1 Max",
+	"logicalCores": 10,
+	"buildKind": "debug-devurl",
+	"webviewRuntimeVersion": "OS WebKit (debug-devurl)",
+	"unit": "bytes",
+	"probeKind": "empty-board",
+	"accounting": "tauri-shell-plus-webview-process-tree-excluding-daemon",
+	"scenarioConfiguration": {
+		"idleSeconds": 20,
+		"daemonAccounting": "isolated-go-daemon-process-tree-reported-separately"
+	},
+	"samples": [
+		133185536,
+		133300224,
+		133578752
+	],
+	"median": 133300224,
+	"p95": 133578752,
+	"daemonSamples": [
+		40501248,
+		40386560,
+		38993920
+	],
+	"daemonMedian": 40386560
+}

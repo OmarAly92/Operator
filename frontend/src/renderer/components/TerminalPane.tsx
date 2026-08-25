@@ -2,6 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import {
 	createContext,
+	lazy,
+	Suspense,
 	useCallback,
 	useContext,
 	useEffect,
@@ -22,7 +24,7 @@ import {
 	type AttachableTerminal,
 	type TerminalSessionState,
 } from "../hooks/useTerminalSession";
-import { useSessionBrowserLink } from "../hooks/useSessionBrowserLink";
+import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { getApiBaseUrl } from "../lib/api-client";
 import {
 	createTerminalMux,
@@ -35,8 +37,16 @@ import { cn } from "../lib/utils";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
-import { XtermTerminal } from "./XtermTerminal";
+import { nativeShellBridgePresent } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
+
+// The xterm renderer stack (~570KB parsed) is the single largest eager edge
+// from the shell route (route-bundle-report before.json, 2026-08-24) and no
+// board paint ever mounts it. Splitting the renderer behind this boundary
+// keeps TerminalPane's cache provider eager while xterm parses on first pane.
+const XtermTerminal = lazy(() =>
+	import("./XtermTerminal").then((module) => ({ default: module.XtermTerminal })),
+);
 
 type TerminalPaneProps = {
 	session?: WorkspaceSession;
@@ -655,7 +665,7 @@ export function TerminalPane({
 			? terminalTarget.handleId
 			: (session?.terminalHandleId ?? "empty");
 
-	if (!window.operator) {
+	if (!nativeShellBridgePresent()) {
 		// A standalone shell has no agent and no branch, so it previews as a plain
 		// prompt rather than borrowing the session's agent transcript.
 		if (terminalTarget?.kind === "shell") {
@@ -763,9 +773,9 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 	}
 	if (session?.id === "demo-review-stack") {
 		return [
-			'$ rg "previewUrl|Browser" frontend/src/renderer',
-			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after opr preview",
-			"frontend/src/renderer/hooks/useBrowserView.ts: preview revision re-navigates the view",
+			'$ rg "previewUrl|previewRevision" frontend/src/renderer',
+			"frontend/src/renderer/hooks/useExternalPreview.ts: pending revision opens in the default browser",
+			"backend/internal/httpd/desktop_preview.go: preview-opened acknowledgement recorded",
 			"$ opr preview http://localhost:5173",
 			"DONE preview target set for demo-review-stack",
 			"$ npm --prefix frontend run typecheck",
@@ -946,7 +956,13 @@ function AttachedTerminal({
 			return;
 		}
 	}, [initFailed, onFatal]);
-	const handleLinkOpen = useSessionBrowserLink(session);
+	const handleLinkOpen = useCallback(
+		(uri: string) => {
+			if (!isWebLink(uri)) return;
+			void openLinkInSystemBrowser(uri);
+		},
+		[],
+	);
 	const restoreSession = useCallback(async () => {
 		if (!session?.id || !canRestoreSession || isRestoring) return;
 		setIsRestoring(true);
@@ -1035,18 +1051,20 @@ function AttachedTerminal({
 			    content box, so FitAddon still measures it correctly and the absolute
 			    overlays (empty state, banner) keep covering the full padding box. */}
 			<div className="relative min-h-0 flex-1 pl-2">
-				<XtermTerminal
-					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
-					fontSize={fontSize}
-					focusRequested={focusRequested}
-					isVisible={isVisible}
-					onError={handleInitError}
-					onLinkOpen={handleLinkOpen}
-					onReady={handleReady}
-					onVisibleSize={syncVisibleSize}
-					paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
-					theme={theme}
-				/>
+				<Suspense fallback={null}>
+					<XtermTerminal
+						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
+						fontSize={fontSize}
+						focusRequested={focusRequested}
+						isVisible={isVisible}
+						onError={handleInitError}
+						onLinkOpen={handleLinkOpen}
+						onReady={handleReady}
+						onVisibleSize={syncVisibleSize}
+						paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
+						theme={theme}
+					/>
+				</Suspense>
 				{showEmptyState && (
 					<div className="terminal-surface absolute inset-0 grid place-items-center font-mono text-control">
 						<div className="text-center">

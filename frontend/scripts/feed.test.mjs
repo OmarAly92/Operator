@@ -1,19 +1,19 @@
-// @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import test from "node:test";
 
-vi.mock("./blockmap.mjs", () => ({
-	writeBlockmap: vi.fn(async (filePath) => {
-		writeFileSync(`${filePath}.blockmap`, "fake-blockmap");
-		return { sha512: "MOCKED_BLOCKMAP_SHA512", size: 999 };
-	}),
-}));
-
-import { selectInstallers, feedFilename, buildYml, hashFile, generateFeeds } from "./feed.mjs";
+import {
+	buildYml,
+	feedFilename,
+	generateFeeds,
+	hashFile,
+	selectInstallers,
+} from "./feed.mjs";
 import { writeBlockmap } from "./blockmap.mjs";
+
 const V = "0.10.4";
 const NAMES = [
 	"Agent.Orchestrator.Setup.0.10.4.exe", // win versioned
@@ -26,187 +26,165 @@ const NAMES = [
 	"operator-0.10.4.x86_64.rpm", // rpm -> excluded by extension
 ];
 
-describe("selectInstallers", () => {
-	it("keeps only versioned exe/AppImage/darwin-zip, split by arch", () => {
-		const s = selectInstallers(NAMES, V);
-		expect(s.win).toEqual(["Agent.Orchestrator.Setup.0.10.4.exe"]);
-		expect(s.linux).toEqual(["Agent.Orchestrator-0.10.4.AppImage"]);
-		expect(s.macArm64).toEqual(["Agent.Orchestrator-darwin-arm64-0.10.4.zip"]);
-		expect(s.macX64).toEqual(["Agent.Orchestrator-darwin-x64-0.10.4.zip"]);
-	});
+test("selectInstallers keeps only versioned exe/AppImage/darwin-zip, split by arch", () => {
+	const s = selectInstallers(NAMES, V);
+	assert.deepEqual(s.win, ["Agent.Orchestrator.Setup.0.10.4.exe"]);
+	assert.deepEqual(s.linux, ["Agent.Orchestrator-0.10.4.AppImage"]);
+	assert.deepEqual(s.macArm64, ["Agent.Orchestrator-darwin-arm64-0.10.4.zip"]);
+	assert.deepEqual(s.macX64, ["Agent.Orchestrator-darwin-x64-0.10.4.zip"]);
 });
 
-describe("feedFilename", () => {
-	it("maps channel + platform to electron-updater names", () => {
-		expect(feedFilename("latest", "win")).toBe("latest.yml");
-		expect(feedFilename("latest", "mac")).toBe("latest-mac.yml");
-		expect(feedFilename("latest", "linux")).toBe("latest-linux.yml");
-		expect(feedFilename("nightly", "win")).toBe("nightly.yml");
-		expect(feedFilename("nightly", "mac")).toBe("nightly-mac.yml");
-		expect(feedFilename("nightly", "linux")).toBe("nightly-linux.yml");
-	});
-
-	// Channel-isolation invariant: a pr<N> channel MUST produce its own namespaced
-	// feed filenames and MUST NOT produce filenames that start with "latest" or
-	// "nightly". This guards against the #2270 poisoning class where a pr-channel
-	// feed accidentally overwrites the shared latest-mac.yml / nightly-mac.yml.
-	describe("pr<N> channel isolation (guards against #2270 latest-mac.yml poisoning)", () => {
-		it("pr2270 + mac => pr2270-mac.yml", () => {
-			expect(feedFilename("pr2270", "mac")).toBe("pr2270-mac.yml");
-		});
-
-		it("pr2270 + linux => pr2270-linux.yml", () => {
-			expect(feedFilename("pr2270", "linux")).toBe("pr2270-linux.yml");
-		});
-
-		it("pr2270 + win => pr2270.yml", () => {
-			expect(feedFilename("pr2270", "win")).toBe("pr2270.yml");
-		});
-
-		it.each(["mac", "linux", "win"])(
-			"pr<N> channel never yields a filename starting with 'latest' (platform: %s)",
-			(platform) => {
-				expect(feedFilename("pr2270", platform)).not.toMatch(/^latest/);
-			},
-		);
-
-		it.each(["mac", "linux", "win"])(
-			"pr<N> channel never yields a filename starting with 'nightly' (platform: %s)",
-			(platform) => {
-				expect(feedFilename("pr2270", platform)).not.toMatch(/^nightly/);
-			},
-		);
-	});
+test("selectInstallers also selects Tauri-built NSIS, AppImage and ditto zip names", () => {
+	const tauriNames = [
+		"Operator_0.10.4_x64-setup.exe",
+		"operator_0.10.4_amd64.AppImage",
+		"Operator-darwin-arm64-0.10.4.zip",
+		"Operator-darwin-x64-0.10.4.zip",
+		"Operator_0.10.4_x64_en-US.msi",
+	];
+	const s = selectInstallers(tauriNames, V);
+	assert.deepEqual(s.win, ["Operator_0.10.4_x64-setup.exe"]);
+	assert.deepEqual(s.linux, ["operator_0.10.4_amd64.AppImage"]);
+	assert.deepEqual(s.macArm64, ["Operator-darwin-arm64-0.10.4.zip"]);
+	assert.deepEqual(s.macX64, ["Operator-darwin-x64-0.10.4.zip"]);
 });
 
-describe("buildYml", () => {
-	it("serializes one file with deprecated top-level fields and no blockMapSize", () => {
-		const yml = buildYml(
-			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
-			"2026-06-27T12:00:00.000Z",
-		);
-		expect(yml).toBe(
-			"version: 0.10.4\n" +
-				"files:\n" +
-				"  - url: Agent.Orchestrator.Setup.0.10.4.exe\n" +
-				"    sha512: AA/BB+cc==\n" +
-				"    size: 123\n" +
-				"path: Agent.Orchestrator.Setup.0.10.4.exe\n" +
-				"sha512: AA/BB+cc==\n" +
-				"releaseDate: '2026-06-27T12:00:00.000Z'\n",
-		);
-		expect(yml).not.toContain("blockMapSize");
-	});
-
-	it("lists both mac arches with arm64 first and points top-level at arm64", () => {
-		const yml = buildYml(
-			"0.10.4",
-			[
-				{ url: "Agent.Orchestrator-darwin-arm64-0.10.4.zip", sha512: "ARM==", size: 10 },
-				{ url: "Agent.Orchestrator-darwin-x64-0.10.4.zip", sha512: "X64==", size: 20 },
-			],
-			"2026-06-27T12:00:00.000Z",
-		);
-		const lines = yml.split("\n");
-		expect(lines[2]).toBe("  - url: Agent.Orchestrator-darwin-arm64-0.10.4.zip");
-		expect(lines[5]).toBe("  - url: Agent.Orchestrator-darwin-x64-0.10.4.zip");
-		expect(yml).toContain("path: Agent.Orchestrator-darwin-arm64-0.10.4.zip");
-	});
-
-	it("omits important key when flag is false (byte-identical to old output)", () => {
-		const yml = buildYml(
-			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
-			"2026-06-27T12:00:00.000Z",
-			false,
-		);
-		expect(yml).not.toContain("important");
-	});
-
-	it("emits important: true as top-level key when flag is true", () => {
-		const yml = buildYml(
-			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
-			"2026-06-27T12:00:00.000Z",
-			true,
-		);
-		expect(yml).toContain("important: true\n");
-		// must still have all existing fields
-		expect(yml).toContain("version: 0.10.4");
-		expect(yml).toContain("releaseDate:");
-	});
+test("feedFilename maps channel + platform to electron-updater names", () => {
+	assert.equal(feedFilename("latest", "win"), "latest.yml");
+	assert.equal(feedFilename("latest", "mac"), "latest-mac.yml");
+	assert.equal(feedFilename("latest", "linux"), "latest-linux.yml");
+	assert.equal(feedFilename("nightly", "win"), "nightly.yml");
+	assert.equal(feedFilename("nightly", "mac"), "nightly-mac.yml");
+	assert.equal(feedFilename("nightly", "linux"), "nightly-linux.yml");
 });
 
-describe("hashFile", () => {
-	it("computes sha512 (base64) and byte size of a real file, matching node:crypto directly", () => {
-		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const filePath = join(dir, "sample.zip");
-		const content = "fake zip contents for hashing";
-		writeFileSync(filePath, content);
-
-		const { sha512, size } = hashFile(filePath);
-
-		const want = createHash("sha512").update(Buffer.from(content)).digest("base64");
-		expect(sha512).toBe(want);
-		expect(size).toBe(Buffer.byteLength(content));
-
-		rmSync(dir, { recursive: true, force: true });
-	});
-
-	it("does not write any sidecar file, unlike writeBlockmap", () => {
-		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const filePath = join(dir, "sample.zip");
-		writeFileSync(filePath, "content");
-
-		hashFile(filePath);
-
-		expect(existsSync(`${filePath}.blockmap`)).toBe(false);
-
-		rmSync(dir, { recursive: true, force: true });
-	});
+test("pr<N> channel isolation guards against #2270 latest-mac.yml poisoning", () => {
+	assert.equal(feedFilename("pr2270", "mac"), "pr2270-mac.yml");
+	assert.equal(feedFilename("pr2270", "linux"), "pr2270-linux.yml");
+	assert.equal(feedFilename("pr2270", "win"), "pr2270.yml");
+	for (const platform of ["mac", "linux", "win"]) {
+		assert.doesNotMatch(feedFilename("pr2270", platform), /^latest/);
+		assert.doesNotMatch(feedFilename("pr2270", platform), /^nightly/);
+	}
 });
 
-// Regression coverage for #3034: mac zips must never produce a .blockmap
-// sidecar, since Squirrel.Mac's ShipIt `ditto` install step fails against
-// the AppleDouble-less format @electron-forge/maker-zip produces, and a
-// sidecar-driven differential update against it is the likely corruption
-// path. win/linux keep the existing blockmap sidecar behavior unchanged.
-describe("generateFeeds mac blockmap exclusion (#3034)", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
+test("buildYml serializes one file with deprecated top-level fields and no blockMapSize", () => {
+	const yml = buildYml(
+		"0.10.4",
+		[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+		"2026-06-27T12:00:00.000Z",
+	);
+	assert.equal(
+		yml,
+		"version: 0.10.4\n" +
+			"files:\n" +
+			"  - url: Agent.Orchestrator.Setup.0.10.4.exe\n" +
+			"    sha512: AA/BB+cc==\n" +
+			"    size: 123\n" +
+			"path: Agent.Orchestrator.Setup.0.10.4.exe\n" +
+			"sha512: AA/BB+cc==\n" +
+			"releaseDate: '2026-06-27T12:00:00.000Z'\n",
+	);
+	assert.ok(!yml.includes("blockMapSize"));
+});
 
-	it("does not call writeBlockmap or write a .blockmap sidecar for mac zips", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const macZip = "Agent.Orchestrator-darwin-arm64-0.10.4.zip";
-		writeFileSync(join(dir, macZip), "fake mac zip");
+test("buildYml lists both mac arches with arm64 first and points top-level at arm64", () => {
+	const yml = buildYml(
+		"0.10.4",
+		[
+			{ url: "Agent.Orchestrator-darwin-arm64-0.10.4.zip", sha512: "ARM==", size: 10 },
+			{ url: "Agent.Orchestrator-darwin-x64-0.10.4.zip", sha512: "X64==", size: 20 },
+		],
+		"2026-06-27T12:00:00.000Z",
+	);
+	const lines = yml.split("\n");
+	assert.equal(lines[2], "  - url: Agent.Orchestrator-darwin-arm64-0.10.4.zip");
+	assert.equal(lines[5], "  - url: Agent.Orchestrator-darwin-x64-0.10.4.zip");
+	assert.ok(yml.includes("path: Agent.Orchestrator-darwin-arm64-0.10.4.zip"));
+});
 
-		await generateFeeds(dir, "0.10.4", "nightly", "2026-06-27T12:00:00.000Z");
+test("buildYml omits important when false and emits it when true", () => {
+	const off = buildYml(
+		"0.10.4",
+		[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+		"2026-06-27T12:00:00.000Z",
+		false,
+	);
+	assert.ok(!off.includes("important"));
+	const on = buildYml(
+		"0.10.4",
+		[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+		"2026-06-27T12:00:00.000Z",
+		true,
+	);
+	assert.ok(on.includes("important: true\n"));
+	assert.ok(on.includes("version: 0.10.4"));
+	assert.match(on, /releaseDate:/);
+});
 
-		expect(writeBlockmap).not.toHaveBeenCalled();
-		expect(existsSync(join(dir, `${macZip}.blockmap`))).toBe(false);
+test("hashFile computes sha512 (base64) and byte size without writing any sidecar", () => {
+	const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
+	const filePath = join(dir, "sample.zip");
+	const content = "fake zip contents for hashing";
+	writeFileSync(filePath, content);
 
-		const yml = readFileSync(join(dir, "nightly-mac.yml"), "utf8");
-		expect(yml).not.toContain("blockMapSize");
-		expect(yml).toContain(`url: ${macZip}`);
+	const { sha512, size } = hashFile(filePath);
 
-		rmSync(dir, { recursive: true, force: true });
-	});
+	assert.equal(sha512, createHash("sha512").update(Buffer.from(content)).digest("base64"));
+	assert.equal(size, Buffer.byteLength(content));
+	assert.equal(existsSync(`${filePath}.blockmap`), false);
 
-	it("still calls writeBlockmap for win and linux installers", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const winExe = "Agent.Orchestrator.Setup.0.10.4.exe";
-		const linuxAppImage = "Agent.Orchestrator-0.10.4.AppImage";
-		writeFileSync(join(dir, winExe), "fake win installer");
-		writeFileSync(join(dir, linuxAppImage), "fake linux installer");
+	rmSync(dir, { recursive: true, force: true });
+});
 
-		await generateFeeds(dir, "0.10.4", "nightly", "2026-06-27T12:00:00.000Z");
+test("generateFeeds mac zips never produce a .blockmap sidecar (#3034)", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
+	const macZip = "Agent.Orchestrator-darwin-arm64-0.10.4.zip";
+	writeFileSync(join(dir, macZip), "fake mac zip");
 
-		expect(writeBlockmap).toHaveBeenCalledTimes(2);
-		expect(writeBlockmap).toHaveBeenCalledWith(join(dir, winExe));
-		expect(writeBlockmap).toHaveBeenCalledWith(join(dir, linuxAppImage));
+	await generateFeeds(dir, "0.10.4", "nightly", "2026-06-27T12:00:00.000Z");
 
-		rmSync(dir, { recursive: true, force: true });
-	});
+	assert.equal(existsSync(join(dir, `${macZip}.blockmap`)), false);
+	const yml = readFileSync(join(dir, "nightly-mac.yml"), "utf8");
+	assert.ok(!yml.includes("blockMapSize"));
+	assert.ok(yml.includes(`url: ${macZip}`));
+
+	rmSync(dir, { recursive: true, force: true });
+});
+
+test("generateFeeds still writes blockmaps for win and linux installers by default", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
+	const winExe = "Agent.Orchestrator.Setup.0.10.4.exe";
+	const linuxAppImage = "Agent.Orchestrator-0.10.4.AppImage";
+	writeFileSync(join(dir, winExe), "fake win installer");
+	writeFileSync(join(dir, linuxAppImage), "fake linux installer");
+
+	await generateFeeds(dir, "0.10.4", "nightly", "2026-06-27T12:00:00.000Z");
+
+	const names = readdirSync(dir);
+	assert.ok(names.includes(`${winExe}.blockmap`));
+	assert.ok(names.includes(`${linuxAppImage}.blockmap`));
+
+	rmSync(dir, { recursive: true, force: true });
+});
+
+test("generateFeeds blockmap:false writes no sidecars anywhere (Tauri migration baseline)", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
+	writeFileSync(join(dir, "Operator_0.10.4_x64-setup.exe"), "fake nsis");
+	writeFileSync(join(dir, "operator_0.10.4_amd64.AppImage"), "fake appimage");
+	let blockmapCalls = 0;
+	const spy = async () => {
+		blockmapCalls += 1;
+		return { sha512: "SPY", size: 1 };
+	};
+
+	await generateFeeds(dir, "0.10.4", "latest", "2026-08-24T00:00:00Z", false, { blockmap: false, writeBlockmap: spy });
+
+	assert.equal(blockmapCalls, 0);
+	const names = readdirSync(dir);
+	assert.ok(!names.some((name) => name.endsWith(".blockmap")));
+	assert.ok(names.includes("latest.yml"));
+	assert.ok(names.includes("latest-linux.yml"));
+
+	rmSync(dir, { recursive: true, force: true });
 });

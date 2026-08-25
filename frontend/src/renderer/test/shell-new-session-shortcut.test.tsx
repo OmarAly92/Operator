@@ -151,6 +151,9 @@ vi.mock("../components/NotificationCenter", () => ({ NotificationRuntime: () => 
 vi.mock("../components/CommandPalette", () => ({ CommandPalette: () => null }));
 vi.mock("../components/OrchestratorReplacementDialog", () => ({ OrchestratorReplacementDialog: () => null }));
 vi.mock("../components/ShellTopbar", () => ({ ShellTopbar: () => null }));
+// Mounted once the daemon reports ready; its useQuery needs a QueryClient this
+// shell-only harness deliberately does not provide.
+vi.mock("../components/UpdateOptInPrompt", () => ({ UpdateOptInPrompt: () => null }));
 vi.mock("../components/TitlebarNav", async () => {
 	const { useUiStore: useStore } = await vi.importActual<typeof import("../stores/ui-store")>("../stores/ui-store");
 	return {

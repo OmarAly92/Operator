@@ -56,7 +56,7 @@ Run the agent harness once outside Operator if its sign-in expired, then restart
 
 | Older documentation | Current product |
 | --- | --- |
-| Node.js/Next.js orchestrator | Long-running Go daemon with Electron/React desktop UI |
+| Node.js/Next.js orchestrator | Long-running Go daemon with Tauri/React desktop UI |
 | Global CLI as the main entry point | Desktop app is canonical; CLI is optional and thin |
 | Flat files under `~/.operator` | SQLite and all app state under `~/.operator` |
 | Stored lifecycle status | Status derived at read time from durable facts |
@@ -73,7 +73,7 @@ Current Operator state defaults to `~/.operator`:
 - `~/.operator/data` contains durable daemon database files.
 - `~/.operator/running.json` advertises the supervised daemon process and port.
 - Managed worktrees and Operator metadata remain under the Operator home.
-- `~/.operator/electron` contains the desktop app's Chromium data.
+- `~/.operator/tauri` contains the desktop shell and OS webview state.
 - `~/.operator/mobile/config.json` contains mobile-listener configuration with a hashed password.
 
 Do not delete the old or new data directories until you have inspected and preserved active worktrees.
@@ -96,6 +96,6 @@ Installing `@operator-dev/opr` is only useful when you intentionally need the fr
 
 <Cards>
 	<Card title="Installation" href="/docs/installation" description="Install the current desktop build." />
-	<Card title="Architecture" href="/docs/architecture" description="Understand the current Go/Electron design." />
+	<Card title="Architecture" href="/docs/architecture" description="Understand the current Go/desktop design." />
 	<Card title="Troubleshooting" href="/docs/troubleshooting" description="Resolve migration and startup problems." />
 </Cards>

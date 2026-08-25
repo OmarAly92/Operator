@@ -46,7 +46,7 @@ Operator creates an isolated git worktree and branch for the session before laun
 
 ### Follow the session
 
-Select the session in the sidebar or board. The main pane shows either its Chat conversation or live terminal. The inspector keeps session details, pull-request state, reviews, changed files, and browser preview close at hand.
+Select the session in the sidebar or board. The main pane shows either its Chat conversation or live terminal. The inspector keeps session details, pull-request state, reviews, and changed files close at hand.
 
 Activity such as active, idle, waiting for input, blocked, or exited is combined with pull-request facts to derive the status shown by Operator.
 
@@ -75,7 +75,7 @@ Operator never force-deletes a dirty worktree. Cleanup preserves user work when 
 </Step>
 </Steps>
 
-## Try A Browser Preview
+## Try An External Preview
 
 For a web task, start the app inside the session and select its URL with the optional CLI:
 
@@ -83,7 +83,7 @@ For a web task, start the app inside the session and select its URL with the opt
 opr preview http://127.0.0.1:5173
 ```
 
-If the repository includes `.operator/launch.json`, `opr preview start` can start a configured development server. The Browser tab then displays the selected target. Operator does not guess a preview target merely because a worker exists.
+If the repository includes `.operator/launch.json`, `opr preview start` can start a configured development server. The selected target then opens once in your system's default browser. Operator does not guess a preview target merely because a worker exists.
 
 ## Try Switching Interfaces
 

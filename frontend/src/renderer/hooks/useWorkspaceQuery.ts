@@ -42,8 +42,8 @@ function reportUnknownSessionField(field: "status" | "activity", value?: string)
 // e2e seam (dev:web only): the Playwright fake-agent harness injects
 // `window.__aoFakeAgent` (see e2e/support/fake-bridge.ts) to drive a
 // deterministic, mutable session timeline off the SSE refetch path. Compiled
-// out of the packaged build — the packaged renderer never sets VITE_NO_ELECTRON
-// and always hits the real daemon.
+// out of the packaged build — the packaged renderer never sets
+// VITE_RENDERER_PREVIEW and always hits the real daemon.
 type FakeAgentSeam = { snapshot: () => WorkspaceSummary[] };
 
 async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -106,6 +106,7 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						activity,
 						previewUrl: session.previewUrl,
 						previewRevision: session.previewRevision,
+						previewOpenedRevision: session.previewOpenedRevision,
 						isPinned: session.isPinned ?? false,
 						pinnedAt: session.pinnedAt ?? undefined,
 						prs: (session.prs ?? []).map(toPullRequestFacts),

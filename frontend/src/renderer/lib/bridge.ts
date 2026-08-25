@@ -1,10 +1,19 @@
-import type { OperatorBridge } from "../../preload";
+import type { OperatorBridge } from "../../shared/operator-bridge";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { coerceLocale } from "../../shared/ui-locale";
-export type { FeatureBuild } from "../../main/feature-builds";
+import type { FeatureBuild } from "../../shared/feature-builds";
+import { createTauriBridge } from "./tauri-bridge";
 
-export const operatorBridge: OperatorBridge =
-	window.operator ??
-	({
+export type { FeatureBuild };
+
+export function createWindowBridge(windowBridge: OperatorBridge | undefined): OperatorBridge {
+	if (windowBridge) return windowBridge;
+	return createBrowserPreviewBridge();
+}
+
+function createBrowserPreviewBridge(): OperatorBridge {
+	return {
 		app: {
 			getVersion: async () => "0.0.0-preview",
 			chooseDirectory: async () => null,
@@ -51,7 +60,7 @@ export const operatorBridge: OperatorBridge =
 		daemon: {
 			getStatus: async () => ({
 				state: "stopped",
-				message: "Electron preload is not available in browser preview.",
+				message: "The desktop bridge is not available in browser preview.",
 			}),
 			start: async () => ({ state: "starting" }),
 			stop: async () => ({ state: "stopped" }),
@@ -61,83 +70,10 @@ export const operatorBridge: OperatorBridge =
 		telemetry: {
 			getBootstrap: async () => null,
 		},
-		browser: {
-			nativeCompositionEnabled: false,
-			ensure: async (sessionId: string) => ({
-				viewId: `preview:${sessionId}`,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			setBounds: () => undefined,
-			setOverlayOpen: () => undefined,
-			navigate: async ({ viewId, url }) => ({
-				viewId,
-				url,
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			clear: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			goBack: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			goForward: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			reload: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			stop: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			getTabs: async (viewId: string) => ({ viewId, activeTabId: "t1", tabs: [] }),
-			selectTab: async ({ viewId, tabId }) => ({ viewId, activeTabId: tabId, tabs: [] }),
-			closeTab: async ({ viewId }) => ({ viewId, activeTabId: "", tabs: [] }),
-			openTab: async ({ viewId }) => ({ viewId, activeTabId: "", tabs: [] }),
-			devtools: async ({ viewId, operation }) => ({
-				viewId,
-				open: operation !== "close",
-				activeTabId: "",
-			}),
-			destroy: () => undefined,
-			setAnnotationMode: async () => undefined,
-			onNavState: () => () => undefined,
-			onTabsState: () => () => undefined,
-			onAgentActivity: () => () => undefined,
-			onDevToolsState: () => () => undefined,
-			onAnnotationSubmit: () => () => undefined,
-			onAnnotationCancel: () => () => undefined,
+		preview: {
+			openExternalPreview: async ({ url }) => {
+				window.open(url, "_blank", "noopener,noreferrer");
+			},
 		},
 		notifications: {
 			show: async () => undefined,
@@ -179,4 +115,30 @@ export const operatorBridge: OperatorBridge =
 			list: async () => [],
 			getActive: async () => null,
 		},
-	} satisfies OperatorBridge);
+	};
+}
+
+export const tauriInternalsPresent = (): boolean =>
+	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
+export const nativeShellBridgePresent = (): boolean => Boolean(window.operator) || tauriInternalsPresent();
+
+function selectShellBridge(): OperatorBridge {
+	if (window.operator) return createWindowBridge(window.operator);
+	if (tauriInternalsPresent()) {
+		const invoke: (command: string, payload?: unknown) => Promise<unknown> = (command, payload) =>
+			tauriInvoke(command, payload as never);
+		const tauriBridge = createTauriBridge({
+			invoke,
+			listen: (eventName, handler) => tauriListen(eventName, handler as never),
+		});
+		return tauriBridge as OperatorBridge;
+	}
+	return createWindowBridge(undefined);
+}
+
+export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
+	return selectShellBridge();
+}
+
+export const operatorBridge: OperatorBridge = selectShellBridge();

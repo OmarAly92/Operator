@@ -1644,11 +1644,12 @@ func previewFileURL(r *http.Request, id domain.SessionID, entry string) (string,
 
 func sessionView(s domain.Session) SessionView {
 	return SessionView{
-		Session:         s,
-		Branch:          s.Metadata.Branch,
-		PreviewURL:      s.Metadata.PreviewURL,
-		PreviewRevision: s.Metadata.PreviewRevision,
-		PRs:             sessionPRFacts(s.PRs),
+		Session:               s,
+		Branch:                s.Metadata.Branch,
+		PreviewURL:            s.Metadata.PreviewURL,
+		PreviewRevision:       s.Metadata.PreviewRevision,
+		PreviewOpenedRevision: s.Metadata.PreviewOpenedRevision,
+		PRs:                   sessionPRFacts(s.PRs),
 	}
 }
 

@@ -2,7 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Folder, FolderPlus, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ImportFolderScan } from "../../preload";
+import type { ImportFolderScan } from "../../shared/import-folder-scan";
 import { operatorBridge } from "../lib/bridge";
 import { cn } from "../lib/utils";
 import type { ProjectKind } from "../types/workspace";

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// dev:web (VITE_NO_ELECTRON=1) serves lib/mock-data.ts, whose "stacked-auth"
+// dev:web (VITE_RENDERER_PREVIEW=1) serves lib/mock-data.ts, whose "stacked-auth"
 // session ("auth stack") owns three PRs — so the inspector's Reviews tab is
 // enabled. The tab fetches review runs and project config straight from the
 // daemon; dev:web has no daemon, so we stub those two routes to drive the

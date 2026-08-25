@@ -5,7 +5,7 @@ description: Common questions about the current Operator desktop product.
 
 <Accordions expandAll>
 	<Accordion title="How is Operator different from several agent terminals?">
-		Operator adds isolated worktrees, durable session identity, Chat or TUI control, pull-request observation, lifecycle reactions, review runs, notifications, and browser previews around those agents.
+		Operator adds isolated worktrees, durable session identity, Chat or TUI control, pull-request observation, lifecycle reactions, review runs, notifications, and external browser previews around those agents.
 	</Accordion>
 
 	<Accordion title="Do I have to use Claude Code?">
@@ -29,7 +29,7 @@ description: Common questions about the current Operator desktop product.
 	</Accordion>
 
 	<Accordion title="Where does Operator store data?">
-		Under `~/.operator` by default. Durable daemon state is SQLite under `~/.operator/data`; the same Operator home also contains the run file, managed worktrees and metadata, Electron data, and mobile configuration. Advanced daemon paths can be overridden with `OPERATOR_DATA_DIR` and `OPERATOR_RUN_FILE`.
+		Under `~/.operator` by default. Durable daemon state is SQLite under `~/.operator/data`; the same Operator home also contains the run file, managed worktrees and metadata, desktop webview data, and mobile configuration. Advanced daemon paths can be overridden with `OPERATOR_DATA_DIR` and `OPERATOR_RUN_FILE`.
 	</Accordion>
 
 	<Accordion title="Can I expose Operator on a remote server?">
@@ -41,7 +41,7 @@ description: Common questions about the current Operator desktop product.
 	</Accordion>
 
 	<Accordion title="Does Operator upload my source code?">
-		Operator coordinates local worktrees and invokes your installed agents and GitHub tooling. Those tools follow their own provider data policies. Operator's Electron renderer also sends anonymous usage events to PostHog in standard builds; session recording is disabled by default, and local paths and URLs are redacted if a time-boxed investigation enables it.
+		Operator coordinates local worktrees and invokes your installed agents and GitHub tooling. Those tools follow their own provider data policies. Operator's desktop renderer also sends anonymous usage events to PostHog in standard builds; session recording is disabled by default, and local paths and URLs are redacted if a time-boxed investigation enables it.
 	</Accordion>
 
 	<Accordion title="Can I still install Operator from npm?">
@@ -53,6 +53,6 @@ description: Common questions about the current Operator desktop product.
 	</Accordion>
 
 	<Accordion title="How do I uninstall Operator?">
-		Remove the desktop application using your operating system's normal process. If you also remove `~/.operator`, you permanently delete Operator's database, session history, managed state, Electron data, and mobile pairing configuration. Inspect and preserve any work you need first. Legacy CLI users can separately run `npm uninstall -g @operator-dev/opr`.
+		Remove the desktop application using your operating system's normal process. If you also remove `~/.operator`, you permanently delete Operator's database, session history, managed state, desktop webview data, and mobile pairing configuration. Inspect and preserve any work you need first. Legacy CLI users can separately run `npm uninstall -g @operator-dev/opr`.
 	</Accordion>
 </Accordions>

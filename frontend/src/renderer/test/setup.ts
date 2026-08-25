@@ -1,9 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 import "../i18n";
 
-// Guard: src/main/** tests run in the Node.js environment (no DOM). vitest still
-// routes setupFiles here, so only install the DOM stubs when a DOM exists.
-// ponytail: single guard; node env has no DOM to stub.
+// Guard: node-environment vitest projects (no DOM) still route this setup file,
+// so only install the DOM stubs when a DOM exists.
 if (typeof window !== "undefined") {
 	class ResizeObserverStub {
 		observe() {}
@@ -103,83 +102,8 @@ if (typeof window !== "undefined") {
 		telemetry: {
 			getBootstrap: async () => null,
 		},
-		browser: {
-			nativeCompositionEnabled: true,
-			ensure: async (sessionId: string) => ({
-				viewId: `test:${sessionId}`,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			setBounds: () => undefined,
-			setOverlayOpen: () => undefined,
-			navigate: async ({ viewId }: { viewId: string }) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			clear: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			goBack: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			goForward: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			reload: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			stop: async (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			}),
-			getTabs: async (viewId: string) => ({ viewId, activeTabId: "t1", tabs: [] }),
-			selectTab: async ({ viewId, tabId }) => ({ viewId, activeTabId: tabId, tabs: [] }),
-			closeTab: async ({ viewId }) => ({ viewId, activeTabId: "", tabs: [] }),
-			openTab: async ({ viewId }) => ({ viewId, activeTabId: "", tabs: [] }),
-			devtools: async ({ viewId, operation }) => ({
-				viewId,
-				open: operation !== "close",
-				activeTabId: "",
-			}),
-			destroy: () => undefined,
-			setAnnotationMode: async () => undefined,
-			onNavState: () => () => undefined,
-			onTabsState: () => () => undefined,
-			onAgentActivity: () => () => undefined,
-			onDevToolsState: () => () => undefined,
-			onAnnotationSubmit: () => () => undefined,
-			onAnnotationCancel: () => () => undefined,
+		preview: {
+			openExternalPreview: async () => undefined,
 		},
 		notifications: {
 			show: async () => undefined,

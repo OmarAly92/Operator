@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# verify-mac-artifact.sh <path-to-.zip-or-.app-or-.dmg>
+# verify-mac-artifact.sh <path-to-.zip-or-.app-or-.dmg-or-.app.tar.gz>
 #
 # The one canonical way to check that a shipped macOS artifact is sealed,
 # notarized and stapled. CI gates and humans debugging by hand must both use
@@ -38,23 +38,29 @@
 #      decision 3 step 4 specifies. Using `-t exec` on a dmg assesses the wrong
 #      thing. `-vv` stays mandatory for both (rule 2).
 #
+#   5. The Tauri updater archive (.app.tar.gz) is NOT a zip: the updater plugin
+#      restores it with plain tar, so verification extracts with tar too (task
+#      18). The AppleDouble rule does not apply to it; the seal check on what
+#      tar restores absolutely still does.
+#
 # Exit codes: 0 all checks passed, 1 a check failed, 2 usage error.
 
 set -euo pipefail
 
 usage() {
 	cat >&2 <<'EOF'
-usage: verify-mac-artifact.sh <path-to-.zip-or-.app-or-.dmg>
+usage: verify-mac-artifact.sh <path-to-.zip-or-.app-or-.dmg-or-.app.tar.gz>
 
 Verifies a macOS release artifact is signed, notarized and stapled:
   codesign --verify --deep --strict
-  spctl -a -vv -t exec                                  (.zip / .app)
+  spctl -a -vv -t exec                                  (.zip / .app / .app.tar.gz)
   spctl -a -vv -t open --context context:primary-signature   (.dmg)
   xcrun stapler validate
 
 A .zip is extracted with `ditto -x -k` first (never `unzip`), and the single
-.app bundle inside it is checked. A .dmg is checked as the container it is,
-without mounting it.
+.app bundle inside it is checked. A .app.tar.gz (the Tauri updater archive) is
+extracted with `tar -xzf`, matching how the updater itself restores it. A .dmg
+is checked as the container it is, without mounting it.
 EOF
 }
 
@@ -93,6 +99,12 @@ case "$ARTIFACT" in
 		exit 2
 	fi
 	;;
+*.app.tar.gz)
+	if [[ ! -f "$ARTIFACT" ]]; then
+		echo "verify-mac-artifact: expected a .app.tar.gz file, got a directory: $ARTIFACT" >&2
+		exit 2
+	fi
+	;;
 *.app)
 	if [[ ! -d "$ARTIFACT" ]]; then
 		echo "verify-mac-artifact: expected an .app bundle directory: $ARTIFACT" >&2
@@ -128,15 +140,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-APP="$ARTIFACT"
-if [[ "$ARTIFACT" == *.zip ]]; then
-	WORKDIR="$(mktemp -d)"
-	echo "==> extracting with ditto (never unzip): $ARTIFACT"
-	# `ditto -x -k` is the only extraction that preserves the seal. See rule 1.
-	ditto -x -k "$ARTIFACT" "$WORKDIR"
-	# `-maxdepth 1` deliberately: a nested .app (helpers inside the bundle) must
-	# not be mistaken for the top-level one. Collected with a read loop rather
-	# than mapfile, which macOS's stock bash 3.2 does not have.
+# collect_app_from_workdir finds the single top-level .app an archive restored.
+# `-maxdepth 1` deliberately: a nested .app (helpers inside the bundle) must
+# not be mistaken for the top-level one. Collected with a read loop rather
+# than mapfile, which macOS's stock bash 3.2 does not have.
+collect_app_from_workdir() {
 	app_count=0
 	while IFS= read -r candidate; do
 		APP="$candidate"
@@ -146,6 +154,20 @@ if [[ "$ARTIFACT" == *.zip ]]; then
 		echo "verify-mac-artifact: expected exactly one .app in $ARTIFACT, found $app_count" >&2
 		exit 1
 	fi
+}
+
+APP="$ARTIFACT"
+if [[ "$ARTIFACT" == *.zip ]]; then
+	WORKDIR="$(mktemp -d)"
+	echo "==> extracting with ditto (never unzip): $ARTIFACT"
+	# `ditto -x -k` is the only extraction that preserves the seal. See rule 1.
+	ditto -x -k "$ARTIFACT" "$WORKDIR"
+	collect_app_from_workdir
+elif [[ "$ARTIFACT" == *.app.tar.gz ]]; then
+	WORKDIR="$(mktemp -d)"
+	echo "==> extracting with tar (the updater's own restore path): $ARTIFACT"
+	tar -xzf "$ARTIFACT" -C "$WORKDIR"
+	collect_app_from_workdir
 fi
 
 echo "==> verifying: $APP"

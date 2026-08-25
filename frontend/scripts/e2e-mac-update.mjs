@@ -1,51 +1,52 @@
-// End-to-end macOS auto-update harness (#3288 workstream 0).
+// End-to-end macOS auto-update harness, Tauri edition (task 18).
 //
-// Does what a real user does: takes an already-installed version N-1 bundle,
-// points it at the real published feed, and proves that version N downloads,
-// STAGES, installs on quit, and that the relaunched app both reports version N
-// and is actually alive.
+// Does what a real user does: takes an already-installed version N-1 Tauri
+// bundle, points it at a real published feed, and proves that version N is
+// checked, downloaded, signature-verified, and STAGED by the shell's updater
+// engine. With --expect-stage-only (the default gate while the verified apply
+// path is pending) it stops at the staging record; without it the harness goes
+// on to prove the install-on-quit swap and that the relaunched app reports
+// version N and its daemon is alive.
 //
-// Dependency-free ESM (mirrors feed.mjs / nightly-version.mjs) so CI runs
-// `node scripts/e2e-mac-update.mjs ...` directly and vitest unit-tests the pure
-// argument parsing. macOS only: the whole point is Squirrel.Mac's ShipIt swap.
+// Dependency-free ESM so CI runs `node scripts/e2e-mac-update.mjs` directly and
+// node:test unit-tests the pure argument/payload contract. macOS only.
 //
-// Four things about this flow are counter-intuitive and were verified against
-// the published electron-updater@6.8.9 tarball. Do not "simplify" them:
+// Five things about this flow are counter-intuitive. Do not "simplify" them:
 //
-//  1. The app signals staging through OPERATOR_E2E_UPDATE_SENTINEL, which hangs off
-//     the NATIVE updater's update-downloaded event (see auto-updater.ts).
-//     electron-updater's own update-downloaded fires BEFORE Squirrel is told to
-//     fetch, so keying on it stages nothing and the test flaps.
-//  2. A plain macOS quit INSTALLS but does NOT relaunch. Relaunch only happens
-//     through electron-updater's quitAndInstall(). So this harness quits the
-//     app, waits out the ShipIt swap, and relaunches the app itself.
-//  3. There is no completion signal for the ShipIt swap, so the wait is a
-//     bounded poll on the installed bundle's Info.plist version, never a fixed
-//     sleep.
+//  1. The updater engine checks at LAUNCH and then hourly. There is no IPC to
+//     trigger a check headlessly, so the harness enables updates through the
+//     daemon's own loopback PATCH /api/v1/settings/updates and relaunches,
+//     letting the real production launch-time check drive the flow.
+//  2. Staging is observed through the engine's durable staging record
+//     `<state-root>/updater/staged/<version>/meta.json`, written only after the
+//     minisign signature verifies — not through any UI or log line.
+//  3. A plain macOS quit does not swap bundles; the apply step owns that. Until
+//     the project-owned verified apply path lands, --expect-stage-only is the
+//     honest ceiling of what this harness can assert locally, and full-install
+//     mode is exercised only by the designated release conductor on signed
+//     builds (mac-update-e2e.yml).
 //  4. Liveness is the daemon's running.json + loopback /healthz, the same
 //     check backend/internal/cli/e2e_test.go uses. "A process exists" is not
 //     proof the app came up.
 //  5. Both launches spawn the bundle's executable DIRECTLY rather than going
 //     through `open`, because the harness has to hand the app OPERATOR_RUN_FILE,
-//     OPERATOR_DATA_DIR and the sentinel path. Measured on macOS 27.0: a direct spawn
-//     propagates all three; `open -a` propagated only what happened to be in the
-//     caller's ambient environment; `open --env VAR=value` works but is
-//     undocumented in `open`'s usage output on older releases, so relying on it
-//     would make the harness depend on the runner image's macOS version.
+//     OPERATOR_DATA_DIR and the feed URL override. A direct spawn propagates
+//     all of them; `open -a` propagates only ambient environment.
 //
 // usage:
 //   node scripts/e2e-mac-update.mjs --app "/Applications/Operator.app" \
-//     --expect-version 0.10.4 [--state-dir ~/.operator] [--channel latest|nightly]
+//     --expect-version 0.10.4 [--state-dir ~/.operator] [--channel latest|nightly] \
+//     [--expect-stage-only] [--feed-url https://.../download/]
 import { spawn, execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 
 const DEFAULTS = {
 	channel: "latest",
 	// A full mac zip is a few hundred MB; be generous but bounded.
 	downloadTimeoutMs: 20 * 60 * 1000,
-	// ShipIt's ditto swap of an unpacked bundle.
+	// The apply swap of the staged bundle.
 	swapTimeoutMs: 5 * 60 * 1000,
 	// Cold start plus daemon boot.
 	launchTimeoutMs: 3 * 60 * 1000,
@@ -57,7 +58,7 @@ class UsageError extends Error {}
 // parseArgs turns argv into harness options. Pure, so the flag contract is unit
 // tested without launching anything. Throws UsageError on misuse (exit 2).
 export function parseArgs(argv) {
-	const opts = { ...DEFAULTS };
+	const opts = { ...DEFAULTS, expectStageOnly: false };
 	for (let i = 0; i < argv.length; i += 1) {
 		const flag = argv[i];
 		const value = argv[i + 1];
@@ -85,6 +86,12 @@ export function parseArgs(argv) {
 					throw new UsageError(`--channel must be latest or nightly, got ${opts.channel}`);
 				}
 				break;
+			case "--feed-url":
+				opts.feedUrl = validateFeedUrl(needsValue());
+				break;
+			case "--expect-stage-only":
+				opts.expectStageOnly = true;
+				break;
 			case "--download-timeout":
 				opts.downloadTimeoutMs = positiveSeconds(flag, needsValue());
 				break;
@@ -110,12 +117,6 @@ export function parseArgs(argv) {
 	}
 	if (!isAbsolute(opts.stateDir)) throw new UsageError(`--state-dir must be an absolute path, got ${opts.stateDir}`);
 	opts.runFile ??= join(opts.stateDir, "running.json");
-	// Where the APP looks for update-settings.json. Not a free choice: main.ts's
-	// initAutoUpdates does `stateDir = path.dirname(runFilePath())` and hands that
-	// to ensureUpdatePrefs/startAutoUpdates, and runFilePath() returns OPERATOR_RUN_FILE
-	// when set. Seeding anywhere else leaves the first-run dialog showing and the
-	// whole flow blocks. Equal to --state-dir unless --run-file moves it.
-	opts.settingsDir = dirname(opts.runFile);
 	// Durable daemon state. Mirrors backend/internal/config's resolveDataDir
 	// default (<opr home>/data) so an overridden --state-dir keeps the daemon's
 	// SQLite out of the real ~/.operator.
@@ -124,49 +125,57 @@ export function parseArgs(argv) {
 	return opts;
 }
 
+function validateFeedUrl(raw) {
+	let parsed;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new UsageError(`--feed-url must be a valid URL, got ${raw}`);
+	}
+	const loopback = ["127.0.0.1", "localhost", "::1"].includes(parsed.hostname);
+	if (parsed.protocol !== "https:" && !(loopback && parsed.protocol === "http:")) {
+		throw new UsageError(`--feed-url must be https (or loopback http), got ${raw}`);
+	}
+	return raw;
+}
+
 // launchEnv is the environment BOTH launches hand the app. Exported so the
-// contract is testable: every one of these has to reach the app, and the
-// original harness passed only the sentinel, so --state-dir and --run-file were
-// seeded and polled by the harness at paths the app never used.
-export function launchEnv(opts, sentinel, baseEnv = process.env) {
-	return {
+// contract is testable: every one of these has to reach the app, and a missing
+// override would silently point the harness at the real user state.
+export function launchEnv(opts, baseEnv = process.env) {
+	const env = {
 		...baseEnv,
-		OPERATOR_E2E_UPDATE_SENTINEL: sentinel,
 		OPERATOR_RUN_FILE: opts.runFile,
 		OPERATOR_DATA_DIR: opts.dataDir,
 	};
+	if (opts.feedUrl) env.OPERATOR_UPDATER_FEED_URL = opts.feedUrl;
+	return env;
 }
 
-// The env var the app reads to enable the staging sentinel. Kept in sync with
-// E2E_UPDATE_SENTINEL_ENV in src/main/auto-updater.ts.
-const SENTINEL_ENV = "OPERATOR_E2E_UPDATE_SENTINEL";
+// stagedMarkerPath is the durable proof an update staged: the engine writes
+// meta.json only after the downloaded artifact passed minisign verification.
+export function stagedMarkerPath(stateDir, version) {
+	return join(stateDir, "tauri", "updater", "staged", version, "meta.json");
+}
 
-/**
- * assertSentinelCapable fails fast when the baseline bundle predates the
- * sentinel listener.
- *
- * The listener landed in #3294. Every release published before it ignores
- * OPERATOR_E2E_UPDATE_SENTINEL entirely, so the harness would wait out the full
- * download timeout (20 minutes by default) and report a timeout that looks like
- * a broken update but is really an incapable baseline. A 20 minute silent wait
- * is not an acceptable failure mode, so probe the packaged bundle for the env
- * var name before launching anything.
- *
- * The probe is a substring scan of app.asar rather than anything cleverer
- * because the name survives bundling and minification as a plain string literal
- * (auto-updater.ts reads it as process.env[E2E_UPDATE_SENTINEL_ENV]).
- */
-export function assertSentinelCapable(appPath) {
-	const asar = join(appPath, "Contents", "Resources", "app.asar");
-	if (!existsSync(asar)) {
-		throw new UsageError(`cannot check sentinel support: no ${asar}. Is ${appPath} a packaged build?`);
-	}
-	if (!readFileSync(asar).includes(SENTINEL_ENV)) {
-		throw new UsageError(
-			`baseline at ${appPath} has no ${SENTINEL_ENV} listener, so it can never signal that an update staged. ` +
-				`That listener landed with the macOS release hardening work (#3288 workstream 0); pick a baseline ` +
-				`released after it. Running anyway would just wait out the download timeout and report a false failure.`,
-		);
+// updateSettingsPayload matches the Go PATCH /api/v1/settings/updates body
+// exactly (see backend/internal/httpd/controllers/settings_test.go). Nightly
+// requires the instability acknowledgement or the daemon coerces it away.
+export function updateSettingsPayload(channel) {
+	return { enabled: true, channel, nightlyAck: channel === "nightly" };
+}
+
+// patchUpdateSettings flips auto-updates on through the daemon's loopback API —
+// the same store the packaged shell reads at launch (header note 1).
+export async function patchUpdateSettings(port, channel, dependencies = {}) {
+	const fetchImpl = dependencies.fetchImpl ?? fetch;
+	const response = await fetchImpl(`http://127.0.0.1:${port}/api/v1/settings/updates`, {
+		method: "PATCH",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(updateSettingsPayload(channel)),
+	});
+	if (!response.ok) {
+		throw new Error(`update settings PATCH failed with status ${response.status}`);
 	}
 }
 
@@ -176,12 +185,11 @@ function positiveSeconds(flag, raw) {
 	return seconds * 1000;
 }
 
-// bundleVersion reads CFBundleShortVersionString straight off the installed
-// bundle, so it observes what ShipIt actually swapped in rather than trusting
-// anything the app reports about itself.
-export function bundleVersion(appPath) {
-	const plist = join(appPath, "Contents", "Info.plist");
-	return execFileSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", plist], {
+// plistValue reads a key straight off the installed bundle's Info.plist, so the
+// harness observes what actually swapped in rather than trusting anything the
+// app reports about itself.
+export function plistValue(appPath, key) {
+	return execFileSync("plutil", ["-extract", key, "raw", "-o", "-", join(appPath, "Contents", "Info.plist")], {
 		encoding: "utf8",
 	}).trim();
 }
@@ -189,8 +197,8 @@ export function bundleVersion(appPath) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // waitFor polls until check() returns truthy or the budget runs out. Bounded
-// polling, never a fixed sleep: the ShipIt swap has no completion signal and
-// its duration varies with bundle size and disk speed.
+// polling, never a fixed sleep: neither the download nor the swap has a
+// completion signal and both vary with bundle size and disk speed.
 async function waitFor(label, timeoutMs, check) {
 	const deadline = Date.now() + timeoutMs;
 	for (;;) {
@@ -204,20 +212,6 @@ async function waitFor(label, timeoutMs, check) {
 		if (Date.now() >= deadline) throw new Error(`timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${label}`);
 		await sleep(DEFAULTS.pollIntervalMs);
 	}
-}
-
-// seedUpdateSettings writes update-settings.json before first launch.
-// ensureUpdatePrefs only shows its first-run dialog when no settings file
-// exists, so pre-seeding is what makes the whole flow non-interactive. Shape
-// must match UpdateSettings in src/main/update-settings.ts.
-//
-// settingsDir must be opts.settingsDir, i.e. dirname(OPERATOR_RUN_FILE), because that
-// is the directory the app derives for itself (see parseArgs). Exported so a
-// test can assert it lands where the app will actually look.
-export function seedUpdateSettings(settingsDir, channel) {
-	mkdirSync(settingsDir, { recursive: true });
-	const settings = { enabled: true, channel, nightlyAck: channel === "nightly", feature: null };
-	writeFileSync(join(settingsDir, "update-settings.json"), `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
 }
 
 // removeRunFile clears a stale daemon handshake without treating an arbitrary
@@ -257,102 +251,83 @@ function quitApp(appName) {
 
 async function isDaemonAlive(runFile) {
 	if (!existsSync(runFile)) return false;
-	const { port } = JSON.parse(readFileSync(runFile, "utf8"));
-	if (!port) return false;
+	const info = JSON.parse(readFileSync(runFile, "utf8"));
+	if (!info.port) return false;
 	// Same liveness contract as backend/internal/cli/e2e_test.go: loopback only.
-	const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(5000) });
+	const res = await fetch(`http://127.0.0.1:${info.port}/healthz`, { signal: AbortSignal.timeout(5000) });
 	return res.ok;
+}
+
+async function daemonPort(runFile) {
+	const info = JSON.parse(readFileSync(runFile, "utf8"));
+	return info.port;
 }
 
 async function run(opts) {
 	if (process.platform !== "darwin") throw new UsageError(`macOS only; host is ${process.platform}`);
 	if (!existsSync(opts.app)) throw new UsageError(`no such app bundle: ${opts.app}`);
 
-	const startVersion = bundleVersion(opts.app);
+	const startVersion = plistValue(opts.app, "CFBundleShortVersionString");
 	console.log(`installed baseline: ${startVersion}`);
 	if (startVersion === opts.expectVersion) {
 		throw new UsageError(`baseline is already ${opts.expectVersion}; --expect-version must be the NEW version`);
 	}
-	// Before anything slow: a baseline with no sentinel listener can only ever
-	// time out, and a 20 minute silent wait reads as "the update is broken".
-	assertSentinelCapable(opts.app);
+	// Fail fast on an Electron bundle: it has no Tauri updater engine, so the
+	// staging poll below could only ever time out.
+	const identifier = plistValue(opts.app, "CFBundleIdentifier");
+	if (identifier !== "dev.operator.desktop") {
+		throw new UsageError(
+			`${opts.app} has CFBundleIdentifier '${identifier}', expected dev.operator.desktop; this harness drives the Tauri shell only`,
+		);
+	}
 
 	// A stale instance would hold the daemon port and confuse the liveness check.
 	quitApp(opts.appName);
-
-	const sentinel = join(tmpdir(), `opr-e2e-update-sentinel-${process.pid}.json`);
-	rmSync(sentinel, { force: true });
 	removeRunFile(opts.runFile);
-	seedUpdateSettings(opts.settingsDir, opts.channel);
 
-	// Launched as a child process rather than via `open` so the sentinel and the
-	// state-dir overrides all reach the app (header note 5). The relaunch below
-	// does the same, re-reading the executable name from the swapped bundle.
-	const env = launchEnv(opts, sentinel);
+	const env = launchEnv(opts);
 	console.log(`launching ${opts.app} (channel: ${opts.channel}, run file: ${opts.runFile})`);
-	const child = spawn(join(opts.app, "Contents", "MacOS", readExecutableName(opts.app)), [], {
+	spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
 		env,
 		stdio: "inherit",
 		detached: false,
-	});
-	const exited = new Promise((resolve) => child.once("exit", resolve));
-
-	try {
-		await waitFor("the native updater to stage the update", opts.downloadTimeoutMs, () => existsSync(sentinel));
-		console.log(`update staged: ${readFileSync(sentinel, "utf8").trim()}`);
-	} finally {
-		// Even on failure, do not leave a packaged app running on the runner.
-		quitApp(opts.appName);
-	}
-
-	// Squirrel installs the staged update during termination. It does NOT
-	// relaunch (see the header note), so this quit is the install step only.
-	await Promise.race([exited, sleep(60_000)]);
-
-	await waitFor(`the ShipIt swap to land ${opts.expectVersion}`, opts.swapTimeoutMs, () => {
-		const current = bundleVersion(opts.app);
-		if (current !== startVersion) console.log(`bundle version now: ${current}`);
-		return current === opts.expectVersion;
-	});
-	console.log(`installed bundle is now ${opts.expectVersion}`);
-
-	console.log("relaunching the updated app");
-	removeRunFile(opts.runFile);
-	// Same direct spawn as the first launch: the relaunched app must get the same
-	// OPERATOR_RUN_FILE/OPERATOR_DATA_DIR, or the liveness poll below watches a run file the
-	// app never writes. The executable name is re-read from the SWAPPED bundle,
-	// so a rename between N-1 and N is picked up. Detached and with stdio
-	// ignored, so this harness can exit without waiting on the app.
-	spawn(join(opts.app, "Contents", "MacOS", readExecutableName(opts.app)), [], {
-		env,
-		stdio: "ignore",
-		detached: true,
 	}).unref();
 
-	await waitFor("the relaunched app's daemon to answer /healthz", opts.launchTimeoutMs, () =>
-		isDaemonAlive(opts.runFile),
-	);
+	await waitFor("the first launch's daemon to answer /healthz", opts.launchTimeoutMs, () => isDaemonAlive(opts.runFile));
+	await patchUpdateSettings(await daemonPort(opts.runFile), opts.channel);
+	console.log(`auto-updates enabled on channel ${opts.channel}; relaunching for the launch-time check`);
 
-	// Re-read after relaunch: a bundle that reverted mid-launch would still have
-	// passed the swap poll above.
-	const finalVersion = bundleVersion(opts.app);
-	if (finalVersion !== opts.expectVersion) {
-		throw new Error(`relaunched bundle reports ${finalVersion}, expected ${opts.expectVersion}`);
+	quitApp(opts.appName);
+	await sleep(5000);
+	removeRunFile(opts.runFile);
+	spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
+		env,
+		stdio: "inherit",
+		detached: false,
+	}).unref();
+
+	const marker = stagedMarkerPath(opts.stateDir, opts.expectVersion);
+	await waitFor(`the updater engine to stage ${opts.expectVersion}`, opts.downloadTimeoutMs, () => existsSync(marker));
+	console.log(`update staged: ${marker}`);
+
+	if (!opts.expectStageOnly) {
+		await waitFor(`the apply swap to land ${opts.expectVersion}`, opts.swapTimeoutMs, () => {
+			const current = plistValue(opts.app, "CFBundleShortVersionString");
+			if (current !== startVersion) console.log(`bundle version now: ${current}`);
+			return current === opts.expectVersion;
+		});
+		console.log(`installed bundle is now ${opts.expectVersion}`);
+		await waitFor("the relaunched app's daemon to answer /healthz", opts.launchTimeoutMs, () =>
+			isDaemonAlive(opts.runFile),
+		);
 	}
 
 	quitApp(opts.appName);
-	rmSync(sentinel, { force: true });
-	console.log(`PASS: ${startVersion} updated to ${finalVersion}, relaunched, daemon alive`);
-}
-
-// readExecutableName pulls CFBundleExecutable out of the bundle instead of
-// hardcoding "operator", so a rename of packagerConfig.executableName
-// does not silently break the harness.
-function readExecutableName(appPath) {
-	const plist = join(appPath, "Contents", "Info.plist");
-	return execFileSync("plutil", ["-extract", "CFBundleExecutable", "raw", "-o", "-", plist], {
-		encoding: "utf8",
-	}).trim();
+	console.log(
+		opts.expectStageOnly
+			? `PASS: ${startVersion} checked, verified and staged ${opts.expectVersion} (stage-only)`
+			: `PASS: ${startVersion} updated to ${plistValue(opts.app, "CFBundleShortVersionString")}, relaunched, daemon alive`,
+	);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -361,7 +336,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 		opts = parseArgs(process.argv.slice(2));
 	} catch (err) {
 		process.stderr.write(`${err.message}\n`);
-		process.stderr.write("usage: node e2e-mac-update.mjs --app <bundle.app> --expect-version <version>\n");
+		process.stderr.write(
+			"usage: node e2e-mac-update.mjs --app <bundle.app> --expect-version <version> [--expect-stage-only]\n",
+		);
 		process.exit(2);
 	}
 	run(opts).catch((err) => {

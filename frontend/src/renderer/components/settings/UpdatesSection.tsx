@@ -4,7 +4,7 @@ import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { operatorBridge } from "../../lib/bridge";
 import { useUpdateStatus } from "../../hooks/useUpdateStatus";
-import type { UpdateChannel, UpdateSettings, UpdateState, UpdateStatus } from "../../../main/update-settings";
+import type { UpdateChannel, UpdateSettings, UpdateState, UpdateStatus } from "../../../shared/update-settings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { SettingsOptionMenu } from "./SettingsOptionMenu";

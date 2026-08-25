@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-keybindings-apply"
+description = "Enables the keybindings_apply command without any pre-configured scope."
+commands.allow = ["keybindings_apply"]
+
+[[permission]]
+identifier = "deny-keybindings-apply"
+description = "Denies the keybindings_apply command without any pre-configured scope."
+commands.deny = ["keybindings_apply"]

@@ -13,7 +13,7 @@
 	"app": {
 		"windows": [],
 		"security": {
-			"capabilities": ["phase0"],
+			"capabilities": ["phase0", "default"],
 			"csp": null
 		}
 	},
@@ -21,7 +21,11 @@
 		"active": true,
 		"targets": ["app", "dmg", "nsis", "deb", "rpm", "appimage"],
 		"icon": ["../assets/icon.png", "../assets/icon.icns", "../assets/icon.ico"],
-		"resources": ["../daemon", "../agent-browser", "../resources/acp-runtime"],
+		"resources": {
+			"../daemon/": "daemon/",
+			"../agent-browser/": "agent-browser/",
+			"../resources/acp-runtime/": "acp-runtime/"
+		},
 		"createUpdaterArtifacts": false,
 		"publisher": "Operator",
 		"macOS": {

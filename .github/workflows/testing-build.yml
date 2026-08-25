@@ -1,18 +1,20 @@
 name: Testing build (all platforms)
 
-# Unsigned testing builds for Linux + Windows + macOS in one matrix. Click
-# "Run workflow" in the Actions tab, or push a 0.0.0-testing-* tag. All three jobs
-# publish to a single 0.0.0-testing-<short-sha> prerelease (distinct asset names).
+# Unsigned Tauri testing builds for Linux + Windows + macOS in one matrix.
+# Click "Run workflow" in the Actions tab, or push a 0.0.0-testing-* tag. All
+# jobs publish to a single 0.0.0-testing-<short-sha> prerelease (distinct asset
+# names).
 #
-# Per OS:
-#   Linux   -> .deb
-#   Windows -> NSIS installer (.exe)
-#   macOS   -> .zip (arm64; dmg + signing are follow-ups)
+# This is the ONLY desktop testing pipeline since task 18: the former disabled
+# desktop-testing.yml Electron pipeline was retired rather than ported, so no
+# parallel stale workflow remains.
 #
-# Unsigned: macOS is quarantined/Gatekeeper-blocked once downloaded
-# (xattr -dr com.apple.quarantine "Operator.app"); Windows SmartScreen
-# warns ("More info" -> "Run anyway"). Each OS builds on its own native runner so
-# build-daemon.mjs compiles the bundled opr for that platform (host == target).
+# Per OS: macOS .app/.zip/.dmg, Windows NSIS .exe, Linux AppImage/.deb/.rpm —
+# all unsigned, so macOS is quarantined once downloaded
+# (xattr -dr com.apple.quarantine "Operator.app") and Windows SmartScreen warns.
+# No updater archives are produced: createUpdaterArtifacts stays off without the
+# TAURI_SIGNING_PRIVATE_KEY, and scripts/verify-tauri-artifacts.sh --mode
+# testing records that as a gate instead of a failure.
 
 on:
   workflow_dispatch:
@@ -25,15 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            target: "@electron-forge/maker-deb"
-          - os: windows-latest
-            # Our custom NSIS maker's `name` (see makers/maker-nsis.ts); forge
-            # `--targets` matches the configured maker instance by this name.
-            target: "nsis"
-          - os: macos-latest
-            target: "@electron-forge/maker-zip"
+        os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -44,6 +38,10 @@ jobs:
       # Pure-Go sqlite (modernc) needs no cgo; on Linux this also keeps the daemon
       # static and portable across glibc.
       CGO_ENABLED: 0
+      # Selects the pinned toolchain for every cargo/rustc invocation in this
+      # job (npm run tauri:* shells out to cargo); installing alone never
+      # selects it, and the build would otherwise run on the runner's stable.
+      RUSTUP_TOOLCHAIN: "1.96.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,50 +53,38 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - name: Install Linux webview and packaging tooling
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm squashfs-tools gnupg
       - run: npm ci
-      - name: Prepare pinned agent-browser runtime
-        run: npm run browser-runtime:prepare -- --quiet
-      - name: Verify native agent-browser compatibility
-        env:
-          OPERATOR_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/${{ runner.os == 'Windows' && 'agent-browser.exe' || 'agent-browser' }}
-        run: npx vitest run --config vite.renderer.config.ts src/main/agent-browser-runtime.test.ts
-      - name: Build (unsigned)
-        # `npm run make` keeps the premake daemon build; --targets restricts to this
-        # platform's maker.
-        run: npm run make -- --targets ${{ matrix.target }}
-      # Smoke-install the NSIS installer on a clean, native x64 Windows runner.
-      # This is a build-vs-host verdict: if it installs here it proves the artifact
-      # is good and a failing user machine is host-side (AV/disk/signing); if it
-      # fails here the build/NSIS config is wrong. continue-on-error so a failed
-      # install never blocks publishing the artifacts. The runner has no real-time
-      # AV blocking, so a clean install here does NOT prove SmartScreen/Defender
-      # won't reject the unsigned binaries on end-user machines.
-      - name: Smoke-install the Windows installer
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        timeout-minutes: 5
-        shell: pwsh
+      - name: Prepare bundled runtime dependencies
         run: |
-          $setup = Get-ChildItem -Path out/make -Recurse -Filter '*.exe' |
-            Where-Object { $_.Name -like '*Setup*' } | Select-Object -First 1
-          if (-not $setup) { $setup = Get-ChildItem -Path out/make -Recurse -Filter '*.exe' | Select-Object -First 1 }
-          if (-not $setup) { Write-Host '::error::no NSIS installer (.exe) produced under out/make'; exit 1 }
-          Write-Host "Running $($setup.FullName) /S (silent)"
-          # electron-builder NSIS (assisted installer): /S installs silently.
-          $proc = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -PassThru -Wait
-          Write-Host "Installer exit code: $($proc.ExitCode)"
-          # Per-user assisted install lands under %LOCALAPPDATA%\Programs; a
-          # per-machine install would land under Program Files.
-          $installDir = @(
-            (Join-Path $env:LOCALAPPDATA 'Programs\Operator'),
-            (Join-Path ${env:ProgramFiles} 'Operator')
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if ($installDir) {
-            Write-Host "INSTALL OK: $installDir created"
-            Get-ChildItem $installDir | Select-Object Name | Format-Table -AutoSize
-          } else {
-            Write-Host "::warning::INSTALL: no known install dir found (checked LOCALAPPDATA\Programs and Program Files)"
-          }
+          npm run build:daemon
+          npm run browser-runtime:prepare -- --quiet
+          npm run build:acp-runtime
+      - name: Build (unsigned)
+        run: npm run tauri:build -- --debug
+      - name: Collect bundle outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/debug/bundle"
+          mkdir -p dist
+          case "$(uname -s)" in
+            Darwin)
+              ./scripts/package-tauri-mac-zip.sh "$BUNDLE/macos/Operator.app" "dist/operator-darwin-arm64-testing.zip"
+              cp "$BUNDLE/dmg/"*.dmg dist/ ;;
+            MINGW*|MSYS*|Windows_NT)
+              cp "$BUNDLE/nsis/"*-setup.exe dist/ ;;
+            Linux)
+              cp "$BUNDLE/appimage/"*.AppImage dist/
+              cp "$BUNDLE/deb/"*.deb dist/
+              cp "$BUNDLE/rpm/"*.rpm dist/ ;;
+          esac
+      - name: Verify artifacts (structural; unsigned gates recorded)
+        shell: bash
+        run: ./scripts/verify-tauri-artifacts.sh --dist dist --mode testing
       - name: Publish to a 0.0.0-testing-<sha> prerelease
         shell: bash
         env:
@@ -112,13 +98,52 @@ jobs:
             TAG="0.0.0-testing-${GITHUB_SHA::7}"
           fi
           # Matrix jobs race here; first one creates the release, the rest hit
-          # "already exists" which is fine (|| true). Distinct asset names + --clobber
-          # make uploads idempotent across re-runs.
+          # "already exists" which is fine (|| true). Distinct asset names +
+          # --clobber make uploads idempotent across re-runs.
           gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "$TAG" \
-            --notes "Unsigned testing build (Linux .deb / Windows NSIS .exe / macOS .zip). Not signed; for testing only." \
+            --notes "Unsigned Tauri testing build (macOS zip+dmg / Windows NSIS / Linux AppImage+deb+rpm). Not signed; for testing only." \
             || true
-          # NUL-delimited to survive spaces in the app name ("Operator-...").
-          find out/make -type f -print0 | while IFS= read -r -d '' f; do
+          find dist -type f -print0 | while IFS= read -r -d '' f; do
             echo "uploading: $f"
             gh release upload "$TAG" "$f" --clobber
           done
+
+      # Smoke-install the NSIS installer on a clean, native x64 Windows runner.
+      # This is a build-vs-host verdict: if it installs here it proves the
+      # artifact is good and a failing user machine is host-side
+      # (AV/disk/signing). continue-on-error so a failed install never blocks
+      # publishing the artifacts.
+      - name: Smoke-install the Windows installer
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path dist -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $setup) { Write-Host '::error::no NSIS installer (.exe) collected'; exit 1 }
+          Write-Host "Running $($setup.FullName) /S (silent)"
+          $proc = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -PassThru -Wait
+          Write-Host "Installer exit code: $($proc.ExitCode)"
+          $installDir = @(
+            (Join-Path $env:LOCALAPPDATA 'Programs\Operator'),
+            (Join-Path ${env:ProgramFiles} 'Operator')
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ($installDir) {
+            Write-Host "INSTALL OK: $installDir created"
+            Get-ChildItem $installDir | Select-Object Name | Format-Table -AutoSize
+          } else {
+            Write-Host "::warning::INSTALL: no known install dir found (checked LOCALAPPDATA\Programs and Program Files)"
+          }
+
+      - name: Inspect Linux package contents on the native runner
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb="$(ls dist/*.deb | head -n1)"
+          dpkg-deb -c "$deb" | head -40
+          dpkg-deb -c "$deb" | grep -q "usr/bin/operator" || { echo "::error::deb missing usr/bin/operator"; exit 1; }
+          rpm="$(ls dist/*.rpm | head -n1)"
+          rpm -qlp "$rpm" | grep -q "usr/bin/operator" || { echo "::error::rpm missing usr/bin/operator"; exit 1; }

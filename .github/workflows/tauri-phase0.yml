@@ -1,36 +1,50 @@
 name: Tauri Phase 0
 
-on:
-  push:
-    branches: [master]
-  pull_request:
-    paths:
-      - "backend/internal/config/**"
-      - "backend/internal/httpd/cors.go"
-      - "backend/internal/httpd/cors_test.go"
-      - "frontend/package.json"
-      - "frontend/package-lock.json"
-      - "frontend/rust-toolchain.toml"
-      - "frontend/scripts/audit-tauri-state.mjs"
-      - "frontend/scripts/audit-tauri-state.test.mjs"
-      - "frontend/scripts/agent-browser-phase0.mjs"
-      - "frontend/scripts/agent-browser-phase0.test.mjs"
-      - "frontend/scripts/prepare-agent-browser.mjs"
-      - "frontend/scripts/phase0-decision.mjs"
-      - "frontend/scripts/phase0-decision.test.mjs"
-      - "frontend/scripts/phase0-legacy-update.mjs"
-      - "frontend/scripts/phase0-legacy-update.test.mjs"
-      - "frontend/scripts/phase0-updater-signing.mjs"
-      - "frontend/perf/browser/**"
-      - "frontend/perf/results/**"
-      - "frontend/src-tauri/**"
-      - "docs/benchmarks/tauri-port-baseline.md"
-      - ".github/workflows/tauri-phase0.yml"
+# RETIRED with Task 21 (Electron deletion). This workflow gated the port
+# decision by comparing the Tauri shell against a locally packaged Electron
+# fixture: the legacy-update job, the electron terminal benchmarks, and the
+# Electron baseline measurements all require `npm run package` and the
+# electron toolchain, which no longer exist in this repository. The decision it
+# produced is recorded in docs/benchmarks/tauri-port-baseline.md, so the
+# triggers are removed rather than the gate left permanently red. The still
+# portable checks live on in tauri-webdriver.yml and testing-build.yml. Delete
+# this file once its evidence scripts are archived or ported.
 
 permissions:
   contents: read
 
 jobs:
+  updater-signing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: node --test scripts/phase0-updater-signing.test.mjs scripts/phase0-platform-summary.test.mjs
+      - name: produce retained signing evidence
+        run: |
+          mkdir -p perf/updater-fixture
+          echo "fixture for updater signing gate" > perf/updater-fixture/fixture.tar
+          mkdir -p perf/updater-output
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/fixture.tar --output perf/updater-output --tmp-dir /tmp
+          ls -lh perf/updater-output/
+          cat perf/updater-output/updater-signing-evidence.json
+          if grep -R "PRIVATE KEY" perf/updater-output; then exit 1; fi
+          git status --porcelain -- perf/updater-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: updater-signing
+          path: frontend/perf/updater-output/**
+          if-no-files-found: error
+
   state-boundary:
     strategy:
       fail-fast: false
@@ -53,7 +67,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb rpm
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb rpm squashfs-tools gnupg
       - run: npm ci
       - run: npm run test:tauri-state
       - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
@@ -62,9 +76,22 @@ jobs:
       - run: npm run typecheck
       - run: npm run tauri:build -- --debug --no-bundle
       - if: runner.os != 'Linux'
-        run: npm run audit:tauri-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run audit:tauri-state | tee phase0-state-audit.json
       - if: runner.os == 'Linux'
-        run: xvfb-run -a npm run audit:tauri-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a npm run audit:tauri-state | tee phase0-state-audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-state-${{ matrix.os }}
+          path: frontend/phase0-state-audit.json
+          if-no-files-found: error
+
   agent-browser-probe:
     strategy:
       fail-fast: false
@@ -86,27 +113,137 @@ jobs:
       - run: npm ci
       - run: node scripts/prepare-agent-browser.mjs --quiet
       - if: runner.os == 'Linux'
-        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
-        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a node scripts/agent-browser-phase0.mjs --mode both --artifacts ./agent-browser-phase0
       - if: runner.os != 'Linux'
-        run: node scripts/agent-browser-phase0.mjs --mode system --artifacts ./agent-browser-phase0-system
-        continue-on-error: true
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
-        continue-on-error: true
-      - if: runner.os != 'Linux'
-        run: node scripts/agent-browser-phase0.mjs --mode managed --artifacts ./agent-browser-phase0-managed
-        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/agent-browser-phase0.mjs --mode both --artifacts ./agent-browser-phase0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: agent-browser-phase0-${{ matrix.os }}
           path: |
-            frontend/agent-browser-phase0-system/evidence-*.json
-            frontend/agent-browser-phase0-system/*.png
-            frontend/agent-browser-phase0-managed/evidence-*.json
-            frontend/agent-browser-phase0-managed/*.png
-          if-no-files-found: warn
+            frontend/agent-browser-phase0/system/evidence-*.json
+            frontend/agent-browser-phase0/system/*.png
+            frontend/agent-browser-phase0/managed/evidence-*.json
+            frontend/agent-browser-phase0/managed/*.png
+          if-no-files-found: error
+
+  terminal-benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      BENCH_DAEMON_PORT: 43110
+      BENCH_HARNESS_PORT: 43111
+      OPERATOR_BENCH_TERMINAL_URL: http://127.0.0.1:43111/
+      OPERATOR_BENCH_EVIDENCE_SCOPE: ${{ vars.PHASE0_BENCH_EVIDENCE_SCOPE || 'non-binding' }}
+      OPERATOR_BENCH_BUILD_PROFILE: ${{ vars.PHASE0_BENCH_BUILD_PROFILE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+      - run: npm ci
+      - run: npm run build:daemon
+      - run: npm run build:acp-runtime
+      - run: node scripts/prepare-agent-browser.mjs --quiet
+      - name: start isolated benchmark daemon
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench-daemon/data"
+          OPERATOR_DATA_DIR="$RUNNER_TEMP/bench-daemon/data" \
+            OPERATOR_RUN_FILE="$RUNNER_TEMP/bench-daemon/running.json" \
+            OPERATOR_PORT="$BENCH_DAEMON_PORT" \
+            daemon/opr daemon &
+          sleep 2
+      - name: wait for daemon readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:$BENCH_DAEMON_PORT/readyz" | grep -q '"ready"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "benchmark daemon did not become ready" >&2
+          exit 1
+      - name: probe the CORS boundary against the running daemon
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/phase0-cors-probe.mjs --url "http://127.0.0.1:$BENCH_DAEMON_PORT" --output perf/cors-evidence.json
+      - name: start terminal benchmark harness server
+        shell: bash
+        run: |
+          npx vite --config vite.terminal-perf.config.ts --port "$BENCH_HARNESS_PORT" --strictPort &
+          sleep 8
+          curl -fsS "http://127.0.0.1:$BENCH_HARNESS_PORT/" > /dev/null || { echo "terminal harness server did not start" >&2; exit 1; }
+      - name: run electron terminal benchmarks
+        shell: bash
+        env:
+          OPERATOR_BENCH_DAEMON_URL: http://127.0.0.1:${{ env.BENCH_DAEMON_PORT }}
+          OPERATOR_BENCH_SESSION_ID: phase0-terminal-electron
+          OPERATOR_BENCH_TERMINAL_ID: phase0-terminal-electron
+        run: |
+          set -euo pipefail
+          for scenario in vtebench large-output input-latency reconnect cpu-time active-memory; do
+            node scripts/benchmark-terminal.mjs --shell electron --scenario "$scenario"
+          done
+      - name: run tauri terminal benchmarks
+        if: runner.os != 'Linux'
+        shell: bash
+        env:
+          OPERATOR_BENCH_DAEMON_URL: http://127.0.0.1:${{ env.BENCH_DAEMON_PORT }}
+          OPERATOR_BENCH_SESSION_ID: phase0-terminal-tauri
+          OPERATOR_BENCH_TERMINAL_ID: phase0-terminal-tauri
+        run: |
+          set -euo pipefail
+          for scenario in vtebench large-output input-latency reconnect cpu-time active-memory; do
+            node scripts/benchmark-terminal.mjs --shell tauri --scenario "$scenario"
+          done
+      - name: run tauri terminal benchmarks with the linux compositing pair
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          OPERATOR_BENCH_DAEMON_URL: http://127.0.0.1:${{ env.BENCH_DAEMON_PORT }}
+          OPERATOR_BENCH_SESSION_ID: phase0-terminal-tauri
+          OPERATOR_BENCH_TERMINAL_ID: phase0-terminal-tauri
+        run: |
+          set -euo pipefail
+          for scenario in vtebench large-output input-latency reconnect cpu-time active-memory; do
+            for compositing in enabled disabled; do
+              xvfb-run -a node scripts/benchmark-terminal.mjs --shell tauri --scenario "$scenario" --compositing "$compositing"
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-terminal-${{ matrix.os }}
+          path: |
+            frontend/perf/results/**
+            frontend/perf/cors-evidence.json
+          if-no-files-found: error
+
   bundle-feasibility:
     strategy:
       fail-fast: false
@@ -129,35 +266,86 @@ jobs:
           cache-dependency-path: backend/go.sum
       - run: rustup toolchain install 1.96.0 --profile minimal --component rustfmt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm squashfs-tools gnupg
       - run: npm ci
       - run: npm run build:daemon
       - run: node scripts/prepare-agent-browser.mjs --quiet
       - run: npm run build:acp-runtime
+      - run: npm run package
       - run: npm run tauri:build
       - if: runner.os == 'macOS'
+        shell: bash
         run: |
+          set -euo pipefail
           ls -lh src-tauri/target/release/bundle/macos/*.app src-tauri/target/release/bundle/dmg/*.dmg src-tauri/target/release/bundle/macos/*.zip 2>&1 | head -n 50
-          ./scripts/verify-mac-artifact.sh src-tauri/target/release/bundle/macos/*.app 2>&1 | head -n 100 || true
+          for artifact in \
+            src-tauri/target/release/bundle/macos/*.app \
+            src-tauri/target/release/bundle/macos/*.zip \
+            src-tauri/target/release/bundle/dmg/*.dmg; do
+            ./scripts/verify-mac-artifact.sh "$artifact"
+          done | tee perf/mac-artifact-verification.txt
       - if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          ls -lh src-tauri/target/release/bundle/nsis/*.exe 2>&1 | head -n 50
-          powershell -Command "Get-AuthenticodeSignature src-tauri/target/release/bundle/nsis/*.exe | Format-List"
+          $artifacts = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe
+          $artifacts | Format-Table Name, Length
+          $signatures = $artifacts | Get-AuthenticodeSignature
+          $signatures | ConvertTo-Json -Depth 4 | Set-Content perf/windows-artifact-verification.json
+          if ($signatures.Count -eq 0 -or ($signatures | Where-Object Status -ne Valid)) { exit 1 }
       - if: runner.os == 'Linux'
+        shell: bash
         run: |
+          set -euo pipefail
           ls -lh src-tauri/target/release/bundle/appimage/*.AppImage src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm 2>&1 | head -n 50
-          rpm -qip src-tauri/target/release/bundle/rpm/*.rpm 2>&1 | head -n 50
+          rpm --checksig src-tauri/target/release/bundle/rpm/*.rpm 2>&1 | tee perf/linux-rpm-signature.txt
+          grep -Eiq '(signatures|digests)[[:space:]]+OK' perf/linux-rpm-signature.txt
           file src-tauri/target/release/bundle/appimage/*.AppImage src-tauri/target/release/bundle/deb/*.deb
-      - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
+      - name: measure the built tauri bundle artifacts
+        shell: bash
+        env:
+          OPERATOR_BENCH_EVIDENCE_SCOPE: ${{ vars.PHASE0_BENCH_EVIDENCE_SCOPE || 'non-binding' }}
+          OPERATOR_BENCH_DISPLAY_SCALE: ${{ vars.PHASE0_BENCH_DISPLAY_SCALE }}
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            macOS)
+              export OPERATOR_BENCH_INSTALLED_APP="$(ls src-tauri/target/release/bundle/macos/*.app | head -n1)"
+              export OPERATOR_BENCH_SIGNED_ARTIFACT="$(ls src-tauri/target/release/bundle/macos/*.zip | head -n1)"
+              ;;
+            Windows)
+              export OPERATOR_BENCH_SIGNED_ARTIFACT="$(ls src-tauri/target/release/bundle/nsis/*.exe | head -n1)"
+              ;;
+            Linux)
+              export OPERATOR_BENCH_SIGNED_ARTIFACT="$(ls src-tauri/target/release/bundle/appimage/*.AppImage | head -n1)"
+              export OPERATOR_BENCH_PACKAGE_DEB="$(ls src-tauri/target/release/bundle/deb/*.deb | head -n1)"
+              export OPERATOR_BENCH_PACKAGE_RPM="$(ls src-tauri/target/release/bundle/rpm/*.rpm | head -n1)"
+              ;;
+            *) echo "unsupported runner os" >&2; exit 1 ;;
+          esac
+          node scripts/benchmark-artifact.mjs --shell tauri
+      - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs scripts/phase0-platform-summary.test.mjs
       - name: ephemeral updater signing
+        shell: bash
         run: |
           mkdir -p perf/updater-fixture
           echo "tauri phase0 fixture $(date)" > perf/updater-fixture/archive.tar
           mkdir -p perf/updater-output
-          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/archive.tar --output perf/updater-output --tmp-dir /tmp
+          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/archive.tar --output perf/updater-output
           cat perf/updater-output/updater-signing-evidence.json
           if grep -r "PRIVATE KEY" perf/updater-output; then echo "private key leaked"; exit 1; fi
           git status --porcelain -- perf/updater-output
+      - name: measure the locally packaged Electron baseline
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          OPERATOR_BENCH_EVIDENCE_SCOPE: ${{ vars.PHASE0_BENCH_EVIDENCE_SCOPE || 'non-binding' }}
+        run: |
+          set -euo pipefail
+          executable="$(find out -path '*Contents/MacOS/*' -type f | head -n1)"
+          test -n "$executable" || { echo "no packaged Electron executable found under out/" >&2; exit 1; }
+          for scenario in warm-start first-run idle-memory; do
+            OPERATOR_BENCH_ELECTRON_EXECUTABLE="$executable" node scripts/benchmark-shell.mjs --shell electron --scenario "$scenario"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -165,38 +353,123 @@ jobs:
           path: |
             frontend/src-tauri/target/release/bundle/**
             frontend/perf/results/**
-          if-no-files-found: warn
-  updater-signing:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: |
-          mkdir -p perf/updater-fixture
-          echo "fixture for updater signing gate" > perf/updater-fixture/fixture.tar
-          mkdir -p perf/updater-output
-          node scripts/phase0-updater-signing.mjs --fixture perf/updater-fixture/fixture.tar --output perf/updater-output --tmp-dir /tmp
-          ls -lh perf/updater-output/
-          cat perf/updater-output/updater-signing-evidence.json
-          if grep -R "PRIVATE KEY" perf/updater-output; then exit 1; fi
-          git status --porcelain -- perf/updater-output
+            frontend/perf/*-artifact-verification.*
+            frontend/perf/linux-rpm-signature.txt
+          if-no-files-found: error
+
   legacy-update:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest, ubuntu-latest]
+        include:
+          - os: macos-14
+            platform: darwin
+          - os: windows-latest
+            platform: win32
+          - os: ubuntu-latest
+            platform: linux
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: frontend
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+      - run: npm ci
+      - run: npm run build:daemon
+      - run: npm run build:acp-runtime
+      - run: node scripts/prepare-agent-browser.mjs --quiet
+      - name: build the locally packaged legacy fixture
+        run: npm run package
+      - name: build the locally built target fixture
+        run: npm run tauri:build -- --debug --no-bundle
+      - name: resolve fixture executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            macOS) legacy="$(find out -type f -path '*Contents/MacOS/*' ! -name '*Helper*' | head -n1)" ;;
+            Windows) legacy="$(find out -type f -iname 'operator.exe' | head -n1)" ;;
+            Linux) legacy="$(find out -type f -name 'operator' | head -n1)" ;;
+            *) echo "unsupported runner os" >&2; exit 1 ;;
+          esac
+          test -n "$legacy" || { echo "no legacy executable found under out/" >&2; exit 1; }
+          target="src-tauri/target/debug/operator"
+          if [ "$RUNNER_OS" = "Windows" ]; then target="src-tauri/target/debug/operator.exe"; fi
+          test -f "$target" || { echo "no tauri debug executable at $target" >&2; exit 1; }
+          echo "LEGACY_EXECUTABLE=$legacy" >> "$GITHUB_ENV"
+          echo "TARGET_EXECUTABLE=$target" >> "$GITHUB_ENV"
+      - name: run the migration exercise against locally built fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          node scripts/phase0-legacy-exercise.mjs \
+            --legacy "$LEGACY_EXECUTABLE" \
+            --target "$TARGET_EXECUTABLE" \
+            --observations perf/legacy-observations \
+            --legacy-version "$version" \
+            --target-version "$version"
+      - name: record observed migration evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/phase0-legacy-update.mjs \
+            --record \
+            --observations perf/legacy-observations \
+            --results perf/results \
+            --platform "$PLATFORM" \
+            --electron-artifact "$LEGACY_EXECUTABLE" \
+            --tauri-artifact "$TARGET_EXECUTABLE" || {
+              status=$?
+              echo "recorded migration exercise is incomplete; recorded evidence keeps the decision honest"
+              exit "$status"
+            }
+      - name: evaluate the recorded evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/phase0-legacy-update.mjs --results perf/results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-update-${{ matrix.os }}
+          path: frontend/perf/results/legacy-update-evidence.json
+          if-no-files-found: error
+
+  platform-summaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+          - os: windows-latest
+            platform: win32
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ubuntu-latest
+    needs: [updater-signing, state-boundary, agent-browser-probe, terminal-benchmark, bundle-feasibility, legacy-update]
+    if: always()
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -205,10 +478,76 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: node --test scripts/phase0-legacy-update.test.mjs
-      - run: node scripts/phase0-legacy-update.mjs --results perf/results || echo "legacy update evidence pending"
+      - uses: actions/download-artifact@v4
+        with:
+          name: tauri-state-${{ matrix.os }}
+          path: raw/state
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-browser-phase0-${{ matrix.os }}
+          path: raw/browser
+      - uses: actions/download-artifact@v4
+        with:
+          name: benchmark-terminal-${{ matrix.os }}
+          path: raw/terminal
+      - uses: actions/download-artifact@v4
+        with:
+          name: tauri-bundle-${{ matrix.os }}
+          path: raw/bundle
+      - uses: actions/download-artifact@v4
+        with:
+          name: legacy-update-${{ matrix.os }}
+          path: raw/legacy
+      - uses: actions/download-artifact@v4
+        with:
+          name: updater-signing
+          path: raw/updater
+      - name: assemble the raw evidence layout the producer consumes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p perf/results/updater-signing
+          cp raw/updater/updater-signing-evidence.json perf/results/updater-signing/
+          cp raw/updater/public.key perf/results/updater-signing/
+          cp raw/updater/fixture.sig perf/results/updater-signing/
+          cp raw/updater/fixture.tar perf/results/updater-signing/
+          cp raw/state/phase0-state-audit.json perf/results/state-audit.json
+          cp raw/browser/system/evidence-system.json perf/results/browser-evidence-system.json
+          cp raw/browser/managed/evidence-managed.json perf/results/browser-evidence-managed.json
+          cp raw/legacy/legacy-update-evidence.json perf/results/legacy-update-evidence.json
+          find raw/terminal -name '*.json' -exec mv {} perf/results/ \;
+          if [ -d raw/bundle/perf/results ]; then cp raw/bundle/perf/results/*.json perf/results/; fi
+          find raw/bundle -name 'windows-artifact-verification.json' -exec cp {} perf/results/ \;
+          find raw/bundle -name 'linux-rpm-signature.txt' -exec mv {} perf/results/rpm-signature.txt \;
+          rm -rf raw
+      - name: derive the platform summary from measured evidence
+        id: derive
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/phase0-platform-summary.mjs \
+            --platform "$PLATFORM" \
+            --commit "$SOURCE_COMMIT" \
+            --results perf/results \
+            --config src-tauri/tauri.conf.json \
+            --release-workflow ../.github/workflows/frontend-release.yml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-platform-${{ matrix.platform }}
+          path: frontend/perf/results/phase0-platform-${{ matrix.platform }}.json
+          if-no-files-found: warn
+      - name: fail unless a genuine summary was produced from raw evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.derive.outcome }}" = success
+
   phase0-decision:
-    needs: [state-boundary, agent-browser-probe, bundle-feasibility, updater-signing, legacy-update]
+    needs: [state-boundary, agent-browser-probe, terminal-benchmark, bundle-feasibility, updater-signing, legacy-update, platform-summaries]
+    if: always()
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -221,10 +560,34 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: node --test scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs
-      - run: |
-          node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md
-          cat ../docs/benchmarks/tauri-port-baseline.md | tail -n 20
+      - uses: actions/download-artifact@v4
+        with:
+          path: perf/results
+      - run: node --test scripts/phase0-aggregate.test.mjs scripts/phase0-decision.test.mjs scripts/phase0-legacy-update.test.mjs scripts/phase0-platform-summary.test.mjs scripts/phase0-updater-signing.test.mjs
+      - name: aggregate and decide from whatever genuine evidence exists
+        id: decide
+        shell: bash
+        run: |
+          set +e
+          node scripts/phase0-aggregate.mjs --input perf/results --output perf/results/phase0-evidence.json
+          aggregate_status=$?
+          decision_value="stop-port"
+          if [ "$aggregate_status" = 0 ]; then
+            decision_output="$(node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md)"
+            decision_status=$?
+            decision_value="$(printf '%s\n' "$decision_output" | head -n1)"
+            printf '%s\n' "$decision_output"
+          else
+            node scripts/phase0-decision.mjs --results perf/results --write ../docs/benchmarks/tauri-port-baseline.md
+          fi
+          {
+            echo "aggregate_status=$aggregate_status"
+            echo "decision=$decision_value"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: print the recorded decision
+        shell: bash
+        run: tail -n 20 ../docs/benchmarks/tauri-port-baseline.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -233,3 +596,38 @@ jobs:
             docs/benchmarks/tauri-port-baseline.md
             frontend/perf/results/**
           if-no-files-found: warn
+      - name: hard gate on successful producers
+        shell: bash
+        env:
+          STATE_RESULT: ${{ needs.state-boundary.result }}
+          BROWSER_RESULT: ${{ needs.agent-browser-probe.result }}
+          TERMINAL_RESULT: ${{ needs.terminal-benchmark.result }}
+          BUNDLE_RESULT: ${{ needs.bundle-feasibility.result }}
+          UPDATER_RESULT: ${{ needs.updater-signing.result }}
+          LEGACY_RESULT: ${{ needs.legacy-update.result }}
+          SUMMARIES_RESULT: ${{ needs.platform-summaries.result }}
+        run: |
+          set -euo pipefail
+          test "$STATE_RESULT" = success
+          test "$BROWSER_RESULT" = success
+          test "$TERMINAL_RESULT" = success
+          test "$BUNDLE_RESULT" = success
+          test "$UPDATER_RESULT" = success
+          test "$LEGACY_RESULT" = success
+          test "$SUMMARIES_RESULT" = success
+      - name: hard gate on aggregate integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.decide.outputs.aggregate_status }}" = 0 || {
+            echo "the aggregate could not be produced from genuine platform summaries" >&2
+            exit 1
+          }
+      - name: hard gate on the recorded decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ steps.decide.outputs.decision }}" in
+            continue|linux-canvas) exit 0 ;;
+            *) echo "the phase 0 decision is ${{ steps.decide.outputs.decision }}; product implementation stays blocked" >&2; exit 1 ;;
+          esac

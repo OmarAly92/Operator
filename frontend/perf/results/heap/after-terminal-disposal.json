@@ -1,0 +1,69 @@
+{
+	"schemaVersion": 1,
+	"label": "after",
+	"commit": "84aec025f8e9416a53b3296f0a3f011734df9996",
+	"dirty": true,
+	"platform": "darwin",
+	"architecture": "arm64",
+	"osVersion": "25.5.0",
+	"cpu": "Apple M1 Max",
+	"logicalCores": 10,
+	"buildKind": "debug-devurl",
+	"webviewRuntimeVersion": "OS WebKit (debug-devurl)",
+	"unit": "bytes",
+	"probeKind": "terminal-disposal",
+	"accounting": "tauri-process-tree-rss-per-disposal-cycle-excluding-daemon",
+	"scenarioConfiguration": {
+		"configuredCycles": 8,
+		"disposalBytesPerCycle": 2097152,
+		"disposalAckCount": 8
+	},
+	"samples": [
+		128647168,
+		128499712,
+		128499712,
+		128352256,
+		128352256,
+		128352256,
+		128352256,
+		128303104
+	],
+	"median": 128352256,
+	"p95": 128647168,
+	"retention": {
+		"baselineBytes": 132579328,
+		"cycleBytes": [
+			128647168,
+			128499712,
+			128499712,
+			128352256,
+			128352256,
+			128352256,
+			128352256,
+			128303104
+		],
+		"deltas": [
+			-3932160,
+			-4079616,
+			-4079616,
+			-4227072,
+			-4227072,
+			-4227072,
+			-4227072,
+			-4276224
+		],
+		"maxRetainedDelta": -3932160,
+		"cycleCount": 8,
+		"disposalAckCount": 8,
+		"disposalTimestamps": [
+			3479,
+			3519,
+			3563,
+			3606,
+			3653,
+			3701,
+			3740,
+			3778
+		]
+	}
+}

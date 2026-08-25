@@ -1,20 +1,20 @@
 ---
 title: Architecture
-description: How the Go daemon, Electron app, storage, controllers, and adapters fit together.
+description: How the Go daemon, Tauri desktop app, storage, controllers, and adapters fit together.
 ---
 
-Operator is a local, single-user system built around a long-running Go daemon. The Electron/React desktop app, optional CLI, and Expo mobile app are thin clients over the daemon's HTTP, SSE, and terminal interfaces.
+Operator is a local, single-user system built around a long-running Go daemon. The Tauri/React desktop app, optional CLI, and Flutter mobile app are thin clients over the daemon's HTTP, SSE, and terminal interfaces.
 
 ## System Overview
 
 ```text
-Electron + React desktop ─┐
+Tauri + React desktop ───┐
 opr CLI ──────────────────┼─> Go daemon ─> services/managers ─> SQLite
-Expo mobile (opt-in LAN) ┘       │                 │
+Flutter mobile (opt-in LAN) ┘    │                 │
                                 │                 ├─> agent/runtime/workspace adapters
                                 ├─> SSE events    ├─> native Chat drivers
                                 ├─> terminal mux  └─> GitHub SCM observer
-                                └─> browser bridge to Electron
+                                └─> standalone browser runtime (agent-browser)
 ```
 
 The desktop app discovers, launches, and supervises the daemon. The renderer uses a generated typed client rather than importing backend logic. The CLI is also a thin HTTP client; it never opens SQLite or launches agent adapters directly.
@@ -50,7 +50,7 @@ Durable state is stored in SQLite under `~/.operator/data` by default. Database 
 
 The event stream supports replay with `Last-Event-ID`. Clients use it to invalidate targeted queries rather than transferring every full session or Chat payload on each update.
 
-All application state remains under `~/.operator`, including the run file, managed worktrees, Electron data, and mobile configuration. `OPERATOR_DATA_DIR` and `OPERATOR_RUN_FILE` provide advanced overrides for daemon storage and discovery.
+All application state remains under `~/.operator`, including the run file, managed worktrees, desktop webview data, and mobile configuration. `OPERATOR_DATA_DIR` and `OPERATOR_RUN_FILE` provide advanced overrides for daemon storage and discovery.
 
 ## Services And Adapters
 
@@ -72,11 +72,11 @@ The primary daemon listener binds `127.0.0.1:3001` and is unauthenticated. It se
 
 Connect Mobile creates a second listener only when explicitly enabled. It binds the LAN interface behind bearer-password authentication and serves the app API and authenticated terminal mux, but excludes shutdown, telemetry, mobile-control, and browser-control routes. Transport is plaintext and intended only for a trusted home network.
 
-## Terminal And Browser Bridges
+## Terminal Streaming And Browser Automation
 
 `/mux` provides per-client terminal attachment. TUI sessions attach to the agent runtime; Chat sessions can use it for a separate worktree shell.
 
-Browser automation crosses a dedicated local daemon-to-Electron socket. The daemon authorizes and correlates commands; Electron owns the selected session's isolated `WebContentsView`. Browser control is blocked on the mobile LAN listener.
+Browser automation is owned end to end by the daemon through the checksum-pinned `agent-browser` binary, which drives a per-session isolated Chromium profile under the Operator state root. Browser control is blocked on the mobile LAN listener.
 
 ## Load-Bearing Rules
 

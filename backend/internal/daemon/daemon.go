@@ -11,15 +11,18 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
+	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
 	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/daemon/supervisor"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -64,21 +67,17 @@ func Run() error {
 	ignoreBrokenPipeSignal()
 
 	log := newLogger()
-	var browserRuntimeToken string
-	if os.Getenv(browserruntime.RuntimeTokenStdinEnv) == "1" {
-		browserRuntimeToken, err = browserruntime.ReadRuntimeToken(os.Stdin)
-		if err != nil {
-			return err
-		}
-	}
-	if browserRuntimeToken == "" {
-		browserRuntimeToken, err = browserruntime.NewToken()
-		if err != nil {
-			return err
-		}
-	}
 	browserAuthority := browsersvc.NewAuthority()
-	browserBroker := browserruntime.New(log, browserRuntimeToken)
+	browserStateRoot, browserStateRootErr := config.StateRoot()
+	if browserStateRootErr != nil {
+		log.Warn("browser runtime: operator state root unavailable; standalone browser stays disabled", "err", browserStateRootErr)
+	}
+	standaloneBrowser := agentbrowser.New(agentbrowser.Options{
+		BinaryPath: resolveAgentBrowserBinary(),
+		DataDir:    cfg.DataDir,
+		StateRoot:  browserStateRoot,
+		Log:        log,
+	})
 
 	// Fail fast only if a daemon is genuinely still serving the recorded port.
 	// CheckStale confirms the run-file's PID is alive, but that alone is not
@@ -193,6 +192,20 @@ func Run() error {
 		func() time.Time { return time.Now().UTC() },
 	)
 
+	// One-time legacy desktop preference import (Electron's ui-settings.json,
+	// update-settings.json, keybindings.json, and the app-state.json migration
+	// block). Runs before HTTP serves settings so no client ever sees
+	// pre-import values; failures never block boot because every facet already
+	// has a validated default and the marker stays unset for a safe re-attempt.
+	if err := settingsSvc.ImportLegacyDesktop(ctx, settingssvc.LegacyFilesUnder(filepath.Dir(cfg.RunFilePath))); err != nil {
+		log.Warn("legacy desktop settings import failed; will retry next boot", "err", err)
+	}
+
+	folderScanner := projectscan.New(projectscan.Options{ProtectedRoots: []string{
+		filepath.Dir(cfg.RunFilePath),
+		cfg.DataDir,
+	}})
+
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
 	// loudly instead of silently becoming a TUI session.
@@ -239,7 +252,7 @@ func Run() error {
 		NewID:    uuid.NewString,
 	})
 
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserBroker, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, standaloneBrowser, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -283,7 +296,7 @@ func Run() error {
 		DefaultPort: mobilebridge.DefaultPort,
 	}
 	mc := &controllers.MobileController{Bridge: bs}
-	browserService := browsersvc.New(sessionSvc, browserBroker, browserAuthority)
+	browserService := browsersvc.New(sessionSvc, standaloneBrowser, browserAuthority)
 
 	// Standalone shell terminals: user-opened shells with no agent session
 	// behind them. They reuse the same runtime adapter (and therefore the same
@@ -390,6 +403,7 @@ func Run() error {
 		ShellTerminals:     shellTermSvc,
 		Conversations:      chatSvc,
 		Settings:           settingsSvc,
+		DevScan:            folderScanner,
 		CDC:                store,
 		Events:             cdcPipe.Broadcaster,
 		Activity:           lcStack.LCM,
@@ -407,6 +421,7 @@ func Run() error {
 		Browser:             browserService,
 		PreviewServer:       managedPreview,
 		SessionCapabilities: browserAuthority,
+		DesktopPreview:      sessionSvc,
 	})
 	if err != nil {
 		stop()
@@ -417,21 +432,6 @@ func Run() error {
 		return err
 	}
 	previewDone := preview.NewPoller(store, sessionSvc, "http://"+srv.Addr().String(), preview.PollerConfig{Logger: log}).Start(ctx)
-	_ = os.Unsetenv(browserruntime.RuntimeAddressEnv)
-	if ln, addr, err := browserruntime.Listen(cfg.RunFilePath); err != nil {
-		log.Warn("browser runtime: listener unavailable; agent browser control disabled", "err", err)
-	} else {
-		if err := os.Setenv(browserruntime.RuntimeAddressEnv, addr); err != nil {
-			_ = ln.Close()
-			return fmt.Errorf("publish browser runtime address: %w", err)
-		}
-		log.Info("browser runtime: listening", "addr", addr)
-		go func() {
-			if err := browserBroker.Serve(ctx, ln); err != nil {
-				log.Warn("browser runtime: serve stopped with error", "err", err)
-			}
-		}()
-	}
 	var usageDone <-chan struct{}
 
 	// Late-bind: the LAN listener shares the exact loopback router instance so
@@ -511,6 +511,34 @@ func seedScratchProjectOnBoot(ctx context.Context, cfg config.Config, projects *
 		return fmt.Errorf("seed scratch project: %w", err)
 	}
 	return nil
+}
+
+// resolveAgentBrowserBinary locates the packaged agent-browser binary the same
+// way the desktop app does: an explicit override wins, then the packaged
+// resources layout. An empty result leaves the adapter reporting not-installed.
+func resolveAgentBrowserBinary() string {
+	if override := strings.TrimSpace(os.Getenv("OPERATOR_AGENT_BROWSER_PATH")); override != "" {
+		return override
+	}
+	binaryName := "agent-browser"
+	if runtime.GOOS == "windows" {
+		binaryName = "agent-browser.exe"
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(executable)
+	for _, candidate := range []string{
+		filepath.Join(dir, "agent-browser", binaryName),
+		filepath.Join(dir, "..", "agent-browser", binaryName),
+		filepath.Join(dir, "..", "..", "frontend", "agent-browser", binaryName),
+	} {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // newLogger returns the daemon's slog logger. It writes to stderr so supervisors

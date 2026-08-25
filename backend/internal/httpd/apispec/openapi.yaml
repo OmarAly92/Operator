@@ -336,6 +336,43 @@ paths:
       summary: Check whether the desktop browser runtime is connected for a session
       tags:
       - browser
+  /api/v1/dev/ancestor-repository:
+    post:
+      operationId: findDevAncestorRepository
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevAncestorRepositoryRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevAncestorRepositoryResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Report whether a folder sits inside an existing Git repository
+      tags:
+      - dev
   /api/v1/dev/import-projects:
     post:
       operationId: runDevImportProjects
@@ -371,6 +408,43 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Run the developer project-registry import through the daemon store
+      tags:
+      - dev
+  /api/v1/dev/import-scan:
+    post:
+      operationId: runDevImportScan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevImportScanRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportFolderScanResult'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Scan a local folder for importable Git repositories
       tags:
       - dev
   /api/v1/events:
@@ -4276,6 +4350,80 @@ paths:
       summary: Read the daemon-owned user preferences
       tags:
       - settings
+  /api/v1/settings/keybindings:
+    patch:
+      operationId: setKeybindingOverrides
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeybindingOverrides'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Set the persisted desktop shortcut overrides
+      tags:
+      - settings
+  /api/v1/settings/migration:
+    patch:
+      operationId: setMigrationState
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationState'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record the legacy desktop import decision
+      tags:
+      - settings
   /api/v1/settings/session-interface:
     patch:
       operationId: updateSessionInterface
@@ -4311,6 +4459,80 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Choose the default interface for new sessions
+      tags:
+      - settings
+  /api/v1/settings/ui:
+    patch:
+      operationId: updateUiSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UiSettings'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Set the desktop presentation locale
+      tags:
+      - settings
+  /api/v1/settings/updates:
+    patch:
+      operationId: setUpdateSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettings'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Set the desktop auto-update opt-in state
       tags:
       - settings
   /api/v1/shell-terminals:
@@ -4959,6 +5181,9 @@ components:
           type:
           - "null"
           - string
+        previewOpenedRevision:
+          format: int64
+          type: integer
         previewRevision:
           format: int64
           type: integer
@@ -5739,6 +5964,19 @@ components:
       - ok
       - workerId
       type: object
+    DevAncestorRepositoryRequest:
+      properties:
+        path:
+          minLength: 1
+          type: string
+      required:
+      - path
+      type: object
+    DevAncestorRepositoryResponse:
+      properties:
+        setupWarning:
+          type: string
+      type: object
     DevImportProjectsConflict:
       properties:
         path:
@@ -5800,6 +6038,20 @@ components:
       required:
       - report
       type: object
+    DevImportScanRequest:
+      properties:
+        mode:
+          enum:
+          - project
+          - workspace
+          type: string
+        path:
+          minLength: 1
+          type: string
+      required:
+      - path
+      - mode
+      type: object
     DomainActivity:
       properties:
         lastActivityAt:
@@ -5849,6 +6101,58 @@ components:
       - sourceBranchId
       - activeBranchId
       type: object
+    FeaturePin:
+      properties:
+        pr:
+          format: int64
+          type: integer
+      required:
+      - pr
+      type: object
+    ImportFolderScanRepo:
+      properties:
+        branch:
+          type: string
+        hasRemote:
+          type: boolean
+        name:
+          type: string
+        path:
+          type: string
+        reason:
+          type: string
+        relativePath:
+          type: string
+        remote:
+          type: string
+        status:
+          enum:
+          - ok
+          - error
+          type: string
+      required:
+      - name
+      - path
+      - relativePath
+      - branch
+      - remote
+      - hasRemote
+      - status
+      type: object
+    ImportFolderScanResult:
+      properties:
+        path:
+          type: string
+        repos:
+          items:
+            $ref: '#/components/schemas/ImportFolderScanRepo'
+          type: array
+        setupWarning:
+          type: string
+      required:
+      - path
+      - repos
+      type: object
     ImportReport:
       properties:
         dryRun:
@@ -5896,6 +6200,12 @@ components:
           type: string
       required:
       - path
+      type: object
+    KeybindingOverrides:
+      additionalProperties:
+        items:
+          $ref: '#/components/schemas/ShortcutBinding'
+        type: array
       type: object
     KillReviewResponse:
       properties:
@@ -6130,6 +6440,38 @@ components:
       - ok
       - prNumber
       - method
+      type: object
+    MigrationReport:
+      properties:
+        projectsImported:
+          type: integer
+        projectsSkipped:
+          type: integer
+      required:
+      - projectsImported
+      - projectsSkipped
+      type: object
+    MigrationState:
+      properties:
+        completedAt:
+          format: date-time
+          type: string
+        error:
+          type: string
+        lastAttemptAt:
+          format: date-time
+          type: string
+        report:
+          $ref: '#/components/schemas/MigrationReport'
+        status:
+          enum:
+          - pending
+          - completed
+          - declined
+          - failed
+          type: string
+      required:
+      - status
       type: object
     MobileStatusResponse:
       properties:
@@ -7389,9 +7731,27 @@ components:
           - chat
           - tui
           type: string
+        keybindings:
+          $ref: '#/components/schemas/KeybindingOverrides'
+        legacyDesktopImportedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        migration:
+          $ref: '#/components/schemas/MigrationState'
+        ui:
+          $ref: '#/components/schemas/UiSettings'
+        updates:
+          $ref: '#/components/schemas/UpdateSettings'
       required:
       - defaultSessionMode
       - chatHarnesses
+      - ui
+      - updates
+      - keybindings
+      - migration
+      - legacyDesktopImportedAt
       type: object
     ShellTerminalEnvelope:
       properties:
@@ -7420,6 +7780,27 @@ components:
       - workingDir
       - title
       - createdAt
+      type: object
+    ShortcutBinding:
+      properties:
+        alt:
+          type: boolean
+        code:
+          type: string
+        ctrl:
+          type: boolean
+        key:
+          type: string
+        meta:
+          type: boolean
+        shift:
+          type: boolean
+      required:
+      - key
+      - ctrl
+      - meta
+      - shift
+      - alt
       type: object
     SpawnOrchestratorRequest:
       properties:
@@ -7725,6 +8106,22 @@ components:
       - runs
       - created
       type: object
+    UiSettings:
+      properties:
+        locale:
+          enum:
+          - en
+          - zh-CN
+          - ja
+          - ko
+          - es
+          - fr
+          - de
+          - pt-BR
+          type: string
+      required:
+      - locale
+      type: object
     UnregisterPushDeviceResponse:
       properties:
         deleted:
@@ -7756,6 +8153,24 @@ components:
           type: string
       required:
       - defaultSessionMode
+      type: object
+    UpdateSettings:
+      properties:
+        channel:
+          enum:
+          - latest
+          - nightly
+          type: string
+        enabled:
+          type: boolean
+        feature:
+          $ref: '#/components/schemas/FeaturePin'
+        nightlyAck:
+          type: boolean
+      required:
+      - enabled
+      - channel
+      - nightlyAck
       type: object
     UpdateShellTerminalRequest:
       properties:

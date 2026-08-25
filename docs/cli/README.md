@@ -121,46 +121,44 @@ opens that URL verbatim (`file://`, `http`, `https`).
 
 `opr preview start [configuration]` loads `.operator/launch.json` from the session
 workspace, starts that exact command under a session-owned supervisor, selects
-or records its loopback port, waits for readiness, and opens application
-targets in the Browser panel. `status` reports bounded recent logs and `stop`
+or records its loopback port, waits for readiness, and publishes application
+targets as external previews that open once in the user's default browser.
+`status` reports bounded recent logs and `stop`
 terminates the managed process tree. Multiple configurations must be selected
 by name; Operator does not assign confidence scores to arbitrary localhost servers.
 This is an optional, reusable project configuration, not a prerequisite for
 preview. Agents must not create it automatically. Static HTML and Markdown use
 the direct file preview and must not cause package-manager scaffolding,
 dependency installation, or a development server to be introduced.
+`opr preview clear` removes the current session's preview target without opening
+anything.
 
 When a browser-displayable file is the requested artifact, agents should call
 `opr preview <workspace-path>` immediately after creating or materially updating
 the primary output. Markdown, HTML, PDF, SVG, and common images can be served
 directly. Supporting assets must not replace an active application preview.
 
-`opr browser` also resolves its target from `OPERATOR_SESSION_ID`, but controls the
-session-owned live Electron browser rather than only setting its preview URL.
-The target-isolated command set includes `status`, `open`, `snapshot`, `click`,
-`dblclick`, `focus`, `fill`, `type`, `press`, `hover`, `scroll`,
-`scrollintoview`, `drag`, `select`, `check`, `uncheck`, `get`, `highlight`,
-`unhighlight`, `tabs`, `tab new`, `tab select`, `tab close`, `frame`, `dialog`,
-`wait`, `screenshot`, `network start/status/list/stop/clear`, `console`, and
-`errors`. The native engine is bound internally; there is no second command or
-connection setup. Logical tab IDs remain stable for the session, and allowed popups
-become Operator browser tabs rather than separate OS-browser windows. The Operator desktop
-app must be open because Electron owns the `WebContentsView`.
-References from a snapshot are invalidated after navigation or DOM replacement;
-they are also invalidated when changing tabs. Take another snapshot when a
-command reports `STALE_REFERENCE`.
-Browser waits cover load completion, text or selector appearance and
-disappearance, URL matching, fixed delays, and a configurable DOM-stability
-window for HMR-driven verification.
-Browser tabs in the same worker share a memory-only Electron profile. Different
-workers receive distinct partitions, so cookies, authentication, local storage,
-and session storage do not leak between their browser runtimes.
-Network capture is disabled by default and must be started explicitly. It is
-scoped to the active tab at start time, expires after 60 seconds by default
-(maximum 300), retains at most 200 in-memory entries, and is cleared with the
-tab/session. Captured data is metadata-only: request and response bodies are
-never read, sensitive headers are omitted, and URL credentials, fragments, and
-query values are redacted.
+`opr browser` also resolves its target from `OPERATOR_SESSION_ID`, but drives the
+daemon-owned standalone browser runtime: one checksum-pinned `agent-browser`
+binary with a per-session isolated Chromium profile under the operator state
+root (`backend/internal/adapters/agentbrowser/`). The allowlisted command set
+includes `status`, `open`, `snapshot`, `click`, `dblclick`, `focus`, `fill`,
+`type`, `press`, `hover`, `scroll`, `scrollintoview`, `drag`, `select`,
+`check`, `uncheck`, `get`, `highlight`, `tabs`, `tab new/select/close`,
+`frame`, `dialog`, `wait`, `screenshot`, `console`, and `errors`. Logical tab
+IDs remain stable for the session; references from a snapshot are invalidated
+after navigation or DOM replacement and when changing tabs — take another
+snapshot when a command reports `STALE_REFERENCE`. Browser waits cover load
+completion, text or selector appearance and disappearance, URL matching, fixed
+delays, and a configurable DOM-stability window. Ending the session discards
+the isolated profile, so cookies and web storage never leak between workers.
+
+Panel-only capabilities were dropped with the removed desktop Browser panel:
+`devtools open/close` fails with `BROWSER_DEVTOOLS_UNAVAILABLE`, and network
+capture plus `unhighlight` fail with `BROWSER_AUTOMATION_UNAVAILABLE` — the
+standalone runtime has no implementation for them and refuses instead of
+approximating. The daemon runs the engine headlessly, so no desktop app window
+needs to be open.
 
 `go run .` in `backend/` remains a compatibility wrapper around the daemon.
 

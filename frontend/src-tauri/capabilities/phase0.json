@@ -1,6 +1,18 @@
 {
 	"identifier": "phase0",
-	"description": "Phase 0 window lifecycle and event access",
+	"description": "Operator shell commands and inbound event subscriptions",
 	"windows": ["main"],
-	"permissions": ["core:event:default", "core:window:allow-close"]
+	"permissions": [
+		"core:event:allow-listen",
+		"core:event:allow-unlisten",
+		"core:app:allow-version",
+		"core:window:allow-close",
+		"allow-daemon-status",
+		"allow-daemon-start",
+		"allow-daemon-stop",
+		"allow-daemon-restart",
+		"allow-complete-state-audit",
+		"allow-fail-state-audit",
+		"allow-terminal-benchmark-runtime-identity"
+	]
 }

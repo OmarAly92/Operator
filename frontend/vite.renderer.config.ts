@@ -79,9 +79,9 @@ export default defineConfig({
 			"@": fileURLToPath(new URL("./src/renderer", import.meta.url)),
 		},
 	},
-	// Dev proxy for VITE_NO_ELECTRON=1 browser preview — forwards /api and /mux
-	// to the daemon so the renderer can be tested against a running daemon from
-	// a plain browser without an Electron shell.
+	// Dev proxy for VITE_RENDERER_PREVIEW=1 browser preview — forwards /api and
+	// /mux to the daemon so the renderer can be tested against a running daemon
+	// from a plain browser without the desktop shell.
 	server: {
 		proxy: {
 			"/api": {
@@ -113,7 +113,27 @@ export default defineConfig({
 		// vitest's default "**/node_modules/**" and only matches the root, so the
 		// tracked src/landing preview app's nested node_modules would otherwise
 		// have its vendored third-party test suites collected and run.
-		exclude: ["**/node_modules/**", "dist/**", "dist-electron/**", "e2e/**"],
+		exclude: [
+			"**/node_modules/**",
+			"dist/**",
+			"e2e/**",
+			"scripts/agent-browser-phase0.test.mjs",
+			"scripts/audit-tauri-state.test.mjs",
+			"scripts/benchmark-result.test.mjs",
+			"scripts/check-parity-ledger.test.mjs",
+			"scripts/e2e-mac-update.test.mjs",
+			"scripts/e2e-tauri-build-contract.test.mjs",
+			"scripts/feed.test.mjs",
+			"scripts/heap-summary.test.mjs",
+			"scripts/no-electron.test.mjs",
+			"scripts/phase0-aggregate.test.mjs",
+			"scripts/phase0-decision.test.mjs",
+			"scripts/phase0-legacy-update.test.mjs",
+			"scripts/phase0-platform-summary.test.mjs",
+			"scripts/phase0-updater-signing.test.mjs",
+			"scripts/route-bundle-report.test.mjs",
+			"scripts/tauri-feed.test.mjs",
+		],
 		globals: true,
 		setupFiles: "./src/renderer/test/setup.ts",
 	},

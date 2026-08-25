@@ -2,19 +2,25 @@
 
 How to set up, build, run, and test Operator locally.
 
+The desktop shell is **Tauri + React**; the Electron/Forge app this page once
+described was removed with Task 21 of the Tauri port. `npm run tauri:dev` is the
+normal dev loop and it supervises the daemon for you.
+
 ## Prerequisites
 
-| Tool       | Minimum version | Notes                                                                  |
-| ---------- | --------------- | ---------------------------------------------------------------------- |
-| Go         | 1.25.7          | `go version` to check; install via [go.dev](https://go.dev/dl/)        |
-| Node.js    | 20.19.0         | `node --version`; install via [nodejs.org](https://nodejs.org/)        |
-| npm        | 10              | Ships with Node.js                                                     |
-| Nix (opt.) | -               | `nix develop` drops you into a shell with all deps; see `../flake.nix` |
+| Tool       | Version            | Notes                                                                                                     |
+| ---------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Go         | 1.25.7+            | Pinned in `backend/go.mod` (`go version` to check; [go.dev](https://go.dev/dl/))                          |
+| Rust       | 1.96.0             | Pinned in `frontend/rust-toolchain.toml`; rustup selects it automatically, CI also exports `RUSTUP_TOOLCHAIN=1.96.0` |
+| Node.js    | 22.x recommended   | No `engines` pin; CI runs the frontend checks on Node 24 (`.github/workflows/frontend.yml`) and release/build legs on Node 22. Local verification for this document used v22.23.2. |
+| npm        | 10                 | Ships with Node.js                                                                                        |
+| Flutter    | 3.44.5             | Mobile client only (`packages/mobile`); same version CI pins in `.github/workflows/mobile-flutter.yml`    |
+| Nix (opt.) | -                  | `nix develop` drops you into a shell with all deps; see `../flake.nix`                                    |
 
 Additional runtime dependencies for the daemon:
 
 - **git** (for worktree creation and agent integration)
-- **A running agent CLI** (Claude Code, Codex, Aider, etc.) - see
+- **A running agent CLI** (Claude Code, Codex, Aider, etc.) — see
   [the installation guide](https://opr-agents.com/docs/installation)
 
 ## Project Layout
@@ -30,13 +36,16 @@ operator/
       domain/           # Domain types
       ports/            # Port interfaces (contracts)
       storage/          # SQLite migrations, queries, generated code
-  frontend/             # Electron + React desktop app
-    src/                # Renderer, main, preload
-    e2e/                # Playwright end-to-end tests
+  frontend/             # Tauri + React desktop app
+    src/                # Renderer + shared modules
+    src-tauri/          # Rust shell: daemon supervision, native integrations, updater
+    e2e/                # Playwright renderer E2E tests
+    e2e-tauri/          # WebdriverIO tests against the real Tauri binary
+    perf/               # Benchmark harness, parity ledger, checked-in results
   packages/
-    mobile/             # React Native (Expo) mobile companion app
-    opr/                 # Legacy npm CLI package (frozen)
-  docs/                 # Architecture, ADRs, CLI docs, status
+    mobile/             # Flutter mobile companion app
+    opr/                # Legacy npm CLI package (frozen)
+  docs/                 # Architecture, ADRs, benchmarks, status
   CONTRIBUTING.md       # Contribution guide
 ```
 
@@ -54,7 +63,7 @@ npm ci
 git checkout -b my-feature-branch
 ```
 
-Keep your branch up to date by rebasing on main:
+Keep your branch up to date by rebasing on master:
 
 ```bash
 git fetch origin
@@ -124,7 +133,7 @@ go test -v ./internal/cli/ # a specific package
 ### Lint
 
 ```bash
-npm run lint
+npm run lint               # from repo root: go test ./... + golangci-lint v2.12.2
 ```
 
 ### Code generation
@@ -137,7 +146,7 @@ npm run sqlc
 npm run api
 ```
 
-## Frontend
+## Frontend (Tauri desktop)
 
 ### Install dependencies
 
@@ -150,48 +159,122 @@ npm install
 
 ```bash
 cd frontend
-npm run dev            # Electron dev mode
-npm run dev:web        # Web-only (no Electron, for quick UI iteration)
+npm run tauri:dev     # Tauri desktop shell + Vite dev server + supervised daemon
 ```
 
-### Build
+`tauri:dev` starts the Vite dev server on `127.0.0.1:5173` (`devUrl` in
+`src-tauri/tauri.conf.json`) and opens the Tauri shell against it. The Rust side
+supervises the loopback daemon for you. Before the first run, build the packaged
+sidecars so the resources exist:
 
 ```bash
 cd frontend
-npm run package        # Package for current platform
-npm run make           # Create distributables when platform packaging deps are installed
+npm run build:daemon              # Go daemon binary into ../daemon/
+npm run browser-runtime:prepare   # checksum-pinned agent-browser into ../agent-browser/
+npm run build:acp-runtime         # Node 22.23.2 ACP runtime into ../resources/acp-runtime/
 ```
 
-On a fresh Linux machine, treat `npm run package` as the default local build
-path. `npm run make` also needs Linux packaging tools that are not provided by a
-minimal setup or by `nix develop` today:
-
-- `rpm` / `rpmbuild` for the RPM target
-- the usual distro packaging toolchain required by Electron Forge makers
-
-CI installs `rpm` explicitly before running `npm run make`. Do the same locally
-if you need Linux distributables, or skip `npm run make` on a fresh setup.
-
-### Run tests
+### Renderer only, no desktop shell
 
 ```bash
 cd frontend
-npm run test           # Vitest unit tests in a simulated renderer environment
-npm run test:e2e       # Playwright browser-based renderer E2E tests
-npx playwright show-report  # View Playwright report
+npm run dev:web       # Vite with VITE_RENDERER_PREVIEW=1; no shell, no daemon
 ```
 
-### Typecheck
+Fast for UI iteration; anything that talks to the backend stays dead unless you
+start a daemon yourself. This is also what the Playwright renderer E2E suite drives.
+
+### Build platform artifacts
 
 ```bash
 cd frontend
-npm run typecheck
+npm run tauri:build   # unsigned bundle for the current OS (app+dmg on macOS)
 ```
 
-Or from repo root:
+`bundle.targets` in `src-tauri/tauri.conf.json` covers every release form:
+macOS `.app` + `.dmg`, Windows NSIS `.exe`, Linux AppImage/deb/rpm. Every bundle
+carries the Go daemon, agent-browser, the ACP runtime, licenses, and icons.
+`npm run tauri:release` builds with `src-tauri/tauri.release.conf.json`, which
+enables signed updater artifacts and bakes the production feed base URL; it
+needs the minisign signing key material a minimal setup does not have. Release
+pipelines are documented in [`frontend/docs/desktop-release.md`](../frontend/docs/desktop-release.md).
+
+### State roots
+
+All state lives under `~/.operator` (overridable via `OPERATOR_DATA_DIR` /
+`OPERATOR_RUN_FILE`). The Tauri webview's data directory is pinned to
+`~/.operator/webview`; the updater stages under `~/.operator/updater/`, and the
+managed browser engine plus per-session browser profiles live under the state
+root as well. Never read or write OS-default app-data locations.
+
+### Managed browser first use
+
+Browser automation is owned by the daemon through the packaged `agent-browser`
+binary. Development prepares it with `npm run browser-runtime:prepare`; at
+runtime the daemon resolves (and, when missing, installs) the pinned engine on
+first automation use under the operator state root. Each session gets an
+isolated Chromium profile that is discarded when the session ends. See
+[`docs/architecture.md`](architecture.md), "Standalone Browser Runtime".
+
+### External preview
+
+Previews open outside the shell: `opr preview <target>` publishes a validated
+preview target that opens once in the user's default browser, and
+`opr preview clear` removes the target without opening anything. The former
+embedded Browser panel was removed with the Tauri port.
+
+### Updater channels
+
+Update settings live in the Go settings store (`PATCH /api/v1/settings/updates`).
+Channels are `latest` (stable), `nightly`, and per-PR feature channels (`pr<N>`);
+feeds are generated by `frontend/scripts/tauri-feed.mjs`. The first-run opt-in
+prompt keeps updates disabled until accepted.
+
+## Tests and gates
+
+### Frontend
 
 ```bash
-npm run frontend:typecheck
+cd frontend
+npm run test                   # Vitest unit suite
+npm run typecheck              # tsc --noEmit
+npm run check:desktop-parity   # parity ledger (perf/parity-ledger.json) covers every desktop surface
+node --test scripts/no-electron.test.mjs   # proves no Electron import/package/config remains
+npm run test:e2e:renderer      # Playwright @T0/@P0 renderer suite (drives dev:web)
+npm run typecheck:e2e          # Playwright suite types
+npm run test:e2e:tauri         # builds the debug shell with the e2e Cargo feature, runs WebdriverIO against the real binary
+npm run typecheck:e2e-tauri    # WDIO suite types
+```
+
+Or from repo root: `npm run frontend:typecheck`.
+
+### Phase 0 evidence and benchmarks
+
+The Phase 0 decision tooling derives its verdict from verified raw evidence;
+until native-runner artifacts land it exits 1 with `stop-port`, naming every
+missing evidence file:
+
+```bash
+cd frontend
+node scripts/phase0-decision.mjs --results perf/results   # stop-port until native evidence lands
+npm run bench:terminal                     # terminal throughput/input harness
+npm run test:tauri-state                   # state-audit regression suite; the audit itself
+                                           # (npm run audit:tauri-state) runs per-OS inside the Phase 0 workflow
+node scripts/route-bundle-report.mjs --label after    # initial-route parse-bytes report -> perf/results/route-graph/
+node scripts/heap-summary.mjs --label after --probe empty-board   # RSS probes -> perf/results/heap/
+```
+
+`scripts/benchmark-shell.mjs` still supports only the Electron shell; warm-start
+and idle-memory comparisons need native runners. The measurement contract,
+binding gates, and honest scope of local probes live in
+[`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md).
+
+### Verify packaged artifacts
+
+```bash
+cd frontend
+./scripts/verify-tauri-artifacts.sh --dist dist --mode testing   # structural inspection; unsigned gates recorded, never fatal
+./scripts/verify-mac-artifact.sh <file.zip|.app|.dmg|.app.tar.gz>  # seal/notarization/staple check for one macOS artifact
 ```
 
 ## Mobile companion app
@@ -205,9 +288,11 @@ notes.
 
 ## Running end-to-end
 
-1. Start the desktop app with `npm run dev` from `frontend/`.
-2. The Electron main process starts and supervises the loopback daemon for you.
-3. Use `npm run dev:web` only for renderer-only development; it does not launch Electron.
+1. Start the desktop app with `npm run tauri:dev` from `frontend/`.
+2. The Tauri shell resolves the login-shell environment, spawns, and supervises
+   the loopback daemon.
+3. Use `npm run dev:web` only for renderer-only development; it launches no
+   shell and no daemon.
 
 For CLI-only usage, open two terminals:
 
@@ -238,8 +323,11 @@ go run ./cmd/opr --help
 ### Frontend
 
 - Unit tests use Vitest and run in a simulated renderer environment.
-- E2E tests use Playwright against the web renderer started by `npm run dev:web`;
-  they do not launch the full Electron app.
+- Playwright renderer tests drive the web renderer started by `dev:web`; they
+  do not launch the desktop shell.
+- WebdriverIO tests (`test:e2e:tauri`) build the real debug shell with the
+  `e2e` Cargo feature — the only configuration in which the embedded WebDriver
+  plugins compile in — and exercise the actual binary end to end.
 - After changing API types, run `npm run api` from root to regenerate
   `frontend/src/api/schema.ts`.
 
@@ -257,11 +345,12 @@ go run ./cmd/opr --help
 
 ### Frontend build / test failures
 
-| Symptom                               | Likely cause            | Fix                                                          |
-| ------------------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `npm run typecheck` has type errors   | API types out of sync   | Run `npm run api` from repo root to regenerate               |
-| `npm run dev` fails on native modules | Missing build tools     | Install Python + C++ build tools for `node-gyp`              |
-| `npm install` or `npm ci` fails       | Node.js version too old | `node --version`; must be 20.19.0+ (see prerequisites above) |
+| Symptom                                   | Likely cause                    | Fix                                                                        |
+| ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| `npm run typecheck` has type errors       | API types out of sync           | Run `npm run api` from repo root to regenerate                             |
+| `cargo build` uses the wrong toolchain    | rustup did not pick up the pin  | Confirm `frontend/rust-toolchain.toml` exists; run `rustup toolchain install 1.96.0` |
+| `tauri:dev` cannot find sidecar resources | Sidecars not built              | Run `build:daemon`, `browser-runtime:prepare`, `build:acp-runtime` once     |
+| `npm install` or `npm ci` fails           | Node.js version too old         | Use Node 20.19+ (CI pins 24 for checks / 22 for build legs)                |
 
 ### Code generation drift
 
@@ -271,7 +360,7 @@ If CI fails on the `api-drift` check, the OpenAPI-generated files are out of syn
 npm run api
 ```
 
-If regeneration introduces unexpected diffs beyond your changes, check that your local tool versions match CI (Go 1.25.7+, Node 20.19.0+, npm 10+).
+If regeneration introduces unexpected diffs beyond your changes, check that your local tool versions match CI (Go 1.25.7+, Node 20.19+, npm 10+).
 
 ## OpenAPI spec and generated types
 

@@ -60,6 +60,31 @@ func TestBuild_DelegateAgentEnumIncludesPrimeAgent(t *testing.T) {
 	}
 }
 
+func TestBuild_MigrationStateTimestampsAreDateTime(t *testing.T) {
+	generated, err := specgen.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	var doc struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Format string `yaml:"format"`
+				} `yaml:"properties"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	if err := yaml.Unmarshal(generated, &doc); err != nil {
+		t.Fatalf("parse generated OpenAPI: %v", err)
+	}
+	properties := doc.Components.Schemas["MigrationState"].Properties
+	for _, field := range []string{"lastAttemptAt", "completedAt"} {
+		if got := properties[field].Format; got != "date-time" {
+			t.Errorf("MigrationState.%s format = %q, want date-time", field, got)
+		}
+	}
+}
+
 // TestBuild_Deterministic guards against nondeterministic output (which would
 // make the drift check flaky in CI).
 func TestBuild_Deterministic(t *testing.T) {

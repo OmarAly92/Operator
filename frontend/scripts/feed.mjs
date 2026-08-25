@@ -83,7 +83,15 @@ export function buildYml(version, files, releaseDate, important = false) {
 // private pipeline that currently asserts on the linux sidecar filenames;
 // dropping the files here would red that guard out of band. Removing both
 // together is tracked as its own decision on #3288 workstream 3.
-export async function generateFeeds(dir, rawVersion, channel, releaseDate, important = false) {
+//
+// The sixth argument is an options bag for the Tauri migration feeds
+// (tauri-feed.mjs): `blockmap: false` writes no sidecars at all — the Tauri
+// artifacts are not electron-builder outputs, so a differential patch against
+// them has no provenance and full downloads are the safe baseline (same
+// reasoning as #3267 decision 4). `writeBlockmap` injects the sidecar writer
+// for tests; production uses the real one.
+export async function generateFeeds(dir, rawVersion, channel, releaseDate, important = false, options = {}) {
+	const { blockmap = true, writeBlockmap: writeBlockmapImpl = writeBlockmap } = options;
 	const version = rawVersion.split("+")[0];
 	const sel = selectInstallers(readdirSync(dir), version);
 	const groups = [
@@ -96,7 +104,9 @@ export async function generateFeeds(dir, rawVersion, channel, releaseDate, impor
 		const files = [];
 		for (const name of names) {
 			const { sha512, size } =
-				platform === "mac" ? hashFile(join(dir, name)) : await writeBlockmap(join(dir, name));
+				blockmap && platform !== "mac"
+					? await writeBlockmapImpl(join(dir, name))
+					: hashFile(join(dir, name));
 			files.push({ url: name, sha512, size });
 		}
 		writeFileSync(join(dir, feedFilename(channel, platform)), buildYml(version, files, releaseDate, important));

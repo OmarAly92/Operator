@@ -15,7 +15,7 @@ Operator is a long-running Go daemon that supervises multiple parallel AI coding
 - [Observation Loops](#observation-loops)
 - [HTTP Layer](#http-layer)
 - [Terminal Multiplexing](#terminal-multiplexing)
-- [Browser Runtime Bridge](#browser-runtime-bridge)
+- [Standalone Browser Runtime](#standalone-browser-runtime)
 
 ---
 
@@ -53,8 +53,8 @@ Display status like `working`, `needs_input`, `ci_failed`, `mergeable` are **com
 ```mermaid
 graph TB
     subgraph Frontend
-        FE[Electron + React UI]
-        Mobile[Expo + React Native UI]
+        FE[Tauri + React UI]
+        Mobile[Flutter Mobile UI]
         CLI[opr CLI]
     end
 
@@ -859,7 +859,7 @@ branches on the session's persisted `mode`: TUI attaches the existing mux PTY,
 while Chat reads the paged conversation projection and uses the durable CDC SSE
 stream only for targeted invalidation/reconnect. Sends, approvals, input,
 provider configuration, compaction, rollback, and shell creation remain daemon
-commands; no provider or lifecycle policy is implemented in React Native.
+commands; no provider or lifecycle policy is implemented in the Flutter client.
 
 For implementation details and security model, consult `docs/adr/0001-lan-listener-for-mobile.md` and the glossary in `CONTEXT.md`.
 
@@ -975,26 +975,27 @@ sequenceDiagram
     Mux->>Runtime: Close PTY
 ```
 
-## Browser Runtime Bridge
+## Standalone Browser Runtime
 
-Browser automation uses a dedicated local socket (`browser.sock` on Unix,
-`opr-browser[-dev]` named pipe on Windows) between the daemon and Electron. The
-daemon owns command authorization/correlation; Electron owns the actual browser
-targets. Commands never use the supervisor liveness socket and never enable an
-unauthenticated remote-debugging port.
+Browser automation is owned by the Go daemon through the packaged `agent-browser`
+binary (`backend/internal/adapters/agentbrowser/`): discovery, per-session runtime
+state, command policy, and execution. Each session gets its own isolated Chromium
+profile under the operator state root; the daemon's policy layer allowlists a
+closed set of commands and blocks flags that would escape that isolation — CDP
+attach, auto-connect, profile/state reuse, custom executables, extensions,
+init scripts, proxies. The runtime never attaches to the user's own browser
+profile, and the embedded in-window browser panel was removed with the Tauri port:
+previews open in the user's default browser (see
+`docs/todo/browser-panel-webview.md` for the deferred panel record).
 
-Electron attaches its debugger directly to the selected session's
-`WebContentsView`, so the protocol transport cannot enumerate or attach to the
-Operator renderer or a different session. The loopback `/api/v1/browser` surface is
-blocked entirely on the opt-in LAN listener.
+The session-facing entry point is the `opr browser` CLI (`backend/internal/cli/browser.go`),
+which routes through the daemon so capability issuance stays server-side.
 
-Request observation is an explicit, temporary browser command rather than a
-standing debugger feature. Capture is off by default, bound to the active tab
-that starts it, limited to 200 in-memory metadata entries, and automatically
-expires within at most five minutes. Operator never requests or stores request or
-response bodies; it allowlists safe headers and redacts URL credentials,
-fragments, and query values. Closing the tab, ending the session, or shutting
-down Electron disables and discards the capture.
+Panel-only capabilities were dropped with the Electron panel: DevTools control and
+request/network capture have no standalone implementation — the adapter rejects
+them with stable error codes (`BROWSER_DEVTOOLS_UNAVAILABLE`,
+`BROWSER_AUTOMATION_UNAVAILABLE`) instead of approximating them. Ending the
+session discards the isolated per-session state.
 
 ---
 

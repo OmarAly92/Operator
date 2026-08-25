@@ -1,0 +1,14 @@
+{
+	"$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+	"bundle": {
+		"createUpdaterArtifacts": true
+	},
+	"plugins": {
+		"operator-updates": {
+			"feedBaseUrl": "https://github.com/OmarAly92/operator/releases/latest/download/"
+		},
+		"updater": {
+			"pubkey": ""
+		}
+	}
+}

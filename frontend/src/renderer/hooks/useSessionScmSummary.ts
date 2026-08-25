@@ -8,7 +8,7 @@ export type SessionPRSummary = components["schemas"]["SessionPRSummary"];
 export const sessionScmSummaryQueryKey = (sessionId?: string) =>
 	sessionId ? (["session-scm-summary", sessionId] as const) : (["session-scm-summary"] as const);
 
-const usePreviewData = import.meta.env.VITE_NO_ELECTRON === "1";
+const usePreviewData = import.meta.env.VITE_RENDERER_PREVIEW === "1";
 
 export async function fetchSessionScmSummary(sessionId: string): Promise<SessionPRSummary[]> {
 	const { data, error } = await apiClient.GET("/api/v1/sessions/{sessionId}/pr", {

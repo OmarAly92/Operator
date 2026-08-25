@@ -9,12 +9,11 @@ mobile client at `packages/mobile`, is documented below.
 
 ## App state lives under `~/.operator` only
 
-All app state, the daemon's data dir, `running.json`, worktrees, and the Electron
-supervisor's `userData` (Chromium cache, cookies, local/session storage, crash
-dumps), must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`).
+All app state, the daemon's data dir, `running.json`, worktrees, and the desktop
+shell's webview state (cache, cookies, local/session storage, crash dumps) must
+resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`).
 Never write to or read from `~/Library/Application Support` or any other OS-default
-app-data location. `frontend/src/main.ts` pins Electron's `userData` to
-`~/.operator/electron`; do not remove that override. See the hard rule in `AGENTS.md`.
+app-data location. See the hard rule in `AGENTS.md`.
 
 ## Design System
 
@@ -36,8 +35,9 @@ deviate without explicit user approval. In QA/review, flag any renderer code tha
 diverges from **agent-orchestrator** — do **not** re-flag old design-reference mismatches.
 
 When showing or demoing frontend changes, run `opr preview [url]` from inside the
-session so the change renders in the desktop browser panel (the inspector rail's
-Browser tab); do not just describe it.
+session so the change opens in the user's default browser as an external preview
+(`opr preview clear` removes the target without opening anything); do not just
+describe it.
 
 ## Mobile client (`packages/mobile`)
 

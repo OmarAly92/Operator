@@ -41,13 +41,14 @@ type previewServerStatusDTO struct {
 func newPreviewCommand(ctx *commandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "preview [url]",
-		Short: "Open a URL (or the workspace's index.html) in the desktop browser panel for the current session",
-		Long: "Open a URL in the desktop browser panel for the current session.\n\n" +
-			"With no argument it opens the workspace's static entry point, falling\n" +
+		Short: "Publish a validated preview target that opens once in the default browser for the current session",
+		Long: "Publish a preview target for the current session. Validated HTTP(S)\n" +
+			"targets open automatically, once per preview, in the default browser.\n\n" +
+			"With no argument it publishes the workspace's static entry point, falling\n" +
 			"back to this session's existing preview target when no entry point exists.\n" +
-			"A workspace-relative Markdown or HTML path opens through Operator's isolated\n" +
-			"file preview. Use `opr preview start` for a configured dev server and\n" +
-			"`opr preview clear` to empty the panel.",
+			"A workspace-relative Markdown or HTML path is served through Operator's\n" +
+			"isolated file preview. Use `opr preview start` for a configured dev server\n" +
+			"and `opr preview clear` to remove the target without opening anything.",
 		Example: `  opr preview
   opr preview README.md
   opr preview http://localhost:5173
@@ -67,7 +68,7 @@ func newPreviewCommand(ctx *commandContext) *cobra.Command {
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "clear",
-		Short: "Clear the desktop browser panel for the current session",
+		Short: "Remove the current session's preview target without opening anything",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return ctx.clearPreview(cmd.Context())
@@ -135,8 +136,7 @@ func (c *commandContext) openPreview(ctx context.Context, target string) error {
 	return c.postJSON(ctx, path, previewAPIRequest{Url: target}, nil)
 }
 
-// clearPreview empties the desktop browser panel for the current session
-// (`opr preview clear`) by deleting the session's stored preview target.
+// clearPreview removes the current session's stored external preview target.
 func (c *commandContext) clearPreview(ctx context.Context) error {
 	path, err := sessionPreviewPath()
 	if err != nil {

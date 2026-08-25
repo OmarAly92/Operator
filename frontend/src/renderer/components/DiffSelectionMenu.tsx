@@ -28,7 +28,7 @@ export type DiffSelectionMenuProps = {
 type Mode = "actions" | "input";
 type SendStatus = "idle" | "sending" | "sent" | "error";
 
-// Mirrors BrowserPanel's ~2s "Sent" confirmation window before auto-close.
+// Mirrors the ~2s "Sent" confirmation window before auto-close.
 const SENT_AUTO_CLOSE_MS = 2_000;
 
 export function DiffSelectionMenu({

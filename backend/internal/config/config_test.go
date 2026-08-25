@@ -10,7 +10,7 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	// Clear every recognised var so we observe pure defaults regardless of the
 	// surrounding environment.
-	for _, k := range []string{"OPERATOR_PORT", "OPERATOR_REQUEST_TIMEOUT", "OPERATOR_SHUTDOWN_TIMEOUT", "OPERATOR_RUN_FILE", "OPERATOR_DATA_DIR", "OPERATOR_AGENT", "OPERATOR_ALLOWED_ORIGINS", "OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_POSTHOG_KEY", "OPERATOR_TELEMETRY_POSTHOG_HOST", "OPERATOR_TELEMETRY_DISABLED_EVENTS", "OPERATOR_TELEMETRY_APP_VERSION"} {
+	for _, k := range []string{"OPERATOR_PORT", "OPERATOR_REQUEST_TIMEOUT", "OPERATOR_SHUTDOWN_TIMEOUT", "OPERATOR_RUN_FILE", "OPERATOR_DATA_DIR", "OPERATOR_AGENT", "OPERATOR_ALLOWED_ORIGINS", "OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_POSTHOG_KEY", "OPERATOR_TELEMETRY_POSTHOG_HOST", "OPERATOR_TELEMETRY_DISABLED_EVENTS", "OPERATOR_TELEMETRY_APP_VERSION", "OPERATOR_TELEMETRY_RENDERER"} {
 		t.Setenv(k, "")
 	}
 
@@ -163,7 +163,7 @@ func TestLoadAllowedOrigins(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		want := []string{"app://renderer", "tauri://localhost", "http://tauri.localhost"}
+		want := []string{"tauri://localhost", "http://tauri.localhost"}
 		if len(cfg.AllowedOrigins) != len(want) {
 			t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
 		}
@@ -175,12 +175,12 @@ func TestLoadAllowedOrigins(t *testing.T) {
 	})
 
 	t.Run("override replaces defaults and trims entries", func(t *testing.T) {
-		t.Setenv("OPERATOR_ALLOWED_ORIGINS", " app://renderer , http://localhost:9999 ,")
+		t.Setenv("OPERATOR_ALLOWED_ORIGINS", " tauri://localhost , http://localhost:9999 ,")
 		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		want := []string{"app://renderer", "http://localhost:9999"}
+		want := []string{"tauri://localhost", "http://localhost:9999"}
 		if len(cfg.AllowedOrigins) != len(want) {
 			t.Fatalf("AllowedOrigins = %v, want %v", cfg.AllowedOrigins, want)
 		}
@@ -232,5 +232,62 @@ func TestLoadTelemetryDisabledEventsBlankIsInert(t *testing.T) {
 	}
 	if cfg.Telemetry.AppVersion != "" {
 		t.Fatalf("AppVersion = %q, want empty", cfg.Telemetry.AppVersion)
+	}
+}
+
+func TestLoadTelemetryRendererIntent(t *testing.T) {
+	t.Run("defaults to disabled so a bare daemon never serves a desktop bootstrap", func(t *testing.T) {
+		for _, k := range []string{"OPERATOR_TELEMETRY_EVENTS", "OPERATOR_TELEMETRY_METRICS", "OPERATOR_TELEMETRY_REMOTE", "OPERATOR_TELEMETRY_RENDERER"} {
+			t.Setenv(k, "")
+		}
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Telemetry.Renderer {
+			t.Fatalf("Telemetry.Renderer = true, want false by default")
+		}
+	})
+
+	t.Run("supervisor-injected on and off values resolve", func(t *testing.T) {
+		t.Setenv("OPERATOR_TELEMETRY_APP_VERSION", "")
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "on")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load on: %v", err)
+		}
+		if !cfg.Telemetry.Renderer {
+			t.Fatal("Telemetry.Renderer = false, want true for on")
+		}
+
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "off")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("Load off: %v", err)
+		}
+		if cfg.Telemetry.Renderer {
+			t.Fatal("Telemetry.Renderer = true, want false for off")
+		}
+	})
+
+	t.Run("a malformed value fails fast like the other telemetry toggles", func(t *testing.T) {
+		t.Setenv("OPERATOR_TELEMETRY_RENDERER", "maybe")
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() = nil error, want error")
+		}
+	})
+}
+
+func TestStateRootMatchesCanonicalOperatorHome(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	stateRoot, err := StateRoot()
+	if err != nil {
+		t.Fatalf("StateRoot: %v", err)
+	}
+	if stateRoot != filepath.Join(homeDir, ".operator") {
+		t.Errorf("StateRoot = %q, want %q", stateRoot, filepath.Join(homeDir, ".operator"))
 	}
 }

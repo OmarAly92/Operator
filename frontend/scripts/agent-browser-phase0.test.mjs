@@ -8,7 +8,9 @@ import {
 	EXIT_CODES,
 	assertSafeArguments,
 	buildProbeEnvironment,
+	createConcurrencyCoordinator,
 	createSessionRoot,
+	crossModeCookieIsolation,
 	locateManagedExecutable,
 	mapOutcomeToExitCode,
 	runMode,
@@ -17,6 +19,15 @@ import {
 	scanForSessionElectronProcesses,
 	serializeInstall,
 } from "./agent-browser-phase0.mjs";
+
+test("bounded process output never retains more than the configured byte limit", async () => {
+	const { createBoundedOutput } = await import("./agent-browser-phase0.mjs");
+	const output = createBoundedOutput(8);
+	output.append(Buffer.from("123456"));
+	output.append(Buffer.from("789012345"));
+	assert.equal(Buffer.byteLength(output.text()), 8);
+	assert.equal(output.truncated(), true);
+});
 
 function fakeSpawn(responses) {
 	const calls = [];
@@ -319,6 +330,7 @@ test("system mode happy path runs the full action suite without cdp or electron"
 			seenEnvs.push(request.env);
 			return jsonBody({ ok: true, pageId: "p1" });
 		},
+		{ code: 0, stdout: `  900  ${sessionRoot}/.agent-browser/chromium --headless`, stderr: "" },
 		jsonBody({ ok: true }),
 		jsonBody({ ok: true }),
 		jsonBody({ messages: ["hello"] }),
@@ -328,11 +340,7 @@ test("system mode happy path runs the full action suite without cdp or electron"
 		jsonBody({ tabs: [] }),
 		jsonBody({ ok: true }),
 		jsonBody({ ok: true }),
-		(request) => ({
-			code: 0,
-			stdout: `  900  ${request.env.HOME}/Electron Helper`,
-			stderr: "",
-		}),
+		{ code: 0, stdout: "", stderr: "" },
 	]);
 	const outcome = await runMode("system", {
 		sessionRoot,
@@ -349,6 +357,7 @@ test("system mode happy path runs the full action suite without cdp or electron"
 	assert.deepEqual(commands, [
 		"doctor",
 		"open",
+		"process-scan",
 		"snapshot",
 		"click",
 		"console",
@@ -367,6 +376,59 @@ test("system mode happy path runs the full action suite without cdp or electron"
 	assert.equal(outcome.daemonStarted, false);
 	const evidenceText = JSON.stringify(outcome.evidence);
 	assert.equal(evidenceText.includes(sessionRoot), false);
+});
+
+test("browser evidence proves isolation while running and cleanup after close", async () => {
+	const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-live-proof-"));
+	const jsonBody = (payload) => ({ code: 0, stdout: JSON.stringify(payload), stderr: "" });
+	const { spawn } = fakeSpawn([
+		jsonBody({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }),
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: `  901  ${sessionRoot}/.agent-browser/chromium --headless`, stderr: "" },
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: "", stderr: "" },
+	]);
+	const result = await runMode("system", {
+		sessionRoot,
+		spawnImpl: spawn,
+		platform: "darwin",
+		now: () => 0,
+		fixturePort: 45931,
+		binaryPath: "/tmp/agent-browser",
+		scenario: { actions: ["open {fixture} --json", "close --json"] },
+		cleanupHook: async () => {},
+	});
+	assert.equal(result.outcome, "pass");
+	assert.equal(result.evidence.isolatedWhileRunning, true);
+	assert.equal(result.evidence.cleanupPassed, true);
+	assert.equal(result.evidence.stateRootRemoved, true);
+	assert.equal(result.evidence.observedProcessCount, 1);
+});
+
+test("a failed action still closes the browser before removing its isolated state", async () => {
+	const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-failure-cleanup-"));
+	const jsonBody = (payload) => ({ code: 0, stdout: JSON.stringify(payload), stderr: "" });
+	const { spawn, calls } = fakeSpawn([
+		jsonBody({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }),
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: `  902  ${sessionRoot}/.agent-browser/chromium --headless`, stderr: "" },
+		{ code: 1, stdout: "", stderr: "snapshot failed" },
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: "", stderr: "" },
+	]);
+	const result = await runMode("system", {
+		sessionRoot,
+		spawnImpl: spawn,
+		platform: "darwin",
+		now: () => 0,
+		fixturePort: 45931,
+		binaryPath: "/tmp/agent-browser",
+		scenario: { actions: ["open {fixture} --json", "snapshot -i --json"] },
+		cleanupHook: async () => {},
+	});
+	assert.equal(result.outcome, "action-failed");
+	assert.ok(calls.some(({ request }) => request.args?.[0] === "close"));
+	assert.equal(result.evidence.cleanupPassed, true);
 });
 
 test("absent browser in system mode maps to the stable browser-absent outcome", async () => {
@@ -413,4 +475,157 @@ test("scenarios file defines both modes within the policy vocabulary", async () 
 		}
 	}
 	assert.ok(scenarios.managed.actions.some((action) => action.startsWith("install")));
+});
+
+test("truncated command output fails closed like timeouts", async () => {
+	const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-truncate-"));
+	const jsonBody = (payload) => ({ code: 0, stdout: JSON.stringify(payload), stderr: "" });
+	const { spawn } = fakeSpawn([
+		jsonBody({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }),
+		{ code: 0, stdout: `${"y".repeat(4096)}not-retained`, stderr: "", outputTruncated: true },
+	]);
+	const outcome = await runMode("system", {
+		sessionRoot,
+		spawnImpl: spawn,
+		platform: "darwin",
+		now: () => 0,
+		fixturePort: 45931,
+		binaryPath: "/tmp/agent-browser",
+		outputLimitBytes: 64,
+		scenario: { actions: ["open {fixture} --json"] },
+		cleanupHook: async () => {},
+	});
+	assert.equal(outcome.outcome, "truncated");
+	assert.equal(mapOutcomeToExitCode("truncated"), EXIT_CODES.OUTPUT_TRUNCATED);
+});
+
+test("cookie actions are allowed within the policy vocabulary for loopback targets", async () => {
+	const options = { sessionRoot: "/tmp/root", platform: "darwin" };
+	assertSafeArguments(["cookies", "set", "phase0_system_marker", "system", "--url", "http://127.0.0.1:45931/", "--json"], options);
+	assertSafeArguments(["cookies", "get", "--json"], options);
+	assertSafeArguments(["cookies", "clear", "--json"], options);
+	await policyRejects(["cookies", "set", "phase0_system_marker", "system", "--url", "http://evil.example/", "--json"]);
+});
+
+test("cookie distinctness is observed per mode and recorded in evidence", async () => {
+	const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-cookies-"));
+	const jsonBody = (payload) => ({ code: 0, stdout: JSON.stringify(payload), stderr: "" });
+	const { spawn, calls } = fakeSpawn([
+		jsonBody({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }),
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: `  911  ${sessionRoot}/.agent-browser/chromium --headless`, stderr: "" },
+		jsonBody({ ok: true }),
+		jsonBody([{ name: "phase0_system_marker", value: "system", domain: "127.0.0.1" }]),
+		jsonBody({ ok: true }),
+		{ code: 0, stdout: "", stderr: "" },
+	]);
+	const result = await runMode("system", {
+		sessionRoot,
+		spawnImpl: spawn,
+		platform: "darwin",
+		now: () => 0,
+		fixturePort: 45931,
+		binaryPath: "/tmp/agent-browser",
+		scenario: {
+			actions: [
+				"open {fixture} --json",
+				"cookies set phase0_system_marker system --url {fixture} --json",
+				"cookies get --json",
+				"close --json",
+			],
+		},
+		cleanupHook: async () => {},
+	});
+	assert.equal(result.outcome, "pass", JSON.stringify(result.evidence));
+	assert.deepEqual(result.evidence.cookies.observedNames, ["phase0_system_marker"]);
+	assert.equal(result.evidence.cookies.markerPresent, true);
+	assert.ok(calls.some(({ request }) => request.args?.[0] === "cookies"));
+	const evidenceText = JSON.stringify(result.evidence);
+	assert.equal(evidenceText.includes(sessionRoot), false);
+});
+
+test("cross-mode cookie isolation requires every mode marker to stay inside its own session", () => {
+	const system = { cookies: { observedNames: ["phase0_system_marker"], markerPresent: true } };
+	const managed = { cookies: { observedNames: ["phase0_managed_marker"], markerPresent: true } };
+	assert.equal(crossModeCookieIsolation({ system, managed }), true);
+	const leaked = { system, managed: { cookies: { observedNames: ["phase0_managed_marker", "phase0_system_marker"], markerPresent: true } } };
+	assert.equal(crossModeCookieIsolation(leaked), false);
+	const missingMarker = { system: { cookies: { observedNames: [], markerPresent: false } }, managed };
+	assert.equal(crossModeCookieIsolation(missingMarker), false);
+});
+
+test("both modes are concurrently active and observe each other through one process scan", async () => {
+	const systemRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-conc-system-"));
+	const managedRoot = await mkdtemp(path.join(os.tmpdir(), "operator-abp-conc-managed-"));
+	const jsonBody = (payload) => ({ code: 0, stdout: JSON.stringify(payload), stderr: "" });
+	const managedEngine = path.join(
+		managedRoot,
+		".agent-browser",
+		"browsers",
+		"chromium-144",
+		"chrome-mac-arm64",
+		"Google Chrome for Testing.app",
+		"Contents",
+		"MacOS",
+		"Google Chrome for Testing",
+	);
+	await mkdir(path.dirname(managedEngine), { recursive: true });
+	await writeFile(managedEngine, "#!/bin/sh\n", { mode: 0o755 });
+	const makeSpawn = (sessionRoot, otherRoot, isManaged) => fakeSpawn([
+		jsonBody({ success: true, summary: { pass: 1, warn: 0, fail: 0 }, checks: [{ id: "chrome", category: "browser", status: "pass" }] }),
+		...(isManaged ? [jsonBody({ ok: true })] : []),
+		jsonBody({ ok: true }),
+		(request) => new Promise((resolve) => setTimeout(() => resolve({
+			code: 0,
+			stdout: [
+				`  921  ${sessionRoot}/.agent-browser/chromium --headless`,
+				`  922  ${otherRoot}/.agent-browser/chromium --headless`,
+			].join("\n"),
+			stderr: "",
+		}), 25)),
+		(request) => new Promise((resolve) => setTimeout(() => resolve({
+			code: 0,
+			stdout: [
+				`  921  ${sessionRoot}/.agent-browser/chromium --headless`,
+				`  922  ${otherRoot}/.agent-browser/chromium --headless`,
+			].join("\n"),
+			stderr: "",
+		}), 25)),
+		jsonBody({ ok: true }),
+	]);
+	const peersByMode = {};
+	const registerArrival = (mode) => async (peers) => {
+		peersByMode[mode] = peers;
+		return peers;
+	};
+	const coordinator = createConcurrencyCoordinator(["system", "managed"], registerArrival);
+	const [system, managed] = await Promise.all([
+		runMode("system", {
+			sessionRoot: systemRoot,
+			spawnImpl: makeSpawn(systemRoot, managedRoot, false).spawn,
+			platform: "darwin",
+			now: () => 0,
+			fixturePort: 45931,
+			binaryPath: "/tmp/agent-browser",
+			scenario: { actions: ["open {fixture} --json", "close --json"] },
+			concurrency: coordinator.forMode("system"),
+			cleanupHook: async () => {},
+		}),
+		runMode("managed", {
+			sessionRoot: managedRoot,
+			spawnImpl: makeSpawn(managedRoot, systemRoot, true).spawn,
+			platform: "darwin",
+			now: () => 0,
+			fixturePort: 45931,
+			binaryPath: "/tmp/agent-browser",
+			scenario: { actions: ["open {fixture} --json", "close --json"] },
+			concurrency: coordinator.forMode("managed"),
+			cleanupHook: async () => {},
+		}),
+	]);
+	assert.equal(system.outcome, "pass", JSON.stringify(system.evidence));
+	assert.equal(managed.outcome, "pass", JSON.stringify(managed.evidence));
+	assert.equal(system.evidence.concurrentlyActiveModes.length, 1);
+	assert.equal(system.evidence.peerBrowserProcessCount >= 1, true);
+	assert.equal(managed.evidence.peerBrowserProcessCount >= 1, true);
 });

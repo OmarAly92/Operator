@@ -111,7 +111,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
-    preview_revision, cleanup_generation, runtime_launch_id,
+    preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
@@ -140,6 +140,7 @@ type GetSessionRow struct {
 	FirstSignalAt             sql.NullTime
 	PreviewURL                string
 	PreviewRevision           int64
+	PreviewOpenedRevision     int64
 	CleanupGeneration         int64
 	RuntimeLaunchID           string
 	WorkspaceRepoPath         string
@@ -183,6 +184,7 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.FirstSignalAt,
 		&i.PreviewURL,
 		&i.PreviewRevision,
+		&i.PreviewOpenedRevision,
 		&i.CleanupGeneration,
 		&i.RuntimeLaunchID,
 		&i.WorkspaceRepoPath,
@@ -211,14 +213,14 @@ INSERT INTO sessions (
     branch, workspace_path, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
-    preview_url, preview_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
+    preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     session_mode, provider_conversation_id, controller_generation,
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -249,6 +251,7 @@ type InsertSessionParams struct {
 	NativeTranscriptPath      string
 	PreviewURL                string
 	PreviewRevision           int64
+	PreviewOpenedRevision     int64
 	TerminateOnPRMerge        bool
 	CleanupGeneration         int64
 	BrowserCapabilityVerifier string
@@ -290,6 +293,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.NativeTranscriptPath,
 		arg.PreviewURL,
 		arg.PreviewRevision,
+		arg.PreviewOpenedRevision,
 		arg.TerminateOnPRMerge,
 		arg.CleanupGeneration,
 		arg.BrowserCapabilityVerifier,
@@ -310,7 +314,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
-    preview_revision, cleanup_generation, runtime_launch_id,
+    preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
@@ -339,6 +343,7 @@ type ListAllSessionsRow struct {
 	FirstSignalAt             sql.NullTime
 	PreviewURL                string
 	PreviewRevision           int64
+	PreviewOpenedRevision     int64
 	CleanupGeneration         int64
 	RuntimeLaunchID           string
 	WorkspaceRepoPath         string
@@ -388,6 +393,7 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.FirstSignalAt,
 			&i.PreviewURL,
 			&i.PreviewRevision,
+			&i.PreviewOpenedRevision,
 			&i.CleanupGeneration,
 			&i.RuntimeLaunchID,
 			&i.WorkspaceRepoPath,
@@ -424,7 +430,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
-    preview_revision, cleanup_generation, runtime_launch_id,
+    preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
@@ -453,6 +459,7 @@ type ListSessionsByProjectRow struct {
 	FirstSignalAt             sql.NullTime
 	PreviewURL                string
 	PreviewRevision           int64
+	PreviewOpenedRevision     int64
 	CleanupGeneration         int64
 	RuntimeLaunchID           string
 	WorkspaceRepoPath         string
@@ -502,6 +509,7 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.FirstSignalAt,
 			&i.PreviewURL,
 			&i.PreviewRevision,
+			&i.PreviewOpenedRevision,
 			&i.CleanupGeneration,
 			&i.RuntimeLaunchID,
 			&i.WorkspaceRepoPath,
@@ -531,6 +539,37 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 		return nil, err
 	}
 	return items, nil
+}
+
+const markSessionPreviewOpened = `-- name: MarkSessionPreviewOpened :execrows
+UPDATE sessions
+SET preview_opened_revision = ?, updated_at = ?
+WHERE id = ? AND preview_revision = ? AND preview_opened_revision < ?
+`
+
+type MarkSessionPreviewOpenedParams struct {
+	PreviewOpenedRevision   int64
+	UpdatedAt               time.Time
+	ID                      domain.SessionID
+	PreviewRevision         int64
+	PreviewOpenedRevision_2 int64
+}
+
+// Advances preview_opened_revision only to the session's current
+// preview_revision and only forward. A second acknowledgement of the same
+// revision matches zero rows, which the caller treats as the idempotent case.
+func (q *Queries) MarkSessionPreviewOpened(ctx context.Context, arg MarkSessionPreviewOpenedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markSessionPreviewOpened,
+		arg.PreviewOpenedRevision,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.PreviewRevision,
+		arg.PreviewOpenedRevision_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const nextSessionNum = `-- name: NextSessionNum :one
@@ -718,7 +757,7 @@ UPDATE sessions SET
     branch = ?, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
     latest_user_prompt = ?, latest_assistant_update = ?, native_transcript_path = ?,
-    preview_url = ?, preview_revision = ?, terminate_on_pr_merge = ?,
+    preview_url = ?, preview_revision = ?, preview_opened_revision = ?, terminate_on_pr_merge = ?,
     cleanup_generation = ?, browser_capability_verifier = ?,
     provider_conversation_id = ?, controller_generation = ?, updated_at = ?,
     is_pinned = ?, pinned_at = ?, auto_inject_review = ?
@@ -749,6 +788,7 @@ type UpdateSessionParams struct {
 	NativeTranscriptPath      string
 	PreviewURL                string
 	PreviewRevision           int64
+	PreviewOpenedRevision     int64
 	TerminateOnPRMerge        bool
 	CleanupGeneration         int64
 	BrowserCapabilityVerifier string
@@ -786,6 +826,7 @@ func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) er
 		arg.NativeTranscriptPath,
 		arg.PreviewURL,
 		arg.PreviewRevision,
+		arg.PreviewOpenedRevision,
 		arg.TerminateOnPRMerge,
 		arg.CleanupGeneration,
 		arg.BrowserCapabilityVerifier,

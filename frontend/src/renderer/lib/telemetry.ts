@@ -1,8 +1,23 @@
-import posthog from "posthog-js/dist/module.full.no-external";
 import { operatorBridge } from "./bridge";
 import { isLoopbackHostname } from "./loopback";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
 import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from "../../shared/posthog-config";
+
+// The PostHog SDK measured 518,723 bytes when inlined into the 1,729,775-byte
+// renderer entry chunk, and nothing on the critical paint path needs it: every
+// consumer here already awaits initTelemetry(). Loading it through a dynamic
+// import keeps it out of the eager parse set entirely
+// (route-bundle-report before.json/after.json, 2026-08-24).
+type PostHogClient = typeof import("posthog-js/dist/module.full.no-external").default;
+
+let posthogModulePromise: Promise<PostHogClient> | null = null;
+
+function loadPostHog(): Promise<PostHogClient> {
+	posthogModulePromise ??= import("posthog-js/dist/module.full.no-external").then((module) => module.default);
+	return posthogModulePromise;
+}
+
+let posthog: PostHogClient | undefined;
 
 const POSTHOG_KEY = import.meta.env.VITE_OPERATOR_POSTHOG_KEY?.trim() || DEFAULT_POSTHOG_PROJECT_KEY;
 const POSTHOG_HOST = import.meta.env.VITE_OPERATOR_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
@@ -13,7 +28,7 @@ const REDACTED_LOCAL_PATH = "[redacted-local-path]";
 const ACTIVE_STORAGE_KEY = "opr.telemetry.activeSlotsByDate";
 const ROUTE_VIEW_STORAGE_KEY = "opr.telemetry.routeViewsByDate";
 const EMBEDDED_LOCAL_URL_PATTERN =
-	/(?:\bfile:\/\/\/\S+|\bapp:\/\/renderer\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\S*)/gi;
+	/(?:\bfile:\/\/\/\S+|\btauri:\/\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|tauri\.localhost)(?::\d+)?\S*)/gi;
 const POSTHOG_EVENT_NAME_ALIASES: Record<string, string> = {
 	"opr.app.active": "opr.v2.app.active",
 	"opr.renderer.route_viewed": "opr.v2.renderer.route_viewed",
@@ -603,7 +618,7 @@ function bindErrorHandlers() {
 	});
 }
 
-type PostHogInitOptions = NonNullable<Parameters<typeof posthog.init>[1]>;
+type PostHogInitOptions = NonNullable<Parameters<PostHogClient["init"]>[1]>;
 
 export function buildPostHogConfig(distinctId: string): PostHogInitOptions {
 	return {
@@ -650,20 +665,26 @@ export async function initTelemetry(): Promise<boolean> {
 	initPromise = (async () => {
 		if (!POSTHOG_KEY) return false;
 		const bootstrap = await operatorBridge.telemetry.getBootstrap();
-		// Null means the supervisor withheld it: no key, no data dir, or an
-		// unpackaged build that has not opted in. The client is never created.
-		if (!bootstrap) return false;
+		// Null means the source withheld it: no key, no data dir, an unpackaged
+		// build that has not opted in, or a daemon that could not be reached. A
+		// payload without a usable distinct id counts as withheld too — the
+		// client is never created on a half-read identity.
+		if (!bootstrap || typeof bootstrap.distinctId !== "string" || bootstrap.distinctId.trim() === "") {
+			return false;
+		}
+		const client = await loadPostHog();
 		disabledEventMatchers = bootstrap.disabledEvents ?? [];
 		telemetryContext = buildTelemetryContext(
 			bootstrap.appVersion,
 			bootstrap.platform,
 			releaseChannelFrom(await readUpdateSettingsForTelemetry()),
 		);
-		posthog.init(POSTHOG_KEY, buildPostHogConfig(bootstrap.distinctId));
-		posthog.register({
+		client.init(POSTHOG_KEY, buildPostHogConfig(bootstrap.distinctId));
+		client.register({
 			...telemetryContext,
 			surface: "renderer",
 		});
+		posthog = client;
 		bindErrorHandlers();
 		startDailyActiveHeartbeat({
 			storage: telemetryStorage(),
@@ -678,14 +699,14 @@ export async function initTelemetry(): Promise<boolean> {
 				isDeniedEvent("opr.app.active")
 					? true
 					: Boolean(
-					posthog.capture(
+					client.capture(
 						postHogEventName("opr.app.active"),
 						withTelemetryContext(await sanitizeRendererProperties("opr.app.active", { channel: "renderer" })),
 					),
 				),
 		});
 		if (!isDeniedEvent("opr.renderer.loaded")) {
-			posthog.capture(
+			client.capture(
 				postHogEventName("opr.renderer.loaded"),
 				withTelemetryContext(await sanitizeRendererProperties("opr.renderer.loaded")),
 			);
@@ -707,7 +728,7 @@ export async function captureRendererEvent(event: string, properties?: Record<st
 	} else if (!reserveCapture(event)) {
 		return;
 	}
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(sanitizedProperties);
 	posthog.capture(postHogEventName(event), safeProperties);
 }
@@ -717,13 +738,13 @@ export async function captureRendererException(error: unknown, properties?: Reco
 	// operator would type to silence a crash loop.
 	if (isDeniedEvent("$exception")) return;
 	if (!reserveCapture(`exception:${exceptionName(error)}`)) return;
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(await sanitizeRendererExceptionProperties(error, properties));
 	posthog.captureException(normalizeException(error), safeProperties);
 }
 
 export async function addRendererExceptionStep(message: string, properties?: Record<string, unknown>): Promise<void> {
-	if (!(await initTelemetry())) return;
+	if (!(await initTelemetry()) || !posthog) return;
 	const safeProperties = withTelemetryContext(await sanitizeRendererContextProperties(properties));
 	posthog.addExceptionStep(message, safeProperties);
 }

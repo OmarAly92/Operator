@@ -8,18 +8,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
+	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 )
 
-const browserCapabilityHeader = "X-Operator-Browser-Capability"
+const (
+	browserCapabilityHeader = "X-Operator-Browser-Capability"
+	browserTransport        = "agent-browser-standalone"
+)
 
-// BrowserService authorizes and executes session-scoped browser operations.
+// BrowserService authorizes and executes session-scoped browser operations
+// through the adapter-neutral runtime contract.
 type BrowserService interface {
-	Status(ctx context.Context, sessionID domain.SessionID, capability string) (browserruntime.Status, error)
-	Execute(ctx context.Context, sessionID domain.SessionID, capability, action string, args map[string]interface{}) (browserruntime.Result, string, error)
+	Status(ctx context.Context, sessionID domain.SessionID, capability string) (browsersvc.RuntimeStatus, error)
+	Execute(ctx context.Context, sessionID domain.SessionID, capability, action string, args map[string]interface{}) (browsersvc.RuntimeResult, string, error)
 }
 
 // BrowserController exposes the loopback-only browser command API.
@@ -50,9 +54,9 @@ func (c *BrowserController) status(w http.ResponseWriter, r *http.Request) {
 	}
 	envelope.WriteJSON(w, http.StatusOK, BrowserStatusResponse{
 		SessionID:   sessionID,
-		Connected:   status.Connected,
-		ConnectedAt: status.ConnectedAt,
-		Transport:   "electron-webcontents-debugger",
+		Connected:   status.Ready,
+		ConnectedAt: status.ReadyAt,
+		Transport:   browserTransport,
 	})
 }
 
@@ -90,11 +94,11 @@ func (c *BrowserController) execute(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeBrowserError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, browserruntime.ErrUnavailable) {
-		envelope.WriteAPIError(w, r, http.StatusServiceUnavailable, "unavailable", "BROWSER_RUNTIME_UNAVAILABLE", "Desktop browser runtime is not connected", nil)
+	if errors.Is(err, browsersvc.ErrUnavailable) {
+		envelope.WriteAPIError(w, r, http.StatusServiceUnavailable, "unavailable", "BROWSER_RUNTIME_UNAVAILABLE", "Browser automation runtime is not available", nil)
 		return
 	}
-	var commandErr browserruntime.CommandError
+	var commandErr browsersvc.CommandError
 	if errors.As(err, &commandErr) {
 		status := http.StatusUnprocessableEntity
 		typeName := "unprocessable"
@@ -107,9 +111,16 @@ func writeBrowserError(w http.ResponseWriter, r *http.Request, err error) {
 			status = http.StatusConflict
 			typeName = "conflict"
 		case "BROWSER_TARGET_UNAVAILABLE", "BROWSER_AUTOMATION_UNAVAILABLE", "AGENT_BROWSER_NOT_INSTALLED",
-			"AGENT_BROWSER_START_FAILED", "BROWSER_DEVTOOLS_UNAVAILABLE":
+			"AGENT_BROWSER_START_FAILED", "AGENT_BROWSER_INSTALL_FAILED", "AGENT_BROWSER_TIMEOUT",
+			"BROWSER_DEVTOOLS_UNAVAILABLE":
 			status = http.StatusServiceUnavailable
 			typeName = "unavailable"
+		case "AGENT_BROWSER_CANCELLED":
+			status = http.StatusRequestTimeout
+			typeName = "timeout"
+		case "AGENT_BROWSER_OUTPUT_TOO_LARGE", "AGENT_BROWSER_INVALID_OUTPUT":
+			status = http.StatusUnprocessableEntity
+			typeName = "unprocessable"
 		}
 		envelope.WriteAPIError(w, r, status, typeName, commandErr.Code, commandErr.Message, nil)
 		return

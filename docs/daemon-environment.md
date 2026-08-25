@@ -1,8 +1,16 @@
 # Daemon environment: the GUI-launch PATH/credentials problem
 
-Status: proposed
-Scope: desktop (Electron) launch of the Operator daemon on macOS (and any GUI-launched
-desktop platform)
+Status: implemented (login-shell resolution ships in the Tauri supervisor)
+Scope: desktop (Tauri shell; formerly Electron) launch of the Operator daemon on
+macOS (and any GUI-launched desktop platform)
+
+> **Where it lives now.** The Electron `daemonEnv()` this document proposed was
+> replaced by the Tauri port: `frontend/src-tauri/src/daemon/supervisor.rs`
+> (`ensure_shell_env`) resolves the login-shell environment once and
+> `frontend/src-tauri/src/daemon/discovery.rs` picks the shell, brackets the
+> payload, and parses it. The rest of this document is kept as the design
+> record; every mention of Electron main / `frontend/src/main.ts` below is
+> historical.
 
 ## Summary
 

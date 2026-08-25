@@ -10,21 +10,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
+	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 )
 
 type fakeBrowserRuntime struct {
-	status browserruntime.Status
+	status browsersvc.RuntimeStatus
 	action string
 	args   map[string]interface{}
 	err    error
 }
 
-func (f *fakeBrowserRuntime) Status(_ context.Context, _ domain.SessionID, _ string) (browserruntime.Status, error) {
+func (f *fakeBrowserRuntime) Status(_ context.Context, _ domain.SessionID, _ string) (browsersvc.RuntimeStatus, error) {
 	return f.status, nil
 }
 
@@ -34,19 +34,19 @@ func (f *fakeBrowserRuntime) Execute(
 	_ string,
 	action string,
 	args map[string]interface{},
-) (browserruntime.Result, string, error) {
+) (browsersvc.RuntimeResult, string, error) {
 	f.action, f.args = action, args
 	if action == "eval" {
-		return browserruntime.Result{}, action, apierr.Invalid(
+		return browsersvc.RuntimeResult{}, action, apierr.Invalid(
 			"BROWSER_ACTION_UNSUPPORTED",
 			"Unsupported browser action",
 			nil,
 		)
 	}
 	if f.err != nil {
-		return browserruntime.Result{}, action, f.err
+		return browsersvc.RuntimeResult{}, action, f.err
 	}
-	return browserruntime.Result{RequestID: "request-1", Value: map[string]interface{}{"text": "button Save [ref=e1]"}}, action, nil
+	return browsersvc.RuntimeResult{RequestID: "request-1", Value: map[string]interface{}{"text": "button Save [ref=e1]"}}, action, nil
 }
 
 func browserServer(t *testing.T, runtime *fakeBrowserRuntime) *httptest.Server {
@@ -61,12 +61,12 @@ func browserServer(t *testing.T, runtime *fakeBrowserRuntime) *httptest.Server {
 }
 
 func TestBrowserStatusAndSnapshot(t *testing.T) {
-	connectedAt := time.Now().UTC().Truncate(time.Second)
-	runtime := &fakeBrowserRuntime{status: browserruntime.Status{Connected: true, ConnectedAt: connectedAt}}
+	readyAt := time.Now().UTC().Truncate(time.Second)
+	runtime := &fakeBrowserRuntime{status: browsersvc.RuntimeStatus{Ready: true, ReadyAt: readyAt}}
 	srv := browserServer(t, runtime)
 
 	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/browser/status?sessionId=opr-1", "")
-	if status != http.StatusOK || !containsAll(body, `"connected":true`, `"transport":"electron-webcontents-debugger"`) {
+	if status != http.StatusOK || !containsAll(body, `"connected":true`, `"transport":"agent-browser-standalone"`) {
 		t.Fatalf("status = %d body=%s", status, body)
 	}
 	body, status, _ = doRequest(t, srv, http.MethodPost, "/api/v1/browser/commands", `{"sessionId":"opr-1","action":"snapshot","args":{"interactive":true}}`)
@@ -75,6 +75,15 @@ func TestBrowserStatusAndSnapshot(t *testing.T) {
 	}
 	if runtime.action != "snapshot" || runtime.args["interactive"] != true {
 		t.Fatalf("runtime command = %q %#v", runtime.action, runtime.args)
+	}
+}
+
+func TestBrowserStatusReportsDisconnectedWithoutReadyRuntime(t *testing.T) {
+	runtime := &fakeBrowserRuntime{}
+	srv := browserServer(t, runtime)
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/browser/status?sessionId=opr-1", "")
+	if status != http.StatusOK || !containsAll(body, `"connected":false`) {
+		t.Fatalf("status = %d body=%s", status, body)
 	}
 }
 
@@ -116,15 +125,25 @@ func TestBrowserCommandValidationAndErrors(t *testing.T) {
 	if status != http.StatusBadRequest || !containsAll(body, `"code":"BROWSER_ACTION_UNSUPPORTED"`) {
 		t.Fatalf("unsupported = %d body=%s", status, body)
 	}
-	runtime.err = browserruntime.ErrUnavailable
+	runtime.err = browsersvc.ErrUnavailable
 	body, status, _ = doRequest(t, srv, http.MethodPost, "/api/v1/browser/commands", `{"sessionId":"opr-1","action":"snapshot"}`)
 	if status != http.StatusServiceUnavailable || !containsAll(body, `"code":"BROWSER_RUNTIME_UNAVAILABLE"`) {
 		t.Fatalf("unavailable = %d body=%s", status, body)
 	}
-	runtime.err = browserruntime.CommandError{Code: "STALE_REFERENCE", Message: "snapshot again"}
+	runtime.err = browsersvc.CommandError{Code: "STALE_REFERENCE", Message: "snapshot again"}
 	body, status, _ = doRequest(t, srv, http.MethodPost, "/api/v1/browser/commands", `{"sessionId":"opr-1","action":"click"}`)
 	if status != http.StatusConflict || !containsAll(body, `"code":"STALE_REFERENCE"`) {
 		t.Fatalf("stale = %d body=%s", status, body)
+	}
+	runtime.err = browsersvc.CommandError{Code: "AGENT_BROWSER_NOT_INSTALLED", Message: "missing"}
+	body, status, _ = doRequest(t, srv, http.MethodPost, "/api/v1/browser/commands", `{"sessionId":"opr-1","action":"click"}`)
+	if status != http.StatusServiceUnavailable || !containsAll(body, `"code":"AGENT_BROWSER_NOT_INSTALLED"`) {
+		t.Fatalf("not installed = %d body=%s", status, body)
+	}
+	runtime.err = browsersvc.CommandError{Code: "AGENT_BROWSER_INSTALL_FAILED", Message: "offline"}
+	body, status, _ = doRequest(t, srv, http.MethodPost, "/api/v1/browser/commands", `{"sessionId":"opr-1","action":"click"}`)
+	if status != http.StatusServiceUnavailable || !containsAll(body, `"code":"AGENT_BROWSER_INSTALL_FAILED"`) {
+		t.Fatalf("install failed = %d body=%s", status, body)
 	}
 }
 

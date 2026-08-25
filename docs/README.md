@@ -1,7 +1,7 @@
 # operator rewrite docs
 
 The operator is being rebuilt as a long-running Go backend daemon
-(`backend/`) plus an Electron + TypeScript frontend (`frontend/`). The backend
+(`backend/`) plus a Tauri + TypeScript desktop frontend (`frontend/`). The backend
 supervises coding-agent sessions and exposes daemon control, project/session
 state, terminal streaming, and CDC/event infrastructure.
 
@@ -17,6 +17,7 @@ Start with [architecture.md](architecture.md) for the current backend model and
 | [cli/README.md](cli/README.md)                         | CLI commands and daemon control surface.                                                                              |
 | [development.md](development.md)                       | Prerequisites, build steps, running tests, and troubleshooting for local development.                                 |
 | [STATUS.md](STATUS.md)                                 | What is shipped on `master` today and what is still in flight.                                                        |
+| [todo/tauri-port-release-and-follow-ups.md](todo/tauri-port-release-and-follow-ups.md) | Tauri release blockers, deferred native evidence, and post-port engineering follow-ups. |
 | [stack.md](stack.md)                                   | Accepted library/runtime choices, pending stack decisions, and dependencies explicitly avoided for V1.                |
 | [telemetry.md](telemetry.md)                           | Telemetry collection, privacy safeguards, and configuration.                                                           |
 | [posthog-cost-controls.md](posthog-cost-controls.md)   | PostHog event-name migration, ingestion drop rules, and dashboard queries for reducing telemetry spend.              |

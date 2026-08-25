@@ -170,7 +170,7 @@ Use each subcommand's help for required review-run IDs, verdict values, and file
 
 ### `opr preview [url]`
 
-Selects what the desktop Browser panel displays for the session identified by `OPERATOR_SESSION_ID`. With no argument Operator looks for a supported static entry point in the session workspace; with a file or `file:`, `http:`, or `https:` target it opens that target.
+Publishes a validated external preview target, which opens once in the user's default browser, for the session identified by `OPERATOR_SESSION_ID`. With no argument Operator looks for a supported static entry point in the session workspace; with a file or `file:`, `http:`, or `https:` target it opens that target.
 
 | Command | Purpose |
 | --- | --- |
@@ -183,11 +183,11 @@ Selects what the desktop Browser panel displays for the session identified by `O
 
 ### `opr browser`
 
-Controls the live, session-isolated Electron browser owned by the desktop app. It also resolves its target from `OPERATOR_SESSION_ID`; the desktop app must be open.
+Controls the session-isolated browser runtime owned by the daemon. It also resolves its target from `OPERATOR_SESSION_ID`; no desktop window needs to be open.
 
-The command family includes status/open, accessibility snapshots and references, click/drag/fill/type/press/hover, highlight, scroll, select/check state, property reads, tabs and popups, DevTools, frames, dialogs, waits, screenshots, console/page errors, and bounded opt-in network metadata capture.
+The command family includes status/open, accessibility snapshots and references, click/drag/fill/type/press/hover, highlight, scroll, select/check state, property reads, tabs, frames, dialogs, waits, screenshots, and console/page errors.
 
-References become stale after navigation, DOM replacement, frame changes, or tab changes. Take another snapshot when Operator reports `STALE_REFERENCE`. Network capture is off by default, metadata-only, bounded, and automatically expires.
+References become stale after navigation, DOM replacement, frame changes, or tab changes. Take another snapshot when Operator reports `STALE_REFERENCE`. DevTools control and network-metadata capture are not part of the standalone runtime: those commands fail closed with `BROWSER_DEVTOOLS_UNAVAILABLE` and `BROWSER_AUTOMATION_UNAVAILABLE` rather than being approximated.
 
 ## Migration and shell integration
 

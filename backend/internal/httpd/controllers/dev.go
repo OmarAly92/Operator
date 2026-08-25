@@ -21,11 +21,14 @@ type DevImportService interface {
 // DevController owns developer-only API routes.
 type DevController struct {
 	Import DevImportService
+	Scan   DevScanService
 }
 
 // Register mounts developer REST routes on the supplied router.
 func (c *DevController) Register(r chi.Router) {
 	r.Post("/dev/import-projects", c.importProjects)
+	r.Post("/dev/import-scan", c.importScan)
+	r.Post("/dev/ancestor-repository", c.ancestorRepository)
 }
 
 func (c *DevController) importProjects(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,115 @@
+name: Tauri WebDriver e2e
+
+# Native three-platform gate for the Tauri shell (task 20). The @wdio/tauri-service
+# embedded provider runs the WebDriver server INSIDE the app (tauri-plugin-wdio-webdriver,
+# compiled only under src-tauri's `e2` Cargo feature — the `e2e` feature), so no
+# external platform driver is needed on any runner: no tauri-driver, no msedgedriver,
+# no WebKitWebDriver package. Linux still needs Xvfb for a display and the WebKitGTK
+# runtime the app itself renders with.
+#
+# Every run is state-isolated: the suite hands the app a fresh temp state dir via
+# OPERATOR_RUN_FILE / OPERATOR_DATA_DIR (mirroring scripts/e2e-mac-update.mjs), so
+# nothing is ever written to ~/.operator and failure artifacts can be uploaded
+# without leaking user state.
+#
+# The build-contract steps prove on every platform that the embedded driver exists
+# ONLY in the e2e-feature build: cargo tree on both feature sets, the cfg-guarded
+# registration scan, and a byte-level marker check of BOTH built binaries.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - "frontend/e2e-tauri/**"
+      - "frontend/tsconfig.e2e-tauri.json"
+      - "frontend/src-tauri/**"
+      - "frontend/src/renderer/lib/tauri-bridge.ts"
+      - "frontend/src/renderer/routes/_shell.tsx"
+      - "frontend/src/renderer/components/UpdateOptInPrompt.tsx"
+      - "frontend/scripts/e2e-tauri-run.mjs"
+      - "frontend/scripts/e2e-tauri-build-contract.mjs"
+      - "frontend/scripts/e2e-tauri-build-contract.test.mjs"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/perf/parity-ledger.json"
+      - ".github/workflows/tauri-webdriver.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  webdriver-e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+      - run: npm ci
+      - run: npm run build:daemon
+      - run: npm run build:acp-runtime
+      - name: unit-test the build-contract helpers
+        run: node --test scripts/e2e-tauri-build-contract.test.mjs
+      - name: build the normal (feature-less) shell and snapshot it
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=""
+          if [ "$RUNNER_OS" = "Windows" ]; then suffix=".exe"; fi
+          cargo build --locked --manifest-path src-tauri/Cargo.toml
+          cp "src-tauri/target/debug/operator$suffix" "$RUNNER_TEMP/operator-plain$suffix"
+      - name: prove the embedded driver is absent from the normal build
+        shell: bash
+        env:
+          OPERATOR_TAURI_E2E_PLAIN_BINARY: ${{ runner.temp }}/operator-plain${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: npm run test:e2e-tauri:build-contract
+      - name: typecheck the e2e suite
+        run: npm run typecheck:e2e-tauri
+      - name: run the native Tauri e2e suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npm run test:e2e:tauri
+          else
+            npm run test:e2e:tauri
+          fi
+      - name: prove the driver exists only in the e2e-feature build
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=""
+          if [ "$RUNNER_OS" = "Windows" ]; then suffix=".exe"; fi
+          cp "src-tauri/target/debug/operator$suffix" "$RUNNER_TEMP/operator-driver$suffix"
+          OPERATOR_TAURI_E2E_PLAIN_BINARY="$RUNNER_TEMP/operator-plain$suffix" \
+            OPERATOR_TAURI_E2E_DRIVER_BINARY="$RUNNER_TEMP/operator-driver$suffix" \
+            npm run test:e2e-tauri:build-contract
+      - name: upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-webdriver-${{ matrix.os }}
+          path: |
+            frontend/test-results/e2e-tauri/**/*.png
+            frontend/test-results/e2e-tauri/**/*.log
+          if-no-files-found: ignore

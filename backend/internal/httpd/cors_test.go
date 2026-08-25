@@ -1,12 +1,76 @@
 package httpd
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/config"
 )
+
+func TestCORSPreviewOriginRequestsSkipTheBoundaryWithoutCORSGrants(t *testing.T) {
+	deps := APIDeps{}
+	router := NewRouterWithControl(config.Config{}, discardLogger(), nil, deps, ControlDeps{})
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse server url: %v", err)
+	}
+	previewHost := "opr-preview.mfxs2mi.localhost:" + u.Port()
+
+	tests := []struct {
+		name   string
+		origin string
+	}{
+		{name: "own preview origin", origin: "http://" + previewHost},
+		{name: "other session's preview origin", origin: "http://opr-preview.nfyws3tf.localhost:" + u.Port()},
+		{name: "hostile origin", origin: "http://evil.example"},
+	}
+
+	client := &http.Client{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, srv.URL+"/theme.css", nil)
+			if err != nil {
+				t.Fatalf("NewRequest: %v", err)
+			}
+			req.Host = previewHost
+			req.Header.Set("Origin", tt.origin)
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("GET preview asset: %v", err)
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+
+			if resp.StatusCode == http.StatusForbidden {
+				t.Fatalf("status = %d, preview request must not be stopped at the origin boundary; body=%s", resp.StatusCode, body)
+			}
+			var envelopeBody struct {
+				Error     string `json:"error"`
+				Code      string `json:"code"`
+				RequestID string `json:"requestId"`
+			}
+			if err := json.Unmarshal(body, &envelopeBody); err != nil {
+				t.Fatalf("body is not the locked error envelope: %q", body)
+			}
+			if envelopeBody.Error != "not_found" || envelopeBody.Code != "PREVIEW_NOT_FOUND" || envelopeBody.RequestID == "" {
+				t.Fatalf("envelope = %#v, want not_found/PREVIEW_NOT_FOUND with requestId", envelopeBody)
+			}
+			if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+				t.Errorf("Access-Control-Allow-Origin = %q, want none so cross-origin reads stay browser-blocked", got)
+			}
+		})
+	}
+}
 
 // TestCORS exercises the allowlist boundary on a real router: trusted origins
 // get per-origin CORS headers (REST reads and preflights), everything else —
@@ -25,11 +89,11 @@ func TestCORS(t *testing.T) {
 		wantACAO   string
 	}{
 		{
-			name:       "allowed origin gets ACAO",
+			name:       "removed Electron origin is rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "app://renderer"},
-			wantStatus: http.StatusOK,
-			wantACAO:   "app://renderer",
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
 		},
 		{
 			name:       "packaged Tauri origin gets ACAO",
@@ -46,28 +110,25 @@ func TestCORS(t *testing.T) {
 			wantACAO:   "http://tauri.localhost",
 		},
 		{
-			// Not in the allowlist — trusted because loopback-served content
-			// can already reach the daemon directly (dev/preview servers on
-			// arbitrary ports).
-			name:       "loopback origin allowed without an allowlist entry",
+			name:       "unlisted loopback origin rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "http://localhost:5181"},
-			wantStatus: http.StatusOK,
-			wantACAO:   "http://localhost:5181",
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
 		},
 		{
-			name:       "loopback IP origin allowed",
+			name:       "unlisted loopback IP origin rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "http://127.0.0.1:8080"},
-			wantStatus: http.StatusOK,
-			wantACAO:   "http://127.0.0.1:8080",
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
 		},
 		{
-			name:       "isolated localhost preview origin allowed",
+			name:       "unlisted localhost subdomain rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "http://opr-preview.mfxs2mi.localhost:5181"},
-			wantStatus: http.StatusOK,
-			wantACAO:   "http://opr-preview.mfxs2mi.localhost:5181",
+			wantStatus: http.StatusForbidden,
+			wantACAO:   "",
 		},
 		{
 			// localhost in the host position of a non-loopback origin must not
@@ -141,12 +202,12 @@ func TestCORS(t *testing.T) {
 			name:   "preflight from allowed origin",
 			method: http.MethodOptions,
 			headers: map[string]string{
-				"Origin":                         "app://renderer",
+				"Origin":                         "tauri://localhost",
 				"Access-Control-Request-Method":  "POST",
 				"Access-Control-Request-Headers": "content-type",
 			},
 			wantStatus: http.StatusNoContent,
-			wantACAO:   "app://renderer",
+			wantACAO:   "tauri://localhost",
 		},
 		{
 			name:   "preflight from unknown origin is rejected",
@@ -189,10 +250,47 @@ func TestCORS(t *testing.T) {
 	}
 }
 
+func TestCORSAllowsOnlyExactSafeConfiguredOrigins(t *testing.T) {
+	cfg := config.Config{AllowedOrigins: []string{
+		"app://renderer",
+		"http://localhost:5181",
+		"http://evil.example",
+		"https://operator.example",
+	}}
+	router := newTestRouter(cfg, discardLogger(), nil)
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	for _, tt := range []struct {
+		origin     string
+		wantStatus int
+	}{
+		{origin: "http://localhost:5181", wantStatus: http.StatusOK},
+		{origin: "app://renderer", wantStatus: http.StatusForbidden},
+		{origin: "http://localhost:5182", wantStatus: http.StatusForbidden},
+		{origin: "http://evil.example", wantStatus: http.StatusForbidden},
+		{origin: "https://operator.example", wantStatus: http.StatusForbidden},
+	} {
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/healthz", nil)
+		if err != nil {
+			t.Fatalf("NewRequest: %v", err)
+		}
+		req.Header.Set("Origin", tt.origin)
+		resp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Fatalf("GET /healthz: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != tt.wantStatus {
+			t.Errorf("origin %q status = %d, want %d", tt.origin, resp.StatusCode, tt.wantStatus)
+		}
+	}
+}
+
 // TestCORSPreflightHeaders pins the preflight grant shape: methods, echoed
 // request headers, max-age, and the private-network opt-in.
 func TestCORSPreflightHeaders(t *testing.T) {
-	cfg := config.Config{AllowedOrigins: []string{"app://renderer"}}
+	cfg := config.Config{AllowedOrigins: []string{"tauri://localhost"}}
 	router := newTestRouter(cfg, discardLogger(), nil)
 	srv := httptest.NewServer(router)
 	defer srv.Close()
@@ -201,7 +299,7 @@ func TestCORSPreflightHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	req.Header.Set("Origin", "app://renderer")
+	req.Header.Set("Origin", "tauri://localhost")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "content-type")
 	req.Header.Set("Access-Control-Request-Private-Network", "true")
@@ -216,7 +314,7 @@ func TestCORSPreflightHeaders(t *testing.T) {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
 	for header, want := range map[string]string{
-		"Access-Control-Allow-Origin":          "app://renderer",
+		"Access-Control-Allow-Origin":          "tauri://localhost",
 		"Access-Control-Allow-Methods":         "GET, POST, PATCH, PUT, DELETE, OPTIONS",
 		"Access-Control-Allow-Headers":         "content-type",
 		"Access-Control-Max-Age":               "600",

@@ -1,7 +1,8 @@
 name: Release latest guard
 
 # Guard against accidental non-stable GitHub releases taking over
-# /releases/latest and breaking electron-updater's stable channel.
+# /releases/latest and breaking the stable channel (both the Tauri latest.json
+# feed and the Electron-compatibility YAML feeds the installed fleet follows).
 on:
   release:
     types: [published, edited, released]
@@ -48,14 +49,34 @@ jobs:
           printf 'Assets:\n%s\n' "${assets[@]}"
 
           required_assets=(
+            latest.json
             latest.yml
             latest-mac.yml
             latest-linux.yml
+            operator-darwin-arm64.zip
+            operator-win32-x64.exe
+            operator-linux-x64.AppImage
           )
 
           for required in "${required_assets[@]}"; do
             if ! printf '%s\n' "${assets[@]}" | grep -Fxq "$required"; then
-              echo "::error::Latest stable release '$tag' is missing updater feed asset '$required'."
+              echo "::error::Latest stable release '$tag' is missing required asset '$required'."
+              exit 1
+            fi
+          done
+
+          # The Tauri manifest must carry every platform target with a real
+          # signature, so no arch is stranded on an older version by a partial
+          # or unsigned feed.
+          gh release download "$tag" --repo "$REPO" --pattern 'latest.json' --dir "$RUNNER_TEMP/feed" --clobber
+          for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
+            if ! jq -e --arg p "$platform" '.platforms | has($p)' "$RUNNER_TEMP/feed/latest.json" >/dev/null; then
+              echo "::error::latest.json on '$tag' is missing updater platform '$platform'."
+              exit 1
+            fi
+            sig="$(jq -r --arg p "$platform" '.platforms[$p].signature // ""' "$RUNNER_TEMP/feed/latest.json")"
+            if [ -z "$sig" ]; then
+              echo "::error::latest.json on '$tag' has an empty signature for '$platform'."
               exit 1
             fi
           done

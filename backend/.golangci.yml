@@ -90,6 +90,14 @@ linters:
 
   exclusions:
     generated: lax # skip sqlc/codegen ("Code generated ... DO NOT EDIT")
+    # Generated code is machine-written and never hand-edited: sqlc's
+    # duplicated Scan/rows.Close boilerplate and the protocol table's
+    # method-name string constants ("chatgptAuthTokens" reads as G101 but is a
+    # wire label). Naming the paths here keeps full-tree runs identical to
+    # scoped runs instead of depending on which packages the runner was given.
+    paths:
+      - internal/storage/sqlite/gen/
+      - codexproto/
     rules:
       # Tests: relax the noisiest checks (deliberate error-drops, repeated setup,
       # preallocation, and upgrade-response bodies that don't need closing).

@@ -1,32 +1,27 @@
 name: Desktop release
 
-# Builds and publishes the Electron desktop app via electron-forge.
-# Generates a GitHub Release with installers + update manifests, then uploads
-# stable, version-free asset aliases so `opr start`'s constant
-# releases/latest/download/<name> URL resolves (spec §8, §11.4).
+# Builds and publishes the Tauri desktop app. Generates a GitHub Release with
+# installers + Tauri updater feeds + Electron-compatibility YAML feeds, then
+# uploads stable, version-free asset aliases so `opr start`'s constant
+# releases/latest/download/<name> URL resolves.
 #
 # Each target OS builds on its own runner so the bundled `opr` daemon is compiled
-# natively for that platform. build-daemon.mjs keys the binary off the build
-# host's platform, so cross-OS packaging (e.g. building the Windows installer on
-# macOS) would ship a non-Windows binary named `opr` and the app could not launch
-# the daemon (issues #235/#256). The per-OS matrix keeps host == target, and the
-# Linux daemon is built on the Linux runner (OmarAly92/operator#2191).
+# natively for that platform and the webview stack matches the host. The per-OS
+# matrix keeps host == target.
 #
-# ⚠️ Until macOS code signing + notarization secrets are configured (see
-# frontend/docs/desktop-release.md), published builds are UNSIGNED and will
-# NOT auto-update on macOS. The workflow still produces installable artifacts.
+# Signing model (task 18):
+#   - macOS: Tauri applies the Developer ID identity during bundling
+#     (APPLE_SIGNING_IDENTITY); the workflow then notarizes with notarytool,
+#     staples the .app and .dmg, and cuts the permanent ditto zip from the
+#     stapled bundle via scripts/package-tauri-mac-zip.sh.
+#   - Updater signatures: TAURI_SIGNING_PRIVATE_KEY signs every updater archive;
+#     OPERATOR_UPDATER_PUBLIC_KEY is compiled into the shell so verification
+#     fails closed without it.
+#   - The production feed base URL is baked from src-tauri/tauri.release.conf.json.
 #
-# ── Cutting a FORK test release (dev loop) ────────────────────────────────────
-# Test releases go to harshitsinghbhandari/operator (the fork), never
-# to OmarAly92. To cut one, on the FORK:
-#   - push a `desktop-v*` tag (e.g. `git push fork desktop-v0.0.0-test1`), or
-#   - run this workflow via `workflow_dispatch` from the fork's Actions tab.
-# OPERATOR_RELEASE_REPO MUST be set to the fork for a test run. It is derived
-# automatically below from `github.repository`, so a fork run publishes to the
-# fork and a run on OmarAly92 publishes to OmarAly92, with no edit. The
-# matching test `opr` binary is built with
-# `-ldflags -X ...cli.releaseRepo=harshitsinghbhandari/operator` so it
-# fetches from the same fork (spec §6.3).
+# ⚠️ Until these secrets are configured, published builds stay unsigned and will
+# NOT pass Gatekeeper or verify with --strict-trust; the workflow still produces
+# installable artifacts.
 
 on:
   push:
@@ -56,6 +51,16 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # Compiled into the binary; a build without it fails closed at check time.
+      OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      CGO_ENABLED: 0
+      # Selects the pinned toolchain for every cargo/rustc invocation in this
+      # job (npm run tauri:* shells out to cargo); installing alone never
+      # selects it, and the build would otherwise run on the runner's stable.
+      RUSTUP_TOOLCHAIN: "1.96.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,13 +68,22 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      # The daemon is compiled by build-daemon.mjs during prepackage/premake, so
+      # The daemon is compiled by build-daemon.mjs before the Tauri bundle, so
       # the Go toolchain must be present and pinned on every runner.
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
+      - name: Install Linux webview and packaging tooling
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm squashfs-tools gnupg
       - run: npm ci
+      - name: Build runtime dependencies into the bundle resources
+        run: |
+          npm run build:daemon
+          npm run browser-runtime:prepare -- --quiet
+          npm run build:acp-runtime
       - name: macOS signing setup
         if: startsWith(matrix.os, 'macos')
         uses: ./.github/actions/macos-signing-setup
@@ -80,102 +94,147 @@ jobs:
           apple-api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           apple-api-issuer: ${{ secrets.APPLE_API_ISSUER }}
           apple-signing-identity: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      - name: Publish
+      - name: Build (signed, updater artifacts)
         shell: bash
         run: |
-          # Retry transient macOS sign/notary flakes (Apple notary -1009,
-          # osx-sign keychain races) so the build self-heals instead of failing.
+          UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
+          # The conf file carries an empty plugins.updater.pubkey placeholder;
+          # the operational public key arrives as this build-time overlay (the
+          # same key the shell compiles in via OPERATOR_UPDATER_PUBLIC_KEY).
           for i in 1 2 3; do
-            if npm run publish; then exit 0; fi
-            echo "::warning::publish attempt $i/3 failed (likely a transient macOS sign/notary flake)"
+            if npm run tauri:release -- --config "$UPDATER_PUBKEY_OVERLAY_JSON"; then exit 0; fi
+            echo "::warning::tauri build attempt $i/3 failed (transient macOS sign/notary races can surface here)"
             [ "$i" -lt 3 ] && sleep 30
           done
-          echo "::error::publish failed after 3 attempts" >&2
+          echo "::error::tauri build failed after 3 attempts" >&2
           exit 1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPERATOR_RELEASE_REPO: ${{ github.repository }}
-          # macOS signing + notarization env (APPLE_SIGNING_IDENTITY, APPLE_API_KEY,
-          # APPLE_API_KEY_ID, APPLE_API_ISSUER) is exported by the "macOS signing
-          # setup" step above via $GITHUB_ENV; the Developer ID cert is in the
-          # keychain. No-op on non-macOS runners.
-
-      # Upload stable, version-free asset aliases for this runner's platform so
-      # `opr start`'s constant releases/latest/download/<name> URL resolves. The
-      # forge makers emit versioned, productName-derived filenames; we copy them
-      # to the space-free names `opr start` fetches and upload to the v<version>
-      # release the publish step just created, with --clobber (so re-runs replace).
-      #
-      # Arch-coverage note: each runner only builds its host arch. macos-latest
-      # (Apple silicon) produces darwin-arm64; macos-15-intel (Intel x64) produces
-      # darwin-x64. Both macOS runners run this step (see the `if` below), so the
-      # arm64 and x64 stable aliases are now both built (spec §8).
-      # The Linux stable name is undecided (spec §11.3), so we build the deb/rpm
-      # but intentionally upload no Linux alias yet.
-      - name: Upload stable asset aliases (macOS)
+      - name: Notarize and staple macOS artifacts
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
-          # electron-forge publisher-github creates the release as v<package.json
-          # version> (PublisherGithub.js: `${tagPrefix ?? 'v'}${version}`), NOT the
-          # triggering git tag. Target that release, not GITHUB_REF_NAME, or the
-          # upload hits a non-existent release.
-          tag="v$(node -p "require('./package.json').version")"
-          arch="$(uname -m)"
-          case "$arch" in
-            arm64) alias_name="operator-darwin-arm64.zip" ;;
-            x86_64) alias_name="operator-darwin-x64.zip" ;;
-            *) echo "unsupported macOS arch: $arch" >&2; exit 1 ;;
-          esac
-          # maker-zip output: out/make/zip/darwin/<arch>/<dir-basename>-<version>.zip
-          src="$(ls out/make/zip/darwin/*/*.zip | head -n1)"
-          if [ -z "$src" ]; then echo "no macOS zip found under out/make/zip/darwin" >&2; exit 1; fi
-          cp "$src" "$alias_name"
-          gh release upload "$tag" "$alias_name" --clobber
+          set -euo pipefail
+          APP="src-tauri/target/release/bundle/macos/Operator.app"
+          DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
+          codesign --verify --deep --strict "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
+            --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler staple "$DMG"
+      - name: Cut the permanent macOS zip and rename updater archives
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          APP="src-tauri/target/release/bundle/macos/Operator.app"
+          ARCH="$(uname -m | sed 's/x86_64/x64/')"
+          BUNDLE="src-tauri/target/release/bundle"
+          mkdir -p dist
+          ./scripts/package-tauri-mac-zip.sh "$APP" "dist/operator-darwin-${ARCH}-${VERSION}.zip"
+          cp "$BUNDLE/dmg/"*.dmg "dist/operator-darwin-${ARCH}.dmg"
+          mv "$BUNDLE/macos/Operator.app.tar.gz" "dist/operator-darwin-${ARCH}-${VERSION}.app.tar.gz"
+          mv "$BUNDLE/macos/Operator.app.tar.gz.sig" "dist/operator-darwin-${ARCH}-${VERSION}.app.tar.gz.sig"
+      - name: Collect versioned artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/release/bundle"
+          mkdir -p dist
+          cp "$BUNDLE/nsis/"*-setup.exe "dist/"
+          cp "$BUNDLE/nsis/"*-setup.exe.sig "dist/"
+      - name: Collect versioned artifacts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/release/bundle"
+          mkdir -p dist
+          cp "$BUNDLE/appimage/"*.AppImage "dist/"
+          cp "$BUNDLE/appimage/"*.AppImage.sig "dist/" 2>/dev/null || true
+          cp "$BUNDLE/deb/"*.deb "dist/"
+          cp "$BUNDLE/rpm/"*.rpm "dist/"
+      - name: Verify artifacts (structural, strict trust on this runner)
+        shell: bash
+        # --strict-trust fails this leg on structural violations and on a
+        # FAILED seal/notarization/staple check; gaps needing conductor-held
+        # material (Authenticode evidence, smoke installs, rpm -K) stay
+        # recorded gates, never fatal. --arch scopes absence checks to THIS
+        # leg's artifacts: each matrix runner only ever holds its own arch,
+        # so sibling-arch absence is matrix topology, not a defect.
+        run: >
+          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust
+          --arch "$(uname -m | sed 's/x86_64/x64/')"
+          --expect-version "$(node -p "require('./package.json').version")"
+          --emit-gates artifact-gates.json
+      - name: Publish to the v<version> release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The release is keyed off package.json's version (the Tauri bundle
+          # stamps that same version), not the triggering git tag.
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release create "$TAG" --title "$TAG" \
+            --notes "Operator desktop release ${TAG}." || true
+          find dist -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
+            while IFS= read -r -d '' f; do
+              echo "uploading: $f"
+              gh release upload "$TAG" "$f" --clobber
+            done
+
+      # Stable, version-free asset aliases so `opr start`'s constant
+      # releases/latest/download/<name> URL resolves. Each runner uploads its
+      # own platform's aliases; both macOS legs cover arm64 and x64 zips+dmgs.
+      - name: Upload stable asset aliases (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v$(node -p "require('./package.json').version")"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            arm64) alias_zip="operator-darwin-arm64.zip"; alias_dmg="operator-darwin-arm64.dmg" ;;
+            x86_64) alias_zip="operator-darwin-x64.zip"; alias_dmg="operator-darwin-x64.dmg" ;;
+            *) echo "unsupported macOS arch: $ARCH" >&2; exit 1 ;;
+          esac
+          VERSION="$(node -p "require('./package.json').version")"
+          cp "dist/operator-darwin-${ARCH/x86_64/x64}-${VERSION}.zip" "$alias_zip"
+          cp "dist/operator-darwin-${ARCH/x86_64/x64}.dmg" "$alias_dmg"
+          gh release upload "$TAG" "$alias_zip" "$alias_dmg" --clobber
 
       - name: Upload stable asset aliases (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: |
-          # Forge publishes to v<version> (see the macOS step), not the git tag.
-          tag="v$(node -p "require('./package.json').version")"
-          alias_name="operator-win32-x64.exe"
-          # NSIS (electron-builder) output: out/make/<productName> Setup <version>.exe
-          src="$(ls "out/make/"*Setup*.exe | head -n1)"
-          if [ -z "$src" ]; then echo "no NSIS installer found under out/make" >&2; exit 1; fi
-          cp "$src" "$alias_name"
-          gh release upload "$tag" "$alias_name" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v$(node -p "require('./package.json').version")"
+          src="$(ls dist/*-setup.exe | head -n1)"
+          cp "$src" operator-win32-x64.exe
+          gh release upload "$TAG" operator-win32-x64.exe --clobber
 
-      # Linux: deb/rpm AND an AppImage build on this runner (issue #2191). The
-      # AppImage is the fetch-and-run artifact for `opr start` (spec §11.3); we
-      # copy it to the stable, space-free name the bootstrapper fetches and
-      # upload to the v<version> release. The versioned deb/rpm are still
-      # published by the forge publisher above for users who want a system package.
       - name: Upload stable asset aliases (Linux)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
-        run: |
-          # Forge publishes to v<version> (see the macOS step), not the git tag.
-          tag="v$(node -p "require('./package.json').version")"
-          alias_name="operator-linux-x64.AppImage"
-          # AppImage (electron-builder) output: out/make/<productName>-<version>.AppImage
-          src="$(ls out/make/*.AppImage | head -n1)"
-          if [ -z "$src" ]; then echo "no AppImage found under out/make" >&2; exit 1; fi
-          cp "$src" "$alias_name"
-          gh release upload "$tag" "$alias_name" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v$(node -p "require('./package.json').version")"
+          src="$(ls dist/*.AppImage | head -n1)"
+          cp "$src" operator-linux-x64.AppImage
+          gh release upload "$TAG" operator-linux-x64.AppImage --clobber
 
   # Dedicated Intel (darwin-x64) build leg. Kept a separate job (not in the
   # release matrix) because only a macOS host can build the x64 installer, but
-  # publish-feed now waits on it (needs: [release, release-intel]) so the x64
-  # entry is always present in latest-mac.yml and Intel users get auto-updates.
-  # Runner is macos-15-intel: macos-13 is deprecated/has no capacity (multi-hour
-  # queues), so this leg uses the supported Intel x64 image.
+  # publish-feed waits on it so the x64 entries always ship. Runner is
+  # macos-15-intel: macos-13 is deprecated/has no capacity.
   release-intel:
     runs-on: macos-15-intel
     environment: release # same approval gate as the matrix release job
@@ -184,6 +243,13 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      CGO_ENABLED: 0
+      # Same toolchain pin as the matrix release leg (see the comment there).
+      RUSTUP_TOOLCHAIN: "1.96.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -195,7 +261,12 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - run: rustup toolchain install 1.96.0 --profile minimal
       - run: npm ci
+      - run: |
+          npm run build:daemon
+          npm run browser-runtime:prepare -- --quiet
+          npm run build:acp-runtime
       - name: macOS signing setup
         uses: ./.github/actions/macos-signing-setup
         with:
@@ -205,48 +276,59 @@ jobs:
           apple-api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           apple-api-issuer: ${{ secrets.APPLE_API_ISSUER }}
           apple-signing-identity: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      - name: Publish
+      - name: Build (signed, updater artifacts)
         shell: bash
         run: |
-          # Retry transient macOS sign/notary flakes (Apple notary -1009,
-          # osx-sign keychain races) so the build self-heals instead of failing.
+          UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
+          # The conf file carries an empty plugins.updater.pubkey placeholder;
+          # the operational public key arrives as this build-time overlay (the
+          # same key the shell compiles in via OPERATOR_UPDATER_PUBLIC_KEY).
           for i in 1 2 3; do
-            if npm run publish; then exit 0; fi
-            echo "::warning::publish attempt $i/3 failed (likely a transient macOS sign/notary flake)"
+            if npm run tauri:release -- --config "$UPDATER_PUBKEY_OVERLAY_JSON"; then exit 0; fi
+            echo "::warning::tauri build attempt $i/3 failed"
             [ "$i" -lt 3 ] && sleep 30
           done
-          echo "::error::publish failed after 3 attempts" >&2
+          echo "::error::tauri build failed after 3 attempts" >&2
           exit 1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPERATOR_RELEASE_REPO: ${{ github.repository }}
-      - name: Upload stable asset aliases (macOS)
+      - name: Notarize, staple and package macOS x64 artifacts
         shell: bash
-        run: |
-          tag="v$(node -p "require('./package.json').version")"
-          arch="$(uname -m)"
-          case "$arch" in
-            arm64) alias_name="operator-darwin-arm64.zip" ;;
-            x86_64) alias_name="operator-darwin-x64.zip" ;;
-            *) echo "unsupported macOS arch: $arch" >&2; exit 1 ;;
-          esac
-          src="$(ls out/make/zip/darwin/*/*.zip | head -n1)"
-          if [ -z "$src" ]; then echo "no macOS zip found under out/make/zip/darwin" >&2; exit 1; fi
-          cp "$src" "$alias_name"
-          gh release upload "$tag" "$alias_name" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          APP="src-tauri/target/release/bundle/macos/Operator.app"
+          DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
+          codesign --verify --deep --strict "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
+            --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler staple "$DMG"
+          mkdir -p dist
+          ./scripts/package-tauri-mac-zip.sh "$APP" "dist/operator-darwin-x64-${VERSION}.zip"
+          cp "$DMG" "dist/operator-darwin-x64.dmg"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz \
+            "dist/operator-darwin-x64-${VERSION}.app.tar.gz"
+          mv src-tauri/target/release/bundle/macos/Operator.app.tar.gz.sig \
+            "dist/operator-darwin-x64-${VERSION}.app.tar.gz.sig"
+          # Same strict-trust posture as the matrix leg's verify step. This
+          # leg's dist holds ONLY x64 artifacts, so scope the absence checks
+          # to darwin/x64: arm64 classes are matrix topology (the matrix leg
+          # builds them), not defects.
+          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust \
+            --platform darwin --arch x64 \
+            --expect-version "$VERSION" --emit-gates artifact-gates.json
+          gh release create "$TAG" --title "$TAG" --notes "Operator desktop release ${TAG}." || true
+          gh release upload "$TAG" dist/* --clobber
+          cp "dist/operator-darwin-x64-${VERSION}.zip" operator-darwin-x64.zip
+          cp "dist/operator-darwin-x64.dmg" operator-darwin-x64.dmg
+          gh release upload "$TAG" operator-darwin-x64.zip operator-darwin-x64.dmg --clobber
 
-  # After every platform has built and uploaded its installers, generate the
-  # electron-updater feed (latest*.yml + .blockmap sidecars) from the versioned
-  # assets and upload them to the same release. Runs once, on Linux: it only
-  # hashes already-built artifacts, so it needs no per-OS runner.
-  # Advisory pod e2e gate. Installs the just-published Linux release build in an
-  # ephemeral Daytona pod and runs the real-app smoke suite, posting an
-  # `opr-stable-gate` commit status. NON-BLOCKING: publish-feed does NOT depend on
-  # it, and the run step is continue-on-error, so it can prove itself on live
-  # releases without ever blocking a good build. Once trusted, add `e2e-gate` to
-  # publish-feed `needs` to make it a required gate. Override: skip_e2e_gate input.
+  # Advisory pod e2e gate against the just-published Linux AppImage. NON-BLOCKING:
+  # publish-feed does not depend on it. Once trusted, add `e2e-gate` to
+  # publish-feed's needs. Override: skip_e2e_gate input.
   e2e-gate:
     needs: [release, release-intel]
     runs-on: ubuntu-latest
@@ -264,16 +346,8 @@ jobs:
         with:
           node-version: 20
       # The Daytona API key lives ONLY in Azure Key Vault — never a GitHub secret.
-      # Authenticate via OIDC (no stored credential), then pull the key into the job
-      # env. Both steps are continue-on-error and guarded on the AZURE_* variables:
-      # if Azure isn't configured or is unreachable, DAYTONA_API_KEY stays unset,
-      # the gate classifies itself `infra`, and the check below is NEUTRAL (never red).
       - name: Install pod-runner deps
         if: ${{ inputs.skip_e2e_gate != true }}
-        # Runs BEFORE the Key Vault fetch so npm lifecycle/install scripts never
-        # execute with DAYTONA_API_KEY in the environment. continue-on-error: a
-        # failed install is infra, not a release failure — the runner then can't
-        # import @daytona/sdk, classifies `infra`, and the check publishes NEUTRAL.
         continue-on-error: true
         run: npm --prefix scripts ci
       - name: Azure login (OIDC, no stored secret)
@@ -283,23 +357,12 @@ jobs:
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          # No subscription-id on purpose: the CI app has data-plane vault access
-          # only (access policy), no subscription RBAC role. Reading a secret is a
-          # data-plane call needing no subscription; passing one would make az try
-          # to select a subscription it can't see. Least privilege = vault-only.
           allow-no-subscriptions: true
       - name: Run pod e2e gate (advisory)
         id: gate
         if: ${{ inputs.skip_e2e_gate != true }}
         continue-on-error: true
         run: |
-          # Fetch the Daytona key and scope it to THIS step ONLY: it is a local
-          # shell variable exported to the node process, never written to
-          # $GITHUB_ENV — so no later step (artifact upload, check publish, the
-          # blocking enforce step, or anything added below) can ever see it.
-          # `az` is already authenticated by the Azure login step above. When Azure
-          # isn't configured the key stays empty and the runner classifies the run
-          # as infra -> NEUTRAL (never red).
           if [ -n "${{ vars.AZURE_CLIENT_ID }}" ]; then
             DAYTONA_API_KEY=$(az keyvault secret show --vault-name "${{ vars.AZURE_KEYVAULT_NAME }}" --name daytona-api-key --query value -o tsv 2>/dev/null || true)
             if [ -n "$DAYTONA_API_KEY" ]; then
@@ -310,56 +373,33 @@ jobs:
           tag="v$(node -p "require('./frontend/package.json').version")"
           node scripts/opr-e2e-pod-gate.mjs --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --tag "$tag" --suite T0
       - name: Azure logout (revoke az auth for the rest of the job)
-        # azure/login leaves `az` authenticated for the WHOLE job, so any later
-        # step (upload, check publish, enforce) could re-run `az keyvault secret
-        # show` and re-fetch DAYTONA_API_KEY even though the env var is
-        # step-local. Clearing the auth here — always(), so it runs even if the
-        # gate step failed — makes the secret genuinely unreachable afterwards.
         if: ${{ always() && inputs.skip_e2e_gate != true }}
         continue-on-error: true
         run: |
           az logout || true
           az account clear || true
       - name: Upload e2e artifacts
-        # The runner saves the pod log + Playwright results tarball to e2e-artifacts/
-        # before tearing the sandbox down. Attaching them to the run is what the
-        # check's "Artifacts:" link points at.
         if: ${{ always() && inputs.skip_e2e_gate != true }}
         uses: actions/upload-artifact@v4
         with:
           name: opr-stable-gate-artifacts
           path: e2e-artifacts/
-          # The runner always writes e2e-artifacts/pod.log (on green, red, infra,
-          # and exception paths), so a missing artifact is genuinely anomalous —
-          # surface it as a warning rather than swallowing it silently.
           if-no-files-found: warn
       - name: Publish opr-stable-gate check
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # RED (failure) is reserved for a real app smoke failure. Everything
-          # else — missing DAYTONA_API_KEY, Daytona unavailable, setup/install
-          # error, a broken gate — is INFRA and publishes a NEUTRAL check, so an
-          # infra hiccup never makes an otherwise-good release look failed. A
-          # deliberate skip publishes `skipped`.
           if [ "${{ inputs.skip_e2e_gate }}" = "true" ]; then
             conclusion=skipped; summary="e2e gate skipped via skip_e2e_gate."
           else
-            # Single source of truth for the conclusion: the runner's own output
-            # (deriveGateOutcome). We do NOT re-derive it from classification here —
-            # the two mappings would drift. classification is used only for the
-            # human summary text.
             conclusion="${{ steps.gate.outputs.conclusion }}"
             case "${{ steps.gate.outputs.classification }}" in
               passed)     summary="T0 pod smoke passed." ;;
               app_failed) summary="T0 pod smoke FAILED — the app under test failed the suite." ;;
               *)          summary="Gate could not run (infra/setup: missing DAYTONA_API_KEY, Daytona unavailable, or setup error) — NOT a release-build failure." ;;
             esac
-            # If the gate never emitted a conclusion (e.g. an earlier step failed and
-            # it never ran), fall back to neutral rather than an empty conclusion.
             [ -z "$conclusion" ] && conclusion=neutral
-            # Link the check to the run, where the uploaded e2e artifacts live.
             summary="$summary  Artifacts: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           fi
           gh api "repos/$GITHUB_REPOSITORY/check-runs" \
@@ -376,9 +416,15 @@ jobs:
           echo "::error::opr-stable-gate: app smoke failed and OPERATOR_GATE_BLOCKING=true — failing the release."
           exit 1
 
+  # After every platform has built and uploaded its installers, generate BOTH
+  # feed families from the versioned assets and upload them to the same
+  # release: latest.json (Tauri updater) plus latest*.yml (Electron
+  # compatibility for the installed fleet, including the permanent
+  # latest-mac.yml). Runs once, on Linux: it only hashes already-built assets.
   publish-feed:
     needs: [release, release-intel]
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     defaults:
@@ -391,19 +437,18 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      # feed.mjs imports app-builder-lib's blockmap generator, so deps are needed.
       - run: npm ci
-      - name: Generate and upload the latest feed
+      - name: Generate and upload the latest feeds
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Forge publishes to v<package.json version> (not the git tag).
-          tag="v$(node -p "require('./package.json').version")"
+          set -euo pipefail
+          TAG="v$(node -p "require('./package.json').version")"
           mkdir -p dist
-          gh release download "$tag" --dir dist --clobber
-          node scripts/feed.mjs dist "${tag#v}" latest
+          gh release download "$TAG" --dir dist --clobber
+          node scripts/tauri-feed.mjs dist "${TAG#v}" latest --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --notes "Operator desktop release ${TAG}."
           shopt -s nullglob
-          assets=(dist/latest*.yml dist/*.blockmap)
+          assets=(dist/latest.json dist/latest*.yml)
           if [ ${#assets[@]} -eq 0 ]; then echo "no feed assets generated" >&2; exit 1; fi
-          gh release upload "$tag" "${assets[@]}" --clobber
+          gh release upload "$TAG" "${assets[@]}" --clobber

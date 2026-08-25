@@ -336,7 +336,7 @@ describe("ShellTopbar inspector state", () => {
 		useUiStore.setState({
 			inspectorSessions: {
 				"sess-1": { isOpen: false, view: "summary" },
-				"sess-2": { isOpen: true, view: "browser" },
+				"sess-2": { isOpen: true, view: "files" },
 			},
 		});
 		renderTopbarSessions([worker, secondWorker], "sess-1");
@@ -344,7 +344,7 @@ describe("ShellTopbar inspector state", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Open inspector panel" }));
 
 		expect(useUiStore.getState().inspectorSessions["sess-1"]?.isOpen).toBe(true);
-		expect(useUiStore.getState().inspectorSessions["sess-2"]).toEqual({ isOpen: true, view: "browser" });
+		expect(useUiStore.getState().inspectorSessions["sess-2"]).toEqual({ isOpen: true, view: "files" });
 	});
 });
 

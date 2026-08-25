@@ -2,9 +2,10 @@
 
 Commands to run Operator's frontend and backend locally.
 
-> **The usual case is one command.** `npm run dev` from `frontend/` starts Electron,
-> which builds and supervises the loopback daemon for you. You only start the backend
-> yourself for CLI-only work — see [Backend on its own](#backend-on-its-own).
+> **The usual case is one command.** `npm run tauri:dev` from `frontend/` starts the
+> Tauri desktop shell, which builds and supervises the loopback daemon for you. You
+> only start the backend yourself for CLI-only work — see
+> [Backend on its own](#backend-on-its-own).
 
 Full context: [`docs/development.md`](docs/development.md).
 
@@ -16,8 +17,9 @@ Full context: [`docs/development.md`](docs/development.md).
 | Node.js | 20.19.0 |
 | npm | 10 |
 
-Plus `git`, and at least one agent CLI (Claude Code, Codex, Aider, …) on your PATH for
-the daemon to drive. `nix develop` drops you into a shell with all of it.
+Plus `git`, the Rust toolchain pinned in `frontend/rust-toolchain.toml`, and at least
+one agent CLI (Claude Code, Codex, Aider, …) on your PATH for the daemon to drive.
+`nix develop` drops you into a shell with all of it.
 
 ## Run everything (normal path)
 
@@ -26,22 +28,24 @@ cd frontend && npm install
 ```
 
 ```bash
-cd frontend && npm run dev
+cd frontend && npm run tauri:dev
 ```
 
-`predev` builds the daemon binary, prepares the browser runtime and builds the ACP
-runtime before Electron Forge starts, so the first run is slower than later ones. The
-Electron main process then starts and supervises the daemon on `127.0.0.1` — do not
-start the backend separately for this.
+`tauri:dev` runs the Tauri app against a Vite dev server (`dev:web`) on `127.0.0.1:5173`.
+Build the sidecars once before the first run so the packaged resources exist:
 
-### Renderer only, no Electron
+```bash
+cd frontend && npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime
+```
+
+### Renderer only, no desktop shell
 
 ```bash
 cd frontend && npm run dev:web
 ```
 
-Vite serves the renderer with `VITE_NO_ELECTRON=1`. Fast for UI iteration, but it
-launches no Electron and no daemon, so anything that talks to the backend is dead.
+Vite serves the renderer with `VITE_RENDERER_PREVIEW=1`. Fast for UI iteration, but it
+launches no desktop shell and no daemon, so anything that talks to the backend is dead.
 This is also what the Playwright renderer E2E suite drives.
 
 ## Backend on its own
@@ -84,12 +88,12 @@ The frontend has no plain `build` script — packaging is the build. For the cur
 platform:
 
 ```bash
-cd frontend && npm run package
+cd frontend && npm run tauri:build
 ```
 
-`npm run make` creates distributables instead, but needs platform packaging tools that
-a minimal setup and `nix develop` do not provide — on a fresh Linux machine prefer
-`npm run package`.
+`npm run tauri:release` builds with the release updater configuration instead; it needs
+the signing key material that a minimal setup and `nix develop` do not provide — on a
+fresh machine prefer `npm run tauri:build`.
 
 ## Checks
 

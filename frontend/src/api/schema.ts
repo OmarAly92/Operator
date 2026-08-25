@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dev/ancestor-repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report whether a folder sits inside an existing Git repository */
+        post: operations["findDevAncestorRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dev/import-projects": {
         parameters: {
             query?: never;
@@ -134,6 +151,23 @@ export interface paths {
         put?: never;
         /** Run the developer project-registry import through the daemon store */
         post: operations["runDevImportProjects"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dev/import-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan a local folder for importable Git repositories */
+        post: operations["runDevImportScan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1395,6 +1429,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/keybindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the persisted desktop shortcut overrides */
+        patch: operations["setKeybindingOverrides"];
+        trace?: never;
+    };
+    "/api/v1/settings/migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Record the legacy desktop import decision */
+        patch: operations["setMigrationState"];
+        trace?: never;
+    };
     "/api/v1/settings/session-interface": {
         parameters: {
             query?: never;
@@ -1410,6 +1478,40 @@ export interface paths {
         head?: never;
         /** Choose the default interface for new sessions */
         patch: operations["updateSessionInterface"];
+        trace?: never;
+    };
+    "/api/v1/settings/ui": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the desktop presentation locale */
+        patch: operations["updateUiSettings"];
+        trace?: never;
+    };
+    "/api/v1/settings/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the desktop auto-update opt-in state */
+        patch: operations["setUpdateSettings"];
         trace?: never;
     };
     "/api/v1/shell-terminals": {
@@ -1649,6 +1751,8 @@ export interface components {
             mode: "chat" | "tui";
             /** Format: date-time */
             pinnedAt?: null | string;
+            /** Format: int64 */
+            previewOpenedRevision?: number;
             /** Format: int64 */
             previewRevision?: number;
             previewUrl?: string;
@@ -1919,6 +2023,12 @@ export interface components {
             orchestratorId?: string;
             workerId: string;
         };
+        DevAncestorRepositoryRequest: {
+            path: string;
+        };
+        DevAncestorRepositoryResponse: {
+            setupWarning?: string;
+        };
         DevImportProjectsConflict: {
             path: string;
             projectId: string;
@@ -1942,6 +2052,11 @@ export interface components {
         DevImportProjectsResponse: {
             report: components["schemas"]["DevImportProjectsReport"];
         };
+        DevImportScanRequest: {
+            /** @enum {string} */
+            mode: "project" | "workspace";
+            path: string;
+        };
         DomainActivity: {
             /** Format: date-time */
             lastActivityAt: string;
@@ -1962,6 +2077,26 @@ export interface components {
             state?: "queued" | "running" | "completed" | "interrupted" | "failed";
             turnId?: string;
         };
+        FeaturePin: {
+            /** Format: int64 */
+            pr: number;
+        };
+        ImportFolderScanRepo: {
+            branch: string;
+            hasRemote: boolean;
+            name: string;
+            path: string;
+            reason?: string;
+            relativePath: string;
+            remote: string;
+            /** @enum {string} */
+            status: "ok" | "error";
+        };
+        ImportFolderScanResult: {
+            path: string;
+            repos: components["schemas"]["ImportFolderScanRepo"][];
+            setupWarning?: string;
+        };
         ImportReport: {
             dryRun: boolean;
             notes?: string[];
@@ -1980,6 +2115,9 @@ export interface components {
         };
         InitializeRepositoryResult: {
             path: string;
+        };
+        KeybindingOverrides: {
+            [key: string]: components["schemas"]["ShortcutBinding"][];
         };
         KillReviewResponse: {
             reviewerHandleId: string;
@@ -2068,6 +2206,20 @@ export interface components {
             method: string;
             ok: boolean;
             prNumber: number;
+        };
+        MigrationReport: {
+            projectsImported: number;
+            projectsSkipped: number;
+        };
+        MigrationState: {
+            /** Format: date-time */
+            completedAt?: string;
+            error?: string;
+            /** Format: date-time */
+            lastAttemptAt?: string;
+            report?: components["schemas"]["MigrationReport"];
+            /** @enum {string} */
+            status: "pending" | "completed" | "declined" | "failed";
         };
         MobileStatusResponse: {
             enabled: boolean;
@@ -2558,6 +2710,12 @@ export interface components {
             chatHarnesses: string[];
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
+            keybindings: components["schemas"]["KeybindingOverrides"];
+            /** Format: date-time */
+            legacyDesktopImportedAt: null | string;
+            migration: components["schemas"]["MigrationState"];
+            ui: components["schemas"]["UiSettings"];
+            updates: components["schemas"]["UpdateSettings"];
         };
         ShellTerminalEnvelope: {
             shellTerminal: components["schemas"]["ShellTerminalResponse"];
@@ -2570,6 +2728,14 @@ export interface components {
             sessionId?: string;
             title: string;
             workingDir: string;
+        };
+        ShortcutBinding: {
+            alt: boolean;
+            code?: string;
+            ctrl: boolean;
+            key: string;
+            meta: boolean;
+            shift: boolean;
         };
         SpawnOrchestratorRequest: {
             clean?: boolean;
@@ -2686,6 +2852,10 @@ export interface components {
             reviews: components["schemas"]["PRReviewState"][];
             runs: components["schemas"]["ReviewRun"][];
         };
+        UiSettings: {
+            /** @enum {string} */
+            locale: "en" | "zh-CN" | "ja" | "ko" | "es" | "fr" | "de" | "pt-BR";
+        };
         UnregisterPushDeviceResponse: {
             deleted: boolean;
             token: string;
@@ -2697,6 +2867,13 @@ export interface components {
         UpdateSessionInterfaceRequest: {
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
+        };
+        UpdateSettings: {
+            /** @enum {string} */
+            channel: "latest" | "nightly";
+            enabled: boolean;
+            feature?: components["schemas"]["FeaturePin"];
+            nightlyAck: boolean;
         };
         UpdateShellTerminalRequest: {
             /** @description New tab title for the shell terminal. Trimmed; must be non-empty. */
@@ -3186,6 +3363,57 @@ export interface operations {
             };
         };
     };
+    findDevAncestorRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevAncestorRepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevAncestorRepositoryResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     runDevImportProjects: {
         parameters: {
             query?: never;
@@ -3206,6 +3434,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DevImportProjectsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    runDevImportScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevImportScanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportFolderScanResult"];
                 };
             };
             /** @description Bad Request */
@@ -8150,6 +8429,108 @@ export interface operations {
             };
         };
     };
+    setKeybindingOverrides: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeybindingOverrides"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setMigrationState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MigrationState"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     updateSessionInterface: {
         parameters: {
             query?: never;
@@ -8160,6 +8541,108 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateSessionInterfaceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateUiSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UiSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setUpdateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSettings"];
             };
         };
         responses: {

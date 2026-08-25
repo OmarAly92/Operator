@@ -3,6 +3,7 @@ import { PanelLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useUiStore } from "../stores/ui-store";
 import { useSkin } from "../theme/skin-context";
+import { operatorBridge } from "../lib/bridge";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -27,7 +28,7 @@ type MenuKey = "file" | "edit" | "view" | "window" | "help";
 
 // Dispatch a native-menu action to the main process (see menu:action in main.ts).
 const act = (action: string) => () => {
-	void window.operator?.menu?.action(action);
+	void operatorBridge.menu.action(action);
 };
 
 // One top-level menu (File/Edit/…). Declared at module scope, not inside
@@ -86,7 +87,7 @@ export function WindowTitlebar({
 	// push the skin's overlay colours to it whenever the skin changes.
 	useEffect(() => {
 		if (!isWindows) return;
-		void window.operator?.window?.setOverlay({
+		void operatorBridge.window.setOverlay({
 			color: skin.windowOverlayBg,
 			symbolColor: skin.windowOverlaySymbol,
 		});
@@ -98,7 +99,7 @@ export function WindowTitlebar({
 		const onFocusIn = (event: FocusEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (target?.closest('[class*="window-titlebar"]')) return;
-			void window.operator?.menu?.notifyShellFocus();
+			void operatorBridge.menu.notifyShellFocus();
 		};
 		document.addEventListener("focusin", onFocusIn);
 		return () => document.removeEventListener("focusin", onFocusIn);
