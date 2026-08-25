@@ -1,7 +1,7 @@
 # operator rewrite docs
 
 The operator is being rebuilt as a long-running Go backend daemon
-(`backend/`) plus an Electron + TypeScript frontend (`frontend/`). The backend
+(`backend/`) plus a Tauri + TypeScript desktop frontend (`frontend/`). The backend
 supervises coding-agent sessions and exposes daemon control, project/session
 state, terminal streaming, and CDC/event infrastructure.
 

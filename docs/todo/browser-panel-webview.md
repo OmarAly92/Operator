@@ -1,7 +1,7 @@
 # Future: rebuild the browser panel on the OS webview
 
 **Recorded:** 2026-08-16
-**Updated:** 2026-08-24 (Task 16 shipped)
+**Updated:** 2026-08-24 (Task 16 shipped; Task 21 deleted the remaining Electron implementation)
 **Status:** deferred, not scheduled
 **Context:** `docs/superpowers/specs/2026-08-16-tauri-port-design.md`
 
@@ -9,9 +9,9 @@
 
 The Tauri port removed the embedded browser panel (the inspector rail's Browser tab, and the
 in-window target of `opr preview`) instead of porting it to the OS webview target. The renderer
-side is gone as of Task 16; what remains is the Electron-only implementation it depended on —
-`frontend/src/main/browser-view-host.ts` and the `preload.browser` namespace — which keeps
-compiling for the Electron shell until Task 21 deletes Electron.
+side is gone as of Task 16, and Task 21 deleted the Electron-only implementation it depended on —
+`frontend/src/main/browser-view-host.ts`, the `preload.browser` namespace, and the Go
+`internal/browserruntime` broker that served it.
 
 Two daemon-side paths replace the panel:
 

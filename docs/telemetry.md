@@ -84,8 +84,8 @@ Before any renderer event or recording is transmitted:
 
 - Absolute file paths (`/home/...`, `/Users/...`, `C:\...`) are replaced with
   `[redacted-local-path]`
-- Local URLs (`file://`, `app://renderer`, `localhost`, `127.0.0.1`, `[::1]`)
-  are replaced with `[redacted-local-url]`
+- Local URLs (`file://`, `tauri://`, `localhost`, `127.0.0.1`, `[::1]`,
+  `tauri.localhost`) are replaced with `[redacted-local-url]`
 - Project IDs are one-way hashed and never sent in plain text
 
 Daemon events use a remote payload allowlist before PostHog export. Project and

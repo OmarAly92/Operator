@@ -3,22 +3,22 @@ import type { Page } from "@playwright/test";
 import type { OperatorBridge } from "../../src/shared/operator-bridge";
 import type { DaemonStatus } from "../../src/shared/daemon-status";
 
-// The e2e suite runs the renderer under `dev:web` (VITE_NO_ELECTRON=1) with no
-// Electron preload, so `window.operator` is undefined and lib/bridge.ts falls back to
+// The e2e suite runs the renderer under `dev:web` (VITE_RENDERER_PREVIEW=1) with
+// no desktop bridge, so `window.operator` is undefined and lib/bridge.ts falls back to
 // a browser stub that reports the daemon as permanently "stopped" and the app
 // version as "0.0.0-preview". The daemon/version smoke cases (DMN-*, INS-004)
 // need a deterministic *ready* daemon and a known version string, so we inject
-// a complete `window.operator` before any page script runs — the same seam the real
-// Electron preload fills. This is a fake *bridge*, not a fake agent: no worker
+// a complete `window.operator` before any page script runs — the same seam the
+// packaged shell's bridge fills. This is a fake *bridge*, not a fake agent: no worker
 // process and no GitHub repo are involved, matching the T0 POD constraints.
 //
-// In a real Linux pod running the packaged Electron build, `window.operator` is the
-// live preload; the injected bridge is only the deterministic stand-in for the
+// In a real Linux pod running the packaged build, `window.operator` is the live
+// bridge; the injected bridge is only the deterministic stand-in for the
 // browser harness.
 //
 // SCOPE / CAVEAT — renderer smoke, not full e2e. Because `window.operator`,
 // `EventSource`, and the workspace snapshot are all faked here, this harness
-// CANNOT catch daemon, storage, API, preload, PTY, or filesystem regressions —
+// CANNOT catch daemon, storage, API, bridge, PTY, or filesystem regressions —
 // those are the packaged-app pod gate's job (#2697). In particular,
 // `useWorkspaceQuery` reads an already-shaped `WorkspaceSummary` straight from
 // `window.__aoFakeAgent.snapshot()`, BYPASSING the generated API client + DTO
@@ -45,16 +45,8 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 			const unsubscribe = () => () => undefined;
 			const status: DaemonStatus =
 				daemonState === "ready" ? { state: "ready", port: daemonPort } : { state: daemonState };
-			const navState = (viewId: string) => ({
-				viewId,
-				url: "",
-				title: "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-			});
 
-			// Full OperatorBridge surface (mirrors src/preload.ts) so any renderer call
+			// Full OperatorBridge surface (mirrors src/shared/operator-bridge.ts) so any renderer call
 			// resolves — an incomplete object would throw the moment the app touched
 			// a missing method.
 			const opr = {
@@ -101,49 +93,10 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 				telemetry: {
 					getBootstrap: async () => null,
 				},
-				browser: {
-					nativeCompositionEnabled: true,
-					ensure: async (sessionId: string) => navState(`preview:${sessionId}`),
-					setBounds: () => undefined,
-					setOverlayOpen: () => undefined,
-					navigate: async ({ viewId }: { viewId: string }) => navState(viewId),
-					clear: async (viewId: string) => navState(viewId),
-					goBack: async (viewId: string) => navState(viewId),
-					goForward: async (viewId: string) => navState(viewId),
-					reload: async (viewId: string) => navState(viewId),
-					stop: async (viewId: string) => navState(viewId),
-					getTabs: async (viewId: string) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					selectTab: async ({ viewId, tabId }: { viewId: string; tabId: string }) => ({
-						viewId,
-						activeTabId: tabId,
-						tabs: [{ id: tabId, url: "", title: "", active: true }],
-					}),
-					closeTab: async ({ viewId }: { viewId: string; tabId: string }) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					openTab: async ({ viewId }: { viewId: string; url?: string }) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					devtools: async (input: { viewId: string }) => ({ viewId: input.viewId, open: false, activeTabId: "" }),
-					destroy: () => undefined,
-					// Annotation contract (mirrors src/preload.ts): useBrowserView subscribes
-					// to these whenever SessionView mounts with window.operator.browser present, so
-					// an incomplete browser shape would crash the session-detail/preview specs.
-					setAnnotationMode: async () => undefined,
-					onAnnotationSubmit: unsubscribe,
-					onAnnotationCancel: unsubscribe,
-					onNavState: unsubscribe,
-					onTabsState: unsubscribe,
-					onAgentActivity: unsubscribe,
-					onDevToolsState: unsubscribe,
+				preview: {
+					openExternalPreview: async ({ url }) => {
+						window.open(url, "_blank", "noopener,noreferrer");
+					},
 				},
 				notifications: {
 					show: async () => undefined,
@@ -470,15 +423,6 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 
 			const unsubscribe = () => () => undefined;
 			const status: DaemonStatus = { state: "ready", port: daemonPort };
-			const navState = (viewId: string, url = "", error?: string) => ({
-				viewId,
-				url,
-				title: url ? "Operator preview" : "",
-				canGoBack: false,
-				canGoForward: false,
-				isLoading: false,
-				...(error ? { error } : {}),
-			});
 			const opr = {
 				app: {
 					getVersion: async () => version,
@@ -518,51 +462,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					},
 				},
 				telemetry: { getBootstrap: async () => null },
-				browser: {
-					nativeCompositionEnabled: true,
-					ensure: async (sessionId: string) => navState(`preview:${sessionId}`),
-					setBounds: () => undefined,
-					setOverlayOpen: () => undefined,
-					navigate: async ({ viewId, url }: { viewId: string; url: string }) =>
-						state.browserError ? navState(viewId, "", state.browserError) : navState(viewId, url),
-					clear: async (viewId: string) => navState(viewId),
-					goBack: async (viewId: string) => navState(viewId),
-					goForward: async (viewId: string) => navState(viewId),
-					reload: async (viewId: string) => navState(viewId),
-					stop: async (viewId: string) => navState(viewId),
-					getTabs: async (viewId: string) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					selectTab: async ({ viewId, tabId }: { viewId: string; tabId: string }) => ({
-						viewId,
-						activeTabId: tabId,
-						tabs: [{ id: tabId, url: "", title: "", active: true }],
-					}),
-					closeTab: async ({ viewId }: { viewId: string; tabId: string }) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					openTab: async ({ viewId }: { viewId: string; url?: string }) => ({
-						viewId,
-						activeTabId: "t1",
-						tabs: [{ id: "t1", url: "", title: "", active: true }],
-					}),
-					devtools: async (input: { viewId: string }) => ({ viewId: input.viewId, open: false, activeTabId: "" }),
-					destroy: () => undefined,
-					// Annotation contract (mirrors src/preload.ts): useBrowserView subscribes
-					// to these whenever SessionView mounts with window.operator.browser present, so
-					// an incomplete browser shape would crash the session-detail/preview specs.
-					setAnnotationMode: async () => undefined,
-					onAnnotationSubmit: unsubscribe,
-					onAnnotationCancel: unsubscribe,
-					onNavState: unsubscribe,
-					onTabsState: unsubscribe,
-					onAgentActivity: unsubscribe,
-					onDevToolsState: unsubscribe,
-				},
+				preview: { openExternalPreview: async () => undefined },
 				notifications: {
 					show: async () => undefined,
 					setBadge: async (_count: number) => undefined,

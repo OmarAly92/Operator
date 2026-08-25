@@ -63,10 +63,6 @@ jobs:
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
           npm run build:acp-runtime
-      - name: Verify native agent-browser compatibility
-        env:
-          OPERATOR_AGENT_BROWSER_TEST_BINARY: ${{ github.workspace }}/frontend/agent-browser/${{ runner.os == 'Windows' && 'agent-browser.exe' || 'agent-browser' }}
-        run: npx vitest run --config vite.renderer.config.ts src/main/agent-browser-runtime.test.ts
       - name: Build (unsigned)
         run: npm run tauri:build -- --debug
       - name: Collect bundle outputs

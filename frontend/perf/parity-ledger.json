@@ -207,7 +207,7 @@
 		"status": "e2e-tauri:desktop+contract:rust-window"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "checkAncestorRepo",
 		"disposition": "move ancestor repository detection to loopback daemon route",
 		"owner": "go",
@@ -216,7 +216,7 @@
 		"status": "contract:go-httpd"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "chooseDirectory",
 		"disposition": "port directory chooser",
 		"owner": "tauri",
@@ -225,7 +225,7 @@
 		"status": "contract:rust-native-chooser"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "getVersion",
 		"disposition": "expose application version through shell-neutral bridge",
 		"owner": "tauri",
@@ -234,7 +234,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onCloseShellTerminalShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -243,7 +243,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onFocusTerminalShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -252,7 +252,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onKeyboardShortcutsHelp",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -261,7 +261,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onNewSessionShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -270,7 +270,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onNewShellTerminalShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -279,7 +279,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onNextSessionShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -288,7 +288,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onNextTabShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -297,7 +297,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onOpenSettingsShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -306,7 +306,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onPreviousSessionShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -315,7 +315,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "onPreviousTabShortcut",
 		"disposition": "port shortcut event",
 		"owner": "tauri",
@@ -324,7 +324,7 @@
 		"status": "contract:rust-shortcuts+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "openExternal",
 		"disposition": "port validated external opener",
 		"owner": "tauri",
@@ -333,7 +333,7 @@
 		"status": "e2e-tauri:desktop+contract:rust-native-validators"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "scanImportFolder",
 		"disposition": "move bounded folder scanning to loopback daemon route",
 		"owner": "go",
@@ -342,7 +342,7 @@
 		"status": "contract:go-httpd"
 	},
 	{
-		"source": "preload.app",
+		"source": "bridge.app",
 		"member": "setCloseShellTerminalShortcutEnabled",
 		"disposition": "port dynamic shortcut enablement",
 		"owner": "tauri",
@@ -351,7 +351,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.appState",
+		"source": "bridge.appState",
 		"member": "getMigration",
 		"disposition": "read migration state from shared daemon settings",
 		"owner": "go",
@@ -360,7 +360,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.appState",
+		"source": "bridge.appState",
 		"member": "setMigration",
 		"disposition": "write migration state through shared daemon settings",
 		"owner": "go",
@@ -576,7 +576,7 @@
 		"status": "deferred:browser-panel-webview"
 	},
 	{
-		"source": "preload.clipboard",
+		"source": "bridge.clipboard",
 		"member": "readText",
 		"disposition": "port clipboard read",
 		"owner": "tauri",
@@ -585,7 +585,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.clipboard",
+		"source": "bridge.clipboard",
 		"member": "writeText",
 		"disposition": "port clipboard write",
 		"owner": "tauri",
@@ -594,7 +594,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.daemon",
+		"source": "bridge.daemon",
 		"member": "getStatus",
 		"disposition": "port daemon status query",
 		"owner": "tauri",
@@ -603,7 +603,7 @@
 		"status": "e2e-tauri:desktop+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.daemon",
+		"source": "bridge.daemon",
 		"member": "onStatus",
 		"disposition": "port daemon status subscription",
 		"owner": "tauri",
@@ -612,7 +612,7 @@
 		"status": "e2e-tauri:desktop+contract:renderer-bridge-vitest"
 	},
 	{
-		"source": "preload.daemon",
+		"source": "bridge.daemon",
 		"member": "restart",
 		"disposition": "port daemon restart",
 		"owner": "tauri",
@@ -621,7 +621,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.daemon",
+		"source": "bridge.daemon",
 		"member": "start",
 		"disposition": "port daemon start",
 		"owner": "tauri",
@@ -630,7 +630,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.daemon",
+		"source": "bridge.daemon",
 		"member": "stop",
 		"disposition": "port daemon stop",
 		"owner": "tauri",
@@ -639,7 +639,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.featureBuilds",
+		"source": "bridge.featureBuilds",
 		"member": "getActive",
 		"disposition": "port active feature build query",
 		"owner": "tauri",
@@ -648,7 +648,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.featureBuilds",
+		"source": "bridge.featureBuilds",
 		"member": "list",
 		"disposition": "port feature build listing",
 		"owner": "tauri",
@@ -657,7 +657,7 @@
 		"status": "contract:rust-updater"
 	},
 	{
-		"source": "preload.keybindings",
+		"source": "bridge.keybindings",
 		"member": "get",
 		"disposition": "read keybindings from shared daemon settings",
 		"owner": "go",
@@ -666,7 +666,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.keybindings",
+		"source": "bridge.keybindings",
 		"member": "set",
 		"disposition": "write keybindings through shared daemon settings",
 		"owner": "go",
@@ -675,7 +675,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.keybindings",
+		"source": "bridge.keybindings",
 		"member": "setRecording",
 		"disposition": "port shortcut recording suppression",
 		"owner": "tauri",
@@ -684,7 +684,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.menu",
+		"source": "bridge.menu",
 		"member": "action",
 		"disposition": "port native menu action",
 		"owner": "tauri",
@@ -693,7 +693,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.menu",
+		"source": "bridge.menu",
 		"member": "notifyShellFocus",
 		"disposition": "port shell focus notification",
 		"owner": "tauri",
@@ -702,7 +702,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.notifications",
+		"source": "bridge.notifications",
 		"member": "devBounce",
 		"disposition": "port development dock attention",
 		"owner": "tauri",
@@ -711,7 +711,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.notifications",
+		"source": "bridge.notifications",
 		"member": "onClick",
 		"disposition": "port notification click event",
 		"owner": "tauri",
@@ -720,7 +720,7 @@
 		"status": "external:notifications-click"
 	},
 	{
-		"source": "preload.notifications",
+		"source": "bridge.notifications",
 		"member": "setBadge",
 		"disposition": "port notification badge",
 		"owner": "tauri",
@@ -729,7 +729,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.notifications",
+		"source": "bridge.notifications",
 		"member": "show",
 		"disposition": "port native notification",
 		"owner": "tauri",
@@ -738,7 +738,7 @@
 		"status": "e2e-tauri:desktop+contract:rust-notification-policy+external:notifications-click"
 	},
 	{
-		"source": "preload.telemetry",
+		"source": "bridge.telemetry",
 		"member": "getBootstrap",
 		"disposition": "serve telemetry bootstrap from loopback daemon",
 		"owner": "go",
@@ -747,7 +747,7 @@
 		"status": "contract:go-desktop-telemetry"
 	},
 	{
-		"source": "preload.terminal",
+		"source": "bridge.terminal",
 		"member": "saveDroppedFile",
 		"disposition": "port bounded dropped-file staging",
 		"owner": "tauri",
@@ -756,7 +756,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.theme",
+		"source": "bridge.theme",
 		"member": "set",
 		"disposition": "port native theme hint",
 		"owner": "tauri",
@@ -765,7 +765,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.tray",
+		"source": "bridge.tray",
 		"member": "onOpenSession",
 		"disposition": "port tray open-session event",
 		"owner": "tauri",
@@ -774,7 +774,7 @@
 		"status": "e2e-tauri:desktop+contract:rust-tray"
 	},
 	{
-		"source": "preload.tray",
+		"source": "bridge.tray",
 		"member": "setAttentionState",
 		"disposition": "port tray attention state",
 		"owner": "tauri",
@@ -783,7 +783,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.uiSettings",
+		"source": "bridge.uiSettings",
 		"member": "get",
 		"disposition": "read UI settings from shared daemon settings",
 		"owner": "go",
@@ -792,7 +792,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.uiSettings",
+		"source": "bridge.uiSettings",
 		"member": "set",
 		"disposition": "write UI settings through shared daemon settings",
 		"owner": "go",
@@ -801,7 +801,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "check",
 		"disposition": "port update check",
 		"owner": "tauri",
@@ -810,7 +810,7 @@
 		"status": "e2e-tauri:desktop+contract:rust-updater"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "download",
 		"disposition": "port update download",
 		"owner": "tauri",
@@ -819,7 +819,7 @@
 		"status": "contract:rust-updater+external:mac-update-e2e"
 	},
 	{
-		"source": "preload.updateSettings",
+		"source": "bridge.updateSettings",
 		"member": "get",
 		"disposition": "read update settings from shared daemon settings",
 		"owner": "go",
@@ -828,7 +828,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.updateSettings",
+		"source": "bridge.updateSettings",
 		"member": "set",
 		"disposition": "write update settings through shared daemon settings",
 		"owner": "go",
@@ -837,7 +837,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "getStatus",
 		"disposition": "port update status query",
 		"owner": "tauri",
@@ -846,7 +846,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "install",
 		"disposition": "port update install",
 		"owner": "tauri",
@@ -855,7 +855,7 @@
 		"status": "contract:rust-updater+external:verified-apply"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "onStatus",
 		"disposition": "port update status event",
 		"owner": "tauri",
@@ -864,7 +864,7 @@
 		"status": "contract:renderer-bridge-vitest+contract:rust-updater"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "onTelemetry",
 		"disposition": "port update telemetry event",
 		"owner": "tauri",
@@ -873,7 +873,7 @@
 		"status": "contract:renderer-bridge-vitest+contract:rust-updater"
 	},
 	{
-		"source": "preload.updates",
+		"source": "bridge.updates",
 		"member": "returnHome",
 		"disposition": "port feature channel return-home flow",
 		"owner": "tauri",
@@ -882,7 +882,7 @@
 		"status": "contract:rust-updater"
 	},
 	{
-		"source": "preload.window",
+		"source": "bridge.window",
 		"member": "isFullScreen",
 		"disposition": "port fullscreen query",
 		"owner": "tauri",
@@ -891,7 +891,7 @@
 		"status": "e2e-tauri:desktop"
 	},
 	{
-		"source": "preload.window",
+		"source": "bridge.window",
 		"member": "onFullScreen",
 		"disposition": "port fullscreen event",
 		"owner": "tauri",
@@ -900,12 +900,20 @@
 		"status": "contract:renderer-bridge-vitest+contract:rust-window"
 	},
 	{
-		"source": "preload.window",
+		"source": "bridge.window",
 		"member": "setOverlay",
 		"disposition": "port window overlay",
 		"owner": "tauri",
 		"task": 13,
 		"exception": null,
 		"status": "e2e-tauri:desktop"
+	},
+	{
+		"source": "bridge.preview",
+		"member": "openExternalPreview",
+		"disposition": "open validated previews in the user's default browser",
+		"owner": "tauri",
+		"task": 16,
+		"exception": null
 	}
 ]

@@ -23,7 +23,6 @@ import (
 	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/OmarAly92/operator/backend/internal/browserruntime"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/daemon/supervisor"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -68,21 +67,7 @@ func Run() error {
 	ignoreBrokenPipeSignal()
 
 	log := newLogger()
-	var browserRuntimeToken string
-	if os.Getenv(browserruntime.RuntimeTokenStdinEnv) == "1" {
-		browserRuntimeToken, err = browserruntime.ReadRuntimeToken(os.Stdin)
-		if err != nil {
-			return err
-		}
-	}
-	if browserRuntimeToken == "" {
-		browserRuntimeToken, err = browserruntime.NewToken()
-		if err != nil {
-			return err
-		}
-	}
 	browserAuthority := browsersvc.NewAuthority()
-	browserBroker := browserruntime.New(log, browserRuntimeToken)
 	browserStateRoot, browserStateRootErr := config.StateRoot()
 	if browserStateRootErr != nil {
 		log.Warn("browser runtime: operator state root unavailable; standalone browser stays disabled", "err", browserStateRootErr)
@@ -267,7 +252,7 @@ func Run() error {
 		NewID:    uuid.NewString,
 	})
 
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserTeardown{broker: browserBroker, standalone: standaloneBrowser}, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, standaloneBrowser, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -447,21 +432,6 @@ func Run() error {
 		return err
 	}
 	previewDone := preview.NewPoller(store, sessionSvc, "http://"+srv.Addr().String(), preview.PollerConfig{Logger: log}).Start(ctx)
-	_ = os.Unsetenv(browserruntime.RuntimeAddressEnv)
-	if ln, addr, err := browserruntime.Listen(cfg.RunFilePath); err != nil {
-		log.Warn("browser runtime: listener unavailable; agent browser control disabled", "err", err)
-	} else {
-		if err := os.Setenv(browserruntime.RuntimeAddressEnv, addr); err != nil {
-			_ = ln.Close()
-			return fmt.Errorf("publish browser runtime address: %w", err)
-		}
-		log.Info("browser runtime: listening", "addr", addr)
-		go func() {
-			if err := browserBroker.Serve(ctx, ln); err != nil {
-				log.Warn("browser runtime: serve stopped with error", "err", err)
-			}
-		}()
-	}
 	var usageDone <-chan struct{}
 
 	// Late-bind: the LAN listener shares the exact loopback router instance so
@@ -541,21 +511,6 @@ func seedScratchProjectOnBoot(ctx context.Context, cfg config.Config, projects *
 		return fmt.Errorf("seed scratch project: %w", err)
 	}
 	return nil
-}
-
-// browserTeardown fans session destruction out to both browser transports while
-// the Electron panel and the standalone runtime coexist. The standalone adapter
-// owns the public API surface; the broker call remains best-effort so a mounted
-// desktop panel still releases its targets until Task 16 removes it.
-type browserTeardown struct {
-	broker     *browserruntime.Broker
-	standalone *agentbrowser.Adapter
-}
-
-// DestroySession implements sessionmanager.BrowserLifecycle.
-func (t browserTeardown) DestroySession(ctx context.Context, id domain.SessionID) error {
-	_ = t.standalone.DestroySession(ctx, id)
-	return t.broker.DestroySession(ctx, id)
 }
 
 // resolveAgentBrowserBinary locates the packaged agent-browser binary the same

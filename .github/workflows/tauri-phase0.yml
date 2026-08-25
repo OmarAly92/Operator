@@ -1,42 +1,14 @@
 name: Tauri Phase 0
 
-on:
-  push:
-    branches: [master]
-  pull_request:
-    paths:
-      - "backend/internal/config/**"
-      - "backend/internal/httpd/cors.go"
-      - "backend/internal/httpd/cors_test.go"
-      - "frontend/package.json"
-      - "frontend/package-lock.json"
-      - "frontend/rust-toolchain.toml"
-      - "frontend/scripts/audit-tauri-state.mjs"
-      - "frontend/scripts/audit-tauri-state.test.mjs"
-      - "frontend/scripts/agent-browser-phase0.mjs"
-      - "frontend/scripts/agent-browser-phase0.test.mjs"
-      - "frontend/scripts/benchmark-*.mjs"
-      - "frontend/scripts/prepare-agent-browser.mjs"
-      - "frontend/scripts/phase0-aggregate.mjs"
-      - "frontend/scripts/phase0-aggregate.test.mjs"
-      - "frontend/scripts/phase0-decision.mjs"
-      - "frontend/scripts/phase0-decision.test.mjs"
-      - "frontend/scripts/phase0-cors-probe.mjs"
-      - "frontend/scripts/phase0-legacy-exercise.mjs"
-      - "frontend/scripts/phase0-legacy-update.mjs"
-      - "frontend/scripts/phase0-legacy-update.test.mjs"
-      - "frontend/scripts/phase0-platform-summary.mjs"
-      - "frontend/scripts/phase0-platform-summary.test.mjs"
-      - "frontend/scripts/phase0-release-trust.json"
-      - "frontend/scripts/phase0-updater-signing.mjs"
-      - "frontend/scripts/phase0-updater-signing.test.mjs"
-      - "frontend/perf/browser/**"
-      - "frontend/perf/scenarios.json"
-      - "frontend/perf/terminal/**"
-      - "frontend/perf/results/**"
-      - "frontend/src-tauri/**"
-      - "docs/benchmarks/tauri-port-baseline.md"
-      - ".github/workflows/tauri-phase0.yml"
+# RETIRED with Task 21 (Electron deletion). This workflow gated the port
+# decision by comparing the Tauri shell against a locally packaged Electron
+# fixture: the legacy-update job, the electron terminal benchmarks, and the
+# Electron baseline measurements all require `npm run package` and the
+# electron toolchain, which no longer exist in this repository. The decision it
+# produced is recorded in docs/benchmarks/tauri-port-baseline.md, so the
+# triggers are removed rather than the gate left permanently red. The still
+# portable checks live on in tauri-webdriver.yml and testing-build.yml. Delete
+# this file once its evidence scripts are archived or ported.
 
 permissions:
   contents: read

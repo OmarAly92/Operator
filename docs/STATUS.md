@@ -118,8 +118,9 @@ surface (`npm run sqlc`, `npm run api`).
   `opr preview start` selects what the panel shows. The desktop poller no longer
   auto-discovers a static entry point merely because a fresh worker exists.
 - Real daemon wiring via the generated `openapi-fetch` typed client
-  (`src/api/schema.ts`); mock data only in `VITE_NO_ELECTRON` web-preview mode.
-- Electron main handles daemon discovery, launch, and status reporting.
+  (`src/api/schema.ts`); mock data only in `VITE_RENDERER_PREVIEW` web-preview mode.
+- The Tauri shell and the daemon handle desktop integration; the Electron main
+  process was removed with Task 21 of the Tauri port.
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
   session view + inspector, project settings, pull-requests page,
   spawn-orchestrator flow.

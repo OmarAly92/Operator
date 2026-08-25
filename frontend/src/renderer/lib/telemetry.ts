@@ -28,7 +28,7 @@ const REDACTED_LOCAL_PATH = "[redacted-local-path]";
 const ACTIVE_STORAGE_KEY = "opr.telemetry.activeSlotsByDate";
 const ROUTE_VIEW_STORAGE_KEY = "opr.telemetry.routeViewsByDate";
 const EMBEDDED_LOCAL_URL_PATTERN =
-	/(?:\bfile:\/\/\/\S+|\bapp:\/\/renderer\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\S*)/gi;
+	/(?:\bfile:\/\/\/\S+|\btauri:\/\/\S+|\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|tauri\.localhost)(?::\d+)?\S*)/gi;
 const POSTHOG_EVENT_NAME_ALIASES: Record<string, string> = {
 	"opr.app.active": "opr.v2.app.active",
 	"opr.renderer.route_viewed": "opr.v2.renderer.route_viewed",

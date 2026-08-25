@@ -9,12 +9,11 @@ mobile client at `packages/mobile`, is documented below.
 
 ## App state lives under `~/.operator` only
 
-All app state, the daemon's data dir, `running.json`, worktrees, and the Electron
-supervisor's `userData` (Chromium cache, cookies, local/session storage, crash
-dumps), must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`).
+All app state, the daemon's data dir, `running.json`, worktrees, and the desktop
+shell's webview state (cache, cookies, local/session storage, crash dumps) must
+resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`).
 Never write to or read from `~/Library/Application Support` or any other OS-default
-app-data location. `frontend/src/main.ts` pins Electron's `userData` to
-`~/.operator/electron`; do not remove that override. See the hard rule in `AGENTS.md`.
+app-data location. See the hard rule in `AGENTS.md`.
 
 ## Design System
 

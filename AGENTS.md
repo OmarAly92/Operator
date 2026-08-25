@@ -5,7 +5,7 @@ Operational guidance for coding agents working in this repository. Keep changes 
 ## Repo layout
 
 - `backend/` — Go rewrite of Operator: Cobra `opr` CLI, loopback HTTP daemon, services, SQLite storage, lifecycle/reaper, runtime/workspace/agent/tracker adapters, terminal mux, and tests.
-- `frontend/` — Electron + React supervisor wired to the daemon via the generated typed client. Treat it as a thin supervisor/UI surface; do not move daemon logic into it.
+- `frontend/` — Tauri + React desktop shell wired to the daemon via the generated typed client. Treat it as a thin supervisor/UI surface; do not move daemon logic into it.
 - `docs/` — current architecture/status notes. Start here before changing lifecycle, CLI, agents, storage, or daemon behavior.
 - `test/` — external smoke/e2e assets, including the CLI fresh-install container check.
 - `.github/workflows/` — CI definitions. Mirror these commands locally when possible.
@@ -96,7 +96,7 @@ For code entry points:
 - Keep generated OpenAPI/API DTO drift in mind: controller response shapes live in `backend/internal/httpd/controllers/dto.go` and tests may assert CLI/HTTP wire compatibility.
 - Do not add network calls to tests unless the package already has an integration/e2e pattern for them. Prefer `httptest`, fakes, and injected dependencies.
 - Do not commit local run state, daemon data, temporary worktrees, build outputs, or credentials.
-- All app state lives under `~/.operator` only. The daemon's data dir, `running.json`, worktrees, and the Electron supervisor's `userData` (Chromium cache, cookies, local/session storage, crash dumps) must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`). Never write to or read from `~/Library/Application Support` or any other OS default app-data location. `main.ts` pins Electron's `userData` to `~/.operator/electron`; do not remove that override or rely on Electron's default path.
+- All app state lives under `~/.operator` only. The daemon's data dir, `running.json`, worktrees, and the desktop shell's webview data (cache, cookies, local/session storage, crash dumps) must resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`). Never write to or read from `~/Library/Application Support` or any other OS default app-data location. The Tauri shell pins its webview `data_directory` under the operator state root (`src-tauri/src/lib.rs`, `.data_directory(state_root.join("webview"))`); do not move it off `~/.operator` or rely on any OS-default webview data path.
 
 ## API contract changes
 

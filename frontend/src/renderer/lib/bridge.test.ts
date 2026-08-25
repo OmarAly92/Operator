@@ -102,8 +102,8 @@ describe("shell selection", () => {
 		expect(unsubscribe).toHaveBeenCalledOnce();
 	});
 
-	it("falls back to the browser preview bridge under VITE_NO_ELECTRON=1", async () => {
-		vi.stubEnv("VITE_NO_ELECTRON", "1");
+	it("falls back to the browser preview bridge under VITE_RENDERER_PREVIEW=1", async () => {
+		vi.stubEnv("VITE_RENDERER_PREVIEW", "1");
 		const { operatorBridge } = await importBridge();
 		expect(await operatorBridge.daemon.getStatus()).toMatchObject({ state: "stopped" });
 	});

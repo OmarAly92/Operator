@@ -404,11 +404,11 @@ describe("telemetry sanitizers", () => {
 		const event = sanitizePostHogEvent({
 			event: "$exception",
 			properties: {
-				$current_url: "app://renderer/index.html?token=secret",
+				$current_url: "tauri://localhost/index.html?token=secret",
 				$initial_current_url: "file:///Users/alice/private/index.html",
 				$referrer: "https://app.localhost:5173/private?token=secret",
 				message:
-					"failed to fetch http://localhost:3037/api/v1/projects?token=secret from app://renderer/index.html?token=secret and open /Users/alice/reverb/file.txt",
+					"failed to fetch http://localhost:3037/api/v1/projects?token=secret from tauri://localhost/index.html?token=secret and open /Users/alice/reverb/file.txt",
 				$exception_list: [
 					{
 						type: "TypeError",

@@ -7,7 +7,7 @@ import { createTauriBridge } from "./tauri-bridge";
 
 export type { FeatureBuild };
 
-export function createElectronBridge(windowBridge: OperatorBridge | undefined): OperatorBridge {
+export function createWindowBridge(windowBridge: OperatorBridge | undefined): OperatorBridge {
 	if (windowBridge) return windowBridge;
 	return createBrowserPreviewBridge();
 }
@@ -60,7 +60,7 @@ function createBrowserPreviewBridge(): OperatorBridge {
 		daemon: {
 			getStatus: async () => ({
 				state: "stopped",
-				message: "Electron preload is not available in browser preview.",
+				message: "The desktop bridge is not available in browser preview.",
 			}),
 			start: async () => ({ state: "starting" }),
 			stop: async () => ({ state: "stopped" }),
@@ -122,7 +122,7 @@ const tauriInternalsPresent = (): boolean =>
 	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 
 function selectShellBridge(): OperatorBridge {
-	if (window.operator) return createElectronBridge(window.operator);
+	if (window.operator) return createWindowBridge(window.operator);
 	if (tauriInternalsPresent()) {
 		const invoke: (command: string, payload?: unknown) => Promise<unknown> = (command, payload) =>
 			tauriInvoke(command, payload as never);
@@ -132,7 +132,7 @@ function selectShellBridge(): OperatorBridge {
 		});
 		return tauriBridge as OperatorBridge;
 	}
-	return createElectronBridge(undefined);
+	return createWindowBridge(undefined);
 }
 
 export async function selectShellBridgeForTest(): Promise<OperatorBridge> {
