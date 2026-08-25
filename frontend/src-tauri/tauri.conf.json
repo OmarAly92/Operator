@@ -5,7 +5,7 @@
 	"identifier": "dev.operator.desktop",
 	"mainBinaryName": "operator",
 	"build": {
-		"beforeDevCommand": "npm run dev:web -- --host 127.0.0.1",
+		"beforeDevCommand": "npm run dev:tauri -- --host 127.0.0.1",
 		"devUrl": "http://127.0.0.1:5173",
 		"beforeBuildCommand": "npm exec -- vite build --config vite.renderer.config.ts",
 		"frontendDist": "../dist"

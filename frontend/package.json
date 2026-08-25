@@ -19,6 +19,7 @@
 		"bench:shell": "node ./scripts/benchmark-shell.mjs",
 		"bench:terminal": "node ./scripts/benchmark-terminal.mjs",
 		"check:desktop-parity": "node ./scripts/check-parity-ledger.mjs",
+		"dev:tauri": "vite --config vite.renderer.config.ts",
 		"dev:web": "VITE_RENDERER_PREVIEW=1 vite --config vite.renderer.config.ts",
 		"tauri:dev": "tauri dev",
 		"tauri:build": "tauri build",

@@ -2,8 +2,8 @@
 
 Commands to run Operator's frontend and backend locally.
 
-> **The usual case is one command.** `npm run tauri:dev` from `frontend/` starts the
-> Tauri desktop shell, which builds and supervises the loopback daemon for you. You
+> **The usual case is one command.** `npm run tauri:dev` from the repository root
+> starts the Tauri desktop shell and supervises the loopback daemon for you. You
 > only start the backend yourself for CLI-only work — see
 > [Backend on its own](#backend-on-its-own).
 
@@ -24,19 +24,25 @@ one agent CLI (Claude Code, Codex, Aider, …) on your PATH for the daemon to dr
 ## Run everything (normal path)
 
 ```bash
-cd frontend && npm install
+npm --prefix frontend install
 ```
 
-```bash
-cd frontend && npm run tauri:dev
-```
-
-`tauri:dev` runs the Tauri app against a Vite dev server (`dev:web`) on `127.0.0.1:5173`.
 Build the sidecars once before the first run so the packaged resources exist:
 
 ```bash
-cd frontend && npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime
+npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime
 ```
+
+Then run the frontend and backend together:
+
+```bash
+npm run tauri:dev
+```
+
+`tauri:dev` runs the Tauri app against a real-data Vite dev server on
+`127.0.0.1:5173`. The Rust shell starts the Go daemon from `backend/` with
+`go run ./cmd/opr daemon` and supervises it for the lifetime of the desktop app.
+The same command also works from `frontend/` when run as `npm run tauri:dev`.
 
 ### Renderer only, no desktop shell
 

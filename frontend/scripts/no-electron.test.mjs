@@ -143,6 +143,28 @@ test("dev:web selects the renamed renderer preview environment", async () => {
 	assert.doesNotMatch(manifest.scripts["dev:web"], /VITE_NO_ELECTRON/);
 });
 
+test("tauri development starts a real-data renderer instead of browser preview data", async () => {
+	const manifest = JSON.parse(await readFile(path.join(frontendRoot, "package.json"), "utf8"));
+	const config = JSON.parse(await readFile(path.join(frontendRoot, "src-tauri/tauri.conf.json"), "utf8"));
+	assert.ok(typeof manifest.scripts["dev:tauri"] === "string", "scripts.dev:tauri must exist");
+	assert.doesNotMatch(manifest.scripts["dev:tauri"], /VITE_RENDERER_PREVIEW/);
+	assert.match(config.build.beforeDevCommand, /npm run dev:tauri/);
+	assert.doesNotMatch(config.build.beforeDevCommand, /npm run dev:web/);
+});
+
+test("repository root forwards the desktop development and preparation commands", async () => {
+	const manifest = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+	const expectedForwarders = {
+		"tauri:dev": "npm --prefix frontend run tauri:dev",
+		"build:daemon": "npm --prefix frontend run build:daemon",
+		"browser-runtime:prepare": "npm --prefix frontend run browser-runtime:prepare",
+		"build:acp-runtime": "npm --prefix frontend run build:acp-runtime",
+	};
+	for (const [scriptName, command] of Object.entries(expectedForwarders)) {
+		assert.equal(manifest.scripts?.[scriptName], command, `scripts.${scriptName} must forward to frontend`);
+	}
+});
+
 test("preview-mode reads the renamed renderer preview flag", async () => {
 	const source = await readFile(path.join(frontendRoot, "src/renderer/lib/preview-mode.ts"), "utf8");
 	assert.match(source, /import\.meta\.env\.VITE_RENDERER_PREVIEW === "1"/);

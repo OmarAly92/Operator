@@ -59,10 +59,17 @@ fn test_manager(config: DaemonConfig) -> DaemonManager {
 
 fn test_manager_with_timeout(config: DaemonConfig, timeout: Duration) -> DaemonManager {
     let home = config.home_dir.to_string_lossy().to_string();
+    let port = std::net::TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+        .to_string();
     let process_env = env_from(&[
         ("HOME", &home),
         ("PATH", "/usr/bin:/bin"),
         ("SHELL", "/usr/bin/false"),
+        ("OPERATOR_PORT", &port),
     ]);
     DaemonManager::with_runtime(
         config,
@@ -134,6 +141,18 @@ fn daemon_discovery_bundled_dev() {
     assert_eq!(spec.command, "go");
     assert_eq!(spec.args, vec!["run", "./cmd/opr", "daemon"]);
     assert_eq!(spec.source, "dev");
+    assert_eq!(spec.cwd, PathBuf::from("/repo/backend"));
+}
+
+#[test]
+fn daemon_discovery_dev_accepts_the_tauri_manifest_directory() {
+    let env = env_from(&[]);
+    let resources = PathBuf::from("/repo/frontend/src-tauri/target/debug/resources");
+    let app_path = PathBuf::from("/repo/frontend/src-tauri");
+    let home = PathBuf::from("/home/user");
+    let spec = resolve_daemon_launch(&env, false, &resources, &app_path, &home, "darwin").unwrap();
+
+    assert_eq!(spec.command, "go");
     assert_eq!(spec.cwd, PathBuf::from("/repo/backend"));
 }
 

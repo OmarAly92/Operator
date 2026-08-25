@@ -96,6 +96,11 @@ pub fn resolve_daemon_launch(
         }
     }
     if !is_packaged {
+        let frontend_root = if app_path.file_name().is_some_and(|name| name == "src-tauri") {
+            app_path.parent().unwrap_or(app_path)
+        } else {
+            app_path
+        };
         return Some(DaemonLaunchSpec {
             command: "go".to_string(),
             args: vec![
@@ -103,7 +108,7 @@ pub fn resolve_daemon_launch(
                 "./cmd/opr".to_string(),
                 "daemon".to_string(),
             ],
-            cwd: normalize_path(&app_path.join("../backend")),
+            cwd: normalize_path(&frontend_root.join("../backend")),
             shell: false,
             source: "dev".to_string(),
         });
