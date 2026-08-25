@@ -157,6 +157,27 @@ exit 1
 	}
 }
 
+func TestAuthStatusUnknownWhenAuthListProbeTimesOut(t *testing.T) {
+	dir := t.TempDir()
+	kilocodePath := filepath.Join(dir, "kilocode")
+	if err := os.WriteFile(kilocodePath, []byte("#!/bin/sh\nexec /bin/sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("KILO_DATA_DIR", filepath.Join(dir, "missing-kilo-data"))
+	for _, name := range kilocodeAPIKeyEnvVars {
+		t.Setenv(name, "")
+	}
+
+	status, err := (&Plugin{resolvedBinary: kilocodePath}).AuthStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != ports.AgentAuthStatusUnknown {
+		t.Fatalf("status = %q, want %q", status, ports.AgentAuthStatusUnknown)
+	}
+}
+
 func TestKilocodeAuthListStatusUnknownWhenEmpty(t *testing.T) {
 	status, ok := kilocodeAuthListStatus("0 credentials\n0 environment variables")
 	if !ok || status != ports.AgentAuthStatusUnknown {

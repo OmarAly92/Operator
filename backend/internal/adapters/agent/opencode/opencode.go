@@ -191,7 +191,10 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 
 	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
 	if probeCtx.Err() != nil {
-		return ports.AgentAuthStatusUnknown, probeCtx.Err()
+		if err := ctx.Err(); err != nil {
+			return ports.AgentAuthStatusUnknown, err
+		}
+		return ports.AgentAuthStatusUnknown, nil
 	}
 	text := strings.ToLower(string(out))
 	if strings.Contains(text, "0 credentials") {

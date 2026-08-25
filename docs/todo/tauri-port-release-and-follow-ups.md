@@ -31,7 +31,6 @@ Do not mark this file complete, flip Phase 0 to `continue`, or publish a Tauri r
 - [ ] Add a real native E2E assertion that distinguishes live terminal mux output from browser-preview/demo text. A review on 2026-08-25 found that `TerminalPane` used the Electron-only `window.operator` check and rendered screenshot text in every Tauri session; the code regression is fixed, but the native test must protect the actual stream boundary.
 - [ ] Harden the parity and Electron-absence checks: constrain status vocabulary, reject invented archived rows, scan backend/scripts/E2E surfaces where applicable, and remove vestigial Tauri-port test environment switches.
 - [ ] Harden Phase 0 scripts and evidence validation: Windows environment mirroring, PowerShell whitespace handling, terminal-open production, route/evidence graph checks, recursive raw-JSON and credential sweeps, and exact signed-payload binding.
-- [ ] Resolve the known load-sensitive three-second auth-probe race-test flakes in the Kilo Code and OpenCode adapters so a loaded full `go test -race ./...` run is reliable without isolated reruns.
 - [ ] Investigate and harden the Tauri relocation-lock timing test. A loaded whole-suite run failed `contended_second_instance_declines_without_touching_either_bundle` once; the exact test subsequently passed five consecutive isolated runs, so this remains reliability debt rather than a reproduced product failure.
 
 ## Updater and packaging follow-ups

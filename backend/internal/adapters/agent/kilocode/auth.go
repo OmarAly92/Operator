@@ -36,7 +36,10 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	defer cancel()
 	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
 	if probeCtx.Err() != nil {
-		return ports.AgentAuthStatusUnknown, probeCtx.Err()
+		if err := ctx.Err(); err != nil {
+			return ports.AgentAuthStatusUnknown, err
+		}
+		return ports.AgentAuthStatusUnknown, nil
 	}
 	status, ok := kilocodeAuthListStatus(string(out))
 	if ok {

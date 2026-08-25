@@ -232,6 +232,28 @@ func TestOpenCodeAuthStatusUnknownWithZeroCredentials(t *testing.T) {
 	}
 }
 
+func TestOpenCodeAuthStatusUnknownWhenAuthListProbeTimesOut(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixture")
+	}
+	clearOpenCodeAuthEnv(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	binary := filepath.Join(t.TempDir(), "opencode")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec /bin/sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := (&Plugin{resolvedBinary: binary}).AuthStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != ports.AgentAuthStatusUnknown {
+		t.Fatalf("AuthStatus = %q, want %q", status, ports.AgentAuthStatusUnknown)
+	}
+}
+
 func TestOpenCodeLocalAuthStatusUnknownWhenMissing(t *testing.T) {
 	clearOpenCodeAuthEnv(t)
 	home := t.TempDir()
