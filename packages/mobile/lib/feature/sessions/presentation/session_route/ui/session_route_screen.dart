@@ -47,7 +47,8 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
     if (mounted) setState(() => _resolving = false);
   }
 
-  ({String id, String? mode, String title, String? projectId, String? previewUrl})? _lookup(
+  ({String id, String? mode, String title, String? projectId, String? previewUrl, String? harness})?
+  _lookup(
     SessionsCubit cubit,
   ) {
     for (final session in cubit.sessions) {
@@ -58,6 +59,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           title: sessionTitle(session),
           projectId: session.projectId,
           previewUrl: session.previewUrl,
+          harness: session.harness,
         );
       }
     }
@@ -69,6 +71,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           title: orchestrator.projectName ?? orchestrator.id!,
           projectId: orchestrator.projectId,
           previewUrl: null,
+          harness: orchestrator.harness,
         );
       }
     }
@@ -105,6 +108,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
                     title: session.title,
                     projectId: session.projectId,
                     previewUrl: session.previewUrl,
+                    harness: session.harness,
                   ),
                 ),
               ),

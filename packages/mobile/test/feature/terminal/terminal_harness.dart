@@ -61,7 +61,7 @@ class TerminalHarness {
 
   late TerminalCubit cubit;
 
-  void start({bool shellOnly = false}) {
+  void start({bool shellOnly = false, String? harness}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
       sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
         (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
@@ -110,7 +110,7 @@ class TerminalHarness {
               title: 'Worktree shell',
               shellOnly: true,
             )
-          : const TerminalArgs(id: 's-1', sessionId: 's-1', title: 'Session'),
+          : TerminalArgs(id: 's-1', sessionId: 's-1', title: 'Session', harness: harness),
     );
   }
 

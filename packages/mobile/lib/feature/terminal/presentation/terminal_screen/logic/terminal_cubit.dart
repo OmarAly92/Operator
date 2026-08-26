@@ -12,6 +12,7 @@ import 'package:operator_mobile/feature/terminal/data/model/params/send_session_
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
+import 'package:operator_mobile/feature/terminal/logic/terminal_scroll.dart';
 import 'package:xterm/xterm.dart';
 
 part 'terminal_state.dart';
@@ -28,6 +29,7 @@ class TerminalArgs extends Equatable {
     this.projectId,
     this.shellOnly = false,
     this.previewUrl,
+    this.harness,
   });
 
   /// The PTY handle: an Operator session id, or a worktree shell's handleId.
@@ -38,8 +40,12 @@ class TerminalArgs extends Equatable {
   final bool shellOnly;
   final String? previewUrl;
 
+  /// The agent CLI running in the pane, when there is one. Decides whether a
+  /// scroll gesture is reported as a wheel or sent as page keys.
+  final String? harness;
+
   @override
-  List<Object?> get props => [id, sessionId, title, projectId, shellOnly, previewUrl];
+  List<Object?> get props => [id, sessionId, title, projectId, shellOnly, previewUrl, harness];
 }
 
 class _TerminalWriteSink implements Sink<String> {
@@ -73,6 +79,7 @@ class TerminalCubit extends Cubit<TerminalState> {
        super(const TerminalInitialState()) {
     status = _mux.currentStatus;
     terminal.onOutput = (data) => _mux.sendInput(args.id, data, projectId: args.projectId);
+    terminal.mouseHandler = TerminalScrollRouter(terminal, harness: args.harness);
     _statusSub = _mux.status.listen(_onStatus);
     _eventsSub = _mux.terminalEvents.where((event) => event.id == args.id).listen(_onEvent);
     _mux.openTerminal(args.id, projectId: args.projectId);

@@ -175,6 +175,12 @@ class _TerminalSurfaceState extends State<TerminalSurface> {
                           // must never raise a keyboard of its own.
                           readOnly: true,
                           hardwareKeyboardOnly: true,
+                          // Without this, a wheel event the pane does not accept
+                          // falls back to arrow keys, which walk the agent's
+                          // prompt instead of scrolling. TerminalScrollRouter
+                          // answers every wheel event, so the fallback is both
+                          // unreachable and unwanted.
+                          simulateScroll: false,
                           backgroundOpacity: 0,
                         ),
                       ),
