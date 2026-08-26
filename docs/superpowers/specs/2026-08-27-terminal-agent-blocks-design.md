@@ -143,8 +143,10 @@ alongside the existing activity derivers.
 client joining mid-session gets history rather than only what arrives next.
 Bounds follow the pattern already established in `handoff_artifact.go`.
 
-**Transport.** A new `agent` channel on the existing `/mux` socket carries event
-frames, alongside `terminal`, `subscribe`, `sessions` and `system`. This reuses
+**Transport.** A new `blocks` channel on the existing `/mux` socket carries event
+frames, alongside `terminal`, `subscribe`, `sessions` and `system`. It is named
+for what it carries rather than for its first source, because shell marks
+(see Shell blocks) are republished onto the same channel. This reuses
 the socket the Kanban board and terminal already depend on, and is the reason
 `MuxClient` lives in `core/mux/` rather than under a feature.
 
@@ -192,7 +194,7 @@ The desktop is Tauri 2 — a Rust host with a React 19 webview
 **Mux client.** `frontend/src/renderer/lib/terminal-mux.ts` currently drops every
 frame that is not `ch === "terminal"` (`terminal-mux.ts:202`), so it discards the
 server's `resize` frames today and would discard `agent` frames too. It gains
-`agent` handling and a subscriber path, mirroring the mobile `MuxClient`.
+`blocks` handling and a subscriber path, mirroring the mobile `MuxClient`.
 
 **Types.** Generated from the OpenAPI spec through `npm run api`, per the repo's
 API-contract rule. Unlike mobile, desktop models are not hand-written.
@@ -218,6 +220,80 @@ channel and reports no size. A consequence worth stating: if the desktop is in
 Blocks mode and a phone is in Raw, the phone becomes the only sizer and the grid
 follows the phone. That is correct — the only client rendering a grid should
 choose it — but it is a behaviour change and needs a test.
+
+### Desktop parity target
+
+The desktop's goal is stated as parity with Warp's block terminal, not an
+approximation of it. That sets a concrete bar, taken from Warp's own source
+rather than from impressions of the product.
+
+**The viewport is a component to build, not a `div` to style.**
+`block_list_viewport.rs` is over a thousand lines maintaining a `sum_tree` of
+block heights (`BlockHeightItem`, `BlockHeightSummary`) with approximate
+comparisons (`heights_approx_gt`, `HEIGHT_FUDGE_FACTOR_LINES`) whose only purpose
+is keeping scroll correct across a virtualized list of variable-height blocks.
+That problem exists in a browser too. An earlier draft of this spec claimed
+desktop scrolling came free from the DOM; that holds for a short list and fails
+for a real session.
+
+Required, and none of it arrives by default:
+
+- **Virtualization.** A long session is thousands of blocks. Rendering them all
+  destroys scroll; rendering a window of them requires knowing the heights of the
+  ones not rendered.
+- **A measured-height cache.** Blocks vary in height and are not measurable until
+  rendered. Estimated heights corrected on measurement, with scroll position
+  preserved across the correction, is the browser equivalent of Warp's height
+  summary. Getting this wrong produces the drifting, jumping scrollbar that makes
+  virtualized lists feel broken.
+- **Scroll anchoring on append.** Output streams in continuously. Pinned to the
+  bottom, the view follows; scrolled up, the view must not move when content
+  arrives below.
+- **Sticky block headers.** While a block is partly scrolled its header stays
+  pinned, and the behaviour is **disabled when the block is taller than the
+  viewport** (`block_list_element.rs:135`) — without that exception a tall block
+  traps its own header.
+- **Block-boundary navigation.** Jump to previous or next block, and scroll a
+  named block into view.
+- **Selection and find across blocks.** Selection must cross block boundaries, and
+  find must search the list rather than one block (`app/src/terminal/find/`).
+
+**Block actions**, matching what Warp offers per block: copy command, copy output,
+re-run, collapse, and filter the list (`block_filter.rs` supports a query with
+configurable context lines). Sharing (`share_block_modal.rs`) is deliberately not
+adopted — it is a Warp cloud feature with no analogue here.
+
+**Not adopted:** GPU text rendering. Warp rasterizes glyphs itself because it had
+no compositor beneath it. A browser has one, and compositor-driven scrolling is
+smooth provided the list does not re-render during scroll — which is a React
+discipline requirement, enforced by profiling, not a framework requirement.
+
+### Shell blocks
+
+Warp's blocks cover **every command**, not only agent activity. A terminal that
+blocks agent turns but leaves ordinary shell work as an undifferentiated wall is
+not at parity, so shell terminals are in scope.
+
+**Source.** A bootstrap script injected into the shell, emitting marks at prompt,
+command start, and command end with the exit code — the role Warp's `Preexec`,
+`Precmd` and `CommandFinished` hooks play. `service/shellterm/loginshell.go`
+currently returns a bare `[$SHELL]` argv with no injection point, so this adds
+one.
+
+**Transport differs from the agent path, deliberately.** Shell marks are written
+by the shell to its own PTY, so they arrive **in-band**, unlike `opr hooks` which
+arrives out-of-band over loopback HTTP. The daemon parses the marks out of the
+terminal stream and republishes them on the same block channel. Clients therefore
+consume one uniform event stream and never learn that two different mechanisms
+produced it.
+
+**Why in the daemon rather than the clients.** Parsing once server-side keeps the
+two client implementations from having to agree on an escape-sequence parser as
+well as on block assembly, and keeps marks from reaching a client's emulator as
+stray output.
+
+**Scope limit.** Bash, zsh and fish, matching the shells Warp bootstraps. An
+unrecognized shell gets no marks and stays in Raw, visibly.
 
 ### Rejected: building a UI framework
 
@@ -266,11 +342,21 @@ pinning that Blocks mode does not join the terminal channel, since that is the
 property the whole fix rests on. `flutter analyze` clean and `flutter test`
 green are the gate, as for every change in this package.
 
-Desktop: unit tests for the mux client's `agent` channel handling, and for block
+Desktop: unit tests for the mux client's block-channel handling, and for block
 assembly. `npm run frontend:typecheck` and `npm test` (vitest) are the gate. A
 test pins that Blocks mode does not join the terminal channel, and a second pins
 the arbitration consequence — desktop in Blocks with a phone in Raw leaves the
 phone as the sole sizer.
+
+Desktop viewport: tests for height estimation and correction (scroll position
+preserved when a measured height replaces an estimate), append anchoring at the
+bottom and while scrolled up, and the sticky-header exception for a block taller
+than the viewport. These are the properties that decide whether scrolling feels
+right, so they are pinned rather than eyeballed. Frame-time profiling under a
+synthetic long session is part of the step, not an afterthought.
+
+Shell blocks: table tests for mark parsing per shell, including a command whose
+own output contains something resembling a mark.
 
 **Shared fixtures.** Block assembly exists twice, in Dart and TypeScript, and the
 two must not drift. One set of event-stream fixtures lives in the repo and both
@@ -280,10 +366,11 @@ failing test, not a silent divergence.
 Native code is not covered by any of these gates; nothing here touches `ios/`,
 `android/`, or a vendored package's platform code.
 
-## Does this fix the mobile problem?
+## Does this fix the problem?
 
-The stated problem was that the phone shows an unreadable terminal while the
-desktop must stay good.
+Two goals, stated separately because they are different. Mobile: the phone shows
+an unreadable terminal while the desktop must stay good. Desktop: the terminal
+should reach parity with Warp's block terminal, including its scrolling.
 
 **Yes, for agent sessions with hook coverage, and by construction rather than by
 tuning.** A block list has no columns and no rows. It reflows to whatever width
@@ -298,17 +385,24 @@ the phone attaches first and the desktop arrives later.
 **Both are good at the same time**, which was the requirement, because the two
 clients no longer render the same artifact.
 
-**Desktop gains structure, not a rescue.** Its grid was never unreadable, so the
-win there is different: an agent's work becomes a list that can be scrolled,
-collapsed, copied and searched with the browser's own find, instead of a
-repainting screen. Desktop Blocks scroll natively for the same reason mobile's
-do — the list is the app's own DOM.
+**Desktop reaches parity where parity is reachable.** Its grid was never
+unreadable, so the win is different: agent turns and shell commands both become
+blocks that can be scrolled, collapsed, copied, filtered and searched. Scrolling
+matches Warp's because the requirements are matched item by item — virtualization,
+height stability, append anchoring, sticky headers, block navigation, cross-block
+selection and find — rather than assumed to come free.
+
+The one deliberate divergence is rendering: Warp rasterizes glyphs on the GPU
+because nothing beneath it composited. A browser composites, so the same
+perceived smoothness is available provided the list does not re-render during
+scroll. That is a profiling obligation, and it is the item most likely to be the
+difference between parity and nearly-parity.
 
 Stated limits, so this is not oversold:
 
-- **Shell terminals are not fixed.** A worktree shell has no agent hooks. It stays
-  Raw. Fixing it needs shell integration — Warp's `Preexec` / `CommandFinished`
-  approach — which is out of scope here and would be a separate spec.
+- **Shell terminals are fixed only where the shell is supported.** Bash, zsh and
+  fish get blocks through the injected bootstrap. Any other shell gets no marks
+  and stays Raw, visibly.
 - **Harnesses without hooks are not fixed.** `activitydispatch` registers eleven.
   The rest stay Raw and say so.
 - **Raw mode is unchanged.** Switching to Raw returns the desktop-shaped grid and
@@ -323,22 +417,34 @@ Stated limits, so this is not oversold:
 
 ## Sequencing
 
-1. Backend event capture, vocabulary and persistence. No UI change.
-2. Mux `agent` channel, on the daemon and in both mux clients. Shared fixtures
-   land here, before either UI consumes them.
-3. **Mobile** block assembly, widgets and the toggle, defaulting off. Mobile leads
-   because its problem is the urgent one.
-4. Default Blocks on for covered harnesses, mobile.
-5. **Desktop** block assembly, components and the toggle, defaulting off, then on.
-   Reuses steps 1 and 2 wholesale.
-6. Transcript enrichment, per harness, benefiting both clients.
-7. (Deferred) Actionable permissions, opt-in, as its own spec.
+1. Backend agent-event capture, vocabulary and persistence. No UI change.
+2. Block channel on the mux, on the daemon and in both mux clients. Shared
+   fixtures land here, before either UI consumes them.
+3. **Mobile** block assembly, widgets and the toggle, defaulting off, then on.
+   Mobile leads because its problem is the urgent one and its list is simpler.
+4. **Desktop** block assembly and components, behind the toggle. Reuses steps 1
+   and 2 wholesale.
+5. **Desktop viewport**: virtualization, measured-height cache, append anchoring,
+   sticky headers, block navigation. This is the parity work and the largest
+   single piece; it is deliberately separate from step 4 so blocks are correct
+   before they are fast.
+6. Cross-block selection, find, and block actions (copy, re-run, filter).
+7. **Shell blocks**: bootstrap injection, daemon-side mark parsing, republished on
+   the block channel. Benefits both clients.
+8. Transcript enrichment, per harness.
+9. (Deferred) Actionable permissions, opt-in, as its own spec.
 
-Steps 1 through 4 fix mobile. Step 5 brings desktop to parity. Steps 6 and 7
-deepen both, and 7 carries its own risk and its own review.
+Steps 1 through 3 fix mobile and are the shortest path to a usable phone. Steps 4
+through 7 are desktop parity. Steps 8 and 9 deepen both, and 9 carries its own
+risk and its own review.
 
 Mobile and desktop are sequenced rather than built in parallel so the event
 vocabulary is settled against one real consumer before a second depends on it.
+
+**Honest cost.** Steps 5, 6 and 7 are each larger than the original agent-blocks
+work. Step 7 in particular adds a subsystem — shell bootstrap injection across
+three shells plus an in-band mark parser — and could be cut without affecting
+mobile at all. If the desktop bar has to move, cut from the end: 7, then 6.
 
 ## Scrolling
 
@@ -356,9 +462,11 @@ a better wheel handler.
 
 Consequences, stated exactly:
 
-- **Blocks mode, both clients: natural.** By construction, because the list is the
-  app's own — a Flutter list on mobile, a DOM scroll container on desktop. Neither
-  needs a scroll engine written for it.
+- **Blocks mode, both clients: natural, once the viewport is built.** The platform
+  supplies momentum, rubber-band and keyboard paging; virtualization, height
+  stability, append anchoring and sticky headers are ours to build. See the
+  Desktop parity target above for the full list — mobile needs the same
+  properties from Flutter's list, with the same care.
 - **Raw mode, both clients: unchanged, and unimprovable.** A full-screen TUI owns
   the screen and keeps no scrollback to scroll. The three existing paths — local
   buffer, SGR reports to tmux copy-mode, and page keys for keyboard-scroll
