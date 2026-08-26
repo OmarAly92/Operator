@@ -491,6 +491,113 @@ delaying it past step 8 would mean building block actions twice.
 agent-blocks work. If the bar has to move, cut from the end: 9, then 8. Cutting 7
 is not a saving — it re-creates the duplication this design exists to prevent.
 
+## Implementation plans
+
+This spec is delivered as **eight plans**, each producing working, testable
+software on its own. Plans live in `docs/superpowers/plans/`.
+
+| # | Plan | Spec steps | File | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Backend block pipeline | 1, 2 (daemon), fixtures | `2026-08-27-block-pipeline-backend.md` | written |
+| 2 | Mobile block screen | 2 (mobile mux), 3, 4 | — | |
+| 3 | Desktop block screen | 2 (desktop mux), 3, 5 | — | |
+| 4 | Viewport, both clients | 6 | — | |
+| 5 | ACP adapter, chat presentation retires | 7 | — | |
+| 6 | Block actions, selection, find | 8 | — | |
+| 7 | Shell blocks | 9 | — | |
+| 8 | Transcript enrichment | 10 | — | |
+
+Step 11, actionable permissions, is deferred Phase B. It gets its own spec before
+it gets a plan and is not counted here.
+
+**Dependencies.** Plan 1 blocks everything. Plans 2 and 3 both depend on 1 and are
+independent of each other. Plan 4 depends on whichever client plan it targets.
+Plans 5 through 8 depend on 2 and 3.
+
+**Plans 1 and 2 together fix mobile.** Everything after is desktop parity and
+depth, and can be re-ordered or cut — except plan 5. Cutting 5 leaves chat's
+presentation layer alive beside the block screen, which is the duplication this
+design exists to remove, and its cost grows with every block feature that lands
+first.
+
+**Plan 4 is the most likely to split.** Mobile and desktop viewports share no
+code — a Flutter list versus DOM virtualization — only a requirements list. If it
+sizes up too large it becomes 4a and 4b.
+
+### Writing the remaining plans
+
+These plans are executed by an agent with no prior context, so a plan that says
+"read the existing helper and follow it" fails. Quote the real thing.
+
+**Verification gates, by area.** Every plan's steps must run the gate for the
+code they touch:
+
+- Backend: `npm run lint` from the repo root (runs `go test ./...` plus
+  golangci-lint v2.12.2). During a task, `cd backend && go test ./internal/<pkg>/ -v`.
+- Mobile: `flutter analyze` (must print "No issues found!") and `flutter test`,
+  both from `packages/mobile`.
+- Desktop: `npm run frontend:typecheck` from the root, and
+  `npm --prefix frontend run test` (vitest). There is no root alias for the test
+  script.
+- Anything touching `queries/` or `migrations/`: `npm run sqlc`, and never edit
+  `backend/internal/storage/sqlite/gen/` by hand.
+- Anything changing the REST surface: `npm run api`, which regenerates the
+  OpenAPI spec and the frontend's TypeScript types.
+
+**Test harnesses that already exist.** Name the file and line, quote the helper,
+and say not to write a second one:
+
+- Sqlite stores: `newTestStore(t)` at
+  `backend/internal/storage/sqlite/store/store_test.go:18`, wrapping
+  `sqlitetest.MustOpen(t)` — a fully migrated isolated store with cleanup
+  registered.
+- HTTP controllers: build a server with
+  `httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{...}, httpd.ControlDeps{}))`,
+  and issue requests with `doRequest` at
+  `backend/internal/httpd/controllers/projects_test.go:522`, signature
+  `(t *testing.T, srv *httptest.Server, method, path, body string) ([]byte, int, http.Header)`.
+  See `sessions_activity_test.go` for the pattern.
+- Mux manager: `newFakeConn()` (no arguments) and
+  `recv(t, c, ch, typ string, d time.Duration) serverMsg`, both in
+  `backend/internal/terminal/manager_test.go`. Drive a connection with
+  `go m.Serve(ctx, conn)` then `conn.in <- clientMsg{...}`. `Serve` reads on its
+  own goroutine, so anything published immediately after a subscribe frame races —
+  poll for the subscription before asserting.
+- Mobile terminal: `packages/mobile/test/feature/terminal/terminal_harness.dart`.
+
+**Conventions a plan must not violate.** These come from `CLAUDE.md` and
+`AGENTS.md` and are not negotiable in review:
+
+- Mobile: Cubit only, never `Bloc` with events. No `freezed`, `json_serializable`,
+  `drift` or `build_runner` in first-party code — models are hand-written with all
+  fields nullable. Static-only classes are `sealed class X`. One params class per
+  method under `data/model/params/`, never shared. Parameterized paths get static
+  methods on `EndPoints`; interpolating at a call site is forbidden. Feature code
+  never imports `flutter_screenutil`. User-facing copy is inline English.
+  Navigation is `Navigator.of(context)` with `RoutesStrings` names.
+- Mobile theming: `AppSkin` through `context.skin`, type as
+  `AppTextStyle.style<Size><Weight>` and the parallel `mono*` set.
+- Desktop: build from shadcn primitives in `components/ui/*` where one fits, and
+  follow agent-orchestrator's visual language with the refined-blue accent per
+  `DESIGN.md`. The terminal palette carve-out applies to Raw mode only.
+- Global: no code comments unless the surrounding file already comments heavily.
+- App state resolves under `~/.operator` only.
+
+**Two mobile behaviours that look like inefficiencies and must not be
+"optimized"**, both documented in `CLAUDE.md`: the 12-second Dio timeouts, and the
+sequential auth probing in `sessions_remote_data_source.dart`.
+
+**The shared fixture contract.** `testdata/blocks/` holds the event-stream
+fixtures both clients assert against. A plan that adds block-assembly behaviour on
+one client adds the fixture and the other client's assertion in the same plan. A
+failing fixture is never fixed by editing the fixture.
+
+**Plan 1 is the reference for depth.** It names every file and line it touches,
+quotes every helper it uses, spells out every signature its neighbours depend on
+in an `Interfaces` block, and predicts where generated code will disagree with the
+plan's guesses. Match that level. A step that describes what to do without showing
+how is a plan failure, not a shortcut.
+
 ## Open questions
 
 - Whether Blocks becomes the default on desktop once parity lands, or stays
