@@ -1,8 +1,13 @@
-# Mobile terminal — agent blocks
+# Terminal — agent blocks
 
 Status: proposed
 Date: 2026-08-27
-Scope: `packages/mobile` terminal feature, `backend/internal` hook and stream path
+Scope: `packages/mobile` terminal feature, `frontend/src/renderer` terminal pane,
+`backend/internal` hook and stream path
+
+Both clients get the same block view over the same event stream. The urgent case
+is mobile, where the current view is unusable; desktop gains the same structure
+and the same scrolling, and keeps its existing grid unchanged behind a toggle.
 
 ## Problem
 
@@ -26,11 +31,18 @@ Two consequences follow, and both matter:
 
 Therefore the fix cannot be a better grid. It must be a view that has no grid.
 
+**The desktop is not broken, and gets the same view for a different reason.** Its
+grid is the one that wins arbitration, so it renders correctly. What it lacks is
+structure: an agent's work is a wall of repainting TUI, not a list of steps that
+can be scrolled, collapsed, or copied. The same block stream that rescues mobile
+gives desktop that structure at close to no extra cost, since the backend half is
+shared. Desktop keeps its current grid untouched behind the same toggle.
+
 ## Approach
 
-Render agent sessions on mobile as a **list of blocks** derived from structured
-events the agent already emits, and keep the raw character grid as a separate
-mode reachable by a toggle.
+Render agent sessions as a **list of blocks** derived from structured events the
+agent already emits, on both clients, and keep the raw character grid as a
+separate mode reachable by a toggle.
 
 This is the model Warp uses, confirmed by reading `warpdotdev/warp` at
 `/Users/omaraly/development/AI/warp`. Warp is AGPL-3.0 (`warp_terminal`); nothing
@@ -128,7 +140,7 @@ dropping it. Per-harness derivers map native hook names onto this set, registere
 alongside the existing activity derivers.
 
 **Persistence.** Events are appended to a bounded per-session log in sqlite, so a
-phone joining mid-session gets history rather than only what arrives next.
+client joining mid-session gets history rather than only what arrives next.
 Bounds follow the pattern already established in `handoff_artifact.go`.
 
 **Transport.** A new `agent` channel on the existing `/mux` socket carries event
@@ -172,6 +184,64 @@ The existing status bar carries the toggle.
 so it reports no size and appears in no `members` map. It therefore has no effect
 on `largestGrid` in either direction. Switching to Raw joins as today.
 
+### Desktop
+
+The desktop is Tauri 2 — a Rust host with a React 19 webview
+(`frontend/src-tauri/`). Blocks are React components in the webview, not Rust.
+
+**Mux client.** `frontend/src/renderer/lib/terminal-mux.ts` currently drops every
+frame that is not `ch === "terminal"` (`terminal-mux.ts:202`), so it discards the
+server's `resize` frames today and would discard `agent` frames too. It gains
+`agent` handling and a subscriber path, mirroring the mobile `MuxClient`.
+
+**Types.** Generated from the OpenAPI spec through `npm run api`, per the repo's
+API-contract rule. Unlike mobile, desktop models are not hand-written.
+
+**Block assembly.** A pure module beside the pane, folding the same event stream
+with the same `ToolUseID` correlation as mobile. The two implementations are
+parallel by necessity — Dart and TypeScript — but must agree, so both are tested
+against the same fixtures.
+
+**Rendering.** New components in `frontend/src/renderer/components/`, built from
+shadcn primitives per DESIGN.md, in agent-orchestrator's visual language with the
+refined-blue accent. The terminal palette continues to govern Raw mode only, per
+the standing carve-out. Blocks are ordinary DOM, so they inherit the platform's
+scrolling, selection, find-in-page and accessibility.
+
+**Mode toggle.** `TerminalPane` gains the same Blocks / Raw toggle as mobile, with
+the same defaults, so the two clients behave identically. Raw remains
+`XtermTerminal` with xterm.js, unchanged.
+
+**Grid arbitration.** The desktop is the primary client, so its Raw grid stays
+authoritative exactly as today. In Blocks mode it does not join the terminal
+channel and reports no size. A consequence worth stating: if the desktop is in
+Blocks mode and a phone is in Raw, the phone becomes the only sizer and the grid
+follows the phone. That is correct — the only client rendering a grid should
+choose it — but it is a behaviour change and needs a test.
+
+### Rejected: building a UI framework
+
+Warp wrote `warpui` / `warpui_core` — scene graph, text layout, font
+rasterization — and its own scroll engine (`block_list_viewport.rs`, a
+`ScrollState` over a `sum_tree`). Not adopted, for two reasons.
+
+**It solves a problem neither client has.** Warp needed a scroll engine because
+nothing beneath it had one. Flutter's list and the browser's scroll container
+already provide momentum, rubber-band, keyboard paging and accessibility for
+free. The quality of Warp's scrolling comes from owning the list, not from owning
+the renderer, and both clients can own the list today.
+
+**Its cost is the whole product.** The desktop renderer is React across the
+kanban board, project sidebar, PR review and settings, cloned from
+agent-orchestrator per DESIGN.md. A UI framework would mean rewriting all of it
+for one pane.
+
+Replacing the emulators is rejected for the same reason. `alacritty_terminal` is
+a grid model with no renderer, in the Rust host rather than where the UI lives;
+adopting it would require bridging every frame into the webview or writing a
+Rust-side renderer. xterm.js stays on desktop, xterm.dart stays on mobile, and
+both matter only in Raw mode.
+
 ### Error handling
 
 - A harness with no registered deriver produces no events; the session opens in
@@ -196,7 +266,18 @@ pinning that Blocks mode does not join the terminal channel, since that is the
 property the whole fix rests on. `flutter analyze` clean and `flutter test`
 green are the gate, as for every change in this package.
 
-Native code is not covered by either gate; nothing here touches `ios/`,
+Desktop: unit tests for the mux client's `agent` channel handling, and for block
+assembly. `npm run frontend:typecheck` and `npm test` (vitest) are the gate. A
+test pins that Blocks mode does not join the terminal channel, and a second pins
+the arbitration consequence — desktop in Blocks with a phone in Raw leaves the
+phone as the sole sizer.
+
+**Shared fixtures.** Block assembly exists twice, in Dart and TypeScript, and the
+two must not drift. One set of event-stream fixtures lives in the repo and both
+suites assert against it. A behaviour added on one client without the other is a
+failing test, not a silent divergence.
+
+Native code is not covered by any of these gates; nothing here touches `ios/`,
 `android/`, or a vendored package's platform code.
 
 ## Does this fix the mobile problem?
@@ -217,6 +298,12 @@ the phone attaches first and the desktop arrives later.
 **Both are good at the same time**, which was the requirement, because the two
 clients no longer render the same artifact.
 
+**Desktop gains structure, not a rescue.** Its grid was never unreadable, so the
+win there is different: an agent's work becomes a list that can be scrolled,
+collapsed, copied and searched with the browser's own find, instead of a
+repainting screen. Desktop Blocks scroll natively for the same reason mobile's
+do — the list is the app's own DOM.
+
 Stated limits, so this is not oversold:
 
 - **Shell terminals are not fixed.** A worktree shell has no agent hooks. It stays
@@ -231,20 +318,27 @@ Stated limits, so this is not oversold:
   pixel-accurate reproduction of its interface. Anything the agent renders but
   does not report — spinners, live token counters, its own layout — appears only
   in Raw.
-- **Unverified on device.** Everything above is reasoning from source. No part of
-  it has been run against a live daemon from a phone.
+- **Unverified.** Everything above is reasoning from source. No part of it has
+  been run against a live daemon, from a phone or from the desktop app.
 
 ## Sequencing
 
 1. Backend event capture, vocabulary and persistence. No UI change.
-2. Mux `agent` channel and mobile models.
-3. Block assembly logic and widgets, Blocks mode behind the toggle, defaulting off.
-4. Default Blocks on for covered harnesses.
-5. Transcript enrichment, per harness.
-6. (Deferred) Actionable permissions, opt-in, as its own spec.
+2. Mux `agent` channel, on the daemon and in both mux clients. Shared fixtures
+   land here, before either UI consumes them.
+3. **Mobile** block assembly, widgets and the toggle, defaulting off. Mobile leads
+   because its problem is the urgent one.
+4. Default Blocks on for covered harnesses, mobile.
+5. **Desktop** block assembly, components and the toggle, defaulting off, then on.
+   Reuses steps 1 and 2 wholesale.
+6. Transcript enrichment, per harness, benefiting both clients.
+7. (Deferred) Actionable permissions, opt-in, as its own spec.
 
-Steps 1–4 deliver the fix. Steps 5 and 6 deepen it, and 6 carries its own risk
-and its own review.
+Steps 1 through 4 fix mobile. Step 5 brings desktop to parity. Steps 6 and 7
+deepen both, and 7 carries its own risk and its own review.
+
+Mobile and desktop are sequenced rather than built in parallel so the event
+vocabulary is settled against one real consumer before a second depends on it.
 
 ## Scrolling
 
@@ -262,16 +356,18 @@ a better wheel handler.
 
 Consequences, stated exactly:
 
-- **Blocks mode: natural.** By construction, because the list is the app's own.
-- **Raw mode: unchanged, and unimprovable.** A full-screen TUI owns the screen and
-  keeps no scrollback to scroll. The three existing paths — local buffer, SGR
-  reports to tmux copy-mode, and page keys for keyboard-scroll harnesses — remain
-  correct. Warp has the identical limitation in its alt-screen element.
-- **Desktop: out of scope.** This spec is mobile-only. On desktop
-  (`XtermTerminal.tsx`) the normal-buffer case already scrolls naturally through
-  xterm.js's own 5000-line scrollback; the mouse-tracking and keyboard-scroll
-  cases are inherent to attaching a TUI and would need their own project. Nothing
-  here changes desktop behaviour in any direction.
+- **Blocks mode, both clients: natural.** By construction, because the list is the
+  app's own — a Flutter list on mobile, a DOM scroll container on desktop. Neither
+  needs a scroll engine written for it.
+- **Raw mode, both clients: unchanged, and unimprovable.** A full-screen TUI owns
+  the screen and keeps no scrollback to scroll. The three existing paths — local
+  buffer, SGR reports to tmux copy-mode, and page keys for keyboard-scroll
+  harnesses — remain correct on both. `terminal_scroll.dart` and the wheel handler
+  in `XtermTerminal.tsx` are untouched. Warp has the identical limitation in its
+  alt-screen element, which is the proof that no renderer choice removes it.
+- **The emulators are not the constraint.** Raw mode would scroll exactly as it
+  does now under any emulator or any UI framework, because the limit is tmux and
+  the TUI, not xterm.
 
 ## Input
 
@@ -284,15 +380,16 @@ where `input_type` is `Shell` or `AI`. The input is auto-detected from context,
 lockable when the user turns autodetection off, and toggleable by hand
 (`with_toggled_type`). Blocks never own an input.
 
-Operator already has the equivalent surface, so nothing moves. The composer and
-key row keep sole ownership of input in both Blocks and Raw mode, and
-`send_route.dart` continues to decide where a send goes.
+Operator already has the equivalent surface on both clients, so nothing moves.
+Mobile's composer and key row keep sole ownership of input in both modes, with
+`send_route.dart` deciding where a send goes; desktop's existing pane input keeps
+the same role. Neither gains a per-block field.
 
 ## Permission requests
 
-**Rich and notifying, not actionable.** A permission request becomes a block that
-names the tool and its input and shows the session as blocked. Acting on it means
-switching to Raw.
+**Rich and notifying, not actionable, on both clients.** A permission request
+becomes a block that names the tool and its input and shows the session as
+blocked. Acting on it means switching to Raw.
 
 Warp does the same. `cli_agent_sessions/mod.rs` maps `PermissionRequest` to
 `Blocked { message: summary }`, stashes `tool_name` and `tool_input_preview`,
