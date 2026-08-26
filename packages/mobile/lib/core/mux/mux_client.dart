@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
-import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -54,10 +54,10 @@ final class TerminalResizeEvent extends TerminalEvent {
 /// terminal I/O. Auto-reconnects with backoff. See `docs/mobile-parity-ledger.md`
 /// for the RN reference (`lib/mux.ts`) this mirrors.
 class MuxClient {
-  MuxClient(this._cfg, {MuxSocket Function(Uri uri, Map<String, String> headers)? connect})
+  MuxClient(this._configSource, {MuxSocket Function(Uri uri, Map<String, String> headers)? connect})
     : _connect = connect ?? IOMuxSocket.connect;
 
-  final ServerConfig _cfg;
+  final ServerConfigSource _configSource;
   final MuxSocket Function(Uri uri, Map<String, String> headers) _connect;
 
   final _statusController = StreamController<MuxStatus>.broadcast();
@@ -94,10 +94,18 @@ class MuxClient {
 
   Future<void> _open() async {
     _setStatus(MuxStatus.connecting);
-    final uri = Uri.parse('${_cfg.wsBase}/mux');
+    final cfg = _configSource.current;
+    if (cfg == null) {
+      _setStatus(MuxStatus.error);
+      _scheduleReconnect();
+      return;
+    }
+    final uri = Uri.parse('${cfg.wsBase}/mux');
+    // No Origin header: this is a native client, not a browser. The daemon's
+    // CORS allowlist 403s every Origin it does not know, which would reject the
+    // upgrade before it reaches the mux handler.
     final headers = {
-      'Origin': 'http://localhost',
-      if (_cfg.password.isNotEmpty) 'Authorization': 'Bearer ${_cfg.password}',
+      if (cfg.password.isNotEmpty) 'Authorization': 'Bearer ${cfg.password}',
     };
 
     final socket = _connect(uri, headers);
