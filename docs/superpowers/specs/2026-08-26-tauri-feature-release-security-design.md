@@ -1,7 +1,7 @@
 # Tauri feature-release security — design
 
 **Date:** 2026-08-26
-**Status:** proposed design
+**Status:** approved design
 **Program:** `docs/superpowers/specs/2026-08-26-tauri-stabilization-program-design.md`
 **Owns:** the P0 feature-release credential and repository-write exposure.
 
