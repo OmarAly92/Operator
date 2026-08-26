@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -59,13 +60,22 @@ class _SlowFakeMuxSocket implements MuxSocket {
 
 const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'secret12');
 
+class _StubSource implements ServerConfigSource {
+  @override
+  ServerConfig? current = _config;
+}
+
+late _StubSource _source;
+
 void main() {
   group('MuxClient', () {
-    test('pins the loopback Origin and the auth header on connect', () {
+    setUp(() => _source = _StubSource());
+
+    test('sends the auth header and no Origin on connect', () {
       Uri? capturedUri;
       Map<String, String>? capturedHeaders;
       final client = MuxClient(
-        _config,
+        _source,
         connect: (uri, headers) {
           capturedUri = uri;
           capturedHeaders = headers;
@@ -76,13 +86,69 @@ void main() {
       client.connect();
 
       expect(capturedUri, Uri.parse('ws://10.0.0.5:3011/mux'));
-      expect(capturedHeaders?['Origin'], 'http://localhost');
+      expect(capturedHeaders?.containsKey('Origin'), isFalse, reason: 'the daemon CORS allowlist 403s any Origin');
       expect(capturedHeaders?['Authorization'], 'Bearer secret12');
+    });
+
+    test('re-reads the server config on every connect so re-pairing retargets the socket', () {
+      fakeAsync((async) {
+        final uris = <Uri>[];
+        late _FakeMuxSocket socket;
+        final client = MuxClient(
+          _source,
+          connect: (uri, _) {
+            uris.add(uri);
+            return socket = _FakeMuxSocket();
+          },
+        );
+
+        client.connect();
+        async.flushMicrotasks();
+        expect(uris.single, Uri.parse('ws://10.0.0.5:3011/mux'));
+
+        _source.current = const ServerConfig(
+          host: '10.0.0.9',
+          httpPort: '3011',
+          secure: false,
+          password: 'secret12',
+        );
+        socket.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+
+        expect(uris.last, Uri.parse('ws://10.0.0.9:3011/mux'));
+        client.disconnect();
+      });
+    });
+
+    test('retries instead of connecting when no server is paired', () {
+      fakeAsync((async) {
+        var connectCount = 0;
+        _source.current = null;
+        final client = MuxClient(
+          _source,
+          connect: (_, _) {
+            connectCount++;
+            return _FakeMuxSocket();
+          },
+        );
+
+        client.connect();
+        async.flushMicrotasks();
+        expect(connectCount, 0);
+
+        _source.current = _config;
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+        expect(connectCount, 1);
+
+        client.disconnect();
+      });
     });
 
     test('decodes a sessions snapshot into SessionPatch', () async {
       late _FakeMuxSocket socket;
-      final client = MuxClient(_config, connect: (_, _) => socket = _FakeMuxSocket());
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
       client.connect();
       await Future<void>.delayed(Duration.zero);
 
@@ -105,7 +171,7 @@ void main() {
 
     test('decodes base64 terminal data', () async {
       late _FakeMuxSocket socket;
-      final client = MuxClient(_config, connect: (_, _) => socket = _FakeMuxSocket());
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
       client.connect();
       await Future<void>.delayed(Duration.zero);
 
@@ -122,7 +188,7 @@ void main() {
 
     test('sendInput base64-encodes the payload', () async {
       late _FakeMuxSocket socket;
-      final client = MuxClient(_config, connect: (_, _) => socket = _FakeMuxSocket());
+      final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
       client.connect();
       await Future<void>.delayed(Duration.zero);
 
@@ -140,7 +206,7 @@ void main() {
         var connectCount = 0;
         final sockets = <_FakeMuxSocket>[];
         final client = MuxClient(
-          _config,
+          _source,
           connect: (_, _) {
             connectCount++;
             final socket = _FakeMuxSocket();
@@ -181,7 +247,7 @@ void main() {
     test('sends a ping every 20 seconds while connected', () {
       fakeAsync((async) {
         late _FakeMuxSocket socket;
-        final client = MuxClient(_config, connect: (_, _) => socket = _FakeMuxSocket());
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
         client.connect();
         async.flushMicrotasks();
 
@@ -198,7 +264,7 @@ void main() {
         var connectCount = 0;
         late _FakeMuxSocket socket;
         final client = MuxClient(
-          _config,
+          _source,
           connect: (_, _) {
             connectCount++;
             return socket = _FakeMuxSocket();
@@ -220,7 +286,7 @@ void main() {
       late _SlowFakeMuxSocket socket;
       final statuses = <MuxStatus>[];
       final client = MuxClient(
-        _config,
+        _source,
         connect: (_, _) => socket = _SlowFakeMuxSocket(readyCompleter.future),
       );
       client.status.listen(statuses.add);
@@ -240,7 +306,7 @@ void main() {
 
     test('remembers the current status for late subscribers', () async {
       final socket = _FakeMuxSocket();
-      final client = MuxClient(_config, connect: (_, _) => socket);
+      final client = MuxClient(_source, connect: (_, _) => socket);
 
       expect(client.currentStatus, MuxStatus.closed);
 
