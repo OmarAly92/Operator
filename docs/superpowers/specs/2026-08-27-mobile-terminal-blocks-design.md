@@ -241,13 +241,91 @@ Stated limits, so this is not oversold:
 3. Block assembly logic and widgets, Blocks mode behind the toggle, defaulting off.
 4. Default Blocks on for covered harnesses.
 5. Transcript enrichment, per harness.
+6. Actionable permissions (Phase B), opt-in, as its own change.
 
-Steps 1–4 deliver the fix. Step 5 deepens it.
+Steps 1–4 deliver the fix. Steps 5 and 6 deepen it, and 6 carries its own risk
+and its own review.
+
+## Input
+
+**Blocks are output only. All input continues through the existing
+`TerminalComposer` and `TerminalKeyRow`.** No per-block input field.
+
+This follows Warp. `app/src/ai/blocklist/input_model.rs` defines a single
+persistent input for the pane, carrying an `InputConfig { input_type, is_locked }`
+where `input_type` is `Shell` or `AI`. The input is auto-detected from context,
+lockable when the user turns autodetection off, and toggleable by hand
+(`with_toggled_type`). Blocks never own an input.
+
+Operator already has the equivalent surface, so nothing moves. The composer and
+key row keep sole ownership of input in both Blocks and Raw mode, and
+`send_route.dart` continues to decide where a send goes.
+
+## Permission requests
+
+**Yes, actionable on mobile — phased, opt-in, and never auto-approving.**
+
+Warp does not do this. `cli_agent_sessions/mod.rs` maps `PermissionRequest` to
+`Blocked { message: summary }`, stashes `tool_name` and `tool_input_preview`,
+and clears that state on `PermissionReplied`. It drives status, notifications
+and the tab title; the user answers in the agent's own TUI. Operator can go
+further because its hooks are its own.
+
+### Rejected: synthesizing keystrokes
+
+Sending the menu selection into the PTY reintroduces exactly the fragility this
+design rejects — option ordering and labels are TUI surface. The repo already
+guards against it: `claudecode.go:90` records that a permission-menu selection is
+rejected by the empty-composer check that gates the guarded send loop, and that
+guard exists so a blind send cannot land in a menu. Do not defeat it.
+
+### Chosen: the hook returns the decision
+
+`claudecode/hooks.go:34` states the current behaviour as a deliberate choice:
+`PermissionRequest` carries the blocking `tool_name`, and `opr hooks` writes
+nothing to stdout, so installing it never injects a permission decision.
+
+Claude Code's hook protocol accepts a decision on stdout. The decision point is
+the hook itself, so a reply routed through it is exact — no screen parsing, no
+keystroke timing, no dependence on the agent's menu layout.
+
+### Phases
+
+**Phase A (with the first release).** Permission blocks are rich and notifying,
+at Warp parity: the tool being requested, its input preview, and a blocked
+status. Not actionable. Answering means switching to Raw, and the block says so.
+
+**Phase B (separate change, explicit opt-in).** `opr hooks` blocks on a
+permission decision routed from the daemon, and the mobile permission block gains
+approve and deny.
+
+Phase B constraints, all load-bearing:
+
+- **Off by default, per project.** A session only waits on a remote decision when
+  the user has enabled it.
+- **Timeout falls through to the agent's own prompt.** It never approves and
+  never denies on Operator's behalf. A sleeping phone or a dropped Tailscale link
+  must degrade to the behaviour that exists today.
+- **The wait is visible.** The daemon records that a hook is blocked on a remote
+  decision, and both clients show it, so a stalled agent is never mysterious.
+- **Only harnesses whose hook protocol documents a decision channel.** Others stay
+  Phase A regardless of the setting.
+
+The risk being managed is that a defect here becomes Operator approving tool
+calls that the user did not approve. That is why the default is off and the
+timeout is fall-through rather than allow.
+
+### Overlap with chat
+
+This makes the terminal screen an approval surface, which chat's
+`approval_card.dart` already is. They stay separate, consistent with the model
+decision above: chat resolves approvals through the ACP driver
+(`resolve_approval_params.dart`), while the terminal resolves them through the
+hook. Different mechanisms, different modes, no shared path.
 
 ## Open questions
 
-- Whether the block list should offer send/input directly, or continue routing
-  all input through the existing composer and key row.
-- Whether `permission_request` blocks should be actionable on mobile, which
-  would make the terminal screen an approval surface and overlap chat's
-  `approval_card.dart`.
+- Whether Phase B's opt-in belongs in project settings, session settings, or
+  both.
+- Which harnesses beyond Claude Code document a hook decision channel; this
+  determines Phase B's reach and is unresearched.
