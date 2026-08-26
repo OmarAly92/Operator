@@ -153,6 +153,16 @@ A block carries: id, sequence, kind (`prompt`, `assistant`, `tool`, `command`,
 action set is how mode-specific capability reaches the UI without the UI
 branching on mode.
 
+**The id is minted at the source, never by a consumer.** Warp takes this
+seriously enough to shape the id around it: a pty-derived block's id is
+`{WARP_SESSION_ID}-{NUM_ID}` handed over by the shell's precmd, with a monotonic
+counter rather than a UUID because minting a UUID in a bootstrap script is
+expensive; only app-created blocks get `manual-{uuid}` (`block_id.rs`). The same
+rule holds here: hook events carry `ToolUseID`, shell marks carry a session-scoped
+counter, and ACP carries its own item ids. A consumer that invents ids cannot
+deduplicate on reconnect, cannot correlate a `tool_complete` with its
+`prompt_submit`, and cannot let two clients agree on what they are looking at.
+
 **Mobile.** A new `feature/blocks/` owns the model, assembly, widgets, viewport
 and the screen. `feature/chat/` keeps its data layer — SSE, repository, params —
 and loses its presentation layer. `feature/terminal/` keeps its data layer and
@@ -167,6 +177,33 @@ reduced to a source adapter. This retires most of the 38 files under
 **This reverses an earlier decision** in the superseded draft to keep terminal
 and chat models separate. That call assumed two screens. With one screen, one
 model is the only defensible answer.
+
+### Secret redaction
+
+`crates/warp_terminal/src/model/secrets.rs` scans block content with regex DFAs
+and marks `SecretRange` spans for redaction, with separate enterprise and user
+pattern levels.
+
+**This matters more here than it does for Warp.** Warp's blocks stay on the
+machine that produced them. Operator's blocks are serialized and pushed over a
+WebSocket to a phone, persisted in sqlite, and rendered on a device that may be
+lost or shoulder-surfed. A block built from `tool_input` or shell output can
+contain an API key, a token in a URL, or an environment dump.
+
+Requirements:
+
+- Redaction happens **daemon-side, before a block is persisted or transmitted**.
+  Redacting in the client would mean the secret already crossed the network and
+  already sits in the sqlite log.
+- Spans are marked rather than deleted, so the UI can show that something was
+  redacted instead of silently altering output — an invisible redaction is its own
+  bug when someone is debugging.
+- A default pattern set, extensible by the user. No enterprise tier here.
+- Redaction is asserted by tests over known-secret fixtures, and the failure mode
+  is to redact too much rather than too little.
+
+This applies to every source: hook payloads, transcript excerpts, shell block
+bytes, and ACP content.
 
 ### Backend
 
@@ -188,6 +225,24 @@ joining mid-session gets history, with bounds following `handoff_artifact.go`.
 **Transport.** A `blocks` channel on the existing `/mux` socket, alongside
 `terminal`, `subscribe`, `sessions` and `system`. Named for what it carries, not
 its first source, because shell marks are republished onto it too.
+
+**Source precedence.** In `tui` mode two sources describe the same session: hook
+events, which arrive first and are truncated, and transcript records, which arrive
+later and are complete. A precedence rule is required, not optional. Warp faces
+the same shape and handles it explicitly: its per-agent handler takes a
+`plugin_already_active` flag so that Codex's cruder OSC 9 fallback is **dropped
+once the rich OSC 777 plugin is live** (`cli_agent_sessions/listener/mod.rs`).
+
+The rule here: a hook event opens a block and sets its status; a transcript record
+for the same id **replaces** the block's body and never creates a second block. A
+transcript record with no matching hook event creates a block. Status always comes
+from hooks, because the transcript does not describe blocking or permission state.
+
+**Per-harness handlers, not just parsers.** Warp's `CLIAgentSessionHandler` can
+parse, filter and transform per agent, not merely rename events. Operator's
+derivers are parse-only today; the same seam is needed so a harness that emits a
+duplicate or a useless event can drop it at its own boundary rather than
+polluting the shared vocabulary.
 
 **Transcript enrichment.** `TranscriptPath` plus the existing `TranscriptWatcher`
 supplies what hook payloads truncate — full assistant text, full tool results,
@@ -311,11 +366,43 @@ Note that `chat` mode already resolves approvals structurally
 - A shell whose output contains something resembling a mark must not produce a
   spurious block boundary.
 
+**Unbounded output.** A single command can emit hundreds of megabytes. Warp caps
+a block's lines and splices a visible marker into the middle rather than dropping
+the tail silently — `TRUNCATION_MESSAGE = "\n...(truncated)...\n"`, with
+`num_lines_truncated()` kept so the count is known (`blockgrid.rs:495`). The same
+applies here, at both ends of the wire: the daemon caps what it persists and
+transmits, and the block records how much was dropped so the UI can say so and
+offer Raw for the rest.
+
+**Memory.** Warp tracks block memory explicitly
+(`estimated_memory_usage_bytes()`, `blockgrid.rs:685`, backed by the `get-size`
+crate). A long session on a phone is the constrained case here, so the client
+holds a bounded window of blocks and pages older ones back from the persisted log
+by sequence. Assembly must therefore work on a window, not on the whole history.
+
+**Stuck states.** The event vocabulary will always be incomplete: an agent that
+is killed, crashes, or is interrupted may never emit `stop`, leaving a block
+`running` forever. Warp solves the interrupt case by inference — it watches for a
+synthesized Ctrl-C write and arms a grace window (`CTRL_C_CANCEL_WINDOW`, two
+seconds) after which the session resolves to `Cancelled` unless disarming
+activity arrives; a second Ctrl-C reuses the window rather than resetting the
+clock. Its distinction is worth copying exactly: **`IdlePrompt` does not disarm,
+because idleness is evidence of idleness, not of aliveness.**
+
+The rule here: a block left `running` when its session's process exits resolves
+to `failed` with a stated reason, and any block whose session is gone is never
+left spinning. Whether to add Warp's Ctrl-C inference is a judgement for
+implementation; the invariant that no block spins forever is not.
+
 ### Testing
 
 **Backend.** Table tests per deriver mapping native hook names onto the
 normalized vocabulary including the unknown case; persistence bounds; mux frame
 encoding; shell mark parsing per shell, including output that mimics a mark.
+Redaction over known-secret fixtures, asserted **before** persistence and
+transmission, not after. Source precedence: a transcript record replaces a hook
+body without creating a second block. Truncation preserves the recorded dropped
+count. No block remains `running` once its session's process is gone.
 
 **Shared fixtures.** Block assembly exists twice, in Dart and TypeScript. One set
 of event-stream fixtures lives in the repo and both suites assert against it, so
