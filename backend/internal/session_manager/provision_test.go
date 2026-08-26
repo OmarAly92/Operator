@@ -20,7 +20,8 @@ func (f fixedBrowserCapability) Issue(_ domain.SessionID) (string, string, error
 }
 
 func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
-	env := spawnEnv("mer-1", "mer", "issue-9", "/data", map[string]string{
+	manager := &Manager{dataDir: "/data", runFilePath: "/state/running.json"}
+	env := manager.spawnEnv("mer-1", "mer", "issue-9", map[string]string{
 		"FOO":        "bar",
 		EnvSessionID: "hacked", // a project must not override Operator-internal vars
 		EnvProjectID: "hacked",
@@ -33,6 +34,21 @@ func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
 	}
 	if env[EnvProjectID] != "mer" {
 		t.Fatalf("OPERATOR_PROJECT_ID = %q, want mer (internal wins)", env[EnvProjectID])
+	}
+}
+
+func TestRuntimeEnvRunFileCannotBeOverridden(t *testing.T) {
+	manager := New(Deps{
+		DataDir:     "/data",
+		RunFilePath: "/state/running.json",
+		Executable:  func() (string, error) { return "/opt/operator/opr", nil },
+	})
+	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
+		EnvRunFile: "/stale/test/running.json",
+	})
+
+	if env[EnvRunFile] != "/state/running.json" {
+		t.Fatalf("OPERATOR_RUN_FILE = %q, want authoritative daemon run file", env[EnvRunFile])
 	}
 }
 

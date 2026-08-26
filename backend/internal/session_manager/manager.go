@@ -142,6 +142,7 @@ const (
 	EnvSupervisedProcess = "OPERATOR_SUPERVISED_PROCESS"
 	// EnvDataDir tells a spawned agent's Operator hook commands where the store lives.
 	EnvDataDir = "OPERATOR_DATA_DIR"
+	EnvRunFile = "OPERATOR_RUN_FILE"
 	// EnvBrowserCapability proves ownership of the session's browser target.
 	EnvBrowserCapability = "OPERATOR_BROWSER_CAPABILITY"
 	// EnvBrowserRuntimeToken must never be inherited by a worker. It authenticates
@@ -299,6 +300,7 @@ type Manager struct {
 	browser             BrowserLifecycle
 	browserCapabilities BrowserCapabilityIssuer
 	dataDir             string
+	runFilePath         string
 	clock               func() time.Time
 	// openTranscriptFile is os.Open in production. The narrow seam lets tests
 	// deterministically prove that a post-stop transcript read failure falls
@@ -542,8 +544,9 @@ type Deps struct {
 	BrowserCapabilities BrowserCapabilityIssuer
 	// DataDir is exported to spawned agents as OPERATOR_DATA_DIR so their hook
 	// commands can open the same store.
-	DataDir string
-	Clock   func() time.Time
+	DataDir     string
+	RunFilePath string
+	Clock       func() time.Time
 	// LookPath overrides exec.LookPath for the pre-launch agent-binary check.
 	// Production wiring leaves this nil and the manager defaults to
 	// exec.LookPath; tests inject a stub so they need not seed real binaries.
@@ -574,6 +577,7 @@ func New(d Deps) *Manager {
 		browser:                      d.Browser,
 		browserCapabilities:          d.BrowserCapabilities,
 		dataDir:                      d.DataDir,
+		runFilePath:                  d.RunFilePath,
 		clock:                        d.Clock,
 		openTranscriptFile:           os.Open,
 		lookPath:                     d.LookPath,
@@ -3257,15 +3261,16 @@ func workspaceRepoList(repos []domain.WorkspaceRepoRecord) string {
 // spawnEnv builds the runtime environment: the per-project env vars first, then
 // the Operator-internal vars last so they always win (a project cannot override
 // OPERATOR_SESSION_ID and friends).
-func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, dataDir string, projectEnv map[string]string) map[string]string {
-	env := make(map[string]string, len(projectEnv)+4)
+func (m *Manager) spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) map[string]string {
+	env := make(map[string]string, len(projectEnv)+5)
 	for k, v := range projectEnv {
 		env[k] = v
 	}
 	env[EnvSessionID] = string(id)
 	env[EnvProjectID] = string(project)
 	env[EnvIssueID] = string(issue)
-	env[EnvDataDir] = dataDir
+	env[EnvDataDir] = m.dataDir
+	env[EnvRunFile] = m.runFilePath
 	return env
 }
 
@@ -3277,7 +3282,7 @@ func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueI
 // When the pin cannot be applied the inherited PATH is kept and a warning is
 // logged so the degradation isn't silent.
 func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) map[string]string {
-	env := spawnEnv(id, project, issue, m.dataDir, projectEnv)
+	env := m.spawnEnv(id, project, issue, projectEnv)
 	env[EnvBrowserCapability] = ""
 	env[EnvBrowserRuntimeToken] = ""
 	env[EnvBrowserRuntimeTokenStdin] = ""
@@ -3521,7 +3526,7 @@ func (m *Manager) cleanupAgentWorkspace(ctx context.Context, rec domain.SessionR
 	if !cleansWorkspace {
 		return
 	}
-	env := spawnEnv(rec.ID, rec.ProjectID, rec.IssueID, m.dataDir, nil)
+	env := m.spawnEnv(rec.ID, rec.ProjectID, rec.IssueID, nil)
 	if project, err := m.loadProject(ctx, rec.ProjectID); err == nil {
 		env = m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
 	} else {
