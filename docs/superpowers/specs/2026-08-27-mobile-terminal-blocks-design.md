@@ -136,7 +136,7 @@ frames, alongside `terminal`, `subscribe`, `sessions` and `system`. This reuses
 the socket the Kanban board and terminal already depend on, and is the reason
 `MuxClient` lives in `core/mux/` rather than under a feature.
 
-**Transcript enrichment (phase 2).** `TranscriptPath` plus the existing
+**Transcript enrichment (later step).** `TranscriptPath` plus the existing
 `TranscriptWatcher` supplies bodies the hook payload truncates — full assistant
 text, full tool results, diffs. Per-harness parsers, added one at a time. Not
 required for the first release: hook events alone produce usable blocks.
@@ -241,10 +241,37 @@ Stated limits, so this is not oversold:
 3. Block assembly logic and widgets, Blocks mode behind the toggle, defaulting off.
 4. Default Blocks on for covered harnesses.
 5. Transcript enrichment, per harness.
-6. Actionable permissions (Phase B), opt-in, as its own change.
+6. (Deferred) Actionable permissions, opt-in, as its own spec.
 
 Steps 1–4 deliver the fix. Steps 5 and 6 deepen it, and 6 carries its own risk
 and its own review.
+
+## Scrolling
+
+**In Blocks mode, scrolling is a native Flutter list scroll**: momentum, fling,
+rubber-band and scrollbar, with no wheel reports, no tmux copy-mode and no
+`WheelDivider` step conversion. `terminal_scroll.dart` continues to govern Raw
+mode and is untouched.
+
+This is the same reason Warp's scrolling feels natural. Warp owns its scrollback
+— `block_list_viewport.rs` keeps its own `ScrollState` over a `sum_tree` of
+blocks — and only forwards scroll to the running program when the alt screen is
+active with mouse reporting (`should_intercept_scroll`, whose logic matches
+`scrollActionFor`). Natural scrolling is a property of owning the content, not of
+a better wheel handler.
+
+Consequences, stated exactly:
+
+- **Blocks mode: natural.** By construction, because the list is the app's own.
+- **Raw mode: unchanged, and unimprovable.** A full-screen TUI owns the screen and
+  keeps no scrollback to scroll. The three existing paths — local buffer, SGR
+  reports to tmux copy-mode, and page keys for keyboard-scroll harnesses — remain
+  correct. Warp has the identical limitation in its alt-screen element.
+- **Desktop: out of scope.** This spec is mobile-only. On desktop
+  (`XtermTerminal.tsx`) the normal-buffer case already scrolls naturally through
+  xterm.js's own 5000-line scrollback; the mouse-tracking and keyboard-scroll
+  cases are inherent to attaching a TUI and would need their own project. Nothing
+  here changes desktop behaviour in any direction.
 
 ## Input
 
@@ -263,43 +290,43 @@ key row keep sole ownership of input in both Blocks and Raw mode, and
 
 ## Permission requests
 
-**Yes, actionable on mobile — phased, opt-in, and never auto-approving.**
+**Rich and notifying, not actionable.** A permission request becomes a block that
+names the tool and its input and shows the session as blocked. Acting on it means
+switching to Raw.
 
-Warp does not do this. `cli_agent_sessions/mod.rs` maps `PermissionRequest` to
+Warp does the same. `cli_agent_sessions/mod.rs` maps `PermissionRequest` to
 `Blocked { message: summary }`, stashes `tool_name` and `tool_input_preview`,
 and clears that state on `PermissionReplied`. It drives status, notifications
-and the tab title; the user answers in the agent's own TUI. Operator can go
-further because its hooks are its own.
+and the tab title; the user answers in the agent's own TUI. Operator could go
+further later, because its hooks are its own; see Phase B below.
 
-### Rejected: synthesizing keystrokes
+### Scope: Phase A only
+
+**This spec implements Phase A.** Permission blocks are rich and notifying, at
+Warp parity: the tool being requested, its input preview, and a blocked status.
+They are **not** actionable. Answering means switching to Raw, and the block says
+so plainly rather than leaving the user to discover it.
+
+Phase A requires no change to `opr hooks` stdout behaviour, so the deliberate
+guarantee in `claudecode/hooks.go:34` — that installing the hook never injects a
+permission decision — is preserved exactly.
+
+### Permanently rejected: synthesizing keystrokes
 
 Sending the menu selection into the PTY reintroduces exactly the fragility this
 design rejects — option ordering and labels are TUI surface. The repo already
 guards against it: `claudecode.go:90` records that a permission-menu selection is
 rejected by the empty-composer check that gates the guarded send loop, and that
-guard exists so a blind send cannot land in a menu. Do not defeat it.
+guard exists so a blind send cannot land in a menu. Do not defeat it, in this
+phase or any later one.
 
-### Chosen: the hook returns the decision
+### Phase B — deferred, not part of this spec
 
-`claudecode/hooks.go:34` states the current behaviour as a deliberate choice:
-`PermissionRequest` carries the blocking `tool_name`, and `opr hooks` writes
-nothing to stdout, so installing it never injects a permission decision.
+Recorded so the option is not lost. `opr hooks` would block on a permission
+decision routed from the daemon, and the mobile permission block would gain
+approve and deny. It is a separate change with its own spec and its own review.
 
-Claude Code's hook protocol accepts a decision on stdout. The decision point is
-the hook itself, so a reply routed through it is exact — no screen parsing, no
-keystroke timing, no dependence on the agent's menu layout.
-
-### Phases
-
-**Phase A (with the first release).** Permission blocks are rich and notifying,
-at Warp parity: the tool being requested, its input preview, and a blocked
-status. Not actionable. Answering means switching to Raw, and the block says so.
-
-**Phase B (separate change, explicit opt-in).** `opr hooks` blocks on a
-permission decision routed from the daemon, and the mobile permission block gains
-approve and deny.
-
-Phase B constraints, all load-bearing:
+Constraints it would have to meet, all load-bearing:
 
 - **Off by default, per project.** A session only waits on a remote decision when
   the user has enabled it.
@@ -311,9 +338,9 @@ Phase B constraints, all load-bearing:
 - **Only harnesses whose hook protocol documents a decision channel.** Others stay
   Phase A regardless of the setting.
 
-The risk being managed is that a defect here becomes Operator approving tool
-calls that the user did not approve. That is why the default is off and the
-timeout is fall-through rather than allow.
+The risk being managed is that a defect there becomes Operator approving tool
+calls that the user did not approve. That is why any such change would default to
+off and time out by falling through rather than allowing.
 
 ### Overlap with chat
 
