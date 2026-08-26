@@ -527,7 +527,9 @@ phase or any later one.
 
 ### Phase B — deferred, not part of this spec
 
-Recorded so the option is not lost. `opr hooks` would block on a permission
+Deferred by explicit decision, 2026-08-27. Nothing in Phase A depends on it, and
+no groundwork for it is laid here: no hook blocks, no decision travels, and
+`opr hooks` keeps writing nothing to stdout. Recorded so the option is not lost. `opr hooks` would block on a permission
 decision routed from the daemon, and the mobile permission block would gain
 approve and deny. It is a separate change with its own spec and its own review.
 
@@ -571,8 +573,10 @@ hook. Different mechanisms, different modes, no shared path.
 
 ## Open questions
 
-- Whether Codex's hook protocol accepts a decision on stdout, and whether
-  `codexHookTimeout` can be raised safely. Both gate Phase B's reach beyond Claude
-  Code and are answerable only by testing against a real Codex build.
 - Whether desktop Blocks should be the default once parity lands, or stay opt-in
   while Raw remains the familiar view.
+
+Phase B's own unknowns — whether Codex accepts a decision on stdout, and whether
+`codexHookTimeout` can move off its 5-second cap — are recorded in its section
+above. They block nothing here and should be answered by whoever picks that work
+up, against a real Codex build.
