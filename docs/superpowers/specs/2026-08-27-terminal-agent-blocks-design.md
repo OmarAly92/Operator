@@ -542,6 +542,20 @@ Constraints it would have to meet, all load-bearing:
   decision, and both clients show it, so a stalled agent is never mysterious.
 - **Only harnesses whose hook protocol documents a decision channel.** Others stay
   Phase A regardless of the setting.
+- **Claude Code and Codex are the intended reach.** Claude Code's hook protocol
+  documents a decision on stdout. Codex has a `PermissionRequest` hook installed
+  (`codex/hooks.go:73`), so the moment is detectable, but **two things must be
+  verified before building against it**: whether Codex reads a decision from the
+  hook's stdout at all, which nothing in this repo establishes, and what happens
+  to `codexHookTimeout`, currently 5 seconds and deliberately tight so a hung
+  daemon cannot stall a turn. Five seconds cannot cover a human answering on a
+  phone, and raising it reopens precisely the stall that comment guards against.
+  If either check fails, Codex stays Phase A and nothing else changes.
+- **The opt-in lives in project settings only.** Not per-session, and not both. It
+  is a safety switch: per-session placement multiplies the number of places it can
+  be left armed and forgotten, and a forgotten one is what freezes an agent
+  overnight. A session-level override is a small later addition if a real need
+  appears.
 
 The risk being managed is that a defect there becomes Operator approving tool
 calls that the user did not approve. That is why any such change would default to
@@ -557,7 +571,8 @@ hook. Different mechanisms, different modes, no shared path.
 
 ## Open questions
 
-- Whether Phase B's opt-in belongs in project settings, session settings, or
-  both.
-- Which harnesses beyond Claude Code document a hook decision channel; this
-  determines Phase B's reach and is unresearched.
+- Whether Codex's hook protocol accepts a decision on stdout, and whether
+  `codexHookTimeout` can be raised safely. Both gate Phase B's reach beyond Claude
+  Code and are answerable only by testing against a real Codex build.
+- Whether desktop Blocks should be the default once parity lands, or stay opt-in
+  while Raw remains the familiar view.
