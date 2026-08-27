@@ -19,6 +19,7 @@ import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
@@ -236,6 +237,10 @@ class ServiceLocator {
   }
 
   static void _blocksFeatureSetup() {
+    sl.registerFactoryParam<BlocksCubit, String, String?>(
+      (sessionId, harness) =>
+          BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), sessionId, harness: harness),
+    );
     sl.registerLazySingleton<BlocksRepository>(
       () => BlocksRepositoryImp(sl<BlocksRemoteDataSource>(), sl<NetworkStatus>()),
     );
