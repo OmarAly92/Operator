@@ -53,7 +53,7 @@ class BlockListState extends State<BlockList> {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionId != oldWidget.sessionId) {
       _pivotSeq = null;
-      _pinned = true;
+      _setPinned(true);
     }
     _adoptPivot();
     if (_pinned) _scheduleFollow();
@@ -65,30 +65,31 @@ class BlockListState extends State<BlockList> {
   }
 
   void jumpToLatest() {
-    _pinned = true;
-    widget.pinnedListenable?.value = true;
+    _setPinned(true);
     _scheduleFollow();
+  }
+
+  void _setPinned(bool pinned) {
+    _pinned = pinned;
+    widget.pinnedListenable?.value = pinned;
   }
 
   void _onScroll() {
     if (!controller.hasClients) return;
-    _pinned = BlockViewport.isPinned(
-      controller.position.pixels,
-      controller.position.maxScrollExtent,
+    _setPinned(
+      BlockViewport.isPinned(
+        controller.position.pixels,
+        controller.position.maxScrollExtent,
+      ),
     );
-    widget.pinnedListenable?.value = _pinned;
     _updateSticky();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateSticky();
     });
   }
 
-  double? _viewportTopDelta(int index) {
-    final viewport = viewportKey.currentContext?.findRenderObject();
-    if (viewport is! RenderBox || !viewport.hasSize) return null;
-    final top = viewport.localToGlobal(Offset.zero).dy;
+  RenderBox? _renderedBlock(int index) {
     final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
-
     for (final key in [leadingKey, centerKey]) {
       final sliver = key.currentContext?.findRenderObject();
       if (sliver is! RenderSliverMultiBoxAdaptor) continue;
@@ -98,18 +99,42 @@ class BlockListState extends State<BlockList> {
         final blockIndex = key == leadingKey
             ? pivot - 1 - sliverIndex
             : pivot + sliverIndex;
-        if (blockIndex == index) {
-          return child.localToGlobal(Offset.zero).dy - top;
-        }
+        if (blockIndex == index) return child;
         child = sliver.childAfter(child);
       }
     }
     return null;
   }
 
+  double? _viewportTopDelta(int index) {
+    final viewport = viewportKey.currentContext?.findRenderObject();
+    final block = _renderedBlock(index);
+    if (viewport is! RenderBox || !viewport.hasSize || block == null) {
+      return null;
+    }
+    final top = viewport.localToGlobal(Offset.zero).dy;
+    return block.localToGlobal(Offset.zero).dy - top;
+  }
+
+  double? _viewportBottomDelta(int index) {
+    final viewport = viewportKey.currentContext?.findRenderObject();
+    final block = _renderedBlock(index);
+    if (viewport is! RenderBox || !viewport.hasSize || block == null) {
+      return null;
+    }
+    final top = viewport.localToGlobal(Offset.zero).dy;
+    return block.localToGlobal(Offset(0, block.size.height)).dy - top;
+  }
+
   void scrollBlockIntoView(int index) {
     if (!controller.hasClients) return;
-    final delta = _viewportTopDelta(index);
+    var delta = _viewportTopDelta(index);
+    final current = _topIndex;
+    if (delta == null &&
+        current != null &&
+        BlockViewport.nextBoundary(current, widget.blocks.length) == index) {
+      delta = _viewportBottomDelta(current);
+    }
     if (delta == null) return;
     final position = controller.position;
     controller.jumpTo(

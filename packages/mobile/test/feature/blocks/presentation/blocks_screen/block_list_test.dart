@@ -29,11 +29,13 @@ class ListHarness extends StatefulWidget {
     required this.initial,
     this.sessionId = 's-1',
     this.sticky,
+    this.pinned,
   });
 
   final List<SessionBlock> initial;
   final String sessionId;
   final ValueNotifier<StickyBlock?>? sticky;
+  final ValueNotifier<bool>? pinned;
 
   @override
   State<ListHarness> createState() => ListHarnessState();
@@ -60,6 +62,7 @@ class ListHarnessState extends State<ListHarness> {
     sessionId: sessionId,
     blocks: blocks,
     sticky: widget.sticky,
+    pinnedListenable: widget.pinned,
   );
 }
 
@@ -67,6 +70,7 @@ Future<ListHarnessState> pumpList(
   WidgetTester tester,
   List<SessionBlock> blocks, {
   ValueNotifier<StickyBlock?>? sticky,
+  ValueNotifier<bool>? pinned,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -82,7 +86,11 @@ Future<ListHarnessState> pumpList(
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: ListHarness(initial: blocks, sticky: sticky),
+                      child: ListHarness(
+                        initial: blocks,
+                        sticky: sticky,
+                        pinned: pinned,
+                      ),
                     ),
                     if (sticky != null)
                       Positioned(
@@ -359,6 +367,35 @@ void main() {
     );
   });
 
+  testWidgets('next reaches an adjacent block outside the sliver cache', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, [
+      block(1, lines: 400),
+      ...range(2, 40),
+    ], sticky: sticky);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(state.topBlockIndex, 0);
+    expect(
+      find.byKey(const ValueKey('seq-2'), skipOffstage: false),
+      findsNothing,
+    );
+
+    state.scrollToBoundary(forward: true);
+    await tester.pumpAndSettle();
+
+    expect(state.topBlockIndex, 1);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      closeTo(0, 1.5),
+    );
+  });
+
   testWidgets('previous returns to the top of a partly scrolled block first', (
     tester,
   ) async {
@@ -405,7 +442,11 @@ void main() {
   testWidgets('navigating past either end does nothing', (tester) async {
     final sticky = ValueNotifier<StickyBlock?>(null);
     addTearDown(sticky.dispose);
-    await pumpList(tester, range(1, 3), sticky: sticky);
+    await pumpList(
+      tester,
+      range(1, 3, lines: (seq) => seq == 3 ? 100 : 1),
+      sticky: sticky,
+    );
 
     final state = tester.state<BlockListState>(find.byType(BlockList));
     state.controller.jumpTo(0);
@@ -416,5 +457,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(state.controller.position.pixels, atTop);
+
+    state.controller.jumpTo(state.controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final atBottom = state.controller.position.pixels;
+    expect(state.topBlockIndex, 2);
+
+    state.scrollToBoundary(forward: true);
+    await tester.pumpAndSettle();
+
+    expect(state.controller.position.pixels, atBottom);
+  });
+
+  testWidgets('switching sessions republishes the reset pinned state', (
+    tester,
+  ) async {
+    final pinned = ValueNotifier<bool>(true);
+    addTearDown(pinned.dispose);
+    final harness = await pumpList(
+      tester,
+      range(1, 60, lines: (seq) => 2),
+      pinned: pinned,
+    );
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(pinned.value, isFalse);
+
+    harness.switchSession('s-2', [block(1)]);
+    await tester.pumpAndSettle();
+
+    expect(state.pinned, isTrue);
+    expect(pinned.value, isTrue);
   });
 }
