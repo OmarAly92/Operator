@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 SessionBlock block(int seq, {int lines = 1}) => SessionBlock(
   id: 'seq-$seq',
@@ -23,10 +24,16 @@ List<SessionBlock> range(int from, int to, {int Function(int)? lines}) => [
 ];
 
 class ListHarness extends StatefulWidget {
-  const ListHarness({super.key, required this.initial, this.sessionId = 's-1'});
+  const ListHarness({
+    super.key,
+    required this.initial,
+    this.sessionId = 's-1',
+    this.sticky,
+  });
 
   final List<SessionBlock> initial;
   final String sessionId;
+  final ValueNotifier<StickyBlock?>? sticky;
 
   @override
   State<ListHarness> createState() => ListHarnessState();
@@ -52,13 +59,15 @@ class ListHarnessState extends State<ListHarness> {
     key: const ValueKey('list'),
     sessionId: sessionId,
     blocks: blocks,
+    sticky: widget.sticky,
   );
 }
 
 Future<ListHarnessState> pumpList(
   WidgetTester tester,
-  List<SessionBlock> blocks,
-) async {
+  List<SessionBlock> blocks, {
+  ValueNotifier<StickyBlock?>? sticky,
+}) async {
   await tester.pumpWidget(
     SkinScope(
       skin: const DarkSkin(),
@@ -70,7 +79,20 @@ Future<ListHarnessState> pumpList(
               child: SizedBox(
                 width: 390,
                 height: 600,
-                child: ListHarness(initial: blocks),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ListHarness(initial: blocks, sticky: sticky),
+                    ),
+                    if (sticky != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: StickyBlockHeader(sticky: sticky),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -255,5 +277,65 @@ void main() {
       state.controller.position.pixels,
       state.controller.position.maxScrollExtent,
     );
+  });
+
+  testWidgets('the header of the block under the top edge is pinned', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 40, lines: (seq) => 2), sticky: sticky);
+
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(sticky.value?.block.id, 'seq-1');
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(sticky.value?.block.id, isNot('seq-1'));
+    expect(find.byType(StickyBlockHeader), findsOneWidget);
+  });
+
+  testWidgets('a block taller than the viewport does not pin its own header', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, [
+      block(1, lines: 1),
+      block(2, lines: 400),
+      block(3, lines: 1),
+    ], sticky: sticky);
+
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(400);
+    await tester.pumpAndSettle();
+
+    expect(
+      sticky.value,
+      isNull,
+      reason: 'a block taller than the viewport must not trap its header',
+    );
+  });
+
+  testWidgets('the pinned header names the same block the top card does', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 40, lines: (seq) => 2), sticky: sticky);
+
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bash 1'), findsNWidgets(2));
   });
 }

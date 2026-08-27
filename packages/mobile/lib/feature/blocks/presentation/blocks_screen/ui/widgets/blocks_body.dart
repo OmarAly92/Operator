@@ -5,9 +5,23 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
-class BlocksBody extends StatelessWidget {
+class BlocksBody extends StatefulWidget {
   const BlocksBody({super.key});
+
+  @override
+  State<BlocksBody> createState() => _BlocksBodyState();
+}
+
+class _BlocksBodyState extends State<BlocksBody> {
+  final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
+
+  @override
+  void dispose() {
+    _sticky.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +71,23 @@ class BlocksBody extends StatelessWidget {
           );
         }
 
-        return BlockList(
-          sessionId: cubit.sessionId,
-          blocks: cubit.blocks,
-          header: _olderControl(context, cubit),
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: BlockList(
+                sessionId: cubit.sessionId,
+                blocks: cubit.blocks,
+                header: _olderControl(context, cubit),
+                sticky: _sticky,
+              ),
+            ),
+            Positioned(
+              top: 6,
+              left: 0,
+              right: 0,
+              child: StickyBlockHeader(sticky: _sticky),
+            ),
+          ],
         );
       },
     );

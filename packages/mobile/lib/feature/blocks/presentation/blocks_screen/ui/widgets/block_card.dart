@@ -24,35 +24,16 @@ class BlockCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: skin.borderSubtle)),
-            ),
-            child: Row(
-              children: [
-                BlockStatusDot(status: block.status),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AppText(
-                    block.title,
-                    style: AppTextStyle.style12SemiBold.copyWith(color: skin.textPrimary),
-                  ),
-                ),
-                AppText(
-                  _kindLabel(block.kind),
-                  style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
-                ),
-              ],
-            ),
-          ),
+          BlockCardHeader(block: block),
           if (block.body.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Text(
                 block.body,
                 softWrap: true,
-                style: AppTextStyle.mono12Regular.copyWith(color: skin.textSecondary),
+                style: AppTextStyle.mono12Regular.copyWith(
+                  color: skin.textSecondary,
+                ),
               ),
             ),
           if (block.redacted)
@@ -68,10 +49,50 @@ class BlockCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
               child: AppText(
                 '...(truncated)... ${block.truncatedLines} more lines — open Raw for the rest',
-                style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+                style: AppTextStyle.style10Regular.copyWith(
+                  color: skin.textTertiary,
+                ),
                 maxLines: 2,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class BlockCardHeader extends StatelessWidget {
+  const BlockCardHeader({super.key, required this.block});
+
+  final SessionBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = context.skin;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: skin.borderSubtle)),
+      ),
+      child: Row(
+        children: [
+          BlockStatusDot(status: block.status),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AppText(
+              block.title,
+              style: AppTextStyle.style12SemiBold.copyWith(
+                color: skin.textPrimary,
+              ),
+            ),
+          ),
+          AppText(
+            _kindLabel(block.kind),
+            style: AppTextStyle.style10Regular.copyWith(
+              color: skin.textTertiary,
+            ),
+          ),
         ],
       ),
     );

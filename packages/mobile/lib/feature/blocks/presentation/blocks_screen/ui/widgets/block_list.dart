@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 class BlockList extends StatefulWidget {
   const BlockList({
@@ -9,11 +11,13 @@ class BlockList extends StatefulWidget {
     required this.sessionId,
     required this.blocks,
     this.header,
+    this.sticky,
   });
 
   final String sessionId;
   final List<SessionBlock> blocks;
   final Widget? header;
+  final ValueNotifier<StickyBlock?>? sticky;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -29,8 +33,10 @@ class BlockListState extends State<BlockList> {
   bool _pinned = true;
   bool _followScheduled = false;
   int _followHops = 0;
+  int? _topIndex;
 
   bool get pinned => _pinned;
+  int? get topBlockIndex => _topIndex;
 
   @override
   void initState() {
@@ -67,6 +73,54 @@ class BlockListState extends State<BlockList> {
       controller.position.pixels,
       controller.position.maxScrollExtent,
     );
+    _updateSticky();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateSticky();
+    });
+  }
+
+  void _updateSticky() {
+    final notifier = widget.sticky;
+    final viewport = viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) {
+      _topIndex = null;
+      notifier?.value = null;
+      return;
+    }
+
+    final top = viewport.localToGlobal(Offset.zero).dy + 0.5;
+    final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
+
+    for (final key in [leadingKey, centerKey]) {
+      final sliver = key.currentContext?.findRenderObject();
+      if (sliver is! RenderSliverMultiBoxAdaptor) continue;
+      RenderBox? child = sliver.firstChild;
+      while (child != null) {
+        final childTop = child.localToGlobal(Offset.zero).dy;
+        final height = child.size.height;
+        if (childTop <= top && childTop + height > top) {
+          final sliverIndex = sliver.indexOf(child);
+          final blockIndex = key == leadingKey
+              ? pivot - 1 - sliverIndex
+              : pivot + sliverIndex;
+          if (blockIndex < 0 || blockIndex >= widget.blocks.length) {
+            _topIndex = null;
+            notifier?.value = null;
+            return;
+          }
+          _topIndex = blockIndex;
+          notifier?.value =
+              BlockViewport.headerSticks(height, viewport.size.height)
+              ? StickyBlock(block: widget.blocks[blockIndex], height: height)
+              : null;
+          return;
+        }
+        child = sliver.childAfter(child);
+      }
+    }
+
+    _topIndex = null;
+    notifier?.value = null;
   }
 
   void _scheduleFollow() {
@@ -106,6 +160,9 @@ class BlockListState extends State<BlockList> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateSticky();
+    });
     final blocks = widget.blocks;
     final pivot = BlockViewport.pivotIndex(blocks, _pivotSeq);
     final header = widget.header;
