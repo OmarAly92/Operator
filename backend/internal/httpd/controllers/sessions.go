@@ -1363,6 +1363,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		Event:                 capActivityMeta(domain.SanitizeControlChars(in.Event)),
 		ToolName:              capActivityMeta(domain.SanitizeControlChars(in.ToolName)),
 		ToolUseID:             capActivityMeta(domain.SanitizeControlChars(in.ToolUseID)),
+		Harness:               capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.Harness))),
+		ToolInput:             capActivityText(domain.SanitizeControlChars(in.ToolInput), 2<<10),
+		HookVersion:           capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.HookVersion))),
 		AgentSessionID:        agentSessionID,
 		LatestUserPrompt:      capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestUserPrompt)), 16<<10),
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
@@ -1380,8 +1383,8 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if c.BlockEvents != nil && sig.Event != "" {
-		harness := ""
-		if in.Usage != nil {
+		harness := sig.Harness
+		if harness == "" && in.Usage != nil {
 			harness = capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(string(in.Usage.Harness))))
 		}
 		if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, sig); err != nil {

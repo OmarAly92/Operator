@@ -78,3 +78,31 @@ func TestBlockEventTrimIsPerSession(t *testing.T) {
 		t.Fatalf("s-2 lost rows to s-1's trim: %d", len(other))
 	}
 }
+
+func TestBlockEventStoreRoundTripsToolInputAndHookVersion(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+		SessionID:   "s-1",
+		Kind:        domain.BlockEventToolComplete,
+		Harness:     "claude-code",
+		ToolName:    "Bash",
+		ToolInput:   `{"command":"ls"}`,
+		HookVersion: "1",
+		CreatedAt:   time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	got, err := s.SelectBlockEventsBySession(ctx, "s-1", 0, 100)
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("rows = %d, want 1", len(got))
+	}
+	if got[0].ToolInput != `{"command":"ls"}` || got[0].HookVersion != "1" {
+		t.Errorf("row = %+v, want the tool input and hook version to survive the round trip", got[0])
+	}
+}

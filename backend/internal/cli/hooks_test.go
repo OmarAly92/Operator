@@ -411,7 +411,7 @@ func TestHooks_SessionStartReportsNativeSessionIDWithoutActivity(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{Event: "session-start", AgentSessionID: "019f6af0-codex-session"}
+	want := setActivityAPIRequest{Event: "session-start", Harness: "codex", HookVersion: hookSchemaVersion, AgentSessionID: "019f6af0-codex-session"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -434,7 +434,7 @@ func TestHooks_ActivityAlsoReportsNativeSessionID(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "idle", Event: "stop", AgentSessionID: "claude-session-1"}
+	want := setActivityAPIRequest{State: "idle", Event: "stop", Harness: "claude-code", HookVersion: hookSchemaVersion, AgentSessionID: "claude-session-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -498,7 +498,7 @@ func TestHooks_PostToolUseCarriesCorrelationFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "active", Event: "post-tool-use", ToolName: "Bash", ToolUseID: "toolu_42"}
+	want := setActivityAPIRequest{State: "active", Event: "post-tool-use", ToolName: "Bash", ToolUseID: "toolu_42", Harness: "claude-code", HookVersion: hookSchemaVersion}
 	if req != want {
 		t.Errorf("body = %+v, want %+v", req, want)
 	}
@@ -524,7 +524,7 @@ func TestHooks_EventWithoutToolIdentityOmitsIt(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "waiting_input", Event: "permission-request", ToolName: "Bash", ToolUseID: ""}
+	want := setActivityAPIRequest{State: "waiting_input", Event: "permission-request", ToolName: "Bash", ToolUseID: "", Harness: "codex", HookVersion: hookSchemaVersion}
 	if req != want {
 		t.Errorf("body = %+v, want %+v", req, want)
 	}
@@ -568,7 +568,7 @@ func TestHooks_CodexSessionStartReportsAgentSessionID(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{Event: "session-start", AgentSessionID: "codex-native-1"}
+	want := setActivityAPIRequest{Event: "session-start", Harness: "codex", HookVersion: hookSchemaVersion, AgentSessionID: "codex-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -612,7 +612,7 @@ func TestHooks_ClaudeCodeSessionStartReportsAgentSessionID(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{Event: "session-start", AgentSessionID: "claude-native-1"}
+	want := setActivityAPIRequest{Event: "session-start", Harness: "claude-code", HookVersion: hookSchemaVersion, AgentSessionID: "claude-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -658,7 +658,7 @@ func TestHooks_ClaudeCompatibleSessionStartReportsAgentSessionID(t *testing.T) {
 			if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 				t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 			}
-			want := setActivityAPIRequest{Event: "session-start", AgentSessionID: agent + "-native-1"}
+			want := setActivityAPIRequest{Event: "session-start", Harness: agent, HookVersion: hookSchemaVersion, AgentSessionID: agent + "-native-1"}
 			if req != want {
 				t.Fatalf("body = %+v, want %+v", req, want)
 			}
@@ -683,7 +683,7 @@ func TestHooks_MuseUserPromptReportsActive(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "active", Event: "user-prompt-submit", AgentSessionID: "muse-native-1"}
+	want := setActivityAPIRequest{State: "active", Event: "user-prompt-submit", Harness: "muse", HookVersion: hookSchemaVersion, AgentSessionID: "muse-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -711,7 +711,7 @@ func TestHooks_RegisteredHarnessSessionStartReportsAgentSessionID(t *testing.T) 
 			if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 				t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 			}
-			want := setActivityAPIRequest{State: "active", Event: "session-start", AgentSessionID: agent + "-native-1"}
+			want := setActivityAPIRequest{State: "active", Event: "session-start", Harness: agent, HookVersion: hookSchemaVersion, AgentSessionID: agent + "-native-1"}
 			if req != want {
 				t.Fatalf("body = %+v, want %+v", req, want)
 			}
@@ -739,7 +739,7 @@ func TestHooks_VibePostAgentReportsSessionIDAndIdle(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "idle", Event: "post-agent", AgentSessionID: "vibe-native-1"}
+	want := setActivityAPIRequest{State: "idle", Event: "post-agent", Harness: "vibe", HookVersion: hookSchemaVersion, AgentSessionID: "vibe-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -775,7 +775,7 @@ func TestHooks_AgySessionStartReportsConversationID(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{Event: "session-start", AgentSessionID: "agy-native-1"}
+	want := setActivityAPIRequest{Event: "session-start", Harness: "agy", HookVersion: hookSchemaVersion, AgentSessionID: "agy-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -801,7 +801,7 @@ func TestHooks_CopilotSessionStartReportsSessionID(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "active", Event: "session-start", AgentSessionID: "copilot-native-1"}
+	want := setActivityAPIRequest{State: "active", Event: "session-start", Harness: "copilot", HookVersion: hookSchemaVersion, AgentSessionID: "copilot-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
@@ -1063,4 +1063,66 @@ func TestHooks_DaemonErrorIsSwallowed(t *testing.T) {
 	if !strings.Contains(errOut, "opr hooks") {
 		t.Errorf("expected the failure surfaced to stderr, got %q", errOut)
 	}
+}
+
+func TestRunHookSendsHarnessForEveryAgent(t *testing.T) {
+	for _, agent := range []string{"claude-code", "codex", "grok"} {
+		t.Run(agent, func(t *testing.T) {
+			req := postActivityForTest(t, agent, "user-prompt-submit", []byte(`{"prompt":"go"}`))
+			if req.Harness != agent {
+				t.Fatalf("harness = %q, want %q — an unset harness makes every block kind unknown", req.Harness, agent)
+			}
+		})
+	}
+}
+
+func TestRunHookStampsItsSchemaVersion(t *testing.T) {
+	req := postActivityForTest(t, "claude-code", "stop", []byte(`{}`))
+	if req.HookVersion != hookSchemaVersion {
+		t.Fatalf("hookVersion = %q, want %q", req.HookVersion, hookSchemaVersion)
+	}
+}
+
+func TestRunHookSendsATruncatedToolInputPreview(t *testing.T) {
+	payload := []byte(`{"tool_name":"Bash","tool_use_id":"tu-1","tool_input":{"command":"ls -la"}}`)
+	req := postActivityForTest(t, "claude-code", "post-tool-use", payload)
+	if !strings.Contains(req.ToolInput, "ls -la") {
+		t.Fatalf("toolInput = %q, want it to carry the command", req.ToolInput)
+	}
+
+	big := `{"tool_name":"Write","tool_input":{"content":"` + strings.Repeat("x", 8<<10) + `"}}`
+	req = postActivityForTest(t, "claude-code", "post-tool-use", []byte(big))
+	if len(req.ToolInput) > maxHookToolInputLen {
+		t.Fatalf("toolInput = %d bytes, want at most %d", len(req.ToolInput), maxHookToolInputLen)
+	}
+	if len(req.ToolInput) == 0 {
+		t.Fatal("an oversized tool input was dropped entirely, want a truncated preview")
+	}
+}
+
+func TestRunHookToolInputSurvivesAMissingField(t *testing.T) {
+	req := postActivityForTest(t, "claude-code", "post-tool-use", []byte(`{"tool_name":"Bash"}`))
+	if req.ToolInput != "" {
+		t.Fatalf("toolInput = %q, want empty when the payload carries none", req.ToolInput)
+	}
+}
+
+func postActivityForTest(t *testing.T, agent, event string, payload []byte) setActivityAPIRequest {
+	t.Helper()
+	t.Setenv("OPERATOR_SESSION_ID", "opr-7")
+	cfg := setConfigEnv(t)
+	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
+	writeRunFileFor(t, cfg, srv)
+
+	if _, _, err := executeCLI(t, Deps{
+		In:           strings.NewReader(string(payload)),
+		ProcessAlive: func(int) bool { return true },
+	}, "hooks", agent, event); err != nil {
+		t.Fatalf("executeCLI: %v", err)
+	}
+	var req setActivityAPIRequest
+	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
+		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
+	}
+	return req
 }

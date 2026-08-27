@@ -1702,6 +1702,7 @@ export interface components {
             sessionId: string;
             sourceId?: string;
             text?: string;
+            toolInput?: string;
             toolName?: string;
             toolUseId?: string;
             truncatedLines?: number;
@@ -2667,6 +2668,10 @@ export interface components {
             agentSessionId?: string;
             /** @description Operator hook sub-command that produced this state (e.g. post-tool-use). */
             event?: string;
+            /** @description Agent token from opr hooks <agent> <event>. Authoritative for block-event mapping; the usage block's harness is only a fallback for older CLIs. */
+            harness?: string;
+            /** @description Schema version of the body the reporting opr CLI emits. */
+            hookVersion?: string;
             /** @description Latest assistant update exposed by the provider hook. */
             latestAssistantUpdate?: string;
             /** @description Latest real user prompt exposed by the provider hook. */
@@ -2678,6 +2683,8 @@ export interface components {
              * @enum {string}
              */
             state?: "active" | "idle" | "waiting_input" | "blocked" | "exited";
+            /** @description Preview of the native tool input, for tool-use and permission hook events. */
+            toolInput?: string;
             /** @description Native tool name, for tool-use hook events. */
             toolName?: string;
             /** @description Native tool-use id, for tool-use hook events. */

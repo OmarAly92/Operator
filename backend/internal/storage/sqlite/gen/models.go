@@ -88,6 +88,7 @@ type BlockEvent struct {
 	HookVersion    string
 	TruncatedLines int64
 	CreatedAt      time.Time
+	ToolInput      string
 }
 
 type ChangeLog struct {

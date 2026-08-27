@@ -114,6 +114,62 @@ func TestSessionsAPI_ActivitySurvivesBlockRecorderFailure(t *testing.T) {
 	}
 }
 
+func TestActivityPassesTheReportedHarnessToBlockEvents(t *testing.T) {
+	rec := &fakeBlockEventRecorder{}
+	srv := newBlockEventsTestServer(t, rec)
+
+	body := `{"state":"active","event":"user-prompt-submit","harness":"grok","latestUserPrompt":"go"}`
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s-1/activity", body)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if rec.gotHarness != "grok" {
+		t.Fatalf("harness = %q, want grok — without it every block kind is unknown", rec.gotHarness)
+	}
+}
+
+func TestActivityFallsBackToTheUsageHarness(t *testing.T) {
+	rec := &fakeBlockEventRecorder{}
+	srv := newBlockEventsTestServer(t, rec)
+
+	body := `{"state":"active","event":"stop","usage":{"harness":"claude-code","transcriptPath":"/tmp/t.jsonl"}}`
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s-1/activity", body)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if rec.gotHarness != "claude-code" {
+		t.Fatalf("harness = %q, want claude-code — an opr older than this task sends it only here", rec.gotHarness)
+	}
+}
+
+func TestActivityPrefersTheExplicitHarnessOverUsage(t *testing.T) {
+	rec := &fakeBlockEventRecorder{}
+	srv := newBlockEventsTestServer(t, rec)
+
+	body := `{"state":"active","event":"stop","harness":"grok","usage":{"harness":"claude-code","transcriptPath":"/tmp/t.jsonl"}}`
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s-1/activity", body)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if rec.gotHarness != "grok" {
+		t.Fatalf("harness = %q, want grok — the explicit field is authoritative", rec.gotHarness)
+	}
+}
+
+func TestActivityCarriesTheToolInputAndHookVersion(t *testing.T) {
+	rec := &fakeBlockEventRecorder{}
+	srv := newBlockEventsTestServer(t, rec)
+
+	body := `{"state":"active","event":"post-tool-use","harness":"claude-code","toolName":"Bash","toolInput":"{\"command\":\"ls\"}","hookVersion":"1"}`
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s-1/activity", body)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if rec.gotSignal.ToolInput == "" || rec.gotSignal.HookVersion != "1" {
+		t.Fatalf("signal = %+v, want the tool input and hook version carried through", rec.gotSignal)
+	}
+}
+
 func TestSessionsAPI_ActivityWorksWithNoBlockRecorder(t *testing.T) {
 	srv := newBlockEventsTestServer(t, nil)
 

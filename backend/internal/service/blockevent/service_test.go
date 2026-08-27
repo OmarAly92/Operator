@@ -175,3 +175,43 @@ func TestRecordTruncatesOnARuneBoundary(t *testing.T) {
 		t.Fatal("truncation was not recorded")
 	}
 }
+
+func TestRecordRedactsTheToolInput(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+		Event:       "post-tool-use",
+		ToolName:    "Bash",
+		ToolInput:   `{"command":"curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz'"}`,
+		HookVersion: "1",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	rec := store.inserted[0]
+	if strings.Contains(rec.ToolInput, "abcdefghijklmnopqrstuvwxyz") {
+		t.Fatal("a bearer token reached the store inside the tool input")
+	}
+	if !strings.Contains(rec.ToolInput, "[redacted]") {
+		t.Errorf("toolInput = %q, want a visible mask", rec.ToolInput)
+	}
+	if rec.HookVersion != "1" {
+		t.Errorf("hookVersion = %q, want 1", rec.HookVersion)
+	}
+}
+
+func TestRecordUsesTheReportedHarness(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "grok", ports.ActivitySignal{
+		Event: "user-prompt-submit",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	if got := store.inserted[0].Kind; got != domain.BlockEventPromptSubmit {
+		t.Fatalf("kind = %q, want prompt_submit — grok has a mapper and must not fall through to unknown", got)
+	}
+}

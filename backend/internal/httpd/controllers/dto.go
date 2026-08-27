@@ -273,6 +273,7 @@ type BlockEventView struct {
 	Harness        string                  `json:"harness,omitempty"`
 	ToolName       string                  `json:"toolName,omitempty"`
 	ToolUseID      string                  `json:"toolUseId,omitempty"`
+	ToolInput      string                  `json:"toolInput,omitempty"`
 	Text           string                  `json:"text,omitempty"`
 	RedactedSpans  []BlockRedactedSpanView `json:"redactedSpans,omitempty"`
 	ErrorType      string                  `json:"errorType,omitempty"`
@@ -306,6 +307,7 @@ func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 			Harness:        rec.Harness,
 			ToolName:       rec.ToolName,
 			ToolUseID:      rec.ToolUseID,
+			ToolInput:      rec.ToolInput,
 			Text:           rec.Text,
 			RedactedSpans:  spans,
 			ErrorType:      rec.ErrorType,
@@ -855,6 +857,9 @@ type SetActivityRequest struct {
 	Event                 string             `json:"event,omitempty" description:"Operator hook sub-command that produced this state (e.g. post-tool-use)."`
 	ToolName              string             `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
 	ToolUseID             string             `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
+	Harness               string             `json:"harness,omitempty" description:"Agent token from opr hooks <agent> <event>. Authoritative for block-event mapping; the usage block's harness is only a fallback for older CLIs."`
+	ToolInput             string             `json:"toolInput,omitempty" maxLength:"2048" description:"Preview of the native tool input, for tool-use and permission hook events."`
+	HookVersion           string             `json:"hookVersion,omitempty" description:"Schema version of the body the reporting opr CLI emits."`
 	AgentSessionID        string             `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
 	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
 	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`

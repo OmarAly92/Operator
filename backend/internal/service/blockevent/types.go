@@ -24,11 +24,12 @@ type Record struct {
 	Harness       string                `json:"harness,omitempty"`
 	ToolName      string                `json:"toolName,omitempty"`
 	ToolUseID     string                `json:"toolUseId,omitempty"`
+	ToolInput     string                `json:"toolInput,omitempty"`
 	Text          string                `json:"text,omitempty"`
 	RedactedSpans []redact.Span         `json:"redactedSpans,omitempty"`
-	// ErrorType and HookVersion are persisted but not yet populated:
-	// ports.ActivitySignal carries neither, so filling them needs the hook
-	// request body widened first. Reserved deliberately, not forgotten.
+	// ErrorType is persisted but not yet populated: ports.ActivitySignal does
+	// not yet carry it, so filling it needs the hook request body widened
+	// first. Reserved deliberately, not forgotten.
 	ErrorType      string    `json:"errorType,omitempty"`
 	HookVersion    string    `json:"hookVersion,omitempty"`
 	TruncatedLines int       `json:"truncatedLines,omitempty"`

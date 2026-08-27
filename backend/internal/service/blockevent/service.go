@@ -63,6 +63,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		text = text[:cut]
 	}
 	redacted := redact.Text(text)
+	redactedInput := redact.Text(sig.ToolInput)
 
 	sourceID := sig.ToolUseID
 	if sourceID == "" {
@@ -76,8 +77,10 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		Harness:        harness,
 		ToolName:       sig.ToolName,
 		ToolUseID:      sig.ToolUseID,
+		ToolInput:      redactedInput.Text,
 		Text:           redacted.Text,
 		RedactedSpans:  redacted.Spans,
+		HookVersion:    sig.HookVersion,
 		TruncatedLines: truncated,
 		CreatedAt:      time.Now().UTC(),
 	}

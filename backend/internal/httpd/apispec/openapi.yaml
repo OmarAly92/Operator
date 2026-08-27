@@ -5079,6 +5079,8 @@ components:
           type: string
         text:
           type: string
+        toolInput:
+          type: string
         toolName:
           type: string
         toolUseId:
@@ -7647,6 +7649,14 @@ components:
         event:
           description: Operator hook sub-command that produced this state (e.g. post-tool-use).
           type: string
+        harness:
+          description: Agent token from opr hooks <agent> <event>. Authoritative for
+            block-event mapping; the usage block's harness is only a fallback for
+            older CLIs.
+          type: string
+        hookVersion:
+          description: Schema version of the body the reporting opr CLI emits.
+          type: string
         latestAssistantUpdate:
           description: Latest assistant update exposed by the provider hook.
           maxLength: 16384
@@ -7667,6 +7677,11 @@ components:
           - waiting_input
           - blocked
           - exited
+          type: string
+        toolInput:
+          description: Preview of the native tool input, for tool-use and permission
+            hook events.
+          maxLength: 2048
           type: string
         toolName:
           description: Native tool name, for tool-use hook events.

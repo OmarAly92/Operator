@@ -1,8 +1,8 @@
 -- name: InsertBlockEvent :one
 INSERT INTO block_events (
     session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
-    text, redacted_spans, error_type, hook_version, truncated_lines, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    tool_input, text, redacted_spans, error_type, hook_version, truncated_lines, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: SelectBlockEventsBySession :many
