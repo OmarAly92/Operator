@@ -48,16 +48,21 @@ void main() {
     await events.close();
   });
 
-  test('attaches the PTY on construction and never touches the socket lifecycle', () async {
+  test('does not join the channel on construction, and attach/detach own the socket lifecycle', () async {
     final cubit = build();
 
-    verify(() => mux.openTerminal('s-1', projectId: 'p-1')).called(1);
+    verifyNever(() => mux.openTerminal(any(), projectId: any(named: 'projectId')));
     verifyNever(() => mux.connect());
     expect(cubit.status, MuxStatus.open);
 
-    await cubit.close();
+    cubit.attach();
+    verify(() => mux.openTerminal('s-1', projectId: 'p-1')).called(1);
+
+    cubit.detach();
     verify(() => mux.closeTerminal('s-1', projectId: 'p-1')).called(1);
     verifyNever(() => mux.disconnect());
+
+    await cubit.close();
   });
 
   test('writes PTY output into the terminal, across a split rune', () async {
@@ -85,6 +90,7 @@ void main() {
   group('grid negotiation', () {
     test('reports the phone fit to the daemon and renders it until the daemon answers', () async {
       final cubit = build();
+      cubit.attach();
 
       cubit.reportFit(const TerminalGrid(40, 20));
 
@@ -96,6 +102,7 @@ void main() {
 
     test('does not re-send an unchanged fit', () async {
       final cubit = build();
+      cubit.attach();
 
       cubit.reportFit(const TerminalGrid(40, 20));
       cubit.reportFit(const TerminalGrid(40, 20));
@@ -108,6 +115,7 @@ void main() {
     // the phone must mirror it rather than re-fitting and mis-drawing a TUI.
     test('adopts the daemon grid and stops rendering its own fit', () async {
       final cubit = build();
+      cubit.attach();
       cubit.reportFit(const TerminalGrid(40, 20));
 
       events.add(const TerminalResizeEvent('s-1', 120, 30));
@@ -172,7 +180,13 @@ void main() {
   blocTest<TerminalCubit, TerminalState>(
     'sends a control sequence straight to the PTY',
     build: build,
-    act: (cubit) => cubit.sendKey('\x03'),
-    verify: (_) => verify(() => mux.sendInput('s-1', '\x03', projectId: 'p-1')).called(1),
+    act: (cubit) {
+      cubit.attach();
+      cubit.sendKey('\x03');
+    },
+    verify: (_) {
+      verify(() => mux.openTerminal('s-1', projectId: 'p-1')).called(1);
+      verify(() => mux.sendInput('s-1', '\x03', projectId: 'p-1')).called(1);
+    },
   );
 }

@@ -23,6 +23,7 @@ void main() {
   tearDown(() => harness.dispose());
 
   testWidgets('every control key writes its sequence to the PTY', (tester) async {
+    harness.cubit.attach();
     await harness.pump(tester, const TerminalKeyRow());
 
     for (final key in kControlKeys) {
@@ -67,6 +68,7 @@ void main() {
 
   testWidgets('the status bar shows liveness, the grid and the zoom pair', (tester) async {
     final cubit = harness.cubit;
+    cubit.attach();
     await harness.pump(tester, TerminalStatusBar(onKill: () {}, onRestore: () {}));
     cubit.reportFit(const TerminalGrid(80, 24));
     await tester.pump();

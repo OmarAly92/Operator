@@ -20,6 +20,7 @@ void main() {
   testWidgets('renders the terminal and reports the phone fit to the daemon', (tester) async {
     final cubit = harness.cubit;
     final mux = harness.mux;
+    cubit.attach();
     await pumpSurface(tester);
 
     expect(find.byType(TerminalView), findsOneWidget);
@@ -31,6 +32,7 @@ void main() {
 
   testWidgets('re-reports the fit after a zoom changes the cell size', (tester) async {
     final cubit = harness.cubit;
+    cubit.attach();
     await pumpSurface(tester);
     final before = cubit.grid!;
 
@@ -43,6 +45,7 @@ void main() {
 
   testWidgets('renders the daemon grid rather than its own fit once told', (tester) async {
     final cubit = harness.cubit;
+    cubit.attach();
     await pumpSurface(tester);
 
     harness.events.add(const TerminalResizeEvent('s-1', 200, 50));
@@ -57,6 +60,7 @@ void main() {
     'a pinch ended by lifting the anchor finger last is not misread as a tap',
     (tester) async {
       final cubit = harness.cubit;
+      cubit.attach();
       await pumpSurface(tester);
 
       cubit.zoom(-1);

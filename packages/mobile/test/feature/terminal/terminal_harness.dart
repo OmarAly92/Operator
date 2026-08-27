@@ -10,7 +10,13 @@ import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
@@ -30,6 +36,8 @@ class MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
+
+class MockBlocksRepository extends Mock implements BlocksRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -58,8 +66,14 @@ class TerminalHarness {
   final MockInterfaceSwitchCubit switchCubit = MockInterfaceSwitchCubit();
   final StreamController<MuxStatus> statuses = StreamController<MuxStatus>.broadcast();
   final StreamController<TerminalEvent> events = StreamController<TerminalEvent>.broadcast();
+  final StreamController<BlockEventEnvelope> blockEvents =
+      StreamController<BlockEventEnvelope>.broadcast();
+  final StreamController<List<SessionPatch>> sessionPatches =
+      StreamController<List<SessionPatch>>.broadcast();
 
   late TerminalCubit cubit;
+  late SessionViewCubit viewCubit;
+  late BlocksCubit blocksCubit;
 
   void start({bool shellOnly = false, String? harness}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
@@ -81,6 +95,7 @@ class TerminalHarness {
         ),
       );
     }
+    registerFallbackValue(const GetSessionBlocksParams());
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
@@ -88,6 +103,10 @@ class TerminalHarness {
     when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.resize(any(), any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    when(() => mux.blockEvents).thenAnswer((_) => blockEvents.stream);
+    when(() => mux.sessionPatches).thenAnswer((_) => sessionPatches.stream);
+    when(() => mux.subscribeBlocks(any())).thenReturn(null);
+    when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
     when(() => switchCubit.state).thenReturn(const InterfaceSwitchInitialState());
     when(() => switchCubit.supported).thenReturn(true);
     when(() => switchCubit.reason).thenReturn(null);
@@ -112,6 +131,13 @@ class TerminalHarness {
             )
           : TerminalArgs(id: 's-1', sessionId: 's-1', title: 'Session', harness: harness),
     );
+
+    final blocksRepository = MockBlocksRepository();
+    when(() => blocksRepository.getSessionBlocks(any(), any()))
+        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+
+    viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
+    blocksCubit = BlocksCubit(mux, blocksRepository, cubit.args.sessionId, harness: harness);
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
@@ -125,6 +151,8 @@ class TerminalHarness {
               body: MultiBlocProvider(
                 providers: [
                   BlocProvider<TerminalCubit>.value(value: cubit),
+                  BlocProvider<SessionViewCubit>.value(value: viewCubit),
+                  BlocProvider<BlocksCubit>.value(value: blocksCubit),
                   BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(param1: cubit.args.sessionId, param2: null),
@@ -141,6 +169,10 @@ class TerminalHarness {
   }
 
   Future<void> dispose() async {
+    await viewCubit.close();
+    await blocksCubit.close();
+    await blockEvents.close();
+    await sessionPatches.close();
     await cubit.close();
     await statuses.close();
     await events.close();

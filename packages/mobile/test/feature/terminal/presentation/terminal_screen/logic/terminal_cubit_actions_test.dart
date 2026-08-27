@@ -96,6 +96,7 @@ void main() {
 
     test('writes to the PTY, with a submit, on the terminal route', () async {
       final cubit = build();
+      cubit.attach();
       cubit.setSendTarget(SendTarget.terminal);
       cubit.composer.text = 'yes,\nthe second one';
 
@@ -128,6 +129,7 @@ void main() {
       when(() => terminalRepository.sendSessionMessage(any(), any()))
           .thenAnswer((_) async => Result.failure(awaitingDecision()));
       final cubit = build();
+      cubit.attach();
       cubit.composer.text = 'approve';
 
       await cubit.send();
@@ -224,6 +226,7 @@ void main() {
     test('re-attaches the PTY after the daemon has had a moment to bring it up', () async {
       when(() => sessionsRepository.restore(any())).thenAnswer((_) async => Result.success(true));
       final cubit = build();
+      cubit.attach();
       cubit.reportFit(const TerminalGrid(40, 20));
       events.add(const TerminalErrorEvent('s-1', 'Session not found'));
       await Future<void>.delayed(Duration.zero);
