@@ -501,7 +501,8 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 1 | Backend block pipeline | 1, 2 (daemon), fixtures | `2026-08-27-block-pipeline-backend.md` | written |
 | 2 | Mobile block screen | 2 (mobile mux), 3, 4 | `2026-08-27-mobile-block-screen.md` | written |
 | 3 | Desktop block screen | 2 (desktop mux), 3, 5 | `2026-08-27-desktop-block-screen.md` | written |
-| 4 | Viewport, both clients | 6 | — | |
+| 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | written |
+| 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
 | 5 | ACP adapter, chat presentation retires | 7 | — | |
 | 6 | Block actions, selection, find | 8 | — | |
 | 7 | Shell blocks | 9 | — | |
@@ -520,9 +521,10 @@ presentation layer alive beside the block screen, which is the duplication this
 design exists to remove, and its cost grows with every block feature that lands
 first.
 
-**Plan 4 is the most likely to split.** Mobile and desktop viewports share no
-code — a Flutter list versus DOM virtualization — only a requirements list. If it
-sizes up too large it becomes 4a and 4b.
+**Plan 4 split, as anticipated.** Mobile and desktop viewports share no code — a
+Flutter list versus DOM virtualization — only a requirements list, so it is
+written as 4a and 4b. They are independent of each other and either may run
+first; both depend only on plans 1-3.
 
 ### Writing the remaining plans
 
