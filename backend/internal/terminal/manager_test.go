@@ -677,3 +677,40 @@ func TestEnqueueOverflowCancelsConn(t *testing.T) {
 		t.Fatal("overflow must cancel the connection")
 	}
 }
+
+// A desktop in Blocks holds no terminal attachment, so it is in no members map.
+// The phone in Raw then becomes the only viewer rendering a grid, and the PTY
+// must follow it. This inverts the usual rule that a primary outranks a larger
+// secondary, and it is the behaviour the block screen depends on.
+func TestGridFollowsTheSoleSecondaryWhenNoPrimaryIsAttached(t *testing.T) {
+	desktop := &connState{}
+	phone := &connState{}
+
+	both := map[*connState]*termMember{
+		desktop: {cols: 80, rows: 24, primary: true},
+		phone:   {cols: 100, rows: 40},
+	}
+	if cols, rows := largestGrid(both); cols != 80 || rows != 24 {
+		t.Fatalf("grid = %dx%d, want 80x24 — an attached primary outranks a larger secondary", cols, rows)
+	}
+
+	onlyPhone := map[*connState]*termMember{phone: {cols: 100, rows: 40}}
+	if cols, rows := largestGrid(onlyPhone); cols != 100 || rows != 40 {
+		t.Fatalf("grid = %dx%d, want 100x40 — the only client rendering a grid must choose it", cols, rows)
+	}
+}
+
+// A desktop that is attached but has not reported a size yet must not win the
+// arbitration by virtue of being primary; largestGrid requires a usable size.
+func TestGridIgnoresAPrimaryThatHasReportedNoSize(t *testing.T) {
+	desktop := &connState{}
+	phone := &connState{}
+
+	members := map[*connState]*termMember{
+		desktop: {primary: true},
+		phone:   {cols: 100, rows: 40},
+	}
+	if cols, rows := largestGrid(members); cols != 100 || rows != 40 {
+		t.Fatalf("grid = %dx%d, want 100x40 — a sizeless primary cannot claim the grid", cols, rows)
+	}
+}

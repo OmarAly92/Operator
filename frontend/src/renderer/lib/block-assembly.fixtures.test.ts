@@ -1,0 +1,54 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { assembleBlocks } from "./block-assembly";
+import type { BlockEventView } from "./terminal-mux";
+
+// The same files the Dart suite asserts (packages/mobile/test/feature/blocks/
+// logic/block_assembly_fixtures_test.dart). A disagreement here is a drift
+// between the two clients, and the fixture is never the thing that gets edited.
+const FIXTURES = [
+	"assembly_turn",
+	"assembly_permission",
+	"assembly_out_of_order",
+	"assembly_truncation",
+	"assembly_tool_failure",
+	"assembly_question",
+] as const;
+
+type ExpectedBlock = {
+	id: string;
+	kind: string;
+	status: string;
+	title: string;
+	body?: string;
+	errorType?: string;
+	truncatedLines?: number;
+	redacted?: boolean;
+};
+
+const fixtureDirectory = path.resolve(process.cwd(), "../testdata/blocks");
+
+describe("shared assembly fixtures", () => {
+	for (const name of FIXTURES) {
+		it(`${name} assembles as the shared fixture says`, () => {
+			const raw = readFileSync(path.join(fixtureDirectory, `${name}.json`), "utf8");
+			const fixture = JSON.parse(raw) as { records: BlockEventView[]; expected: ExpectedBlock[] };
+
+			const blocks = assembleBlocks(fixture.records);
+
+			expect(blocks).toHaveLength(fixture.expected.length);
+			fixture.expected.forEach((want, index) => {
+				const got = blocks[index];
+				expect(got.id).toBe(want.id);
+				expect(got.kind).toBe(want.kind);
+				expect(got.status).toBe(want.status);
+				expect(got.title).toBe(want.title);
+				expect(got.body).toBe(want.body ?? "");
+				expect(got.errorType ?? "").toBe(want.errorType ?? "");
+				expect(got.truncatedLines).toBe(want.truncatedLines ?? 0);
+				expect(got.redacted).toBe(want.redacted ?? false);
+			});
+		});
+	}
+});

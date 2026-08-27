@@ -1388,6 +1388,10 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 	const eventsRef = useRef(new Map<number, BlockEventView>());
 	const capacityRef = useRef(BLOCK_WINDOW);
 	const inFlightRef = useRef(false);
+	// Bumped when the effect tears down. Every async continuation captures the
+	// generation it started in and drops out if the session has moved on, so a
+	// slow response for the previous session cannot land in this one's window.
+	const generationRef = useRef(0);
 
 	const [revision, setRevision] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
@@ -1418,14 +1422,22 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 			(max, seq) => (max === undefined || seq > max ? seq : max),
 			undefined,
 		);
+		const generation = generationRef.current;
 		setIsLoading(true);
 		void fetchBlocks(sessionId, highest === undefined ? {} : { afterSeq: highest })
 			.then((records) => {
+				if (generationRef.current !== generation) return;
 				setError(undefined);
 				merge(records);
 			})
-			.catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
-			.finally(() => setIsLoading(false));
+			.catch((cause: unknown) => {
+				if (generationRef.current !== generation) return;
+				setError(cause instanceof Error ? cause.message : String(cause));
+			})
+			.finally(() => {
+				if (generationRef.current !== generation) return;
+				setIsLoading(false);
+			});
 	}, [merge, sessionId, supported]);
 
 	const loadOlder = useCallback(() => {
@@ -1443,10 +1455,12 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 			return;
 		}
 
+		const generation = generationRef.current;
 		inFlightRef.current = true;
 		setIsLoadingOlder(true);
 		void fetchBlocks(sessionId, { beforeSeq: lowest, limit: Math.min(BLOCK_PAGE, headroom) })
 			.then((records) => {
+				if (generationRef.current !== generation) return;
 				setError(undefined);
 				if (records.length === 0) {
 					setHasOlder(false);
@@ -1455,8 +1469,12 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 				capacityRef.current = Math.min(BLOCK_MAX_WINDOW, capacityRef.current + records.length);
 				merge(records);
 			})
-			.catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+			.catch((cause: unknown) => {
+				if (generationRef.current !== generation) return;
+				setError(cause instanceof Error ? cause.message : String(cause));
+			})
 			.finally(() => {
+				if (generationRef.current !== generation) return;
 				inFlightRef.current = false;
 				setIsLoadingOlder(false);
 			});
@@ -1465,11 +1483,20 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 	const createMux = options.createMux;
 	useEffect(() => {
 		if (!supported) return;
+		// Per-session state, not per-hook: without this a session whose history was
+		// exhausted leaves hasOlder false for the next session, which then never
+		// offers its own older pages. Nothing keys CenterPane by session, so the
+		// hook is re-rendered in place rather than remounted.
+		setHasOlder(true);
+		setError(undefined);
+		setIsLoadingOlder(false);
+		inFlightRef.current = false;
 		const mux = (createMux ?? defaultCreateMux)();
 		const off = mux.onBlock(sessionId, (record) => merge([record]));
 		mux.subscribeBlocks(sessionId);
 		refetch();
 		return () => {
+			generationRef.current += 1;
 			off();
 			mux.unsubscribeBlocks(sessionId);
 			mux.dispose();
@@ -1495,7 +1522,7 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 **Three details the tests above will catch if you change them:**
 
 - `refetch` sends `afterSeq` and `loadOlder` sends `beforeSeq`, **never both**. The daemon rejects both with `400`, and a mocked test would not notice — which is why the paging test asserts `afterSeq` is `undefined`, not only that `beforeSeq` is right.
-- The effect's cleanup resets `eventsRef` and `capacityRef`. Without it, switching sessions would show the previous session's blocks for one render and would carry a grown capacity across.
+- **Switching sessions re-renders this hook in place; nothing keys `CenterPane` by session id.** So everything session-scoped has to be reset explicitly, and there are three kinds of it. The refs (`eventsRef`, `capacityRef`) reset in the cleanup. The state (`hasOlder`, `error`, `isLoadingOlder`, `inFlightRef`) resets at the top of the effect body — miss `hasOlder` and a session whose history you exhausted leaves the *next* session unable to page back at all. And the in-flight requests are handled by `generationRef`: without it, a slow response for the previous session resolves after the switch and merges the previous session's blocks into this one's list. Two tests pin these.
 - `useMemo` reads `revision` purely to take a dependency on it (`void revision;`). The events live in a ref rather than state because the merge is called from a socket callback at high frequency; a `useState` map would re-render per event and re-allocate the map each time.
 
 **If `usesPreviewWorkspaceData` is true** the hook makes no network call, matching `useAgentSwitches`. That is the `dev:web` preview mode, not a test mode.

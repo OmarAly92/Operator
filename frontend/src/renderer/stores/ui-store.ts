@@ -97,7 +97,11 @@ type UiState = {
 	setActiveShellTerminal: (handleId: string | null) => void;
 	setVisibleTerminalKind: (sessionId: string, kind: TerminalTarget["kind"]) => void;
 	clearVisibleTerminalKind: (sessionId: string) => void;
+	sessionViewModeBySession: Record<string, SessionViewMode>;
+	setSessionViewMode: (sessionId: string, mode: SessionViewMode) => void;
 };
+
+export type SessionViewMode = "blocks" | "raw";
 
 export type OrchestratorReplacementFailure = {
 	message: string;
@@ -139,6 +143,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	newShellTerminalNonce: 0,
 	activeShellTerminalHandleId: null,
 	visibleTerminalKindBySession: {},
+	sessionViewModeBySession: {},
 	setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
 	setThemePreference: (themePreference) => {
 		if (get().themePreference === themePreference) return;
@@ -256,6 +261,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 			delete visibleTerminalKindBySession[sessionId];
 			return { visibleTerminalKindBySession };
 		}),
+	setSessionViewMode: (sessionId, mode) =>
+		set((state) => ({
+			sessionViewModeBySession: { ...state.sessionViewModeBySession, [sessionId]: mode },
+		})),
 }));
 
 export function useResolvedTheme(): Theme {
