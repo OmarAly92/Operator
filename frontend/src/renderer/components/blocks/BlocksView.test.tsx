@@ -69,8 +69,8 @@ describe("BlocksView", () => {
 		renderView({ blocks: [block({ kind: "prompt", title: "Prompt" }), block({ id: "seq-2", title: "Bash" })] });
 		await act(async () => {});
 
-		expect(screen.getByText("Prompt")).toBeInTheDocument();
-		expect(screen.getByText("Bash")).toBeInTheDocument();
+		expect(screen.getAllByText("Prompt").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Bash").length).toBeGreaterThan(0);
 	});
 
 	it("wraps a long body instead of clipping it to one line", async () => {
@@ -110,7 +110,7 @@ describe("BlocksView", () => {
 		});
 		await act(async () => {});
 
-		expect(screen.getByText("Permission requested")).toBeInTheDocument();
+		expect(screen.getAllByText("Permission requested").length).toBeGreaterThan(0);
 		expect(screen.getByText(/git branch -D feat\/x/)).toBeInTheDocument();
 	});
 
@@ -120,14 +120,14 @@ describe("BlocksView", () => {
 		});
 		await act(async () => {});
 
-		expect(screen.getByText("Waiting on you")).toBeInTheDocument();
+		expect(screen.getAllByText("Waiting on you").length).toBeGreaterThan(0);
 	});
 
 	it("marks a failed tool as failed", async () => {
 		renderView({ blocks: [block({ status: "failed", errorType: "tool_failed", body: "no such table" })] });
 		await act(async () => {});
 
-		expect(screen.getByTestId("block-status-dot")).toHaveAttribute("data-status", "failed");
+		expect(screen.getAllByTestId("block-status-dot")[0]).toHaveAttribute("data-status", "failed");
 	});
 
 	it("says blocks are unavailable for an uncovered harness", () => {

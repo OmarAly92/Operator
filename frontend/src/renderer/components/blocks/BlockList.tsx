@@ -4,17 +4,19 @@ import { useTranslation } from "react-i18next";
 import {
 	BLOCK_OVERSCAN,
 	ESTIMATED_BLOCK_HEIGHT,
+	headerSticks,
 	isPinned,
 	topItemFor,
 } from "../../lib/block-viewport";
 import type { SessionBlock } from "../../lib/session-block";
-import { BlockCard } from "./BlockCard";
+import { BlockCard, BlockCardHeader } from "./BlockCard";
 
 export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessionId: string }) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const pinnedRef = useRef(true);
 	const [pinned, setPinned] = useState(true);
+	const [stickyIndex, setStickyIndex] = useState<number | null>(null);
 
 	const virtualizer = useVirtualizer({
 		count: blocks.length,
@@ -32,11 +34,17 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 		const next = isPinned(node.scrollTop, virtualizer.getTotalSize(), node.clientHeight);
 		pinnedRef.current = next;
 		setPinned(next);
+
+		const top = topItemFor(virtualizer.getVirtualItems(), node.scrollTop);
+		setStickyIndex(
+			top !== undefined && headerSticks(top.size, node.clientHeight) ? top.index : null,
+		);
 	}, [virtualizer]);
 
 	useEffect(() => {
 		pinnedRef.current = true;
 		setPinned(true);
+		setStickyIndex(null);
 	}, [sessionId]);
 
 	useEffect(() => {
@@ -45,9 +53,16 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 	});
 
 	const items = virtualizer.getVirtualItems();
-	const scrollTop = scrollRef.current?.scrollTop ?? 0;
-	void topItemFor(items, scrollTop);
 	void pinned;
+
+	const node = scrollRef.current;
+	const computedTop = node === null ? undefined : topItemFor(items, node.scrollTop);
+	const computedSticky =
+		computedTop !== undefined && node !== null && headerSticks(computedTop.size, node.clientHeight)
+			? computedTop.index
+			: null;
+	const effectiveStickyIndex = computedSticky ?? stickyIndex;
+	const stickyBlock = effectiveStickyIndex === null ? undefined : blocks[effectiveStickyIndex];
 
 	return (
 		<div className="relative h-full min-h-0">
@@ -87,6 +102,16 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 					})}
 				</div>
 			</div>
+			{stickyBlock === undefined ? null : (
+				<div className="pointer-events-none absolute inset-x-0 top-1.5 px-3">
+					<div
+						className="overflow-hidden rounded-t-md border border-border bg-card"
+						data-testid="sticky-block-header"
+					>
+						<BlockCardHeader block={stickyBlock} />
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

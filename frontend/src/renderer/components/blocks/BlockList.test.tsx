@@ -74,8 +74,8 @@ describe("BlockList", () => {
 		await mount(range(1, 3));
 
 		expect(screen.getAllByTestId("session-block")).toHaveLength(3);
-		expect(screen.getByText("Bash 1")).toBeInTheDocument();
-		expect(screen.getByText("Bash 3")).toBeInTheDocument();
+		expect(screen.getAllByText("Bash 1").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Bash 3").length).toBeGreaterThan(0);
 	});
 
 	it("mounts a small window of a long session", async () => {
@@ -148,5 +148,53 @@ describe("BlockList", () => {
 		await act(async () => screen.getByText("switch").click());
 
 		expect(screen.getByText("Bash 505")).toBeInTheDocument();
+	});
+
+	it("pins the header of the block under the top edge", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+
+		act(() => {
+			node.scrollTop = 0;
+			fireEvent.scroll(node);
+		});
+
+		const header = await screen.findByTestId("sticky-block-header");
+		expect(header).toHaveTextContent("Bash 1");
+	});
+
+	it("moves the pinned header on to the next block", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = 0;
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
+
+		act(() => {
+			node.scrollTop = heightOfBlock(block(1, 3)) + 5;
+			fireEvent.scroll(node);
+		});
+
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 2");
+	});
+
+	it("does not pin the header of a block taller than the viewport", async () => {
+		await mount([block(1, 1), block(2, 200), block(3, 1)]);
+		const node = screen.getByRole("log");
+
+		act(() => {
+			node.scrollTop = heightOfBlock(block(1, 1)) + 200;
+			fireEvent.scroll(node);
+		});
+
+		expect(screen.queryByTestId("sticky-block-header")).not.toBeInTheDocument();
+	});
+
+	it("pins a header even when the session is too short to scroll", async () => {
+		await mount(range(1, 2));
+
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
 	});
 });
