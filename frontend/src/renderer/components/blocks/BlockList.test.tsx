@@ -197,4 +197,64 @@ describe("BlockList", () => {
 
 		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
 	});
+
+	it("steps to the next block boundary", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = 0;
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
+
+		await act(async () => screen.getByRole("button", { name: "Next block" }).click());
+
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 2");
+	});
+
+	it("steps back to the block before a boundary", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = heightOfBlock(block(1, 3));
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 2");
+
+		await act(async () => screen.getByRole("button", { name: "Previous block" }).click());
+
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
+	});
+
+	it("steps back to the top of a partly scrolled block first", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = heightOfBlock(block(1, 3)) + 20;
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 2");
+
+		await act(async () => screen.getByRole("button", { name: "Previous block" }).click());
+
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 2");
+		expect(node.scrollTop).toBe(heightOfBlock(block(1, 3)));
+	});
+
+	it("offers a way back to the newest block only once scrolled away", async () => {
+		await mount(range(1, 300, (seq) => 1 + (seq % 5)));
+		expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = 0;
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByRole("button", { name: "Jump to latest" })).toBeInTheDocument();
+
+		await act(async () => screen.getByRole("button", { name: "Jump to latest" }).click());
+
+		expect(screen.getByText("Bash 300")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+	});
 });

@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowDown, ChevronDown, ChevronUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -6,10 +7,13 @@ import {
 	ESTIMATED_BLOCK_HEIGHT,
 	headerSticks,
 	isPinned,
+	nextBoundary,
+	previousTarget,
 	topItemFor,
 } from "../../lib/block-viewport";
 import type { SessionBlock } from "../../lib/session-block";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
+import { Button } from "../ui/button";
 
 export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessionId: string }) {
 	const { t } = useTranslation();
@@ -53,7 +57,6 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 	});
 
 	const items = virtualizer.getVirtualItems();
-	void pinned;
 
 	const node = scrollRef.current;
 	const computedTop = node === null ? undefined : topItemFor(items, node.scrollTop);
@@ -62,6 +65,28 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 			? computedTop.index
 			: null;
 	const effectiveStickyIndex = computedSticky ?? stickyIndex;
+
+	const goNext = useCallback(() => {
+		const target = nextBoundary(effectiveStickyIndex ?? undefined, blocks.length);
+		if (target === undefined) return;
+		virtualizer.scrollToIndex(target, { align: "start" });
+	}, [blocks.length, effectiveStickyIndex, virtualizer]);
+
+	const goPrevious = useCallback(() => {
+		const node = scrollRef.current;
+		if (node === null) return;
+		const top = topItemFor(virtualizer.getVirtualItems(), node.scrollTop);
+		const target = previousTarget(top, node.scrollTop, blocks.length);
+		if (target === undefined) return;
+		virtualizer.scrollToIndex(target, { align: "start" });
+	}, [blocks.length, virtualizer]);
+
+	const goLatest = useCallback(() => {
+		pinnedRef.current = true;
+		setPinned(true);
+		virtualizer.scrollToOffset(virtualizer.getTotalSize(), { align: "start" });
+	}, [virtualizer]);
+
 	const stickyBlock = effectiveStickyIndex === null ? undefined : blocks[effectiveStickyIndex];
 
 	return (
@@ -112,6 +137,22 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 					</div>
 				</div>
 			)}
+			<div className="absolute right-3 bottom-3 flex flex-col items-end gap-2">
+				<div className="flex flex-col overflow-hidden rounded-md border border-border bg-card">
+					<Button aria-label={t("blocks.previousBlock")} onClick={goPrevious} size="icon" variant="ghost">
+						<ChevronUp className="size-4" />
+					</Button>
+					<Button aria-label={t("blocks.nextBlock")} onClick={goNext} size="icon" variant="ghost">
+						<ChevronDown className="size-4" />
+					</Button>
+				</div>
+				{pinned ? null : (
+					<Button aria-label={t("blocks.jumpToLatest")} onClick={goLatest} size="sm" variant="primary">
+						<ArrowDown className="size-3.5" />
+						{t("blocks.jumpToLatest")}
+					</Button>
+				)}
+			</div>
 		</div>
 	);
 }
