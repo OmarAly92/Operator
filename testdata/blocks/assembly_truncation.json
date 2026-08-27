@@ -1,0 +1,11 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "tool_complete", "sourceId": "tu-9", "toolName": "Read", "text": "AWS_KEY=[redacted]\nline two", "redactedSpans": [{ "start": 8, "end": 18 }], "truncatedLines": 4212 },
+    { "seq": 2, "sessionId": "s-1", "kind": "unknown", "rawEvent": "some-future-hook", "text": "hello" },
+    { "seq": 3, "sessionId": "s-1", "kind": "permission_replied", "sourceId": "never-requested" }
+  ],
+  "expected": [
+    { "id": "src-tu-9", "kind": "tool", "status": "ok", "title": "Read", "body": "AWS_KEY=[redacted]\nline two", "truncatedLines": 4212, "redacted": true },
+    { "id": "seq-2", "kind": "notice", "status": "ok", "title": "some-future-hook", "body": "hello" }
+  ]
+}

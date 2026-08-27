@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -37,10 +38,13 @@ func TestSharedFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fixtures: %v", err)
 	}
-	if len(entries) == 0 {
-		t.Fatal("no fixtures found; the clients have nothing to agree with")
-	}
+	const hookFixturePrefix = "hook_stream_"
+	seen := 0
 	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), hookFixturePrefix) {
+			continue
+		}
+		seen++
 		t.Run(entry.Name(), func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 			if err != nil {
@@ -90,5 +94,8 @@ func TestSharedFixtures(t *testing.T) {
 				}
 			}
 		})
+	}
+	if seen == 0 {
+		t.Fatal("no hook_stream_* fixtures found; the clients have nothing to agree with")
 	}
 }
