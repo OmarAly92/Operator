@@ -68,6 +68,9 @@ function createFakeMux(): FakeMux {
 			onExit: (id, listener) => subscribe(exit, id, listener),
 			onOpened: (id, listener) => subscribe(opened, id, listener),
 			onError: (id, listener) => subscribe(error, id, listener),
+			subscribeBlocks: () => undefined,
+			unsubscribeBlocks: () => undefined,
+			onBlock: () => () => undefined,
 			onConnectionChange: (listener) => {
 				connection.add(listener);
 				return () => connection.delete(listener);

@@ -192,6 +192,109 @@ describe("createTerminalMux client", () => {
 		socket.emitClose(); // browser fires close after socket.close()
 		expect(states).toEqual([]);
 	});
+
+	it("sends a blocks subscribe frame and routes block payloads by session id", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+
+		const seen: number[] = [];
+		mux.onBlock("s-1", (block) => seen.push(block.seq));
+		mux.subscribeBlocks("s-1");
+
+		expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({
+			ch: "blocks",
+			id: "s-1",
+			type: "subscribe",
+		});
+
+		socket.emitMessage(
+			JSON.stringify({
+				ch: "blocks",
+				id: "s-1",
+				type: "block",
+				block: { seq: 7, sessionId: "s-1", kind: "tool_complete", createdAt: "2026-08-27T10:00:00Z" },
+			}),
+		);
+		socket.emitMessage(
+			JSON.stringify({
+				ch: "blocks",
+				id: "other",
+				type: "block",
+				block: { seq: 8, sessionId: "other", kind: "stop", createdAt: "2026-08-27T10:00:00Z" },
+			}),
+		);
+
+		expect(seen).toEqual([7]);
+	});
+
+	it("sends an unsubscribe frame and stops delivering", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+
+		const seen: number[] = [];
+		const off = mux.onBlock("s-1", (block) => seen.push(block.seq));
+		mux.subscribeBlocks("s-1");
+		mux.unsubscribeBlocks("s-1");
+
+		expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({
+			ch: "blocks",
+			id: "s-1",
+			type: "unsubscribe",
+		});
+
+		off();
+		socket.emitMessage(
+			JSON.stringify({
+				ch: "blocks",
+				id: "s-1",
+				type: "block",
+				block: { seq: 1, sessionId: "s-1", kind: "stop", createdAt: "2026-08-27T10:00:00Z" },
+			}),
+		);
+		expect(seen).toEqual([]);
+	});
+
+	it("ignores a blocks frame with no payload rather than throwing", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+
+		const seen: number[] = [];
+		mux.onBlock("s-1", (block) => seen.push(block.seq));
+		socket.emitMessage(JSON.stringify({ ch: "blocks", id: "s-1", type: "block" }));
+		socket.emitMessage(JSON.stringify({ ch: "blocks", id: "s-1", type: "block", block: "nope" }));
+
+		expect(seen).toEqual([]);
+	});
+
+	it("queues a blocks subscribe sent before the socket opens", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+
+		mux.subscribeBlocks("s-1");
+		expect(socket.sent).toHaveLength(0);
+
+		socket.emitOpen();
+		expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({
+			ch: "blocks",
+			id: "s-1",
+			type: "subscribe",
+		});
+	});
+
+	it("a terminal-channel error frame does not reach block listeners", () => {
+		const mux = createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket);
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+
+		const seen: number[] = [];
+		mux.onBlock("s-1", (block) => seen.push(block.seq));
+		socket.emitMessage(JSON.stringify({ ch: "terminal", id: "s-1", type: "error", error: "boom" }));
+
+		expect(seen).toEqual([]);
+	});
 });
 
 describe("createTerminalMuxPool", () => {
@@ -262,5 +365,35 @@ describe("createTerminalMuxPool", () => {
 			}),
 		);
 		expect(data).toEqual([]);
+	});
+
+	it("a lease forwards blocks subscribe and stops after it is disposed", () => {
+		const pool = createTerminalMuxPool(() =>
+			createTerminalMux("ws://x/mux", FakeSocket as unknown as typeof WebSocket),
+		);
+		const lease = pool.acquire();
+		const socket = FakeSocket.instances.at(-1)!;
+		socket.emitOpen();
+
+		const seen: number[] = [];
+		lease.onBlock("s-1", (block) => seen.push(block.seq));
+		lease.subscribeBlocks("s-1");
+		expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({
+			ch: "blocks",
+			id: "s-1",
+			type: "subscribe",
+		});
+
+		lease.dispose();
+		socket.emitMessage(
+			JSON.stringify({
+				ch: "blocks",
+				id: "s-1",
+				type: "block",
+				block: { seq: 1, sessionId: "s-1", kind: "stop", createdAt: "2026-08-27T10:00:00Z" },
+			}),
+		);
+		expect(seen).toEqual([]);
+		pool.dispose();
 	});
 });

@@ -9,9 +9,16 @@
 //     client → open{id,cols,rows} | data{id,data} | resize{id,cols,rows,force?} | close{id}
 //     server → opened{id} | data{id,data} | exited{id} | error{id?,error}
 //   ch "system"   — ping/pong liveness
+//   ch "blocks"   — normalized session block events
+//     client → subscribe{id} | unsubscribe{id}
+//     server → block{id,block}
 //
 // The renderer connects directly to the loopback daemon (same host/port as the
 // REST API, path `/mux`); it is not proxied through the Electron main process.
+
+import type { components } from "../../api/schema";
+
+export type BlockEventView = components["schemas"]["BlockEventView"];
 
 type ServerFrame = {
 	ch: string;
@@ -19,6 +26,7 @@ type ServerFrame = {
 	type: string;
 	data?: string;
 	error?: string;
+	block?: unknown;
 };
 
 // ---- pure framing helpers (unit-tested in terminal-mux.test.ts) ----
@@ -64,6 +72,14 @@ export function closeFrame(id: string): string {
 	return JSON.stringify({ ch: "terminal", type: "close", id });
 }
 
+export function blocksSubscribeFrame(sessionId: string): string {
+	return JSON.stringify({ ch: "blocks", type: "subscribe", id: sessionId });
+}
+
+export function blocksUnsubscribeFrame(sessionId: string): string {
+	return JSON.stringify({ ch: "blocks", type: "unsubscribe", id: sessionId });
+}
+
 function pingFrame(): string {
 	return JSON.stringify({ ch: "system", type: "ping" });
 }
@@ -87,6 +103,7 @@ type DataListener = (bytes: Uint8Array) => void;
 type ExitListener = () => void;
 type OpenedListener = () => void;
 type ErrorListener = (message: string) => void;
+type BlockListener = (block: BlockEventView) => void;
 
 export type MuxConnectionState = "open" | "closed";
 type ConnectionListener = (state: MuxConnectionState) => void;
@@ -109,6 +126,12 @@ export type TerminalMux = {
 	 * listener.
 	 */
 	onError: (id: string, listener: ErrorListener) => () => void;
+	/** Ask the daemon to push this session's normalized block events. */
+	subscribeBlocks: (sessionId: string) => void;
+	/** Stop that push. The daemon drops the subscription; listeners are separate. */
+	unsubscribeBlocks: (sessionId: string) => void;
+	/** Server `block` frames for one session id. */
+	onBlock: (sessionId: string, listener: BlockListener) => () => void;
 	/** Socket-level state: "open" on connect, "closed" on close or socket error. */
 	onConnectionChange: (listener: ConnectionListener) => () => void;
 	/** Close the socket and drop all listeners. */
@@ -148,6 +171,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 	const exitListeners = new Map<string, Set<ExitListener>>();
 	const openedListeners = new Map<string, Set<OpenedListener>>();
 	const errorListeners = new Map<string, Set<ErrorListener>>();
+	const blockListeners = new Map<string, Set<BlockListener>>();
 	const connectionListeners = new Set<ConnectionListener>();
 	let connectionState: MuxConnectionState | undefined;
 	let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -199,6 +223,13 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		} catch {
 			return;
 		}
+		if (frame.ch === "blocks") {
+			if (frame.type !== "block" || frame.id === undefined) return;
+			const block = frame.block;
+			if (typeof block !== "object" || block === null) return;
+			blockListeners.get(frame.id)?.forEach((listener) => listener(block as BlockEventView));
+			return;
+		}
 		if (frame.ch !== "terminal") return;
 		if (frame.type === "error") {
 			const message = frame.error ?? "unknown terminal error";
@@ -227,6 +258,7 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		exitListeners.clear();
 		openedListeners.clear();
 		errorListeners.clear();
+		blockListeners.clear();
 		connectionListeners.clear();
 		try {
 			socket.close();
@@ -253,6 +285,13 @@ export function createTerminalMux(url: string, WebSocketImpl: typeof WebSocket =
 		onExit: (id, listener) => subscribeById(exitListeners, id, listener),
 		onOpened: (id, listener) => subscribeById(openedListeners, id, listener),
 		onError: (id, listener) => subscribeById(errorListeners, id, listener),
+		subscribeBlocks: (sessionId) => {
+			send(blocksSubscribeFrame(sessionId));
+		},
+		unsubscribeBlocks: (sessionId) => {
+			send(blocksUnsubscribeFrame(sessionId));
+		},
+		onBlock: (sessionId, listener) => subscribeById(blockListeners, sessionId, listener),
 		onConnectionChange: (listener) => {
 			connectionListeners.add(listener);
 			return () => connectionListeners.delete(listener);
@@ -359,6 +398,13 @@ export function createTerminalMuxPool(createMux: () => TerminalMux): TerminalMux
 			onExit: (id, listener) => subscribe(() => connection.mux.onExit(id, listener)),
 			onOpened: (id, listener) => subscribe(() => connection.mux.onOpened(id, listener)),
 			onError: (id, listener) => subscribe(() => connection.mux.onError(id, listener)),
+			subscribeBlocks: (sessionId) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.subscribeBlocks(sessionId);
+			},
+			unsubscribeBlocks: (sessionId) => {
+				if (!released && !connection.closed && !connection.disposed) connection.mux.unsubscribeBlocks(sessionId);
+			},
+			onBlock: (sessionId, listener) => subscribe(() => connection.mux.onBlock(sessionId, listener)),
 			onConnectionChange: (listener) => subscribe(() => connection.mux.onConnectionChange(listener)),
 			dispose,
 		};
