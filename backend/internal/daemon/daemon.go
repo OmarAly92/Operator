@@ -37,6 +37,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/push"
 	"github.com/OmarAly92/operator/backend/internal/runfile"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
+	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
 	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
 	devimportsvc "github.com/OmarAly92/operator/backend/internal/service/devimport"
@@ -140,6 +141,8 @@ func Run() error {
 	managedPreview := previewserver.New(log, cfg.DataDir)
 	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
 	defer termMgr.Close()
+
+	blockEvents := blockevent.NewService(store, nil, 500)
 
 	// The agent messenger sends validated user input to the session's live
 	// runtime pane. Keep this path small until durable inbox semantics are needed.
@@ -407,6 +410,7 @@ func Run() error {
 		CDC:                store,
 		Events:             cdcPipe.Broadcaster,
 		Activity:           lcStack.LCM,
+		BlockEvents:        blockEvents,
 		UsageHooks:         usageCollector,
 		UsageSummary:       usagesvc.NewSummaryReader(store),
 		Telemetry:          telemetrySink,

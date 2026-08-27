@@ -30,6 +30,9 @@ type APIDeps struct {
 	Projects           projectsvc.Manager
 	Sessions           controllers.SessionService
 	Activity           controllers.ActivityRecorder
+	// BlockEvents retains rich hook payloads as block events. Nil leaves the
+	// activity endpoint's existing behaviour untouched.
+	BlockEvents        controllers.BlockEventRecorder
 	UsageHooks         controllers.UsageHookRecorder
 	UsageSummary       controllers.UsageSummaryService
 	PRs                prsvc.ActionManager
@@ -94,6 +97,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		sessions: &controllers.SessionsController{
 			Svc:           deps.Sessions,
 			Activity:      deps.Activity,
+			BlockEvents:   deps.BlockEvents,
 			Usage:         deps.UsageHooks,
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,
