@@ -17,6 +17,8 @@ import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
 import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
@@ -62,6 +64,7 @@ class ServiceLocator {
     _settingsFeatureSetup();
     _chatFeatureSetup();
     _terminalFeatureSetup();
+    _blocksFeatureSetup();
     _notificationFeatureSetup();
     _voiceSetup();
     _previewFeatureSetup();
@@ -229,6 +232,15 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<TerminalRemoteDataSource>(
       () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+  }
+
+  static void _blocksFeatureSetup() {
+    sl.registerLazySingleton<BlocksRepository>(
+      () => BlocksRepositoryImp(sl<BlocksRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<BlocksRemoteDataSource>(
+      () => BlocksRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 

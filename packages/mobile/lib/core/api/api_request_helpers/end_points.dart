@@ -47,6 +47,7 @@ sealed class EndPoints {
   static String shellTerminal(String handleId) =>
       '$shellTerminals/${Uri.encodeComponent(handleId)}';
   static String sessionSend(String sessionId) => '${_session(sessionId)}/send';
+  static String sessionBlocks(String sessionId) => '${_session(sessionId)}/blocks';
   static String sessionInterfaceTransition(String sessionId) =>
       '${_session(sessionId)}/interface-transition';
 
