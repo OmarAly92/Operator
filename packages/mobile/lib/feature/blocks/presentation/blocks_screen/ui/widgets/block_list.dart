@@ -26,18 +26,29 @@ class BlockListState extends State<BlockList> {
   final GlobalKey viewportKey = GlobalKey();
 
   int? _pivotSeq;
+  bool _pinned = true;
+  bool _followScheduled = false;
+  int _followHops = 0;
+
+  bool get pinned => _pinned;
 
   @override
   void initState() {
     super.initState();
+    controller.addListener(_onScroll);
     _adoptPivot();
+    _scheduleFollow();
   }
 
   @override
   void didUpdateWidget(BlockList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.sessionId != oldWidget.sessionId) _pivotSeq = null;
+    if (widget.sessionId != oldWidget.sessionId) {
+      _pivotSeq = null;
+      _pinned = true;
+    }
     _adoptPivot();
+    if (_pinned) _scheduleFollow();
   }
 
   void _adoptPivot() {
@@ -45,8 +56,50 @@ class BlockListState extends State<BlockList> {
     _pivotSeq = widget.blocks.first.firstSeq;
   }
 
+  void jumpToLatest() {
+    _pinned = true;
+    _scheduleFollow();
+  }
+
+  void _onScroll() {
+    if (!controller.hasClients) return;
+    _pinned = BlockViewport.isPinned(
+      controller.position.pixels,
+      controller.position.maxScrollExtent,
+    );
+  }
+
+  void _scheduleFollow() {
+    if (_followScheduled) return;
+    _followScheduled = true;
+    _followHops = 0;
+    WidgetsBinding.instance.scheduleFrame();
+    _followStep();
+  }
+
+  void _followStep() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !controller.hasClients ||
+          !_pinned ||
+          _followHops >= kMaxFollowHops) {
+        _followScheduled = false;
+        return;
+      }
+      final extent = controller.position.maxScrollExtent;
+      if ((controller.position.pixels - extent).abs() < 0.5) {
+        _followScheduled = false;
+        return;
+      }
+      _followHops++;
+      controller.jumpTo(extent);
+      _followStep();
+    });
+  }
+
   @override
   void dispose() {
+    controller.removeListener(_onScroll);
     controller.dispose();
     super.dispose();
   }

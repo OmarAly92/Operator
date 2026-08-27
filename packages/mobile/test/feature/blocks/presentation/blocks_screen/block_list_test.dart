@@ -173,4 +173,87 @@ void main() {
       );
     },
   );
+
+  testWidgets('a fresh list opens at the newest block', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+
+    expect(find.text('Bash 200'), findsOneWidget);
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    expect(controller.position.pixels, controller.position.maxScrollExtent);
+  });
+
+  testWidgets('a single jump would not have reached the tail', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+
+    controller.jumpTo(0);
+    await tester.pump();
+    final settledExtent = controller.position.maxScrollExtent;
+    controller.jumpTo(settledExtent);
+    await tester.pump();
+
+    expect(
+      controller.position.maxScrollExtent,
+      greaterThan(settledExtent),
+      reason: 'this is why the follow is a loop rather than one jumpTo',
+    );
+  });
+
+  testWidgets('a block appended while pinned is followed', (tester) async {
+    final harness = await pumpList(
+      tester,
+      range(1, 60, lines: (seq) => 1 + seq % 4),
+    );
+    expect(find.text('Bash 60'), findsOneWidget);
+
+    harness.append([block(61, lines: 3)]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bash 61'), findsOneWidget);
+  });
+
+  testWidgets('a block appended while scrolled up is not followed', (
+    tester,
+  ) async {
+    final harness = await pumpList(
+      tester,
+      range(1, 60, lines: (seq) => 1 + seq % 4),
+    );
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(200);
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<BlockListState>(find.byType(BlockList)).pinned,
+      isFalse,
+    );
+
+    harness.append([block(61, lines: 3)]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bash 61'), findsNothing);
+    expect(controller.position.pixels, 200);
+  });
+
+  testWidgets('jumpToLatest returns to the tail from anywhere', (tester) async {
+    await pumpList(tester, range(1, 200, lines: (seq) => 1 + seq % 6));
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(find.text('Bash 200'), findsNothing);
+
+    state.jumpToLatest();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bash 200'), findsOneWidget);
+    expect(
+      state.controller.position.pixels,
+      state.controller.position.maxScrollExtent,
+    );
+  });
 }
