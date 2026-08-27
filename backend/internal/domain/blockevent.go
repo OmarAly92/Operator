@@ -6,6 +6,9 @@ package domain
 // name alongside, so a harness update degrades to less detail rather than a gap.
 type BlockEventKind string
 
+// BlockEventKind values are the harness-independent vocabulary a block event is
+// normalized into. The first nine are the recognized names; BlockEventUnknown
+// carries an unrecognized event through with its raw name preserved.
 const (
 	BlockEventSessionStart      BlockEventKind = "session_start"
 	BlockEventPromptSubmit      BlockEventKind = "prompt_submit"

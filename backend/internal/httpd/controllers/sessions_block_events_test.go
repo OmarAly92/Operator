@@ -35,7 +35,7 @@ func newBlockEventsTestServer(t *testing.T, rec *fakeBlockEventRecorder) *httpte
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	deps := httpd.APIDeps{
-		Activity:  noopActivityRecorder{},
+		Activity:   noopActivityRecorder{},
 		UsageHooks: noopUsageHookRecorder{},
 	}
 	if rec != nil {

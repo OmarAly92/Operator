@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 )
 
 func TestBlockEventRoundTripAndTrim(t *testing.T) {

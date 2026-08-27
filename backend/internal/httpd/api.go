@@ -26,10 +26,10 @@ const minimumSwitchAgentRequestTimeout = 6 * time.Minute
 
 // APIDeps bundles every service the API layer's controllers depend on.
 type APIDeps struct {
-	Agents             controllers.AgentCatalog
-	Projects           projectsvc.Manager
-	Sessions           controllers.SessionService
-	Activity           controllers.ActivityRecorder
+	Agents   controllers.AgentCatalog
+	Projects projectsvc.Manager
+	Sessions controllers.SessionService
+	Activity controllers.ActivityRecorder
 	// BlockEvents retains rich hook payloads as block events. Nil leaves the
 	// activity endpoint's existing behaviour untouched.
 	BlockEvents        controllers.BlockEventRecorder

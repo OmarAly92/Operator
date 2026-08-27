@@ -85,7 +85,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 
 	s.writes++
 	if s.writes%trimEvery == 0 {
-			_, _ = s.store.TrimBlockEvents(ctx, string(sessionID), s.retain)
+		_, _ = s.store.TrimBlockEvents(ctx, string(sessionID), s.retain)
 	}
 
 	if s.pub != nil {
