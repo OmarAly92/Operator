@@ -499,7 +499,7 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | # | Plan | Spec steps | File | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Backend block pipeline | 1, 2 (daemon), fixtures | `2026-08-27-block-pipeline-backend.md` | written |
-| 2 | Mobile block screen | 2 (mobile mux), 3, 4 | — | |
+| 2 | Mobile block screen | 2 (mobile mux), 3, 4 | `2026-08-27-mobile-block-screen.md` | written |
 | 3 | Desktop block screen | 2 (desktop mux), 3, 5 | — | |
 | 4 | Viewport, both clients | 6 | — | |
 | 5 | ACP adapter, chat presentation retires | 7 | — | |
