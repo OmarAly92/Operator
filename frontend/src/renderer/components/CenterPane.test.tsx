@@ -6,6 +6,7 @@ import type { AgentSwitch } from "../hooks/useAgentSwitches";
 import type { SwitchAgentInput } from "../hooks/useSwitchAgent";
 import type { WorkspaceSession } from "../types/workspace";
 import { isMacPlatform } from "../lib/platform";
+import { useUiStore } from "../stores/ui-store";
 import { CenterPane } from "./CenterPane";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -73,10 +74,30 @@ vi.mock("../lib/bridge", () => ({
 }));
 
 // The terminal body pulls in xterm/SSE machinery irrelevant to the header under test.
+const cacheMocks = vi.hoisted(() => ({ releaseWorker: vi.fn() }));
+
 vi.mock("./TerminalPane", () => ({
 	TerminalPane: ({ focusRequested }: { focusRequested?: boolean }) => (
 		<div data-focus-requested={focusRequested ? "true" : "false"}>terminal body</div>
 	),
+	useTerminalCacheController: () => ({
+		activate: vi.fn(),
+		deactivate: vi.fn(),
+		update: vi.fn(),
+		releaseWorker: cacheMocks.releaseWorker,
+	}),
+}));
+
+vi.mock("../hooks/useSessionBlocks", () => ({
+	useSessionBlocks: () => ({
+		blocks: [],
+		isLoading: false,
+		isLoadingOlder: false,
+		hasOlder: false,
+		error: undefined,
+		loadOlder: vi.fn(),
+		refetch: vi.fn(),
+	}),
 }));
 
 const worker = {
@@ -112,6 +133,8 @@ beforeEach(() => {
 	agentSwitchMocks.mutation.error = null;
 	agentSwitchMocks.mutation.input = undefined;
 	agentSwitchMocks.mutation.isPending = false;
+	cacheMocks.releaseWorker.mockReset();
+	useUiStore.setState({ sessionViewModeBySession: {} });
 });
 
 describe("CenterPane toolbar session label", () => {
@@ -574,5 +597,53 @@ describe("CenterPane toolbar session label", () => {
 		fireEvent.keyDown(sessionTab, { key: "ArrowRight" });
 		expect(firstShellTab).toHaveFocus();
 		expect(screen.queryByRole("textbox", { name: /rename terminal/i })).not.toBeInTheDocument();
+	});
+});
+
+describe("CenterPane blocks toggle", () => {
+	const tuiWorker = { ...worker, mode: "tui" } satisfies WorkspaceSession;
+
+	it("opens a covered tui session in blocks and renders no terminal", () => {
+		renderCenterPane({ session: tuiWorker });
+
+		expect(screen.getByRole("button", { name: "Show raw terminal" })).toBeInTheDocument();
+		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
+	});
+
+	it("opens an uncovered harness raw", () => {
+		renderCenterPane({ session: { ...tuiWorker, provider: "aider" } });
+
+		expect(screen.getByText("terminal body")).toBeInTheDocument();
+	});
+
+	it("the toggle swaps to raw, which is what joins the terminal channel", async () => {
+		renderCenterPane({ session: tuiWorker });
+
+		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
+
+		expect(screen.getByText("terminal body")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Show raw terminal" })).not.toBeInTheDocument();
+	});
+
+	it("switching back to blocks releases the retained worker terminal", async () => {
+		renderCenterPane({ session: tuiWorker });
+
+		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
+		expect(cacheMocks.releaseWorker).not.toHaveBeenCalled();
+
+		await userEvent.click(screen.getByRole("button", { name: "Show blocks" }));
+
+		expect(cacheMocks.releaseWorker).toHaveBeenCalledWith("sess-1");
+		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
+	});
+
+	it("a shell target has no blocks toggle and stays raw", () => {
+		renderCenterPane({
+			session: tuiWorker,
+			terminalTarget: { kind: "shell", generation: "0", handleId: "h-0", sessionId: "sess-1", title: "operator-0" },
+		});
+
+		expect(screen.getByText("terminal body")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Show blocks|Show raw terminal/ })).not.toBeInTheDocument();
 	});
 });

@@ -13,6 +13,7 @@ import {
 	TerminalCacheProvider,
 	TerminalPane,
 	providerScrollsByKeyboard,
+	useTerminalCacheController,
 } from "./TerminalPane";
 
 const {
@@ -570,6 +571,96 @@ describe("TerminalCacheProvider", () => {
 			expect(xtermMounts.value).toBe(2);
 		} finally {
 			view.restore();
+		}
+	});
+
+	it("releaseWorker drops a retained worker terminal instead of parking it", async () => {
+		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		queryClient.setQueryData(workspaceQueryKey, workspaceWithSessions([sessionA]));
+		queryClient.setQueryData(shellTerminalsQueryKey, []);
+		const previousAO = window.operator;
+		window.operator = {} as typeof window.operator;
+
+		let controller: ReturnType<typeof useTerminalCacheController> = null;
+		function Probe() {
+			controller = useTerminalCacheController();
+			return null;
+		}
+
+		const view = render(
+			<QueryClientProvider client={queryClient}>
+				<TerminalCacheProvider daemonReady theme="dark">
+					<Probe />
+					<TerminalPane daemonReady fontSize={12} session={sessionA} theme="dark" />
+				</TerminalCacheProvider>
+			</QueryClientProvider>,
+		);
+
+		try {
+			await waitFor(() => activeXterm());
+			expect(
+				document.querySelectorAll(`[data-terminal-cache-key^="session:${sessionA.id}:worker|"]`),
+			).toHaveLength(1);
+			const unmountsBefore = xtermUnmounts.value;
+
+			act(() => controller?.releaseWorker(sessionA.id));
+
+			await waitFor(() =>
+				expect(
+					document.querySelectorAll(`[data-terminal-cache-key^="session:${sessionA.id}:worker|"]`),
+				).toHaveLength(0),
+			);
+			expect(xtermUnmounts.value).toBe(unmountsBefore + 1);
+		} finally {
+			view.unmount();
+			window.operator = previousAO;
+		}
+	});
+
+	it("releaseWorker leaves another session's terminal alone", async () => {
+		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		queryClient.setQueryData(workspaceQueryKey, workspaceWithSessions([sessionA, sessionB]));
+		queryClient.setQueryData(shellTerminalsQueryKey, []);
+		const previousAO = window.operator;
+		window.operator = {} as typeof window.operator;
+
+		let controller: ReturnType<typeof useTerminalCacheController> = null;
+		function Probe() {
+			controller = useTerminalCacheController();
+			return null;
+		}
+		const tree = (session: WorkspaceSession) => (
+			<QueryClientProvider client={queryClient}>
+				<TerminalCacheProvider daemonReady theme="dark">
+					<Probe />
+					<TerminalPane daemonReady fontSize={12} session={session} theme="dark" />
+				</TerminalCacheProvider>
+			</QueryClientProvider>
+		);
+
+		const view = render(tree(sessionA));
+		try {
+			await waitFor(() => activeXterm());
+			view.rerender(tree(sessionB));
+			await waitFor(() =>
+				expect(
+					document.querySelector(`[data-terminal-cache-key^="session:${sessionB.id}:worker|"]`),
+				).not.toBeNull(),
+			);
+
+			act(() => controller?.releaseWorker(sessionB.id));
+
+			await waitFor(() =>
+				expect(
+					document.querySelectorAll(`[data-terminal-cache-key^="session:${sessionB.id}:worker|"]`),
+				).toHaveLength(0),
+			);
+			expect(
+				document.querySelectorAll(`[data-terminal-cache-key^="session:${sessionA.id}:worker|"]`),
+			).toHaveLength(1);
+		} finally {
+			view.unmount();
+			window.operator = previousAO;
 		}
 	});
 });

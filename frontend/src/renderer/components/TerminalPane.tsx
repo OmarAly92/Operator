@@ -89,6 +89,12 @@ type TerminalCacheController = {
 	activate: (descriptor: TerminalCacheDescriptor, props: TerminalPaneProps, slot: HTMLDivElement) => void;
 	deactivate: (cacheKey: string, slot: HTMLDivElement) => void;
 	update: (cacheKey: string, props: TerminalPaneProps) => void;
+	/**
+	 * Drop a session's retained worker terminal outright. Deactivation parks an
+	 * entry, which keeps its mux lease and therefore keeps this client reporting
+	 * a PTY grid; Blocks needs the attachment gone, not hidden.
+	 */
+	releaseWorker: (sessionId: string) => void;
 };
 
 const TerminalCacheContext = createContext<TerminalCacheController | null>(null);
@@ -336,6 +342,16 @@ export function TerminalCacheProvider({
 			rerender();
 		},
 		[rerender],
+	);
+
+	const releaseWorker = useCallback(
+		(sessionId: string) => {
+			for (const entry of [...entriesRef.current.values()]) {
+				if (entry.kind !== "worker" || entry.sessionId !== sessionId) continue;
+				removeEntry(entry.cacheKey);
+			}
+		},
+		[removeEntry],
 	);
 
 	const activate = useCallback(
@@ -589,8 +605,8 @@ export function TerminalCacheProvider({
 	);
 
 	const controller = useMemo<TerminalCacheController>(
-		() => ({ activate, deactivate, update }),
-		[activate, deactivate, update],
+		() => ({ activate, deactivate, update, releaseWorker }),
+		[activate, deactivate, update, releaseWorker],
 	);
 
 	return (
@@ -619,6 +635,10 @@ export function TerminalCacheProvider({
 			))}
 		</TerminalCacheContext.Provider>
 	);
+}
+
+export function useTerminalCacheController(): TerminalCacheController | null {
+	return useContext(TerminalCacheContext);
 }
 
 function CachedTerminalSlot({
