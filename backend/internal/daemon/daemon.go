@@ -35,6 +35,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/preview"
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
 	"github.com/OmarAly92/operator/backend/internal/push"
+	"github.com/OmarAly92/operator/backend/internal/redact"
 	"github.com/OmarAly92/operator/backend/internal/runfile"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
 	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
@@ -142,6 +143,9 @@ func Run() error {
 	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
 	defer termMgr.Close()
 
+	if n := redact.LoadUserPatterns(cfg.DataDir, log); n > 0 {
+		log.Info("loaded user redaction patterns", "count", n)
+	}
 	blockEvents := blockevent.NewService(store, termMgr, 500)
 
 	// The agent messenger sends validated user input to the session's live
