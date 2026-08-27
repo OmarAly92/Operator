@@ -23,7 +23,7 @@ export function installVirtualLayout(options: VirtualLayoutOptions): () => void 
 		return index === undefined ? viewportHeight : heightAt(index);
 	};
 
-	vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+	const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
 		const height = sizeOf.call(this);
 		return {
 			top: 0,
@@ -39,9 +39,9 @@ export function installVirtualLayout(options: VirtualLayoutOptions): () => void 
 			},
 		} as DOMRect;
 	});
-	vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(sizeOf);
-	vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(sizeOf);
-	vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+	const clientHeightSpy = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(sizeOf);
+	const offsetHeightSpy = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(sizeOf);
+	const scrollHeightSpy = vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
 		if (!this.hasAttribute("data-block-scroll")) return sizeOf.call(this as HTMLElement);
 		const sizer = this.querySelector<HTMLElement>("[data-block-sizer]");
 		const styled = sizer === null ? Number.NaN : Number.parseFloat(sizer.style.height);
@@ -62,7 +62,10 @@ export function installVirtualLayout(options: VirtualLayoutOptions): () => void 
 	};
 
 	return () => {
-		vi.restoreAllMocks();
+		rectSpy.mockRestore();
+		clientHeightSpy.mockRestore();
+		offsetHeightSpy.mockRestore();
+		scrollHeightSpy.mockRestore();
 		if (!hadScrollTo) delete proto.scrollTo;
 	};
 }

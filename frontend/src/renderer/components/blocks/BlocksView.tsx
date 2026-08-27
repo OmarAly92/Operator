@@ -1,8 +1,7 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
-import { BlockCard } from "./BlockCard";
+import { BlockList } from "./BlockList";
 
 export type BlocksViewProps = {
 	blocks: SessionBlock[];
@@ -11,12 +10,11 @@ export type BlocksViewProps = {
 	hasOlder: boolean;
 	error?: string;
 	harness?: string;
+	sessionId: string;
 	supported: boolean;
 	onLoadOlder: () => void;
 	onRetry: () => void;
 };
-
-const PINNED_SLACK_PX = 24;
 
 export function BlocksView({
 	blocks,
@@ -25,29 +23,12 @@ export function BlocksView({
 	hasOlder,
 	error,
 	harness,
+	sessionId,
 	supported,
 	onLoadOlder,
 	onRetry,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
-	const scrollRef = useRef<HTMLDivElement | null>(null);
-	const pinnedRef = useRef(true);
-
-	useEffect(() => {
-		const node = scrollRef.current;
-		if (!node) return;
-		const onScroll = () => {
-			pinnedRef.current = node.scrollTop + node.clientHeight >= node.scrollHeight - PINNED_SLACK_PX;
-		};
-		node.addEventListener("scroll", onScroll);
-		return () => node.removeEventListener("scroll", onScroll);
-	}, []);
-
-	useLayoutEffect(() => {
-		const node = scrollRef.current;
-		if (!node || !pinnedRef.current) return;
-		node.scrollTop = node.scrollHeight;
-	}, [blocks]);
 
 	if (!supported) {
 		return <Notice text={t("blocks.unavailable", { harness: harness ?? "" })} />;
@@ -69,12 +50,7 @@ export function BlocksView({
 	}
 
 	return (
-		<div
-			aria-label={t("blocks.panelAria")}
-			className="h-full min-h-0 overflow-y-auto py-1.5"
-			ref={scrollRef}
-			role="log"
-		>
+		<div className="flex h-full min-h-0 flex-col">
 			{isLoadingOlder ? (
 				<p className="py-2 text-center text-[11px] text-muted-foreground">{t("blocks.loadingOlder")}</p>
 			) : hasOlder ? (
@@ -84,9 +60,9 @@ export function BlocksView({
 					</Button>
 				</div>
 			) : null}
-			{blocks.map((block) => (
-				<BlockCard block={block} key={block.id} />
-			))}
+			<div className="min-h-0 flex-1">
+				<BlockList blocks={blocks} sessionId={sessionId} />
+			</div>
 		</div>
 	);
 }

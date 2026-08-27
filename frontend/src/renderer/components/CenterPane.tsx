@@ -684,6 +684,7 @@ function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined 
 			isLoadingOlder={blocks.isLoadingOlder}
 			onLoadOlder={blocks.loadOlder}
 			onRetry={blocks.refetch}
+			sessionId={sessionId}
 			supported={blocksCoverHarness(harness)}
 		/>
 	);
