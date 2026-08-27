@@ -26,12 +26,13 @@ const (
 
 // client message types (ch "terminal" unless noted).
 const (
-	msgOpen      = "open"
-	msgData      = "data"
-	msgResize    = "resize"
-	msgClose     = "close"
-	msgSubscribe = "subscribe" // ch "subscribe"
-	msgPing      = "ping"      // ch "system"
+	msgOpen        = "open"
+	msgData        = "data"
+	msgResize      = "resize"
+	msgClose       = "close"
+	msgSubscribe   = "subscribe"   // ch "subscribe"
+	msgUnsubscribe = "unsubscribe" // ch "blocks"
+	msgPing        = "ping"        // ch "system"
 )
 
 // server message types.

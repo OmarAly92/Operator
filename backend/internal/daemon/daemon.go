@@ -411,6 +411,7 @@ func Run() error {
 		Events:             cdcPipe.Broadcaster,
 		Activity:           lcStack.LCM,
 		BlockEvents:        blockEvents,
+		BlockHistory:       blockEvents,
 		UsageHooks:         usageCollector,
 		UsageSummary:       usagesvc.NewSummaryReader(store),
 		Telemetry:          telemetrySink,

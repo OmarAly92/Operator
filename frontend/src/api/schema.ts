@@ -674,6 +674,23 @@ export interface paths {
         patch: operations["setSessionAutoInjectReview"];
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a session's retained, redacted block-event log */
+        get: operations["listSessionBlockEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/conversation": {
         parameters: {
             query?: never;
@@ -1671,6 +1688,28 @@ export interface components {
             data: string;
             mimeType?: string;
         };
+        BlockEventView: {
+            /** Format: date-time */
+            createdAt: string;
+            errorType?: string;
+            harness?: string;
+            hookVersion?: string;
+            kind: string;
+            rawEvent?: string;
+            redactedSpans?: components["schemas"]["BlockRedactedSpanView"][];
+            /** Format: int64 */
+            seq: number;
+            sessionId: string;
+            sourceId?: string;
+            text?: string;
+            toolName?: string;
+            toolUseId?: string;
+            truncatedLines?: number;
+        };
+        BlockRedactedSpanView: {
+            end: number;
+            start: number;
+        };
         BrowserCommandRequest: {
             action: string;
             args?: {
@@ -2158,6 +2197,9 @@ export interface components {
             reviewerHarness?: string;
             reviews: components["schemas"]["PRReviewState"][];
             runs: components["schemas"]["ReviewRun"][];
+        };
+        ListSessionBlockEventsResponse: {
+            blocks: components["schemas"]["BlockEventView"][];
         };
         ListSessionPRsResponse: {
             prs: components["schemas"]["SessionPRSummary"][];
@@ -5297,6 +5339,61 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listSessionBlockEvents: {
+        parameters: {
+            query?: {
+                /** @description Return events with seq greater than this cursor. Omit to read from the start of the retained log. */
+                afterSeq?: null | number;
+                /** @description Maximum events to return. Defaults to the daemon's per-session retention. */
+                limit?: null | number;
+            };
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSessionBlockEventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1866,6 +1866,68 @@ paths:
       summary: Set the auto-inject review setting for a session
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/blocks:
+    get:
+      operationId: listSessionBlockEvents
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      - description: Return events with seq greater than this cursor. Omit to read
+          from the start of the retained log.
+        in: query
+        name: afterSeq
+        schema:
+          description: Return events with seq greater than this cursor. Omit to read
+            from the start of the retained log.
+          minimum: 0
+          type:
+          - "null"
+          - integer
+      - description: Maximum events to return. Defaults to the daemon's per-session
+          retention.
+        in: query
+        name: limit
+        schema:
+          description: Maximum events to return. Defaults to the daemon's per-session
+            retention.
+          maximum: 500
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSessionBlockEventsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read a session's retained, redacted block-event log
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/conversation:
     get:
       operationId: getSessionConversation
@@ -4989,6 +5051,56 @@ components:
       required:
       - data
       type: object
+    BlockEventView:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        errorType:
+          type: string
+        harness:
+          type: string
+        hookVersion:
+          type: string
+        kind:
+          type: string
+        rawEvent:
+          type: string
+        redactedSpans:
+          items:
+            $ref: '#/components/schemas/BlockRedactedSpanView'
+          type: array
+        seq:
+          format: int64
+          type: integer
+        sessionId:
+          type: string
+        sourceId:
+          type: string
+        text:
+          type: string
+        toolName:
+          type: string
+        toolUseId:
+          type: string
+        truncatedLines:
+          type: integer
+      required:
+      - seq
+      - sessionId
+      - kind
+      - createdAt
+      type: object
+    BlockRedactedSpanView:
+      properties:
+        end:
+          type: integer
+        start:
+          type: integer
+      required:
+      - start
+      - end
+      type: object
     BrowserCommandRequest:
       properties:
         action:
@@ -6325,6 +6437,15 @@ components:
       - reviewerHandleId
       - reviews
       - runs
+      type: object
+    ListSessionBlockEventsResponse:
+      properties:
+        blocks:
+          items:
+            $ref: '#/components/schemas/BlockEventView'
+          type: array
+      required:
+      - blocks
       type: object
     ListSessionPRsResponse:
       properties:

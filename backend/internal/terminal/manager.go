@@ -537,15 +537,22 @@ func (c *connState) handleSubscribe(msg clientMsg) {
 }
 
 func (c *connState) handleBlockSubscribe(msg clientMsg) {
-	if msg.Type != msgSubscribe || msg.ID == "" {
+	if msg.ID == "" {
 		return
 	}
-	c.mu.Lock()
-	if c.blockSubs == nil {
-		c.blockSubs = map[string]struct{}{}
+	switch msg.Type {
+	case msgSubscribe:
+		c.mu.Lock()
+		if c.blockSubs == nil {
+			c.blockSubs = map[string]struct{}{}
+		}
+		c.blockSubs[msg.ID] = struct{}{}
+		c.mu.Unlock()
+	case msgUnsubscribe:
+		c.mu.Lock()
+		delete(c.blockSubs, msg.ID)
+		c.mu.Unlock()
 	}
-	c.blockSubs[msg.ID] = struct{}{}
-	c.mu.Unlock()
 }
 
 // PublishBlockEvent fans one recorded block event out to every connection

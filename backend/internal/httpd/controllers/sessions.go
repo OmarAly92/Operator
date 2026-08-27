@@ -27,6 +27,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	previewutil "github.com/OmarAly92/operator/backend/internal/preview"
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	"github.com/OmarAly92/operator/backend/internal/workspacewatch"
@@ -124,6 +125,13 @@ type BlockEventRecorder interface {
 	Record(ctx context.Context, sessionID domain.SessionID, harness string, sig ports.ActivitySignal) error
 }
 
+// BlockEventHistory reads a session's persisted block-event log. It is separate
+// from BlockEventRecorder so a build that records without serving history — or a
+// test fake that only needs one half — stays valid.
+type BlockEventHistory interface {
+	History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -150,6 +158,7 @@ type SessionsController struct {
 	Svc           SessionService
 	Activity      ActivityRecorder
 	BlockEvents   BlockEventRecorder
+	BlockHistory  BlockEventHistory
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -181,6 +190,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/resume-agent", c.resumeAgent)
 	r.Get("/sessions/{sessionId}/agent-switches", c.listAgentSwitches)
 	r.Post("/sessions/{sessionId}/agent-switches/{switchId}/handoff", c.submitAgentHandoff)
+	r.Get("/sessions/{sessionId}/blocks", c.listBlockEvents)
 	r.Get("/sessions/{sessionId}/interface-transition", c.interfaceTransitionStatus)
 	r.Post("/sessions/{sessionId}/interface-transition", c.startInterfaceTransition)
 	r.Delete("/sessions/{sessionId}/interface-transition", c.cancelInterfaceTransition)
@@ -1097,6 +1107,50 @@ func (c *SessionsController) listAgentSwitches(w http.ResponseWriter, r *http.Re
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, ListAgentSwitchesResponse{Switches: agentSwitchViews(switches)})
+}
+
+// maxBlockEventPage bounds one history page. It matches the daemon's per-session
+// retention (blockevent.NewService(store, termMgr, 500) in daemon.go) so a
+// client can ask for everything that exists in one call and no more.
+const maxBlockEventPage = 500
+
+func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Request) {
+	if c.BlockHistory == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/blocks")
+		return
+	}
+	afterSeq, err := parseNonNegativeQuery(r, "afterSeq")
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", err.Error(), nil)
+		return
+	}
+	limit, err := parseNonNegativeQuery(r, "limit")
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", err.Error(), nil)
+		return
+	}
+	if r.URL.Query().Has("limit") && (limit < 1 || limit > maxBlockEventPage) {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be between 1 and 500", nil)
+		return
+	}
+	recs, err := c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ListSessionBlockEventsResponse{Blocks: blockEventViews(recs)})
+}
+
+func parseNonNegativeQuery(r *http.Request, key string) (int64, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer", key)
+	}
+	return n, nil
 }
 
 func (c *SessionsController) submitAgentHandoff(w http.ResponseWriter, r *http.Request) {
