@@ -50,6 +50,16 @@ final class TerminalResizeEvent extends TerminalEvent {
   List<Object?> get props => [id, cols, rows];
 }
 
+final class BlockEventEnvelope extends Equatable {
+  const BlockEventEnvelope(this.sessionId, this.block);
+
+  final String sessionId;
+  final Map<String, dynamic> block;
+
+  @override
+  List<Object?> get props => [sessionId, block];
+}
+
 /// One WebSocket multiplexing session-status snapshots and per-session
 /// terminal I/O. Auto-reconnects with backoff. See `docs/mobile-parity-ledger.md`
 /// for the RN reference (`lib/mux.ts`) this mirrors.
@@ -63,10 +73,12 @@ class MuxClient {
   final _statusController = StreamController<MuxStatus>.broadcast();
   final _sessionPatchesController = StreamController<List<SessionPatch>>.broadcast();
   final _terminalEventsController = StreamController<TerminalEvent>.broadcast();
+  final _blockEventsController = StreamController<BlockEventEnvelope>.broadcast();
 
   Stream<MuxStatus> get status => _statusController.stream;
   Stream<List<SessionPatch>> get sessionPatches => _sessionPatchesController.stream;
   Stream<TerminalEvent> get terminalEvents => _terminalEventsController.stream;
+  Stream<BlockEventEnvelope> get blockEvents => _blockEventsController.stream;
 
   MuxSocket? _socket;
   StreamSubscription<dynamic>? _sub;
@@ -76,6 +88,7 @@ class MuxClient {
   Timer? _pingTimer;
   int _backoffMs = MuxBackoff.initialMs;
   final Map<String, String?> _openTerminals = {};
+  final Set<String> _blockSessions = {};
   bool _subscribed = false;
 
   MuxStatus _currentStatus = MuxStatus.closed;
@@ -138,6 +151,9 @@ class MuxClient {
     for (final entry in _openTerminals.entries) {
       _send({'ch': 'terminal', 'id': entry.key, 'type': 'open', 'projectId': entry.value, 'role': 'secondary'});
     }
+    for (final sessionId in _blockSessions) {
+      _send({'ch': 'blocks', 'id': sessionId, 'type': 'subscribe'});
+    }
 
     _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _send({'ch': 'system', 'type': 'ping'}));
   }
@@ -181,6 +197,13 @@ class MuxClient {
           if (cols is num && rows is num && cols > 0 && rows > 0) {
             _terminalEventsController.add(TerminalResizeEvent(id, cols.toInt(), rows.toInt()));
           }
+      }
+    }
+
+    if (ch == 'blocks' && type == 'block') {
+      final block = msg['block'];
+      if (block is Map<String, dynamic>) {
+        _blockEventsController.add(BlockEventEnvelope(msg['id'] as String? ?? '', block));
       }
     }
   }
@@ -229,6 +252,16 @@ class MuxClient {
   void closeTerminal(String id, {String? projectId}) {
     _openTerminals.remove(id);
     _send({'ch': 'terminal', 'id': id, 'type': 'close', 'projectId': projectId});
+  }
+
+  void subscribeBlocks(String sessionId) {
+    _blockSessions.add(sessionId);
+    _send({'ch': 'blocks', 'id': sessionId, 'type': 'subscribe'});
+  }
+
+  void unsubscribeBlocks(String sessionId) {
+    _blockSessions.remove(sessionId);
+    _send({'ch': 'blocks', 'id': sessionId, 'type': 'unsubscribe'});
   }
 
   Future<void> disconnect() async {
