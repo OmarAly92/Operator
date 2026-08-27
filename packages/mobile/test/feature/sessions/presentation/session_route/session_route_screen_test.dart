@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
@@ -12,6 +13,9 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
@@ -37,6 +41,8 @@ class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
 
 class _MockPreviewRepository extends Mock implements PreviewRepository {}
+
+class _MockBlocksRepository extends Mock implements BlocksRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -68,6 +74,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
+    registerFallbackValue(const GetSessionBlocksParams());
 
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
@@ -80,6 +87,11 @@ void main() {
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(() => mux.terminalEvents).thenAnswer((_) => const Stream<TerminalEvent>.empty());
+    when(() => mux.blockEvents).thenAnswer(
+      (_) => const Stream<BlockEventEnvelope>.empty(),
+    );
+    when(() => mux.subscribeBlocks(any())).thenReturn(null);
+    when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
     when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
@@ -100,6 +112,16 @@ void main() {
     await sl.reset();
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
       (args, _) => TerminalCubit(mux, terminalRepository, repository, args),
+    );
+    sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
+      (args, _) => SessionViewCubit(defaultViewMode(args)),
+    );
+    final blocksRepository = _MockBlocksRepository();
+    when(
+      () => blocksRepository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const []));
+    sl.registerFactoryParam<BlocksCubit, String, String?>(
+      (sessionId, harness) => BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
     );
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),

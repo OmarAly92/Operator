@@ -1,0 +1,13 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "text": "delete the branch" },
+    { "seq": 2, "sessionId": "s-1", "kind": "permission_request", "sourceId": "pr-1", "toolName": "Bash", "toolInput": "git branch -D feat/x" },
+    { "seq": 3, "sessionId": "s-1", "kind": "permission_replied", "sourceId": "pr-1" },
+    { "seq": 4, "sessionId": "s-1", "kind": "stop_failure", "text": "refused" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "failed", "title": "Prompt", "body": "delete the branch" },
+    { "id": "src-pr-1", "kind": "permission", "status": "ok", "title": "Permission requested", "body": "Bash\ngit branch -D feat/x" },
+    { "id": "seq-4", "kind": "assistant", "status": "failed", "title": "Assistant", "body": "refused" }
+  ]
+}

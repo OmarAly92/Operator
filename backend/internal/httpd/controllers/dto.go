@@ -11,6 +11,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/legacyimport"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
@@ -249,6 +250,73 @@ type AgentSwitchResponse struct {
 // GET /api/v1/sessions/{sessionId}/agent-switches.
 type ListAgentSwitchesResponse struct {
 	Switches []AgentSwitchView `json:"switches"`
+}
+
+// BlockRedactedSpanView marks where a secret was masked in BlockEventView.Text.
+// Offsets index the masked text, not the original, so a client can highlight the
+// mask without ever having seen what it replaced.
+type BlockRedactedSpanView struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+// BlockEventView is one normalized, redacted block event as served to clients.
+// It mirrors blockevent.Record deliberately rather than aliasing it: the wire
+// shape is part of the API contract and must not drift when the service's
+// internal record gains a field.
+type BlockEventView struct {
+	Seq            int64                   `json:"seq"`
+	SessionID      string                  `json:"sessionId"`
+	SourceID       string                  `json:"sourceId,omitempty"`
+	Kind           string                  `json:"kind"`
+	RawEvent       string                  `json:"rawEvent,omitempty"`
+	Harness        string                  `json:"harness,omitempty"`
+	ToolName       string                  `json:"toolName,omitempty"`
+	ToolUseID      string                  `json:"toolUseId,omitempty"`
+	ToolInput      string                  `json:"toolInput,omitempty"`
+	Text           string                  `json:"text,omitempty"`
+	RedactedSpans  []BlockRedactedSpanView `json:"redactedSpans,omitempty"`
+	ErrorType      string                  `json:"errorType,omitempty"`
+	HookVersion    string                  `json:"hookVersion,omitempty"`
+	TruncatedLines int                     `json:"truncatedLines,omitempty"`
+	CreatedAt      time.Time               `json:"createdAt"`
+}
+
+// ListSessionBlockEventsResponse is the body of
+// GET /api/v1/sessions/{sessionId}/blocks.
+type ListSessionBlockEventsResponse struct {
+	Blocks []BlockEventView `json:"blocks"`
+}
+
+func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
+	views := make([]BlockEventView, 0, len(recs))
+	for _, rec := range recs {
+		spans := make([]BlockRedactedSpanView, 0, len(rec.RedactedSpans))
+		for _, s := range rec.RedactedSpans {
+			spans = append(spans, BlockRedactedSpanView{Start: s.Start, End: s.End})
+		}
+		if len(spans) == 0 {
+			spans = nil
+		}
+		views = append(views, BlockEventView{
+			Seq:            rec.Seq,
+			SessionID:      rec.SessionID,
+			SourceID:       rec.SourceID,
+			Kind:           string(rec.Kind),
+			RawEvent:       rec.RawEvent,
+			Harness:        rec.Harness,
+			ToolName:       rec.ToolName,
+			ToolUseID:      rec.ToolUseID,
+			ToolInput:      rec.ToolInput,
+			Text:           rec.Text,
+			RedactedSpans:  spans,
+			ErrorType:      rec.ErrorType,
+			HookVersion:    rec.HookVersion,
+			TruncatedLines: rec.TruncatedLines,
+			CreatedAt:      rec.CreatedAt,
+		})
+	}
+	return views
 }
 
 // SubmitAgentHandoffRequest is the body of
@@ -789,6 +857,9 @@ type SetActivityRequest struct {
 	Event                 string             `json:"event,omitempty" description:"Operator hook sub-command that produced this state (e.g. post-tool-use)."`
 	ToolName              string             `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
 	ToolUseID             string             `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
+	Harness               string             `json:"harness,omitempty" description:"Agent token from opr hooks <agent> <event>. Authoritative for block-event mapping; the usage block's harness is only a fallback for older CLIs."`
+	ToolInput             string             `json:"toolInput,omitempty" maxLength:"2048" description:"Preview of the native tool input, for tool-use and permission hook events."`
+	HookVersion           string             `json:"hookVersion,omitempty" description:"Schema version of the body the reporting opr CLI emits."`
 	AgentSessionID        string             `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
 	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
 	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`

@@ -236,6 +236,9 @@ var schemaNames = map[string]string{
 	"ControllersAgentSwitchView":                          "AgentSwitch",
 	"ControllersAgentSwitchResponse":                      "AgentSwitchResponse",
 	"ControllersListAgentSwitchesResponse":                "ListAgentSwitchesResponse",
+	"ControllersListSessionBlockEventsResponse":           "ListSessionBlockEventsResponse",
+	"ControllersBlockEventView":                           "BlockEventView",
+	"ControllersBlockRedactedSpanView":                    "BlockRedactedSpanView",
 	"ControllersSubmitAgentHandoffRequest":                "SubmitAgentHandoffRequest",
 	"ControllersStartSessionInterfaceTransitionRequest":   "StartSessionInterfaceTransitionRequest",
 	"ControllersSessionInterfaceTransitionView":           "SessionInterfaceTransition",
@@ -490,6 +493,12 @@ func browserOperations() []operation {
 type conversationSnapshotQuery struct {
 	BeforeSequence *int64 `query:"beforeSequence,omitempty" minimum:"1" description:"Read items older than this conversation sequence. Omit for the newest page."`
 	Limit          *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum combined messages and activities to return. Defaults to 200."`
+}
+
+type sessionBlocksQuery struct {
+	AfterSeq  *int64 `query:"afterSeq,omitempty" minimum:"0" description:"Return events with seq greater than this cursor. Omit to read from the start of the retained log."`
+	BeforeSeq *int64 `query:"beforeSeq,omitempty" minimum:"1" description:"Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq."`
+	Limit     *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum events to return. Defaults to the daemon's per-session retention."`
 }
 
 func usageOperations() []operation {
@@ -1675,6 +1684,17 @@ func sessionOperations() []operation {
 				{http.StatusAccepted, controllers.CancelSessionInterfaceTransitionResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/blocks", id: "listSessionBlockEvents", tag: "sessions",
+			summary:    "Read a session's retained, redacted block-event log",
+			pathParams: []any{controllers.SessionIDParam{}, sessionBlocksQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ListSessionBlockEventsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

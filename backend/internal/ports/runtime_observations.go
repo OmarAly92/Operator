@@ -56,6 +56,14 @@ type ActivitySignal struct {
 	// TranscriptPath is a read-only provider-native transcript reference when
 	// the hook exposes one. Operator stores the path, never rewrites the transcript.
 	TranscriptPath string
+	// Harness is the agent token the hook reported itself under. It is what
+	// blockdispatch keys on; an empty harness maps every event to unknown.
+	Harness string
+	// ToolInput is a bounded preview of the native tool input. It is redacted
+	// before it is persisted or transmitted, like every other text field.
+	ToolInput string
+	// HookVersion is the reporting CLI's body-schema version.
+	HookVersion string
 	// LaunchID is set by Operator's process supervisor. Lifecycle rejects a signal
 	// from an older process generation of the same session.
 	LaunchID string

@@ -317,5 +317,125 @@ void main() {
 
       await client.disconnect();
     });
+
+    test('subscribes to a session\'s blocks and surfaces its events', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        client.connect();
+        async.flushMicrotasks();
+
+        final seen = <BlockEventEnvelope>[];
+        client.blockEvents.listen(seen.add);
+        client.subscribeBlocks('s-1');
+        async.flushMicrotasks();
+
+        final sent = socket.sent.map((raw) => jsonDecode(raw) as Map<String, dynamic>).toList();
+        expect(
+          sent.any((m) => m['ch'] == 'blocks' && m['id'] == 's-1' && m['type'] == 'subscribe'),
+          isTrue,
+        );
+
+        socket.pushMessage({
+          'ch': 'blocks',
+          'id': 's-1',
+          'type': 'block',
+          'block': {'seq': 7, 'sessionId': 's-1', 'kind': 'tool_complete', 'toolName': 'Bash'},
+        });
+        async.flushMicrotasks();
+
+        expect(seen, hasLength(1));
+        expect(seen.single.sessionId, 's-1');
+        expect(seen.single.block['seq'], 7);
+        expect(seen.single.block['toolName'], 'Bash');
+        client.disconnect();
+      });
+    });
+
+    test('re-subscribes every block session after a reconnect', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(_source, connect: (_, _) {
+          final socket = _FakeMuxSocket();
+          sockets.add(socket);
+          return socket;
+        });
+        client.connect();
+        async.flushMicrotasks();
+
+        client.subscribeBlocks('s-1');
+        client.subscribeBlocks('s-2');
+        async.flushMicrotasks();
+
+        sockets.first.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+
+        final resent = sockets.last.sent.map((raw) => jsonDecode(raw) as Map<String, dynamic>).toList();
+        expect(
+          resent.any((m) => m['ch'] == 'blocks' && m['id'] == 's-1' && m['type'] == 'subscribe'),
+          isTrue,
+        );
+        expect(
+          resent.any((m) => m['ch'] == 'blocks' && m['id'] == 's-2' && m['type'] == 'subscribe'),
+          isTrue,
+        );
+        client.disconnect();
+      });
+    });
+
+    test('unsubscribing tells the daemon and survives a reconnect', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(_source, connect: (_, _) {
+          final socket = _FakeMuxSocket();
+          sockets.add(socket);
+          return socket;
+        });
+        client.connect();
+        async.flushMicrotasks();
+
+        client.subscribeBlocks('s-1');
+        client.unsubscribeBlocks('s-1');
+        async.flushMicrotasks();
+
+        final sent = sockets.first.sent.map((raw) => jsonDecode(raw) as Map<String, dynamic>).toList();
+        expect(
+          sent.any((m) => m['ch'] == 'blocks' && m['id'] == 's-1' && m['type'] == 'unsubscribe'),
+          isTrue,
+        );
+
+        sockets.first.closeFromServer();
+        async.elapse(const Duration(milliseconds: MuxBackoff.initialMs));
+        async.flushMicrotasks();
+
+        final resent = sockets.last.sent.map((raw) => jsonDecode(raw)).toList();
+        expect(
+          resent.any((frame) => frame is Map && frame['ch'] == 'blocks'),
+          isFalse,
+          reason: 'an unsubscribed session must not come back on reconnect',
+        );
+        client.disconnect();
+      });
+    });
+
+    test('ignores a blocks frame with no payload', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        client.connect();
+        async.flushMicrotasks();
+
+        final seen = <BlockEventEnvelope>[];
+        client.blockEvents.listen(seen.add);
+        client.subscribeBlocks('s-1');
+        socket.pushMessage({'ch': 'blocks', 'id': 's-1', 'type': 'block'});
+        socket.pushMessage({'ch': 'blocks', 'id': 's-1', 'type': 'block', 'block': 'not-a-map'});
+        async.flushMicrotasks();
+
+        expect(seen, isEmpty);
+        client.disconnect();
+      });
+    });
   });
 }

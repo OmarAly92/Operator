@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/blockdispatch"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -26,6 +27,10 @@ func (f *fakeStore) InsertBlockEvent(_ context.Context, rec Record) (int64, erro
 
 func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
 	return f.inserted, nil
+}
+
+func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
 }
 
 func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID string, _ int) (int64, error) {
@@ -133,6 +138,10 @@ func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, in
 	return nil, nil
 }
 
+func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
+}
+
 func (s *concurrentStore) TrimBlockEvents(context.Context, string, int) (int64, error) {
 	return 0, nil
 }
@@ -173,5 +182,104 @@ func TestRecordTruncatesOnARuneBoundary(t *testing.T) {
 	}
 	if store.inserted[0].TruncatedLines == 0 {
 		t.Fatal("truncation was not recorded")
+	}
+}
+
+func TestRecordRedactsTheToolInput(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+		Event:       "post-tool-use",
+		ToolName:    "Bash",
+		ToolInput:   `{"command":"curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz'"}`,
+		HookVersion: "1",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	rec := store.inserted[0]
+	if strings.Contains(rec.ToolInput, "abcdefghijklmnopqrstuvwxyz") {
+		t.Fatal("a bearer token reached the store inside the tool input")
+	}
+	if !strings.Contains(rec.ToolInput, "[redacted]") {
+		t.Errorf("toolInput = %q, want a visible mask", rec.ToolInput)
+	}
+	if rec.HookVersion != "1" {
+		t.Errorf("hookVersion = %q, want 1", rec.HookVersion)
+	}
+}
+
+func TestRecordUsesTheReportedHarness(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "grok", ports.ActivitySignal{
+		Event: "user-prompt-submit",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	if got := store.inserted[0].Kind; got != domain.BlockEventPromptSubmit {
+		t.Fatalf("kind = %q, want prompt_submit — grok has a mapper and must not fall through to unknown", got)
+	}
+}
+
+func TestRecordCarriesTheErrorType(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+		Event:    "post-tool-use-failure",
+		ToolName: "Bash",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	rec := store.inserted[0]
+	if rec.Kind != domain.BlockEventToolComplete {
+		t.Fatalf("kind = %q, want tool_complete", rec.Kind)
+	}
+	if rec.ErrorType == "" {
+		t.Fatal("errorType is empty — the block will render a failed tool as ok")
+	}
+}
+
+func TestRecordDropsWhatAHarnessSuppresses(t *testing.T) {
+	blockdispatch.Mappers["drop-test"] = func(event string) blockdispatch.Decision {
+		return blockdispatch.Decision{Drop: true}
+	}
+	t.Cleanup(func() { delete(blockdispatch.Mappers, "drop-test") })
+
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "drop-test", ports.ActivitySignal{
+		Event: "noise",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	if len(store.inserted) != 0 {
+		t.Fatalf("inserted %d rows, want 0 — a dropped event must not be persisted", len(store.inserted))
+	}
+}
+
+func TestRecordDoesNotPublishADroppedEvent(t *testing.T) {
+	blockdispatch.Mappers["drop-test-2"] = func(event string) blockdispatch.Decision {
+		return blockdispatch.Decision{Drop: true}
+	}
+	t.Cleanup(func() { delete(blockdispatch.Mappers, "drop-test-2") })
+
+	store := &fakeStore{}
+	pub := &fakePublisher{}
+	svc := NewService(store, pub, 500)
+
+	if err := svc.Record(context.Background(), "s-1", "drop-test-2", ports.ActivitySignal{Event: "noise"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	if len(pub.published) != 0 {
+		t.Fatal("a dropped event was published to live clients")
 	}
 }

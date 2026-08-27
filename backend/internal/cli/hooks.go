@@ -32,6 +32,14 @@ const (
 	// the cap truncates it first, so a persistently failing hook cannot grow
 	// the file without bound.
 	maxHooksLogBytes = 1 << 20
+	// hookSchemaVersion is the version of the activity body this CLI emits. The
+	// daemon records it so a report from an `opr` newer than the daemon is
+	// visible as a version rather than as silently missing fields.
+	hookSchemaVersion = "1"
+	// maxHookToolInputLen bounds the tool-input preview. A Write tool's input
+	// is a whole file; this is a preview for a block header, not a copy of
+	// the input.
+	maxHookToolInputLen = 2 << 10
 )
 
 // setActivityAPIRequest mirrors the daemon's SetActivityRequest body for
@@ -45,6 +53,9 @@ type setActivityAPIRequest struct {
 	Event                 string             `json:"event,omitempty"`
 	ToolName              string             `json:"toolName,omitempty"`
 	ToolUseID             string             `json:"toolUseId,omitempty"`
+	Harness               string             `json:"harness,omitempty"`
+	ToolInput             string             `json:"toolInput,omitempty"`
+	HookVersion           string             `json:"hookVersion,omitempty"`
 	AgentSessionID        string             `json:"agentSessionId,omitempty"`
 	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty"`
 	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty"`
@@ -87,10 +98,15 @@ const (
 // them (claude-code's PreToolUse/PostToolUse/PostToolUseFailure and
 // PermissionRequest payloads); adapters whose payloads lack them yield empty
 // strings and the signal degrades to today's state-only form.
-func activityMeta(payload []byte) (toolName, toolUseID string) {
+//
+// toolInput is returned as its original JSON: decoding into a typed shape
+// would drop everything that does not match. The caller is expected to
+// cap the length, since a Write tool's input is a whole file.
+func activityMeta(payload []byte) (toolName, toolUseID, toolInput string) {
 	var p struct {
-		ToolName  string `json:"tool_name"`
-		ToolUseID string `json:"tool_use_id"`
+		ToolName  string          `json:"tool_name"`
+		ToolUseID string          `json:"tool_use_id"`
+		ToolInput json.RawMessage `json:"tool_input"`
 	}
 	_ = json.Unmarshal(payload, &p)
 	if len(p.ToolName) > maxActivityMetaLen {
@@ -99,7 +115,7 @@ func activityMeta(payload []byte) (toolName, toolUseID string) {
 	if len(p.ToolUseID) > maxActivityMetaLen {
 		p.ToolUseID = ""
 	}
-	return p.ToolName, p.ToolUseID
+	return p.ToolName, p.ToolUseID, capHookText(string(p.ToolInput), maxHookToolInputLen)
 }
 
 // hookAgentSessionID extracts the native resume handle shared by Agy, Copilot,
@@ -292,7 +308,7 @@ func (c *commandContext) runHook(ctx context.Context, agent, event string) error
 		return nil
 	}
 
-	toolName, toolUseID := activityMeta(payload)
+	toolName, toolUseID, toolInput := activityMeta(payload)
 	conversation := hookConversationSnapshot{}
 	switch domain.AgentHarness(agent) {
 	case domain.HarnessClaudeCode, domain.HarnessCodex:
@@ -303,6 +319,9 @@ func (c *commandContext) runHook(ctx context.Context, agent, event string) error
 		Event:                 event,
 		ToolName:              toolName,
 		ToolUseID:             toolUseID,
+		Harness:               agent,
+		ToolInput:             toolInput,
+		HookVersion:           hookSchemaVersion,
 		AgentSessionID:        agentSessionID,
 		LatestUserPrompt:      conversation.LatestUserPrompt,
 		LatestAssistantUpdate: conversation.LatestAssistantUpdate,

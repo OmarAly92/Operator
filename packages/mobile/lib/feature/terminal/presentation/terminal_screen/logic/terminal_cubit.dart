@@ -82,7 +82,6 @@ class TerminalCubit extends Cubit<TerminalState> {
     terminal.mouseHandler = TerminalScrollRouter(terminal, harness: args.harness);
     _statusSub = _mux.status.listen(_onStatus);
     _eventsSub = _mux.terminalEvents.where((event) => event.id == args.id).listen(_onEvent);
-    _mux.openTerminal(args.id, projectId: args.projectId);
     _emit();
   }
 
@@ -98,6 +97,7 @@ class TerminalCubit extends Cubit<TerminalState> {
   MuxStatus status = MuxStatus.closed;
   TerminalGrid? grid;
   bool authoritative = false;
+  bool attached = false;
   bool notFound = false;
   bool restoring = false;
   bool sending = false;
@@ -149,12 +149,30 @@ class TerminalCubit extends Cubit<TerminalState> {
     }
   }
 
+  void attach() {
+    if (isClosed || attached) return;
+    attached = true;
+    _mux.openTerminal(args.id, projectId: args.projectId);
+    final fit = _lastFit;
+    if (fit != null) _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
+    _emit();
+  }
+
+  void detach() {
+    if (isClosed || !attached) return;
+    attached = false;
+    _reopenTimer?.cancel();
+    _mux.closeTerminal(args.id, projectId: args.projectId);
+    _emit();
+  }
+
   /// The phone's natural grid. It is reported to the daemon so the PTY can be
   /// sized to the phone when the phone is the only viewer; it is only rendered
   /// while the daemon has not told us the authoritative size.
   void reportFit(TerminalGrid fit) {
     if (_lastFit == fit) return;
     _lastFit = fit;
+    if (!attached) return;
     _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
     if (authoritative) return;
     grid = fit;
@@ -162,8 +180,10 @@ class TerminalCubit extends Cubit<TerminalState> {
     _emit();
   }
 
-  void sendKey(String sequence) =>
-      _mux.sendInput(args.id, sequence, projectId: args.projectId);
+  void sendKey(String sequence) {
+    if (!attached) return;
+    _mux.sendInput(args.id, sequence, projectId: args.projectId);
+  }
 
   void dismissBanner() {
     banner = null;
@@ -228,7 +248,7 @@ class TerminalCubit extends Cubit<TerminalState> {
   }
 
   bool _writeToPty(String text) {
-    if (status != MuxStatus.open) return false;
+    if (!attached || status != MuxStatus.open) return false;
     _mux.sendInput(args.id, terminalPayload(text), projectId: args.projectId);
     return true;
   }
@@ -270,17 +290,22 @@ class TerminalCubit extends Cubit<TerminalState> {
   /// The daemon needs a moment to bring the worktree agent's PTY back before the
   /// re-attach can land.
   void _reopen() {
+    if (!attached) return;
     _mux.openTerminal(args.id, projectId: args.projectId);
     final fit = _lastFit;
     if (fit != null) _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
   }
 
+  bool _closed = false;
+
   @override
   Future<void> close() {
+    if (_closed) return super.close();
+    _closed = true;
     _reopenTimer?.cancel();
     unawaited(_statusSub?.cancel());
     unawaited(_eventsSub?.cancel());
-    _mux.closeTerminal(args.id, projectId: args.projectId);
+    if (attached) _mux.closeTerminal(args.id, projectId: args.projectId);
     composer.dispose();
     return super.close();
   }

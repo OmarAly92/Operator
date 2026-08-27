@@ -32,7 +32,11 @@ type APIDeps struct {
 	Activity controllers.ActivityRecorder
 	// BlockEvents retains rich hook payloads as block events. Nil leaves the
 	// activity endpoint's existing behaviour untouched.
-	BlockEvents        controllers.BlockEventRecorder
+	BlockEvents controllers.BlockEventRecorder
+	// BlockHistory serves the persisted block-event log. Nil answers 501 rather
+	// than an empty list, so a client can tell "no blocks yet" from "this daemon
+	// cannot serve them".
+	BlockHistory       controllers.BlockEventHistory
 	UsageHooks         controllers.UsageHookRecorder
 	UsageSummary       controllers.UsageSummaryService
 	PRs                prsvc.ActionManager
@@ -98,6 +102,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Svc:           deps.Sessions,
 			Activity:      deps.Activity,
 			BlockEvents:   deps.BlockEvents,
+			BlockHistory:  deps.BlockHistory,
 			Usage:         deps.UsageHooks,
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,

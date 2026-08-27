@@ -7,36 +7,51 @@ package blockdispatch
 
 import "github.com/OmarAly92/operator/backend/internal/domain"
 
-// MapFunc resolves one harness's native hook name. ok=false means the event is
-// unknown to this harness's mapper and must be carried through as
-// domain.BlockEventUnknown with its raw name preserved.
-type MapFunc func(event string) (domain.BlockEventKind, bool)
+// Decision is one harness handler's verdict on one native event. Drop is what
+// separates a handler from a parser: a harness that emits a duplicate or a
+// useless event suppresses it at its own boundary instead of pushing it into
+// the shared vocabulary. Known=false means the name was not recognized and the
+// caller must carry the raw name through on the record.
+type Decision struct {
+	Kind      domain.BlockEventKind
+	ErrorType string
+	Known     bool
+	Drop      bool
+}
 
-func fromTable(table map[string]domain.BlockEventKind) MapFunc {
-	return func(event string) (domain.BlockEventKind, bool) {
-		kind, found := table[event]
+// MapFunc resolves one harness's native hook name.
+type MapFunc func(event string) Decision
+
+type rule struct {
+	kind      domain.BlockEventKind
+	errorType string
+}
+
+func fromTable(table map[string]rule) MapFunc {
+	return func(event string) Decision {
+		r, found := table[event]
 		if !found {
-			return domain.BlockEventUnknown, false
+			return Decision{Kind: domain.BlockEventUnknown}
 		}
-		return kind, true
+		return Decision{Kind: r.kind, ErrorType: r.errorType, Known: true}
 	}
 }
 
-var claudeCodeEvents = map[string]domain.BlockEventKind{
-	"session-start":         domain.BlockEventSessionStart,
-	"user-prompt-submit":    domain.BlockEventPromptSubmit,
-	"post-tool-use":         domain.BlockEventToolComplete,
-	"post-tool-use-failure": domain.BlockEventToolComplete,
-	"permission-request":    domain.BlockEventPermissionRequest,
-	"stop":                  domain.BlockEventStop,
-	"notification":          domain.BlockEventQuestionAsked,
+var claudeCodeEvents = map[string]rule{
+	"session-start":         {kind: domain.BlockEventSessionStart},
+	"user-prompt-submit":    {kind: domain.BlockEventPromptSubmit},
+	"post-tool-use":         {kind: domain.BlockEventToolComplete},
+	"post-tool-use-failure": {kind: domain.BlockEventToolComplete, errorType: "tool_failed"},
+	"permission-request":    {kind: domain.BlockEventPermissionRequest},
+	"stop":                  {kind: domain.BlockEventStop},
+	"notification":          {kind: domain.BlockEventQuestionAsked},
 }
 
-var codexEvents = map[string]domain.BlockEventKind{
-	"session-start":      domain.BlockEventSessionStart,
-	"user-prompt-submit": domain.BlockEventPromptSubmit,
-	"permission-request": domain.BlockEventPermissionRequest,
-	"stop":               domain.BlockEventStop,
+var codexEvents = map[string]rule{
+	"session-start":      {kind: domain.BlockEventSessionStart},
+	"user-prompt-submit": {kind: domain.BlockEventPromptSubmit},
+	"permission-request": {kind: domain.BlockEventPermissionRequest},
+	"stop":               {kind: domain.BlockEventStop},
 }
 
 // Mappers is keyed by the agent token in `opr hooks <agent> <event>`.
@@ -46,12 +61,12 @@ var Mappers = map[string]MapFunc{
 	"codex":       fromTable(codexEvents),
 }
 
-// Map resolves harness and event. An unregistered harness yields
-// BlockEventUnknown so the caller can record the event without inventing a kind.
-func Map(harness, event string) (domain.BlockEventKind, bool) {
+// Map resolves harness and event. An unregistered harness yields an unknown,
+// kept decision so the caller can record the event without inventing a kind.
+func Map(harness, event string) Decision {
 	mapper, found := Mappers[harness]
 	if !found {
-		return domain.BlockEventUnknown, false
+		return Decision{Kind: domain.BlockEventUnknown}
 	}
 	return mapper(event)
 }

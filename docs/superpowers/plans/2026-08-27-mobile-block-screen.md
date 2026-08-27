@@ -69,7 +69,7 @@ Copied from `CLAUDE.md`, `AGENTS.md` and the spec's "Conventions a plan must not
 
 ## The shared fixture contract
 
-`testdata/blocks/` at the **repo root** holds the event-stream fixtures both clients assert against. Plan 1 landed three signal→record fixtures there (`hook_stream_basic.json`, `hook_stream_unknown_event.json`, `hook_stream_secrets.json`) which the Go suite reads. Task 3 adds a fourth (`hook_stream_tool_failure.json`), and Task 8 adds five **record→block** fixtures (`assembly_*.json`) which the Dart suite reads and which plan 3 (desktop) will assert against unchanged.
+`testdata/blocks/` at the **repo root** holds the event-stream fixtures both clients assert against. Plan 1 landed three signal→record fixtures there (`hook_stream_basic.json`, `hook_stream_unknown_event.json`, `hook_stream_secrets.json`) which the Go suite reads. Task 3 adds a fourth (`hook_stream_tool_failure.json`), and Task 8 adds six **record→block** fixtures (`assembly_*.json`) which the Dart suite reads and which plan 3 (desktop) will assert against unchanged.
 
 **The prefix decides which suite owns a file.** `hook_stream_*.json` are signal-to-record fixtures asserted by Go (`backend/internal/service/blockevent/fixtures_test.go`); `assembly_*.json` are record-to-block fixtures asserted by Dart here and by TypeScript in plan 3. Plan 1's Go test currently claims **every** file in the directory and must be narrowed to its prefix before any `assembly_*` file is added — Task 8 does this as its first step, and skipping it fails the backend suite.
 
@@ -145,7 +145,7 @@ State them in the final report; do not silently expand scope to fix them.
 
 ### Fixtures (Task 8)
 
-`testdata/blocks/assembly_turn.json`, `assembly_permission.json`, `assembly_out_of_order.json`, `assembly_truncation.json`, `assembly_tool_failure.json`.
+`testdata/blocks/assembly_turn.json`, `assembly_permission.json`, `assembly_out_of_order.json`, `assembly_truncation.json`, `assembly_tool_failure.json`, `assembly_question.json`.
 
 ---
 
@@ -2724,6 +2724,7 @@ git commit -m "feat(mobile): add the blocks data layer"
 - Create: `testdata/blocks/assembly_out_of_order.json`
 - Create: `testdata/blocks/assembly_truncation.json`
 - Create: `testdata/blocks/assembly_tool_failure.json`
+- Create: `testdata/blocks/assembly_question.json`
 - Test: `packages/mobile/test/feature/blocks/logic/block_assembly_test.dart`
 - Test: `packages/mobile/test/feature/blocks/logic/block_assembly_fixtures_test.dart`
 
@@ -2886,6 +2887,22 @@ This makes the prefix load-bearing: `hook_stream_*` is asserted by Go, `assembly
     { "id": "src-tu-a", "kind": "tool", "status": "ok", "title": "Bash", "body": "{\"command\":\"goose up\"}\n\napplied 0091" },
     { "id": "src-tu-b", "kind": "tool", "status": "failed", "title": "Bash", "body": "{\"command\":\"goose up\"}\n\nno such table", "errorType": "tool_failed" },
     { "id": "seq-4", "kind": "assistant", "status": "failed", "title": "Assistant", "body": "migration failed" }
+  ]
+}
+```
+
+`testdata/blocks/assembly_question.json` — a question is the session asking *you* something, so it is blocked, not a benign notice. Without its own case it falls through to `default:` and renders `ok` with the title `Event`, and `resolveStranded` then leaves it pending forever because it only flips `running` and `blocked`:
+
+```json
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "text": "rename the branch" },
+    { "seq": 2, "sessionId": "s-1", "kind": "question_asked", "text": "Which branch should I rename?" },
+    { "seq": 3, "sessionId": "s-1", "kind": "idle_prompt" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "running", "title": "Prompt", "body": "rename the branch" },
+    { "id": "seq-2", "kind": "notice", "status": "blocked", "title": "Waiting on you", "body": "Which branch should I rename?" }
   ]
 }
 ```
@@ -3202,6 +3219,7 @@ const _fixtures = [
   'assembly_out_of_order',
   'assembly_truncation',
   'assembly_tool_failure',
+  'assembly_question',
 ];
 
 void main() {
@@ -3405,6 +3423,13 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           blocks,
           indexById,
           _create(event, key, BlockKind.permission, BlockStatus.blocked, 'Permission requested', body),
+        );
+
+      case 'question_asked':
+        _append(
+          blocks,
+          indexById,
+          _create(event, key, BlockKind.notice, BlockStatus.blocked, 'Waiting on you', text),
         );
 
       case 'permission_replied':
@@ -4053,11 +4078,18 @@ class BlocksCubit extends Cubit<BlocksState> {
     final before = _lowestSeq;
     if (before == null) return;
 
+    final headroom = kBlockMaxWindow - _capacity;
+    if (headroom <= 0) {
+      hasOlder = false;
+      _emit();
+      return;
+    }
+
     loadingOlder = true;
     _emit();
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(beforeSeq: before, limit: kBlockPage),
+      GetSessionBlocksParams(beforeSeq: before, limit: min(kBlockPage, headroom)),
     );
     result.when(
       onSuccess: (records) {
@@ -4137,6 +4169,7 @@ Two details that the tests above will catch if you change them:
 
 - `_onStatus` re-subscribes **and** refetches on every transition to `MuxStatus.open`. `MuxClient` already replays its own `_blockSessions` set on reconnect, so the explicit `subscribeBlocks` here is redundant on the wire but harmless, and it is what makes the cubit correct when it is constructed while the socket is already down.
 - `refresh()` passes `afterSeq: _highestSeq`, which is `null` on the first call and the highest held sequence afterwards. That is the spec's "a dropped socket refetches the persisted log by sequence".
+- **A full window retires the control; it never asks for a page it would then evict.** `_merge` trims from the *bottom*, and a backward page *is* the bottom — so once `_capacity` reaches `kBlockMaxWindow`, an unguarded `loadOlder` fetches 100 records, inserts them, and immediately evicts exactly those 100. Nothing changes, `hasOlder` stays true, and "Load older blocks" becomes a button that does nothing forever. The headroom guard is what prevents that: no headroom means `hasOlder = false` and no request at all, and a partial headroom caps `limit` so every record fetched can actually be held. Two tests pin it.
 - **`_capacity` grows only when the user pages back, and never past `kBlockMaxWindow`.** Trimming against a fixed `kBlockWindow` would evict a backward page the instant it arrived — you would tap "older", see it flash, and watch it vanish. Growing the window by exactly what was fetched is what makes `loadOlder` mean anything, and the ceiling is what keeps a long session from turning the phone's memory into the daemon's retention. One test pins each half.
 - `loadOlder` sets **`beforeSeq` only**. Task 4's endpoint answers `400` when both cursors are present, so a call that set both would fail at runtime and pass every unit test that mocked the repository. That is why the test asserts `afterSeq` is null rather than only asserting `beforeSeq`.
 
@@ -5331,4 +5364,4 @@ git commit -m "feat(mobile): show session blocks with a raw terminal toggle"
 
 - [ ] **Confirm the spec's plan index still points here.** Row 2 of the table in `docs/superpowers/specs/2026-08-27-session-blocks-design.md` should read `2026-08-27-mobile-block-screen.md` / `written`. It was set when this plan was written; if a merge lost it, restore it.
 
-- [ ] **Note for plan 3 (desktop).** The five `testdata/blocks/assembly_*.json` fixtures are the contract. Plan 3's TypeScript assembly asserts against the same files, unchanged. If the desktop port needs a rule this plan did not specify, the rule is added here and both suites re-run — the fixture is never edited to match one client.
+- [ ] **Note for plan 3 (desktop).** The six `testdata/blocks/assembly_*.json` fixtures are the contract. Plan 3's TypeScript assembly asserts against the same files, unchanged. If the desktop port needs a rule this plan did not specify, the rule is added here and both suites re-run — the fixture is never edited to match one client.

@@ -1,0 +1,14 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "text": "run the migration" },
+    { "seq": 2, "sessionId": "s-1", "kind": "tool_complete", "sourceId": "tu-a", "toolName": "Bash", "toolInput": "{\"command\":\"goose up\"}", "text": "applied 0091", "hookVersion": "1" },
+    { "seq": 3, "sessionId": "s-1", "kind": "tool_complete", "sourceId": "tu-b", "toolName": "Bash", "toolInput": "{\"command\":\"goose up\"}", "text": "no such table", "errorType": "tool_failed", "hookVersion": "1" },
+    { "seq": 4, "sessionId": "s-1", "kind": "stop_failure", "text": "migration failed" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "failed", "title": "Prompt", "body": "run the migration" },
+    { "id": "src-tu-a", "kind": "tool", "status": "ok", "title": "Bash", "body": "{\"command\":\"goose up\"}\n\napplied 0091" },
+    { "id": "src-tu-b", "kind": "tool", "status": "failed", "title": "Bash", "body": "{\"command\":\"goose up\"}\n\nno such table", "errorType": "tool_failed" },
+    { "id": "seq-4", "kind": "assistant", "status": "failed", "title": "Assistant", "body": "migration failed" }
+  ]
+}

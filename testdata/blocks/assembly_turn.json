@@ -1,0 +1,15 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "session_start", "harness": "claude-code" },
+    { "seq": 2, "sessionId": "s-1", "kind": "prompt_submit", "text": "run the tests" },
+    { "seq": 3, "sessionId": "s-1", "kind": "tool_complete", "sourceId": "tu-1", "toolUseId": "tu-1", "toolName": "Bash", "text": "ok 42 tests" },
+    { "seq": 4, "sessionId": "s-1", "kind": "idle_prompt" },
+    { "seq": 5, "sessionId": "s-1", "kind": "stop", "text": "all green" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "notice", "status": "ok", "title": "Session started", "body": "" },
+    { "id": "seq-2", "kind": "prompt", "status": "ok", "title": "Prompt", "body": "run the tests" },
+    { "id": "src-tu-1", "kind": "tool", "status": "ok", "title": "Bash", "body": "ok 42 tests" },
+    { "id": "seq-5", "kind": "assistant", "status": "ok", "title": "Assistant", "body": "all green" }
+  ]
+}

@@ -47,7 +47,10 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	if strings.TrimSpace(sig.Event) == "" {
 		return nil
 	}
-	kind, known := blockdispatch.Map(harness, sig.Event)
+	decision := blockdispatch.Map(harness, sig.Event)
+	if decision.Drop {
+		return nil
+	}
 
 	text := sig.LatestAssistantUpdate
 	if text == "" {
@@ -63,6 +66,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		text = text[:cut]
 	}
 	redacted := redact.Text(text)
+	redactedInput := redact.Text(sig.ToolInput)
 
 	sourceID := sig.ToolUseID
 	if sourceID == "" {
@@ -72,16 +76,19 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	rec := Record{
 		SessionID:      string(sessionID),
 		SourceID:       sourceID,
-		Kind:           kind,
+		Kind:           decision.Kind,
 		Harness:        harness,
 		ToolName:       sig.ToolName,
 		ToolUseID:      sig.ToolUseID,
+		ToolInput:      redactedInput.Text,
 		Text:           redacted.Text,
 		RedactedSpans:  redacted.Spans,
+		ErrorType:      decision.ErrorType,
+		HookVersion:    sig.HookVersion,
 		TruncatedLines: truncated,
 		CreatedAt:      time.Now().UTC(),
 	}
-	if !known {
+	if !decision.Known {
 		rec.RawEvent = sig.Event
 	}
 
@@ -108,4 +115,14 @@ func (s *Service) History(ctx context.Context, sessionID domain.SessionID, after
 		limit = s.retain
 	}
 	return s.store.SelectBlockEventsBySession(ctx, string(sessionID), afterSeq, limit)
+}
+
+// HistoryBefore returns the events immediately older than beforeSeq, ascending,
+// so a client whose window has slid forward can page backwards into what it
+// dropped instead of losing it.
+func (s *Service) HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]Record, error) {
+	if limit <= 0 || limit > s.retain {
+		limit = s.retain
+	}
+	return s.store.SelectBlockEventsBeforeSeq(ctx, string(sessionID), beforeSeq, limit)
 }

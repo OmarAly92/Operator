@@ -5,15 +5,14 @@ import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_overlay.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_dead_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_status_bar.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_surface.dart';
 
 class TerminalBody extends StatelessWidget {
   const TerminalBody({super.key});
@@ -72,18 +71,11 @@ class TerminalBody extends StatelessWidget {
                   ),
                 ),
               Expanded(
-                child: Stack(
-                  children: [
-                    const Positioned.fill(child: TerminalSurface()),
-                    if (cubit.notFound) const Positioned.fill(child: TerminalDeadOverlay()),
-                    BlocBuilder<InterfaceSwitchCubit, InterfaceSwitchState>(
-                      buildWhen: (previous, current) => current is InterfaceSwitchReadyState,
-                      builder: (context, _) =>
-                          context.read<InterfaceSwitchCubit>().active
-                          ? const Positioned.fill(child: InterfaceSwitchOverlay())
-                          : const Positioned.fill(child: SizedBox.shrink()),
-                    ),
-                  ],
+                child: BlocBuilder<SessionViewCubit, SessionViewState>(
+                  builder: (context, _) =>
+                      context.read<SessionViewCubit>().mode == SessionViewMode.raw
+                      ? const RawTerminalPane()
+                      : const BlocksBody(),
                 ),
               ),
               Container(
@@ -92,9 +84,15 @@ class TerminalBody extends StatelessWidget {
                   color: skin.bgSurface,
                   border: Border(top: BorderSide(color: skin.borderSubtle)),
                 ),
-                child: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [TerminalKeyRow(), TerminalComposer()],
+                child: BlocBuilder<SessionViewCubit, SessionViewState>(
+                  builder: (context, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (context.read<SessionViewCubit>().mode == SessionViewMode.raw)
+                        const TerminalKeyRow(),
+                      const TerminalComposer(),
+                    ],
+                  ),
                 ),
               ),
             ],

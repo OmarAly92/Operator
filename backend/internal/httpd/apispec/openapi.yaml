@@ -1866,6 +1866,79 @@ paths:
       summary: Set the auto-inject review setting for a session
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/blocks:
+    get:
+      operationId: listSessionBlockEvents
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      - description: Return events with seq greater than this cursor. Omit to read
+          from the start of the retained log.
+        in: query
+        name: afterSeq
+        schema:
+          description: Return events with seq greater than this cursor. Omit to read
+            from the start of the retained log.
+          minimum: 0
+          type:
+          - "null"
+          - integer
+      - description: Return the events immediately older than this sequence, ascending.
+          Mutually exclusive with afterSeq.
+        in: query
+        name: beforeSeq
+        schema:
+          description: Return the events immediately older than this sequence, ascending.
+            Mutually exclusive with afterSeq.
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      - description: Maximum events to return. Defaults to the daemon's per-session
+          retention.
+        in: query
+        name: limit
+        schema:
+          description: Maximum events to return. Defaults to the daemon's per-session
+            retention.
+          maximum: 500
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSessionBlockEventsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read a session's retained, redacted block-event log
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/conversation:
     get:
       operationId: getSessionConversation
@@ -4989,6 +5062,58 @@ components:
       required:
       - data
       type: object
+    BlockEventView:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        errorType:
+          type: string
+        harness:
+          type: string
+        hookVersion:
+          type: string
+        kind:
+          type: string
+        rawEvent:
+          type: string
+        redactedSpans:
+          items:
+            $ref: '#/components/schemas/BlockRedactedSpanView'
+          type: array
+        seq:
+          format: int64
+          type: integer
+        sessionId:
+          type: string
+        sourceId:
+          type: string
+        text:
+          type: string
+        toolInput:
+          type: string
+        toolName:
+          type: string
+        toolUseId:
+          type: string
+        truncatedLines:
+          type: integer
+      required:
+      - seq
+      - sessionId
+      - kind
+      - createdAt
+      type: object
+    BlockRedactedSpanView:
+      properties:
+        end:
+          type: integer
+        start:
+          type: integer
+      required:
+      - start
+      - end
+      type: object
     BrowserCommandRequest:
       properties:
         action:
@@ -6326,6 +6451,15 @@ components:
       - reviews
       - runs
       type: object
+    ListSessionBlockEventsResponse:
+      properties:
+        blocks:
+          items:
+            $ref: '#/components/schemas/BlockEventView'
+          type: array
+      required:
+      - blocks
+      type: object
     ListSessionPRsResponse:
       properties:
         prs:
@@ -7526,6 +7660,14 @@ components:
         event:
           description: Operator hook sub-command that produced this state (e.g. post-tool-use).
           type: string
+        harness:
+          description: Agent token from opr hooks <agent> <event>. Authoritative for
+            block-event mapping; the usage block's harness is only a fallback for
+            older CLIs.
+          type: string
+        hookVersion:
+          description: Schema version of the body the reporting opr CLI emits.
+          type: string
         latestAssistantUpdate:
           description: Latest assistant update exposed by the provider hook.
           maxLength: 16384
@@ -7546,6 +7688,11 @@ components:
           - waiting_input
           - blocked
           - exited
+          type: string
+        toolInput:
+          description: Preview of the native tool input, for tool-use and permission
+            hook events.
+          maxLength: 2048
           type: string
         toolName:
           description: Native tool name, for tool-use hook events.

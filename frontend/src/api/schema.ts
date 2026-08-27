@@ -674,6 +674,23 @@ export interface paths {
         patch: operations["setSessionAutoInjectReview"];
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a session's retained, redacted block-event log */
+        get: operations["listSessionBlockEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/conversation": {
         parameters: {
             query?: never;
@@ -1671,6 +1688,29 @@ export interface components {
             data: string;
             mimeType?: string;
         };
+        BlockEventView: {
+            /** Format: date-time */
+            createdAt: string;
+            errorType?: string;
+            harness?: string;
+            hookVersion?: string;
+            kind: string;
+            rawEvent?: string;
+            redactedSpans?: components["schemas"]["BlockRedactedSpanView"][];
+            /** Format: int64 */
+            seq: number;
+            sessionId: string;
+            sourceId?: string;
+            text?: string;
+            toolInput?: string;
+            toolName?: string;
+            toolUseId?: string;
+            truncatedLines?: number;
+        };
+        BlockRedactedSpanView: {
+            end: number;
+            start: number;
+        };
         BrowserCommandRequest: {
             action: string;
             args?: {
@@ -2159,6 +2199,9 @@ export interface components {
             reviews: components["schemas"]["PRReviewState"][];
             runs: components["schemas"]["ReviewRun"][];
         };
+        ListSessionBlockEventsResponse: {
+            blocks: components["schemas"]["BlockEventView"][];
+        };
         ListSessionPRsResponse: {
             prs: components["schemas"]["SessionPRSummary"][];
             sessionId: string;
@@ -2625,6 +2668,10 @@ export interface components {
             agentSessionId?: string;
             /** @description Operator hook sub-command that produced this state (e.g. post-tool-use). */
             event?: string;
+            /** @description Agent token from opr hooks <agent> <event>. Authoritative for block-event mapping; the usage block's harness is only a fallback for older CLIs. */
+            harness?: string;
+            /** @description Schema version of the body the reporting opr CLI emits. */
+            hookVersion?: string;
             /** @description Latest assistant update exposed by the provider hook. */
             latestAssistantUpdate?: string;
             /** @description Latest real user prompt exposed by the provider hook. */
@@ -2636,6 +2683,8 @@ export interface components {
              * @enum {string}
              */
             state?: "active" | "idle" | "waiting_input" | "blocked" | "exited";
+            /** @description Preview of the native tool input, for tool-use and permission hook events. */
+            toolInput?: string;
             /** @description Native tool name, for tool-use hook events. */
             toolName?: string;
             /** @description Native tool-use id, for tool-use hook events. */
@@ -5297,6 +5346,63 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listSessionBlockEvents: {
+        parameters: {
+            query?: {
+                /** @description Return events with seq greater than this cursor. Omit to read from the start of the retained log. */
+                afterSeq?: null | number;
+                /** @description Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq. */
+                beforeSeq?: null | number;
+                /** @description Maximum events to return. Defaults to the daemon's per-session retention. */
+                limit?: null | number;
+            };
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSessionBlockEventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

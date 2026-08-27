@@ -13,9 +13,9 @@ import (
 const insertBlockEvent = `-- name: InsertBlockEvent :one
 INSERT INTO block_events (
     session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
-    text, redacted_spans, error_type, hook_version, truncated_lines, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at
+    tool_input, text, redacted_spans, error_type, hook_version, truncated_lines, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input
 `
 
 type InsertBlockEventParams struct {
@@ -26,6 +26,7 @@ type InsertBlockEventParams struct {
 	Harness        string
 	ToolName       string
 	ToolUseID      string
+	ToolInput      string
 	Text           string
 	RedactedSpans  string
 	ErrorType      string
@@ -43,6 +44,7 @@ func (q *Queries) InsertBlockEvent(ctx context.Context, arg InsertBlockEventPara
 		arg.Harness,
 		arg.ToolName,
 		arg.ToolUseID,
+		arg.ToolInput,
 		arg.Text,
 		arg.RedactedSpans,
 		arg.ErrorType,
@@ -66,12 +68,87 @@ func (q *Queries) InsertBlockEvent(ctx context.Context, arg InsertBlockEventPara
 		&i.HookVersion,
 		&i.TruncatedLines,
 		&i.CreatedAt,
+		&i.ToolInput,
 	)
 	return i, err
 }
 
+const selectBlockEventsBeforeSeq = `-- name: SelectBlockEventsBeforeSeq :many
+SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, tool_input, error_type, hook_version, truncated_lines, created_at FROM (
+  SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
+         text, redacted_spans, tool_input, error_type, hook_version, truncated_lines, created_at
+  FROM block_events
+  WHERE session_id = ? AND seq < ?
+  ORDER BY seq DESC
+  LIMIT ?
+) ORDER BY seq ASC
+`
+
+type SelectBlockEventsBeforeSeqParams struct {
+	SessionID string
+	Seq       int64
+	Limit     int64
+}
+
+type SelectBlockEventsBeforeSeqRow struct {
+	Seq            int64
+	SessionID      string
+	SourceID       string
+	Kind           string
+	RawEvent       string
+	Harness        string
+	ToolName       string
+	ToolUseID      string
+	Text           string
+	RedactedSpans  string
+	ToolInput      string
+	ErrorType      string
+	HookVersion    string
+	TruncatedLines int64
+	CreatedAt      time.Time
+}
+
+func (q *Queries) SelectBlockEventsBeforeSeq(ctx context.Context, arg SelectBlockEventsBeforeSeqParams) ([]SelectBlockEventsBeforeSeqRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectBlockEventsBeforeSeq, arg.SessionID, arg.Seq, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SelectBlockEventsBeforeSeqRow{}
+	for rows.Next() {
+		var i SelectBlockEventsBeforeSeqRow
+		if err := rows.Scan(
+			&i.Seq,
+			&i.SessionID,
+			&i.SourceID,
+			&i.Kind,
+			&i.RawEvent,
+			&i.Harness,
+			&i.ToolName,
+			&i.ToolUseID,
+			&i.Text,
+			&i.RedactedSpans,
+			&i.ToolInput,
+			&i.ErrorType,
+			&i.HookVersion,
+			&i.TruncatedLines,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectBlockEventsBySession = `-- name: SelectBlockEventsBySession :many
-SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at
+SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id, text, redacted_spans, error_type, hook_version, truncated_lines, created_at, tool_input
 FROM block_events
 WHERE session_id = ? AND seq > ?
 ORDER BY seq
@@ -108,6 +185,7 @@ func (q *Queries) SelectBlockEventsBySession(ctx context.Context, arg SelectBloc
 			&i.HookVersion,
 			&i.TruncatedLines,
 			&i.CreatedAt,
+			&i.ToolInput,
 		); err != nil {
 			return nil, err
 		}

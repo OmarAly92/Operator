@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
@@ -127,5 +128,52 @@ void main() {
     await harness.pump(tester, const TerminalScreen());
 
     expect(find.bySemanticsLabel('Open Chat interface'), findsNothing);
+  });
+
+  testWidgets('a covered harness opens in blocks and never joins the terminal channel', (tester) async {
+    await harness.dispose();
+    harness = TerminalHarness()..start(harness: 'claude-code');
+    await harness.pump(tester, const TerminalScreen());
+
+    expect(find.byType(BlocksBody), findsOneWidget);
+    expect(find.byType(TerminalSurface), findsNothing);
+    verifyNever(() => harness.mux.openTerminal(any(), projectId: any(named: 'projectId')));
+    verifyNever(() => harness.mux.resize(any(), any(), any(), projectId: any(named: 'projectId')));
+  });
+
+  testWidgets('the toggle swaps to raw, which is what joins the channel', (tester) async {
+    await harness.dispose();
+    harness = TerminalHarness()..start(harness: 'claude-code');
+    await harness.pump(tester, const TerminalScreen());
+
+    await tester.tap(find.bySemanticsLabel('Show raw terminal'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TerminalSurface), findsOneWidget);
+    verify(() => harness.mux.openTerminal('s-1', projectId: null)).called(1);
+  });
+
+  testWidgets('toggling back to blocks leaves the terminal channel again', (tester) async {
+    await harness.dispose();
+    harness = TerminalHarness()..start(harness: 'claude-code');
+    await harness.pump(tester, const TerminalScreen());
+
+    await tester.tap(find.bySemanticsLabel('Show raw terminal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Show blocks'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BlocksBody), findsOneWidget);
+    verify(() => harness.mux.closeTerminal('s-1', projectId: null)).called(1);
+  });
+
+  testWidgets('a worktree shell has no blocks toggle and opens raw', (tester) async {
+    await harness.dispose();
+    harness = TerminalHarness()..start(shellOnly: true);
+    await harness.pump(tester, const TerminalScreen());
+
+    expect(find.byType(TerminalSurface), findsOneWidget);
+    expect(find.bySemanticsLabel('Show blocks'), findsNothing);
+    expect(find.bySemanticsLabel('Show raw terminal'), findsNothing);
   });
 }

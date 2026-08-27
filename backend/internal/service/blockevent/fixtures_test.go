@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -27,6 +28,7 @@ type fixtureFile struct {
 		SourceID           string `json:"sourceId"`
 		Text               string `json:"text"`
 		RedactedSpansCount int    `json:"redactedSpansCount"`
+		ErrorType          string `json:"errorType"`
 	} `json:"expected"`
 }
 
@@ -36,10 +38,13 @@ func TestSharedFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fixtures: %v", err)
 	}
-	if len(entries) == 0 {
-		t.Fatal("no fixtures found; the clients have nothing to agree with")
-	}
+	const hookFixturePrefix = "hook_stream_"
+	seen := 0
 	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), hookFixturePrefix) {
+			continue
+		}
+		seen++
 		t.Run(entry.Name(), func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 			if err != nil {
@@ -84,7 +89,13 @@ func TestSharedFixtures(t *testing.T) {
 				if len(got.RedactedSpans) != want.RedactedSpansCount {
 					t.Errorf("record %d spans = %d, want %d", i, len(got.RedactedSpans), want.RedactedSpansCount)
 				}
+				if got.ErrorType != want.ErrorType {
+					t.Errorf("record %d ErrorType = %q, want %q", i, got.ErrorType, want.ErrorType)
+				}
 			}
 		})
+	}
+	if seen == 0 {
+		t.Fatal("no hook_stream_* fixtures found; the clients have nothing to agree with")
 	}
 }
