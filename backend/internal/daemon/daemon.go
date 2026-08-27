@@ -142,7 +142,7 @@ func Run() error {
 	termMgr := terminal.NewManager(runtimeAdapter, cdcPipe.Broadcaster, log)
 	defer termMgr.Close()
 
-	blockEvents := blockevent.NewService(store, nil, 500)
+	blockEvents := blockevent.NewService(store, termMgr, 500)
 
 	// The agent messenger sends validated user input to the session's live
 	// runtime pane. Keep this path small until durable inbox semantics are needed.

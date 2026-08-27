@@ -10,6 +10,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/cdc"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
 )
 
@@ -53,6 +54,7 @@ type Manager struct {
 
 	mu          sync.Mutex
 	attachments map[*attachment]struct{}
+	conns       map[*connState]struct{}
 	closed      bool
 
 	// sharedMu guards shared, the per-terminal-id view of every attached client.
@@ -130,6 +132,7 @@ func NewManager(src Source, events EventSource, log *slog.Logger, opts ...Option
 		ctx:          ctx,
 		cancel:       cancel,
 		attachments:  map[*attachment]struct{}{},
+		conns:        map[*connState]struct{}{},
 		shared:       map[string]*sharedTerm{},
 		inputBlocked: map[string]int{},
 		lastInputAt:  map[string]time.Time{},
@@ -343,6 +346,13 @@ func (m *Manager) Serve(ctx context.Context, conn wsConn) {
 	}
 	defer c.cleanup()
 
+	m.mu.Lock()
+	if m.conns == nil {
+		m.conns = map[*connState]struct{}{}
+	}
+	m.conns[c] = struct{}{}
+	m.mu.Unlock()
+
 	go c.writeLoop(ctx)
 	go c.heartbeatLoop(ctx, m.heartbeat)
 
@@ -367,6 +377,7 @@ type connState struct {
 
 	mu        sync.Mutex
 	terms     map[string]*attachment // terminal id -> this conn's own attach PTY
+	blockSubs map[string]struct{}    // session id -> subscribed
 	unsubEvts func()
 	closed    bool
 }
@@ -377,6 +388,8 @@ func (c *connState) handle(msg clientMsg) {
 		c.handleTerminal(msg)
 	case chSubscribe:
 		c.handleSubscribe(msg)
+	case chBlocks:
+		c.handleBlockSubscribe(msg)
 	case chSystem:
 		if msg.Type == msgPing {
 			c.enqueue(serverMsg{Ch: chSystem, Type: msgPong})
@@ -523,6 +536,62 @@ func (c *connState) handleSubscribe(msg clientMsg) {
 	c.mu.Unlock()
 }
 
+func (c *connState) handleBlockSubscribe(msg clientMsg) {
+	if msg.Type != msgSubscribe || msg.ID == "" {
+		return
+	}
+	c.mu.Lock()
+	if c.blockSubs == nil {
+		c.blockSubs = map[string]struct{}{}
+	}
+	c.blockSubs[msg.ID] = struct{}{}
+	c.mu.Unlock()
+}
+
+// PublishBlockEvent fans one recorded block event out to every connection
+// subscribed to that session. It satisfies blockevent.Publisher.
+func (m *Manager) PublishBlockEvent(sessionID string, rec blockeventsvc.Record) {
+	m.mu.Lock()
+	conns := make([]*connState, 0, len(m.conns))
+	for conn := range m.conns {
+		conns = append(conns, conn)
+	}
+	m.mu.Unlock()
+
+	for _, conn := range conns {
+		conn.mu.Lock()
+		_, subscribed := conn.blockSubs[sessionID]
+		conn.mu.Unlock()
+		if !subscribed {
+			continue
+		}
+		payload := rec
+		conn.enqueue(serverMsg{Ch: chBlocks, ID: sessionID, Type: msgBlock, Block: &payload})
+	}
+}
+
+// blockSubscriberCount reports how many connections are subscribed to one
+// session. It exists for tests, which must not publish before Serve's reader
+// goroutine has processed the subscribe frame.
+func (m *Manager) blockSubscriberCount(sessionID string) int {
+	m.mu.Lock()
+	conns := make([]*connState, 0, len(m.conns))
+	for conn := range m.conns {
+		conns = append(conns, conn)
+	}
+	m.mu.Unlock()
+
+	n := 0
+	for _, conn := range conns {
+		conn.mu.Lock()
+		if _, ok := conn.blockSubs[sessionID]; ok {
+			n++
+		}
+		conn.mu.Unlock()
+	}
+	return n
+}
+
 // enqueue pushes a frame to the writer. If the buffer is full the client is too
 // slow to keep up; tear the connection down rather than block the attachment's
 // PTY read loop behind it.
@@ -587,6 +656,10 @@ func (c *connState) cleanup() {
 	unsubEvts := c.unsubEvts
 	c.unsubEvts = nil
 	c.mu.Unlock()
+
+	c.mgr.mu.Lock()
+	delete(c.mgr.conns, c)
+	c.mgr.mu.Unlock()
 
 	// Drop this connection from every shared terminal so the grid follows the
 	// clients that remain (a disconnecting large client must let the PTY shrink
