@@ -1,0 +1,11 @@
+{
+  "harness": "claude-code",
+  "signals": [
+    { "event": "post-tool-use", "toolName": "Bash", "toolUseId": "tu-ok" },
+    { "event": "post-tool-use-failure", "toolName": "Bash", "toolUseId": "tu-bad" }
+  ],
+  "expected": [
+    { "kind": "tool_complete", "toolName": "Bash", "toolUseId": "tu-ok", "sourceId": "tu-ok" },
+    { "kind": "tool_complete", "toolName": "Bash", "toolUseId": "tu-bad", "sourceId": "tu-bad", "errorType": "tool_failed" }
+  ]
+}

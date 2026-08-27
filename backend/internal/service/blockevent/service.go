@@ -47,7 +47,10 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	if strings.TrimSpace(sig.Event) == "" {
 		return nil
 	}
-	kind, known := blockdispatch.Map(harness, sig.Event)
+	decision := blockdispatch.Map(harness, sig.Event)
+	if decision.Drop {
+		return nil
+	}
 
 	text := sig.LatestAssistantUpdate
 	if text == "" {
@@ -73,18 +76,19 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	rec := Record{
 		SessionID:      string(sessionID),
 		SourceID:       sourceID,
-		Kind:           kind,
+		Kind:           decision.Kind,
 		Harness:        harness,
 		ToolName:       sig.ToolName,
 		ToolUseID:      sig.ToolUseID,
 		ToolInput:      redactedInput.Text,
 		Text:           redacted.Text,
 		RedactedSpans:  redacted.Spans,
+		ErrorType:      decision.ErrorType,
 		HookVersion:    sig.HookVersion,
 		TruncatedLines: truncated,
 		CreatedAt:      time.Now().UTC(),
 	}
-	if !known {
+	if !decision.Known {
 		rec.RawEvent = sig.Event
 	}
 

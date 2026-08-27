@@ -27,6 +27,7 @@ type fixtureFile struct {
 		SourceID           string `json:"sourceId"`
 		Text               string `json:"text"`
 		RedactedSpansCount int    `json:"redactedSpansCount"`
+		ErrorType          string `json:"errorType"`
 	} `json:"expected"`
 }
 
@@ -83,6 +84,9 @@ func TestSharedFixtures(t *testing.T) {
 				}
 				if len(got.RedactedSpans) != want.RedactedSpansCount {
 					t.Errorf("record %d spans = %d, want %d", i, len(got.RedactedSpans), want.RedactedSpansCount)
+				}
+				if got.ErrorType != want.ErrorType {
+					t.Errorf("record %d ErrorType = %q, want %q", i, got.ErrorType, want.ErrorType)
 				}
 			}
 		})

@@ -16,24 +16,21 @@ import (
 // that invents ids cannot deduplicate on reconnect and cannot correlate a
 // tool completion with the prompt that caused it.
 type Record struct {
-	Seq           int64                 `json:"seq"`
-	SessionID     string                `json:"sessionId"`
-	SourceID      string                `json:"sourceId,omitempty"`
-	Kind          domain.BlockEventKind `json:"kind"`
-	RawEvent      string                `json:"rawEvent,omitempty"`
-	Harness       string                `json:"harness,omitempty"`
-	ToolName      string                `json:"toolName,omitempty"`
-	ToolUseID     string                `json:"toolUseId,omitempty"`
-	ToolInput     string                `json:"toolInput,omitempty"`
-	Text          string                `json:"text,omitempty"`
-	RedactedSpans []redact.Span         `json:"redactedSpans,omitempty"`
-	// ErrorType is persisted but not yet populated: ports.ActivitySignal does
-	// not yet carry it, so filling it needs the hook request body widened
-	// first. Reserved deliberately, not forgotten.
-	ErrorType      string    `json:"errorType,omitempty"`
-	HookVersion    string    `json:"hookVersion,omitempty"`
-	TruncatedLines int       `json:"truncatedLines,omitempty"`
-	CreatedAt      time.Time `json:"createdAt"`
+	Seq            int64                 `json:"seq"`
+	SessionID      string                `json:"sessionId"`
+	SourceID       string                `json:"sourceId,omitempty"`
+	Kind           domain.BlockEventKind `json:"kind"`
+	RawEvent       string                `json:"rawEvent,omitempty"`
+	Harness        string                `json:"harness,omitempty"`
+	ToolName       string                `json:"toolName,omitempty"`
+	ToolUseID      string                `json:"toolUseId,omitempty"`
+	ToolInput      string                `json:"toolInput,omitempty"`
+	Text           string                `json:"text,omitempty"`
+	RedactedSpans  []redact.Span         `json:"redactedSpans,omitempty"`
+	ErrorType      string                `json:"errorType,omitempty"`
+	HookVersion    string                `json:"hookVersion,omitempty"`
+	TruncatedLines int                   `json:"truncatedLines,omitempty"`
+	CreatedAt      time.Time             `json:"createdAt"`
 }
 
 // Store is the persistence slice the service needs.
