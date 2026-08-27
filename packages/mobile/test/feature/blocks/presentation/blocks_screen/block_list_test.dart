@@ -338,4 +338,83 @@ void main() {
 
     expect(find.text('Bash 1'), findsNWidgets(2));
   });
+
+  testWidgets('next moves to the following block boundary', (tester) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 40, lines: (seq) => 2), sticky: sticky);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(state.topBlockIndex, 0);
+
+    state.scrollToBoundary(forward: true);
+    await tester.pumpAndSettle();
+
+    expect(state.topBlockIndex, 1);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('seq-2'))).dy,
+      closeTo(0, 1.5),
+    );
+  });
+
+  testWidgets('previous returns to the top of a partly scrolled block first', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 40, lines: (seq) => 6), sticky: sticky);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    state.scrollToBoundary(forward: true);
+    await tester.pumpAndSettle();
+    final atBoundary = state.topBlockIndex;
+
+    state.controller.jumpTo(state.controller.position.pixels + 20);
+    await tester.pumpAndSettle();
+
+    state.scrollToBoundary(forward: false);
+    await tester.pumpAndSettle();
+
+    expect(state.topBlockIndex, atBoundary);
+  });
+
+  testWidgets('previous from a boundary steps to the block before it', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 40, lines: (seq) => 2), sticky: sticky);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    state.scrollToBoundary(forward: true);
+    await tester.pumpAndSettle();
+    expect(state.topBlockIndex, 1);
+
+    state.scrollToBoundary(forward: false);
+    await tester.pumpAndSettle();
+
+    expect(state.topBlockIndex, 0);
+  });
+
+  testWidgets('navigating past either end does nothing', (tester) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 3), sticky: sticky);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    final atTop = state.controller.position.pixels;
+
+    state.scrollToBoundary(forward: false);
+    await tester.pumpAndSettle();
+
+    expect(state.controller.position.pixels, atTop);
+  });
 }

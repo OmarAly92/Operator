@@ -17,6 +17,7 @@ class _MockBlocksCubit extends MockCubit<BlocksState> implements BlocksCubit {}
 
 SessionBlock _block({
   String id = 'seq-1',
+  int firstSeq = 1,
   BlockKind kind = BlockKind.tool,
   BlockStatus status = BlockStatus.ok,
   String title = 'Bash',
@@ -26,8 +27,8 @@ SessionBlock _block({
   bool redacted = false,
 }) => SessionBlock(
   id: id,
-  firstSeq: 1,
-  lastSeq: 1,
+  firstSeq: firstSeq,
+  lastSeq: firstSeq,
   kind: kind,
   status: status,
   title: title,
@@ -246,5 +247,25 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pump();
     verify(() => cubit.refresh()).called(1);
+  });
+
+  testWidgets('offers a way back to the newest block once scrolled away', (
+    tester,
+  ) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(60, (index) => _block(id: 'seq-$index', firstSeq: index)),
+    );
+
+    await _pump(tester, cubit);
+    expect(find.text('Jump to latest'), findsNothing);
+
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jump to latest'), findsOneWidget);
+    await tester.tap(find.text('Jump to latest'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jump to latest'), findsNothing);
   });
 }

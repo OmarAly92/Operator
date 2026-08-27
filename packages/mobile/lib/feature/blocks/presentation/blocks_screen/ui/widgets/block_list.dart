@@ -12,12 +12,14 @@ class BlockList extends StatefulWidget {
     required this.blocks,
     this.header,
     this.sticky,
+    this.pinnedListenable,
   });
 
   final String sessionId;
   final List<SessionBlock> blocks;
   final Widget? header;
   final ValueNotifier<StickyBlock?>? sticky;
+  final ValueNotifier<bool>? pinnedListenable;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -64,6 +66,7 @@ class BlockListState extends State<BlockList> {
 
   void jumpToLatest() {
     _pinned = true;
+    widget.pinnedListenable?.value = true;
     _scheduleFollow();
   }
 
@@ -73,10 +76,69 @@ class BlockListState extends State<BlockList> {
       controller.position.pixels,
       controller.position.maxScrollExtent,
     );
+    widget.pinnedListenable?.value = _pinned;
     _updateSticky();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateSticky();
     });
+  }
+
+  double? _viewportTopDelta(int index) {
+    final viewport = viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) return null;
+    final top = viewport.localToGlobal(Offset.zero).dy;
+    final pivot = BlockViewport.pivotIndex(widget.blocks, _pivotSeq);
+
+    for (final key in [leadingKey, centerKey]) {
+      final sliver = key.currentContext?.findRenderObject();
+      if (sliver is! RenderSliverMultiBoxAdaptor) continue;
+      RenderBox? child = sliver.firstChild;
+      while (child != null) {
+        final sliverIndex = sliver.indexOf(child);
+        final blockIndex = key == leadingKey
+            ? pivot - 1 - sliverIndex
+            : pivot + sliverIndex;
+        if (blockIndex == index) {
+          return child.localToGlobal(Offset.zero).dy - top;
+        }
+        child = sliver.childAfter(child);
+      }
+    }
+    return null;
+  }
+
+  void scrollBlockIntoView(int index) {
+    if (!controller.hasClients) return;
+    final delta = _viewportTopDelta(index);
+    if (delta == null) return;
+    final position = controller.position;
+    controller.jumpTo(
+      (position.pixels + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  void scrollToBoundary({required bool forward}) {
+    if (!controller.hasClients) return;
+    final current = _topIndex;
+    if (forward) {
+      final target = BlockViewport.nextBoundary(current, widget.blocks.length);
+      if (target != null) scrollBlockIntoView(target);
+      return;
+    }
+    if (current == null) return;
+    final delta = _viewportTopDelta(current);
+    if (delta != null && delta < -1) {
+      scrollBlockIntoView(current);
+      return;
+    }
+    final target = BlockViewport.previousBoundary(
+      current,
+      widget.blocks.length,
+    );
+    if (target != null) scrollBlockIntoView(target);
   }
 
   void _updateSticky() {
