@@ -91,11 +91,18 @@ class BlocksCubit extends Cubit<BlocksState> {
     final before = _lowestSeq;
     if (before == null) return;
 
+    final headroom = kBlockMaxWindow - _capacity;
+    if (headroom <= 0) {
+      hasOlder = false;
+      _emit();
+      return;
+    }
+
     loadingOlder = true;
     _emit();
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(beforeSeq: before, limit: kBlockPage),
+      GetSessionBlocksParams(beforeSeq: before, limit: min(kBlockPage, headroom)),
     );
     result.when(
       onSuccess: (records) {

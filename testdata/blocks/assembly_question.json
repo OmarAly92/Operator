@@ -1,0 +1,11 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "text": "rename the branch" },
+    { "seq": 2, "sessionId": "s-1", "kind": "question_asked", "text": "Which branch should I rename?" },
+    { "seq": 3, "sessionId": "s-1", "kind": "idle_prompt" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "running", "title": "Prompt", "body": "rename the branch" },
+    { "id": "seq-2", "kind": "notice", "status": "blocked", "title": "Waiting on you", "body": "Which branch should I rename?" }
+  ]
+}

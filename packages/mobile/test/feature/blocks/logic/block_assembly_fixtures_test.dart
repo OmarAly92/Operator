@@ -11,6 +11,7 @@ const _fixtures = [
   'assembly_out_of_order',
   'assembly_truncation',
   'assembly_tool_failure',
+  'assembly_question',
 ];
 
 void main() {

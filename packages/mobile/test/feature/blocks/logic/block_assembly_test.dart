@@ -123,6 +123,21 @@ void main() {
       expect(assembleBlocks([_event(1, 'permission_replied', sourceId: 'ghost')]), isEmpty);
     });
 
+    test('a question blocks the session rather than reading as a benign notice', () {
+      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+
+      expect(blocks.single.kind, BlockKind.notice);
+      expect(blocks.single.status, BlockStatus.blocked);
+      expect(blocks.single.title, 'Waiting on you');
+      expect(blocks.single.body, 'Which branch?');
+    });
+
+    test('a question left unanswered when the session dies does not stay pending', () {
+      final blocks = assembleBlocks([_event(1, 'question_asked', text: 'Which branch?')]);
+
+      expect(resolveStranded(blocks, 'Session ended').single.status, BlockStatus.failed);
+    });
+
     test('an unknown kind degrades to a notice titled by its raw event', () {
       final blocks = assembleBlocks([
         _event(1, 'unknown', rawEvent: 'future-hook', text: 'body'),

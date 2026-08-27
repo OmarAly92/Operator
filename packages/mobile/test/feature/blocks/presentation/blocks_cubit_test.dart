@@ -258,6 +258,76 @@ void main() {
     await cubit.close();
   });
 
+  test('stops offering older pages once the window can hold no more', () async {
+    when(() => repository.getSessionBlocks(any(), any()))
+        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    for (var seq = 100000; seq < 100000 + kBlockMaxWindow; seq++) {
+      events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'n')));
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    var page = 0;
+    while (cubit.hasOlder && page < 40) {
+      final base = 99000 - (page * kBlockPage);
+      when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
+        (_) async => Result.success([
+          for (var k = 0; k < kBlockPage; k++)
+            BlockEventModel.fromJson(_wire(base + k, 'stop', text: 'old')),
+        ]),
+      );
+      await cubit.loadOlder();
+      page++;
+    }
+
+    expect(
+      cubit.hasOlder,
+      isFalse,
+      reason: 'a full window must retire the control, not keep offering a page it would evict',
+    );
+    expect(cubit.blocks.length, lessThanOrEqualTo(kBlockMaxWindow));
+    await cubit.close();
+  });
+
+  test('never requests more than the window can still hold', () async {
+    when(() => repository.getSessionBlocks(any(), any()))
+        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    for (var seq = 100000; seq < 100000 + kBlockWindow; seq++) {
+      events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'n')));
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    var page = 0;
+    while (cubit.hasOlder && page < 40) {
+      final base = 99000 - (page * kBlockPage);
+      when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
+        (_) async => Result.success([
+          for (var k = 0; k < kBlockPage; k++)
+            BlockEventModel.fromJson(_wire(base + k, 'stop', text: 'old')),
+        ]),
+      );
+      await cubit.loadOlder();
+      page++;
+    }
+
+    final asked = verify(() => repository.getSessionBlocks('s-1', captureAny()))
+        .captured
+        .cast<GetSessionBlocksParams>()
+        .where((p) => p.beforeSeq != null)
+        .toList();
+    for (final p in asked) {
+      expect(p.limit, isNotNull);
+      expect(p.limit!, lessThanOrEqualTo(kBlockPage));
+      expect(p.limit!, greaterThan(0));
+    }
+    await cubit.close();
+  });
+
   test('an exited session leaves no block spinning', () async {
     final cubit = build();
     await Future<void>.delayed(Duration.zero);

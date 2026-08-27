@@ -57,6 +57,13 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           _create(event, key, BlockKind.permission, BlockStatus.blocked, 'Permission requested', body),
         );
 
+      case 'question_asked':
+        _append(
+          blocks,
+          indexById,
+          _create(event, key, BlockKind.notice, BlockStatus.blocked, 'Waiting on you', text),
+        );
+
       case 'permission_replied':
         final at = key == null ? null : indexById['src-$key'];
         if (at != null) {
