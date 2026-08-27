@@ -1,0 +1,13 @@
+{
+  "harness": "claude-code",
+  "signals": [
+    { "event": "user-prompt-submit", "latestUserPrompt": "run the tests" },
+    { "event": "post-tool-use", "toolName": "Bash", "toolUseId": "tu-1" },
+    { "event": "stop", "latestAssistantUpdate": "all green" }
+  ],
+  "expected": [
+    { "kind": "prompt_submit", "text": "run the tests" },
+    { "kind": "tool_complete", "toolName": "Bash", "toolUseId": "tu-1", "sourceId": "tu-1" },
+    { "kind": "stop", "text": "all green" }
+  ]
+}

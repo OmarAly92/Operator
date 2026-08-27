@@ -1,0 +1,9 @@
+{
+  "harness": "claude-code",
+  "signals": [
+    { "event": "brand-new-hook", "latestAssistantUpdate": "who knows" }
+  ],
+  "expected": [
+    { "kind": "unknown", "rawEvent": "brand-new-hook", "text": "who knows" }
+  ]
+}

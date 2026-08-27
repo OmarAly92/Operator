@@ -93,6 +93,7 @@ var shippedMigrations = map[int64]string{
 	87: "0087_conversation_branches.sql",
 	88: "0088_desktop_settings.sql",
 	89: "0089_preview_open_ack.sql",
+	90: "0090_block_events.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

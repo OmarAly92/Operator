@@ -1,5 +1,9 @@
 package terminal
 
+import (
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
+)
+
 // The wire protocol is a single multiplexed JSON stream tagged by channel
 // ("ch"), mirroring the legacy Node mux server so the existing xterm client can
 // connect unchanged. One socket carries every logical stream:
@@ -8,6 +12,7 @@ package terminal
 //	ch "subscribe" — the client opts into the session-state channel
 //	ch "sessions"  — server-pushed session-state messages (CDC-fed)
 //	ch "system"    — liveness; ws-level ping/pong also runs underneath
+//	ch "blocks"    — server-pushed normalized agent block events, keyed by session id
 //
 // Terminal payloads are base64 in the Data field: PTY output is arbitrary bytes
 // and need not be valid UTF-8, which a raw JSON string could not carry.
@@ -16,6 +21,7 @@ const (
 	chSubscribe = "subscribe"
 	chSessions  = "sessions"
 	chSystem    = "system"
+	chBlocks    = "blocks"
 )
 
 // client message types (ch "terminal" unless noted).
@@ -35,6 +41,7 @@ const (
 	msgError    = "error"
 	msgSnapshot = "snapshot" // ch "sessions"
 	msgPong     = "pong"     // ch "system"
+	msgBlock    = "block"    // ch "blocks"
 	// msgResize is reused as a SERVER frame too: the daemon pushes the shared
 	// PTY's authoritative grid (Cols/Rows) to every attached client so followers
 	// render the exact grid the PTY is using instead of their own fitted size.
@@ -80,6 +87,8 @@ type serverMsg struct {
 	Rows    uint16         `json:"rows,omitempty"`
 	Error   string         `json:"error,omitempty"`
 	Session *sessionUpdate `json:"session,omitempty"`
+	// Block is the ch "blocks" payload: one normalized agent block event.
+	Block *blockeventsvc.Record `json:"block,omitempty"`
 }
 
 // sessionUpdate is the ch "sessions" payload: a single CDC change projected to

@@ -73,6 +73,23 @@ type AppSetting struct {
 	LegacyDesktopImportedAt sql.NullTime
 }
 
+type BlockEvent struct {
+	Seq            int64
+	SessionID      string
+	SourceID       string
+	Kind           string
+	RawEvent       string
+	Harness        string
+	ToolName       string
+	ToolUseID      string
+	Text           string
+	RedactedSpans  string
+	ErrorType      string
+	HookVersion    string
+	TruncatedLines int64
+	CreatedAt      time.Time
+}
+
 type ChangeLog struct {
 	Seq       int64
 	ProjectID domain.ProjectID

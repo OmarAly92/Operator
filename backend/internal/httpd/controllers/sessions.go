@@ -117,6 +117,13 @@ type ActivityRecorder interface {
 	ApplyActivitySignal(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) error
 }
 
+// BlockEventRecorder retains the rich hook payload as a block event. It is
+// optional: a nil recorder leaves activity and usage behaviour untouched, so an
+// older daemon build and a newer one differ only in whether blocks appear.
+type BlockEventRecorder interface {
+	Record(ctx context.Context, sessionID domain.SessionID, harness string, sig ports.ActivitySignal) error
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -142,6 +149,7 @@ type UsageHookRecorder interface {
 type SessionsController struct {
 	Svc           SessionService
 	Activity      ActivityRecorder
+	BlockEvents   BlockEventRecorder
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -1267,7 +1275,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 // lifecycle.Manager so the reaper and hooks never race on the session's
 // activity/termination columns.
 func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
-	if c.Activity == nil && c.Usage == nil {
+	if c.Activity == nil && c.Usage == nil && c.BlockEvents == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/activity")
 		return
 	}
@@ -1315,6 +1323,20 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 			}
 			envelope.WriteError(w, r, err)
 			return
+		}
+	}
+	if c.BlockEvents != nil && sig.Event != "" {
+		harness := ""
+		if in.Usage != nil {
+			harness = capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(string(in.Usage.Harness))))
+		}
+		if err := c.BlockEvents.Record(r.Context(), sessionID(r), harness, sig); err != nil {
+			slog.Default().Warn(
+				"block event recording failed",
+				"session", sessionID(r),
+				"event", sig.Event,
+				"err", err,
+			)
 		}
 	}
 	if c.Usage != nil {
