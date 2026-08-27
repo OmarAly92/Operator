@@ -57,6 +57,10 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 	const eventsRef = useRef(new Map<number, BlockEventView>());
 	const capacityRef = useRef(BLOCK_WINDOW);
 	const inFlightRef = useRef(false);
+	// Bumped when the effect tears down. Every async continuation captures the
+	// generation it started in and drops out if the session has moved on, so a
+	// slow response for the previous session cannot land in this one's window.
+	const generationRef = useRef(0);
 
 	const [revision, setRevision] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
@@ -87,14 +91,22 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 			(max, seq) => (max === undefined || seq > max ? seq : max),
 			undefined,
 		);
+		const generation = generationRef.current;
 		setIsLoading(true);
 		void fetchBlocks(sessionId, highest === undefined ? {} : { afterSeq: highest })
 			.then((records) => {
+				if (generationRef.current !== generation) return;
 				setError(undefined);
 				merge(records);
 			})
-			.catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
-			.finally(() => setIsLoading(false));
+			.catch((cause: unknown) => {
+				if (generationRef.current !== generation) return;
+				setError(cause instanceof Error ? cause.message : String(cause));
+			})
+			.finally(() => {
+				if (generationRef.current !== generation) return;
+				setIsLoading(false);
+			});
 	}, [merge, sessionId, supported]);
 
 	const loadOlder = useCallback(() => {
@@ -112,10 +124,12 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 			return;
 		}
 
+		const generation = generationRef.current;
 		inFlightRef.current = true;
 		setIsLoadingOlder(true);
 		void fetchBlocks(sessionId, { beforeSeq: lowest, limit: Math.min(BLOCK_PAGE, headroom) })
 			.then((records) => {
+				if (generationRef.current !== generation) return;
 				setError(undefined);
 				if (records.length === 0) {
 					setHasOlder(false);
@@ -124,8 +138,12 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 				capacityRef.current = Math.min(BLOCK_MAX_WINDOW, capacityRef.current + records.length);
 				merge(records);
 			})
-			.catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+			.catch((cause: unknown) => {
+				if (generationRef.current !== generation) return;
+				setError(cause instanceof Error ? cause.message : String(cause));
+			})
 			.finally(() => {
+				if (generationRef.current !== generation) return;
 				inFlightRef.current = false;
 				setIsLoadingOlder(false);
 			});
@@ -137,11 +155,19 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 	queryClientRef.current = queryClient;
 	useEffect(() => {
 		if (!supported) return;
+		// Per-session state, not per-hook: without this a session whose history was
+		// exhausted leaves hasOlder false for the next session, which then never
+		// offers its own older pages.
+		setHasOlder(true);
+		setError(undefined);
+		setIsLoadingOlder(false);
+		inFlightRef.current = false;
 		const mux = (createMuxRef.current ?? defaultCreateMux)();
 		const off = mux.onBlock(sessionId, (record) => merge([record]));
 		mux.subscribeBlocks(sessionId);
 		refetch();
 		return () => {
+			generationRef.current += 1;
 			off();
 			mux.unsubscribeBlocks(sessionId);
 			mux.dispose();

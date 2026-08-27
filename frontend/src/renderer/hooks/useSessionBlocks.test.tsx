@@ -259,6 +259,57 @@ describe("useSessionBlocks", () => {
 		expect(fake.subscribed).toEqual([]);
 	});
 
+	it("offers a new session its own older history", async () => {
+		const fake = fakeMux();
+		respondWith([block(5, "stop", { text: "a" })]);
+		const { result, rerender } = renderHook(
+			({ id }: { id: string }) =>
+				useSessionBlocks(id, { enabled: true, harness: "claude-code", createMux: () => fake.mux }),
+			{ wrapper, initialProps: { id: "s-1" } },
+		);
+		await waitFor(() => expect(result.current.blocks).toHaveLength(1));
+
+		respondWith([]);
+		act(() => result.current.loadOlder());
+		await waitFor(() => expect(result.current.hasOlder).toBe(false));
+
+		respondWith([block(50, "stop", { text: "b" })]);
+		rerender({ id: "s-2" });
+
+		await waitFor(() => expect(result.current.blocks).toHaveLength(1));
+		expect(result.current.hasOlder).toBe(true);
+	});
+
+	it("drops a response that arrives after the session has moved on", async () => {
+		const fake = fakeMux();
+		let releaseFirst: (() => void) | undefined;
+		getMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					releaseFirst = () =>
+						resolve({ data: { blocks: [block(1, "stop", { text: "from s-1" })] }, error: undefined });
+				}),
+		);
+
+		const { result, rerender } = renderHook(
+			({ id }: { id: string }) =>
+				useSessionBlocks(id, { enabled: true, harness: "claude-code", createMux: () => fake.mux }),
+			{ wrapper, initialProps: { id: "s-1" } },
+		);
+		await waitFor(() => expect(releaseFirst).toBeDefined());
+
+		respondWith([block(2, "stop", { text: "from s-2" })]);
+		rerender({ id: "s-2" });
+		await waitFor(() => expect(result.current.blocks).toHaveLength(1));
+
+		await act(async () => {
+			releaseFirst?.();
+			await Promise.resolve();
+		});
+
+		expect(result.current.blocks.map((item) => item.body)).toEqual(["from s-2"]);
+	});
+
 	it("unsubscribes and disposes its mux on unmount", async () => {
 		const fake = fakeMux();
 		const { unmount } = renderHook(
