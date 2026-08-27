@@ -3,6 +3,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SessionBlock } from "../../lib/session-block";
 import { installVirtualLayout } from "../../test/virtual-layout";
+import { BlockCard } from "./BlockCard";
 import { BlockList } from "./BlockList";
 
 function block(seq: number, lines = 1): SessionBlock {
@@ -256,5 +257,42 @@ describe("BlockList", () => {
 
 		expect(screen.getByText("Bash 300")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+	});
+
+	it("keeps a small window mounted while scrolling a long session", async () => {
+		await mount(range(1, 800, (seq) => 1 + (seq % 5)));
+		const node = screen.getByRole("log");
+
+		act(() => {
+			node.scrollTop = Math.floor(node.scrollHeight / 2);
+			fireEvent.scroll(node);
+		});
+
+		const mounted = screen.getAllByTestId("session-block").length;
+		expect(mounted).toBeGreaterThan(0);
+		expect(mounted).toBeLessThan(30);
+	});
+
+	it("does not remount cards while scrolling inside one block", async () => {
+		await mount(range(1, 300, () => 6));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = 2000;
+			fireEvent.scroll(node);
+		});
+		const before = screen.getAllByTestId("session-block")[0];
+
+		for (let step = 0; step < 10; step += 1) {
+			act(() => {
+				node.scrollTop += 2;
+				fireEvent.scroll(node);
+			});
+		}
+
+		expect(screen.getAllByTestId("session-block")[0]).toBe(before);
+	});
+
+	it("keeps the card memoized so a sticky change does not re-render the list", () => {
+		expect((BlockCard as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for("react.memo"));
 	});
 });
