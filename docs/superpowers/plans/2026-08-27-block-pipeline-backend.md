@@ -494,14 +494,19 @@ ORDER BY seq
 LIMIT ?;
 
 -- name: TrimBlockEventsForSession :execrows
-DELETE FROM block_events
-WHERE session_id = ?
-  AND seq <= (
-    SELECT seq FROM block_events
-    WHERE session_id = ?
-    ORDER BY seq DESC
+DELETE FROM block_events AS outer_be
+WHERE outer_be.session_id = ?
+  AND outer_be.seq < (
+    SELECT be.seq FROM block_events AS be
+    WHERE be.session_id = ?
+    ORDER BY be.seq DESC
     LIMIT 1 OFFSET ?
   );
+
+-- The aliases are required: without them sqlc rejects the subquery with
+-- "column reference 'session_id' is ambiguous". The comparison is strict `<`,
+-- not `<=`: with keep=2 over rows 1..5, OFFSET 1 on the DESC scan yields seq 4,
+-- and `< 4` leaves 4 and 5 — exactly two rows. `<=` would leave one.
 ```
 
 - [ ] **Step 2: Regenerate and confirm the build breaks only where expected**
@@ -932,10 +937,84 @@ func TestRecordIgnoresSignalsWithNoEvent(t *testing.T) {
 }
 ```
 
+Add these two as well. They are the tests that catch the defects most easily
+written into this service, and both must be present:
+
+```go
+type concurrentStore struct {
+	mu sync.Mutex
+	n  int64
+}
+
+func (s *concurrentStore) InsertBlockEvent(context.Context, Record) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.n++
+	return s.n, nil
+}
+
+func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
+}
+
+func (s *concurrentStore) TrimBlockEvents(context.Context, string, int) (int64, error) {
+	return 0, nil
+}
+
+func TestRecordIsSafeUnderConcurrentCalls(t *testing.T) {
+	svc := NewService(&concurrentStore{}, nil, 500)
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+				Event: "stop",
+			}); err != nil {
+				t.Errorf("Record: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestRecordTruncatesOnARuneBoundary(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	text := "a" + strings.Repeat("é", maxTextBytes)
+	if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+		Event:                 "stop",
+		LatestAssistantUpdate: text,
+	}); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	got := store.inserted[0].Text
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated text is not valid UTF-8; trailing bytes % x", got[len(got)-3:])
+	}
+	if store.inserted[0].TruncatedLines == 0 {
+		t.Fatal("truncation was not recorded")
+	}
+}
+```
+
+The test file needs `sync`, `strings` and `unicode/utf8` imported alongside
+`context` and `testing`.
+
+**Run this package with `-race`.** `TestRecordIsSafeUnderConcurrentCalls` proves
+nothing without it, and `Record` is called straight from an HTTP handler, so
+concurrent calls are the normal case in production rather than a corner one. The
+leading ASCII byte in the truncation test is load-bearing: it shifts every
+following two-byte rune off the even boundary so the cap lands mid-rune. Without
+it the test passes against broken code.
+
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run: `cd backend && go test ./internal/service/blockevent/ -v`
 Expected: FAIL — `undefined: NewService`
+
+Then, after implementing: `cd backend && go test ./internal/service/blockevent/ -race -v`
 
 - [ ] **Step 4: Write the service**
 
@@ -945,7 +1024,9 @@ package blockevent
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/blockdispatch"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -967,7 +1048,9 @@ type Service struct {
 	store  Store
 	pub    Publisher
 	retain int
-	writes int
+	// writes counts recorded events to pace trimming. Record is called
+	// concurrently from HTTP handlers, so it must be atomic.
+	writes atomic.Int64
 }
 
 // NewService builds the service. retain is how many events one session keeps.
@@ -993,8 +1076,12 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	}
 	truncated := 0
 	if len(text) > maxTextBytes {
-		truncated = strings.Count(text[maxTextBytes:], "\n") + 1
-		text = text[:maxTextBytes]
+		cut := maxTextBytes
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		truncated = strings.Count(text[cut:], "\n") + 1
+		text = text[:cut]
 	}
 	redacted := redact.Text(text)
 
