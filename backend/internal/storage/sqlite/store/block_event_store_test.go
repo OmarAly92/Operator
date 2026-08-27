@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -104,5 +105,92 @@ func TestBlockEventStoreRoundTripsToolInputAndHookVersion(t *testing.T) {
 	}
 	if got[0].ToolInput != `{"command":"ls"}` || got[0].HookVersion != "1" {
 		t.Errorf("row = %+v, want the tool input and hook version to survive the round trip", got[0])
+	}
+}
+
+func TestSelectBlockEventsBeforeSeqReadsBackwardsInForwardOrder(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	for i := 0; i < 6; i++ {
+		if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+			SessionID: "s-1",
+			Kind:      domain.BlockEventStop,
+			Text:      fmt.Sprintf("line %d", i),
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+
+	all, err := s.SelectBlockEventsBySession(ctx, "s-1", 0, 100)
+	if err != nil {
+		t.Fatalf("select all: %v", err)
+	}
+	if len(all) != 6 {
+		t.Fatalf("rows = %d, want 6", len(all))
+	}
+
+	older, err := s.SelectBlockEventsBeforeSeq(ctx, "s-1", all[4].Seq, 2)
+	if err != nil {
+		t.Fatalf("select before: %v", err)
+	}
+	if len(older) != 2 {
+		t.Fatalf("rows = %d, want 2", len(older))
+	}
+	if older[0].Seq != all[2].Seq || older[1].Seq != all[3].Seq {
+		t.Errorf("seqs = %d,%d, want %d,%d — the page must be the two immediately older, ascending",
+			older[0].Seq, older[1].Seq, all[2].Seq, all[3].Seq)
+	}
+}
+
+func TestSelectBlockEventsBeforeSeqAtTheStartIsEmpty(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	seq, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+		SessionID: "s-1",
+		Kind:      domain.BlockEventStop,
+		CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	older, err := s.SelectBlockEventsBeforeSeq(ctx, "s-1", seq, 10)
+	if err != nil {
+		t.Fatalf("select before: %v", err)
+	}
+	if len(older) != 0 {
+		t.Fatalf("rows = %d, want 0 at the start of the log", len(older))
+	}
+}
+
+func TestSelectBlockEventsBeforeSeqIsScopedToOneSession(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	for _, id := range []string{"s-1", "s-2", "s-1"} {
+		if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+			SessionID: id,
+			Kind:      domain.BlockEventStop,
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+
+	all, err := s.SelectBlockEventsBySession(ctx, "s-1", 0, 100)
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	older, err := s.SelectBlockEventsBeforeSeq(ctx, "s-1", all[1].Seq, 10)
+	if err != nil {
+		t.Fatalf("select before: %v", err)
+	}
+	for _, rec := range older {
+		if rec.SessionID != "s-1" {
+			t.Fatalf("row from %q leaked into s-1's page", rec.SessionID)
+		}
 	}
 }

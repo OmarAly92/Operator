@@ -184,12 +184,20 @@ type fakeBlockEventHistory struct {
 	err        error
 	gotSession domain.SessionID
 	gotAfter   int64
+	gotBefore  int64
 	gotLimit   int
 }
 
 func (f *fakeBlockEventHistory) History(_ context.Context, id domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error) {
 	f.gotSession = id
 	f.gotAfter = afterSeq
+	f.gotLimit = limit
+	return f.recs, f.err
+}
+
+func (f *fakeBlockEventHistory) HistoryBefore(_ context.Context, id domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
+	f.gotSession = id
+	f.gotBefore = beforeSeq
 	f.gotLimit = limit
 	return f.recs, f.err
 }
@@ -291,5 +299,41 @@ func TestListBlockEventsSurfacesServiceFailure(t *testing.T) {
 	_, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s-1/blocks", "")
 	if status < 500 {
 		t.Errorf("status = %d, want a 5xx", status)
+	}
+}
+
+func TestListBlockEventsPagesBackwards(t *testing.T) {
+	hist := &fakeBlockEventHistory{recs: []blockeventsvc.Record{{Seq: 3, SessionID: "s-1", Kind: domain.BlockEventStop}}}
+	srv := newBlockHistoryTestServer(t, hist)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s-1/blocks?beforeSeq=9&limit=2", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", status, body)
+	}
+	if hist.gotBefore != 9 || hist.gotLimit != 2 {
+		t.Errorf("historyBefore args = (%d, %d), want (9, 2)", hist.gotBefore, hist.gotLimit)
+	}
+	if hist.gotAfter != 0 {
+		t.Error("the forward query ran too — beforeSeq must take the backward path only")
+	}
+}
+
+func TestListBlockEventsRejectsBothCursors(t *testing.T) {
+	srv := newBlockHistoryTestServer(t, &fakeBlockEventHistory{})
+
+	_, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s-1/blocks?afterSeq=1&beforeSeq=9", "")
+	if status != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 — a caller sending both cursors does not know what it wants", status)
+	}
+}
+
+func TestListBlockEventsRejectsABadBeforeCursor(t *testing.T) {
+	srv := newBlockHistoryTestServer(t, &fakeBlockEventHistory{})
+
+	for _, q := range []string{"?beforeSeq=abc", "?beforeSeq=-1", "?beforeSeq=0"} {
+		_, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s-1/blocks"+q, "")
+		if status != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", q, status)
+		}
 	}
 }

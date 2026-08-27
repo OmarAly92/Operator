@@ -37,6 +37,7 @@ type Record struct {
 type Store interface {
 	InsertBlockEvent(ctx context.Context, rec Record) (int64, error)
 	SelectBlockEventsBySession(ctx context.Context, sessionID string, afterSeq int64, limit int) ([]Record, error)
+	SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]Record, error)
 	TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error)
 }
 

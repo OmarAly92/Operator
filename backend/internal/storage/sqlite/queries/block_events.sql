@@ -12,6 +12,16 @@ WHERE session_id = ? AND seq > ?
 ORDER BY seq
 LIMIT ?;
 
+-- name: SelectBlockEventsBeforeSeq :many
+SELECT * FROM (
+  SELECT seq, session_id, source_id, kind, raw_event, harness, tool_name, tool_use_id,
+         text, redacted_spans, tool_input, error_type, hook_version, truncated_lines, created_at
+  FROM block_events
+  WHERE session_id = ? AND seq < ?
+  ORDER BY seq DESC
+  LIMIT ?
+) ORDER BY seq ASC;
+
 -- name: TrimBlockEventsForSession :execrows
 DELETE FROM block_events AS outer_be
 WHERE outer_be.session_id = ?

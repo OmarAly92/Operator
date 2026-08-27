@@ -496,8 +496,9 @@ type conversationSnapshotQuery struct {
 }
 
 type sessionBlocksQuery struct {
-	AfterSeq *int64 `query:"afterSeq,omitempty" minimum:"0" description:"Return events with seq greater than this cursor. Omit to read from the start of the retained log."`
-	Limit    *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum events to return. Defaults to the daemon's per-session retention."`
+	AfterSeq  *int64 `query:"afterSeq,omitempty" minimum:"0" description:"Return events with seq greater than this cursor. Omit to read from the start of the retained log."`
+	BeforeSeq *int64 `query:"beforeSeq,omitempty" minimum:"1" description:"Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq."`
+	Limit     *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum events to return. Defaults to the daemon's per-session retention."`
 }
 
 func usageOperations() []operation {

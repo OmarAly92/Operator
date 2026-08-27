@@ -130,6 +130,7 @@ type BlockEventRecorder interface {
 // test fake that only needs one half — stays valid.
 type BlockEventHistory interface {
 	History(ctx context.Context, sessionID domain.SessionID, afterSeq int64, limit int) ([]blockeventsvc.Record, error)
+	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
@@ -1124,6 +1125,21 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", err.Error(), nil)
 		return
 	}
+	beforeSeq, err := parseNonNegativeQuery(r, "beforeSeq")
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", err.Error(), nil)
+		return
+	}
+	hasBefore := r.URL.Query().Has("beforeSeq")
+	hasAfter := r.URL.Query().Has("afterSeq")
+	if hasBefore && hasAfter {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "afterSeq and beforeSeq are mutually exclusive", nil)
+		return
+	}
+	if hasBefore && beforeSeq < 1 {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "beforeSeq must be a positive sequence", nil)
+		return
+	}
 	limit, err := parseNonNegativeQuery(r, "limit")
 	if err != nil {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", err.Error(), nil)
@@ -1133,7 +1149,12 @@ func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Requ
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_QUERY", "limit must be between 1 and 500", nil)
 		return
 	}
-	recs, err := c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+	var recs []blockeventsvc.Record
+	if hasBefore {
+		recs, err = c.BlockHistory.HistoryBefore(r.Context(), sessionID(r), beforeSeq, int(limit))
+	} else {
+		recs, err = c.BlockHistory.History(r.Context(), sessionID(r), afterSeq, int(limit))
+	}
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

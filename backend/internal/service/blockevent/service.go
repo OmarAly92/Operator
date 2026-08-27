@@ -116,3 +116,13 @@ func (s *Service) History(ctx context.Context, sessionID domain.SessionID, after
 	}
 	return s.store.SelectBlockEventsBySession(ctx, string(sessionID), afterSeq, limit)
 }
+
+// HistoryBefore returns the events immediately older than beforeSeq, ascending,
+// so a client whose window has slid forward can page backwards into what it
+// dropped instead of losing it.
+func (s *Service) HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]Record, error) {
+	if limit <= 0 || limit > s.retain {
+		limit = s.retain
+	}
+	return s.store.SelectBlockEventsBeforeSeq(ctx, string(sessionID), beforeSeq, limit)
+}

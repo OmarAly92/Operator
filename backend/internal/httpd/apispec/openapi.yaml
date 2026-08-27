@@ -1888,6 +1888,17 @@ paths:
           type:
           - "null"
           - integer
+      - description: Return the events immediately older than this sequence, ascending.
+          Mutually exclusive with afterSeq.
+        in: query
+        name: beforeSeq
+        schema:
+          description: Return the events immediately older than this sequence, ascending.
+            Mutually exclusive with afterSeq.
+          minimum: 1
+          type:
+          - "null"
+          - integer
       - description: Maximum events to return. Defaults to the daemon's per-session
           retention.
         in: query

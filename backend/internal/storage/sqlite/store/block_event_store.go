@@ -86,6 +86,47 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 	return out, nil
 }
 
+// SelectBlockEventsBeforeSeq returns the events immediately older than
+// beforeSeq in ascending order so a client whose window has slid forward can
+// page backwards into what it dropped instead of losing it.
+func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]blockeventsvc.Record, error) {
+	rows, err := s.qr.SelectBlockEventsBeforeSeq(ctx, gen.SelectBlockEventsBeforeSeqParams{
+		SessionID: sessionID,
+		Seq:       beforeSeq,
+		Limit:     int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("select block events before %d for %s: %w", beforeSeq, sessionID, err)
+	}
+	out := make([]blockeventsvc.Record, 0, len(rows))
+	for _, row := range rows {
+		rec := blockeventsvc.Record{
+			Seq:            row.Seq,
+			SessionID:      row.SessionID,
+			SourceID:       row.SourceID,
+			Kind:           domain.BlockEventKind(row.Kind),
+			RawEvent:       row.RawEvent,
+			Harness:        row.Harness,
+			ToolName:       row.ToolName,
+			ToolUseID:      row.ToolUseID,
+			ToolInput:      row.ToolInput,
+			Text:           row.Text,
+			ErrorType:      row.ErrorType,
+			HookVersion:    row.HookVersion,
+			TruncatedLines: int(row.TruncatedLines),
+			CreatedAt:      row.CreatedAt,
+		}
+		if row.RedactedSpans != "" {
+			var spans []redact.Span
+			if err := json.Unmarshal([]byte(row.RedactedSpans), &spans); err == nil {
+				rec.RedactedSpans = spans
+			}
+		}
+		out = append(out, rec)
+	}
+	return out, nil
+}
+
 // TrimBlockEvents drops all but the newest keep rows for one session. Trimming
 // is per session so a busy session cannot evict a quiet one's history.
 func (s *Store) TrimBlockEvents(ctx context.Context, sessionID string, keep int) (int64, error) {

@@ -29,6 +29,10 @@ func (f *fakeStore) SelectBlockEventsBySession(context.Context, string, int64, i
 	return f.inserted, nil
 }
 
+func (f *fakeStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) TrimBlockEvents(_ context.Context, sessionID string, _ int) (int64, error) {
 	f.trimmed = append(f.trimmed, sessionID)
 	return 0, nil
@@ -131,6 +135,10 @@ func (s *concurrentStore) InsertBlockEvent(context.Context, Record) (int64, erro
 }
 
 func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
+}
+
+func (s *concurrentStore) SelectBlockEventsBeforeSeq(context.Context, string, int64, int) ([]Record, error) {
 	return nil, nil
 }
 

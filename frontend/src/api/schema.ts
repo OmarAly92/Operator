@@ -5378,6 +5378,8 @@ export interface operations {
             query?: {
                 /** @description Return events with seq greater than this cursor. Omit to read from the start of the retained log. */
                 afterSeq?: null | number;
+                /** @description Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq. */
+                beforeSeq?: null | number;
                 /** @description Maximum events to return. Defaults to the daemon's per-session retention. */
                 limit?: null | number;
             };
