@@ -490,4 +490,91 @@ void main() {
     expect(state.pinned, isTrue);
     expect(pinned.value, isTrue);
   });
+
+  testWidgets('scrolling does not rebuild the list subtree', (tester) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(
+      tester,
+      range(1, 200, lines: (seq) => 1 + seq % 4),
+      sticky: sticky,
+    );
+
+    final before = tester.widget<CustomScrollView>(
+      find.byType(CustomScrollView),
+    );
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+
+    for (var step = 0; step < 12; step++) {
+      controller.jumpTo(controller.position.pixels - 40);
+      await tester.pump();
+    }
+
+    final after = tester.widget<CustomScrollView>(
+      find.byType(CustomScrollView),
+    );
+    expect(
+      identical(before, after),
+      isTrue,
+      reason:
+          'a setState on scroll would rebuild every visible card every frame',
+    );
+  });
+
+  testWidgets('the sticky header notifies per boundary, not per frame', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(tester, range(1, 200, lines: (seq) => 8), sticky: sticky);
+
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    var notifications = 0;
+    void count() => notifications++;
+    sticky.addListener(count);
+    addTearDown(() => sticky.removeListener(count));
+
+    final firstHeight = sticky.value!.height;
+    var travelled = 0.0;
+    while (travelled < firstHeight * 0.8) {
+      controller.jumpTo(controller.position.pixels + 8);
+      await tester.pump();
+      travelled += 8;
+    }
+
+    expect(
+      notifications,
+      0,
+      reason: 'scrolling inside one block must not touch the header notifier',
+    );
+  });
+
+  testWidgets('a long session keeps its built window small while scrolling', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    await pumpList(
+      tester,
+      range(1, 800, lines: (seq) => 1 + seq % 5),
+      sticky: sticky,
+    );
+
+    final controller = tester
+        .state<BlockListState>(find.byType(BlockList))
+        .controller;
+    controller.jumpTo(controller.position.maxScrollExtent / 2);
+    await tester.pumpAndSettle();
+
+    final built = find.byType(BlockCard, skipOffstage: false).evaluate().length;
+    expect(built, lessThan(40));
+    expect(built, greaterThan(0));
+  });
 }
