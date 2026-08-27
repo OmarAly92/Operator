@@ -3,7 +3,9 @@ package blockevent
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/blockdispatch"
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -25,7 +27,9 @@ type Service struct {
 	store  Store
 	pub    Publisher
 	retain int
-	writes int
+	// writes counts recorded events to pace trimming. Record is called
+	// concurrently from HTTP handlers, so it must be atomic.
+	writes atomic.Int64
 }
 
 // NewService builds the service. retain is how many events one session keeps.
@@ -51,8 +55,12 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	}
 	truncated := 0
 	if len(text) > maxTextBytes {
-		truncated = strings.Count(text[maxTextBytes:], "\n") + 1
-		text = text[:maxTextBytes]
+		cut := maxTextBytes
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		truncated = strings.Count(text[cut:], "\n") + 1
+		text = text[:cut]
 	}
 	redacted := redact.Text(text)
 
@@ -83,8 +91,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 	}
 	rec.Seq = seq
 
-	s.writes++
-	if s.writes%trimEvery == 0 {
+	if s.writes.Add(1)%trimEvery == 0 {
 		_, _ = s.store.TrimBlockEvents(ctx, string(sessionID), s.retain)
 	}
 

@@ -3,7 +3,9 @@ package blockevent
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
@@ -112,5 +114,64 @@ func TestRecordIgnoresSignalsWithNoEvent(t *testing.T) {
 	}
 	if len(store.inserted) != 0 || len(pub.published) != 0 {
 		t.Fatal("an eventless signal produced a block event")
+	}
+}
+
+type concurrentStore struct {
+	mu sync.Mutex
+	n  int64
+}
+
+func (s *concurrentStore) InsertBlockEvent(context.Context, Record) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.n++
+	return s.n, nil
+}
+
+func (s *concurrentStore) SelectBlockEventsBySession(context.Context, string, int64, int) ([]Record, error) {
+	return nil, nil
+}
+
+func (s *concurrentStore) TrimBlockEvents(context.Context, string, int) (int64, error) {
+	return 0, nil
+}
+
+func TestRecordIsSafeUnderConcurrentCalls(t *testing.T) {
+	svc := NewService(&concurrentStore{}, nil, 500)
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+				Event: "stop",
+			}); err != nil {
+				t.Errorf("Record: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestRecordTruncatesOnARuneBoundary(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	// One ASCII byte shifts every following two-byte rune off the even
+	// boundary, so the cap lands in the middle of one.
+	text := "a" + strings.Repeat("é", maxTextBytes)
+	if err := svc.Record(context.Background(), "s-1", "claude-code", ports.ActivitySignal{
+		Event:                 "stop",
+		LatestAssistantUpdate: text,
+	}); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	got := store.inserted[0].Text
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated text is not valid UTF-8; trailing bytes % x", got[len(got)-3:])
+	}
+	if store.inserted[0].TruncatedLines == 0 {
+		t.Fatal("truncation was not recorded")
 	}
 }
