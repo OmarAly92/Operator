@@ -26,6 +26,7 @@ import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalPane, useTerminalCacheController } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
+import { BlockComposer } from "./blocks/BlockComposer";
 import { BlocksView } from "./blocks/BlocksView";
 import { useSessionBlocks } from "../hooks/useSessionBlocks";
 import { blocksCoverHarness } from "../lib/session-block";
@@ -675,17 +676,22 @@ function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined 
 	});
 
 	return (
-		<BlocksView
-			blocks={blocks.blocks}
-			error={blocks.error}
-			harness={harness}
-			hasOlder={blocks.hasOlder}
-			isLoading={blocks.isLoading}
-			isLoadingOlder={blocks.isLoadingOlder}
-			onLoadOlder={blocks.loadOlder}
-			onRetry={blocks.refetch}
-			sessionId={sessionId}
-			supported={blocksCoverHarness(harness)}
-		/>
+		<div className="flex h-full min-h-0 flex-col">
+			<div className="min-h-0 flex-1">
+				<BlocksView
+					blocks={blocks.blocks}
+					error={blocks.error}
+					harness={harness}
+					hasOlder={blocks.hasOlder}
+					isLoading={blocks.isLoading}
+					isLoadingOlder={blocks.isLoadingOlder}
+					onLoadOlder={blocks.loadOlder}
+					onRetry={blocks.refetch}
+					sessionId={sessionId}
+					supported={blocksCoverHarness(harness)}
+				/>
+			</div>
+			{sessionId === "" ? null : <BlockComposer sessionId={sessionId} />}
+		</div>
 	);
 }
