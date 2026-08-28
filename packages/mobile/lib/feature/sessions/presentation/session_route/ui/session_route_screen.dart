@@ -8,6 +8,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
+import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -99,7 +100,10 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
                 create: (_) => sl<ConversationBlocksCubit>(param1: chatSession.id),
               ),
             ],
-            child: ChatBlocksBody(sessionId: chatSession.id),
+            child: ChatBlocksBody(
+              repository: sl<ChatRepository>(),
+              sessionId: chatSession.id,
+            ),
           );
         }
 

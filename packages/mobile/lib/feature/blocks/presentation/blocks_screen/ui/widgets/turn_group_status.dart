@@ -7,9 +7,14 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 
 class TurnGroupStatus extends StatefulWidget {
-  const TurnGroupStatus({super.key, required this.group});
+  const TurnGroupStatus({
+    super.key,
+    required this.group,
+    this.onRollback,
+  });
 
   final TurnGroup group;
+  final void Function(String turnId)? onRollback;
 
   @override
   State<TurnGroupStatus> createState() => _TurnGroupStatusState();
@@ -54,6 +59,8 @@ class _TurnGroupStatusState extends State<TurnGroupStatus> {
     final text = duration == null
         ? (group.running ? 'RUNNING' : 'FINISHED')
         : '${group.running ? 'RUNNING' : 'FINISHED'} · ${_formatDuration(duration)}';
+    final turnId = group.turnId;
+    final canRollback = widget.onRollback != null && turnId != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Row(
@@ -73,6 +80,20 @@ class _TurnGroupStatusState extends State<TurnGroupStatus> {
           Expanded(
             child: Container(height: 1, color: context.skin.borderSubtle),
           ),
+          if (canRollback)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: InkWell(
+                key: const ValueKey('turn-rollback'),
+                onTap: () => widget.onRollback!(turnId),
+                child: AppText(
+                  'Rollback',
+                  style: AppTextStyle.style10SemiBold.copyWith(
+                    color: context.skin.blue,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

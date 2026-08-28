@@ -27,6 +27,8 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   final ChatEventDataSource _eventDataSource;
   final String sessionId;
 
+  ConversationSnapshotModel? get snapshot => _snapshot;
+
   CancelToken? _eventCancel;
   StreamSubscription<ConversationEventModel>? _eventSub;
   ConversationSnapshotModel? _snapshot;

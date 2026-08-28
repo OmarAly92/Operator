@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
+import type { TurnGroup } from "../../lib/block-turns";
 
 export type BlocksViewProps = {
 	blocks: SessionBlock[];
@@ -15,6 +16,12 @@ export type BlocksViewProps = {
 	supported: boolean;
 	onLoadOlder: () => void;
 	onRetry: () => void;
+	permissionKinds?: ReadonlyMap<string, "approval" | "user_input">;
+	onApprove?: (requestId: string, decisionId: string) => void;
+	onDecline?: (requestId: string, decisionId: string) => void;
+	onAnswer?: (requestId: string) => void;
+	onRollbackTurn?: (turnId: string) => void;
+	canRollbackTurn?: (group: TurnGroup) => boolean;
 };
 
 export function BlocksView({
@@ -29,6 +36,12 @@ export function BlocksView({
 	supported,
 	onLoadOlder,
 	onRetry,
+	permissionKinds,
+	onApprove,
+	onDecline,
+	onAnswer,
+	onRollbackTurn,
+	canRollbackTurn,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
 
@@ -72,7 +85,16 @@ export function BlocksView({
 				</div>
 			) : null}
 			<div className="min-h-0 flex-1">
-				<BlockList blocks={blocks} sessionId={sessionId} />
+				<BlockList
+					blocks={blocks}
+					canRollbackTurn={canRollbackTurn}
+					onAnswer={onAnswer}
+					onApprove={onApprove}
+					onDecline={onDecline}
+					onRollbackTurn={onRollbackTurn}
+					permissionKinds={permissionKinds}
+					sessionId={sessionId}
+				/>
 			</div>
 		</div>
 	);

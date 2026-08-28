@@ -15,6 +15,12 @@ class BlockList extends StatefulWidget {
     this.header,
     this.sticky,
     this.pinnedListenable,
+    this.permissionKinds,
+    this.onApprove,
+    this.onDecline,
+    this.onAnswer,
+    this.onRollbackTurn,
+    this.canRollbackTurn,
   });
 
   final String sessionId;
@@ -22,6 +28,12 @@ class BlockList extends StatefulWidget {
   final Widget? header;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinnedListenable;
+  final Map<String, BlockPermissionKind>? permissionKinds;
+  final void Function(String requestId, String decisionId)? onApprove;
+  final void Function(String requestId, String decisionId)? onDecline;
+  final void Function(String requestId)? onAnswer;
+  final void Function(String turnId)? onRollbackTurn;
+  final bool Function(TurnGroup group)? canRollbackTurn;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -301,8 +313,20 @@ class BlockListState extends State<BlockList> {
   Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) => Column(
     key: ValueKey(block.id),
     children: [
-      BlockCard(block: block),
-      if (group != null) TurnGroupStatus(group: group),
+      BlockCard(
+        block: block,
+        onAnswer: widget.onAnswer,
+        onApprove: widget.onApprove,
+        onDecline: widget.onDecline,
+        permissionKind: widget.permissionKinds?[block.id],
+      ),
+      if (group != null)
+        TurnGroupStatus(
+          group: group,
+          onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+              ? null
+              : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+        ),
     ],
   );
 }

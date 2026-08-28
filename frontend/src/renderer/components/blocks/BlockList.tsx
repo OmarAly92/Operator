@@ -16,7 +16,25 @@ import type { SessionBlock } from "../../lib/session-block";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
 import { Button } from "../ui/button";
 
-export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessionId: string }) {
+export function BlockList({
+	blocks,
+	sessionId,
+	permissionKinds,
+	onApprove,
+	onDecline,
+	onAnswer,
+	onRollbackTurn,
+	canRollbackTurn,
+}: {
+	blocks: SessionBlock[];
+	sessionId: string;
+	permissionKinds?: ReadonlyMap<string, "approval" | "user_input">;
+	onApprove?: (requestId: string, decisionId: string) => void;
+	onDecline?: (requestId: string, decisionId: string) => void;
+	onAnswer?: (requestId: string) => void;
+	onRollbackTurn?: (turnId: string) => void;
+	canRollbackTurn?: (group: TurnGroup) => boolean;
+}) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const pinnedRef = useRef(true);
@@ -128,8 +146,24 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 									width: "100%",
 								}}
 							>
-								<BlockCard block={item} />
-								{group === undefined ? null : <TurnGroupStatus group={group} />}
+								<BlockCard
+									block={item}
+									onAnswer={onAnswer}
+									onApprove={onApprove}
+									onDecline={onDecline}
+									permissionKind={permissionKinds?.get(item.id)}
+								/>
+								{group === undefined ? null : (
+									<TurnGroupStatus
+										canRollback={
+											canRollbackTurn !== undefined && onRollbackTurn !== undefined
+												? canRollbackTurn(group)
+												: false
+										}
+										group={group}
+										onRollback={onRollbackTurn}
+									/>
+								)}
 							</div>
 						);
 					})}
@@ -165,7 +199,16 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 	);
 }
 
-function TurnGroupStatus({ group }: { group: TurnGroup }) {
+function TurnGroupStatus({
+	group,
+	canRollback,
+	onRollback,
+}: {
+	group: TurnGroup;
+	canRollback: boolean;
+	onRollback?: (turnId: string) => void;
+}) {
+	const { t } = useTranslation();
 	const [now, setNow] = useState(() => Date.now());
 
 	useEffect(() => {
@@ -175,11 +218,27 @@ function TurnGroupStatus({ group }: { group: TurnGroup }) {
 	}, [group.running]);
 
 	const durationMs = group.running ? elapsedSince(group.startedAt, now) : group.durationMs;
+	const turnId = group.turnId;
 	return (
 		<div className="mx-3 mb-3 flex items-center gap-2 text-[10px] text-muted-foreground" data-testid="turn-group-status">
 		<div className="h-px flex-1 bg-border" />
 		<span>{group.running ? "RUNNING" : "FINISHED"}{durationMs === undefined ? "" : ` · ${formatDuration(durationMs)}`}</span>
-		<div className="h-px flex-1 bg-border" />
+		{canRollback && turnId !== undefined && onRollback !== undefined ? (
+			<>
+				<div className="h-px flex-1 bg-border" />
+				<Button
+					aria-label={t("blocks.rollback")}
+					data-testid="turn-rollback"
+					onClick={() => onRollback(turnId)}
+					size="sm"
+					variant="ghost"
+				>
+					{t("blocks.rollback")}
+				</Button>
+			</>
+		) : (
+			<div className="h-px flex-1 bg-border" />
+		)}
 		</div>
 	);
 }

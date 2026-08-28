@@ -6,14 +6,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
+import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
+import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 
 class _MockCubit extends MockCubit<ConversationBlocksState>
     implements ConversationBlocksCubit {}
+
+class _MockRepository extends Mock implements ChatRepository {}
 
 SessionBlock _block({
   String id = 'seq-1',
@@ -32,7 +40,11 @@ SessionBlock _block({
   body: body,
 );
 
-Future<void> _pump(WidgetTester tester, _MockCubit cubit) =>
+Future<void> _pump(
+  WidgetTester tester,
+  _MockCubit cubit, {
+  _MockRepository? repository,
+}) =>
     tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
@@ -45,7 +57,10 @@ Future<void> _pump(WidgetTester tester, _MockCubit cubit) =>
                 child: SizedBox(
                   width: 400,
                   height: 700,
-                  child: ChatBlocksBody(sessionId: 's-1'),
+                  child: ChatBlocksBody(
+                    repository: repository ?? _MockRepository(),
+                    sessionId: 's-1',
+                  ),
                 ),
               ),
             ),
@@ -56,9 +71,21 @@ Future<void> _pump(WidgetTester tester, _MockCubit cubit) =>
 
 void main() {
   late _MockCubit cubit;
+  late _MockRepository repository;
+
+  setUpAll(() {
+    registerFallbackValue(
+      const ResolveApprovalParams(requestId: 'req', decisionId: 'approve'),
+    );
+    registerFallbackValue(
+      const ResolveInputParams(requestId: 'req', action: 'accept'),
+    );
+    registerFallbackValue(const RollbackTurnParams(turnId: 'turn'));
+  });
 
   setUp(() {
     cubit = _MockCubit();
+    repository = _MockRepository();
     when(() => cubit.state).thenReturn(
       ConversationBlocksReadyState(
         revision: 1,
@@ -69,6 +96,15 @@ void main() {
     when(() => cubit.sessionId).thenReturn('s-1');
     when(() => cubit.refresh()).thenAnswer((_) async {});
     when(() => cubit.loadOlder()).thenAnswer((_) async {});
+    when(
+      () => repository.resolveApproval(any(), any()),
+    ).thenAnswer((_) async => Result<bool, Failure>.success(true));
+    when(
+      () => repository.resolveInput(any(), any()),
+    ).thenAnswer((_) async => Result<bool, Failure>.success(true));
+    when(
+      () => repository.rollbackTurn(any(), any()),
+    ).thenAnswer((_) async => Result<int, Failure>.success(0));
   });
 
   testWidgets('renders the blocks when the cubit emits a Ready state with blocks', (tester) async {
