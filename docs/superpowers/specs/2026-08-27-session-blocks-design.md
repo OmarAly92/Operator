@@ -680,9 +680,17 @@ offered, with a typed `RewindCapabilityError` when a caller asks anyway
   the user clicks it is worse than an absent one, and "mode supports rewind" is too
   coarse: within `chat`, providers differ.
 - **Rewind is three capabilities, not one** — conversation, files, or both.
-  Operator has `/api/v1/sessions/{sessionId}/rollback`; which of the three it means
-  must be stated before rewind reaches a block action, because a user who expects
-  files reverted and gets only conversation has lost work.
+  **Operator's is conversation-only, and the route is not the one an earlier draft
+  of this section named.** Rewind is
+  `POST /api/v1/sessions/{sessionId}/conversation/turns/{turnId}/rollback`
+  (`controllers/conversations.go:75`), which discards a turn and everything after it
+  from the agent's memory and from the timeline
+  (`service/chat/controller.go:1177`); it performs no worktree operation.
+  `POST /api/v1/sessions/{sessionId}/rollback` is unrelated — it undoes a
+  partially-completed spawn (`controllers/sessions.go:1230`). So the action is
+  labelled *rewind the conversation*, and both clients must say files on disk are not
+  reverted; a user who expects files reverted and gets only conversation has lost
+  work. Established while writing plan 6, 2026-08-28.
 
 Paseo also handles a case Phase B will hit: resolving a permission can return a
 `followUpPrompt`, meaning the answer itself starts the next turn
@@ -986,7 +994,7 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | written |
 | 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
 | 5 | ACP adapter, chat presentation retires | 7 | `2026-08-28-acp-block-adapter.md` | written |
-| 6 | Block actions, selection, find | 8 | — | |
+| 6 | Block actions, selection, find | 8 | `2026-08-28-block-actions-find-selection.md` | written |
 | 7 | Shell blocks | 9 | — | |
 | 8 | Transcript enrichment | 10 | — | |
 | 9 | Mobile replica cache | — (new) | `2026-08-28-mobile-replica-cache.md` | written |
