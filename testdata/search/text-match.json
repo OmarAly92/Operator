@@ -1,0 +1,38 @@
+{
+  "score": [
+    { "name": "empty query matches everything at tier 0", "query": "", "text": "main", "options": {}, "expect": { "tier": 0, "offset": 0 } },
+    { "name": "whole string equal is exact", "query": "main", "text": "main", "options": {}, "expect": { "tier": 0, "offset": 0 } },
+    { "name": "case is folded", "query": "MAIN", "text": "main", "options": {}, "expect": { "tier": 0, "offset": 0 } },
+    { "name": "a bounded word is whole-word", "query": "test", "text": "run the test suite", "options": {}, "expect": { "tier": 1, "offset": 8 } },
+    { "name": "a leading unbounded hit is prefix", "query": "mai", "text": "maintenance", "options": {}, "expect": { "tier": 2, "offset": 0 } },
+    { "name": "an unbounded hit at a word start is word-start", "query": "sui", "text": "run the suite", "options": {}, "expect": { "tier": 3, "offset": 8 } },
+    { "name": "an interior hit is substring", "query": "uit", "text": "run the suite", "options": {}, "expect": { "tier": 4, "offset": 9 } },
+    { "name": "the earliest hit of the best tier wins", "query": "the", "text": "the other the", "options": {}, "expect": { "tier": 1, "offset": 0 } },
+    { "name": "scattered characters are a subsequence, with spread", "query": "rts", "text": "run the suite", "options": {}, "expect": { "tier": 5, "offset": 0, "spread": 9 } },
+    { "name": "subsequence off makes a near miss no match", "query": "rts", "text": "run the suite", "options": { "subsequence": false }, "expect": null },
+    { "name": "a transposition inside a four-letter token", "query": "mian", "text": "the main branch", "options": { "fuzzy": { "maxEdits": 1, "transpositionsOnly": true } }, "expect": { "tier": 5, "offset": 4, "spread": 9 } },
+    { "name": "a substitution is refused when only transpositions are allowed", "query": "mail", "text": "the main branch", "options": { "fuzzy": { "maxEdits": 1, "transpositionsOnly": true }, "subsequence": false }, "expect": null },
+    { "name": "a typo in a long word is forgiven", "query": "confug", "text": "configuration", "options": { "fuzzy": "auto", "subsequence": false }, "expect": { "tier": 6, "offset": 0, "spread": 1 } },
+    { "name": "fuzzy is off by default", "query": "confug", "text": "configuration", "options": { "subsequence": false }, "expect": null },
+    { "name": "the exact tiers always beat the fuzzy tier", "query": "main", "text": "mian main", "options": { "fuzzy": "auto" }, "expect": { "tier": 1, "offset": 5 } }
+  ],
+  "policy": [
+    { "token": "abc", "expect": null },
+    { "token": "main", "expect": { "maxEdits": 1, "transpositionsOnly": true } },
+    { "token": "branch", "expect": { "maxEdits": 1, "transpositionsOnly": false } },
+    { "token": "configuration", "expect": { "maxEdits": 2, "transpositionsOnly": false } }
+  ],
+  "textFields": [
+    { "name": "an empty query is a tier-0 aggregate", "query": "", "fields": ["Prompt", "run the tests"], "options": {}, "expect": { "tier": 0, "offset": 0, "spread": 0 } },
+    { "name": "every token must land in some field", "query": "prompt tests", "fields": ["Prompt", "run the tests"], "options": {}, "expect": { "tier": 1, "offset": 8, "spread": 11 } },
+    { "name": "one unmatched token fails the whole query", "query": "prompt zebra", "fields": ["Prompt", "run the tests"], "options": { "subsequence": false }, "expect": null },
+    { "name": "tokens may split across fields", "query": "tool bash", "fields": ["Tool", "bash -lc ls"], "options": {}, "expect": { "tier": 1, "offset": 0, "spread": 8 } }
+  ],
+  "ranges": [
+    { "name": "exact covers the whole text", "query": "main", "text": "main", "expect": [{ "start": 0, "length": 4 }] },
+    { "name": "a substring hit is one span", "query": "the", "text": "run the suite", "expect": [{ "start": 4, "length": 3 }] },
+    { "name": "a subsequence hit marks the characters it walked, merging neighbours", "query": "rts", "text": "run the suite", "expect": [{ "start": 0, "length": 1 }, { "start": 4, "length": 1 }, { "start": 8, "length": 1 }] },
+    { "name": "a typo hit marks the whole word", "query": "mian", "text": "the main branch", "expect": [{ "start": 4, "length": 1 }, { "start": 6, "length": 1 }, { "start": 11, "length": 2 }] },
+    { "name": "an empty query marks nothing", "query": "", "text": "main", "expect": [] }
+  ]
+}
