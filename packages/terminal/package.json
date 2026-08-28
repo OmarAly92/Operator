@@ -1,0 +1,33 @@
+{
+	"name": "@operator/terminal-workspace",
+	"private": true,
+	"description": "Private npm workspace for the @operator/terminal-* packages.",
+	"workspaces": [
+		"ts/*"
+	],
+	"scripts": {
+		"build:ts": "tsc -b ts/core ts/renderer-dom ts/react",
+		"build": "npm run build:ts",
+		"test": "npm run test --workspaces --if-present",
+		"check:boundaries": "node ./scripts/check-boundaries.mjs",
+		"smoke:vite": "node ./scripts/smoke-vite.mjs",
+		"smoke:tauri": "node ./scripts/smoke-tauri.mjs",
+		"bench:terminal": "node ./bench/run.mjs"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.60.0",
+		"@types/node": "20.19.41",
+		"@types/react": "19.2.17",
+		"@types/react-dom": "19.2.3",
+		"@vitejs/plugin-react": "6.0.2",
+		"@xterm/addon-canvas": "0.7.0",
+		"@xterm/addon-webgl": "0.19.0",
+		"@xterm/xterm": "5.5.0",
+		"jsdom": "29.1.1",
+		"react": "19.2.7",
+		"react-dom": "19.2.7",
+		"typescript": "5.9.3",
+		"vite": "8.0.16",
+		"vitest": "4.1.8"
+	}
+}
