@@ -57,9 +57,37 @@ Any design that assumes otherwise is incoherent.
 | --- | --- | --- |
 | Harnesses | ~30 | 4 — codex, claude-code, opencode, droid |
 | Agent's native UI | full | does not exist |
-| Block source | hook events + transcript | native ACP stream |
+| Block source | hook events + transcript | native ACP stream **and hook events** |
 | Raw grid | **yes**, behind a toggle | nothing to show |
 | Interaction | keystrokes to a PTY | steer, rollback, resolve approval, attachments, config |
+
+**Control is exclusive; observation is not.** The constraint above is about who
+*drives* the conversation, and it holds. It does not follow that hook events stop
+mattering in `chat` mode, and an earlier reading of this section — that hooks
+belong to `tui` and the structured stream belongs to `chat` — was wrong about the
+code as well as the design.
+
+`prepareWorkspace` (`session_manager/manager.go:3476`) calls `GetAgentHooks`
+before every launch, shared by Spawn and Restore, **with no branch on session
+mode**. A chat session's workspace already has Operator's hooks installed and
+already emits `opr hooks` events while the ACP driver owns the conversation. The
+two channels describe the same session from different vantage points and the
+daemon receives both today.
+
+Paseo arrives at the same arrangement deliberately rather than incidentally. It
+drives Claude Code through `@anthropic-ai/claude-agent-sdk` — owning the stream —
+*and* registers its own observation hooks alongside it, merging them with the
+user's per event rather than assigning (`claude/hooks.ts`, `mergeClaudeHooks`).
+Its comment names the failure mode of getting that wrong: assigning "would
+silently drop the other, and the failure would be invisible." Operator's
+`hooksjson` manager already appends and preserves user hooks, so that specific
+bug is not ours; the assumption that the channels are mode-exclusive was.
+
+The consequence for this design: **`chat` mode has two sources too**, so the
+source-precedence rule is not a `tui`-only concern. The projection merges ACP
+items and hook events by id the same way it merges hook events and transcript
+records, and the same tie-breaks apply — the richer source wins on body, hooks win
+on status.
 
 ## Approach
 
@@ -376,6 +404,32 @@ derivers are parse-only today; the same seam is needed so a harness that emits a
 duplicate or a useless event can drop it at its own boundary rather than
 polluting the shared vocabulary.
 
+**Subagent work is part of the session, and three installed hooks have no
+mapping.** `claudecode/hooks.go:37` installs ten hooks. `blockdispatch/dispatch.go`
+maps seven. The three with no entry fall through to `BlockEventUnknown`, and each
+one is load-bearing for a complaint this design exists to answer:
+
+- **`pre-tool-use`** — without it a tool block cannot *open* when the tool starts,
+  only appear when it finishes. A long tool call is therefore invisible for its
+  entire duration, which reads as a stalled session. This is the single cheapest
+  fidelity improvement available and it needs no transcript parsing.
+- **`session-end`** — the natural resolver for the stuck-state invariant below. A
+  block left `running` when the session ends has an event that says so.
+- **`subagent-stop`** — the boundary of a Task subagent's work.
+
+**Subagent blocks nest.** Paseo reconstructs Claude Code's Task sidechains into a
+parent block carrying its subagent's actions (`claude/sidechain-tracker.ts`,
+capped at 200 entries with summaries truncated to 160 characters). A session that
+delegates to subagents and shows only the parent tool call is not showing what the
+agent did — it is showing that it delegated.
+
+The block model therefore admits **one level of nesting**: a `tool` block whose
+detail is a subagent may carry child blocks assembled by the same projection.
+One level, not arbitrary depth — a subagent that spawns a subagent renders its
+descendants flattened into the nearest nesting parent, because a tree UI is a
+different design and this list is not one. Correlation is by the parent's
+`ToolUseID`, matching the existing rule that ids are minted at the source.
+
 **Transcript enrichment.** `TranscriptPath` plus the existing `TranscriptWatcher`
 supplies what hook payloads truncate — full assistant text, full tool results,
 diffs. Per-harness parsers added one at a time. This is what narrows the fidelity
@@ -653,7 +707,11 @@ Limits, so this is not oversold:
 
 - **`tui` blocks are what the agent reported, not its screen.** Transcript
   enrichment narrows this a great deal; it does not close it. Spinners, live
-  counters and the agent's own layout appear only in Raw.
+  counters and the agent's own layout appear only in Raw. **`chat` does not have
+  this limit** — the driver owns the stream, so assistant text, tool inputs and
+  tool results arrive in full and nothing is reconstructed. For the four harnesses
+  that support it, mode choice closes the fidelity gap that no amount of work on
+  the `tui` path can.
 - **Harnesses without hooks get no blocks in `tui`.** Eleven are registered. The
   rest stay Raw and say so.
 - **Shells outside bash, zsh and fish get no marks** and stay Raw.
@@ -717,9 +775,18 @@ would otherwise be built against the mutation rule they replace. Daemon-side
 coalescing extends step 2 and is cheapest before either client is tuned; it is the
 one item here that improves both clients without touching either.
 
+**Step 7 is also the fidelity step, which the original ordering understated.**
+The structured stream is not merely a second source to unify — it is the only
+source that carries the agent's full output. A `chat` session already shows every
+assistant token, tool input and tool result today; step 7 is what puts that on the
+block screen. Step 10 exists to narrow the same gap for the ~26 harnesses that
+have no structured driver, by reconstruction. Reconstruction is the fallback, not
+the goal, and the ordering should say so: **7 before 8, and 7 before 10.**
+
 **Honest cost.** Steps 6, 7, 8 and 9 are each larger than the original
 agent-blocks work. If the bar has to move, cut from the end: 9, then 8. Cutting 7
-is not a saving — it re-creates the duplication this design exists to prevent.
+is not a saving — it re-creates the duplication this design exists to prevent, and
+it withholds the one path with full fidelity.
 
 ## Implementation plans
 
@@ -757,6 +824,9 @@ which of those are now behind the spec.
 | History/live split, threshold virtualization | *Viewport* | 4a, 4b |
 | Load-generating source + browser e2e | *Testing* | 4b, then 6 |
 | Field-level enum degradation | *Error handling* | 2, 3 |
+| Hooks and structured stream compose | *The constraint everything follows from* | 5 |
+| `pre-tool-use`, `session-end`, `subagent-stop` mappings | *Backend* | 1 |
+| Nested subagent blocks | *Backend*; block model | 5, 8 |
 
 **None of it invalidates landed work.** Plans 1 through 4 shipped a per-event log,
 a `blocks` mux channel, client assembly and two viewports; every change above is an
@@ -767,6 +837,15 @@ source and the mutation rule it replaces would be load-bearing from then on.
 **What paseo does not answer.** Redaction, hook/transcript precedence, shell marks
 and grid arbitration have no analogue there — paseo is ACP-only. Those sections
 stand on their own reasoning and were not revised.
+
+**Three further changes, from reviewing paseo's Claude Code provider.** Paseo
+reaches its fidelity by owning the stream (`@anthropic-ai/claude-agent-sdk`),
+which Operator already does through `chatdriver/claudeacp`. That reframes two
+things: hooks and the structured stream **compose** rather than partitioning by
+mode, and step 7 is the fidelity step rather than only the deduplication step.
+The third is concrete and independent of everything else — three hooks Operator
+already installs have no entry in `blockdispatch`, and `pre-tool-use` in
+particular is why a running tool currently produces no block at all.
 
 **Dependencies.** Plan 1 blocks everything. Plans 2 and 3 both depend on 1 and are
 independent of each other. Plan 4 depends on whichever client plan it targets.
@@ -861,5 +940,15 @@ how is a plan failure, not a shortcut.
 
 - Whether Blocks becomes the default on desktop once parity lands, or stays
   opt-in while Raw remains familiar.
+- **Whether `chat` becomes the default mode for the four harnesses that support
+  it.** `DefaultSessionMode = SessionModeTUI` is a compatibility default, chosen
+  so an upgrade never changes existing behaviour, and it is why a new Claude Code
+  session shows the thin hook-derived timeline rather than the full one that is
+  already available. The argument against changing it is that `tui` and `chat`
+  differ in more than fidelity — interaction, harness coverage, and what a
+  transition costs mid-session. The argument for is that the current default hands
+  new users the worse of two paths without telling them the other exists. At
+  minimum the mode should be visible and switchable at spawn on both clients;
+  whether the default moves is a product call.
 - Whether the merged screen keeps two entry points in navigation, or one entry
   whose content follows the session's mode.
