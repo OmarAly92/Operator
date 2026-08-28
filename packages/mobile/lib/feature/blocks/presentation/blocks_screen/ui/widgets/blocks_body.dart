@@ -4,7 +4,9 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 class BlocksBody extends StatefulWidget {
   const BlocksBody({super.key});
@@ -14,21 +16,14 @@ class BlocksBody extends StatefulWidget {
 }
 
 class _BlocksBodyState extends State<BlocksBody> {
-  final ScrollController _controller = ScrollController();
-
-  bool get _pinned {
-    if (!_controller.hasClients) return true;
-    return _controller.position.pixels >= _controller.position.maxScrollExtent - 24;
-  }
-
-  void _followTail() {
-    if (!_controller.hasClients) return;
-    _controller.jumpTo(_controller.position.maxScrollExtent);
-  }
+  final GlobalKey<BlockListState> _listKey = GlobalKey<BlockListState>();
+  final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
+  final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
 
   @override
   void dispose() {
-    _controller.dispose();
+    _sticky.dispose();
+    _pinned.dispose();
     super.dispose();
   }
 
@@ -55,12 +50,17 @@ class _BlocksBodyState extends State<BlocksBody> {
               children: [
                 AppText(
                   error,
-                  style: AppTextStyle.style12Regular.copyWith(color: skin.attention),
+                  style: AppTextStyle.style12Regular.copyWith(
+                    color: skin.attention,
+                  ),
                   maxLines: 3,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
-                TextButton(onPressed: cubit.refresh, child: const Text('Retry')),
+                TextButton(
+                  onPressed: cubit.refresh,
+                  child: const Text('Retry'),
+                ),
               ],
             ),
           );
@@ -69,45 +69,70 @@ class _BlocksBodyState extends State<BlocksBody> {
         if (cubit.blocks.isEmpty) {
           return _notice(
             context,
-            cubit.loading ? 'Loading blocks...' : 'No blocks yet. They appear as the agent works.',
+            cubit.loading
+                ? 'Loading blocks...'
+                : 'No blocks yet. They appear as the agent works.',
           );
         }
 
-        final pinned = _pinned;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (pinned && mounted) _followTail();
-        });
-
-        final header = cubit.loadingOlder || cubit.hasOlder;
-
-        return ListView.builder(
-          controller: _controller,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          itemCount: cubit.blocks.length + (header ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (header && index == 0) {
-              if (cubit.loadingOlder) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: AppText(
-                    'Loading older blocks...',
-                    style: AppTextStyle.style11Regular.copyWith(color: skin.textTertiary),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
-              return Center(
-                child: TextButton(
-                  onPressed: cubit.loadOlder,
-                  child: const Text('Load older blocks'),
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: BlockList(
+                key: _listKey,
+                sessionId: cubit.sessionId,
+                blocks: cubit.blocks,
+                header: _olderControl(context, cubit),
+                sticky: _sticky,
+                pinnedListenable: _pinned,
+              ),
+            ),
+            Positioned(
+              top: 6,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _pinned,
+                builder: (context, pinned, _) => BlockNavControls(
+                  onPrevious: () =>
+                      _listKey.currentState?.scrollToBoundary(forward: false),
+                  onNext: () =>
+                      _listKey.currentState?.scrollToBoundary(forward: true),
+                  onLatest: () => _listKey.currentState?.jumpToLatest(),
+                  showLatest: !pinned,
                 ),
-              );
-            }
-            final block = cubit.blocks[index - (header ? 1 : 0)];
-            return BlockCard(key: ValueKey(block.id), block: block);
-          },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget? _olderControl(BuildContext context, BlocksCubit cubit) {
+    if (cubit.loadingOlder) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: AppText(
+          'Loading older blocks...',
+          style: AppTextStyle.style11Regular.copyWith(
+            color: context.skin.textTertiary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    if (!cubit.hasOlder) return null;
+    return Center(
+      child: TextButton(
+        onPressed: cubit.loadOlder,
+        child: const Text('Load older blocks'),
+      ),
     );
   }
 
@@ -116,7 +141,9 @@ class _BlocksBodyState extends State<BlocksBody> {
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: AppText(
         message,
-        style: AppTextStyle.style12Regular.copyWith(color: context.skin.textTertiary),
+        style: AppTextStyle.style12Regular.copyWith(
+          color: context.skin.textTertiary,
+        ),
         maxLines: 4,
         textAlign: TextAlign.center,
       ),
