@@ -24,6 +24,8 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   }
 
   final ChatRepository _repository;
+
+  ChatRepository get repository => _repository;
   final ChatEventDataSource _eventDataSource;
   final String sessionId;
 
