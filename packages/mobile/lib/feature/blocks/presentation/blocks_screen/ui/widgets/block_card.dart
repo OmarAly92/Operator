@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/search/text_match.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
@@ -40,6 +41,9 @@ class BlockCard extends StatelessWidget {
     final skin = context.skin;
     final display = blockDisplay(block);
     final actionsWidget = actionsBuilder?.call(block);
+    final summaryHighlight = highlight?.field == BlockMatchField.summary
+        ? highlight
+        : null;
 
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,12 +51,14 @@ class BlockCard extends StatelessWidget {
         if (display.summary.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child: Text(
-              display.summary,
-              softWrap: true,
-              style: AppTextStyle.mono12Regular.copyWith(
+            child: _highlightedField(
+              context: context,
+              text: display.summary,
+              ranges: summaryHighlight?.ranges ?? const <MatchRange>[],
+              base: AppTextStyle.mono12Regular.copyWith(
                 color: skin.textSecondary,
               ),
+              softWrap: true,
             ),
           ),
         if (block.children != null && block.children!.isNotEmpty)
@@ -125,6 +131,10 @@ class BlockCard extends StatelessWidget {
             child: body,
           );
 
+    final nameHighlight = highlight?.field == BlockMatchField.displayName
+        ? highlight
+        : null;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
@@ -139,12 +149,52 @@ class BlockCard extends StatelessWidget {
             block: block,
             collapsed: collapsed,
             onToggleCollapse: onToggleCollapse,
+            nameHighlight: nameHighlight,
           ),
           if (!collapsed) tappableBody,
         ],
       ),
     );
   }
+}
+
+Text _highlightedField({
+  required BuildContext context,
+  required String text,
+  required List<MatchRange> ranges,
+  required TextStyle base,
+  bool softWrap = false,
+}) {
+  if (ranges.isEmpty) {
+    return Text(text, style: base, softWrap: softWrap);
+  }
+  final skin = context.skin;
+  final spans = <TextSpan>[];
+  var cursor = 0;
+  for (final range in ranges) {
+    final start = range.start.clamp(0, text.length);
+    final end = (range.start + range.length).clamp(0, text.length);
+    if (start > cursor) {
+      spans.add(TextSpan(text: text.substring(cursor, start), style: base));
+    }
+    if (end > start) {
+      spans.add(
+        TextSpan(
+          text: text.substring(start, end),
+          style: base.copyWith(backgroundColor: skin.tintAmber),
+        ),
+      );
+    }
+    cursor = end;
+  }
+  if (cursor < text.length) {
+    spans.add(TextSpan(text: text.substring(cursor), style: base));
+  }
+  return Text.rich(
+    TextSpan(children: spans),
+    softWrap: softWrap,
+    style: base,
+  );
 }
 
 class BlockActionButton extends StatelessWidget {
@@ -193,11 +243,13 @@ class BlockCardHeader extends StatelessWidget {
     required this.block,
     this.collapsed = false,
     this.onToggleCollapse,
+    this.nameHighlight,
   });
 
   final SessionBlock block;
   final bool collapsed;
   final VoidCallback? onToggleCollapse;
+  final BlockMatch? nameHighlight;
 
   @override
   Widget build(BuildContext context) {
@@ -223,9 +275,11 @@ class BlockCardHeader extends StatelessWidget {
           BlockStatusDot(status: block.status),
           const SizedBox(width: 8),
           Expanded(
-            child: AppText(
-              display.displayName,
-              style: AppTextStyle.style12SemiBold.copyWith(
+            child: _highlightedField(
+              context: context,
+              text: display.displayName,
+              ranges: nameHighlight?.ranges ?? const <MatchRange>[],
+              base: AppTextStyle.style12SemiBold.copyWith(
                 color: skin.textPrimary,
               ),
             ),

@@ -38,6 +38,10 @@ class _ChatScreenState extends State<ChatScreen> {
         titleText: title.length > 24 ? '${title.substring(0, 22)}…' : title,
         actions: [
           IconButton(
+            onPressed: () => _body.currentState?.openFind(),
+            icon: Icon(Icons.search, color: context.skin.textSecondary),
+          ),
+          IconButton(
             onPressed: () => _body.currentState?.openMenu(),
             icon: Icon(Icons.more_horiz, color: context.skin.textSecondary),
           ),

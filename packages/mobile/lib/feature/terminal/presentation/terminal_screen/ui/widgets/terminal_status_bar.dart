@@ -7,10 +7,16 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 class TerminalStatusBar extends StatelessWidget {
-  const TerminalStatusBar({super.key, required this.onKill, required this.onRestore});
+  const TerminalStatusBar({
+    super.key,
+    required this.onKill,
+    required this.onRestore,
+    this.onFind,
+  });
 
   final VoidCallback onKill;
   final VoidCallback onRestore;
+  final VoidCallback? onFind;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +64,17 @@ class TerminalStatusBar extends StatelessWidget {
                 AppText(
                   '${grid.cols}x${grid.rows}',
                   style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary),
+                ),
+              if (onFind != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: IconButton(
+                    tooltip: 'Find in blocks',
+                    onPressed: onFind,
+                    icon: Icon(Icons.search, size: 16, color: skin.textSecondary),
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 24),
+                    padding: EdgeInsets.zero,
+                  ),
                 ),
               if (!dead)
                 Container(

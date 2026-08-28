@@ -4,6 +4,8 @@ import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
 enum BlockMatchField { displayName, summary }
 
+const int findContextBlocks = 1;
+
 class BlockMatch extends Equatable {
   const BlockMatch({required this.blockId, required this.field, required this.score, required this.ranges});
 

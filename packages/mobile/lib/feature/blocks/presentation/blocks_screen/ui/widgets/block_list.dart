@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
@@ -23,6 +24,7 @@ class BlockList extends StatefulWidget {
     this.pinnedListenable,
     this.onRollbackTurn,
     this.canRollbackTurn,
+    this.highlights = const {},
   });
 
   final String sessionId;
@@ -37,6 +39,7 @@ class BlockList extends StatefulWidget {
   final void Function(SessionBlock block, BlockAction action)? onAction;
   final Set<String> collapsedIds;
   final void Function(String blockId)? onToggleCollapse;
+  final Map<String, BlockMatch> highlights;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -330,6 +333,7 @@ class BlockListState extends State<BlockList> {
           onToggleCollapse: widget.onToggleCollapse == null
               ? null
               : () => widget.onToggleCollapse!(block.id),
+          highlight: widget.highlights[block.id],
         ),
         if (group != null)
           TurnGroupStatus(
