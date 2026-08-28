@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 
 enum BlockActionKind { copyBlock, copyCommand, copyOutput, rerun, rewind }
 
@@ -31,6 +33,22 @@ class BlockAction extends Equatable {
 
   @override
   List<Object?> get props => [kind, payload, turnId];
+}
+
+bool _turnIsRollbackable(ConversationTurnModel turn) {
+  if (turn.id == null || turn.id!.isEmpty) return false;
+  if (turn.state == 'running' || turn.state == 'queued') return false;
+  if (turn.rolledBack == true) return false;
+  if (turn.providerTurnId == null || turn.providerTurnId!.isEmpty) return false;
+  return true;
+}
+
+List<String> rollbackableTurnIds(ConversationSnapshotModel? snapshot) {
+  if (snapshot == null) return const [];
+  return [
+    for (final turn in snapshot.turns)
+      if (_turnIsRollbackable(turn)) turn.id!,
+  ];
 }
 
 sealed class BlockActions {

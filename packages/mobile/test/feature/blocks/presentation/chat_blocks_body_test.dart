@@ -491,5 +491,79 @@ void main() {
         expect(find.byKey(const ValueKey('turn-rollback')), findsNothing);
       },
     );
+
+    testWidgets(
+      'exposes a rewind action on the prompt block when capabilities include rollback',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            turns: const [
+              ConversationTurnModel(
+                id: 't-1',
+                state: 'completed',
+                providerTurnId: 'prov-1',
+                rolledBack: false,
+                requestedAt: '2026-08-28T10:00:00Z',
+                startedAt: '2026-08-28T10:00:01Z',
+                completedAt: '2026-08-28T10:00:05Z',
+              ),
+            ],
+            capabilities: const ['rollback'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [promptBlock('p-1', 't-1'), assistantBlock('a-1', 't-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        await tester.longPress(find.text('do the thing'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rewind the conversation'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'does not expose a rewind action when capabilities lacks rollback',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            turns: const [
+              ConversationTurnModel(
+                id: 't-1',
+                state: 'completed',
+                providerTurnId: 'prov-1',
+                rolledBack: false,
+                requestedAt: '2026-08-28T10:00:00Z',
+                startedAt: '2026-08-28T10:00:01Z',
+                completedAt: '2026-08-28T10:00:05Z',
+              ),
+            ],
+            capabilities: const [],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [promptBlock('p-1', 't-1'), assistantBlock('a-1', 't-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        await tester.longPress(find.text('do the thing'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rewind the conversation'), findsNothing);
+      },
+    );
   });
 }

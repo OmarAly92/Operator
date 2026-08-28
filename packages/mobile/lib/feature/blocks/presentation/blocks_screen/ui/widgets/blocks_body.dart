@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
@@ -19,12 +21,26 @@ class _BlocksBodyState extends State<BlocksBody> {
   final GlobalKey<BlockListState> _listKey = GlobalKey<BlockListState>();
   final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
   final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
+  final Set<String> _collapsed = <String>{};
+  String? _lastSessionId;
 
   @override
   void dispose() {
     _sticky.dispose();
     _pinned.dispose();
     super.dispose();
+  }
+
+  void _syncCollapsed(String sessionId) {
+    if (_lastSessionId == sessionId) return;
+    _collapsed.clear();
+    _lastSessionId = sessionId;
+  }
+
+  void _onAction(SessionBlock block, BlockAction action) {
+    if (action.kind == BlockActionKind.rerun) {
+      return;
+    }
   }
 
   @override
@@ -75,6 +91,9 @@ class _BlocksBodyState extends State<BlocksBody> {
           );
         }
 
+        _syncCollapsed(cubit.sessionId);
+        const actionContext = BlockActionContext(mode: 'tui', canSend: true);
+
         return Stack(
           children: [
             Positioned.fill(
@@ -85,6 +104,12 @@ class _BlocksBodyState extends State<BlocksBody> {
                 header: _olderControl(context, cubit),
                 sticky: _sticky,
                 pinnedListenable: _pinned,
+                actionContext: actionContext,
+                onAction: _onAction,
+                collapsedIds: _collapsed,
+                onToggleCollapse: (id) => setState(() {
+                  if (!_collapsed.add(id)) _collapsed.remove(id);
+                }),
               ),
             ),
             Positioned(

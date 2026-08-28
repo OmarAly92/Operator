@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
@@ -15,6 +16,10 @@ class BlockList extends StatefulWidget {
     this.header,
     this.sticky,
     this.actionsBuilder,
+    this.actionContext,
+    this.onAction,
+    this.collapsedIds = const {},
+    this.onToggleCollapse,
     this.pinnedListenable,
     this.onRollbackTurn,
     this.canRollbackTurn,
@@ -28,6 +33,10 @@ class BlockList extends StatefulWidget {
   final void Function(String turnId)? onRollbackTurn;
   final bool Function(TurnGroup group)? canRollbackTurn;
   final Widget? Function(SessionBlock block)? actionsBuilder;
+  final BlockActionContext? actionContext;
+  final void Function(SessionBlock block, BlockAction action)? onAction;
+  final Set<String> collapsedIds;
+  final void Function(String blockId)? onToggleCollapse;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -304,17 +313,32 @@ class BlockListState extends State<BlockList> {
     );
   }
 
-  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) => Column(
-    key: ValueKey(block.id),
-    children: [
-      BlockCard(block: block, actionsBuilder: widget.actionsBuilder),
-      if (group != null)
-        TurnGroupStatus(
-          group: group,
-          onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) {
+    final ctx = widget.actionContext;
+    final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
+    return Column(
+      key: ValueKey(block.id),
+      children: [
+        BlockCard(
+          block: block,
+          actionsBuilder: widget.actionsBuilder,
+          actions: actions,
+          onAction: widget.onAction == null
               ? null
-              : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+              : (action) => widget.onAction!(block, action),
+          collapsed: widget.collapsedIds.contains(block.id),
+          onToggleCollapse: widget.onToggleCollapse == null
+              ? null
+              : () => widget.onToggleCollapse!(block.id),
         ),
-    ],
-  );
+        if (group != null)
+          TurnGroupStatus(
+            group: group,
+            onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+                ? null
+                : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+          ),
+      ],
+    );
+  }
 }
