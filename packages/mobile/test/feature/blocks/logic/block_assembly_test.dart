@@ -37,13 +37,22 @@ void main() {
       final open = assembleBlocks([_event(1, 'prompt_submit', text: 'go')]);
       expect(open.single.status, BlockStatus.running);
 
-      final closed = assembleBlocks([
-        _event(1, 'prompt_submit', text: 'go'),
-        _event(2, 'stop', text: 'done'),
-      ]);
+      final closed = assembleBlocks([_event(1, 'prompt_submit', text: 'go'), _event(2, 'stop', text: 'done')]);
       expect(closed.first.status, BlockStatus.ok);
       expect(closed.last.kind, BlockKind.assistant);
       expect(closed.last.body, 'done');
+    });
+
+    test('hook blocks keep their fields while gaining null turn ids and unknown details', () {
+      final block = assembleBlocks([_event(1, 'tool_complete', toolName: 'Bash', text: 'ok')]).single;
+
+      expect(block.id, 'seq-1');
+      expect(block.kind, BlockKind.tool);
+      expect(block.status, BlockStatus.ok);
+      expect(block.title, 'Bash');
+      expect(block.body, 'ok');
+      expect(block.turnId, isNull);
+      expect(block.detail, const UnknownBlockDetail(raw: 'ok'));
     });
 
     test('stop_failure fails the open prompt and its assistant block', () {
@@ -57,10 +66,7 @@ void main() {
     });
 
     test('a stop with no text resolves the prompt without adding a block', () {
-      final blocks = assembleBlocks([
-        _event(1, 'prompt_submit', text: 'go'),
-        _event(2, 'stop'),
-      ]);
+      final blocks = assembleBlocks([_event(1, 'prompt_submit', text: 'go'), _event(2, 'stop')]);
 
       expect(blocks, hasLength(1));
       expect(blocks.single.status, BlockStatus.ok);
@@ -139,9 +145,7 @@ void main() {
     });
 
     test('an unknown kind degrades to a notice titled by its raw event', () {
-      final blocks = assembleBlocks([
-        _event(1, 'unknown', rawEvent: 'future-hook', text: 'body'),
-      ]);
+      final blocks = assembleBlocks([_event(1, 'unknown', rawEvent: 'future-hook', text: 'body')]);
 
       expect(blocks.single.kind, BlockKind.notice);
       expect(blocks.single.title, 'future-hook');
@@ -230,10 +234,7 @@ void main() {
     });
 
     test('a tool block with only a result omits the blank separator', () {
-      expect(
-        assembleBlocks([_event(1, 'tool_complete', toolName: 'Bash', text: 'a.txt')]).single.body,
-        'a.txt',
-      );
+      expect(assembleBlocks([_event(1, 'tool_complete', toolName: 'Bash', text: 'a.txt')]).single.body, 'a.txt');
     });
 
     test('a permission block names the tool and its input', () {

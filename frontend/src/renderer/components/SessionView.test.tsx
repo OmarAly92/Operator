@@ -132,18 +132,13 @@ const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hois
 // the split under test. (ShellTopbar is shell-owned on Win/Linux; when the
 // platform hides the shell topbar, SessionView mounts it in-panel.)
 vi.mock("./ShellTopbar", () => ({ ShellTopbar: () => null }));
-vi.mock("./chat/SessionChatSurface", () => ({
-	SessionChatSurface: ({ onOpenShell, headerActions }: { onOpenShell?: () => void; headerActions?: ReactNode }) => (
-		<div data-testid="chat-surface">
-			chat surface
+vi.mock("./CenterPane", () => ({
+	SessionBlocksPane: ({ headerActions }: { headerActions?: ReactNode }) => (
+		<div data-testid="blocks-pane">
+			blocks pane
 			{headerActions}
-			<button type="button" onClick={onOpenShell}>
-				open shell from chat
-			</button>
 		</div>
 	),
-}));
-vi.mock("./CenterPane", () => ({
 	CenterPane: ({
 		session,
 		shellTerminals = [],
@@ -482,14 +477,14 @@ describe("SessionView", () => {
 		];
 
 		render(<SessionView sessionId="sess-1" />);
-		expect(screen.getByTestId("chat-surface")).toBeInTheDocument();
+		expect(screen.getByTestId("blocks-pane")).toBeInTheDocument();
 
 		act(() => useUiStore.getState().setActiveShellTerminal("chat-shell"));
 		expect(screen.getByText("terminal center")).toBeInTheDocument();
-		expect(screen.queryByTestId("chat-surface")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("blocks-pane")).not.toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-		expect(screen.getByTestId("chat-surface")).toBeInTheDocument();
+		expect(screen.getByTestId("blocks-pane")).toBeInTheDocument();
 	});
 
 	// The strip only ever shows the session on screen — pinning another session's
@@ -528,14 +523,7 @@ describe("SessionView", () => {
 		});
 
 		render(<SessionView sessionId="sess-1" />);
-		expect(screen.getByText("chat surface")).toBeInTheDocument();
-
-		fireEvent.click(screen.getByRole("button", { name: "open shell from chat" }));
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
-		expect(screen.getByTestId("shell-tabs")).toHaveTextContent("chat shell");
-
-		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-		expect(screen.getByText("chat surface")).toBeInTheDocument();
+		expect(screen.getByText("blocks pane")).toBeInTheDocument();
 	});
 
 	it.each([

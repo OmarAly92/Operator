@@ -1,60 +1,63 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { BlockKind, SessionBlock } from "../../lib/session-block";
+import { blockDisplay, type BlockKind, type SessionBlock } from "../../lib/session-block";
 import { BlockStatusDot } from "./BlockStatusDot";
 import type { MessageKey } from "../../i18n/messages";
 
 const KIND_KEY: Record<BlockKind, MessageKey> = {
 	prompt: "blocks.kind.prompt",
 	assistant: "blocks.kind.assistant",
+	reasoning: "blocks.kind.assistant",
 	tool: "blocks.kind.tool",
+	todo: "blocks.kind.tool",
+	compaction: "blocks.kind.notice",
 	permission: "blocks.kind.permission",
 	notice: "blocks.kind.notice",
 };
 
-function blockTitleKey(block: SessionBlock) {
-	switch (block.kind) {
-		case "prompt":
-			return "blocks.title.prompt" as const;
-		case "assistant":
-			return "blocks.title.assistant" as const;
-		case "permission":
-			return "blocks.title.permissionRequested" as const;
-		case "tool":
-			return block.title === "Tool" ? ("blocks.title.tool" as const) : undefined;
-		case "notice":
-			if (block.status === "blocked") return "blocks.title.waitingOnYou" as const;
-			if (block.title === "Session started") return "blocks.title.sessionStarted" as const;
-			if (block.title === "Event") return "blocks.title.event" as const;
-			return undefined;
-	}
-}
-
 export function BlockCardHeader({ block }: { block: SessionBlock }) {
 	const { t } = useTranslation();
-	const titleKey = blockTitleKey(block);
+	const display = blockDisplay(block);
 
 	return (
 		<div className="flex items-center gap-2 border-border border-b px-3 py-2">
 			<BlockStatusDot status={block.status} />
 			<span className="flex-1 truncate font-medium text-foreground text-xs">
-				{titleKey ? t(titleKey) : block.title}
+				{display.displayName}
 			</span>
 			<span className="text-[10px] text-muted-foreground">{t(KIND_KEY[block.kind])}</span>
 		</div>
 	);
 }
 
-export const BlockCard = memo(function BlockCard({ block }: { block: SessionBlock }) {
+export const BlockCard = memo(function BlockCard({
+	block,
+	renderActions,
+}: {
+	block: SessionBlock;
+	renderActions?: (block: SessionBlock) => ReactNode;
+}) {
 	const { t } = useTranslation();
+	const display = blockDisplay(block);
+	const actions = renderActions?.(block);
 
 	return (
 		<div className="mx-3 my-1 rounded-md border border-border bg-card" data-testid="session-block">
 			<BlockCardHeader block={block} />
-			{block.body === "" ? null : (
+			{display.summary === "" ? null : (
 				<p className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-muted-foreground text-xs">
-					{block.body}
+					{display.summary}
 				</p>
+			)}
+			{block.children !== undefined && block.children.length > 0 ? (
+				<div className="border-border border-t px-3 py-2 pl-4" data-testid="session-block-children">
+					{block.children.map((child) => (
+						<BlockCard block={child} key={child.id} renderActions={renderActions} />
+					))}
+				</div>
+			) : null}
+			{display.errorText === undefined ? null : (
+				<p className="px-3 pb-1.5 text-[10px] text-destructive">{display.errorText}</p>
 			)}
 			{block.redacted ? (
 				<p className="px-3 pb-1.5 text-[10px] text-warning">{t("blocks.redacted")}</p>
@@ -64,6 +67,11 @@ export const BlockCard = memo(function BlockCard({ block }: { block: SessionBloc
 					{t("blocks.truncated", { count: block.truncatedLines })}
 				</p>
 			) : null}
+			{actions === undefined || actions === null || actions === false ? null : (
+				<div className="flex gap-2 border-border border-t px-3 py-2" data-testid="block-actions">
+					{actions}
+				</div>
+			)}
 		</div>
 	);
 });

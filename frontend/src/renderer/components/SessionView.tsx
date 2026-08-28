@@ -4,8 +4,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
 import type { components } from "../../api/schema";
-import { CenterPane } from "./CenterPane";
-import { SessionChatSurface } from "./chat/SessionChatSurface";
+import { CenterPane, SessionBlocksPane } from "./CenterPane";
 import { SessionFilesView } from "./SessionFilesView";
 import { SessionInspector } from "./SessionInspector";
 import {
@@ -273,10 +272,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	// Orchestrators get the full workspace width; only workers need the inspector rail.
 	const hasInspector = Boolean(session && !isOrchestrator);
 	const activeInterfaceTransition = interfaceTransitionIsActive(interfaceSwitch.transition);
-	const chatControllerTransitioning = Boolean(
-		interfaceSwitch.transition?.targetMode === "chat" &&
-			(activeInterfaceTransition || interfaceSwitch.settling),
-	);
 	const interfaceTarget =
 		(activeInterfaceTransition ? interfaceSwitch.transition?.targetMode : interfaceSwitch.status?.targetMode) ??
 		(session?.mode === "chat" ? "tui" : "chat");
@@ -505,16 +500,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 						{/* The committed mode owns the agent surface. Auxiliary shell and
 						    reviewer targets remain terminal surfaces in either mode. */}
 						{showChatSurface ? (
-							<SessionChatSurface
-								session={session}
-								headerActions={sessionHeaderActions}
-								controllerTransitioning={chatControllerTransitioning}
-								onOpenShell={addShellTerminal}
-								openingShell={openShellTerminal.isPending}
-								shellError={
-									openShellTerminal.error ? apiErrorMessage(openShellTerminal.error) : undefined
-								}
-							/>
+							<SessionBlocksPane session={session} headerActions={sessionHeaderActions} />
 						) : (
 							<CenterPane
 								agentInputDisabled={

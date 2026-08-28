@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_group_status.dart';
 
 class BlockList extends StatefulWidget {
   const BlockList({
@@ -12,7 +14,10 @@ class BlockList extends StatefulWidget {
     required this.blocks,
     this.header,
     this.sticky,
+    this.actionsBuilder,
     this.pinnedListenable,
+    this.onRollbackTurn,
+    this.canRollbackTurn,
   });
 
   final String sessionId;
@@ -20,6 +25,9 @@ class BlockList extends StatefulWidget {
   final Widget? header;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinnedListenable;
+  final void Function(String turnId)? onRollbackTurn;
+  final bool Function(TurnGroup group)? canRollbackTurn;
+  final Widget? Function(SessionBlock block)? actionsBuilder;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -253,6 +261,10 @@ class BlockListState extends State<BlockList> {
       if (mounted) _updateSticky();
     });
     final blocks = widget.blocks;
+    final groupEndingByBlockId = <String, TurnGroup>{
+      for (final group in groupBlocksByTurn(blocks))
+        group.blocks.last.id: group,
+    };
     final pivot = BlockViewport.pivotIndex(blocks, _pivotSeq);
     final header = widget.header;
 
@@ -269,7 +281,10 @@ class BlockListState extends State<BlockList> {
             itemCount: pivot,
             itemBuilder: (context, index) {
               final block = blocks[pivot - 1 - index];
-              return BlockCard(key: ValueKey(block.id), block: block);
+              return _blockWithGroupStatus(
+                block,
+                groupEndingByBlockId[block.id],
+              );
             },
           ),
           SliverList.builder(
@@ -277,7 +292,10 @@ class BlockListState extends State<BlockList> {
             itemCount: blocks.length - pivot,
             itemBuilder: (context, index) {
               final block = blocks[pivot + index];
-              return BlockCard(key: ValueKey(block.id), block: block);
+              return _blockWithGroupStatus(
+                block,
+                groupEndingByBlockId[block.id],
+              );
             },
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 6)),
@@ -285,4 +303,18 @@ class BlockListState extends State<BlockList> {
       ),
     );
   }
+
+  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) => Column(
+    key: ValueKey(block.id),
+    children: [
+      BlockCard(block: block, actionsBuilder: widget.actionsBuilder),
+      if (group != null)
+        TurnGroupStatus(
+          group: group,
+          onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+              ? null
+              : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+        ),
+    ],
+  );
 }

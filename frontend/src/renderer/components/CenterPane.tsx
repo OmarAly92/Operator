@@ -1,6 +1,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, Plus, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { defaultShortcutBindings, shortcutBindingLabel } from "../../shared/shortcuts";
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import {
@@ -20,16 +21,38 @@ import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
 import { useUiStore, type SessionViewMode, type Theme } from "../stores/ui-store";
 import type { TerminalTarget } from "../types/terminal";
+import {
+	brokenMcpServers,
+	can as snapshotCan,
+	type ChatSkill,
+	type ConversationActivity,
+} from "../types/conversation";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalPane, useTerminalCacheController } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
-import { BlockComposer } from "./blocks/BlockComposer";
+import { BlockComposer, type BlockComposerSend } from "./blocks/BlockComposer";
 import { BlocksView } from "./blocks/BlocksView";
 import { useSessionBlocks } from "../hooks/useSessionBlocks";
+import {
+	useConversation,
+	useConversationCommands,
+	useConversationConfigOptions,
+	useConversationModels,
+	useConversationSkills,
+	useStageAttachments,
+	useWorkspaceFilePaths,
+} from "../hooks/useConversation";
+import { ElicitationCard } from "./chat/ElicitationCard";
+import { McpServerBanner, ReauthBanner, ThreadStateBanner } from "./chat/ChatStatusBanners";
+import { TurnSettingsBar } from "./chat/TurnSettingsBar";
+import { blocksFromConversation } from "../lib/conversation-blocks";
+import type { SessionBlock } from "../lib/session-block";
 import { blocksCoverHarness } from "../lib/session-block";
+import type { TurnGroup } from "../lib/block-turns";
+import { MAX_SUGGESTIONS, rankFiles, rankSkills, type Suggestion } from "./chat/composerSuggest";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -666,14 +689,40 @@ export function defaultSessionViewMode(session: WorkspaceSession | undefined): S
 	return blocksCoverHarness(session.provider) ? "blocks" : "raw";
 }
 
-function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined }) {
+export function SessionBlocksPane({ session, headerActions }: { session: WorkspaceSession | undefined; headerActions?: ReactNode }) {
 	const sessionId = session?.id ?? "";
 	const harness = session?.provider;
+	const isChat = session?.mode === "chat";
+
+	if (isChat) {
+		return (
+			<div className="flex h-full min-h-0 flex-col">
+				{headerActions}
+				<ChatSessionBlocksPane sessionId={sessionId} />
+			</div>
+		);
+	}
+
+	return (
+		<TuiSessionBlocksPane harness={harness} session={session} sessionId={sessionId} />
+	);
+}
+
+function TuiSessionBlocksPane({
+	harness,
+	session,
+	sessionId,
+}: {
+	harness: string | undefined;
+	session: WorkspaceSession | undefined;
+	sessionId: string;
+}) {
 	const blocks = useSessionBlocks(sessionId, {
 		enabled: sessionId !== "",
 		harness,
 		sessionEnded: session?.isTerminated === true || session?.activity?.state === "exited",
 	});
+	const send = useTuiSend(sessionId);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -691,7 +740,245 @@ function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined 
 					supported={blocksCoverHarness(harness)}
 				/>
 			</div>
-			{sessionId === "" ? null : <BlockComposer sessionId={sessionId} />}
+			{sessionId === "" ? null : <BlockComposer send={send} sessionId={sessionId} />}
 		</div>
+	);
+}
+
+function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
+	const conversation = useConversation(sessionId);
+	const commands = useConversationCommands(sessionId);
+	const blocks = conversation.snapshot ? blocksFromConversation(conversation.snapshot) : [];
+	const supported = conversation.unavailable === undefined;
+	const send = useChatSend(commands);
+	const stageAttachments = useStageAttachments(sessionId);
+	const skillsQuery = useConversationSkills(sessionId, supported);
+	const filePathsQuery = useWorkspaceFilePaths(sessionId, supported);
+	const modelsQuery = useConversationModels(sessionId, supported);
+	const configOptionsQuery = useConversationConfigOptions(sessionId, supported);
+	const { t } = useTranslation();
+
+	const activitiesById = useMemo(() => {
+		const map = new Map<string, ConversationActivity>();
+		if (conversation.snapshot === undefined) return map;
+		for (const item of conversation.snapshot.items) {
+			if (item.kind !== "activity") continue;
+			if (item.activityKind === "approval" || item.activityKind === "user_input") {
+				map.set(item.id, item);
+			}
+		}
+		return map;
+	}, [conversation.snapshot]);
+
+	const handleAttach = useCallback(
+		async (files: File[]) => {
+			if (files.length === 0) return;
+			const dataUris = await Promise.all(
+				files.map(
+					(file) =>
+						new Promise<{ mimeType: string; data: string }>((resolve, reject) => {
+							const reader = new FileReader();
+							reader.onload = () => {
+								const result = reader.result;
+								if (typeof result !== "string") {
+									reject(new Error("Could not read attachment"));
+									return;
+															}
+								resolve({ mimeType: file.type, data: result });
+							};
+							reader.onerror = () => reject(new Error("Could not read attachment"));
+							reader.readAsDataURL(file);
+						}),
+				),
+			);
+			await stageAttachments(dataUris);
+		},
+		[stageAttachments],
+	);
+
+	const canApprove =
+		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "approvals");
+	const canElicit = conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "elicitation");
+	const canSteerCapability =
+		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "steer");
+	const canRollbackCapability =
+		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "rollback");
+	const activeTurnId =
+		conversation.snapshot?.turns.find((t) => t.state === "running")?.id ??
+		conversation.snapshot?.turns.find((t) => t.state === "queued")?.id;
+	const hasInFlightTurn = activeTurnId !== undefined;
+
+	// Decision ids are the provider's, carried on the activity. Synthesizing one
+	// here would resolve an approval with an option the provider never offered.
+	const renderBlockActions = useCallback(
+		(block: SessionBlock) => {
+			if (block.kind !== "permission" || block.status !== "blocked") return null;
+			const activity = activitiesById.get(block.id);
+			if (activity === undefined) return null;
+			const requestId = activity.requestId;
+			if (requestId === undefined || requestId === "") return null;
+
+			if (activity.activityKind === "user_input") {
+				if (!canElicit) return null;
+				return (
+					<ElicitationCard
+						activity={activity}
+						onResolve={(id, action, content) => commands.resolveInput(id, action, content)}
+					/>
+				);
+			}
+
+			if (!canApprove) return null;
+			const decisions = activity.decisions ?? [];
+			if (decisions.length === 0) {
+				return (
+					<p className="text-[10px] text-muted-foreground">{t("blocks.noDecisions")}</p>
+				);
+			}
+			return decisions.map((decision, index) => (
+				<Button
+					aria-label={decision.label}
+					data-testid={`block-decision-${decision.id}`}
+					key={decision.id}
+					onClick={() => commands.resolve(requestId, decision.id)}
+					size="sm"
+					variant={index === 0 ? "primary" : "outline"}
+				>
+					{decision.label}
+				</Button>
+			));
+		},
+		[activitiesById, canApprove, canElicit, commands, t],
+	);
+
+	const handleRollbackTurn = useCallback(
+		(turnId: string) => {
+			if (conversation.snapshot === undefined) return;
+			if (!snapshotCan(conversation.snapshot, "rollback")) return;
+			const turn = conversation.snapshot.turns.find((t) => t.id === turnId);
+			if (turn === undefined) return;
+			if (turn.state === "running" || turn.state === "queued") return;
+			if (turn.rolledBack === true) return;
+			if (!(turn.providerTurnId && turn.providerTurnId !== "")) return;
+			void commands.rollback(turnId);
+		},
+		[commands, conversation.snapshot],
+	);
+
+	const canRollbackTurnPredicate = useCallback(
+		(group: TurnGroup) => {
+			if (conversation.snapshot === undefined) return false;
+			if (group.turnId === undefined) return false;
+			if (!snapshotCan(conversation.snapshot, "rollback")) return false;
+			if (hasInFlightTurn) return false;
+			const turn = conversation.snapshot.turns.find((t) => t.id === group.turnId);
+			if (turn === undefined) return false;
+			if (turn.state === "running" || turn.state === "queued") return false;
+			if (turn.rolledBack === true) return false;
+			if (!(turn.providerTurnId && turn.providerTurnId !== "")) return false;
+			return true;
+		},
+		[conversation.snapshot, hasInFlightTurn],
+	);
+
+	const snapshot = conversation.snapshot;
+
+	return (
+		<div className="flex h-full min-h-0 flex-col">
+			{snapshot?.account ? (
+				<ReauthBanner account={snapshot.account} harness={snapshot.harness} />
+			) : null}
+			{snapshot?.threadState ? <ThreadStateBanner threadState={snapshot.threadState} /> : null}
+			{snapshot === undefined ? null : (
+				<McpServerBanner
+					error={commands.mcpReloadError}
+					onReload={
+						snapshotCan(snapshot, "mcp_reload") ? () => commands.reloadMcpServers() : undefined
+					}
+					servers={brokenMcpServers(snapshot)}
+					turnInFlight={hasInFlightTurn}
+				/>
+			)}
+			<div className="min-h-0 flex-1">
+				<BlocksView
+					blocks={blocks}
+					canRollbackTurn={canRollbackTurnPredicate}
+					error={conversation.error}
+					hasOlder={conversation.hasOlder}
+					isLoading={conversation.isLoading}
+					isLoadingOlder={conversation.isLoadingOlder}
+					onLoadOlder={conversation.loadOlder}
+					onRetry={conversation.refetch}
+					onRollbackTurn={canRollbackCapability ? handleRollbackTurn : undefined}
+					renderActions={renderBlockActions}
+					sessionId={sessionId}
+					supported={supported}
+					unavailable={conversation.unavailable}
+				/>
+			</div>
+			{snapshot === undefined ? null : (
+				<TurnSettingsBar
+					configOptions={configOptionsQuery.options}
+					disabled={snapshot.controller.state === "stopped"}
+					models={modelsQuery.models}
+					onChange={(next) => commands.chooseSettings(next)}
+					configPending={configOptionsQuery.pending}
+					error={configOptionsQuery.error}
+					onChangeConfigOption={(id, value) => configOptionsQuery.setOption(id, value)}
+					reroute={snapshot.modelReroute}
+					settings={snapshot.settings}
+				/>
+			)}
+			{sessionId === "" ? null : (
+				<BlockComposer
+					canSteer={canSteerCapability && hasInFlightTurn}
+					onAttach={handleAttach}
+					onSteer={canSteerCapability ? (text) => commands.steer(text) : undefined}
+					send={send}
+					sessionId={sessionId}
+					suggestions={buildComposerSuggestions(
+						skillsQuery.skills,
+						filePathsQuery.paths,
+					)}
+				/>
+			)}
+		</div>
+	);
+}
+
+function useChatSend(
+	commands: ReturnType<typeof useConversationCommands>,
+): BlockComposerSend {
+	return useCallback(
+		async (input: { text: string }) => {
+			await commands.send(input);
+		},
+		[commands],
+	);
+}
+
+function buildComposerSuggestions(
+	skills: ChatSkill[],
+	filePaths: string[],
+): { trigger: string; query: string; items: Suggestion[] } | undefined {
+	if (skills.length === 0 && filePaths.length === 0) return undefined;
+	return {
+		trigger: "/",
+		query: "",
+		items: [...rankSkills(skills, ""), ...rankFiles(filePaths, "")].slice(0, MAX_SUGGESTIONS),
+	};
+}
+
+function useTuiSend(sessionId: string): BlockComposerSend {
+	const { t } = useTranslation();
+	return useCallback(
+		async (input: { text: string }) => {
+			const { error: failure } = await apiClient.POST("/api/v1/sessions/{sessionId}/send", {
+				params: { path: { sessionId } },
+				body: { message: input.text },
+			});
+			if (failure) throw new Error(apiErrorMessage(failure, t("blocks.sendError")));
+		},
+		[sessionId, t],
 	);
 }

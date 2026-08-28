@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ChevronDown, ChevronUp } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	BLOCK_OVERSCAN,
@@ -11,11 +11,24 @@ import {
 	previousTarget,
 	topItemFor,
 } from "../../lib/block-viewport";
+import { groupBlocksByTurn, type TurnGroup } from "../../lib/block-turns";
 import type { SessionBlock } from "../../lib/session-block";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
 import { Button } from "../ui/button";
 
-export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessionId: string }) {
+export function BlockList({
+	blocks,
+	sessionId,
+	renderActions,
+	onRollbackTurn,
+	canRollbackTurn,
+}: {
+	blocks: SessionBlock[];
+	sessionId: string;
+	renderActions?: (block: SessionBlock) => ReactNode;
+	onRollbackTurn?: (turnId: string) => void;
+	canRollbackTurn?: (group: TurnGroup) => boolean;
+}) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const pinnedRef = useRef(true);
@@ -31,6 +44,11 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 		followOnAppend: true,
 		overscan: BLOCK_OVERSCAN,
 	});
+	const groupEndingByBlockId = useMemo(() => {
+		const endings = new Map<string, TurnGroup>();
+		for (const group of groupBlocksByTurn(blocks)) endings.set(group.blocks.at(-1)!.id, group);
+		return endings;
+	}, [blocks]);
 
 	const sync = useCallback(() => {
 		const node = scrollRef.current;
@@ -106,6 +124,7 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 					{items.map((row) => {
 						const item = blocks[row.index];
 						if (item === undefined) return null;
+						const group = groupEndingByBlockId.get(item.id);
 						return (
 							<div
 								data-block-id={item.id}
@@ -121,7 +140,18 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 									width: "100%",
 								}}
 							>
-								<BlockCard block={item} />
+								<BlockCard block={item} renderActions={renderActions} />
+								{group === undefined ? null : (
+									<TurnGroupStatus
+										canRollback={
+											canRollbackTurn !== undefined && onRollbackTurn !== undefined
+												? canRollbackTurn(group)
+												: false
+										}
+										group={group}
+										onRollback={onRollbackTurn}
+									/>
+								)}
 							</div>
 						);
 					})}
@@ -155,4 +185,62 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 			</div>
 		</div>
 	);
+}
+
+function TurnGroupStatus({
+	group,
+	canRollback,
+	onRollback,
+}: {
+	group: TurnGroup;
+	canRollback: boolean;
+	onRollback?: (turnId: string) => void;
+}) {
+	const { t } = useTranslation();
+	const [now, setNow] = useState(() => Date.now());
+
+	useEffect(() => {
+		if (!group.running) return undefined;
+		const timer = window.setInterval(() => setNow(Date.now()), 1000);
+		return () => window.clearInterval(timer);
+	}, [group.running]);
+
+	const durationMs = group.running ? elapsedSince(group.startedAt, now) : group.durationMs;
+	const turnId = group.turnId;
+	return (
+		<div className="mx-3 mb-3 flex items-center gap-2 text-[10px] text-muted-foreground" data-testid="turn-group-status">
+		<div className="h-px flex-1 bg-border" />
+		<span>{group.running ? "RUNNING" : "FINISHED"}{durationMs === undefined ? "" : ` · ${formatDuration(durationMs)}`}</span>
+		{canRollback && turnId !== undefined && onRollback !== undefined ? (
+			<>
+				<div className="h-px flex-1 bg-border" />
+				<Button
+					aria-label={t("blocks.rollback")}
+					data-testid="turn-rollback"
+					onClick={() => onRollback(turnId)}
+					size="sm"
+					variant="ghost"
+				>
+					{t("blocks.rollback")}
+				</Button>
+			</>
+		) : (
+			<div className="h-px flex-1 bg-border" />
+		)}
+		</div>
+	);
+}
+
+function elapsedSince(startedAt: string | undefined, now: number): number | undefined {
+	if (startedAt === undefined) return undefined;
+	const start = Date.parse(startedAt);
+	return Number.isNaN(start) ? undefined : Math.max(0, now - start);
+}
+
+function formatDuration(durationMs: number): string {
+	const seconds = Math.floor(durationMs / 1000);
+	if (seconds < 60) return `${seconds}s`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }

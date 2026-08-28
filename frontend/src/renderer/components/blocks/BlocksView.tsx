@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
+import type { TurnGroup } from "../../lib/block-turns";
 
 export type BlocksViewProps = {
 	blocks: SessionBlock[];
@@ -9,11 +11,15 @@ export type BlocksViewProps = {
 	isLoadingOlder: boolean;
 	hasOlder: boolean;
 	error?: string;
+	unavailable?: { code: string; message: string };
 	harness?: string;
 	sessionId: string;
 	supported: boolean;
 	onLoadOlder: () => void;
 	onRetry: () => void;
+	renderActions?: (block: SessionBlock) => ReactNode;
+	onRollbackTurn?: (turnId: string) => void;
+	canRollbackTurn?: (group: TurnGroup) => boolean;
 };
 
 export function BlocksView({
@@ -22,13 +28,26 @@ export function BlocksView({
 	isLoadingOlder,
 	hasOlder,
 	error,
+	unavailable,
 	harness,
 	sessionId,
 	supported,
 	onLoadOlder,
 	onRetry,
+	renderActions,
+	onRollbackTurn,
+	canRollbackTurn,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
+
+	if (unavailable !== undefined) {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
+				<p className="text-muted-foreground text-xs">{unavailable.message}</p>
+				<p className="text-muted-foreground/70 text-[10px] font-mono">{unavailable.code}</p>
+			</div>
+		);
+	}
 
 	if (!supported) {
 		return <Notice text={t("blocks.unavailable", { harness: harness ?? "" })} />;
@@ -61,7 +80,13 @@ export function BlocksView({
 				</div>
 			) : null}
 			<div className="min-h-0 flex-1">
-				<BlockList blocks={blocks} sessionId={sessionId} />
+				<BlockList
+					blocks={blocks}
+					canRollbackTurn={canRollbackTurn}
+					onRollbackTurn={onRollbackTurn}
+					renderActions={renderActions}
+					sessionId={sessionId}
+				/>
 			</div>
 		</div>
 	);

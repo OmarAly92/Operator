@@ -306,9 +306,10 @@ reduced to a source adapter.
 third of the directory is timeline rendering and retires; the rest is *interaction* —
 composer, elicitation, turn settings, context meter, branch navigation, status
 banners — which blocks do not replace and which deleting would remove as features.
-The rule is that the **timeline layer** retires, not the chat feature. Expect roughly
-12–14 desktop files including tests. Deleting a file to reach a number is a
-regression, not progress.
+The rule is that the **timeline layer** retires, not the chat feature. Plan 5 (the
+ACP adapter) retires about 19 desktop files in `components/chat/` (sources and tests
+combined) and 12 mobile widgets and their tests; the interaction surfaces and the
+data layer stay. Deleting a file to reach a number is a regression, not progress.
 
 **This reverses an earlier decision** in the superseded draft to keep terminal
 and chat models separate. That call assumed two screens. With one screen, one

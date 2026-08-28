@@ -1,0 +1,32 @@
+{
+  "details": [
+    {
+      "detail": {"type": "shell", "command": "git status --short", "output": " M src/app.ts", "exitCode": 0},
+      "display": {"displayName": "Shell", "summary": "git status --short\n\n M src/app.ts"}
+    },
+    {
+      "detail": {"type": "file_change", "files": [{"path": "src/app.ts", "oldPath": "src/old-app.ts", "status": "renamed", "additions": 12, "deletions": 3}], "truncated": true},
+      "display": {"displayName": "File change", "summary": "1 file changed"}
+    },
+    {
+      "detail": {"type": "plan", "steps": [{"text": "Inspect the code", "status": "completed"}, {"text": "Run tests", "status": "in_progress"}]},
+      "display": {"displayName": "Plan", "summary": "2 steps"}
+    },
+    {
+      "detail": {"type": "mcp_tool", "server": "github", "tool": "create_issue", "args": {"title": "Bug"}, "result": "created #42"},
+      "display": {"displayName": "github/create_issue", "summary": "created #42"}
+    },
+    {
+      "detail": {"type": "usage", "contextUsed": 12500, "contextWindow": 200000, "inputTokens": 12000, "outputTokens": 500},
+      "display": {"displayName": "Usage", "summary": "12500 / 200000 context"}
+    },
+    {
+      "detail": {"type": "compaction", "trigger": "auto", "preTokens": 198000},
+      "display": {"displayName": "Compaction", "summary": "auto at 198000 tokens"}
+    },
+    {
+      "detail": {"type": "unknown", "raw": {"activity": "future_provider_event", "value": 7}},
+      "display": {"displayName": "Tool", "summary": "{\"activity\":\"future_provider_event\",\"value\":7}"}
+    }
+  ]
+}

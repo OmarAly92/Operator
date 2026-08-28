@@ -80,6 +80,7 @@ export interface ConversationQueryResult {
 	hasOlder: boolean;
 	isLoadingOlder: boolean;
 	loadOlder: () => void;
+	refetch: () => void;
 }
 
 export function useConversation(sessionId: string | undefined): ConversationQueryResult {
@@ -122,6 +123,9 @@ export function useConversation(sessionId: string | undefined): ConversationQuer
 				hasOlder: false,
 				isLoadingOlder: false,
 				loadOlder: () => {},
+				refetch: () => {
+					void query.refetch();
+				},
 			};
 		}
 		return {
@@ -130,6 +134,9 @@ export function useConversation(sessionId: string | undefined): ConversationQuer
 			hasOlder: false,
 			isLoadingOlder: false,
 			loadOlder: () => {},
+			refetch: () => {
+				void query.refetch();
+			},
 		};
 	}
 
@@ -140,6 +147,9 @@ export function useConversation(sessionId: string | undefined): ConversationQuer
 		isLoadingOlder: query.isFetchingNextPage,
 		loadOlder: () => {
 			void query.fetchNextPage();
+		},
+		refetch: () => {
+			void query.refetch();
 		},
 	};
 }

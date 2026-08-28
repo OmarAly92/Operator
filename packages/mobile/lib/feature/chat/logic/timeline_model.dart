@@ -2,30 +2,16 @@ import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
+import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart'
+    show groupConversationByTurn;
+
+export 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart'
+    show ConversationGroup, groupConversationByTurn, readableConversationItems;
 
 final RegExp _fence = RegExp(r'```[\s\S]*?```');
 final RegExp _link = RegExp(r'\[([^\]]+)]\([^)]*\)');
 final RegExp _marks = RegExp(r'[*_`#>~]+');
 final RegExp _whitespaceRun = RegExp(r'\s+');
-
-class ConversationGroup extends Equatable {
-  const ConversationGroup({
-    required this.key,
-    required this.anchor,
-    required this.items,
-    this.turnId,
-    this.turn,
-  });
-
-  final String key;
-  final String? turnId;
-  final int anchor;
-  final List<ConversationItemModel> items;
-  final ConversationTurnModel? turn;
-
-  @override
-  List<Object?> get props => [key, turnId, anchor, items, turn];
-}
 
 class ConversationMarker extends Equatable {
   const ConversationMarker({
@@ -51,74 +37,6 @@ class ActivityNode {
 
   final ConversationActivityModel activity;
   final List<ActivityNode> children = [];
-}
-
-List<ConversationItemModel> readableConversationItems(
-  ConversationSnapshotModel snapshot,
-) {
-  final plannedTurns = snapshot.turns
-      .where((turn) => turn.hasPlan)
-      .map((turn) => turn.id)
-      .whereType<String>()
-      .toSet();
-  return snapshot.items.where((item) {
-    if (item is! ConversationActivityModel) return true;
-    if (item.activityKind == 'usage' || item.activityKind == 'reasoning') {
-      return false;
-    }
-    return !(item.activityKind == 'plan' &&
-        (item.turnId?.isNotEmpty ?? false) &&
-        plannedTurns.contains(item.turnId));
-  }).toList();
-}
-
-List<ConversationGroup> groupConversationByTurn(
-  ConversationSnapshotModel snapshot, [
-  List<ConversationItemModel>? items,
-]) {
-  final rows = items ?? readableConversationItems(snapshot);
-  final turns = {
-    for (final turn in snapshot.turns)
-      if (turn.id != null) turn.id!: turn,
-  };
-  final byTurn = <String, ConversationGroup>{};
-  final groups = <ConversationGroup>[];
-
-  for (final item in rows) {
-    final turnId = item.turnId;
-    if (turnId == null || turnId.isEmpty) {
-      final previous = groups.isEmpty ? null : groups.last;
-      if (previous != null && previous.turnId == null) {
-        previous.items.add(item);
-      } else {
-        groups.add(
-          ConversationGroup(
-            key: 'loose-${item.sequence ?? 0}',
-            anchor: item.sequence ?? 0,
-            items: [item],
-          ),
-        );
-      }
-      continue;
-    }
-
-    final existing = byTurn[turnId];
-    if (existing != null) {
-      existing.items.add(item);
-      continue;
-    }
-    final group = ConversationGroup(
-      key: 'turn-$turnId',
-      turnId: turnId,
-      anchor: item.sequence ?? 0,
-      items: [item],
-      turn: turns[turnId],
-    );
-    byTurn[turnId] = group;
-    groups.add(group);
-  }
-
-  return groups..sort((left, right) => left.anchor.compareTo(right.anchor));
 }
 
 List<ConversationMarker> conversationMarkers(

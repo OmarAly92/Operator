@@ -15,7 +15,6 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_meta_bar.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_settings_sheet.dart';
-import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_timeline.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/conversation_banners.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/conversation_map_sheet.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/conversation_menu_sheet.dart';
@@ -40,7 +39,6 @@ class ChatBody extends StatefulWidget {
 }
 
 class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
-  int? _jumpToSequence;
   bool _openingShell = false;
 
   @override
@@ -61,8 +59,6 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
       context.read<ChatCubit>().onResumed();
     }
   }
-
-  void jumpTo(int sequence) => setState(() => _jumpToSequence = sequence);
 
   void openSettings() {
     final cubit = context.read<ChatCubit>();
@@ -114,11 +110,10 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
 
     switch (result.action) {
       case ConversationMenuAction.map:
-        final sequence = await showConversationMapSheet(
+        await showConversationMapSheet(
           context,
           markers: conversationMarkers(snapshot),
         );
-        if (mounted && sequence != null) jumpTo(sequence);
       case ConversationMenuAction.pullRequests:
         final projectId = widget.projectId;
         if (projectId != null) {
@@ -358,25 +353,7 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
                         onPressed: () => cubit.retrySend(pending.id),
                         onSecondary: () => cubit.discardSend(pending.id),
                       ),
-                  Expanded(
-                    child: ChatTimeline(
-                      snapshot: snapshot,
-                      loadingOlder: cubit.loadingOlder,
-                      onLoadOlder: cubit.loadOlder,
-                      approvalPending: cubit.pendingActions.contains(
-                        ConversationAction.approval,
-                      ),
-                      inputPending: cubit.pendingActions.contains(
-                        ConversationAction.input,
-                      ),
-                      onDecide: cubit.resolveApproval,
-                      onResolveInput: cubit.resolveInput,
-                      onRollback: cubit.rollback,
-                      jumpToSequence: _jumpToSequence,
-                      onJumpHandled: () =>
-                          setState(() => _jumpToSequence = null),
-                    ),
-                  ),
+                  const Expanded(child: SizedBox.shrink()),
                   if (activeTurn != null)
                     LiveTurnBar(
                       snapshot: snapshot,

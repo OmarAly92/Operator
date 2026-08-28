@@ -646,4 +646,12 @@ describe("CenterPane blocks toggle", () => {
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: /Show blocks|Show raw terminal/ })).not.toBeInTheDocument();
 	});
+
+	it("does not render the Raw toggle for a chat-mode session", () => {
+		const chatWorker = { ...worker, mode: "chat" } satisfies WorkspaceSession;
+		renderCenterPane({ session: chatWorker });
+
+		expect(screen.queryByRole("button", { name: /Show blocks|Show raw terminal/ })).not.toBeInTheDocument();
+		expect(screen.getByText("terminal body")).toBeInTheDocument();
+	});
 });

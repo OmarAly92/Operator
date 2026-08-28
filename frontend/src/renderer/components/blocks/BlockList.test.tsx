@@ -98,6 +98,17 @@ describe("BlockList", () => {
 		expect(screen.getAllByText("Bash 3").length).toBeGreaterThan(0);
 	});
 
+	it("renders finished and running turn group status", async () => {
+		await mount([
+			{ ...block(1), kind: "prompt", createdAt: "2026-08-28T10:00:00Z" },
+			{ ...block(2), kind: "assistant", createdAt: "2026-08-28T10:00:05Z" },
+			{ ...block(3), kind: "prompt", status: "running", createdAt: "2026-08-28T10:01:00Z" },
+		]);
+
+		expect(screen.getByText("FINISHED · 5s")).toBeInTheDocument();
+		expect(screen.getByText(/^RUNNING/)).toBeInTheDocument();
+	});
+
 	it("mounts a small window of a long session", async () => {
 		await mount(range(1, 800, (seq) => 1 + (seq % 5)));
 

@@ -1,32 +1,31 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "../../lib/api-client";
-import { BlockComposer } from "./BlockComposer";
-
-const postMock = vi.spyOn(apiClient, "POST");
+import { BlockComposer, type BlockComposerSend } from "./BlockComposer";
 
 describe("BlockComposer", () => {
+	let sendMock: BlockComposerSend;
+
 	beforeEach(() => {
-		postMock.mockReset();
-		postMock.mockResolvedValue({ data: { ok: true, sessionId: "s-1", message: "sent" } } as never);
+		sendMock = vi.fn().mockResolvedValue(undefined);
 	});
 
-	it("sends the draft to the session send route", async () => {
-		render(<BlockComposer sessionId="s-1" />);
+	function renderComposer(props: { sessionId: string; send: BlockComposerSend }) {
+		return render(<BlockComposer {...props} />);
+	}
+
+	it("sends the draft to the provided send function", async () => {
+		renderComposer({ sessionId: "s-1", send: sendMock });
 
 		await userEvent.type(screen.getByLabelText("Message the agent"), "run the tests");
 		await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-		expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/send", {
-			params: { path: { sessionId: "s-1" } },
-			body: { message: "run the tests" },
-		});
+		await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
+		expect(sendMock).toHaveBeenCalledWith({ text: "run the tests" });
 	});
 
 	it("clears the draft once the message is accepted", async () => {
-		render(<BlockComposer sessionId="s-1" />);
+		renderComposer({ sessionId: "s-1", send: sendMock });
 		const field = screen.getByLabelText("Message the agent");
 
 		await userEvent.type(field, "hello");
@@ -36,25 +35,25 @@ describe("BlockComposer", () => {
 	});
 
 	it("submits on Enter without a separate click", async () => {
-		render(<BlockComposer sessionId="s-1" />);
+		renderComposer({ sessionId: "s-1", send: sendMock });
 
 		await userEvent.type(screen.getByLabelText("Message the agent"), "hi{Enter}");
 
-		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
 	});
 
 	it("refuses to send an empty or whitespace-only draft", async () => {
-		render(<BlockComposer sessionId="s-1" />);
+		renderComposer({ sessionId: "s-1", send: sendMock });
 
 		expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 		await userEvent.type(screen.getByLabelText("Message the agent"), "   ");
 		expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-		expect(postMock).not.toHaveBeenCalled();
+		expect(sendMock).not.toHaveBeenCalled();
 	});
 
 	it("keeps the draft and surfaces the failure when the send is rejected", async () => {
-		postMock.mockResolvedValue({ error: { message: "agent is not running" } } as never);
-		render(<BlockComposer sessionId="s-1" />);
+		sendMock = vi.fn().mockRejectedValueOnce(new Error("agent is not running"));
+		renderComposer({ sessionId: "s-1", send: sendMock });
 		const field = screen.getByLabelText("Message the agent");
 
 		await userEvent.type(field, "retry me");
@@ -62,5 +61,15 @@ describe("BlockComposer", () => {
 
 		await waitFor(() => expect(screen.getByText(/agent is not running/)).toBeInTheDocument());
 		expect(field).toHaveValue("retry me");
+	});
+
+	it("routes the trimmed text through the chat send function", async () => {
+		const chatSend: BlockComposerSend = vi.fn().mockResolvedValue(undefined);
+		renderComposer({ sessionId: "s-1", send: chatSend });
+
+		await userEvent.type(screen.getByLabelText("Message the agent"), "   ping the agent   ");
+		await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => expect(chatSend).toHaveBeenCalledWith({ text: "ping the agent" }));
 	});
 });

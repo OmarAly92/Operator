@@ -2,8 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ChatComposer } from "./ChatComposer";
-import { ChatWorkspace } from "./ChatWorkspace";
-import { chatFixture } from "../../lib/chat-fixture";
 
 // Steering sends guidance INTO the running turn instead of queueing behind it. The
 // thing these tests protect is that the choice is legible: Enter changing meaning
@@ -112,44 +110,5 @@ describe("ChatComposer steering", () => {
 		composer({ canSteer: false, willQueue: false });
 		expect(screen.queryByRole("button", { name: "Steer this turn" })).not.toBeInTheDocument();
 		expect(screen.getByText("Enter to send")).toBeInTheDocument();
-	});
-});
-
-describe("ChatWorkspace steering", () => {
-	it("offers steering only into a turn the provider is actually running", () => {
-		render(<ChatWorkspace snapshot={chatFixture} onSteer={vi.fn()} />);
-		// The live fixture is mid-turn.
-		expect(screen.getByRole("button", { name: "Steer this turn" })).toBeInTheDocument();
-	});
-
-	it("does not offer steering on a settled conversation", () => {
-		render(
-			<ChatWorkspace
-				snapshot={{ ...chatFixture, turns: chatFixture.turns.map((t) => ({ ...t, state: "completed" as const })) }}
-				onSteer={vi.fn()}
-			/>,
-		);
-		expect(screen.queryByRole("button", { name: "Steer this turn" })).not.toBeInTheDocument();
-	});
-
-	// A queued turn has not reached the provider, so there is nothing to steer.
-	it("does not offer steering into a turn that is only queued", () => {
-		render(
-			<ChatWorkspace
-				snapshot={{
-					...chatFixture,
-					turns: chatFixture.turns.map((t) =>
-						t.state === "running" ? { ...t, state: "queued" as const } : t,
-					),
-				}}
-				onSteer={vi.fn()}
-			/>,
-		);
-		expect(screen.queryByRole("button", { name: "Steer this turn" })).not.toBeInTheDocument();
-	});
-
-	it("renders a landed steer as the user's own words", () => {
-		render(<ChatWorkspace snapshot={chatFixture} />);
-		expect(screen.getByText(/Steered into the running turn/)).toBeInTheDocument();
 	});
 });

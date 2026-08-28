@@ -141,6 +141,8 @@ function create(
 		truncatedLines: event.truncatedLines ?? 0,
 		redacted: isRedacted(event),
 		createdAt: event.createdAt,
+		turnId: undefined,
+		detail: { type: "unknown", raw: event.toolInput ?? event.text ?? "" },
 	};
 }
 

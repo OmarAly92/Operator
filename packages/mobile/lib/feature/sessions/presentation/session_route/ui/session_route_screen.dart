@@ -5,8 +5,10 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
-import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
+import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -91,11 +93,17 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
         final session = _lookup(context.read<SessionsCubit>());
 
         if (session?.mode == 'chat') {
-          return ChatScreen(
-            sessionId: session!.id,
-            title: session.title,
-            projectId: session.projectId,
-            previewUrl: session.previewUrl,
+          final chatSession = session!;
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider<ConversationBlocksCubit>(
+                create: (_) => sl<ConversationBlocksCubit>(param1: chatSession.id),
+              ),
+            ],
+            child: ChatBlocksBody(
+              repository: sl<ChatRepository>(),
+              sessionId: chatSession.id,
+            ),
           );
         }
 

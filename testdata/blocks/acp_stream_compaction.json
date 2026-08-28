@@ -1,0 +1,26 @@
+{
+  "snapshot": {
+    "conversationId": "c-3",
+    "sessionId": "s-3",
+    "harness": "claude-code",
+    "mode": "chat",
+    "controller": { "state": "ready" },
+    "turns": [],
+    "items": [
+      { "kind": "message", "id": "m-1", "turnId": "t-1", "sequence": 1, "revision": 0, "role": "user", "origin": "human", "text": "summarize the work", "streaming": false, "createdAt": "2026-08-28T09:00:00Z" },
+      { "kind": "activity", "id": "a-1", "turnId": "t-1", "sequence": 2, "revision": 0, "activityKind": "command", "status": "completed", "summary": "git log", "detail": { "command": "git log --oneline", "output": "42 commits", "exitCode": 0 }, "createdAt": "2026-08-28T09:00:01Z" },
+      { "kind": "message", "id": "m-2", "turnId": "t-2", "sequence": 3, "revision": 0, "role": "assistant", "origin": "provider", "text": "summary after compaction", "streaming": false, "createdAt": "2026-08-28T10:00:00Z" }
+    ],
+    "latestSequence": 3,
+    "oldestSequence": 1,
+    "hasMoreBefore": false,
+    "settings": {},
+    "compactedAt": "2026-08-28T09:30:00Z"
+  },
+  "expected": [
+    { "id": "m-1", "kind": "prompt", "status": "ok", "turnId": "t-1", "title": "Prompt", "body": "summarize the work", "firstSeq": 1, "lastSeq": 1, "truncatedLines": 0, "redacted": false },
+    { "id": "a-1", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "Shell", "body": "42 commits", "firstSeq": 2, "lastSeq": 2, "truncatedLines": 0, "redacted": false, "detail": { "type": "shell", "command": "git log --oneline", "output": "42 commits", "exitCode": 0 } },
+    { "id": "compaction-1", "kind": "compaction", "status": "ok", "title": "Compaction", "body": "", "firstSeq": 3, "lastSeq": 3, "truncatedLines": 0, "redacted": false, "detail": { "type": "compaction", "trigger": "auto" } },
+    { "id": "m-2", "kind": "assistant", "status": "ok", "turnId": "t-2", "title": "Assistant", "body": "summary after compaction", "firstSeq": 4, "lastSeq": 4, "truncatedLines": 0, "redacted": false }
+  ]
+}

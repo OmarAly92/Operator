@@ -73,6 +73,20 @@ describe("BlocksView", () => {
 		expect(screen.getAllByText("Bash").length).toBeGreaterThan(0);
 	});
 
+	it("uses the detail display name for a tool header", async () => {
+		renderView({
+			blocks: [
+				block({
+					title: "Tool",
+					detail: { type: "shell", command: "pwd", output: "/tmp", exitCode: 0 },
+				}),
+			],
+		});
+		await act(async () => {});
+
+		expect(screen.getAllByText("Shell")).toHaveLength(2);
+	});
+
 	it("wraps a long body instead of clipping it to one line", async () => {
 		const long = Array.from({ length: 40 }, () => "wrapping").join(" ");
 		renderView({ blocks: [block({ body: long })] });
@@ -183,5 +197,16 @@ describe("BlocksView", () => {
 		expect(screen.getByText(/offline/)).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: /retry/i }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("renders the unavailable reason as a non-error notice without a retry button", () => {
+		renderView({
+			unavailable: { code: "SESSION_MODE_MISMATCH", message: "This session is a terminal session." },
+		});
+
+		expect(screen.getByText(/This session is a terminal session\./)).toBeInTheDocument();
+		expect(screen.getByText(/SESSION_MODE_MISMATCH/)).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+		expect(screen.queryByTestId("session-block")).not.toBeInTheDocument();
 	});
 });
