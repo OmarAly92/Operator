@@ -974,7 +974,7 @@ it withholds the one path with full fidelity.
 
 ## Implementation plans
 
-This spec is delivered as **ten plans**, each producing working, testable
+This spec is delivered as **nine plans**, each producing working, testable
 software on its own. Plans live in `docs/superpowers/plans/`.
 
 | # | Plan | Spec steps | File | Status |
@@ -984,8 +984,7 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 3 | Desktop block screen | 2 (desktop mux), 3, 5 | `2026-08-27-desktop-block-screen.md` | written |
 | 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | written |
 | 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
-| 5a | ACP adapter, mobile | 7 | `2026-08-28-acp-block-adapter-mobile.md` | written |
-| 5b | ACP adapter, desktop | 7 | `2026-08-28-acp-block-adapter-desktop.md` | written |
+| 5 | ACP adapter, chat presentation retires | 7 | `2026-08-28-acp-block-adapter.md` | written |
 | 6 | Block actions, selection, find | 8 | — | |
 | 7 | Shell blocks | 9 | — | |
 | 8 | Transcript enrichment | 10 | — | |
@@ -1084,15 +1083,15 @@ presentation layer alive beside the block screen, which is the duplication this
 design exists to remove, and its cost grows with every block feature that lands
 first.
 
-**Plan 5 is split into 5a and 5b, and unlike plan 4 the split is not free.** Mobile
-and desktop share no source file here either — Dart and TypeScript models, adapters,
-grouping functions and screens are all per-client — but they *do* share the
-`testdata/blocks/` fixtures, which by design are asserted by both suites. Both plans
-therefore carry a byte-identical **frozen contract** section pinning the extended
-block model, the turn-grouping rules and the exact fixture contents, so two agents in
-separate worktrees produce the same files. Whoever merges first wins; the second
-verifies and moves on. Each plan also states which directory the other owns, so
-neither reaches across.
+**Plan 5 covers both clients and is deliberately not split.** It was drafted as 5a
+and 5b, on the plan-4 precedent, and the precedent does not hold. Plans 4a and 4b
+share a *requirements list*, which either side can satisfy alone. Plan 5's two
+adapters share an *output contract* — the `testdata/blocks/` fixtures, asserted by
+both suites — and neither a Dart-only nor a TypeScript-only agent can run the check
+that matters, so a disagreement would surface only when the second branch merged, in
+the other client's code. One agent running both suites against the same fixtures sees
+it immediately. The plan therefore lands the fixtures before either adapter and writes
+both adapters in one task.
 
 **Plan 9 was not in the original sequencing.** It came out of the paseo mobile
 review and is not a spec step — it makes `packages/mobile` a replicating client
