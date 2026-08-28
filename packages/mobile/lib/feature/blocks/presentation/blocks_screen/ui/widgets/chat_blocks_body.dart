@@ -61,6 +61,11 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
   void _syncCollapsed(String sessionId) {
     if (_lastSessionId == sessionId) return;
     _collapsed.clear();
+    _findOpen = false;
+    _query = '';
+    _filtering = false;
+    _activeMatchId = null;
+    _queryController.clear();
     _lastSessionId = sessionId;
   }
 

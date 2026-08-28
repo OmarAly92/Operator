@@ -12,6 +12,7 @@ import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
 import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
@@ -49,6 +50,7 @@ Future<void> _pump(
   WidgetTester tester,
   _MockCubit cubit, {
   _MockRepository? repository,
+  String sessionId = 's-1',
 }) =>
     tester.pumpWidget(
       SkinScope(
@@ -64,7 +66,7 @@ Future<void> _pump(
                   height: 700,
                   child: ChatBlocksBody(
                     repository: repository ?? _MockRepository(),
-                    sessionId: 's-1',
+                    sessionId: sessionId,
                   ),
                 ),
               ),
@@ -566,4 +568,68 @@ void main() {
       },
     );
   });
+
+  testWidgets(
+    'resets find state when the session id changes',
+    (tester) async {
+      when(() => cubit.state).thenReturn(
+        ConversationBlocksReadyState(
+          revision: 1,
+          blocks: [
+            _block(
+              id: 'msg-1',
+              kind: BlockKind.prompt,
+              title: 'Prompt',
+              body: 'run the tests',
+            ),
+            _block(
+              id: 'msg-2',
+              firstSeq: 2,
+              kind: BlockKind.assistant,
+              title: 'Assistant',
+              body: 'ok 42 tests',
+            ),
+            _block(
+              id: 'msg-3',
+              firstSeq: 3,
+              kind: BlockKind.tool,
+              title: 'Grep',
+              body: 'more tests',
+            ),
+          ],
+          isLoading: false,
+        ),
+      );
+
+      await _pump(tester, cubit);
+
+      final state = tester.state<ChatBlocksBodyState>(find.byType(ChatBlocksBody));
+      state.openFind();
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'tests');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.arrow_downward));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.filter_alt_outlined));
+      await tester.pump();
+
+      expect(find.byType(BlockFindBar), findsOneWidget);
+      final findBar = tester.widget<BlockFindBar>(find.byType(BlockFindBar));
+      expect(findBar.queryController.text, 'tests');
+      expect(findBar.filtering, isTrue);
+
+      await _pump(tester, cubit, sessionId: 's-2');
+      await tester.pump();
+
+      expect(find.byType(BlockFindBar), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byIcon(Icons.filter_alt), findsNothing);
+      expect(find.byIcon(Icons.filter_alt_outlined), findsNothing);
+
+      final sameState = tester.state<ChatBlocksBodyState>(
+        find.byType(ChatBlocksBody),
+      );
+      expect(identical(sameState, state), isTrue);
+    },
+  );
 }

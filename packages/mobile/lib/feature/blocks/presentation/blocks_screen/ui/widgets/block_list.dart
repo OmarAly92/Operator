@@ -74,8 +74,11 @@ class BlockListState extends State<BlockList> {
     if (widget.sessionId != oldWidget.sessionId) {
       _pivotSeq = null;
       _topIndex = null;
-      widget.sticky?.value = null;
-      _setPinned(true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.sticky?.value = null;
+        _setPinned(true);
+      });
     }
     _adoptPivot();
     if (_pinned) _scheduleFollow();
