@@ -1,0 +1,33 @@
+{
+  "snapshot": {
+    "conversationId": "c-4",
+    "sessionId": "s-4",
+    "harness": "claude-code",
+    "mode": "chat",
+    "controller": { "state": "ready" },
+    "turns": [],
+    "items": [
+      { "kind": "message", "id": "m-1", "turnId": "t-1", "sequence": 1, "revision": 0, "role": "user", "origin": "human", "text": "run the subagent", "streaming": false, "createdAt": "2026-08-28T10:00:00Z" },
+      { "kind": "activity", "id": "a-parent", "turnId": "t-1", "sequence": 2, "revision": 0, "activityKind": "mcp_tool", "status": "completed", "summary": "subagent", "providerItemId": "parent-1", "detail": { "server": "agent", "toolName": "subagent", "arguments": { "task": "explore" }, "result": "done" }, "createdAt": "2026-08-28T10:00:01Z" },
+      { "kind": "activity", "id": "a-child-1", "turnId": "t-1", "sequence": 3, "revision": 0, "activityKind": "command", "status": "completed", "summary": "ls", "detail": { "command": "ls", "output": "file.txt", "exitCode": 0, "parentProviderItemId": "parent-1" }, "createdAt": "2026-08-28T10:00:02Z" },
+      { "kind": "activity", "id": "a-child-2", "turnId": "t-1", "sequence": 4, "revision": 0, "activityKind": "command", "status": "completed", "summary": "cat", "detail": { "command": "cat file.txt", "output": "hello", "exitCode": 0, "parentProviderItemId": "parent-1" }, "createdAt": "2026-08-28T10:00:03Z" },
+      { "kind": "activity", "id": "a-grandchild", "turnId": "t-1", "sequence": 5, "revision": 0, "activityKind": "command", "status": "completed", "summary": "wc", "detail": { "command": "wc -l file.txt", "output": "1", "exitCode": 0, "parentProviderItemId": "a-child-1" }, "createdAt": "2026-08-28T10:00:04Z" },
+      { "kind": "activity", "id": "a-cycle", "turnId": "t-1", "sequence": 6, "revision": 0, "activityKind": "command", "status": "completed", "summary": "cycle", "detail": { "command": "echo cycle", "output": "cycle", "exitCode": 0, "parentProviderItemId": "a-grandchild" }, "createdAt": "2026-08-28T10:00:05Z" },
+      { "kind": "message", "id": "m-2", "turnId": "t-1", "sequence": 7, "revision": 0, "role": "assistant", "origin": "provider", "text": "subagent finished", "streaming": false, "createdAt": "2026-08-28T10:00:06Z" }
+    ],
+    "latestSequence": 7,
+    "oldestSequence": 1,
+    "hasMoreBefore": false,
+    "settings": {}
+  },
+  "expected": [
+    { "id": "m-1", "kind": "prompt", "status": "ok", "turnId": "t-1", "title": "Prompt", "body": "run the subagent", "firstSeq": 1, "lastSeq": 1, "truncatedLines": 0, "redacted": false },
+    { "id": "a-parent", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "agent/subagent", "body": "done", "firstSeq": 2, "lastSeq": 6, "truncatedLines": 0, "redacted": false, "detail": { "type": "mcp_tool", "server": "agent", "tool": "subagent", "args": { "task": "explore" }, "result": "done" }, "children": [
+      { "id": "a-child-1", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "Shell", "body": "file.txt", "firstSeq": 3, "lastSeq": 3, "truncatedLines": 0, "redacted": false, "detail": { "type": "shell", "command": "ls", "output": "file.txt", "exitCode": 0 } },
+      { "id": "a-child-2", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "Shell", "body": "hello", "firstSeq": 4, "lastSeq": 4, "truncatedLines": 0, "redacted": false, "detail": { "type": "shell", "command": "cat file.txt", "output": "hello", "exitCode": 0 } },
+      { "id": "a-grandchild", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "Shell", "body": "1", "firstSeq": 5, "lastSeq": 5, "truncatedLines": 0, "redacted": false, "detail": { "type": "shell", "command": "wc -l file.txt", "output": "1", "exitCode": 0 } },
+      { "id": "a-cycle", "kind": "tool", "status": "ok", "turnId": "t-1", "title": "Shell", "body": "cycle", "firstSeq": 6, "lastSeq": 6, "truncatedLines": 0, "redacted": false, "detail": { "type": "shell", "command": "echo cycle", "output": "cycle", "exitCode": 0 } }
+    ] },
+    { "id": "m-2", "kind": "assistant", "status": "ok", "turnId": "t-1", "title": "Assistant", "body": "subagent finished", "firstSeq": 7, "lastSeq": 7, "truncatedLines": 0, "redacted": false }
+  ]
+}

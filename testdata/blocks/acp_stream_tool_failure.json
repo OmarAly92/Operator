@@ -1,0 +1,24 @@
+{
+  "snapshot": {
+    "conversationId": "c-2",
+    "sessionId": "s-2",
+    "harness": "claude-code",
+    "mode": "chat",
+    "controller": { "state": "ready" },
+    "turns": [],
+    "items": [
+      { "kind": "message", "id": "m-1", "turnId": "t-1", "sequence": 1, "revision": 0, "role": "user", "origin": "human", "text": "build the project", "streaming": false, "createdAt": "2026-08-28T10:00:00Z" },
+      { "kind": "activity", "id": "a-1", "turnId": "t-1", "sequence": 2, "revision": 0, "activityKind": "command", "status": "failed", "summary": "make build", "detail": { "command": "make build", "output": "error: undefined reference to 'foo'\n... (truncated) ...", "outputTruncated": true, "exitCode": 2 }, "createdAt": "2026-08-28T10:00:01Z" },
+      { "kind": "message", "id": "m-2", "turnId": "t-1", "sequence": 3, "revision": 0, "role": "assistant", "origin": "provider", "text": "the build failed; let me check the linker", "streaming": false, "createdAt": "2026-08-28T10:00:02Z" }
+    ],
+    "latestSequence": 3,
+    "oldestSequence": 1,
+    "hasMoreBefore": false,
+    "settings": {}
+  },
+  "expected": [
+    { "id": "m-1", "kind": "prompt", "status": "ok", "turnId": "t-1", "title": "Prompt", "body": "build the project", "firstSeq": 1, "lastSeq": 1, "truncatedLines": 0, "redacted": false },
+    { "id": "a-1", "kind": "tool", "status": "failed", "turnId": "t-1", "title": "Shell", "body": "error: undefined reference to 'foo'\n... (truncated) ...", "firstSeq": 2, "lastSeq": 2, "truncatedLines": 1, "redacted": false, "detail": { "type": "shell", "command": "make build", "output": "error: undefined reference to 'foo'\n... (truncated) ...", "outputTruncated": true, "exitCode": 2 } },
+    { "id": "m-2", "kind": "assistant", "status": "ok", "turnId": "t-1", "title": "Assistant", "body": "the build failed; let me check the linker", "firstSeq": 3, "lastSeq": 3, "truncatedLines": 0, "redacted": false }
+  ]
+}
