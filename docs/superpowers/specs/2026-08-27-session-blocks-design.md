@@ -459,11 +459,28 @@ Limits, so this is not oversold:
   to tmux copy-mode, page keys for keyboard-scroll harnesses — remain correct on
   both clients. Warp has the identical limitation in its alt-screen element,
   which is the proof that no renderer or emulator choice removes it.
+- **Desktop scroll preservation is narrower than "preserved across the
+  correction" suggests.** Established while implementing plan 4b, against
+  `@tanstack/virtual-core` 3.17.7. A block re-measured taller only has the scroll
+  position compensated when it sits **entirely above the viewport top** and the
+  viewport has **settled**. Two cases are deliberately uncompensated upstream: a
+  block that merely *spans* the top edge — the long tool output you are reading
+  the middle of — because compensating would drag the view down on every token;
+  and any growth while the user is still dragging upward, which upstream skips to
+  avoid an items-jump cascade (their issue #1218). Both are correct choices, and
+  neither is a defect in this design; they are simply not what the requirement
+  above promises. **Mobile has neither limit** — a centre-sliver viewport leaves
+  the read position exactly unchanged when a block above it grows, with no
+  compensation logic involved, which is pinned by a test.
 - **The chat migration is real work.** ~38 desktop components and a large mobile
   presentation layer are retired or rewritten. This is cheap now and expensive
   after both block views exist, which is the argument for doing it in this order.
-- **Unverified.** All of this is reasoning from source. None has been run against
-  a live daemon, from a phone or from the desktop app.
+- **Unverified against a running system.** The design is reasoning from source,
+  and plans 1 through 4 are pinned by unit, widget and component tests only.
+  Nothing here has been exercised against a live daemon, from a phone, or from
+  the desktop app. The desktop's browser e2e suite (`frontend/e2e/`) is the one
+  place a real layout engine would test the viewport, and it does not yet cover
+  blocks.
 
 ## Sequencing
 
