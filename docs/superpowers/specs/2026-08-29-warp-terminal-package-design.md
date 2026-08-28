@@ -649,13 +649,24 @@ are package-owned assets returned to the host through `spawnRecipe()` (§4.1).
 If a conflict with a prompt framework cannot be solved additively, the correct outcome
 is a Tier-1 block, not a special case.
 
-### 8.1 Prompt suppression
+### 8.1 Prompt suppression — a phase 2 act, never a phase 1 one
 
-Because we draw the prompt row (§2.1), the bootstrap sets the shell's prompt to a
+Because we draw the prompt row (§2.1), the bootstrap can set the shell's prompt to a
 minimal sentinel. This is a prompt *variable* assignment — `PS1`/`PROMPT`/`fish_prompt`
 — made after the user's config has loaded, and it is reversible: the package exposes a
 "show shell prompt" mode that skips it, which is also the fallback when the user's
 framework fights us.
+
+**Suppression is off until phase 2, and this is load-bearing.** The prompt row and the
+input editor are the same feature seen from two sides: suppressing the shell's prompt
+without shipping the editor leaves the user with nothing to type into. Phase 1
+therefore ships the bootstrap with suppression **disabled** — the user's own prompt and
+readline stay live inside the grid, and we draw block chrome around the commands that
+marks identify. That is the iTerm2 / VS Code model, it is a genuinely usable terminal,
+and it is what makes phase 1 shippable on its own (§14.0).
+
+Phase 2 flips suppression on in the same change that introduces the editor. A planner
+who enables it earlier has broken §14.0.
 
 ---
 
@@ -868,6 +879,33 @@ before it.
 
 Each phase is a separate implementation plan. §0.3 applies.
 
+### 14.0 The usable cutline — read before planning any phase
+
+The eight phases are not eight steps toward a first working terminal. There are two
+lines that matter, and every phase must respect them.
+
+**Phases 0 + 1 = a terminal that works and ships.** At the end of phase 1, Operator's
+session pane is a real terminal: it runs any command, it runs a full-screen TUI through
+the alt-screen surface, it runs an agent CLI such as Claude Code end to end, and it
+draws Warp-style block chrome around commands using marks. The user's own shell prompt
+and readline are still doing the typing (§8.1). Nothing after phase 1 is required for
+the terminal to be *used*.
+
+**Phases 0 + 1 + 2 = it feels like Warp.** Phase 2 replaces readline with our editor
+and turns prompt suppression on. This is where the product identity lands.
+
+**Phases 3–7 are enrichment.** Completions, navigation, chrome, retirement and mobile
+each make it better; none of them is load-bearing for a working terminal. If work stops
+after any of them, what exists still works.
+
+Two consequences a planner MUST honour:
+
+- **Phase 1 MUST be independently shippable.** No phase-1 task may leave the terminal
+  unusable pending phase 2. The specific trap is prompt suppression — §8.1, and §15
+  item 16.
+- **Phase 2 MUST NOT be partially adopted.** Suppression and the editor land together
+  or neither lands.
+
 ### Phase 0 — Skeleton and gate
 
 **Deliver:** `packages/terminal` workspace (npm packages per §5.1, Cargo workspace per
@@ -890,10 +928,14 @@ one block.
 the find *engine* (§6.5 — the find UI is phase 4, but the engine ships here because the
 sum tree it queries is built here and retrofitting it later means rewriting it);
 `crates/marks` and `go/marks` with the §7.4 recovery table, vectors and fuzz target;
-`shell/zsh.sh` per §8; `renderer-dom` with two-level virtualization; the Warp prompt row
-(cwd, branch, exit code, duration); per-block selection, copy and hover actions;
-alt-screen handoff to `XtermTerminal`; daemon capture via `pipe-pane` publishing on the
-`blocks` channel.
+`shell/zsh.sh` per §8 **with prompt suppression disabled** (§8.1); `renderer-dom` with
+two-level virtualization; Warp-style block headers carrying the block's metadata (cwd,
+branch, exit code, duration); per-block selection, copy and hover actions; alt-screen
+handoff to `XtermTerminal`; daemon capture via `pipe-pane` publishing on the `blocks`
+channel; the pane mounted in Operator per §13.3.
+
+The live input in phase 1 is the user's own shell prompt and readline, rendered in the
+grid. We draw chrome around blocks, we do not yet own the typing. §14.0.
 
 **Accept when:**
 - **a shell with only OSC 133 configured, and no bootstrap, produces correct blocks** —
@@ -903,13 +945,17 @@ alt-screen handoff to `XtermTerminal`; daemon capture via `pipe-pane` publishing
 - a session with no client attached records blocks, and a session with two clients
   attached records each block exactly once;
 - entering and leaving `vim` suspends and resumes capture, leaving one collapsed block;
+- **the terminal is usable as the daily driver**: mounted in Operator, it runs an
+  interactive shell, a full-screen TUI, and an agent CLI (Claude Code) end to end, with
+  the user's own prompt and readline intact (§14.0);
 - the §9.4 gate passes;
 - scrolling 50,000 blocks holds 60fps.
 
 ### Phase 2 — Input
 
-**Deliver:** `ts/editor`; `input-ready`/`input-released` marks and the
-`LineEditorState` machine (§10.2); command syntax highlighting; multi-line; ghost-text
+**Deliver:** `ts/editor`; **prompt suppression turned on, in the same change** (§8.1)
+together with the Warp prompt row that replaces it; `input-ready`/`input-released`
+marks and the `LineEditorState` machine (§10.2); command syntax highlighting; multi-line; ghost-text
 history; Ctrl-R; edit-and-rerun from a block; `shell/bash.sh` and `shell/fish.fish`.
 
 **Accept when:**
@@ -995,6 +1041,11 @@ broken.
 14. **Adding a second extension encoding.** §7.3. Unknown keys are ignored; that is the
     versioning story.
 15. **Planning two phases at once.** §0.3.
+16. **Turning prompt suppression on in phase 1.** It suppresses the only thing the user
+    can type into before the editor exists, and it breaks the §14.0 cutline that makes
+    phase 1 shippable. Suppression ships with the editor, in phase 2. §8.1.
+17. **Treating phase 1 as a stepping stone rather than a release.** If phase 1 lands and
+    everything stops, Operator must still have a terminal it can use every day. §14.0.
 
 ---
 
