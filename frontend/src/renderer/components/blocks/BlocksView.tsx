@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { blockActionsFor, type BlockAction, type BlockActionContext } from "../../lib/block-actions";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
@@ -18,6 +19,8 @@ export type BlocksViewProps = {
 	onLoadOlder: () => void;
 	onRetry: () => void;
 	renderActions?: (block: SessionBlock) => ReactNode;
+	actionContext: BlockActionContext;
+	onAction: (block: SessionBlock, action: BlockAction) => void;
 	onRollbackTurn?: (turnId: string) => void;
 	canRollbackTurn?: (group: TurnGroup) => boolean;
 };
@@ -35,10 +38,31 @@ export function BlocksView({
 	onLoadOlder,
 	onRetry,
 	renderActions,
+	actionContext,
+	onAction,
 	onRollbackTurn,
 	canRollbackTurn,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
+	const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+	useEffect(() => setCollapsedIds(new Set()), [sessionId]);
+	const actionsByBlockId = useMemo(() => {
+		const byBlockId = new Map<string, readonly BlockAction[]>();
+		const add = (block: SessionBlock) => {
+			byBlockId.set(block.id, blockActionsFor(block, actionContext));
+			for (const child of block.children ?? []) add(child);
+		};
+		for (const block of blocks) add(block);
+		return byBlockId;
+	}, [actionContext, blocks]);
+	const onToggleCollapse = useCallback((blockId: string) => {
+		setCollapsedIds((current) => {
+			const next = new Set(current);
+			if (next.has(blockId)) next.delete(blockId);
+			else next.add(blockId);
+			return next;
+		});
+	}, []);
 
 	if (unavailable !== undefined) {
 		return (
@@ -82,8 +106,12 @@ export function BlocksView({
 			<div className="min-h-0 flex-1">
 				<BlockList
 					blocks={blocks}
+					actionsByBlockId={actionsByBlockId}
 					canRollbackTurn={canRollbackTurn}
+					collapsedIds={collapsedIds}
+					onAction={onAction}
 					onRollbackTurn={onRollbackTurn}
+					onToggleCollapse={onToggleCollapse}
 					renderActions={renderActions}
 					sessionId={sessionId}
 				/>

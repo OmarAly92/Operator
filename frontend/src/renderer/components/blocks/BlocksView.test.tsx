@@ -2,6 +2,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionBlock } from "../../lib/session-block";
+import type { BlockActionContext } from "../../lib/block-actions";
 import { installVirtualLayout } from "../../test/virtual-layout";
 import { BlocksView } from "./BlocksView";
 
@@ -22,6 +23,13 @@ function block(overrides: Partial<SessionBlock> = {}): SessionBlock {
 
 let teardown: () => void;
 let currentBlocks: SessionBlock[] = [];
+const actionContext: BlockActionContext = {
+	mode: "tui",
+	capabilities: [],
+	canSend: true,
+	turnInFlight: false,
+	rollbackableTurnIds: [],
+};
 
 beforeEach(() => {
 	teardown = installVirtualLayout({ heights: () => currentBlocks.map(() => 80) });
@@ -36,12 +44,14 @@ function renderView(props: Partial<Parameters<typeof BlocksView>[0]> = {}) {
 	return render(
 		<BlocksView
 			blocks={[]}
+			actionContext={actionContext}
 			error={undefined}
 			harness="claude-code"
 			hasOlder={false}
 			isLoading={false}
 			isLoadingOlder={false}
 			onLoadOlder={vi.fn()}
+			onAction={vi.fn()}
 			onRetry={vi.fn()}
 			sessionId="s-1"
 			supported
@@ -167,6 +177,7 @@ describe("BlocksView", () => {
 
 		rerender(
 			<BlocksView
+				actionContext={actionContext}
 				blocks={[block()]}
 				error={undefined}
 				harness="claude-code"
@@ -174,6 +185,7 @@ describe("BlocksView", () => {
 				isLoading={false}
 				isLoadingOlder={false}
 				onLoadOlder={onLoadOlder}
+				onAction={vi.fn()}
 				onRetry={vi.fn()}
 				sessionId="s-1"
 				supported

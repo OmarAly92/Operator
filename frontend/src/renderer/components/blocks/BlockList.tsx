@@ -12,6 +12,7 @@ import {
 	topItemFor,
 } from "../../lib/block-viewport";
 import { groupBlocksByTurn, type TurnGroup } from "../../lib/block-turns";
+import type { BlockAction } from "../../lib/block-actions";
 import type { SessionBlock } from "../../lib/session-block";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
 import { Button } from "../ui/button";
@@ -20,12 +21,20 @@ export function BlockList({
 	blocks,
 	sessionId,
 	renderActions,
+	actionsByBlockId,
+	onAction,
+	collapsedIds,
+	onToggleCollapse,
 	onRollbackTurn,
 	canRollbackTurn,
 }: {
 	blocks: SessionBlock[];
 	sessionId: string;
 	renderActions?: (block: SessionBlock) => ReactNode;
+	actionsByBlockId?: ReadonlyMap<string, readonly BlockAction[]>;
+	onAction?: (block: SessionBlock, action: BlockAction) => void;
+	collapsedIds?: ReadonlySet<string>;
+	onToggleCollapse?: (blockId: string) => void;
 	onRollbackTurn?: (turnId: string) => void;
 	canRollbackTurn?: (group: TurnGroup) => boolean;
 }) {
@@ -140,7 +149,14 @@ export function BlockList({
 									width: "100%",
 								}}
 							>
-								<BlockCard block={item} renderActions={renderActions} />
+								<BlockCard
+									actions={actionsByBlockId?.get(item.id)}
+									block={item}
+									collapsed={collapsedIds?.has(item.id)}
+									onAction={onAction}
+									onToggleCollapse={onToggleCollapse}
+									renderActions={renderActions}
+								/>
 								{group === undefined ? null : (
 									<TurnGroupStatus
 										canRollback={

@@ -26,6 +26,7 @@ import {
 	can as snapshotCan,
 	type ChatSkill,
 	type ConversationActivity,
+	type ConversationSnapshot,
 } from "../types/conversation";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
@@ -52,9 +53,18 @@ import { blocksFromConversation } from "../lib/conversation-blocks";
 import type { SessionBlock } from "../lib/session-block";
 import { blocksCoverHarness } from "../lib/session-block";
 import type { TurnGroup } from "../lib/block-turns";
+import type { BlockAction, BlockActionContext } from "../lib/block-actions";
 import { MAX_SUGGESTIONS, rankFiles, rankSkills, type Suggestion } from "./chat/composerSuggest";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "./ui/dialog";
 
 type CenterPaneProps = {
 	session?: WorkspaceSession;
@@ -723,6 +733,25 @@ function TuiSessionBlocksPane({
 		sessionEnded: session?.isTerminated === true || session?.activity?.state === "exited",
 	});
 	const send = useTuiSend(sessionId);
+	const [rerunRequest, setRerunRequest] = useState<{ text: string; revision: number }>();
+	const actionContext = useMemo<BlockActionContext>(
+		() => ({ mode: "tui", capabilities: [], canSend: sessionId !== "", turnInFlight: false, rollbackableTurnIds: [] }),
+		[sessionId],
+	);
+	const onAction = useCallback(async (_block: SessionBlock, action: BlockAction) => {
+		switch (action.kind) {
+			case "copy_block":
+			case "copy_command":
+			case "copy_output":
+				await copyActionPayload(action);
+				return;
+			case "rerun":
+				setRerunRequest((current) => ({ text: action.payload ?? "", revision: (current?.revision ?? 0) + 1 }));
+				return;
+			case "rewind":
+				return;
+		}
+	}, []);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -734,13 +763,15 @@ function TuiSessionBlocksPane({
 					hasOlder={blocks.hasOlder}
 					isLoading={blocks.isLoading}
 					isLoadingOlder={blocks.isLoadingOlder}
+					actionContext={actionContext}
+					onAction={onAction}
 					onLoadOlder={blocks.loadOlder}
 					onRetry={blocks.refetch}
 					sessionId={sessionId}
 					supported={blocksCoverHarness(harness)}
 				/>
 			</div>
-			{sessionId === "" ? null : <BlockComposer send={send} sessionId={sessionId} />}
+			{sessionId === "" ? null : <BlockComposer prefill={rerunRequest} send={send} sessionId={sessionId} />}
 		</div>
 	);
 }
@@ -757,6 +788,8 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 	const modelsQuery = useConversationModels(sessionId, supported);
 	const configOptionsQuery = useConversationConfigOptions(sessionId, supported);
 	const { t } = useTranslation();
+	const [rerunRequest, setRerunRequest] = useState<{ text: string; revision: number }>();
+	const [rewindTurnId, setRewindTurnId] = useState<string>();
 
 	const activitiesById = useMemo(() => {
 		const map = new Map<string, ConversationActivity>();
@@ -801,12 +834,30 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 	const canElicit = conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "elicitation");
 	const canSteerCapability =
 		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "steer");
-	const canRollbackCapability =
-		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "rollback");
 	const activeTurnId =
 		conversation.snapshot?.turns.find((t) => t.state === "running")?.id ??
 		conversation.snapshot?.turns.find((t) => t.state === "queued")?.id;
 	const hasInFlightTurn = activeTurnId !== undefined;
+	const snapshot = conversation.snapshot;
+	const rollbackableTurnIds = useMemo(
+		() =>
+			snapshot === undefined
+				? []
+				: snapshot.turns
+						.filter((turn) => isRollbackableTurn(snapshot, turn.id, hasInFlightTurn))
+						.map((turn) => turn.id),
+		[snapshot, hasInFlightTurn],
+	);
+	const actionContext = useMemo<BlockActionContext>(
+		() => ({
+			mode: "chat",
+			capabilities: snapshot?.capabilities ?? [],
+			canSend: sessionId !== "",
+			turnInFlight: hasInFlightTurn,
+			rollbackableTurnIds,
+		}),
+		[hasInFlightTurn, rollbackableTurnIds, sessionId, snapshot?.capabilities],
+	);
 
 	// Decision ids are the provider's, carried on the activity. Synthesizing one
 	// here would resolve an approval with an option the provider never offered.
@@ -853,35 +904,41 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 
 	const handleRollbackTurn = useCallback(
 		(turnId: string) => {
-			if (conversation.snapshot === undefined) return;
-			if (!snapshotCan(conversation.snapshot, "rollback")) return;
-			const turn = conversation.snapshot.turns.find((t) => t.id === turnId);
-			if (turn === undefined) return;
-			if (turn.state === "running" || turn.state === "queued") return;
-			if (turn.rolledBack === true) return;
-			if (!(turn.providerTurnId && turn.providerTurnId !== "")) return;
+			if (!isRollbackableTurn(conversation.snapshot, turnId, hasInFlightTurn)) return;
 			void commands.rollback(turnId);
 		},
-		[commands, conversation.snapshot],
+		[commands, conversation.snapshot, hasInFlightTurn],
 	);
 
 	const canRollbackTurnPredicate = useCallback(
 		(group: TurnGroup) => {
-			if (conversation.snapshot === undefined) return false;
-			if (group.turnId === undefined) return false;
-			if (!snapshotCan(conversation.snapshot, "rollback")) return false;
-			if (hasInFlightTurn) return false;
-			const turn = conversation.snapshot.turns.find((t) => t.id === group.turnId);
-			if (turn === undefined) return false;
-			if (turn.state === "running" || turn.state === "queued") return false;
-			if (turn.rolledBack === true) return false;
-			if (!(turn.providerTurnId && turn.providerTurnId !== "")) return false;
-			return true;
+			return group.turnId !== undefined && isRollbackableTurn(conversation.snapshot, group.turnId, hasInFlightTurn);
 		},
 		[conversation.snapshot, hasInFlightTurn],
 	);
-
-	const snapshot = conversation.snapshot;
+	const onAction = useCallback(
+		async (_block: SessionBlock, action: BlockAction) => {
+			switch (action.kind) {
+				case "copy_block":
+				case "copy_command":
+				case "copy_output":
+					await copyActionPayload(action);
+					return;
+				case "rerun":
+					setRerunRequest((current) => ({ text: action.payload ?? "", revision: (current?.revision ?? 0) + 1 }));
+					return;
+				case "rewind":
+					if (action.turnId !== undefined && rollbackableTurnIds.includes(action.turnId)) setRewindTurnId(action.turnId);
+					return;
+			}
+		},
+		[rollbackableTurnIds],
+	);
+	const confirmRewind = useCallback(async () => {
+		if (rewindTurnId === undefined) return;
+		setRewindTurnId(undefined);
+		await commands.rollback(rewindTurnId);
+	}, [commands, rewindTurnId]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -901,6 +958,7 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 			)}
 			<div className="min-h-0 flex-1">
 				<BlocksView
+					actionContext={actionContext}
 					blocks={blocks}
 					canRollbackTurn={canRollbackTurnPredicate}
 					error={conversation.error}
@@ -908,8 +966,9 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 					isLoading={conversation.isLoading}
 					isLoadingOlder={conversation.isLoadingOlder}
 					onLoadOlder={conversation.loadOlder}
+					onAction={onAction}
 					onRetry={conversation.refetch}
-					onRollbackTurn={canRollbackCapability ? handleRollbackTurn : undefined}
+					onRollbackTurn={handleRollbackTurn}
 					renderActions={renderBlockActions}
 					sessionId={sessionId}
 					supported={supported}
@@ -934,6 +993,7 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 					canSteer={canSteerCapability && hasInFlightTurn}
 					onAttach={handleAttach}
 					onSteer={canSteerCapability ? (text) => commands.steer(text) : undefined}
+					prefill={rerunRequest}
 					send={send}
 					sessionId={sessionId}
 					suggestions={buildComposerSuggestions(
@@ -942,8 +1002,43 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 					)}
 				/>
 			)}
+			<Dialog open={rewindTurnId !== undefined} onOpenChange={(open) => !open && setRewindTurnId(undefined)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t("blocks.rewindTitle")}</DialogTitle>
+						<DialogDescription>{t("blocks.rewindBody")}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button onClick={() => setRewindTurnId(undefined)} type="button" variant="ghost">
+							{t("blocks.cancel")}
+						</Button>
+						<Button onClick={() => void confirmRewind()} type="button" variant="outline">
+							{t("blocks.rewindConfirm")}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
+}
+
+function isRollbackableTurn(
+	snapshot: ConversationSnapshot | undefined,
+	turnId: string,
+	hasInFlightTurn: boolean,
+): boolean {
+	if (snapshot === undefined) return false;
+	if (!snapshotCan(snapshot, "rollback")) return false;
+	if (hasInFlightTurn) return false;
+	const turn = snapshot.turns.find((candidate) => candidate.id === turnId);
+	if (turn === undefined) return false;
+	if (turn.state === "running" || turn.state === "queued") return false;
+	if (turn.rolledBack === true) return false;
+	return turn.providerTurnId !== undefined && turn.providerTurnId !== "";
+}
+
+async function copyActionPayload(action: BlockAction): Promise<void> {
+	await operatorBridge.clipboard.writeText(action.payload ?? "");
 }
 
 function useChatSend(
