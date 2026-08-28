@@ -239,7 +239,7 @@ Not everything is a mistake. Adopt these:
   that matter: `app/src/terminal/model/blocks.rs`, `app/src/terminal/block_list_viewport.rs`,
   `app/src/terminal/model/blocks/selection.rs`, `app/src/terminal/find/model/async_find.rs`.
   §6.3.
-- **Alacritty-derived flat cell storage.** §6.2.
+- **Flat chunked content with run-length attribute maps.** `crates/warp_terminal/src/model/grid/flat_storage/`. §6.2.
 - **A recorded-stream test corpus.** Warp keeps `app/src/terminal/ref_tests/data/**/*.recording`
   — raw byte streams replayed against the parser. §6.6.
 - **Alt-screen as an explicit, tracked mode.** `app/src/terminal/alt_screen/`. §11.
@@ -391,16 +391,39 @@ redaction. It owns no rendering, no editor, no completions, no I/O, no host conc
 It is `no_std`-friendly where practical and has zero WASM-specific code — that lives in
 `vt-wasm`.
 
-### 6.2 Cell storage
+### 6.2 Cell storage — flat content plus run-length attributes
 
-Flat, Alacritty-style, in a ring buffer of rows over a contiguous cell arena. A cell is
-a fixed-size struct (char or grapheme-table index, fg, bg, attribute bitflags, plus a
-hyperlink/image side-table index). No per-cell allocation, no per-cell object.
+**Do not store a struct per cell.** Copy the shape Warp arrived at in
+`crates/warp_terminal/src/model/grid/flat_storage/`, which is three separate structures:
 
-`vt-wasm` exposes rows as typed-array views over WASM linear memory. The DOM renderer
-reads slices and never materializes a JS object per cell. **This is the load-bearing
-decision that makes a DOM renderer viable** — a planner who has the renderer build cell
-objects has broken the design even if the pixels look right.
+- **Content** (`flat_storage/content.rs`) — a chunked buffer of graphemes keyed by a
+  monotonically increasing byte offset. Chunking is what lets scrollback be trimmed off
+  the front by dropping a chunk, with no copying and no re-zeroing of offsets. Its
+  doc comment describes it as "a non-circular circular buffer, keyed by content offset."
+- **AttributeMap** (`flat_storage/attribute_map.rs`) — one per attribute (fg, bg, style,
+  hyperlink), stored as a `BTreeMap` from *ending* byte offset to value plus a tail
+  value, coalescing equal neighbours into runs. Styling is stored as ranges, not
+  per cell.
+- **Index** (`flat_storage/index.rs`) — rows mapped to content offset ranges, which is
+  where wrapping and resize (`grid_storage/resize.rs`) are resolved.
+
+*Reasoning:* real terminal output has long runs of identical styling. Run-length
+attributes make the grid dramatically smaller than a cell-struct array, and the
+`BTreeMap` gives both point lookup and forward scanning, which is exactly the access
+pattern a renderer has.
+
+**The consequence for the renderer is large and is why this is in the design rather
+than left as an implementation detail.** A row read out of this structure is a text
+slice plus a list of attribute runs, which maps one-to-one onto DOM spans: the
+renderer emits **one span per style run, not one per character**. DOM node count
+becomes proportional to style changes rather than to output size. A planner who
+instead materializes cells and then groups them has paid twice and lost the property
+that makes the DOM renderer competitive.
+
+`vt-wasm` exposes content as typed-array views over WASM linear memory and attribute
+runs as a compact `(endOffset, value)` pair array. The DOM renderer reads slices and
+**never materializes a JS object per cell**. This is the load-bearing decision that
+makes a DOM renderer viable — the pixels can look right and the design still be broken.
 
 ### 6.3 The blockgrid and its sum tree
 
@@ -966,3 +989,116 @@ broken.
 - **The gate** — the perf thresholds in §9.4, checked at the end of every phase from 1.
 - **agent-orchestrator** — the user's *separate* reference app governing Operator's
   visual language. Not this repository. See `CLAUDE.md`.
+
+---
+
+## 17. Appendix — the Warp reference map
+
+### 17.1 Where it is, and the rules for using it
+
+The Warp source is checked out at `/Users/omaraly/development/AI/warp`. Every path in
+this appendix is relative to that root and was verified to exist on 2026-08-29.
+
+**Rules:**
+- **Read it, do not copy it.** We are learning the mechanism and the data structures.
+  We are not transplanting code, comments, or asset files. The checkout carries **no
+  top-level `LICENSE`** — treat it as all-rights-reserved and read-only. The one
+  exception it does declare is `crates/warp_terminal/src/model/LICENSE-ALACRITTY`,
+  which covers the Alacritty lineage of the grid; where we want that lineage, take it
+  from Alacritty upstream under Alacritty's own licence, not from Warp's fork.
+- **It is a reference, not an authority.** §3 lists six places where Warp is wrong for
+  our purposes. When this spec and Warp disagree, this spec wins.
+- **The Alacritty lineage matters.** `crates/warp_terminal/src/model/LICENSE-ALACRITTY`
+  sits beside the grid because that is where the grid came from. Alacritty itself is
+  often the clearer read for pure VT behaviour.
+
+### 17.2 Reading order for someone starting cold
+
+Roughly two hours, in this order:
+
+1. `crates/warp_terminal/src/model/ESCAPE_SEQUENCES.md` — their own primer on what
+   they write to the pty, with links to the VT100 spec.
+2. `crates/warp_terminal/src/model/grid/flat_storage/mod.rs`, then `content.rs`, then
+   `attribute_map.rs` — the storage design we are adopting (§6.2).
+3. `crates/sum_tree/src/lib.rs` and `cursor.rs` — 1,997 lines total, the whole
+   sum-tree idea (§6.3).
+4. `crates/warp_terminal/src/model/blockgrid.rs` — how blocks and the grid meet.
+5. `app/assets/bundled/bootstrap/zsh_body.sh` — the shell side, and the single best
+   argument for our additive-only rule (§8).
+6. `app/src/terminal/line_editor_status.rs` — small, and the clearest statement of the
+   problem our explicit `input-ready` mark solves (§10.2).
+
+### 17.3 Component map
+
+Our component on the left, what to read on the right.
+
+| Ours | Read in Warp | Take | Avoid |
+| --- | --- | --- | --- |
+| `vt-core` cell storage (§6.2) | `crates/warp_terminal/src/model/grid/flat_storage/{mod,content,attribute_map,index,grapheme,style,hyperlink,row_iterator}.rs` | the whole shape: chunked content, run-length attributes, row index | nothing — this is the best part of their design |
+| `vt-core` resize/reflow (§6.2) | `crates/warp_terminal/src/model/grid/grid_storage/resize.rs`, `model/grid/resize.rs`, `model/grid/row.rs` | how wrapped rows survive a resize | — |
+| `vt-core` grapheme handling | `model/grid/grapheme_cursor.rs`, `model/char_or_str.rs` | wide chars, combining marks, cursor movement over graphemes | — |
+| `vt-core` blockgrid (§6.3) | `crates/warp_terminal/src/model/{blockgrid.rs,block_id.rs,block_index.rs,block_filter.rs}`, `app/src/terminal/model/{blocks.rs,block.rs}` | block identity, indexing, the block/grid boundary | `app/src/terminal/model/blocks.rs` also carries UI state — keep that out of our core |
+| `vt-core` sum tree (§6.3) | `crates/sum_tree/src/{lib.rs,cursor.rs}`, used at `app/src/terminal/{model/blocks.rs,block_list_viewport.rs,model/blocks/selection.rs,find/model/async_find.rs}` | the summary/cursor design and the four places it pays off | — |
+| `vt-core` selection (§6.4) | `crates/warp_terminal/src/model/selection.rs`, `model/grid/selection_cursor.rs`, `app/src/terminal/model/blocks/selection.rs` | cross-block selection in block coordinates | their renderer owns hit-testing; ours delegates to the browser |
+| `vt-core` find (§6.5) | `crates/warp_terminal/src/model/find.rs`, `app/src/terminal/find/model/async_find.rs` + `async_find/{background_task,work_queue}.rs`, `find/model/block_list.rs` | incremental, cancellable, work-queued find | — |
+| `vt-core` redaction | `crates/warp_terminal/src/model/secrets.rs`, `model/grid/secrets.rs` | secret detection at the grid layer | — |
+| VT parser (§6.1) | `crates/warp_terminal/src/model/ansi/mod.rs`, `model/grid/ansi_handler.rs`, `model/grid/ansi_handler/tab_stops.rs`, `model/escape_sequences.rs` | coverage: which sequences a real terminal must handle | `ansi/mod.rs:1019-1026` shows OSC 133 parsed but not used as a block source — we do the opposite (§3.3) |
+| Mark protocol (§7) | `crates/warp_terminal/src/model/ansi/dcs_hooks.rs`, `crates/warp_terminal/src/bootstrap.rs`, `crates/warp_terminal/src/shell/{mod.rs,unescape.rs}` | the field set worth carrying | three encodings and a two-meaning session id (`dcs_hooks.rs:16-28`) — we ship one encoding, §7.3 |
+| Shell bootstrap (§8) | `app/assets/bundled/bootstrap/{zsh_body.sh,bash_body.sh,fish.sh,pwsh_init_shell.ps1}`, `crates/warp_terminal/src/local_tty/shell.rs` | which hook points exist per shell; the subshell and re-entrancy problems | hook stashing (`zsh_body.sh:236-242`), keybinding theft (`:378-385`), generator commands (`:205-208,254-262`), ssh argv sniffing (`bash_body.sh:966-969`), disabling fish's OSC 133 (`shell.rs:691-694`) |
+| Alt screen (§11) | `app/src/terminal/alt_screen/{mod.rs,alt_screen_element.rs}`, `app/src/terminal/alt_screen_reporting.rs`, `crates/warp_terminal/src/model/mode.rs` | alt screen as explicit tracked state, and find inside it (`find/model/alt_screen.rs`) | — |
+| `renderer-dom` block list (§9.2) | `app/src/terminal/{block_list_element.rs,block_list_viewport.rs,block_list_settings.rs}` | viewport maths, overscan, what a block's chrome contains | it is a GPU element list; our virtualization is DOM |
+| `renderer-dom` grid painting | `app/src/terminal/{grid_renderer.rs,blockgrid_renderer.rs,blockgrid_element.rs}`, `crates/warpui/src/rendering/{atlas,glyph_cache,wgpu}` | read only if §9.4's gate ever forces the WebGL renderer | do not build a glyph atlas in phases 0–7 (§1.4) |
+| `ts/editor` (§10) | `app/src/terminal/input.rs` (16,760 lines — skim), `app/src/terminal/input/{classic.rs,buffer_model.rs}`, `app/src/editor/` | the buffer model and what the editor must own | `input.rs`'s size is the §3.4 lesson; ours is split by §4.3 |
+| Line-editor ownership (§10.2) | `app/src/terminal/line_editor_status.rs` | the exact problem statement, stated well in its own comments | the 50ms timer and the `did_receive_zsh_precmd` proxy — §3.5 |
+| History (§10.4) | `app/src/terminal/{history.rs,history_tests.rs}` | dedup, ordering, per-directory ranking | reading the user's shell history file — §10.4 |
+| `ts/completions` (§14 phase 3) | `crates/warp_completer/src/{lib.rs,meta.rs,parsers/,signatures/}`, `crates/warp_completer/src/parsers/README.md`, `app/src/completer/`, `app/src/terminal/dynamic_enum_suggestions.rs`, `command-signatures-v2/` | the spec format and the command-signature idea | anything that executes in the user's shell — §3.6 |
+| Command palette (§14 phase 4) | `app/src/command_palette.rs` | action registry and ranking | — |
+| Themes (§12.1) | `app/src/themes/{theme.rs,default_themes.rs}` | the theme file format we must load | their theme creator UI is out of scope |
+| Links (§9) | `app/src/terminal/links.rs`, `model/grid/hyperlink_registry.rs` | OSC 8 hyperlinks and detected links as a side table | — |
+| Keys (§10) | `app/src/terminal/{keys.rs,keys_settings.rs,meta_shortcuts.rs}` | keymap layering | — |
+| Test corpus (§6.6) | `app/src/terminal/ref_tests/{mod.rs,data/}` | recorded byte streams replayed against the parser | — |
+| Images | `crates/warp_terminal/src/model/{iterm_image.rs,kitty.rs,image_map.rs}`, `model/grid/image.rs` | iTerm2 and Kitty image protocols, if we ever want them | out of scope for phases 0–7 |
+
+### 17.4 Citation index
+
+Every Warp citation used in the body of this spec, in one place, for checking.
+
+| § | Claim | Citation |
+| --- | --- | --- |
+| 1.2, 3.7 | the grid is Alacritty-derived and block-aware | `crates/warp_terminal/src/model/blockgrid.rs`, `crates/warp_terminal/src/model/LICENSE-ALACRITTY` |
+| 1.2 | shell bootstrap sizes | `app/assets/bundled/bootstrap/zsh_body.sh` (1,588), `bash_body.sh` (1,437), `fish.sh` (804) |
+| 1.2 | input is a real editor, not readline | `app/src/terminal/input/{classic,agent,buffer_model}.rs`, `app/src/terminal/line_editor_status.rs` |
+| 1.3 | subsystem line counts | `app/src/terminal` 230,377 · `crates/warp_terminal` 46,585 · `app/src/editor` 43,279 · `crates/warpui` 34,439 · `crates/warp_completer` 19,054 |
+| 3.1 | user hooks stashed and restored; p10k carved out by name | `app/assets/bundled/bootstrap/zsh_body.sh:236-242` |
+| 3.1 | user keybindings removed and rebound | `app/assets/bundled/bootstrap/zsh_body.sh:378-385` |
+| 3.2 | fish's OSC 133 disabled because pairing was assumed | `crates/warp_terminal/src/local_tty/shell.rs:691-694`, `github.com/warpdotdev/Warp/issues/7588` |
+| 3.3 | three payload encodings, two-meaning session id | `crates/warp_terminal/src/model/ansi/dcs_hooks.rs:16-28` |
+| 3.3 | OSC 133 parsed but not used as a block source | `crates/warp_terminal/src/model/ansi/mod.rs:1019-1026` |
+| 3.3 | ssh argv sniffing and ControlMaster workarounds | `app/assets/bundled/bootstrap/bash_body.sh:966-969`, `:87-93` |
+| 3.4 | unbounded file growth | `app/src/terminal/view.rs` 29,236 lines · `app/src/terminal/input.rs` 16,760 lines |
+| 3.5 | the 50ms line-editor timer and the bootstrap proxy | `app/src/terminal/line_editor_status.rs:17` and the `did_receive_zsh_precmd` field |
+| 3.6 | generator commands run in the user's shell and leak | `app/assets/bundled/bootstrap/zsh_body.sh:205-208`, `:254-262` |
+| 3.7, 6.3 | sum tree used for blocks, viewport, selection, find | `app/src/terminal/model/blocks.rs`, `block_list_viewport.rs`, `model/blocks/selection.rs`, `find/model/async_find.rs` |
+| 3.7, 6.6 | recorded-stream test corpus | `app/src/terminal/ref_tests/data/**/*.recording` |
+| 6.2 | chunked content, run-length attribute maps, row index | `crates/warp_terminal/src/model/grid/flat_storage/{content,attribute_map,index}.rs` |
+| 7.3 | OSC 777 also handled, informing our number choice | `crates/warp_terminal/src/model/ansi/mod.rs:1032` |
+
+### 17.5 Operator citations used in this spec
+
+| § | Claim | Citation |
+| --- | --- | --- |
+| 2.7 | the terminal keeps its own palette | `DESIGN.md:36` |
+| 4.2 | the relative-path cross-package import we are not repeating | `frontend/src/renderer/lib/ansi.ts:2` |
+| 5 | no npm workspace; delegation via `--prefix` | `package.json` (root) |
+| 5 | the single tsconfig path alias | `frontend/tsconfig.json` |
+| 5 | the single vite alias | `frontend/vite.renderer.config.ts:78-80` |
+| 5.2 | the only Cargo package, standalone, Rust 1.96 | `frontend/src-tauri/Cargo.toml` |
+| 9.4 | existing perf scenarios and runner | `frontend/perf/scenarios.json`, `frontend/scripts/benchmark-terminal.mjs` |
+| 11, 13.3 | the surface that becomes the alt-screen fallback | `frontend/src/renderer/components/XtermTerminal.tsx` (1,057 lines) |
+| 12.2 | the eight locale files | `frontend/src/renderer/i18n/{en,zh-CN,ja,ko,es,fr,de,pt-BR}.json` |
+| 13.1 | per-client attach makes in-band parsing wrong | `backend/internal/terminal/manager.go:448`, `backend/internal/terminal/doc.go:11` |
+| 13.1 | `SourceID` was always meant to carry a shell mark's counter | `backend/internal/service/blockevent/types.go:11-17` |
+| 13.1 | `ActivitySignal` is hook-shaped and must not be overloaded | `backend/internal/ports/runtime_observations.go:41` |
+| 13.2 | the existing `blocks` mux channel and its frames | `frontend/src/renderer/lib/terminal-mux.ts:12`, `:75-80` |
+| 13.3 | host link policy Operator already has | `frontend/src/renderer/lib/external-link-policy.ts` |
+| 13.4 | what phase 6 retires | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` (194) · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` |
