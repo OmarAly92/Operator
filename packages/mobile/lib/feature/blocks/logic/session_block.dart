@@ -245,6 +245,7 @@ class SessionBlock extends Equatable {
     this.truncatedLines = 0,
     this.redacted = false,
     this.createdAt,
+    this.children,
   });
 
   final String id;
@@ -261,6 +262,7 @@ class SessionBlock extends Equatable {
   final int truncatedLines;
   final bool redacted;
   final String? createdAt;
+  final List<SessionBlock>? children;
 
   SessionBlock copyWith({
     BlockStatus? status,
@@ -272,6 +274,7 @@ class SessionBlock extends Equatable {
     int? truncatedLines,
     bool? redacted,
     String? createdAt,
+    List<SessionBlock>? children,
   }) => SessionBlock(
     id: id,
     firstSeq: firstSeq,
@@ -287,6 +290,7 @@ class SessionBlock extends Equatable {
     truncatedLines: truncatedLines ?? this.truncatedLines,
     redacted: redacted ?? this.redacted,
     createdAt: createdAt ?? this.createdAt,
+    children: children ?? this.children,
   );
 
   @override
@@ -305,6 +309,7 @@ class SessionBlock extends Equatable {
     truncatedLines,
     redacted,
     createdAt,
+    children,
   ];
 }
 

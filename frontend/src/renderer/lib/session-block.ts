@@ -45,6 +45,7 @@ export type SessionBlock = {
 	truncatedLines: number;
 	redacted: boolean;
 	createdAt?: string;
+	children?: SessionBlock[];
 };
 
 export function blockDisplay(block: SessionBlock): BlockDisplay {
