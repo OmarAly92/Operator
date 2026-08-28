@@ -1,0 +1,20 @@
+{
+  "matches": [
+    { "name": "a hit in display name only", "query": "prompt", "blocks": [{ "id": "m-1", "kind": "prompt", "status": "ok", "title": "Prompt", "body": "run the tests" }], "expect": [{ "blockId": "m-1", "field": "displayName", "score": { "tier": 0, "offset": 0 }, "ranges": [{ "start": 0, "length": 6 }] }] },
+    { "name": "a hit in summary only", "query": "tests", "blocks": [{ "id": "m-2", "kind": "notice", "status": "ok", "title": "Notice", "body": "run the tests" }], "expect": [{ "blockId": "m-2", "field": "summary", "score": { "tier": 1, "offset": 8 }, "ranges": [{ "start": 8, "length": 5 }] }] },
+    { "name": "a query matching neither has no result", "query": "zebra", "blocks": [{ "id": "m-3", "kind": "notice", "status": "ok", "title": "Notice", "body": "run the tests" }], "expect": [] },
+    { "name": "find excludes subsequence near misses", "query": "rts", "blocks": [{ "id": "m-4", "kind": "notice", "status": "ok", "title": "Notice", "body": "run the tests" }], "expect": [] },
+    { "name": "a matching child remains the match target", "query": "needle", "blocks": [{ "id": "m-5", "kind": "tool", "status": "ok", "title": "Parent", "body": "", "children": [{ "id": "m-5a", "kind": "assistant", "status": "ok", "title": "Child", "body": "needle" }] }], "expect": [{ "blockId": "m-5a", "field": "summary", "score": { "tier": 0, "offset": 0 }, "ranges": [{ "start": 0, "length": 6 }] }] }
+  ],
+  "filter": [
+    { "name": "context windows merge across adjacent matches", "query": "needle", "contextBlocks": 1, "blocks": [{ "id": "f-0", "kind": "notice", "status": "ok", "title": "zero", "body": "" }, { "id": "f-1", "kind": "notice", "status": "ok", "title": "needle", "body": "" }, { "id": "f-2", "kind": "notice", "status": "ok", "title": "needle", "body": "" }, { "id": "f-3", "kind": "notice", "status": "ok", "title": "three", "body": "" }, { "id": "f-4", "kind": "notice", "status": "ok", "title": "four", "body": "" }], "expectIds": ["f-0", "f-1", "f-2", "f-3"], "matchIds": ["f-1", "f-2"], "hiddenCount": 1 },
+    { "name": "zero context keeps matches only", "query": "needle", "contextBlocks": 0, "blocks": [{ "id": "f-5", "kind": "notice", "status": "ok", "title": "before", "body": "" }, { "id": "f-6", "kind": "notice", "status": "ok", "title": "needle", "body": "" }, { "id": "f-7", "kind": "notice", "status": "ok", "title": "after", "body": "" }], "expectIds": ["f-6"], "matchIds": ["f-6"], "hiddenCount": 2 },
+    { "name": "a matching child promotes its parent for filtering", "query": "needle", "contextBlocks": 0, "blocks": [{ "id": "f-8", "kind": "tool", "status": "ok", "title": "parent", "body": "", "children": [{ "id": "f-8a", "kind": "assistant", "status": "ok", "title": "child", "body": "needle" }] }, { "id": "f-9", "kind": "notice", "status": "ok", "title": "other", "body": "" }], "expectIds": ["f-8"], "matchIds": ["f-8a"], "hiddenCount": 1 }
+  ],
+  "navigation": [
+    { "name": "forward wraps from the last match", "ids": ["n-1", "n-2", "n-3"], "currentId": "n-3", "forward": true, "expect": "n-1" },
+    { "name": "backward wraps from the first match", "ids": ["n-1", "n-2", "n-3"], "currentId": "n-1", "forward": false, "expect": "n-3" },
+    { "name": "no current id starts in navigation direction", "ids": ["n-1", "n-2"], "forward": false, "expect": "n-2" },
+    { "name": "an absent current id starts in navigation direction", "ids": ["n-1", "n-2"], "currentId": "missing", "forward": true, "expect": "n-1" }
+  ]
+}
