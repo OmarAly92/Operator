@@ -110,7 +110,7 @@ export function useSessionBlocks(sessionId: string, options: UseSessionBlocksOpt
 	}, [merge, sessionId, supported]);
 
 	const loadOlder = useCallback(() => {
-		if (!supported || usesPreviewWorkspaceData) return;
+		if (!supported) return;
 		if (inFlightRef.current || !hasOlder) return;
 		const lowest = [...eventsRef.current.keys()].reduce<number | undefined>(
 			(min, seq) => (min === undefined || seq < min ? seq : min),

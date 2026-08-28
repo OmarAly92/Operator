@@ -41,6 +41,18 @@ class ChatBody extends StatefulWidget {
 
 class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
   bool _openingShell = false;
+  final GlobalKey<ChatBlocksBodyState> _blocks = GlobalKey<ChatBlocksBodyState>();
+  ({String text, int revision})? _prefill;
+
+  void openFind() {
+    _blocks.currentState?.openFind();
+  }
+
+  void _onRerun(String text) {
+    setState(() {
+      _prefill = (text: text, revision: (_prefill?.revision ?? 0) + 1);
+    });
+  }
 
   @override
   void initState() {
@@ -354,7 +366,13 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
                         onPressed: () => cubit.retrySend(pending.id),
                         onSecondary: () => cubit.discardSend(pending.id),
                       ),
-                  Expanded(child: ChatBlocksBody(sessionId: cubit.sessionId)),
+                  Expanded(
+                    child: ChatBlocksBody(
+                      key: _blocks,
+                      sessionId: cubit.sessionId,
+                      onRerun: _onRerun,
+                    ),
+                  ),
                   if (activeTurn != null)
                     LiveTurnBar(
                       snapshot: snapshot,
@@ -365,6 +383,7 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
                       onInterrupt: cubit.interrupt,
                     ),
                   ChatComposer(
+                    prefill: _prefill,
                     sessionId: cubit.sessionId,
                     snapshot: snapshot,
                     skills: cubit.skills,

@@ -1151,6 +1151,24 @@ type DevImportProjectsResponse struct {
 	Report devimport.Report `json:"report"`
 }
 
+// DevBlockReplayRequest is the body of POST /api/v1/dev/block-replay.
+// The handler is inert unless OPERATOR_DEV_BLOCK_REPLAY=1 is set; without
+// that env var the route answers 501 the same way the other dev routes
+// answer 501 when their backing service is unwired.
+type DevBlockReplayRequest struct {
+	SessionID     domain.SessionID `json:"sessionId"`
+	Harness       string           `json:"harness"`
+	Events        int              `json:"events"`
+	RatePerSecond int              `json:"ratePerSecond"`
+}
+
+// DevBlockReplayResponse is the body of POST /api/v1/dev/block-replay.
+// The replay itself runs asynchronously on a goroutine; the response is
+// simply an acknowledgement that the run was accepted.
+type DevBlockReplayResponse struct {
+	OK bool `json:"ok"`
+}
+
 // PRIDParam is the {id} path parameter shared by the /prs/{id} routes.
 type PRIDParam struct {
 	ID string `path:"id" description:"PR number."`

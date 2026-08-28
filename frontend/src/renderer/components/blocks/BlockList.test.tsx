@@ -6,6 +6,7 @@ import type { SessionBlock } from "../../lib/session-block";
 import { installVirtualLayout, remeasure } from "../../test/virtual-layout";
 import { BlockCard } from "./BlockCard";
 import { BlockList } from "./BlockList";
+import type { BlockMatch } from "../../lib/block-find";
 
 function block(seq: number, lines = 1): SessionBlock {
 	return {
@@ -96,6 +97,25 @@ describe("BlockList", () => {
 		expect(screen.getAllByTestId("session-block")).toHaveLength(3);
 		expect(screen.getAllByText("Bash 1").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Bash 3").length).toBeGreaterThan(0);
+	});
+
+	it("marks the current block match without reordering its provided ranges", async () => {
+		const blocks = [block(1), block(2)];
+		const match: BlockMatch = {
+			blockId: "seq-1",
+			field: "summary",
+			score: { tier: 4, offset: 5 },
+			ranges: [{ start: 0, length: 4 }, { start: 10, length: 5 }],
+		};
+		current = blocks;
+		render(
+			<div style={{ height: 600 }}>
+				<BlockList activeMatchId="seq-1" blocks={blocks} matchesByBlockId={new Map([[match.blockId, match]])} sessionId="s-1" />
+			</div>,
+		);
+		await act(async () => {});
+
+		expect(screen.getAllByTestId("block-match-active").map((element) => element.textContent)).toEqual(["line", "block"]);
 	});
 
 	it("renders finished and running turn group status", async () => {

@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
@@ -22,7 +28,12 @@ import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dar
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart';
 
 class ChatBlocksBody extends StatefulWidget {
-  const ChatBlocksBody({super.key, required this.sessionId, this.repository});
+  const ChatBlocksBody({
+    super.key,
+    required this.sessionId,
+    this.repository,
+    this.onRerun,
+  });
 
   final String sessionId;
 
@@ -30,20 +41,185 @@ class ChatBlocksBody extends StatefulWidget {
   /// provides the cubit does not have to resolve one.
   final ChatRepository? repository;
 
+  /// Fills the composer with a past prompt. Null means the screen has no
+  /// composer to fill, and the re-run action is not offered at all.
+  final void Function(String text)? onRerun;
+
   @override
-  State<ChatBlocksBody> createState() => _ChatBlocksBodyState();
+  State<ChatBlocksBody> createState() => ChatBlocksBodyState();
 }
 
-class _ChatBlocksBodyState extends State<ChatBlocksBody> {
+class ChatBlocksBodyState extends State<ChatBlocksBody> {
   final GlobalKey<BlockListState> _listKey = GlobalKey<BlockListState>();
   final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
   final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
+  final Set<String> _collapsed = <String>{};
+  final Set<String> _selected = <String>{};
+  bool _selectionMode = false;
+  String? _lastSessionId;
+  bool _findOpen = false;
+  String _query = '';
+  bool _filtering = false;
+  String? _activeMatchId;
+  final TextEditingController _queryController = TextEditingController();
 
   @override
   void dispose() {
     _sticky.dispose();
     _pinned.dispose();
+    _queryController.dispose();
     super.dispose();
+  }
+
+  void _syncCollapsed(String sessionId) {
+    if (_lastSessionId == sessionId) return;
+    _collapsed.clear();
+    _selected.clear();
+    _selectionMode = false;
+    _findOpen = false;
+    _query = '';
+    _filtering = false;
+    _activeMatchId = null;
+    _queryController.clear();
+    _lastSessionId = sessionId;
+  }
+
+  void _enterSelectionMode(String blockId) {
+    setState(() {
+      _selectionMode = true;
+      _selected.add(blockId);
+    });
+    Haptics.select();
+  }
+
+  void _toggleSelected(String blockId, bool value) {
+    setState(() {
+      if (value) {
+        _selected.add(blockId);
+      } else {
+        _selected.remove(blockId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selected.clear();
+      _selectionMode = false;
+    });
+  }
+
+  Future<void> _confirmAndRollback({
+    required ChatRepository repository,
+    required String turnId,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final skin = dialogContext.skin;
+        return AlertDialog(
+          title: const AppText('Rewind the conversation?'),
+          content: AppText(
+            'The agent will forget this turn and everything after it. Files on disk are not reverted.',
+            style: AppTextStyle.style12Regular.copyWith(
+              color: skin.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const AppText('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: AppText(
+                'Rewind',
+                style: AppTextStyle.style12SemiBold.copyWith(
+                  color: skin.attention,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+    unawaited(
+      repository.rollbackTurn(
+        widget.sessionId,
+        RollbackTurnParams(turnId: turnId),
+      ),
+    );
+  }
+
+  void _onAction({
+    required ChatRepository repository,
+    required BlockAction action,
+  }) {
+    if (action.kind == BlockActionKind.rerun) {
+      final payload = action.payload;
+      final onRerun = widget.onRerun;
+      if (payload != null && onRerun != null) onRerun(payload);
+      return;
+    }
+    if (action.kind == BlockActionKind.rewind && action.turnId != null) {
+      unawaited(
+        _confirmAndRollback(
+          repository: repository,
+          turnId: action.turnId!,
+        ),
+      );
+    }
+  }
+
+  void openFind() {
+    setState(() {
+      _findOpen = true;
+    });
+  }
+
+  void _closeFind() {
+    setState(() {
+      _findOpen = false;
+      _query = '';
+      _activeMatchId = null;
+      _queryController.clear();
+    });
+  }
+
+  void _onQueryChanged(String value) {
+    setState(() {
+      _query = value;
+      _activeMatchId = null;
+    });
+  }
+
+  void _toggleFilter(bool value) {
+    setState(() {
+      _filtering = value;
+    });
+  }
+
+  void _nextMatch(List<BlockMatch> matches) {
+    if (matches.isEmpty) return;
+    setState(() {
+      _activeMatchId = BlockFind.nextMatchId(
+        matches,
+        _activeMatchId,
+        forward: true,
+      );
+    });
+  }
+
+  void _previousMatch(List<BlockMatch> matches) {
+    if (matches.isEmpty) return;
+    setState(() {
+      _activeMatchId = BlockFind.nextMatchId(
+        matches,
+        _activeMatchId,
+        forward: false,
+      );
+    });
   }
 
   @override
@@ -110,9 +286,6 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
           final canElicit = capabilities.contains('elicitation');
           final canRollback = capabilities.contains('rollback');
 
-          // Decision ids belong to the provider and travel on the activity.
-          // Synthesizing one here resolves an approval with an option the
-          // provider never offered.
           Widget? actionsBuilder(SessionBlock block) {
             if (block.kind != BlockKind.permission) return null;
             if (block.status != BlockStatus.blocked) return null;
@@ -201,41 +374,129 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
             if (hasInFlightTurn) return false;
             if (group.turnId == null) return false;
             if (snapshot == null) return false;
-            final turn = snapshot.turns.firstWhere(
-              (turn) => turn.id == group.turnId,
-              orElse: () => const ConversationTurnModel(id: ''),
-            );
-            if (turn.id == null || turn.id!.isEmpty) return false;
-            if (turn.state == 'running' || turn.state == 'queued') return false;
-            if (turn.rolledBack == true) return false;
-            if (turn.providerTurnId == null || turn.providerTurnId!.isEmpty) {
-              return false;
-            }
-            return true;
+            return group.turnId != null && group.turnId!.isNotEmpty &&
+                rollbackableTurnIds(snapshot).contains(group.turnId);
           }
 
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: BlockList(
-                  key: _listKey,
-                  sessionId: widget.sessionId,
-                  blocks: state.blocks,
-                  header: _olderControl(context, state),
-                  sticky: _sticky,
-                  pinnedListenable: _pinned,
-                  actionsBuilder: actionsBuilder,
-                  onRollbackTurn: canRollback ? onRollbackTurn : null,
-                  canRollbackTurn: canRollback ? canRollbackTurnGroup : null,
+          _syncCollapsed(widget.sessionId);
+          final actionContext = BlockActionContext(
+            mode: 'chat',
+            capabilities: capabilities,
+            canSend: widget.onRerun != null,
+            turnInFlight: hasInFlightTurn,
+            rollbackableTurnIds: rollbackableTurnIds(snapshot),
+          );
+
+          final allBlocks = state.blocks;
+          final matches = _query.trim().isEmpty
+              ? const <BlockMatch>[]
+              : BlockFind.matches(allBlocks, _query);
+          final filterResult = _filtering
+              ? BlockFind.filter(allBlocks, _query, findContextBlocks)
+              : BlockFilterResult(
+                  blocks: allBlocks,
+                  matchIds: const {},
+                  hiddenCount: 0,
+                );
+          final visibleBlocks = _filtering ? filterResult.blocks : allBlocks;
+          final activeMatch = _activeMatchId == null
+              ? null
+              : matches.firstWhere(
+                  (match) => match.blockId == _activeMatchId,
+                  orElse: () => BlockMatch(
+                    blockId: '',
+                    field: BlockMatchField.displayName,
+                    score: const MatchScore(tier: 0, offset: 0),
+                    ranges: const <MatchRange>[],
+                  ),
+                );
+          final highlight = (activeMatch != null && activeMatch.blockId.isNotEmpty)
+              ? activeMatch
+              : null;
+          final currentIndex = (highlight == null)
+              ? 0
+              : matches.indexWhere((match) => match.blockId == _activeMatchId) + 1;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (highlight == null) return;
+            final list = _listKey.currentState;
+            if (list == null) return;
+            final index = visibleBlocks.indexWhere(
+              (block) => block.id == _activeMatchId,
+            );
+            if (index >= 0) list.scrollBlockIntoView(index);
+          });
+
+          return PopScope(
+            canPop: !_selectionMode,
+            onPopInvokedWithResult: (didPop, _) {
+              if (_selectionMode) _exitSelectionMode();
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Column(
+                    children: [
+                      if (_findOpen)
+                        BlockFindBar(
+                          queryController: _queryController,
+                          onQueryChanged: _onQueryChanged,
+                          onNext: () => _nextMatch(matches),
+                          onPrevious: () => _previousMatch(matches),
+                          onClose: _closeFind,
+                          onToggleFilter: _toggleFilter,
+                          currentIndex: currentIndex,
+                          totalMatches: matches.length,
+                          filtering: _filtering,
+                          hiddenCount: filterResult.hiddenCount,
+                        ),
+                      Expanded(
+                        child: BlockList(
+                          key: _listKey,
+                          sessionId: widget.sessionId,
+                          blocks: visibleBlocks,
+                          header: _olderControl(context, state),
+                          sticky: _sticky,
+                          pinnedListenable: _pinned,
+                          actionsBuilder: actionsBuilder,
+                          actionContext: actionContext,
+                          onAction: (block, action) => _onAction(
+                            repository: repository,
+                            action: action,
+                          ),
+                          collapsedIds: _collapsed,
+                          onToggleCollapse: (id) => setState(() {
+                            if (!_collapsed.add(id)) _collapsed.remove(id);
+                          }),
+                          onRollbackTurn: canRollback ? onRollbackTurn : null,
+                          canRollbackTurn: canRollback ? canRollbackTurnGroup : null,
+                          highlights: highlight == null
+                              ? const <String, BlockMatch>{}
+                              : <String, BlockMatch>{highlight.blockId: highlight},
+                          selectedIds: _selected,
+                          selectionMode: _selectionMode,
+                          onToggleSelect: _toggleSelected,
+                          onLongPressHeader: _selectionMode
+                              ? null
+                              : _enterSelectionMode,
+                        ),
+                      ),
+                      if (_selectionMode)
+                        BlockSelectionBar(
+                          selectedIds: _selected,
+                          documentOrder: visibleBlocks,
+                          onCancel: _exitSelectionMode,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 6,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
-              ),
-            ],
+                Positioned(
+                  top: 6,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
+                ),
+              ],
+            ),
           );
         }
 

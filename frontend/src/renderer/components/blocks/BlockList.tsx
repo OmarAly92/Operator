@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ChevronDown, ChevronUp } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	BLOCK_OVERSCAN,
@@ -10,9 +10,12 @@ import {
 	nextBoundary,
 	previousTarget,
 	topItemFor,
+	virtualizationThreshold,
 } from "../../lib/block-viewport";
 import { groupBlocksByTurn, type TurnGroup } from "../../lib/block-turns";
+import type { BlockAction } from "../../lib/block-actions";
 import type { SessionBlock } from "../../lib/session-block";
+import type { BlockMatch } from "../../lib/block-find";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
 import { Button } from "../ui/button";
 
@@ -20,20 +23,41 @@ export function BlockList({
 	blocks,
 	sessionId,
 	renderActions,
+	actionsByBlockId,
+	onAction,
+	collapsedIds,
+	onToggleCollapse,
 	onRollbackTurn,
 	canRollbackTurn,
+	matchesByBlockId,
+	activeMatchId,
+	onFindKeyDown,
+	selectedIds,
+	onToggleSelect,
+	selectionActionBar,
 }: {
 	blocks: SessionBlock[];
 	sessionId: string;
 	renderActions?: (block: SessionBlock) => ReactNode;
+	actionsByBlockId?: ReadonlyMap<string, readonly BlockAction[]>;
+	onAction?: (block: SessionBlock, action: BlockAction) => void;
+	collapsedIds?: ReadonlySet<string>;
+	onToggleCollapse?: (blockId: string) => void;
 	onRollbackTurn?: (turnId: string) => void;
 	canRollbackTurn?: (group: TurnGroup) => boolean;
+	matchesByBlockId?: ReadonlyMap<string, BlockMatch>;
+	activeMatchId?: string;
+	onFindKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+	selectedIds?: ReadonlySet<string>;
+	onToggleSelect?: (blockId: string, extend: boolean) => void;
+	selectionActionBar?: ReactNode;
 }) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const pinnedRef = useRef(true);
 	const [pinned, setPinned] = useState(true);
 	const [stickyIndex, setStickyIndex] = useState<number | null>(null);
+	const mountAll = blocks.length < virtualizationThreshold();
 
 	const virtualizer = useVirtualizer({
 		count: blocks.length,
@@ -49,11 +73,15 @@ export function BlockList({
 		for (const group of groupBlocksByTurn(blocks)) endings.set(group.blocks.at(-1)!.id, group);
 		return endings;
 	}, [blocks]);
+	const highlightsByBlockId = useMemo(
+		() => matchHighlights(matchesByBlockId, activeMatchId),
+		[activeMatchId, matchesByBlockId],
+	);
 
 	const sync = useCallback(() => {
 		const node = scrollRef.current;
 		if (node === null) return;
-		const next = isPinned(node.scrollTop, virtualizer.getTotalSize(), node.clientHeight);
+		const next = isPinned(node.scrollTop, node.scrollHeight, node.clientHeight);
 		pinnedRef.current = next;
 		setPinned(next);
 
@@ -74,7 +102,18 @@ export function BlockList({
 		virtualizer.scrollToOffset(virtualizer.getTotalSize(), { align: "start" });
 	});
 
+	useEffect(() => {
+		if (activeMatchId === undefined) return;
+		const index = blocks.findIndex((block) => containsBlock(block, activeMatchId));
+		if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+	}, [activeMatchId, blocks, virtualizer]);
+
 	const items = virtualizer.getVirtualItems();
+	const startByIndex = useMemo(() => {
+		const map = new Map<number, number>();
+		for (const item of items) map.set(item.index, item.start);
+		return map;
+	}, [items]);
 
 	const node = scrollRef.current;
 	const computedTop = node === null ? undefined : topItemFor(items, node.scrollTop);
@@ -113,34 +152,49 @@ export function BlockList({
 				aria-label={t("blocks.panelAria")}
 				className="h-full min-h-0 overflow-y-auto py-1.5"
 				data-block-scroll
+				onKeyDown={onFindKeyDown}
 				onScroll={sync}
 				ref={scrollRef}
 				role="log"
+				tabIndex={0}
 			>
 				<div
 					data-block-sizer
 					style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}
 				>
-					{items.map((row) => {
-						const item = blocks[row.index];
+					{(mountAll ? blocks.map((item, index) => ({ item, index })) : items.map((row) => ({ item: blocks[row.index], index: row.index }))).map(({ item, index }) => {
 						if (item === undefined) return null;
 						const group = groupEndingByBlockId.get(item.id);
+						const start = startByIndex.get(index);
 						return (
 							<div
 								data-block-id={item.id}
-								data-block-start={row.start}
-								data-index={row.index}
-								key={row.key}
+								data-block-start={start ?? index * ESTIMATED_BLOCK_HEIGHT}
+								data-index={index}
+								key={item.id}
 								ref={virtualizer.measureElement}
-								style={{
+								style={mountAll ? undefined : {
 									left: 0,
 									position: "absolute",
 									top: 0,
-									transform: `translateY(${row.start}px)`,
+									transform: `translateY(${start ?? 0}px)`,
 									width: "100%",
 								}}
 							>
-								<BlockCard block={item} renderActions={renderActions} />
+								<BlockCard
+									actions={actionsByBlockId?.get(item.id)}
+									actionsByBlockId={actionsByBlockId}
+									block={item}
+									collapsed={collapsedIds?.has(item.id)}
+									collapsedIds={collapsedIds}
+									highlight={matchHighlight(matchesByBlockId?.get(item.id), item.id === activeMatchId)}
+									highlightsByBlockId={highlightsByBlockId}
+									onAction={onAction}
+									onToggleCollapse={onToggleCollapse}
+									onToggleSelect={onToggleSelect}
+									renderActions={renderActions}
+									selected={selectedIds?.has(item.id)}
+								/>
 								{group === undefined ? null : (
 									<TurnGroupStatus
 										canRollback={
@@ -167,6 +221,9 @@ export function BlockList({
 					</div>
 				</div>
 			)}
+			{selectionActionBar === undefined ? null : (
+				<div className="absolute bottom-3 left-3">{selectionActionBar}</div>
+			)}
 			<div className="absolute right-3 bottom-3 flex flex-col items-end gap-2">
 				<div className="flex flex-col overflow-hidden rounded-md border border-border bg-card">
 					<Button aria-label={t("blocks.previousBlock")} onClick={goPrevious} size="icon" variant="ghost">
@@ -185,6 +242,21 @@ export function BlockList({
 			</div>
 		</div>
 	);
+}
+
+function containsBlock(block: SessionBlock, blockId: string): boolean {
+	if (block.id === blockId) return true;
+	return block.children?.some((child) => containsBlock(child, blockId)) ?? false;
+}
+
+function matchHighlight(match: BlockMatch | undefined, active: boolean) {
+	if (match === undefined) return undefined;
+	return { field: match.field, ranges: match.ranges, active };
+}
+
+function matchHighlights(matches: ReadonlyMap<string, BlockMatch> | undefined, activeMatchId: string | undefined) {
+	if (matches === undefined) return undefined;
+	return new Map([...matches].map(([blockId, match]) => [blockId, matchHighlight(match, blockId === activeMatchId)!]));
 }
 
 function TurnGroupStatus({

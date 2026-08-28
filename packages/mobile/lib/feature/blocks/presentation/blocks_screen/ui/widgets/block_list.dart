@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
@@ -15,9 +17,18 @@ class BlockList extends StatefulWidget {
     this.header,
     this.sticky,
     this.actionsBuilder,
+    this.actionContext,
+    this.onAction,
+    this.collapsedIds = const {},
+    this.onToggleCollapse,
     this.pinnedListenable,
     this.onRollbackTurn,
     this.canRollbackTurn,
+    this.highlights = const {},
+    this.selectedIds = const {},
+    this.selectionMode = false,
+    this.onToggleSelect,
+    this.onLongPressHeader,
   });
 
   final String sessionId;
@@ -28,6 +39,15 @@ class BlockList extends StatefulWidget {
   final void Function(String turnId)? onRollbackTurn;
   final bool Function(TurnGroup group)? canRollbackTurn;
   final Widget? Function(SessionBlock block)? actionsBuilder;
+  final BlockActionContext? actionContext;
+  final void Function(SessionBlock block, BlockAction action)? onAction;
+  final Set<String> collapsedIds;
+  final void Function(String blockId)? onToggleCollapse;
+  final Map<String, BlockMatch> highlights;
+  final Set<String> selectedIds;
+  final bool selectionMode;
+  final void Function(String blockId, bool selected)? onToggleSelect;
+  final void Function(String blockId)? onLongPressHeader;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -62,8 +82,11 @@ class BlockListState extends State<BlockList> {
     if (widget.sessionId != oldWidget.sessionId) {
       _pivotSeq = null;
       _topIndex = null;
-      widget.sticky?.value = null;
-      _setPinned(true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.sticky?.value = null;
+        _setPinned(true);
+      });
     }
     _adoptPivot();
     if (_pinned) _scheduleFollow();
@@ -304,17 +327,41 @@ class BlockListState extends State<BlockList> {
     );
   }
 
-  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) => Column(
-    key: ValueKey(block.id),
-    children: [
-      BlockCard(block: block, actionsBuilder: widget.actionsBuilder),
-      if (group != null)
-        TurnGroupStatus(
-          group: group,
-          onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) {
+    final ctx = widget.actionContext;
+    final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
+    return Column(
+      key: ValueKey(block.id),
+      children: [
+        BlockCard(
+          block: block,
+          actionsBuilder: widget.actionsBuilder,
+          actions: actions,
+          onAction: widget.onAction == null
               ? null
-              : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+              : (action) => widget.onAction!(block, action),
+          collapsed: widget.collapsedIds.contains(block.id),
+          onToggleCollapse: widget.onToggleCollapse == null
+              ? null
+              : () => widget.onToggleCollapse!(block.id),
+          highlight: widget.highlights[block.id],
+          selected: widget.selectedIds.contains(block.id),
+          onToggleSelect: widget.onToggleSelect == null
+              ? null
+              : (value) => widget.onToggleSelect!(block.id, value),
+          selectionMode: widget.selectionMode,
+          onLongPressHeader: widget.onLongPressHeader == null
+              ? null
+              : () => widget.onLongPressHeader!(block.id),
         ),
-    ],
-  );
+        if (group != null)
+          TurnGroupStatus(
+            group: group,
+            onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null
+                ? null
+                : (widget.canRollbackTurn!(group) ? widget.onRollbackTurn : null),
+          ),
+      ],
+    );
+  }
 }

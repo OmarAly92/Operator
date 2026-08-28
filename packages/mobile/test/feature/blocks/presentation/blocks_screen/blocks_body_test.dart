@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
@@ -39,27 +40,30 @@ SessionBlock _block({
   redacted: redacted,
 );
 
-Future<void> _pump(WidgetTester tester, _MockBlocksCubit cubit) =>
-    tester.pumpWidget(
-      SkinScope(
-        skin: const DarkSkin(),
-        child: ScreenUtilInit(
-          designSize: const Size(390, 844),
-          builder: (context, _) => MaterialApp(
-            home: Scaffold(
-              body: BlocProvider<BlocksCubit>.value(
-                value: cubit,
-                child: const SizedBox(
-                  width: 400,
-                  height: 700,
-                  child: BlocksBody(),
-                ),
-              ),
+Future<void> _pump(
+  WidgetTester tester,
+  _MockBlocksCubit cubit, {
+  void Function(String text)? onRerun,
+}) => tester.pumpWidget(
+  SkinScope(
+    skin: const DarkSkin(),
+    child: ScreenUtilInit(
+      designSize: const Size(390, 844),
+      builder: (context, _) => MaterialApp(
+        home: Scaffold(
+          body: BlocProvider<BlocksCubit>.value(
+            value: cubit,
+            child: SizedBox(
+              width: 400,
+              height: 700,
+              child: BlocksBody(onRerun: onRerun),
             ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _showOlderControl(WidgetTester tester) async {
   final controller = tester
@@ -291,6 +295,141 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.controller.position.pixels, greaterThan(before));
+    },
+  );
+
+  testWidgets(
+    'resets find state when the session id changes',
+    (tester) async {
+      when(() => cubit.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+        _block(id: 'seq-2', firstSeq: 2, title: 'Bash', body: 'ok 42 tests'),
+        _block(id: 'seq-3', firstSeq: 3, title: 'Grep', body: 'more tests'),
+      ]);
+
+      await _pump(tester, cubit);
+
+      final state = tester.state<BlocksBodyState>(find.byType(BlocksBody));
+      state.openFind();
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'tests');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.arrow_downward));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.filter_alt_outlined));
+      await tester.pump();
+
+      expect(find.byType(BlockFindBar), findsOneWidget);
+      final findBar = tester.widget<BlockFindBar>(find.byType(BlockFindBar));
+      expect(findBar.queryController.text, 'tests');
+      expect(findBar.filtering, isTrue);
+
+      final cubitB = _MockBlocksCubit();
+      when(() => cubitB.state).thenReturn(const BlocksReadyState(1));
+      when(() => cubitB.sessionId).thenReturn('s-2');
+      when(() => cubitB.supported).thenReturn(true);
+      when(() => cubitB.harness).thenReturn('claude-code');
+      when(() => cubitB.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+      ]);
+      when(() => cubitB.loading).thenReturn(false);
+      when(() => cubitB.loadingOlder).thenReturn(false);
+      when(() => cubitB.hasOlder).thenReturn(false);
+      when(() => cubitB.error).thenReturn(null);
+      when(() => cubitB.refresh()).thenAnswer((_) async {});
+      when(() => cubitB.loadOlder()).thenAnswer((_) async {});
+
+      await _pump(tester, cubitB);
+      await tester.pump();
+
+      expect(find.byType(BlockFindBar), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byIcon(Icons.filter_alt), findsNothing);
+      expect(find.byIcon(Icons.filter_alt_outlined), findsNothing);
+
+      final sameState = tester.state<BlocksBodyState>(find.byType(BlocksBody));
+      expect(identical(sameState, state), isTrue);
+    },
+  );
+
+  testWidgets(
+    'a prompt block re-runs into the composer the screen supplies',
+    (tester) async {
+      final cubit = _MockBlocksCubit();
+      when(() => cubit.state).thenReturn(const BlocksReadyState(1));
+      when(() => cubit.sessionId).thenReturn('s-1');
+      when(() => cubit.supported).thenReturn(true);
+      when(() => cubit.harness).thenReturn('claude-code');
+      when(() => cubit.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+      ]);
+      when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.loadingOlder).thenReturn(false);
+      when(() => cubit.hasOlder).thenReturn(false);
+      when(() => cubit.error).thenReturn(null);
+      when(() => cubit.refresh()).thenAnswer((_) async {});
+      when(() => cubit.loadOlder()).thenAnswer((_) async {});
+
+      final reran = <String>[];
+      await _pump(tester, cubit, onRerun: reran.add);
+      await tester.pump();
+
+      await tester.longPress(find.text('run the tests'));
+      await tester.pumpAndSettle();
+      expect(find.text('Re-run this prompt'), findsOneWidget);
+
+      await tester.tap(find.text('Re-run this prompt'));
+      await tester.pumpAndSettle();
+
+      expect(reran, ['run the tests']);
+    },
+  );
+
+  testWidgets(
+    'without a composer to fill, re-run is never offered',
+    (tester) async {
+      final cubit = _MockBlocksCubit();
+      when(() => cubit.state).thenReturn(const BlocksReadyState(1));
+      when(() => cubit.sessionId).thenReturn('s-1');
+      when(() => cubit.supported).thenReturn(true);
+      when(() => cubit.harness).thenReturn('claude-code');
+      when(() => cubit.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+      ]);
+      when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.loadingOlder).thenReturn(false);
+      when(() => cubit.hasOlder).thenReturn(false);
+      when(() => cubit.error).thenReturn(null);
+      when(() => cubit.refresh()).thenAnswer((_) async {});
+      when(() => cubit.loadOlder()).thenAnswer((_) async {});
+
+      await _pump(tester, cubit);
+      await tester.pump();
+
+      await tester.longPress(find.text('run the tests'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Re-run this prompt'), findsNothing);
     },
   );
 }

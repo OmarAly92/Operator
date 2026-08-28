@@ -1,9 +1,15 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { blockActionsFor, blocksToText, type BlockAction, type BlockActionContext } from "../../lib/block-actions";
+import { operatorBridge } from "../../lib/bridge";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
 import type { TurnGroup } from "../../lib/block-turns";
+import { FIND_CONTEXT_BLOCKS, filterBlocks, findBlockMatches, nextMatchId } from "../../lib/block-find";
+import { BlockFindBar } from "./BlockFindBar";
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 export type BlocksViewProps = {
 	blocks: SessionBlock[];
@@ -18,6 +24,8 @@ export type BlocksViewProps = {
 	onLoadOlder: () => void;
 	onRetry: () => void;
 	renderActions?: (block: SessionBlock) => ReactNode;
+	actionContext: BlockActionContext;
+	onAction: (block: SessionBlock, action: BlockAction) => void;
 	onRollbackTurn?: (turnId: string) => void;
 	canRollbackTurn?: (group: TurnGroup) => boolean;
 };
@@ -35,10 +43,104 @@ export function BlocksView({
 	onLoadOlder,
 	onRetry,
 	renderActions,
+	actionContext,
+	onAction,
 	onRollbackTurn,
 	canRollbackTurn,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
+	const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const [findOpen, setFindOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const [filtering, setFiltering] = useState(false);
+	const [activeMatchId, setActiveMatchId] = useState<string | undefined>(undefined);
+	const [selectionMode, setSelectionMode] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const [selectionAnchor, setSelectionAnchor] = useState<string | undefined>(undefined);
+	useEffect(() => {
+		setCollapsedIds(new Set());
+		setSelectionMode(false);
+		setSelectedIds(new Set());
+		setSelectionAnchor(undefined);
+	}, [sessionId]);
+	const actionsByBlockId = useMemo(() => {
+		const byBlockId = new Map<string, readonly BlockAction[]>();
+		const add = (block: SessionBlock) => {
+			byBlockId.set(block.id, blockActionsFor(block, actionContext));
+			for (const child of block.children ?? []) add(child);
+		};
+		for (const block of blocks) add(block);
+		return byBlockId;
+	}, [actionContext, blocks]);
+	const onToggleCollapse = useCallback((blockId: string) => {
+		setCollapsedIds((current) => {
+			const next = new Set(current);
+			if (next.has(blockId)) next.delete(blockId);
+			else next.add(blockId);
+			return next;
+		});
+	}, []);
+	const matches = useMemo(() => findBlockMatches(blocks, query), [blocks, query]);
+	const filtered = useMemo(
+		() => filtering && matches.length > 0 ? filterBlocks(blocks, query, FIND_CONTEXT_BLOCKS) : { blocks, matchIds: EMPTY_SET, hiddenCount: 0 },
+		[blocks, filtering, matches.length, query],
+	);
+	const matchesByBlockId = useMemo(() => new Map(matches.map((match) => [match.blockId, match])), [matches]);
+	const selectedBlocks = useMemo(
+		() => filtered.blocks.filter((block) => selectedIds.has(block.id)),
+		[filtered.blocks, selectedIds],
+	);
+	const clearSelection = useCallback(() => {
+		setSelectionMode(false);
+		setSelectedIds(new Set());
+		setSelectionAnchor(undefined);
+	}, []);
+	const onToggleSelect = useCallback((blockId: string, extend: boolean) => {
+		const blockIndex = filtered.blocks.findIndex((block) => block.id === blockId);
+		if (blockIndex < 0) return;
+		const anchorIndex = selectionAnchor === undefined ? -1 : filtered.blocks.findIndex((block) => block.id === selectionAnchor);
+		setSelectedIds((current) => {
+			const next = new Set(current);
+			if (extend && anchorIndex >= 0) {
+				for (const block of filtered.blocks.slice(Math.min(anchorIndex, blockIndex), Math.max(anchorIndex, blockIndex) + 1)) next.add(block.id);
+			} else if (next.has(blockId)) {
+				next.delete(blockId);
+			} else {
+				next.add(blockId);
+			}
+			return next;
+		});
+		if (!extend || anchorIndex < 0) setSelectionAnchor(blockId);
+	}, [filtered.blocks, selectionAnchor]);
+	const onCopySelection = useCallback(async () => {
+		await operatorBridge.clipboard.writeText(blocksToText(selectedBlocks));
+		clearSelection();
+	}, [clearSelection, selectedBlocks]);
+	const activeIndex = matches.findIndex((match) => match.blockId === activeMatchId);
+	const closeFind = useCallback(() => {
+		setFindOpen(false);
+		setQuery("");
+		setFiltering(false);
+		setActiveMatchId(undefined);
+	}, []);
+	const onQueryChange = useCallback((nextQuery: string) => {
+		setQuery(nextQuery);
+		setActiveMatchId(findBlockMatches(blocks, nextQuery)[0]?.blockId);
+	}, [blocks]);
+	const stepMatch = useCallback((forward: boolean) => {
+		setActiveMatchId((current) => nextMatchId(matches, current, forward));
+	}, [matches]);
+	const onFindKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Escape" && selectionMode) {
+			event.preventDefault();
+			clearSelection();
+			return;
+		}
+		if (!event.metaKey && !event.ctrlKey) return;
+		if (event.key.toLowerCase() !== "f") return;
+		event.preventDefault();
+		setFindOpen(true);
+	}, [clearSelection, selectionMode]);
 
 	if (unavailable !== undefined) {
 		return (
@@ -79,13 +181,49 @@ export function BlocksView({
 					</Button>
 				</div>
 			) : null}
+			{findOpen ? (
+				<BlockFindBar
+					activeIndex={Math.max(activeIndex, 0)}
+					filtering={filtering}
+					matchCount={matches.length}
+					onClose={closeFind}
+					onNext={() => stepMatch(true)}
+					onPrevious={() => stepMatch(false)}
+					onQueryChange={onQueryChange}
+					onToggleFilter={() => setFiltering((current) => !current)}
+					onToggleSelect={() => selectionMode ? clearSelection() : setSelectionMode(true)}
+					query={query}
+					selecting={selectionMode}
+				/>
+			) : null}
+			{filtering && filtered.hiddenCount > 0 ? <p className="px-3 py-1 text-muted-foreground text-xs">{t("blocks.find.hidden", { count: filtered.hiddenCount })}</p> : null}
 			<div className="min-h-0 flex-1">
 				<BlockList
-					blocks={blocks}
+					activeMatchId={activeMatchId}
+					blocks={filtered.blocks}
+					actionsByBlockId={actionsByBlockId}
 					canRollbackTurn={canRollbackTurn}
+					collapsedIds={collapsedIds}
+					onAction={onAction}
 					onRollbackTurn={onRollbackTurn}
+					onToggleCollapse={onToggleCollapse}
+					onFindKeyDown={onFindKeyDown}
 					renderActions={renderActions}
 					sessionId={sessionId}
+					matchesByBlockId={matchesByBlockId}
+					onToggleSelect={selectionMode ? onToggleSelect : undefined}
+					selectedIds={selectedIds}
+					selectionActionBar={selectionMode ? (
+						<div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 shadow-sm">
+							<span className="text-xs text-muted-foreground">{t("blocks.select.count", { count: selectedBlocks.length })}</span>
+							<Button disabled={selectedBlocks.length === 0} onClick={onCopySelection} size="sm" variant="primary">
+								{t("blocks.select.copy")}
+							</Button>
+							<Button onClick={clearSelection} size="sm" variant="ghost">
+								{t("blocks.select.cancel")}
+							</Button>
+						</div>
+					) : undefined}
 				/>
 			</div>
 		</div>

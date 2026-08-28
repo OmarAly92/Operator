@@ -4,6 +4,15 @@ export const ESTIMATED_BLOCK_HEIGHT = 96;
 
 export const BLOCK_OVERSCAN = 6;
 
+export const VIRTUALIZATION_THRESHOLD = 100;
+
+export function virtualizationThreshold(): number {
+	const override = (globalThis as typeof globalThis & {
+		__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD?: unknown;
+	}).__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD;
+	return Number.isFinite(override) ? (override as number) : VIRTUALIZATION_THRESHOLD;
+}
+
 export type TopItem = { index: number; start: number; size: number };
 
 export function topItemFor(items: readonly TopItem[], scrollTop: number): TopItem | undefined {

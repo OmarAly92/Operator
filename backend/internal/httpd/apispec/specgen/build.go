@@ -336,6 +336,8 @@ var schemaNames = map[string]string{
 	"ControllersDevImportScanRequest":          "DevImportScanRequest",
 	"ControllersDevAncestorRepositoryRequest":  "DevAncestorRepositoryRequest",
 	"ControllersDevAncestorRepositoryResponse": "DevAncestorRepositoryResponse",
+	"ControllersDevBlockReplayRequest":         "DevBlockReplayRequest",
+	"ControllersDevBlockReplayResponse":        "DevBlockReplayResponse",
 	// projectscan folder-scan shapes
 	"ProjectscanRepo":   "ImportFolderScanRepo",
 	"ProjectscanResult": "ImportFolderScanResult",
@@ -1026,6 +1028,16 @@ func devOperations() []operation {
 				{http.StatusOK, controllers.DevAncestorRepositoryResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/dev/block-replay", id: "runDevBlockReplay", tag: "dev",
+			summary: "Drive a synthetic block-event stream through the real Record path (dev-only, gated by OPERATOR_DEV_BLOCK_REPLAY=1)",
+			reqBody: controllers.DevBlockReplayRequest{},
+			resps: []respUnit{
+				{http.StatusAccepted, controllers.DevBlockReplayResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},

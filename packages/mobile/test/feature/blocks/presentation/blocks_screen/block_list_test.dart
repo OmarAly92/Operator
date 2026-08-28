@@ -3,6 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
@@ -37,12 +39,14 @@ class ListHarness extends StatefulWidget {
     this.sessionId = 's-1',
     this.sticky,
     this.pinned,
+    this.highlights = const {},
   });
 
   final List<SessionBlock> initial;
   final String sessionId;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinned;
+  final Map<String, BlockMatch> highlights;
 
   @override
   State<ListHarness> createState() => ListHarnessState();
@@ -77,6 +81,7 @@ class ListHarnessState extends State<ListHarness> {
     blocks: blocks,
     sticky: widget.sticky,
     pinnedListenable: widget.pinned,
+    highlights: widget.highlights,
   );
 }
 
@@ -86,6 +91,7 @@ Future<ListHarnessState> pumpList(
   ValueNotifier<StickyBlock?>? sticky,
   ValueNotifier<bool>? pinned,
   bool renderStickyHeader = true,
+  Map<String, BlockMatch> highlights = const {},
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -105,6 +111,7 @@ Future<ListHarnessState> pumpList(
                         initial: blocks,
                         sticky: sticky,
                         pinned: pinned,
+                        highlights: highlights,
                       ),
                     ),
                     if (sticky != null && renderStickyHeader)
@@ -696,4 +703,51 @@ void main() {
     expect(built, lessThan(40));
     expect(built, greaterThan(0));
   });
+
+  testWidgets('a highlighted card renders the match with a tinted background', (
+    tester,
+  ) async {
+    const skin = DarkSkin();
+    final blocks = range(1, 3);
+    final match = BlockMatch(
+      blockId: 'seq-2',
+      field: BlockMatchField.summary,
+      score: const MatchScore(tier: 0, offset: 0),
+      ranges: const [MatchRange(start: 0, length: 4)],
+    );
+
+    await pumpList(
+      tester,
+      blocks,
+      highlights: {'seq-2': match},
+    );
+
+    final richTextFinder = find.descendant(
+      of: find.byKey(const ValueKey('seq-2')),
+      matching: find.byType(RichText),
+    );
+    expect(richTextFinder, findsWidgets);
+    final highlighted = richTextFinder.evaluate().any((element) {
+      final rich = element.widget as RichText;
+      return _hasHighlightedSpan(rich, skin.tintAmber);
+    });
+    expect(
+      highlighted,
+      isTrue,
+      reason: 'the matching card must render the matched range with a tinted background',
+    );
+  });
+}
+
+bool _hasHighlightedSpan(RichText rich, Color expected) {
+  final root = rich.text as TextSpan;
+  return _spanHasBackground(root, expected);
+}
+
+bool _spanHasBackground(TextSpan span, Color expected) {
+  if (span.style?.backgroundColor == expected) return true;
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    if (child is TextSpan && _spanHasBackground(child, expected)) return true;
+  }
+  return false;
 }

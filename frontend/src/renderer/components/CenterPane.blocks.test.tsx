@@ -371,6 +371,84 @@ function chatSnapshotWith(options: {
 }
 
 describe("CenterPane capability-gated action wiring", () => {
+	it("prefills the chat composer for rerun without sending the prompt", async () => {
+		const send = vi.fn().mockResolvedValue(undefined);
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshot(),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ send });
+
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByTestId("block-action-rerun"));
+		expect(screen.getByLabelText("Message the agent")).toHaveValue("hello");
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("renders the per-block rewind action when the daemon reports literal rollback capability", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [],
+				turns: [chatTurn("t-1", "completed")],
+				capabilities: ["rollback"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ rollback: vi.fn() });
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.getAllByTestId("block-action-rewind").length).toBeGreaterThan(0);
+	});
+
+	it("does not render the per-block rewind action without literal rollback capability", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [],
+				turns: [chatTurn("t-1", "completed")],
+				capabilities: ["streaming"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ rollback: vi.fn() });
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByTestId("block-action-rewind")).not.toBeInTheDocument();
+	});
+
 	it("renders one button per provider decision when the snapshot's capabilities include 'approvals'", () => {
 		const resolve = vi.fn();
 		sessionMocks.useConversation = () => ({

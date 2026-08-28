@@ -14,8 +14,15 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_status_bar.dart';
 
-class TerminalBody extends StatelessWidget {
+class TerminalBody extends StatefulWidget {
   const TerminalBody({super.key});
+
+  @override
+  State<TerminalBody> createState() => _TerminalBodyState();
+}
+
+class _TerminalBodyState extends State<TerminalBody> {
+  final GlobalKey<BlocksBodyState> _blocks = GlobalKey<BlocksBodyState>();
 
   Future<void> _confirmKill(BuildContext context) async {
     final cubit = context.read<TerminalCubit>();
@@ -33,6 +40,12 @@ class TerminalBody extends StatelessWidget {
     if (confirmed) await cubit.terminate();
   }
 
+  void _fillComposer(String text) {
+    final composer = context.read<TerminalCubit>().composer;
+    composer.text = text;
+    composer.selection = TextSelection.collapsed(offset: text.length);
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
@@ -46,12 +59,14 @@ class TerminalBody extends StatelessWidget {
         builder: (context, state) {
           final cubit = context.read<TerminalCubit>();
           final banner = cubit.banner;
+          final blocksMode = context.read<SessionViewCubit>().mode == SessionViewMode.blocks;
 
           return Column(
             children: [
               TerminalStatusBar(
                 onKill: () => _confirmKill(context),
                 onRestore: cubit.restore,
+                onFind: blocksMode ? () => _blocks.currentState?.openFind() : null,
               ),
               if (banner != null)
                 InkWell(
@@ -75,7 +90,7 @@ class TerminalBody extends StatelessWidget {
                   builder: (context, _) =>
                       context.read<SessionViewCubit>().mode == SessionViewMode.raw
                       ? const RawTerminalPane()
-                      : const BlocksBody(),
+                      : BlocksBody(key: _blocks, onRerun: _fillComposer),
                 ),
               ),
               Container(

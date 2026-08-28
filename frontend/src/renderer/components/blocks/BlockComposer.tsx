@@ -1,6 +1,7 @@
 import {
 	type FormEvent,
 	useCallback,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -32,6 +33,7 @@ export function BlockComposer({
 	suggestions: externalSuggestions,
 	onSteer,
 	canSteer,
+	prefill,
 }: {
 	sessionId: string;
 	send: BlockComposerSend;
@@ -43,6 +45,7 @@ export function BlockComposer({
 	};
 	onSteer?: BlockComposerSteer;
 	canSteer?: boolean;
+	prefill?: { text: string; revision: number };
 }) {
 	const { t } = useTranslation();
 	const [draft, setDraft] = useState("");
@@ -51,6 +54,12 @@ export function BlockComposer({
 	const [error, setError] = useState<string | undefined>(undefined);
 	const generationRef = useRef(0);
 	const filePicker = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (prefill === undefined) return;
+		setDraft(prefill.text);
+		setCaret(prefill.text.length);
+	}, [prefill]);
 
 	const trimmed = draft.trim();
 	const canSubmit = trimmed.length > 0 && !isSending;
