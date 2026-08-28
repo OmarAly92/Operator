@@ -53,8 +53,8 @@ var replayCycle = []ports.ActivitySignal{
 
 const replayCycleLength = 8
 
-// Run emits Events synthetic signals through Service.Record, paced by a
-// time.Ticker at RatePerSecond. It returns when Events have been recorded or
+// Run emits Events synthetic signals through Service.Record, paced by
+// time.After at RatePerSecond. It returns when Events have been recorded or
 // ctx is cancelled, whichever comes first. A partial cycle at the tail is
 // intentional: the brief says "until Events have been recorded", not "until
 // the next cycle boundary".
