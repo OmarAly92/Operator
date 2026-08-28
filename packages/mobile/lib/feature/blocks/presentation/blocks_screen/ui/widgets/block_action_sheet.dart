@@ -45,7 +45,7 @@ class _BlockActionSheet extends StatelessWidget {
   final List<BlockAction> actions;
 
   void _onTap(BuildContext sheetContext, BlockAction action) {
-    Navigator.of(sheetContext).pop();
+    Navigator.of(sheetContext).pop(action);
     if (_isCopy(action)) {
       Clipboard.setData(ClipboardData(text: action.payload ?? ''));
       Haptics.success();

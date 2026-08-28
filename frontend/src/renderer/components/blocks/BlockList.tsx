@@ -81,7 +81,7 @@ export function BlockList({
 	const sync = useCallback(() => {
 		const node = scrollRef.current;
 		if (node === null) return;
-		const next = isPinned(node.scrollTop, virtualizer.getTotalSize(), node.clientHeight);
+		const next = isPinned(node.scrollTop, node.scrollHeight, node.clientHeight);
 		pinnedRef.current = next;
 		setPinned(next);
 

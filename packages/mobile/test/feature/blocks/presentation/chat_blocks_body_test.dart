@@ -567,6 +567,52 @@ void main() {
         expect(find.text('Rewind the conversation'), findsNothing);
       },
     );
+
+    testWidgets(
+      'choosing rewind confirms, then rolls the turn back through the repository',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            turns: const [
+              ConversationTurnModel(
+                id: 't-1',
+                state: 'completed',
+                providerTurnId: 'prov-1',
+                rolledBack: false,
+                requestedAt: '2026-08-28T10:00:00Z',
+                startedAt: '2026-08-28T10:00:01Z',
+                completedAt: '2026-08-28T10:00:05Z',
+              ),
+            ],
+            capabilities: const ['rollback'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [promptBlock('p-1', 't-1'), assistantBlock('a-1', 't-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit, repository: repository);
+
+        await tester.longPress(find.text('do the thing'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Rewind the conversation'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rewind the conversation?'), findsOneWidget);
+        await tester.tap(find.text('Rewind'));
+        await tester.pumpAndSettle();
+
+        final captured = verify(
+          () => repository.rollbackTurn('s-1', captureAny()),
+        ).captured;
+        expect((captured.single as RollbackTurnParams).turnId, 't-1');
+      },
+    );
   });
 
   testWidgets(

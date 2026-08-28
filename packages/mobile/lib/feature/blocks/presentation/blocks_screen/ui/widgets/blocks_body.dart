@@ -16,7 +16,11 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 class BlocksBody extends StatefulWidget {
-  const BlocksBody({super.key});
+  const BlocksBody({super.key, this.onRerun});
+
+  /// Fills the composer with a past prompt. Null means the screen has no
+  /// composer to fill, and the re-run action is not offered at all.
+  final void Function(String text)? onRerun;
 
   @override
   State<BlocksBody> createState() => BlocksBodyState();
@@ -83,9 +87,10 @@ class BlocksBodyState extends State<BlocksBody> {
   }
 
   void _onAction(SessionBlock block, BlockAction action) {
-    if (action.kind == BlockActionKind.rerun) {
-      return;
-    }
+    if (action.kind != BlockActionKind.rerun) return;
+    final payload = action.payload;
+    final onRerun = widget.onRerun;
+    if (payload != null && onRerun != null) onRerun(payload);
   }
 
   void openFind() {
@@ -187,7 +192,10 @@ class BlocksBodyState extends State<BlocksBody> {
         }
 
         _syncCollapsed(cubit.sessionId);
-        const actionContext = BlockActionContext(mode: 'tui', canSend: true);
+        final actionContext = BlockActionContext(
+          mode: 'tui',
+          canSend: widget.onRerun != null,
+        );
         final allBlocks = cubit.blocks;
         final matches = _query.trim().isEmpty
             ? const <BlockMatch>[]

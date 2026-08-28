@@ -28,14 +28,14 @@ function toolBlock(seq: number, title: string, body: string) {
 	};
 }
 
-async function installHarness(page: Page): Promise<void> {
+async function installHarness(page: Page, virtualizationThreshold = 4): Promise<void> {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await installFakeAgent(page, {
 		projectId: PROJECT_ID,
 		projectName: PROJECT_ID,
 		workers: [session],
 	});
-	await installFakeBlocksMux(page, { virtualizationThreshold: 4 });
+	await installFakeBlocksMux(page, { virtualizationThreshold });
 	await page.goto(`/#/projects/${PROJECT_ID}/sessions/${SESSION_ID}`);
 	await page.getByText(/No blocks yet|Loading/).waitFor({ state: "visible" }).catch(() => undefined);
 	const showBlocks = page.getByRole("button", { name: "Show blocks" });
@@ -94,6 +94,24 @@ test.describe("blocks viewport", () => {
 		await expect(page.getByRole("button", { name: "Jump to latest" })).toBeVisible();
 		const scrollTopAfter = await log.evaluate((node) => node.scrollTop);
 		expect(scrollTopAfter).toBe(scrollTopBefore);
+	});
+
+	test("below the virtualization threshold, a short scroll up survives an append", async ({ page }) => {
+		await installHarness(page, 100);
+		await emitBatch(page, 40, 1, "Bash");
+
+		const log = page.getByRole("log", { name: "Session blocks" });
+		await expect(log).toBeVisible();
+		await expect(log.getByTestId("session-block")).toHaveCount(40);
+		const scrollTopBefore = await log.evaluate((node) => {
+			node.scrollTop = node.scrollHeight - node.clientHeight - 100;
+			node.dispatchEvent(new Event("scroll"));
+			return node.scrollTop;
+		});
+
+		await emit(page, toolBlock(41, "Bash 41", "newest block"));
+		await expect(page.getByRole("button", { name: "Jump to latest" })).toBeVisible();
+		expect(await log.evaluate((node) => node.scrollTop)).toBe(scrollTopBefore);
 	});
 
 	test("Load older prepends without moving the read position", async ({ page }) => {

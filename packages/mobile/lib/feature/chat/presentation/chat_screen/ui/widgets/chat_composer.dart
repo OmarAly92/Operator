@@ -39,6 +39,7 @@ class ChatComposer extends StatefulWidget {
     this.pending = false,
     this.error,
     this.picker,
+    this.prefill,
   });
 
   final String sessionId;
@@ -51,6 +52,7 @@ class ChatComposer extends StatefulWidget {
   final bool pending;
   final String? error;
   final AttachmentPicker? picker;
+  final ({String text, int revision})? prefill;
   final Future<void> Function(
     String text, {
     List<ChatImageModel>? attachments,
@@ -101,6 +103,18 @@ class _ChatComposerState extends State<ChatComposer> {
         CacheHelper.get(CacheKeys.chatDraft(widget.sessionId)) as String?;
     if (draft != null && draft.isNotEmpty) _controller.text = draft;
     _lifecycle.hashCode;
+  }
+
+  @override
+  void didUpdateWidget(ChatComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final prefill = widget.prefill;
+    if (prefill == null || prefill == oldWidget.prefill) return;
+    _controller.text = prefill.text;
+    _controller.selection = TextSelection.collapsed(
+      offset: prefill.text.length,
+    );
+    _focus.requestFocus();
   }
 
   @override

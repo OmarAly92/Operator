@@ -81,7 +81,7 @@ test.describe("blocks find and selection", () => {
 		await page.getByRole("button", { name: "Filter results" }).click();
 		await expect(log.getByTestId("session-block").filter({ hasText: "Bash 3" })).toHaveCount(1);
 		await expect(log.getByTestId("session-block").filter({ hasText: "Bash 1" })).toHaveCount(0);
-		await expect(page.getByText(/5 block hidden/)).toBeVisible();
+		await expect(page.getByText(/5 blocks hidden/)).toBeVisible();
 	});
 
 	test("next and previous scroll the active match into view and wrap", async ({ page }) => {

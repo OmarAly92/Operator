@@ -28,13 +28,22 @@ import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dar
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart';
 
 class ChatBlocksBody extends StatefulWidget {
-  const ChatBlocksBody({super.key, required this.sessionId, this.repository});
+  const ChatBlocksBody({
+    super.key,
+    required this.sessionId,
+    this.repository,
+    this.onRerun,
+  });
 
   final String sessionId;
 
   /// Falls back to the cubit's own repository, so a caller that already
   /// provides the cubit does not have to resolve one.
   final ChatRepository? repository;
+
+  /// Fills the composer with a past prompt. Null means the screen has no
+  /// composer to fill, and the re-run action is not offered at all.
+  final void Function(String text)? onRerun;
 
   @override
   State<ChatBlocksBody> createState() => ChatBlocksBodyState();
@@ -147,6 +156,12 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
     required ChatRepository repository,
     required BlockAction action,
   }) {
+    if (action.kind == BlockActionKind.rerun) {
+      final payload = action.payload;
+      final onRerun = widget.onRerun;
+      if (payload != null && onRerun != null) onRerun(payload);
+      return;
+    }
     if (action.kind == BlockActionKind.rewind && action.turnId != null) {
       unawaited(
         _confirmAndRollback(
@@ -367,7 +382,7 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
           final actionContext = BlockActionContext(
             mode: 'chat',
             capabilities: capabilities,
-            canSend: true,
+            canSend: widget.onRerun != null,
             turnInFlight: hasInFlightTurn,
             rollbackableTurnIds: rollbackableTurnIds(snapshot),
           );

@@ -40,27 +40,30 @@ SessionBlock _block({
   redacted: redacted,
 );
 
-Future<void> _pump(WidgetTester tester, _MockBlocksCubit cubit) =>
-    tester.pumpWidget(
-      SkinScope(
-        skin: const DarkSkin(),
-        child: ScreenUtilInit(
-          designSize: const Size(390, 844),
-          builder: (context, _) => MaterialApp(
-            home: Scaffold(
-              body: BlocProvider<BlocksCubit>.value(
-                value: cubit,
-                child: const SizedBox(
-                  width: 400,
-                  height: 700,
-                  child: BlocksBody(),
-                ),
-              ),
+Future<void> _pump(
+  WidgetTester tester,
+  _MockBlocksCubit cubit, {
+  void Function(String text)? onRerun,
+}) => tester.pumpWidget(
+  SkinScope(
+    skin: const DarkSkin(),
+    child: ScreenUtilInit(
+      designSize: const Size(390, 844),
+      builder: (context, _) => MaterialApp(
+        home: Scaffold(
+          body: BlocProvider<BlocksCubit>.value(
+            value: cubit,
+            child: SizedBox(
+              width: 400,
+              height: 700,
+              child: BlocksBody(onRerun: onRerun),
             ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _showOlderControl(WidgetTester tester) async {
   final controller = tester
@@ -356,6 +359,77 @@ void main() {
 
       final sameState = tester.state<BlocksBodyState>(find.byType(BlocksBody));
       expect(identical(sameState, state), isTrue);
+    },
+  );
+
+  testWidgets(
+    'a prompt block re-runs into the composer the screen supplies',
+    (tester) async {
+      final cubit = _MockBlocksCubit();
+      when(() => cubit.state).thenReturn(const BlocksReadyState(1));
+      when(() => cubit.sessionId).thenReturn('s-1');
+      when(() => cubit.supported).thenReturn(true);
+      when(() => cubit.harness).thenReturn('claude-code');
+      when(() => cubit.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+      ]);
+      when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.loadingOlder).thenReturn(false);
+      when(() => cubit.hasOlder).thenReturn(false);
+      when(() => cubit.error).thenReturn(null);
+      when(() => cubit.refresh()).thenAnswer((_) async {});
+      when(() => cubit.loadOlder()).thenAnswer((_) async {});
+
+      final reran = <String>[];
+      await _pump(tester, cubit, onRerun: reran.add);
+      await tester.pump();
+
+      await tester.longPress(find.text('run the tests'));
+      await tester.pumpAndSettle();
+      expect(find.text('Re-run this prompt'), findsOneWidget);
+
+      await tester.tap(find.text('Re-run this prompt'));
+      await tester.pumpAndSettle();
+
+      expect(reran, ['run the tests']);
+    },
+  );
+
+  testWidgets(
+    'without a composer to fill, re-run is never offered',
+    (tester) async {
+      final cubit = _MockBlocksCubit();
+      when(() => cubit.state).thenReturn(const BlocksReadyState(1));
+      when(() => cubit.sessionId).thenReturn('s-1');
+      when(() => cubit.supported).thenReturn(true);
+      when(() => cubit.harness).thenReturn('claude-code');
+      when(() => cubit.blocks).thenReturn([
+        _block(
+          id: 'seq-1',
+          kind: BlockKind.prompt,
+          title: 'Prompt',
+          body: 'run the tests',
+        ),
+      ]);
+      when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.loadingOlder).thenReturn(false);
+      when(() => cubit.hasOlder).thenReturn(false);
+      when(() => cubit.error).thenReturn(null);
+      when(() => cubit.refresh()).thenAnswer((_) async {});
+      when(() => cubit.loadOlder()).thenAnswer((_) async {});
+
+      await _pump(tester, cubit);
+      await tester.pump();
+
+      await tester.longPress(find.text('run the tests'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Re-run this prompt'), findsNothing);
     },
   );
 }

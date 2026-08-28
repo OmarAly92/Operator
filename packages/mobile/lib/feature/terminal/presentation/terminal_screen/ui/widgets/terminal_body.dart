@@ -40,6 +40,12 @@ class _TerminalBodyState extends State<TerminalBody> {
     if (confirmed) await cubit.terminate();
   }
 
+  void _fillComposer(String text) {
+    final composer = context.read<TerminalCubit>().composer;
+    composer.text = text;
+    composer.selection = TextSelection.collapsed(offset: text.length);
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
@@ -84,7 +90,7 @@ class _TerminalBodyState extends State<TerminalBody> {
                   builder: (context, _) =>
                       context.read<SessionViewCubit>().mode == SessionViewMode.raw
                       ? const RawTerminalPane()
-                      : BlocksBody(key: _blocks),
+                      : BlocksBody(key: _blocks, onRerun: _fillComposer),
                 ),
               ),
               Container(
