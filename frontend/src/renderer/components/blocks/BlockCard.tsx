@@ -60,6 +60,20 @@ export const BlockCard = memo(function BlockCard({
 					{display.summary}
 				</p>
 			)}
+			{block.children !== undefined && block.children.length > 0 ? (
+				<div className="border-border border-t px-3 py-2 pl-4" data-testid="session-block-children">
+					{block.children.map((child) => (
+						<BlockCard
+							block={child}
+							key={child.id}
+							onAnswer={onAnswer}
+							onApprove={onApprove}
+							onDecline={onDecline}
+							permissionKind={permissionKind}
+						/>
+					))}
+				</div>
+			) : null}
 			{display.errorText === undefined ? null : (
 				<p className="px-3 pb-1.5 text-[10px] text-destructive">{display.errorText}</p>
 			)}

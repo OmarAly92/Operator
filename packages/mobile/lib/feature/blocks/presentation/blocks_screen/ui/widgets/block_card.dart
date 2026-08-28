@@ -59,6 +59,27 @@ class BlockCard extends StatelessWidget {
                 ),
               ),
             ),
+          if (block.children != null && block.children!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final child in block.children!)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: BlockCard(
+                        key: ValueKey('child-${child.id}'),
+                        block: child,
+                        onAnswer: onAnswer,
+                        onApprove: onApprove,
+                        onDecline: onDecline,
+                        permissionKind: permissionKind,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           if (display.errorText != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),

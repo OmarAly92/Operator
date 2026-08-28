@@ -100,10 +100,30 @@ List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
 
   return groups.map((group) {
     final last = group.blocks.last;
-    final running = group.blocks.any(
-      (block) => block.status == BlockStatus.running,
-    );
-    final completedAt = running ? null : last.createdAt;
+    bool running = false;
+    String? lastChildCreatedAt;
+    for (final block in group.blocks) {
+      if (block.status == BlockStatus.running) running = true;
+      for (final child in block.children ?? const <SessionBlock>[]) {
+        if (child.status == BlockStatus.running) running = true;
+        final childCreatedAt = child.createdAt;
+        if (childCreatedAt != null) {
+          if (lastChildCreatedAt == null || childCreatedAt.compareTo(lastChildCreatedAt) > 0) {
+            lastChildCreatedAt = childCreatedAt;
+          }
+        }
+      }
+    }
+    final lastCreatedAt = last.createdAt;
+    final String? completedAt;
+    if (running) {
+      completedAt = null;
+    } else if (lastChildCreatedAt != null &&
+        (lastCreatedAt == null || lastChildCreatedAt.compareTo(lastCreatedAt) > 0)) {
+      completedAt = lastChildCreatedAt;
+    } else {
+      completedAt = lastCreatedAt;
+    }
     return TurnGroup(
       turnId: group.turnId,
       blocks: group.blocks,

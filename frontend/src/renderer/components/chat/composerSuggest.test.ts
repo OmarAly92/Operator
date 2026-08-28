@@ -130,7 +130,7 @@ describe("rankFiles", () => {
 		"AGENTS.md",
 		"backend/internal/ports/chat.go",
 		"frontend/src/renderer/components/chat/ChatComposer.tsx",
-		"frontend/src/renderer/components/chat/ChatWorkspace.tsx",
+		"frontend/src/renderer/components/chat/ContextMeter.tsx",
 	];
 
 	// People search for the file name, not the directories above it.

@@ -33,8 +33,22 @@ export function groupBlocksByTurn(blocks: readonly SessionBlock[]): TurnGroup[] 
 
 	return groups.map((group) => {
 		const last = group.blocks.at(-1)!;
-		const running = group.blocks.some((block) => block.status === "running");
-		const completedAt = running ? undefined : last.createdAt;
+		const running = group.blocks.some(
+			(block) => block.status === "running" || (block.children ?? []).some((child) => child.status === "running"),
+		);
+		const lastChildCreatedAt = group.blocks
+			.flatMap((block) => (block.children ?? []).map((child) => child.createdAt))
+			.filter((createdAt): createdAt is string => createdAt !== undefined)
+			.reduce<string | undefined>(
+				(latest, createdAt) => (latest === undefined || createdAt > latest ? createdAt : latest),
+				undefined,
+			);
+		const completedAt =
+			running
+				? undefined
+				: lastChildCreatedAt !== undefined && (last.createdAt === undefined || lastChildCreatedAt > last.createdAt)
+					? lastChildCreatedAt
+					: last.createdAt;
 		return {
 			...group,
 			completedAt,
