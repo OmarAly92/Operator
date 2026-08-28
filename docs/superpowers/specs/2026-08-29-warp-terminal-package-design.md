@@ -57,10 +57,13 @@ its own directory.
 Warp's identity comes from three mechanisms, not from its GPU renderer:
 
 1. **The scrollback is a list of blocks, not a wall of rows.** Warp's grid is
-   block-aware at the data-structure level — `crates/warp_terminal/src/model/blockgrid.rs`,
-   which sits next to `crates/warp_terminal/src/model/LICENSE-ALACRITTY` because it is
-   Alacritty's grid forked and made block-aware. Selection, find, filtering and the
-   viewport are all per-block.
+   block-aware at the data-structure level — `crates/warp_terminal/src/model/blockgrid.rs`
+   (1,020 lines), built on an Alacritty-derived grid:
+   `crates/warp_terminal/src/model/grid/grid_handler.rs:1-2` states the code is
+   *"adapted from the alacritty_terminal crate under the Apache license"*, and
+   `crates/warp_terminal/src/model/ansi/mod.rs:1-11` describes their `Processor` as
+   *"a lightweight wrapper around Alacritty's `VteParser`"*. Selection, find, filtering
+   and the viewport are all per-block.
 
 2. **The shell tells the app where blocks begin and end.** A 1,588-line
    `app/assets/bundled/bootstrap/zsh_body.sh` (plus 1,437 for bash, 804 for fish)
@@ -71,7 +74,7 @@ Warp's identity comes from three mechanisms, not from its GPU renderer:
    track whether the shell's line editor is idle so Warp can take input over.
 
 The GPU renderer (`crates/warpui`, 34,439 lines including
-`src/rendering/{atlas,glyph_cache,wgpu}`) is how Warp draws, not why it feels like
+`src/rendering/{atlas/,glyph_cache.rs,wgpu/}`) is how Warp draws, not why it feels like
 Warp. We are explicitly not matching it (§2.3).
 
 ### 1.3 Scale, for calibration
@@ -464,6 +467,24 @@ collapse will be misattributed to the DOM. Warp reached the same conclusion — 
 
 `height_px` is a summary the renderer writes back after measurement; the core stores it
 and never computes it, because the core has no fonts.
+
+### 6.3b Crate choices for `vt-core`
+
+Evidence-backed, from Warp's own manifests:
+
+| Need | Crate | Evidence |
+| --- | --- | --- |
+| VT parsing | `vte` | `Cargo.toml:347`; `crates/warp_terminal/Cargo.toml:61`; `model/ansi/mod.rs:4` calls their `Processor` a wrapper around Alacritty's `VteParser` |
+| find | `regex-automata` | `crates/warp_terminal/Cargo.toml:43`; used as `RegexDFAs` in `blockgrid.rs` |
+| grapheme segmentation | `unicode-segmentation` | `crates/warp_terminal/Cargo.toml:118` |
+| display width | `unicode-width` | `crates/warp_terminal/Cargo.toml:56` |
+| sum tree | ours | Warp's `crates/sum_tree` is 532 + 1,010 lines and generic over an `Item`/`Summary` pair; small enough to write against our own summary type rather than vendor |
+
+**Use `vte` from crates.io. MUST NOT fork it.** `Cargo.toml:347` shows Warp pinned to
+`git = "https://github.com/warpdotdev/vte.git"` at a fixed rev — a permanent
+maintenance tax and a dependency no downstream project can audit easily, which matters
+for a package meant to be reused (§2.4). If we hit a genuine `vte` limitation, the
+first move is an upstream issue; forking needs the user's approval, not a planner's.
 
 ### 6.4 Selection
 
@@ -1003,14 +1024,20 @@ this appendix is relative to that root and was verified to exist on 2026-08-29.
 - **Read it, do not copy it.** We are learning the mechanism and the data structures.
   We are not transplanting code, comments, or asset files. The checkout carries **no
   top-level `LICENSE`** — treat it as all-rights-reserved and read-only. The one
-  exception it does declare is `crates/warp_terminal/src/model/LICENSE-ALACRITTY`,
-  which covers the Alacritty lineage of the grid; where we want that lineage, take it
-  from Alacritty upstream under Alacritty's own licence, not from Warp's fork.
+  lineage it declares in-source is Alacritty's, at
+  `crates/warp_terminal/src/model/grid/grid_handler.rs:1-2` (*"adapted from the
+  alacritty_terminal crate under the Apache license"*); where we want that lineage,
+  take it from Alacritty upstream under Alacritty's own licence, not from Warp.
 - **It is a reference, not an authority.** §3 lists six places where Warp is wrong for
   our purposes. When this spec and Warp disagree, this spec wins.
-- **The Alacritty lineage matters.** `crates/warp_terminal/src/model/LICENSE-ALACRITTY`
-  sits beside the grid because that is where the grid came from. Alacritty itself is
-  often the clearer read for pure VT behaviour.
+- **The Alacritty lineage matters.** `grid_handler.rs:1-2` names it explicitly, and
+  `model/ansi/mod.rs:4` shows the parser is Alacritty's `VteParser` wrapped. Alacritty
+  itself is often the clearer read for pure VT behaviour.
+- **Verify before you cite.** `grid_handler.rs:2` points at a
+  `crates/warp_terminal/src/model/LICENSE-ALACRITTY` file that is **not present** in our
+  checkout. This spec cited it in three places before the citation was checked and
+  removed. Treat every path in §17.4 as checkable, and report a miss rather than
+  planning around it — that is §0.2 doing its job.
 
 ### 17.2 Reading order for someone starting cold
 
@@ -1047,7 +1074,7 @@ Our component on the left, what to read on the right.
 | Shell bootstrap (§8) | `app/assets/bundled/bootstrap/{zsh_body.sh,bash_body.sh,fish.sh,pwsh_init_shell.ps1}`, `crates/warp_terminal/src/local_tty/shell.rs` | which hook points exist per shell; the subshell and re-entrancy problems | hook stashing (`zsh_body.sh:236-242`), keybinding theft (`:378-385`), generator commands (`:205-208,254-262`), ssh argv sniffing (`bash_body.sh:966-969`), disabling fish's OSC 133 (`shell.rs:691-694`) |
 | Alt screen (§11) | `app/src/terminal/alt_screen/{mod.rs,alt_screen_element.rs}`, `app/src/terminal/alt_screen_reporting.rs`, `crates/warp_terminal/src/model/mode.rs` | alt screen as explicit tracked state, and find inside it (`find/model/alt_screen.rs`) | — |
 | `renderer-dom` block list (§9.2) | `app/src/terminal/{block_list_element.rs,block_list_viewport.rs,block_list_settings.rs}` | viewport maths, overscan, what a block's chrome contains | it is a GPU element list; our virtualization is DOM |
-| `renderer-dom` grid painting | `app/src/terminal/{grid_renderer.rs,blockgrid_renderer.rs,blockgrid_element.rs}`, `crates/warpui/src/rendering/{atlas,glyph_cache,wgpu}` | read only if §9.4's gate ever forces the WebGL renderer | do not build a glyph atlas in phases 0–7 (§1.4) |
+| `renderer-dom` grid painting | `app/src/terminal/{grid_renderer.rs,blockgrid_renderer.rs,blockgrid_element.rs}`, `crates/warpui/src/rendering/{atlas/,glyph_cache.rs,wgpu/}` | read only if §9.4's gate ever forces the WebGL renderer | do not build a glyph atlas in phases 0–7 (§1.4) |
 | `ts/editor` (§10) | `app/src/terminal/input.rs` (16,760 lines — skim), `app/src/terminal/input/{classic.rs,buffer_model.rs}`, `app/src/editor/` | the buffer model and what the editor must own | `input.rs`'s size is the §3.4 lesson; ours is split by §4.3 |
 | Line-editor ownership (§10.2) | `app/src/terminal/line_editor_status.rs` | the exact problem statement, stated well in its own comments | the 50ms timer and the `did_receive_zsh_precmd` proxy — §3.5 |
 | History (§10.4) | `app/src/terminal/{history.rs,history_tests.rs}` | dedup, ordering, per-directory ranking | reading the user's shell history file — §10.4 |
@@ -1065,7 +1092,8 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 
 | § | Claim | Citation |
 | --- | --- | --- |
-| 1.2, 3.7 | the grid is Alacritty-derived and block-aware | `crates/warp_terminal/src/model/blockgrid.rs`, `crates/warp_terminal/src/model/LICENSE-ALACRITTY` |
+| 1.2, 3.7 | the grid is Alacritty-derived and block-aware | `crates/warp_terminal/src/model/blockgrid.rs`, `crates/warp_terminal/src/model/grid/grid_handler.rs:1-2`, `crates/warp_terminal/src/model/ansi/mod.rs:1-11` |
+| 6.3b | Warp wraps a pinned fork of `vte`, and uses `regex-automata` for find | `Cargo.toml:347`, `crates/warp_terminal/Cargo.toml:43,56,61,118` |
 | 1.2 | shell bootstrap sizes | `app/assets/bundled/bootstrap/zsh_body.sh` (1,588), `bash_body.sh` (1,437), `fish.sh` (804) |
 | 1.2 | input is a real editor, not readline | `app/src/terminal/input/{classic,agent,buffer_model}.rs`, `app/src/terminal/line_editor_status.rs` |
 | 1.3 | subsystem line counts | `app/src/terminal` 230,377 · `crates/warp_terminal` 46,585 · `app/src/editor` 43,279 · `crates/warpui` 34,439 · `crates/warp_completer` 19,054 |
