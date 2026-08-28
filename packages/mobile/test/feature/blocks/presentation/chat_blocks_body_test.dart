@@ -13,6 +13,9 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
@@ -184,5 +187,293 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pump();
     verify(() => cubit.refresh()).called(1);
+  });
+
+  group('capability-gated action wiring', () {
+    SessionBlock approvalBlock(String id) => SessionBlock(
+      id: id,
+      firstSeq: 1,
+      lastSeq: 1,
+      kind: BlockKind.permission,
+      status: BlockStatus.blocked,
+      title: 'Approval',
+      body: 'Bash',
+      truncatedLines: 0,
+      redacted: false,
+    );
+
+    SessionBlock userInputBlock(String id) => SessionBlock(
+      id: id,
+      firstSeq: 1,
+      lastSeq: 1,
+      kind: BlockKind.permission,
+      status: BlockStatus.blocked,
+      title: 'Input',
+      body: 'Pick a color',
+      truncatedLines: 0,
+      redacted: false,
+    );
+
+    SessionBlock promptBlock(String id, String turnId) => SessionBlock(
+      id: id,
+      firstSeq: 1,
+      lastSeq: 1,
+      kind: BlockKind.prompt,
+      status: BlockStatus.ok,
+      turnId: turnId,
+      title: 'Prompt',
+      body: 'do the thing',
+      truncatedLines: 0,
+      redacted: false,
+    );
+
+    SessionBlock assistantBlock(String id, String turnId) => SessionBlock(
+      id: id,
+      firstSeq: 2,
+      lastSeq: 2,
+      kind: BlockKind.assistant,
+      status: BlockStatus.ok,
+      turnId: turnId,
+      title: 'Assistant',
+      body: 'ok',
+      truncatedLines: 0,
+      redacted: false,
+    );
+
+    testWidgets(
+      'renders approve and deny buttons when capabilities includes approve',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            items: const [
+              ConversationActivityModel(
+                id: 'req-1',
+                activityKind: 'approval',
+                status: 'pending',
+                requestId: 'req-1',
+              ),
+            ],
+            capabilities: const ['approve'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [approvalBlock('req-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('block-approve')), findsOneWidget);
+        expect(find.byKey(const ValueKey('block-decline')), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'does not render approve or deny buttons when capabilities is empty',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            items: const [
+              ConversationActivityModel(
+                id: 'req-1',
+                activityKind: 'approval',
+                status: 'pending',
+                requestId: 'req-1',
+              ),
+            ],
+            capabilities: const [],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [approvalBlock('req-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('block-approve')), findsNothing);
+        expect(find.byKey(const ValueKey('block-decline')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'calls repository.resolveApproval with the request id and the approve decision',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            items: const [
+              ConversationActivityModel(
+                id: 'req-1',
+                activityKind: 'approval',
+                status: 'pending',
+                requestId: 'req-1',
+              ),
+            ],
+            capabilities: const ['approve'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [approvalBlock('req-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit, repository: repository);
+
+        await tester.tap(find.byKey(const ValueKey('block-approve')));
+        await tester.pump();
+        await tester.pump();
+
+        final captured = verify(
+          () => repository.resolveApproval(captureAny(), captureAny()),
+        ).captured;
+        expect(captured.length, 2);
+        expect(captured[0], 's-1');
+        final params = captured[1] as ResolveApprovalParams;
+        expect(params.requestId, 'req-1');
+        expect(params.decisionId, 'approve');
+      },
+    );
+
+    testWidgets(
+      'renders the answer button when capabilities includes elicitation',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            items: const [
+              ConversationActivityModel(
+                id: 'req-2',
+                activityKind: 'user_input',
+                status: 'pending',
+                requestId: 'req-2',
+              ),
+            ],
+            capabilities: const ['elicitation'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [userInputBlock('req-2')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('block-answer')), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'does not render the answer button when capabilities is empty',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            items: const [
+              ConversationActivityModel(
+                id: 'req-2',
+                activityKind: 'user_input',
+                status: 'pending',
+                requestId: 'req-2',
+              ),
+            ],
+            capabilities: const [],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [userInputBlock('req-2')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('block-answer')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'renders the rollback button when capabilities includes rollback and the turn is rollback-eligible',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            turns: const [
+              ConversationTurnModel(
+                id: 't-1',
+                state: 'completed',
+                providerTurnId: 'prov-1',
+                rolledBack: false,
+                requestedAt: '2026-08-28T10:00:00Z',
+                startedAt: '2026-08-28T10:00:01Z',
+                completedAt: '2026-08-28T10:00:05Z',
+              ),
+            ],
+            capabilities: const ['rollback'],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [promptBlock('p-1', 't-1'), assistantBlock('a-1', 't-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('turn-rollback')), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'does not render the rollback button when capabilities is empty',
+      (tester) async {
+        when(() => cubit.snapshot).thenReturn(
+          ConversationSnapshotModel(
+            sessionId: 's-1',
+            turns: const [
+              ConversationTurnModel(
+                id: 't-1',
+                state: 'completed',
+                providerTurnId: 'prov-1',
+                rolledBack: false,
+                requestedAt: '2026-08-28T10:00:00Z',
+                startedAt: '2026-08-28T10:00:01Z',
+                completedAt: '2026-08-28T10:00:05Z',
+              ),
+            ],
+            capabilities: const [],
+          ),
+        );
+        when(() => cubit.state).thenReturn(
+          ConversationBlocksReadyState(
+            revision: 1,
+            blocks: [promptBlock('p-1', 't-1'), assistantBlock('a-1', 't-1')],
+            isLoading: false,
+          ),
+        );
+
+        await _pump(tester, cubit);
+
+        expect(find.byKey(const ValueKey('turn-rollback')), findsNothing);
+      },
+    );
   });
 }

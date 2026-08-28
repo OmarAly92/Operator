@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,12 +12,15 @@ import type { WorkspaceSession } from "../types/workspace";
 import { SessionBlocksPane } from "./CenterPane";
 import { TooltipProvider } from "./ui/tooltip";
 
+type CommandsStub = ReturnType<typeof import("../hooks/useConversation").useConversationCommands>;
+
 const sessionMocks = vi.hoisted(() => ({
 	useConversation: undefined as undefined | (() => ConversationQueryResult),
 	useSessionBlocks: undefined as undefined | (() => SessionBlocksResult),
 	useConversationCommands: undefined as
 		| undefined
 		| (() => { send: (input: { text: string }) => Promise<unknown> }),
+	commands: undefined as undefined | (() => Partial<CommandsStub>),
 }));
 
 vi.mock("../hooks/useSessionBlocks", async (importOriginal) => {
@@ -45,6 +48,7 @@ vi.mock("../hooks/useConversation", async (importOriginal) => {
 			);
 		}) as typeof actual.useConversation,
 		useConversationCommands: ((id: string | undefined) => {
+			if (sessionMocks.commands) return sessionMocks.commands() as CommandsStub;
 			if (sessionMocks.useConversationCommands) return sessionMocks.useConversationCommands();
 			return (actual.useConversationCommands as unknown as (id: string | undefined) => {
 				send: (input: { text: string }) => Promise<unknown>;
@@ -126,6 +130,7 @@ beforeEach(() => {
 	sessionMocks.useConversation = undefined;
 	sessionMocks.useSessionBlocks = undefined;
 	sessionMocks.useConversationCommands = undefined;
+	sessionMocks.commands = undefined;
 	teardown = installVirtualLayout({ heights: () => [80] });
 });
 
@@ -279,5 +284,330 @@ describe("SessionBlocksPane chat routing", () => {
 		await user.click(screen.getByRole("button", { name: "Send" }));
 
 		expect(sendMock).toHaveBeenCalledWith({ text: "ping the agent" });
+	});
+});
+
+function approvalActivity(id: string, status: "pending" | "resolved" = "pending") {
+	return {
+		kind: "activity" as const,
+		id,
+		turnId: "t-1",
+		sequence: 10,
+		revision: 0,
+		activityKind: "approval" as const,
+		status,
+		summary: "Bash",
+		detail: {},
+		requestId: id,
+		createdAt: "2026-08-28T10:00:00Z",
+	};
+}
+
+function userInputActivity(id: string, status: "pending" | "resolved" = "pending") {
+	return {
+		kind: "activity" as const,
+		id,
+		turnId: "t-1",
+		sequence: 10,
+		revision: 0,
+		activityKind: "user_input" as const,
+		status,
+		summary: "Pick a color",
+		detail: {},
+		requestId: id,
+		createdAt: "2026-08-28T10:00:00Z",
+	};
+}
+
+function chatTurn(id: string, state: "completed" | "running" | "queued" = "completed") {
+	return {
+		id,
+		state,
+		rolledBack: false,
+		providerTurnId: `provider-${id}`,
+		requestedAt: "2026-08-28T10:00:00Z",
+		startedAt: "2026-08-28T10:00:01Z",
+		completedAt: state === "completed" ? "2026-08-28T10:00:05Z" : undefined,
+	};
+}
+
+function chatSnapshotWith(options: {
+	activities: ReturnType<typeof approvalActivity>[] | ReturnType<typeof userInputActivity>[];
+	turns: ReturnType<typeof chatTurn>[];
+	capabilities: string[];
+}): ConversationSnapshot {
+	return {
+		conversationId: "c-1",
+		sessionId: chatWorker.id,
+		harness: "codex",
+		mode: "chat",
+		controller: { state: "ready" },
+		turns: options.turns,
+		items: [
+			{
+				kind: "message",
+				id: "m-1",
+				turnId: "t-1",
+				sequence: 1,
+				revision: 0,
+				role: "user",
+				origin: "human",
+				text: "do the thing",
+				streaming: false,
+				createdAt: "2026-08-28T10:00:00Z",
+			},
+			...options.activities,
+		],
+		latestSequence: 10,
+		oldestSequence: 1,
+		hasMoreBefore: false,
+		settings: {},
+		capabilities: options.capabilities,
+	};
+}
+
+describe("CenterPane capability-gated action wiring", () => {
+	it("renders approve and deny buttons when the snapshot's capabilities include 'approve'", () => {
+		const resolve = vi.fn();
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [approvalActivity("req-1")],
+				turns: [chatTurn("t-1")],
+				capabilities: ["approve"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ resolve });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.getByTestId("block-approve")).toBeInTheDocument();
+		expect(screen.getByTestId("block-decline")).toBeInTheDocument();
+	});
+
+	it("does not render approve or deny buttons when the snapshot's capabilities are empty", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [approvalActivity("req-1")],
+				turns: [chatTurn("t-1")],
+				capabilities: [],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ resolve: vi.fn() });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByTestId("block-approve")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("block-decline")).not.toBeInTheDocument();
+	});
+
+	it("calls the resolve mutation with the request id and the approve decision when the approve button is clicked", () => {
+		const resolve = vi.fn();
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [approvalActivity("req-1")],
+				turns: [chatTurn("t-1")],
+				capabilities: ["approve"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ resolve });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		fireEvent.click(screen.getByTestId("block-approve"));
+		expect(resolve).toHaveBeenCalledWith("req-1", "approve");
+	});
+
+	it("renders the answer button when the snapshot's capabilities include 'elicitation'", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [userInputActivity("req-2")],
+				turns: [chatTurn("t-1")],
+				capabilities: ["elicitation"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ resolveInput: vi.fn().mockResolvedValue(undefined) });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.getByTestId("block-answer")).toBeInTheDocument();
+	});
+
+	it("does not render the answer button when the snapshot's capabilities are empty", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [userInputActivity("req-2")],
+				turns: [chatTurn("t-1")],
+				capabilities: [],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ resolveInput: vi.fn() });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByTestId("block-answer")).not.toBeInTheDocument();
+	});
+
+	it("renders the rollback button when the snapshot's capabilities include 'rollback' and the turn is rollback-eligible", () => {
+		const rollback = vi.fn().mockResolvedValue(undefined);
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [],
+				turns: [chatTurn("t-1", "completed")],
+				capabilities: ["rollback"],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ rollback });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.getAllByTestId("turn-rollback").length).toBeGreaterThan(0);
+	});
+
+	it("does not render the rollback button when the snapshot's capabilities are empty", () => {
+		sessionMocks.useConversation = () => ({
+			snapshot: chatSnapshotWith({
+				activities: [],
+				turns: [chatTurn("t-1", "completed")],
+				capabilities: [],
+			}),
+			isLoading: false,
+			unavailable: undefined,
+			error: undefined,
+			hasOlder: false,
+			isLoadingOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+		sessionMocks.commands = () => ({ rollback: vi.fn() });
+		sessionMocks.useSessionBlocks = () => ({
+			blocks: [],
+			isLoading: false,
+			isLoadingOlder: false,
+			hasOlder: false,
+			loadOlder: vi.fn(),
+			refetch: vi.fn(),
+		});
+
+		render(
+			<Wrapper>
+				<SessionBlocksPane session={chatWorker} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByTestId("turn-rollback")).not.toBeInTheDocument();
 	});
 });
