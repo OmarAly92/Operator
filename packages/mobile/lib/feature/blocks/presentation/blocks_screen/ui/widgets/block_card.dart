@@ -13,6 +13,7 @@ class BlockCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final display = blockDisplay(block);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -25,15 +26,23 @@ class BlockCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           BlockCardHeader(block: block),
-          if (block.body.isNotEmpty)
+          if (display.summary.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Text(
-                block.body,
+                display.summary,
                 softWrap: true,
                 style: AppTextStyle.mono12Regular.copyWith(
                   color: skin.textSecondary,
                 ),
+              ),
+            ),
+          if (display.errorText != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+              child: AppText(
+                display.errorText!,
+                style: AppTextStyle.style10Regular.copyWith(color: skin.red),
               ),
             ),
           if (block.redacted)
@@ -69,6 +78,7 @@ class BlockCardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final display = blockDisplay(block);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -81,7 +91,7 @@ class BlockCardHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: AppText(
-              block.title,
+              display.displayName,
               style: AppTextStyle.style12SemiBold.copyWith(
                 color: skin.textPrimary,
               ),
@@ -101,7 +111,10 @@ class BlockCardHeader extends StatelessWidget {
   String _kindLabel(BlockKind kind) => switch (kind) {
     BlockKind.prompt => 'you',
     BlockKind.assistant => 'agent',
+    BlockKind.reasoning => 'reasoning',
     BlockKind.tool => 'tool',
+    BlockKind.todo => 'todo',
+    BlockKind.compaction => 'compaction',
     BlockKind.permission => 'permission',
     BlockKind.notice => 'notice',
   };

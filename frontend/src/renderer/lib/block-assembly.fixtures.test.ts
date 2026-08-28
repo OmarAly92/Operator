@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { assembleBlocks } from "./block-assembly";
+import { blockDisplay, type BlockDetail, type SessionBlock } from "./session-block";
 import type { BlockEventView } from "./terminal-mux";
 
 // The same files the Dart suite asserts (packages/mobile/test/feature/blocks/
@@ -25,6 +26,15 @@ type ExpectedBlock = {
 	errorType?: string;
 	truncatedLines?: number;
 	redacted?: boolean;
+};
+
+type DetailFixture = {
+	detail: BlockDetail;
+	display: {
+		displayName: string;
+		summary: string;
+		errorText?: string;
+	};
 };
 
 const fixtureDirectory = path.resolve(process.cwd(), "../testdata/blocks");
@@ -51,4 +61,29 @@ describe("shared assembly fixtures", () => {
 			});
 		});
 	}
+
+	it("acp_detail_variants has a display for every detail variant", () => {
+		const raw = readFileSync(path.join(fixtureDirectory, "acp_detail_variants.json"), "utf8");
+		const fixture = JSON.parse(raw) as { details: DetailFixture[] };
+
+		for (const item of fixture.details) {
+			const block: SessionBlock = {
+				id: "acp-detail",
+				firstSeq: 1,
+				lastSeq: 1,
+				kind: "tool",
+				status: "ok",
+				title: "Tool",
+				body: "",
+				detail: item.detail,
+				truncatedLines: 0,
+				redacted: false,
+			};
+
+			const display = blockDisplay(block);
+			expect(display.displayName).toBe(item.display.displayName);
+			expect(display.summary).toBe(item.display.summary);
+			expect(display.errorText).toBe(item.display.errorText);
+		}
+	});
 });

@@ -25,6 +25,20 @@ describe("assembleBlocks", () => {
 		expect(closed[1]).toMatchObject({ kind: "assistant", body: "done", status: "ok" });
 	});
 
+	it("adds empty turn ids and unknown details without changing hook fields", () => {
+		const block = assembleBlocks([event(1, "tool_complete", { toolName: "Bash", text: "ok" })])[0];
+
+		expect(block).toMatchObject({
+			id: "seq-1",
+			kind: "tool",
+			status: "ok",
+			title: "Bash",
+			body: "ok",
+			turnId: undefined,
+			detail: { type: "unknown", raw: "ok" },
+		});
+	});
+
 	it("fails the open prompt and the assistant block on stop_failure", () => {
 		const blocks = assembleBlocks([
 			event(1, "prompt_submit", { text: "go" }),

@@ -2,8 +2,7 @@ import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
 List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
-  final ordered = events.where((event) => event.seq != null).toList()
-    ..sort((a, b) => a.seq!.compareTo(b.seq!));
+  final ordered = events.where((event) => event.seq != null).toList()..sort((a, b) => a.seq!.compareTo(b.seq!));
 
   final blocks = <SessionBlock>[];
   final indexById = <String, int>{};
@@ -41,11 +40,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
             redacted: _isRedacted(event),
           );
         } else {
-          _append(
-            blocks,
-            indexById,
-            _create(event, key, BlockKind.tool, status, event.toolName ?? 'Tool', body),
-          );
+          _append(blocks, indexById, _create(event, key, BlockKind.tool, status, event.toolName ?? 'Tool', body));
         }
 
       case 'permission_request':
@@ -58,11 +53,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         );
 
       case 'question_asked':
-        _append(
-          blocks,
-          indexById,
-          _create(event, key, BlockKind.notice, BlockStatus.blocked, 'Waiting on you', text),
-        );
+        _append(blocks, indexById, _create(event, key, BlockKind.notice, BlockStatus.blocked, 'Waiting on you', text));
 
       case 'permission_replied':
         final at = key == null ? null : indexById['src-$key'];
@@ -75,23 +66,13 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         final failed = event.kind == 'stop_failure';
         final at = _lastRunningPrompt(blocks);
         if (at != null) {
-          blocks[at] = blocks[at].copyWith(
-            status: failed ? BlockStatus.failed : BlockStatus.ok,
-            lastSeq: seq,
-          );
+          blocks[at] = blocks[at].copyWith(status: failed ? BlockStatus.failed : BlockStatus.ok, lastSeq: seq);
         }
         if (text.isNotEmpty) {
           _append(
             blocks,
             indexById,
-            _create(
-              event,
-              key,
-              BlockKind.assistant,
-              failed ? BlockStatus.failed : BlockStatus.ok,
-              'Assistant',
-              text,
-            ),
+            _create(event, key, BlockKind.assistant, failed ? BlockStatus.failed : BlockStatus.ok, 'Assistant', text),
           );
         }
 
@@ -116,8 +97,7 @@ List<SessionBlock> resolveStranded(List<SessionBlock> blocks, String reason) => 
     )
     .toList();
 
-String _join(List<String> parts, String separator) =>
-    parts.where((part) => part.isNotEmpty).join(separator);
+String _join(List<String> parts, String separator) => parts.where((part) => part.isNotEmpty).join(separator);
 
 String? _correlationKey(BlockEventModel event) {
   final source = event.sourceId ?? '';
@@ -150,6 +130,8 @@ SessionBlock _create(
     truncatedLines: event.truncatedLines ?? 0,
     redacted: _isRedacted(event),
     createdAt: event.createdAt,
+    turnId: null,
+    detail: UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
   );
 }
 

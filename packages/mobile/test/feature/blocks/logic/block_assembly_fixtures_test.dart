@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_assembly.dart';
+import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
 const _fixtures = [
   'assembly_turn',
@@ -47,4 +48,32 @@ void main() {
       }
     });
   }
+
+  test('acp_detail_variants has a display for every detail variant', () {
+    final file = File('../../testdata/blocks/acp_detail_variants.json');
+    expect(file.existsSync(), isTrue, reason: 'the shared ACP detail fixture is missing');
+
+    final fixture = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    final details = (fixture['details'] as List<dynamic>).cast<Map<String, dynamic>>();
+
+    for (final item in details) {
+      final expected = item['display'] as Map<String, dynamic>;
+      final display = blockDisplay(
+        SessionBlock(
+          id: 'acp-detail',
+          firstSeq: 1,
+          lastSeq: 1,
+          kind: BlockKind.tool,
+          status: BlockStatus.ok,
+          title: 'Tool',
+          body: '',
+          detail: BlockDetail.fromJson(item['detail'] as Map<String, dynamic>),
+        ),
+      );
+
+      expect(display.displayName, expected['displayName']);
+      expect(display.summary, expected['summary']);
+      expect(display.errorText, expected['errorText']);
+    }
+  });
 }
