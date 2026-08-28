@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PINNED_SLACK_PX } from "../../lib/block-viewport";
 import type { SessionBlock } from "../../lib/session-block";
-import { installVirtualLayout } from "../../test/virtual-layout";
+import { installVirtualLayout, remeasure } from "../../test/virtual-layout";
 import { BlockCard } from "./BlockCard";
 import { BlockList } from "./BlockList";
 
@@ -29,6 +30,11 @@ function range(from: number, to: number, lines?: (seq: number) => number): Sessi
 const heightOfBlock = (item: SessionBlock) => 40 + item.body.split("\n").length * 20;
 
 let current: SessionBlock[] = [];
+let growSpec: { id: string; lines: number } = { id: "", lines: 0 };
+
+function grown(seq: number, lines: number): SessionBlock {
+	return { ...block(seq, 1), body: Array.from({ length: lines }, (_, line) => `grown line ${line}`).join("\n") };
+}
 
 function Harness({ initial, sessionId = "s-1" }: { initial: SessionBlock[]; sessionId?: string }) {
 	const [blocks, setBlocks] = useState(initial);
@@ -38,6 +44,18 @@ function Harness({ initial, sessionId = "s-1" }: { initial: SessionBlock[]; sess
 		<>
 			<button onClick={() => setBlocks((prev) => [...range(1, 40), ...prev])} type="button">prepend</button>
 			<button onClick={() => setBlocks((prev) => [...prev, block(9999, 2)])} type="button">append</button>
+			<button
+				onClick={() =>
+					setBlocks((prev) =>
+						prev.map((item) =>
+							item.id === growSpec.id ? grown(item.firstSeq, growSpec.lines) : item,
+						),
+					)
+				}
+				type="button"
+			>
+				grow
+			</button>
 			<button
 				onClick={() => {
 					setSession("s-2");
@@ -197,6 +215,74 @@ describe("BlockList", () => {
 		await mount(range(1, 2));
 
 		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
+	});
+
+	it("drops the pinned header once a pinned block streams past the viewport", async () => {
+		await mount(range(1, 60, () => 3));
+		const node = screen.getByRole("log");
+		act(() => {
+			node.scrollTop = 0;
+			fireEvent.scroll(node);
+		});
+		expect(screen.getByTestId("sticky-block-header")).toHaveTextContent("Bash 1");
+
+		growSpec = { id: "seq-1", lines: 200 };
+		await act(async () => screen.getByText("grow").click());
+		await act(async () => remeasure((el) => el.getAttribute("data-block-id") === growSpec.id));
+
+		expect(screen.queryByTestId("sticky-block-header")).not.toBeInTheDocument();
+	});
+
+	it("does not move the block being read when a block above the viewport is re-measured", async () => {
+		await mount(range(100, 400, (seq) => 1 + (seq % 5)));
+		const node = screen.getByRole("log");
+		await act(async () => {
+			node.scrollTop = 2000;
+			fireEvent.scroll(node);
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 200));
+		});
+
+		const rows = () => [...document.querySelectorAll<HTMLElement>("[data-block-id]")];
+		const startOf = (row: HTMLElement) => Number(row.dataset.blockStart);
+		const heightById = (id: string) => {
+			const found = current.find((item) => item.id === id);
+			return found === undefined ? 0 : heightOfBlock(found);
+		};
+
+		const above = rows()[0];
+		expect(startOf(above) + heightById(above.dataset.blockId ?? "")).toBeLessThanOrEqual(node.scrollTop);
+
+		const anchor = rows().reduce<HTMLElement>((best, row) => {
+			return startOf(row) <= node.scrollTop && startOf(row) > startOf(best) ? row : best;
+		}, rows()[0]);
+		const anchorId = anchor.dataset.blockId ?? "";
+		expect(anchorId).not.toBe(above.dataset.blockId);
+		const before = startOf(anchor) - node.scrollTop;
+
+		growSpec = { id: above.dataset.blockId ?? "", lines: 40 };
+		await act(async () => screen.getByText("grow").click());
+		await act(async () => remeasure((el) => el.getAttribute("data-block-id") === growSpec.id));
+
+		const after = document.querySelector<HTMLElement>(`[data-block-id="${anchorId}"]`);
+		expect(after).not.toBeNull();
+		expect(startOf(after as HTMLElement) - node.scrollTop).toBe(before);
+	});
+
+	it("keeps a pinned view at the tail when the last block grows", async () => {
+		await mount(range(1, 300, (seq) => 1 + (seq % 5)));
+		expect(screen.getByText("Bash 300")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+
+		growSpec = { id: "seq-300", lines: 40 };
+		await act(async () => screen.getByText("grow").click());
+		await act(async () => remeasure((el) => el.getAttribute("data-block-id") === growSpec.id));
+
+		const node = screen.getByRole("log");
+		expect(screen.getByText("Bash 300")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+		expect(node.scrollHeight - node.scrollTop - node.clientHeight).toBeLessThanOrEqual(PINNED_SLACK_PX);
 	});
 
 	it("steps to the next block boundary", async () => {

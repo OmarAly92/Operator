@@ -14,7 +14,8 @@ function indexOf(element: HTMLElement): number | undefined {
 	return Number.isFinite(index) ? index : undefined;
 }
 
-type RemeasureCallback = (entries: { target: Element }[]) => void;
+type RemeasureEntry = { target: Element; contentRect: DOMRect };
+type RemeasureCallback = (entries: RemeasureEntry[]) => void;
 
 const liveObservers = new Map<RemeasureCallback, Set<Element>>();
 
@@ -39,11 +40,12 @@ class RemeasurableResizeObserver {
 	}
 }
 
-export function remeasure(): void {
+export function remeasure(match?: (element: Element) => boolean): void {
 	for (const [callback, elements] of liveObservers) {
 		const entries = [...elements]
 			.filter((element) => element.isConnected && element.hasAttribute("data-index"))
-			.map((target) => ({ target }));
+			.filter((element) => match === undefined || match(element))
+			.map((target) => ({ target, contentRect: target.getBoundingClientRect() }));
 		if (entries.length > 0) callback(entries);
 	}
 }
