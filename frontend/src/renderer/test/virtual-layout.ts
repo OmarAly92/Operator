@@ -14,9 +14,52 @@ function indexOf(element: HTMLElement): number | undefined {
 	return Number.isFinite(index) ? index : undefined;
 }
 
+type RemeasureEntry = { target: Element; contentRect: DOMRect };
+type RemeasureCallback = (entries: RemeasureEntry[]) => void;
+
+const liveObservers = new Map<RemeasureCallback, Set<Element>>();
+
+class RemeasurableResizeObserver {
+	private readonly callback: RemeasureCallback;
+
+	constructor(callback: RemeasureCallback) {
+		this.callback = callback;
+		liveObservers.set(callback, new Set());
+	}
+
+	observe(element: Element): void {
+		liveObservers.get(this.callback)?.add(element);
+	}
+
+	unobserve(element: Element): void {
+		liveObservers.get(this.callback)?.delete(element);
+	}
+
+	disconnect(): void {
+		liveObservers.delete(this.callback);
+	}
+}
+
+export function remeasure(match?: (element: Element) => boolean): void {
+	for (const [callback, elements] of liveObservers) {
+		const entries = [...elements]
+			.filter((element) => element.isConnected && element.hasAttribute("data-index"))
+			.filter((element) => match === undefined || match(element))
+			.map((target) => ({ target, contentRect: target.getBoundingClientRect() }));
+		if (entries.length > 0) callback(entries);
+	}
+}
+
 export function installVirtualLayout(options: VirtualLayoutOptions): () => void {
 	const viewportHeight = options.viewportHeight ?? VIRTUAL_VIEWPORT_HEIGHT;
 	const heightAt = (index: number) => options.heights()[index] ?? 0;
+
+	const previousResizeObserver = window.ResizeObserver;
+	Object.defineProperty(window, "ResizeObserver", {
+		configurable: true,
+		writable: true,
+		value: RemeasurableResizeObserver,
+	});
 
 	const sizeOf = function (this: HTMLElement) {
 		const index = indexOf(this);
@@ -67,5 +110,11 @@ export function installVirtualLayout(options: VirtualLayoutOptions): () => void 
 		offsetHeightSpy.mockRestore();
 		scrollHeightSpy.mockRestore();
 		if (!hadScrollTo) delete proto.scrollTo;
+		Object.defineProperty(window, "ResizeObserver", {
+			configurable: true,
+			writable: true,
+			value: previousResizeObserver,
+		});
+		liveObservers.clear();
 	};
 }

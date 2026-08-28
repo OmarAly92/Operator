@@ -2,7 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { installVirtualLayout, VIRTUAL_VIEWPORT_HEIGHT } from "./virtual-layout";
+import { installVirtualLayout, remeasure, VIRTUAL_VIEWPORT_HEIGHT } from "./virtual-layout";
 
 const heightOf = (label: string) => 60 + (Number(label.replace(/\D/g, "")) % 5) * 40;
 let currentItems: string[] = [];
@@ -138,5 +138,63 @@ describe("installVirtualLayout", () => {
 		expect("scrollTo" in Element.prototype).toBe(false);
 		teardown = installVirtualLayout({ heights: () => currentItems.map(heightOf) });
 		await waitFor(() => expect("scrollTo" in Element.prototype).toBe(true));
+	});
+});
+
+describe("remeasure", () => {
+	let teardown: () => void;
+	const measured = new Map<number, number>();
+
+	beforeEach(() => {
+		measured.clear();
+		teardown = installVirtualLayout({
+			heights: () => Array.from({ length: 20 }, (_, index) => measured.get(index) ?? 50),
+		});
+	});
+	afterEach(() => teardown());
+
+	function Grid() {
+		const ref = useRef<HTMLDivElement | null>(null);
+		const virtualizer = useVirtualizer({
+			count: 20,
+			getScrollElement: () => ref.current,
+			estimateSize: () => 50,
+			overscan: 20,
+		});
+		return (
+			<div data-block-scroll data-testid="scroll" ref={ref} style={{ overflowY: "auto" }}>
+				<div
+					data-block-sizer
+					data-testid="sizer"
+					style={{ height: virtualizer.getTotalSize(), position: "relative" }}
+				>
+					{virtualizer.getVirtualItems().map((row) => (
+						<div data-index={row.index} data-testid="cell" key={row.key} ref={virtualizer.measureElement} />
+					))}
+				</div>
+			</div>
+		);
+	}
+
+	const totalSize = () => Number.parseFloat(screen.getByTestId("sizer").style.height);
+
+	it("re-measures an already-mounted element and grows the reported total size", async () => {
+		render(<Grid />);
+		await act(async () => {});
+		const before = totalSize();
+
+		measured.set(3, 400);
+		await act(async () => remeasure());
+
+		expect(totalSize()).toBe(before + 350);
+	});
+
+	it("ignores callbacks for elements that have unmounted", async () => {
+		const { unmount } = render(<Grid />);
+		await act(async () => {});
+
+		unmount();
+		measured.set(3, 400);
+		expect(() => remeasure()).not.toThrow();
 	});
 });
