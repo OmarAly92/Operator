@@ -82,6 +82,7 @@ describe("BlockList", () => {
 	let teardown: () => void;
 	beforeEach(() => {
 		current = [];
+		growSpec = { id: "", lines: 0 };
 		teardown = installVirtualLayout({ heights: () => current.map(heightOfBlock) });
 	});
 	afterEach(() => {
