@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { BlockAction } from "../../lib/block-actions";
@@ -33,16 +33,25 @@ export function BlockCardHeader({
 	collapsed = false,
 	onToggleCollapse,
 	highlight,
+	selected = false,
+	onToggleSelect,
 }: {
 	block: SessionBlock;
 	collapsed?: boolean;
 	onToggleCollapse?: (blockId: string) => void;
 	highlight?: BlockHighlight;
+	selected?: boolean;
+	onToggleSelect?: (blockId: string, extend: boolean) => void;
 }) {
 	const { t } = useTranslation();
 	const display = blockDisplay(block);
 	const content = (
 		<>
+			{onToggleSelect === undefined ? null : (
+				<span aria-hidden="true" className={`flex size-4 items-center justify-center rounded border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"}`}>
+					{selected ? <Check className="size-3" /> : null}
+				</span>
+			)}
 			<BlockStatusDot status={block.status} />
 			<span className="flex-1 truncate font-medium text-foreground text-xs">
 				{highlight?.field === "displayName" ? highlighted(display.displayName, highlight.ranges, highlight.active) : display.displayName}
@@ -52,8 +61,22 @@ export function BlockCardHeader({
 		</>
 	);
 
-	if (onToggleCollapse === undefined) {
+	if (onToggleCollapse === undefined && onToggleSelect === undefined) {
 		return <div className="flex items-center gap-2 border-border border-b px-3 py-2">{content}</div>;
+	}
+
+	if (onToggleSelect !== undefined) {
+		return (
+			<button
+				aria-label={t("blocks.select.enter")}
+				aria-pressed={selected}
+				className="flex w-full items-center gap-2 border-border border-b px-3 py-2 text-left"
+				onClick={(event) => onToggleSelect(block.id, event.shiftKey)}
+				type="button"
+			>
+				{content}
+			</button>
+		);
 	}
 
 	return (
@@ -61,7 +84,7 @@ export function BlockCardHeader({
 			aria-expanded={!collapsed}
 			aria-label={t(collapsed ? "blocks.action.expand" : "blocks.action.collapse")}
 			className="flex w-full items-center gap-2 border-border border-b px-3 py-2 text-left"
-			onClick={() => onToggleCollapse(block.id)}
+			onClick={() => onToggleCollapse?.(block.id)}
 			type="button"
 		>
 			{content}
@@ -80,6 +103,8 @@ export const BlockCard = memo(function BlockCard({
 	onToggleCollapse,
 	highlight,
 	highlightsByBlockId,
+	selected = false,
+	onToggleSelect,
 }: {
 	block: SessionBlock;
 	renderActions?: (block: SessionBlock) => ReactNode;
@@ -101,8 +126,8 @@ export const BlockCard = memo(function BlockCard({
 	const hasStandardActions = actions !== undefined && actions.length > 0;
 
 	return (
-		<div className="mx-3 my-1 rounded-md border border-border bg-card" data-testid="session-block">
-			<BlockCardHeader block={block} collapsed={collapsed} highlight={highlight} onToggleCollapse={onToggleCollapse} />
+		<div className={`mx-3 my-1 rounded-md border bg-card ${selected ? "border-primary ring-1 ring-primary" : "border-border"}`} data-testid={selected ? "session-block-selected" : "session-block"}>
+			<BlockCardHeader block={block} collapsed={collapsed} highlight={highlight} onToggleCollapse={onToggleCollapse} onToggleSelect={onToggleSelect} selected={selected} />
 			{collapsed ? null : (
 				<>
 			{display.summary === "" ? null : (

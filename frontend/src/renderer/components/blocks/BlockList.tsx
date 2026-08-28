@@ -31,6 +31,9 @@ export function BlockList({
 	matchesByBlockId,
 	activeMatchId,
 	onFindKeyDown,
+	selectedIds,
+	onToggleSelect,
+	selectionActionBar,
 }: {
 	blocks: SessionBlock[];
 	sessionId: string;
@@ -44,6 +47,9 @@ export function BlockList({
 	matchesByBlockId?: ReadonlyMap<string, BlockMatch>;
 	activeMatchId?: string;
 	onFindKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+	selectedIds?: ReadonlySet<string>;
+	onToggleSelect?: (blockId: string, extend: boolean) => void;
+	selectionActionBar?: ReactNode;
 }) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -178,7 +184,9 @@ export function BlockList({
 									highlightsByBlockId={highlightsByBlockId}
 									onAction={onAction}
 									onToggleCollapse={onToggleCollapse}
+									onToggleSelect={onToggleSelect}
 									renderActions={renderActions}
+									selected={selectedIds?.has(item.id)}
 								/>
 								{group === undefined ? null : (
 									<TurnGroupStatus
@@ -205,6 +213,9 @@ export function BlockList({
 						<BlockCardHeader block={stickyBlock} />
 					</div>
 				</div>
+			)}
+			{selectionActionBar === undefined ? null : (
+				<div className="absolute bottom-3 left-3">{selectionActionBar}</div>
 			)}
 			<div className="absolute right-3 bottom-3 flex flex-col items-end gap-2">
 				<div className="flex flex-col overflow-hidden rounded-md border border-border bg-card">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { blockActionsFor, type BlockAction, type BlockActionContext } from "../../lib/block-actions";
+import { blockActionsFor, blocksToText, type BlockAction, type BlockActionContext } from "../../lib/block-actions";
+import { operatorBridge } from "../../lib/bridge";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
@@ -53,7 +54,15 @@ export function BlocksView({
 	const [query, setQuery] = useState("");
 	const [filtering, setFiltering] = useState(false);
 	const [activeMatchId, setActiveMatchId] = useState<string | undefined>(undefined);
-	useEffect(() => setCollapsedIds(new Set()), [sessionId]);
+	const [selectionMode, setSelectionMode] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const [selectionAnchor, setSelectionAnchor] = useState<string | undefined>(undefined);
+	useEffect(() => {
+		setCollapsedIds(new Set());
+		setSelectionMode(false);
+		setSelectedIds(new Set());
+		setSelectionAnchor(undefined);
+	}, [sessionId]);
 	const actionsByBlockId = useMemo(() => {
 		const byBlockId = new Map<string, readonly BlockAction[]>();
 		const add = (block: SessionBlock) => {
@@ -77,6 +86,36 @@ export function BlocksView({
 		[blocks, filtering, matches.length, query],
 	);
 	const matchesByBlockId = useMemo(() => new Map(matches.map((match) => [match.blockId, match])), [matches]);
+	const selectedBlocks = useMemo(
+		() => filtered.blocks.filter((block) => selectedIds.has(block.id)),
+		[filtered.blocks, selectedIds],
+	);
+	const clearSelection = useCallback(() => {
+		setSelectionMode(false);
+		setSelectedIds(new Set());
+		setSelectionAnchor(undefined);
+	}, []);
+	const onToggleSelect = useCallback((blockId: string, extend: boolean) => {
+		const blockIndex = filtered.blocks.findIndex((block) => block.id === blockId);
+		if (blockIndex < 0) return;
+		const anchorIndex = selectionAnchor === undefined ? -1 : filtered.blocks.findIndex((block) => block.id === selectionAnchor);
+		setSelectedIds((current) => {
+			const next = new Set(current);
+			if (extend && anchorIndex >= 0) {
+				for (const block of filtered.blocks.slice(Math.min(anchorIndex, blockIndex), Math.max(anchorIndex, blockIndex) + 1)) next.add(block.id);
+			} else if (next.has(blockId)) {
+				next.delete(blockId);
+			} else {
+				next.add(blockId);
+			}
+			return next;
+		});
+		if (!extend || anchorIndex < 0) setSelectionAnchor(blockId);
+	}, [filtered.blocks, selectionAnchor]);
+	const onCopySelection = useCallback(async () => {
+		await operatorBridge.clipboard.writeText(blocksToText(selectedBlocks));
+		clearSelection();
+	}, [clearSelection, selectedBlocks]);
 	const activeIndex = matches.findIndex((match) => match.blockId === activeMatchId);
 	const closeFind = useCallback(() => {
 		setFindOpen(false);
@@ -92,11 +131,16 @@ export function BlocksView({
 		setActiveMatchId((current) => nextMatchId(matches, current, forward));
 	}, [matches]);
 	const onFindKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Escape" && selectionMode) {
+			event.preventDefault();
+			clearSelection();
+			return;
+		}
 		if (!event.metaKey && !event.ctrlKey) return;
 		if (event.key.toLowerCase() !== "f") return;
 		event.preventDefault();
 		setFindOpen(true);
-	}, []);
+	}, [clearSelection, selectionMode]);
 
 	if (unavailable !== undefined) {
 		return (
@@ -147,7 +191,9 @@ export function BlocksView({
 					onPrevious={() => stepMatch(false)}
 					onQueryChange={onQueryChange}
 					onToggleFilter={() => setFiltering((current) => !current)}
+					onToggleSelect={() => selectionMode ? clearSelection() : setSelectionMode(true)}
 					query={query}
+					selecting={selectionMode}
 				/>
 			) : null}
 			{filtering && filtered.hiddenCount > 0 ? <p className="px-3 py-1 text-muted-foreground text-xs">{t("blocks.find.hidden", { count: filtered.hiddenCount })}</p> : null}
@@ -165,6 +211,19 @@ export function BlocksView({
 					renderActions={renderActions}
 					sessionId={sessionId}
 					matchesByBlockId={matchesByBlockId}
+					onToggleSelect={selectionMode ? onToggleSelect : undefined}
+					selectedIds={selectedIds}
+					selectionActionBar={selectionMode ? (
+						<div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 shadow-sm">
+							<span className="text-xs text-muted-foreground">{t("blocks.select.count", { count: selectedBlocks.length })}</span>
+							<Button disabled={selectedBlocks.length === 0} onClick={onCopySelection} size="sm" variant="primary">
+								{t("blocks.select.copy")}
+							</Button>
+							<Button onClick={clearSelection} size="sm" variant="ghost">
+								{t("blocks.select.cancel")}
+							</Button>
+						</div>
+					) : undefined}
 				/>
 			</div>
 		</div>

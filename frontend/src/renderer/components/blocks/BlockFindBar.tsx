@@ -14,6 +14,8 @@ export function BlockFindBar({
 	filtering,
 	onToggleFilter,
 	onClose,
+	selecting = false,
+	onToggleSelect,
 }: {
 	query: string;
 	onQueryChange: (query: string) => void;
@@ -24,12 +26,15 @@ export function BlockFindBar({
 	filtering: boolean;
 	onToggleFilter: () => void;
 	onClose: () => void;
+	selecting?: boolean;
+	onToggleSelect?: () => void;
 }) {
 	const { t } = useTranslation();
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (event.key === "Escape") {
 			event.preventDefault();
-			onClose();
+			if (selecting) onToggleSelect?.();
+			else onClose();
 			return;
 		}
 		if (event.key !== "Enter") return;
@@ -59,6 +64,11 @@ export function BlockFindBar({
 			<Button aria-label={t("blocks.find.filter")} aria-pressed={filtering} onClick={onToggleFilter} size="icon" variant="ghost">
 				<Filter className="size-4" />
 			</Button>
+			{onToggleSelect === undefined ? null : (
+				<Button aria-pressed={selecting} onClick={onToggleSelect} size="sm" variant="ghost">
+					{t("blocks.select.enter")}
+				</Button>
+			)}
 			<Button aria-label={t("blocks.find.close")} onClick={onClose} size="icon" variant="ghost">
 				<X className="size-4" />
 			</Button>
