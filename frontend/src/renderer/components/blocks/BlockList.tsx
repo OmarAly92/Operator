@@ -64,7 +64,7 @@ export function BlockList({ blocks, sessionId }: { blocks: SessionBlock[]; sessi
 		computedTop !== undefined && node !== null && headerSticks(computedTop.size, node.clientHeight)
 			? computedTop.index
 			: null;
-	const effectiveStickyIndex = computedSticky ?? stickyIndex;
+	const effectiveStickyIndex = node === null ? stickyIndex : computedSticky;
 
 	const goNext = useCallback(() => {
 		const target = nextBoundary(effectiveStickyIndex ?? undefined, blocks.length);
