@@ -77,8 +77,8 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 				theme: { set: async () => undefined },
 				menu: { action: async () => undefined, notifyShellFocus: () => undefined },
 				clipboard: {
-					writeText: async () => undefined,
-					readText: async () => "",
+					writeText: async (text: string) => navigator.clipboard.writeText(text),
+					readText: async () => navigator.clipboard.readText(),
 				},
 				daemon: {
 					getStatus: async () => status,
@@ -450,7 +450,10 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				},
 				theme: { set: async () => undefined },
 				menu: { action: async () => undefined, notifyShellFocus: () => undefined },
-				clipboard: { writeText: async () => undefined, readText: async () => "" },
+				clipboard: {
+					writeText: async (text: string) => navigator.clipboard.writeText(text),
+					readText: async () => navigator.clipboard.readText(),
+				},
 				daemon: {
 					getStatus: async () => status,
 					start: async () => status,

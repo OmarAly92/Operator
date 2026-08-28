@@ -10,6 +10,7 @@ import {
 	nextBoundary,
 	previousTarget,
 	topItemFor,
+	virtualizationThreshold,
 } from "../../lib/block-viewport";
 import { groupBlocksByTurn, type TurnGroup } from "../../lib/block-turns";
 import type { BlockAction } from "../../lib/block-actions";
@@ -56,6 +57,7 @@ export function BlockList({
 	const pinnedRef = useRef(true);
 	const [pinned, setPinned] = useState(true);
 	const [stickyIndex, setStickyIndex] = useState<number | null>(null);
+	const mountAll = blocks.length < virtualizationThreshold();
 
 	const virtualizer = useVirtualizer({
 		count: blocks.length,
@@ -107,6 +109,11 @@ export function BlockList({
 	}, [activeMatchId, blocks, virtualizer]);
 
 	const items = virtualizer.getVirtualItems();
+	const startByIndex = useMemo(() => {
+		const map = new Map<number, number>();
+		for (const item of items) map.set(item.index, item.start);
+		return map;
+	}, [items]);
 
 	const node = scrollRef.current;
 	const computedTop = node === null ? undefined : topItemFor(items, node.scrollTop);
@@ -155,22 +162,22 @@ export function BlockList({
 					data-block-sizer
 					style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}
 				>
-					{items.map((row) => {
-						const item = blocks[row.index];
+					{(mountAll ? blocks.map((item, index) => ({ item, index })) : items.map((row) => ({ item: blocks[row.index], index: row.index }))).map(({ item, index }) => {
 						if (item === undefined) return null;
 						const group = groupEndingByBlockId.get(item.id);
+						const start = startByIndex.get(index);
 						return (
 							<div
 								data-block-id={item.id}
-								data-block-start={row.start}
-								data-index={row.index}
-								key={row.key}
+								data-block-start={start ?? index * ESTIMATED_BLOCK_HEIGHT}
+								data-index={index}
+								key={item.id}
 								ref={virtualizer.measureElement}
-								style={{
+								style={mountAll ? undefined : {
 									left: 0,
 									position: "absolute",
 									top: 0,
-									transform: `translateY(${row.start}px)`,
+									transform: `translateY(${start ?? 0}px)`,
 									width: "100%",
 								}}
 							>

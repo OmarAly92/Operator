@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	headerSticks,
 	isPinned,
@@ -6,7 +6,13 @@ import {
 	previousBoundary,
 	previousTarget,
 	topItemFor,
+	VIRTUALIZATION_THRESHOLD,
+	virtualizationThreshold,
 } from "./block-viewport";
+
+const thresholdGlobal = globalThis as typeof globalThis & {
+	__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD?: number;
+};
 
 const items = [
 	{ index: 0, start: 0, size: 100 },
@@ -101,5 +107,40 @@ describe("previousTarget", () => {
 
 	it("has nowhere to go with no top item", () => {
 		expect(previousTarget(undefined, 0, 3)).toBeUndefined();
+	});
+});
+
+describe("VIRTUALIZATION_THRESHOLD", () => {
+	it("is the documented threshold (100)", () => {
+		expect(VIRTUALIZATION_THRESHOLD).toBe(100);
+	});
+});
+
+describe("virtualizationThreshold", () => {
+	afterEach(() => {
+		delete thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD;
+	});
+
+	it("returns the documented constant when the test global is unset", () => {
+		expect(virtualizationThreshold()).toBe(VIRTUALIZATION_THRESHOLD);
+	});
+
+	it("returns the documented constant when the test global is not a finite number", () => {
+		thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD = Number.NaN;
+		expect(virtualizationThreshold()).toBe(VIRTUALIZATION_THRESHOLD);
+
+		thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD = Number.POSITIVE_INFINITY;
+		expect(virtualizationThreshold()).toBe(VIRTUALIZATION_THRESHOLD);
+
+		thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD = "4" as unknown as number;
+		expect(virtualizationThreshold()).toBe(VIRTUALIZATION_THRESHOLD);
+	});
+
+	it("returns the override when the test global is a finite number", () => {
+		thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD = 4;
+		expect(virtualizationThreshold()).toBe(4);
+
+		thresholdGlobal.__OPERATOR_E2E_BLOCK_VIRTUALIZATION_THRESHOLD = 0;
+		expect(virtualizationThreshold()).toBe(0);
 	});
 });
