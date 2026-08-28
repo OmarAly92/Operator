@@ -373,6 +373,38 @@ paths:
       summary: Report whether a folder sits inside an existing Git repository
       tags:
       - dev
+  /api/v1/dev/block-replay:
+    post:
+      operationId: runDevBlockReplay
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevBlockReplayRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevBlockReplayResponse'
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Drive a synthetic block-event stream through the real Record path (dev-only,
+        gated by OPERATOR_DEV_BLOCK_REPLAY=1)
+      tags:
+      - dev
   /api/v1/dev/import-projects:
     post:
       operationId: runDevImportProjects
@@ -6101,6 +6133,29 @@ components:
       properties:
         setupWarning:
           type: string
+      type: object
+    DevBlockReplayRequest:
+      properties:
+        events:
+          type: integer
+        harness:
+          type: string
+        ratePerSecond:
+          type: integer
+        sessionId:
+          type: string
+      required:
+      - sessionId
+      - harness
+      - events
+      - ratePerSecond
+      type: object
+    DevBlockReplayResponse:
+      properties:
+        ok:
+          type: boolean
+      required:
+      - ok
       type: object
     DevImportProjectsConflict:
       properties:

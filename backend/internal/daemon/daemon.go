@@ -411,6 +411,7 @@ func Run() error {
 		Conversations:      chatSvc,
 		Settings:           settingsSvc,
 		DevScan:            folderScanner,
+		DevBlockReplay:     blockevent.NewReplay(blockEvents),
 		CDC:                store,
 		Events:             cdcPipe.Broadcaster,
 		Activity:           lcStack.LCM,

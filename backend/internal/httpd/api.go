@@ -56,6 +56,7 @@ type APIDeps struct {
 	DesktopPreview      DesktopPreviewService
 	DevImport           controllers.DevImportService
 	DevScan             controllers.DevScanService
+	DevBlockReplay      controllers.DevBlockReplayer
 	CDC                 cdc.Source
 	Events              cdcSubscriber
 	Telemetry           ports.EventSink
@@ -116,7 +117,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
-		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan},
+		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
 		browser:       &controllers.BrowserController{Svc: deps.Browser},
 		events:        &EventsController{Source: deps.CDC, Live: deps.Events},
 	}
