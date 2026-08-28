@@ -1,6 +1,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, Plus, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { defaultShortcutBindings, shortcutBindingLabel } from "../../shared/shortcuts";
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import {
@@ -26,9 +27,11 @@ import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalPane, useTerminalCacheController } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
-import { BlockComposer } from "./blocks/BlockComposer";
+import { BlockComposer, type BlockComposerSend } from "./blocks/BlockComposer";
 import { BlocksView } from "./blocks/BlocksView";
 import { useSessionBlocks } from "../hooks/useSessionBlocks";
+import { useConversation, useConversationCommands } from "../hooks/useConversation";
+import { blocksFromConversation } from "../lib/conversation-blocks";
 import { blocksCoverHarness } from "../lib/session-block";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -666,14 +669,35 @@ export function defaultSessionViewMode(session: WorkspaceSession | undefined): S
 	return blocksCoverHarness(session.provider) ? "blocks" : "raw";
 }
 
-function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined }) {
+export function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined }) {
 	const sessionId = session?.id ?? "";
 	const harness = session?.provider;
+	const isChat = session?.mode === "chat";
+
+	if (isChat) {
+		return <ChatSessionBlocksPane sessionId={sessionId} />;
+	}
+
+	return (
+		<TuiSessionBlocksPane harness={harness} session={session} sessionId={sessionId} />
+	);
+}
+
+function TuiSessionBlocksPane({
+	harness,
+	session,
+	sessionId,
+}: {
+	harness: string | undefined;
+	session: WorkspaceSession | undefined;
+	sessionId: string;
+}) {
 	const blocks = useSessionBlocks(sessionId, {
 		enabled: sessionId !== "",
 		harness,
 		sessionEnded: session?.isTerminated === true || session?.activity?.state === "exited",
 	});
+	const send = useTuiSend(sessionId);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -691,7 +715,60 @@ function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined 
 					supported={blocksCoverHarness(harness)}
 				/>
 			</div>
-			{sessionId === "" ? null : <BlockComposer sessionId={sessionId} />}
+			{sessionId === "" ? null : <BlockComposer send={send} sessionId={sessionId} />}
 		</div>
+	);
+}
+
+function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
+	const conversation = useConversation(sessionId);
+	const commands = useConversationCommands(sessionId);
+	const blocks = conversation.snapshot ? blocksFromConversation(conversation.snapshot) : [];
+	const supported = conversation.unavailable === undefined && conversation.error === undefined;
+	const send = useChatSend(commands);
+
+	return (
+		<div className="flex h-full min-h-0 flex-col">
+			<div className="min-h-0 flex-1">
+				<BlocksView
+					blocks={blocks}
+					error={conversation.error}
+					hasOlder={conversation.hasOlder}
+					isLoading={conversation.isLoading}
+					isLoadingOlder={conversation.isLoadingOlder}
+					onLoadOlder={conversation.loadOlder}
+					onRetry={conversation.loadOlder}
+					sessionId={sessionId}
+					supported={supported}
+					unavailable={conversation.unavailable}
+				/>
+			</div>
+			{sessionId === "" ? null : <BlockComposer send={send} sessionId={sessionId} />}
+		</div>
+	);
+}
+
+function useChatSend(
+	commands: ReturnType<typeof useConversationCommands>,
+): BlockComposerSend {
+	return useCallback(
+		async (input: { text: string }) => {
+			await commands.send(input);
+		},
+		[commands],
+	);
+}
+
+function useTuiSend(sessionId: string): BlockComposerSend {
+	const { t } = useTranslation();
+	return useCallback(
+		async (input: { text: string }) => {
+			const { error: failure } = await apiClient.POST("/api/v1/sessions/{sessionId}/send", {
+				params: { path: { sessionId } },
+				body: { message: input.text },
+			});
+			if (failure) throw new Error(apiErrorMessage(failure, t("blocks.sendError")));
+		},
+		[sessionId, t],
 	);
 }

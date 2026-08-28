@@ -1,13 +1,15 @@
 import { type FormEvent, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SendHorizontal } from "lucide-react";
-import { apiClient, apiErrorMessage } from "../../lib/api-client";
+import { apiErrorMessage } from "../../lib/api-client";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
 export const BLOCK_MESSAGE_MAX_LENGTH = 4096;
 
-export function BlockComposer({ sessionId }: { sessionId: string }) {
+export type BlockComposerSend = (input: { text: string }) => Promise<unknown>;
+
+export function BlockComposer({ sessionId, send }: { sessionId: string; send: BlockComposerSend }) {
 	const { t } = useTranslation();
 	const [draft, setDraft] = useState("");
 	const [isSending, setIsSending] = useState(false);
@@ -23,21 +25,18 @@ export function BlockComposer({ sessionId }: { sessionId: string }) {
 			setIsSending(true);
 			setError(undefined);
 			try {
-				const { error: failure } = await apiClient.POST("/api/v1/sessions/{sessionId}/send", {
-					params: { path: { sessionId } },
-					body: { message },
-				});
+				await send({ text: message });
 				if (generationRef.current !== generation) return;
-				if (failure) throw new Error(apiErrorMessage(failure, t("blocks.sendError")));
 				setDraft("");
 			} catch (cause) {
 				if (generationRef.current !== generation) return;
-				setError(cause instanceof Error ? cause.message : String(cause));
+				const message = cause instanceof Error ? cause.message : apiErrorMessage(cause, t("blocks.sendError"));
+				setError(message);
 			} finally {
 				if (generationRef.current === generation) setIsSending(false);
 			}
 		},
-		[draft, isSending, sessionId, t],
+		[draft, isSending, sessionId, send, t],
 	);
 
 	return (

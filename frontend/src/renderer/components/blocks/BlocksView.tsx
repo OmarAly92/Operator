@@ -9,6 +9,8 @@ export type BlocksViewProps = {
 	isLoadingOlder: boolean;
 	hasOlder: boolean;
 	error?: string;
+	/** The session has no chat conversation to show (e.g. wrong mode, missing controller). */
+	unavailable?: { code: string; message: string };
 	harness?: string;
 	sessionId: string;
 	supported: boolean;
@@ -22,6 +24,7 @@ export function BlocksView({
 	isLoadingOlder,
 	hasOlder,
 	error,
+	unavailable,
 	harness,
 	sessionId,
 	supported,
@@ -29,6 +32,15 @@ export function BlocksView({
 	onRetry,
 }: BlocksViewProps) {
 	const { t } = useTranslation();
+
+	if (unavailable !== undefined) {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
+				<p className="text-muted-foreground text-xs">{unavailable.message}</p>
+				<p className="text-muted-foreground/70 text-[10px] font-mono">{unavailable.code}</p>
+			</div>
+		);
+	}
 
 	if (!supported) {
 		return <Notice text={t("blocks.unavailable", { harness: harness ?? "" })} />;

@@ -198,4 +198,15 @@ describe("BlocksView", () => {
 		await userEvent.click(screen.getByRole("button", { name: /retry/i }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
+
+	it("renders the unavailable reason as a non-error notice without a retry button", () => {
+		renderView({
+			unavailable: { code: "SESSION_MODE_MISMATCH", message: "This session is a terminal session." },
+		});
+
+		expect(screen.getByText(/This session is a terminal session\./)).toBeInTheDocument();
+		expect(screen.getByText(/SESSION_MODE_MISMATCH/)).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+		expect(screen.queryByTestId("session-block")).not.toBeInTheDocument();
+	});
 });
