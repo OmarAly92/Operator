@@ -72,6 +72,29 @@ export function blocksFromConversation(snapshot: ConversationSnapshot): SessionB
 
 	const sortedRows = [...filteredRows].sort((left, right) => left.sequence - right.sequence);
 
+	const bestRowByIdSequence = new Map<string, SourceRow>();
+	for (const row of sortedRows) {
+		const id = row.item.id;
+		if (id === undefined) continue;
+		const key = `${id}-${row.sequence}`;
+		const existing = bestRowByIdSequence.get(key);
+		if (existing === undefined) {
+			bestRowByIdSequence.set(key, row);
+			continue;
+		}
+		const existingRevision = existing.item.revision ?? 0;
+		const rowRevision = row.item.revision ?? 0;
+		if (rowRevision > existingRevision) {
+			bestRowByIdSequence.set(key, row);
+		}
+	}
+	const dedupedRows = sortedRows.filter((row) => {
+		const id = row.item.id;
+		if (id === undefined) return true;
+		const best = bestRowByIdSequence.get(`${id}-${row.sequence}`);
+		return best === row;
+	});
+
 	const rolledBackNotices: SourceRow[] = [];
 	for (const turn of snapshot.turns) {
 		if (turn.rolledBack !== true) continue;
@@ -90,7 +113,7 @@ export function blocksFromConversation(snapshot: ConversationSnapshot): SessionB
 		});
 	}
 
-	const merged = [...sortedRows, ...rolledBackNotices].sort(
+	const merged = [...dedupedRows, ...rolledBackNotices].sort(
 		(left, right) => left.sequence - right.sequence,
 	);
 
@@ -103,6 +126,7 @@ export function blocksFromConversation(snapshot: ConversationSnapshot): SessionB
 					row.rolledBackAt,
 					row.createdAt,
 					row.turnId,
+					row.sequence,
 				),
 			);
 			continue;
@@ -112,7 +136,7 @@ export function blocksFromConversation(snapshot: ConversationSnapshot): SessionB
 
 	const nestedBlocks = applyNesting(blocks, activityLookup);
 
-	const compactionInsertion = buildCompactionInsertion(snapshot, sortedRows);
+	const compactionInsertion = buildCompactionInsertion(snapshot, dedupedRows);
 	if (compactionInsertion === null) return nestedBlocks;
 
 	return insertCompaction(nestedBlocks, compactionInsertion);
@@ -651,11 +675,12 @@ function buildRolledBackNotice(
 	rolledBackAt: string | undefined,
 	createdAt: string | undefined,
 	turnIdForBlock: string | undefined,
+	rowSequence: number,
 ): SessionBlock {
 	return {
 		id: `rolled-back-${turnId}`,
-		firstSeq: Number.MAX_SAFE_INTEGER,
-		lastSeq: Number.MAX_SAFE_INTEGER,
+		firstSeq: rowSequence,
+		lastSeq: rowSequence,
 		kind: "notice",
 		status: "ok",
 		turnId: turnIdForBlock,

@@ -78,6 +78,29 @@ List<SessionBlock> blocksFromConversation(ConversationSnapshotModel snapshot) {
   final filteredRows = rows.where((row) => !row.isRolledBack).toList()
     ..sort((left, right) => left.sequence.compareTo(right.sequence));
 
+  final bestRowByIdSequence = <String, _SourceRow>{};
+  for (final row in filteredRows) {
+    final id = row.item.id;
+    if (id == null) continue;
+    final key = '$id-${row.sequence}';
+    final existing = bestRowByIdSequence[key];
+    if (existing == null) {
+      bestRowByIdSequence[key] = row;
+      continue;
+    }
+    final existingRevision = existing.item.revision ?? 0;
+    final rowRevision = row.item.revision ?? 0;
+    if (rowRevision > existingRevision) {
+      bestRowByIdSequence[key] = row;
+    }
+  }
+  final dedupedRows = filteredRows.where((row) {
+    final id = row.item.id;
+    if (id == null) return true;
+    final best = bestRowByIdSequence['$id-${row.sequence}'];
+    return best == row;
+  }).toList();
+
   final rolledBackNotices = <_SourceRow>[];
   for (final turn in snapshot.turns) {
     if (turn.rolledBack != true) continue;
@@ -98,7 +121,7 @@ List<SessionBlock> blocksFromConversation(ConversationSnapshotModel snapshot) {
     );
   }
 
-  final merged = <_SourceRow>[...filteredRows, ...rolledBackNotices]
+  final merged = <_SourceRow>[...dedupedRows, ...rolledBackNotices]
     ..sort((left, right) => left.sequence.compareTo(right.sequence));
 
   final blocks = <SessionBlock>[];
@@ -110,6 +133,7 @@ List<SessionBlock> blocksFromConversation(ConversationSnapshotModel snapshot) {
           row.rolledBackAt,
           row.createdAt,
           row.turnId,
+          row.sequence,
         ),
       );
       continue;
@@ -117,7 +141,7 @@ List<SessionBlock> blocksFromConversation(ConversationSnapshotModel snapshot) {
     blocks.add(_rowToBlock(row.item, row.turnId, row.createdAt, snapshot));
   }
 
-  final insertion = _buildCompactionInsertion(snapshot, filteredRows);
+  final insertion = _buildCompactionInsertion(snapshot, dedupedRows);
   if (insertion == null) return _applyNesting(blocks, activityById);
 
   return _applyNesting(_insertCompaction(blocks, insertion), activityById);
@@ -703,11 +727,12 @@ SessionBlock _buildRolledBackNotice(
   String? rolledBackAt,
   String? createdAt,
   String? turnIdForBlock,
+  int rowSequence,
 ) {
   return SessionBlock(
     id: 'rolled-back-$turnId',
-    firstSeq: 0x7FFFFFFFFFFFFFFF,
-    lastSeq: 0x7FFFFFFFFFFFFFFF,
+    firstSeq: rowSequence,
+    lastSeq: rowSequence,
     kind: BlockKind.notice,
     status: BlockStatus.ok,
     turnId: turnIdForBlock,

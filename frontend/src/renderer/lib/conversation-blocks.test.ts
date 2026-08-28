@@ -281,9 +281,10 @@ describe("blocksFromConversation — six rules", () => {
 				message("m-1", 1, "assistant", "final", { revision: 3 }),
 			]),
 		);
-		expect(blocks).toHaveLength(2);
+		expect(blocks).toHaveLength(1);
 		expect(blocks[0]?.firstSeq).toBe(1);
-		expect(blocks[1]?.firstSeq).toBe(1);
+		expect(blocks[0]?.lastSeq).toBe(1);
+		expect(blocks[0]?.body).toBe("final");
 	});
 
 	it("rule 3: empty settled text on an assistant produces body '' (pinned)", () => {

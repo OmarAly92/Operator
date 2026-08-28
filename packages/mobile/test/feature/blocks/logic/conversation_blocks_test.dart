@@ -330,9 +330,10 @@ void main() {
           _message('m-1', 1, 'assistant', 'final', revision: 3),
         ]),
       );
-      expect(blocks, hasLength(2));
+      expect(blocks, hasLength(1));
       expect(blocks[0].firstSeq, 1);
-      expect(blocks[1].firstSeq, 1);
+      expect(blocks[0].lastSeq, 1);
+      expect(blocks[0].body, 'final');
     });
 
     test('rule 3: empty settled text on an assistant produces body "" (pinned)', () {
