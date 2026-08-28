@@ -60,6 +60,13 @@ class ListHarnessState extends State<ListHarness> {
     blocks = next;
   });
 
+  void grow(String id, int lines) => setState(() {
+    blocks = [
+      for (final item in blocks)
+        if (item.id == id) block(item.firstSeq, lines: lines) else item,
+    ];
+  });
+
   @override
   Widget build(BuildContext context) => BlockList(
     key: const ValueKey('list'),
@@ -518,6 +525,69 @@ void main() {
 
       expect(sticky.value?.block.kind, BlockKind.prompt);
       expect(find.text('you'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a pinned block streaming past the viewport drops its header', (
+    tester,
+  ) async {
+    final sticky = ValueNotifier<StickyBlock?>(null);
+    addTearDown(sticky.dispose);
+    final harness = await pumpList(
+      tester,
+      range(1, 40, lines: (seq) => 2),
+      sticky: sticky,
+    );
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(sticky.value?.block.id, 'seq-1');
+
+    harness.grow('seq-1', 400);
+    await tester.pumpAndSettle();
+
+    expect(
+      sticky.value,
+      isNull,
+      reason: 'a block that streams past the viewport must release its header',
+    );
+  });
+
+  testWidgets(
+    'a block above the viewport growing does not move the read block',
+    (tester) async {
+      final harness = await pumpList(tester, range(1, 60, lines: (seq) => 2));
+      final state = tester.state<BlockListState>(find.byType(BlockList));
+      state.controller.jumpTo(600);
+      await tester.pumpAndSettle();
+
+      final anchor = find.byKey(const ValueKey('seq-12'));
+      final before = tester.getTopLeft(anchor).dy;
+      final pixelsBefore = state.controller.position.pixels;
+
+      harness.grow('seq-2', 60);
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(anchor).dy, before);
+      expect(state.controller.position.pixels, pixelsBefore);
+    },
+  );
+
+  testWidgets(
+    'the tail block growing while pinned keeps the view at the tail',
+    (tester) async {
+      final harness = await pumpList(tester, range(1, 60, lines: (seq) => 2));
+      final state = tester.state<BlockListState>(find.byType(BlockList));
+      expect(find.text('Bash 60'), findsOneWidget);
+
+      harness.grow('seq-60', 30);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bash 60'), findsOneWidget);
+      expect(
+        state.controller.position.pixels,
+        state.controller.position.maxScrollExtent,
+      );
     },
   );
 
