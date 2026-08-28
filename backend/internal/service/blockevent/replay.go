@@ -19,7 +19,7 @@ type Replay struct {
 }
 
 // ReplayInput is one replay run. Events caps the total number of recorded
-// events; RatePerSecond paces the ticker. The cycle is fixed: session-start,
+// events; RatePerSecond paces the timer. The cycle is fixed: session-start,
 // user-prompt-submit, four post-tool-use with distinct ToolUseIDs, one
 // post-tool-use-failure, stop. The last cycle may be partial when Events is
 // not a multiple of the cycle length.
