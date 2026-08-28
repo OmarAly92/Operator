@@ -299,8 +299,16 @@ an adapter mapping its source into the shared model.
 
 **Desktop.** The same split: shared block components under
 `frontend/src/renderer/components/blocks/`, with the existing chat components
-reduced to a source adapter. This retires most of the 38 files under
-`components/chat/`, which is the point.
+reduced to a source adapter.
+
+**How much of `components/chat/` actually retires, corrected.** An earlier draft said
+"most of the 38 files", and plan 5b's inventory shows that overstates it. Roughly a
+third of the directory is timeline rendering and retires; the rest is *interaction* —
+composer, elicitation, turn settings, context meter, branch navigation, status
+banners — which blocks do not replace and which deleting would remove as features.
+The rule is that the **timeline layer** retires, not the chat feature. Expect roughly
+12–14 desktop files including tests. Deleting a file to reach a number is a
+regression, not progress.
 
 **This reverses an earlier decision** in the superseded draft to keep terminal
 and chat models separate. That call assumed two screens. With one screen, one
@@ -966,7 +974,7 @@ it withholds the one path with full fidelity.
 
 ## Implementation plans
 
-This spec is delivered as **nine plans**, each producing working, testable
+This spec is delivered as **ten plans**, each producing working, testable
 software on its own. Plans live in `docs/superpowers/plans/`.
 
 | # | Plan | Spec steps | File | Status |
@@ -976,7 +984,8 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 3 | Desktop block screen | 2 (desktop mux), 3, 5 | `2026-08-27-desktop-block-screen.md` | written |
 | 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | written |
 | 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
-| 5 | ACP adapter, chat presentation retires | 7 | — | |
+| 5a | ACP adapter, mobile | 7 | `2026-08-28-acp-block-adapter-mobile.md` | written |
+| 5b | ACP adapter, desktop | 7 | `2026-08-28-acp-block-adapter-desktop.md` | written |
 | 6 | Block actions, selection, find | 8 | — | |
 | 7 | Shell blocks | 9 | — | |
 | 8 | Transcript enrichment | 10 | — | |
@@ -1074,6 +1083,16 @@ depth, and can be re-ordered or cut — except plan 5. Cutting 5 leaves chat's
 presentation layer alive beside the block screen, which is the duplication this
 design exists to remove, and its cost grows with every block feature that lands
 first.
+
+**Plan 5 is split into 5a and 5b, and unlike plan 4 the split is not free.** Mobile
+and desktop share no source file here either — Dart and TypeScript models, adapters,
+grouping functions and screens are all per-client — but they *do* share the
+`testdata/blocks/` fixtures, which by design are asserted by both suites. Both plans
+therefore carry a byte-identical **frozen contract** section pinning the extended
+block model, the turn-grouping rules and the exact fixture contents, so two agents in
+separate worktrees produce the same files. Whoever merges first wins; the second
+verifies and moves on. Each plan also states which directory the other owns, so
+neither reaches across.
 
 **Plan 9 was not in the original sequencing.** It came out of the paseo mobile
 review and is not a spec step — it makes `packages/mobile` a replicating client
