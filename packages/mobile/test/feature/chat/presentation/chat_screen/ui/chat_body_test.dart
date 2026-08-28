@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
@@ -35,6 +37,9 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/lo
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockChatCubit extends MockCubit<ChatState> implements ChatCubit {}
+
+class _MockConversationBlocksCubit extends MockCubit<ConversationBlocksState>
+    implements ConversationBlocksCubit {}
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
@@ -103,6 +108,13 @@ ConversationSnapshotModel snapshot({
   rateLimits: rateLimits,
   usage: usage,
 );
+
+ConversationBlocksCubit _blocksCubit() {
+  final cubit = _MockConversationBlocksCubit();
+  when(() => cubit.state).thenReturn(const ConversationBlocksInitialState());
+  when(() => cubit.snapshot).thenReturn(null);
+  return cubit;
+}
 
 void main() {
   late _MockChatCubit cubit;
@@ -207,6 +219,15 @@ void main() {
               body: MultiBlocProvider(
                 providers: [
                   BlocProvider<ChatCubit>.value(value: cubit),
+                  BlocProvider<ConversationBlocksCubit>.value(
+                    value: _blocksCubit(),
+                  ),
+                  BlocProvider<ConversationBlocksCubit>.value(
+                    value: _blocksCubit(),
+                  ),
+                  BlocProvider<ConversationBlocksCubit>.value(
+                    value: _blocksCubit(),
+                  ),
                   BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
                 ],
                 child: const ChatBody(projectId: 'p-1'),
@@ -516,6 +537,9 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<ConversationBlocksCubit>.value(
+                  value: _blocksCubit(),
+                ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: ChatScreen(sessionId: 'w-1', title: 'Conversation'),
@@ -554,6 +578,9 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<ConversationBlocksCubit>.value(
+                  value: _blocksCubit(),
+                ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const ChatScreen(
@@ -585,6 +612,9 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
+                BlocProvider<ConversationBlocksCubit>.value(
+                  value: _blocksCubit(),
+                ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const ChatScreen(

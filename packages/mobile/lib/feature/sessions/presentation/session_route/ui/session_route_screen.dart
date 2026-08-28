@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
+import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
@@ -7,8 +9,6 @@ import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
-import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -96,13 +96,18 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           final chatSession = session!;
           return MultiBlocProvider(
             providers: [
+              BlocProvider<ChatCubit>(
+                create: (_) => sl<ChatCubit>(param1: chatSession.id),
+              ),
               BlocProvider<ConversationBlocksCubit>(
                 create: (_) => sl<ConversationBlocksCubit>(param1: chatSession.id),
               ),
             ],
-            child: ChatBlocksBody(
-              repository: sl<ChatRepository>(),
+            child: ChatScreen(
               sessionId: chatSession.id,
+              title: chatSession.title,
+              projectId: chatSession.projectId,
+              previewUrl: chatSession.previewUrl,
             ),
           );
         }

@@ -19,18 +19,16 @@ import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/conversation_banners.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart';
 
 class ChatBlocksBody extends StatefulWidget {
-  const ChatBlocksBody({
-    super.key,
-    required this.sessionId,
-    required this.repository,
-  });
+  const ChatBlocksBody({super.key, required this.sessionId, this.repository});
 
   final String sessionId;
-  final ChatRepository repository;
+
+  /// Falls back to the cubit's own repository, so a caller that already
+  /// provides the cubit does not have to resolve one.
+  final ChatRepository? repository;
 
   @override
   State<ChatBlocksBody> createState() => _ChatBlocksBodyState();
@@ -100,6 +98,7 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
             );
           }
 
+          final repository = widget.repository ?? cubit.repository;
           final activities = _permissionActivities(snapshot?.items);
           final capabilities = snapshot?.capabilities ?? const <String>[];
           final hasInFlightTurn =
@@ -128,7 +127,7 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
                 activity: activity,
                 busy: false,
                 onResolve: (id, action, [content]) =>
-                    widget.repository.resolveInput(
+                    repository.resolveInput(
                       widget.sessionId,
                       ResolveInputParams(
                         requestId: id,
@@ -160,7 +159,7 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
                       label:
                           decisions[index].label ?? decisions[index].id ?? '',
                       onTap: () => unawaited(
-                        widget.repository.resolveApproval(
+                        repository.resolveApproval(
                           widget.sessionId,
                           ResolveApprovalParams(
                             requestId: requestId,
@@ -190,7 +189,7 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
               return;
             }
             unawaited(
-              widget.repository.rollbackTurn(
+              repository.rollbackTurn(
                 widget.sessionId,
                 RollbackTurnParams(turnId: turnId),
               ),
@@ -218,37 +217,16 @@ class _ChatBlocksBodyState extends State<ChatBlocksBody> {
           return Stack(
             children: [
               Positioned.fill(
-                child: Column(
-                  children: [
-                    if (snapshot != null)
-                      ConversationBanners(
-                        snapshot: snapshot,
-                        resuming: false,
-                        mcpReloading: false,
-                        mcpReloadSupported: capabilities.contains('mcp_reload'),
-                        onResume: () => unawaited(
-                          widget.repository.resumeAgent(widget.sessionId),
-                        ),
-                        onReloadMcp: () => unawaited(
-                          widget.repository.reloadMcpServers(widget.sessionId),
-                        ),
-                      ),
-                    Expanded(
-                      child: BlockList(
-                        key: _listKey,
-                        sessionId: widget.sessionId,
-                        blocks: state.blocks,
-                        header: _olderControl(context, state),
-                        sticky: _sticky,
-                        pinnedListenable: _pinned,
-                        actionsBuilder: actionsBuilder,
-                        onRollbackTurn: canRollback ? onRollbackTurn : null,
-                        canRollbackTurn: canRollback
-                            ? canRollbackTurnGroup
-                            : null,
-                      ),
-                    ),
-                  ],
+                child: BlockList(
+                  key: _listKey,
+                  sessionId: widget.sessionId,
+                  blocks: state.blocks,
+                  header: _olderControl(context, state),
+                  sticky: _sticky,
+                  pinnedListenable: _pinned,
+                  actionsBuilder: actionsBuilder,
+                  onRollbackTurn: canRollback ? onRollbackTurn : null,
+                  canRollbackTurn: canRollback ? canRollbackTurnGroup : null,
                 ),
               ),
               Positioned(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -353,7 +354,7 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
                         onPressed: () => cubit.retrySend(pending.id),
                         onSecondary: () => cubit.discardSend(pending.id),
                       ),
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(child: ChatBlocksBody(sessionId: cubit.sessionId)),
                   if (activeTurn != null)
                     LiveTurnBar(
                       snapshot: snapshot,
