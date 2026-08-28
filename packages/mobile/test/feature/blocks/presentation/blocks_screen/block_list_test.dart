@@ -8,15 +8,19 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
-SessionBlock block(int seq, {int lines = 1}) => SessionBlock(
-  id: 'seq-$seq',
-  firstSeq: seq,
-  lastSeq: seq,
-  kind: BlockKind.tool,
-  status: BlockStatus.ok,
-  title: 'Bash $seq',
-  body: List.generate(lines, (line) => 'line $line of block $seq').join('\n'),
-);
+SessionBlock block(int seq, {int lines = 1, BlockKind kind = BlockKind.tool}) =>
+    SessionBlock(
+      id: 'seq-$seq',
+      firstSeq: seq,
+      lastSeq: seq,
+      kind: kind,
+      status: BlockStatus.ok,
+      title: 'Bash $seq',
+      body: List.generate(
+        lines,
+        (line) => 'line $line of block $seq',
+      ).join('\n'),
+    );
 
 List<SessionBlock> range(int from, int to, {int Function(int)? lines}) => [
   for (var seq = from; seq <= to; seq++)
@@ -71,6 +75,7 @@ Future<ListHarnessState> pumpList(
   List<SessionBlock> blocks, {
   ValueNotifier<StickyBlock?>? sticky,
   ValueNotifier<bool>? pinned,
+  bool renderStickyHeader = true,
 }) async {
   await tester.pumpWidget(
     SkinScope(
@@ -92,7 +97,7 @@ Future<ListHarnessState> pumpList(
                         pinned: pinned,
                       ),
                     ),
-                    if (sticky != null)
+                    if (sticky != null && renderStickyHeader)
                       Positioned(
                         top: 0,
                         left: 0,
@@ -490,6 +495,31 @@ void main() {
     expect(state.pinned, isTrue);
     expect(pinned.value, isTrue);
   });
+
+  testWidgets(
+    'switching sessions refreshes a sticky header when only kind changes',
+    (tester) async {
+      final sticky = ValueNotifier<StickyBlock?>(null);
+      addTearDown(sticky.dispose);
+      final harness = await pumpList(
+        tester,
+        [block(1)],
+        sticky: sticky,
+        renderStickyHeader: false,
+      );
+      final state = tester.state<BlockListState>(find.byType(BlockList));
+      state.controller.jumpTo(0);
+      await tester.pumpAndSettle();
+      expect(sticky.value?.block.kind, BlockKind.tool);
+      expect(find.text('tool'), findsOneWidget);
+
+      harness.switchSession('s-2', [block(1, kind: BlockKind.prompt)]);
+      await tester.pumpAndSettle();
+
+      expect(sticky.value?.block.kind, BlockKind.prompt);
+      expect(find.text('you'), findsOneWidget);
+    },
+  );
 
   testWidgets('scrolling does not rebuild the list subtree', (tester) async {
     final sticky = ValueNotifier<StickyBlock?>(null);

@@ -12,6 +12,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 class _MockBlocksCubit extends MockCubit<BlocksState> implements BlocksCubit {}
 
@@ -268,4 +269,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Jump to latest'), findsNothing);
   });
+
+  testWidgets(
+    'dragging from the visible sticky header scrolls the block list',
+    (tester) async {
+      when(() => cubit.blocks).thenReturn(
+        List.generate(
+          60,
+          (index) => _block(id: 'seq-$index', firstSeq: index, body: 'body'),
+        ),
+      );
+
+      await _pump(tester, cubit);
+      final state = tester.state<BlockListState>(find.byType(BlockList));
+      state.controller.jumpTo(0);
+      await tester.pumpAndSettle();
+
+      final header = tester.getRect(find.byType(StickyBlockHeader));
+      final before = state.controller.position.pixels;
+      await tester.dragFrom(header.center, const Offset(0, -120));
+      await tester.pumpAndSettle();
+
+      expect(state.controller.position.pixels, greaterThan(before));
+    },
+  );
 }

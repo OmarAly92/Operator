@@ -91,7 +91,7 @@ class _BlocksBodyState extends State<BlocksBody> {
               top: 6,
               left: 0,
               right: 0,
-              child: StickyBlockHeader(sticky: _sticky),
+              child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
             ),
             Positioned(
               right: 12,

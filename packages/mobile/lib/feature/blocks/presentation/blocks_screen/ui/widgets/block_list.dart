@@ -53,6 +53,8 @@ class BlockListState extends State<BlockList> {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionId != oldWidget.sessionId) {
       _pivotSeq = null;
+      _topIndex = null;
+      widget.sticky?.value = null;
       _setPinned(true);
     }
     _adoptPivot();

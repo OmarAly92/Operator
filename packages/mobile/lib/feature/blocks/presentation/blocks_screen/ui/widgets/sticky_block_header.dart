@@ -12,7 +12,13 @@ class StickyBlock extends Equatable {
   final double height;
 
   @override
-  List<Object?> get props => [block.id, block.status, block.title, height];
+  List<Object?> get props => [
+    block.id,
+    block.status,
+    block.title,
+    block.kind,
+    height,
+  ];
 }
 
 class StickyBlockHeader extends StatelessWidget {
