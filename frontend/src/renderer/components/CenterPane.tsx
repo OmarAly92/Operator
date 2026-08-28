@@ -934,11 +934,11 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 		},
 		[rollbackableTurnIds],
 	);
-	const confirmRewind = useCallback(async () => {
+	const confirmRewind = useCallback(() => {
 		if (rewindTurnId === undefined) return;
 		setRewindTurnId(undefined);
-		await commands.rollback(rewindTurnId);
-	}, [commands, rewindTurnId]);
+		handleRollbackTurn(rewindTurnId);
+	}, [handleRollbackTurn, rewindTurnId]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">

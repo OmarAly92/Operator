@@ -151,8 +151,10 @@ export function BlockList({
 							>
 								<BlockCard
 									actions={actionsByBlockId?.get(item.id)}
+									actionsByBlockId={actionsByBlockId}
 									block={item}
 									collapsed={collapsedIds?.has(item.id)}
+									collapsedIds={collapsedIds}
 									onAction={onAction}
 									onToggleCollapse={onToggleCollapse}
 									renderActions={renderActions}

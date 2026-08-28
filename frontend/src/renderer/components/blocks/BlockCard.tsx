@@ -71,15 +71,19 @@ export const BlockCard = memo(function BlockCard({
 	block,
 	renderActions,
 	actions,
+	actionsByBlockId,
 	onAction,
 	collapsed,
+	collapsedIds,
 	onToggleCollapse,
 }: {
 	block: SessionBlock;
 	renderActions?: (block: SessionBlock) => ReactNode;
 	actions?: readonly BlockAction[];
+	actionsByBlockId?: ReadonlyMap<string, readonly BlockAction[]>;
 	onAction?: (block: SessionBlock, action: BlockAction) => void;
 	collapsed?: boolean;
+	collapsedIds?: ReadonlySet<string>;
 	onToggleCollapse?: (blockId: string) => void;
 	highlight?: { field: "displayName" | "summary"; ranges: readonly MatchRange[] };
 	selected?: boolean;
@@ -104,7 +108,17 @@ export const BlockCard = memo(function BlockCard({
 			{block.children !== undefined && block.children.length > 0 ? (
 				<div className="border-border border-t px-3 py-2 pl-4" data-testid="session-block-children">
 					{block.children.map((child) => (
-						<BlockCard block={child} key={child.id} renderActions={renderActions} />
+						<BlockCard
+							actions={actionsByBlockId?.get(child.id)}
+							actionsByBlockId={actionsByBlockId}
+							block={child}
+							collapsed={collapsedIds?.has(child.id)}
+							collapsedIds={collapsedIds}
+							key={child.id}
+							onAction={onAction}
+							onToggleCollapse={onToggleCollapse}
+							renderActions={renderActions}
+						/>
 					))}
 				</div>
 			) : null}

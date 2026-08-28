@@ -75,6 +75,22 @@ describe("BlocksView", () => {
 		expect(screen.getByText("ok 42 tests")).toBeInTheDocument();
 	});
 
+	it("lets a user collapse and expand nested blocks with their standard actions", async () => {
+		const nested = block({ id: "child-1", body: "nested output" });
+		const parent = block({ id: "parent-1", body: "parent output", children: [nested] });
+		renderView({ blocks: [parent] });
+		await act(async () => {});
+
+		expect(screen.getByText("nested output")).toBeInTheDocument();
+		expect(screen.getAllByTestId("block-action-copy_block")).toHaveLength(2);
+
+		await userEvent.click(screen.getAllByRole("button", { name: "Collapse" })[1]!);
+		expect(screen.queryByText("nested output")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Expand" }));
+		expect(screen.getByText("nested output")).toBeInTheDocument();
+	});
+
 	it("localizes a generated title but passes a tool name through", async () => {
 		renderView({ blocks: [block({ kind: "prompt", title: "Prompt" }), block({ id: "seq-2", title: "Bash" })] });
 		await act(async () => {});
