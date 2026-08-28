@@ -97,6 +97,15 @@ test.describe("blocks viewport", () => {
 	});
 
 	test("Load older prepends without moving the read position", async ({ page }) => {
+		const olderBlocks = [-5, -4, -3, -2, -1].map((seq) =>
+			toolBlock(seq, `Old ${seq}`, `body of Old ${seq}`),
+		);
+		const historyRequests: URL[] = [];
+		await page.route(`**/api/v1/sessions/${SESSION_ID}/blocks*`, async (route) => {
+			const requestUrl = new URL(route.request().url());
+			historyRequests.push(requestUrl);
+			await route.fulfill({ json: { blocks: requestUrl.searchParams.get("beforeSeq") === "1" ? olderBlocks : [] } });
+		});
 		await installHarness(page);
 		await emitBatch(page, 12, 1, "Bash");
 
@@ -124,21 +133,9 @@ test.describe("blocks viewport", () => {
 		}, anchorIdBefore);
 
 		const loadOlder = page.getByRole("button", { name: "Load older blocks" });
-		if (await loadOlder.isVisible().catch(() => false)) {
-			await loadOlder.click();
-		}
-
-		await emitBatch(page, 4, -5, "Old");
-		await emit(page, { ...toolBlock(-1, "Old -1", "oldest"), seq: -1 });
-
-		await expect
-			.poll(async () =>
-				page.evaluate(
-					({ sessionId }) => window.__aoFakeBlocksMux!.stats().emit[sessionId] ?? 0,
-					{ sessionId: SESSION_ID },
-				),
-			)
-			.toBeGreaterThanOrEqual(5);
+		await expect(loadOlder).toBeVisible();
+		await loadOlder.click();
+		await expect.poll(() => historyRequests.filter((url) => url.searchParams.get("beforeSeq") === "1").length).toBe(1);
 		await expect(log.locator(`[data-block-id="${anchorIdBefore}"]`)).toBeAttached();
 
 		const anchorAfter = await log.evaluate((node, anchorId) => {

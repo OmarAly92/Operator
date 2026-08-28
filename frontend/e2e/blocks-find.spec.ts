@@ -133,8 +133,6 @@ test.describe("blocks find and selection", () => {
 
 		await page.getByText(/2 selected/).locator("..").getByRole("button", { name: "Copy" }).click();
 		const clipboard = await page.evaluate(() => navigator.clipboard.readText());
-		const orderOfMatches = [clipboard.indexOf("Bash 3"), clipboard.indexOf("Bash 5")];
-		expect(orderOfMatches[0]).toBeGreaterThanOrEqual(0);
-		expect(orderOfMatches[1]).toBeGreaterThan(orderOfMatches[0]);
+		expect(clipboard).toBe("Bash 3\nbody 3\n\nBash 5\nbody 5");
 	});
 });
