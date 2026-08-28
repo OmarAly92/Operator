@@ -13,6 +13,13 @@ VT parse. Full VT support, OSC 133 decoding, block sum trees,
 virtualization, selection, find, editor, completions, and `TerminalPane`
 integration belong to later phases.
 
+Phase 0 handles only: printable UTF-8, combining characters, CRLF/LF,
+tab expansion to the next 8-column stop, hard wrapping at the column
+boundary, and SGR `0`/`30..37`/`39`/`90..97`. Every other CSI, ESC,
+DCS, or OSC callback is a no-op. Cursor-addressed mutation, erase
+operations, alt screen, scroll regions, and full VT conformance belong
+to Phase 1.
+
 The package has no Operator imports. It must not gain them: the
 `check:boundaries` script enforces this and fails CI on any leak.
 
