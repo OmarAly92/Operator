@@ -76,4 +76,16 @@ void main() {
       expect(display.errorText, expected['errorText']);
     }
   });
+
+  test('BlockDetail preserves unsupported payloads and rejects malformed known detail', () {
+    final future = <String, dynamic>{'type': 'future_tool', 'value': 7};
+    final malformed = <String, dynamic>{'type': 'compaction', 'trigger': 'later', 'preTokens': 20};
+
+    expect(BlockDetail.fromJson(future), UnknownBlockDetail(raw: future));
+    expect(BlockDetail.fromJson(malformed), UnknownBlockDetail(raw: malformed));
+    expect(
+      BlockDetail.fromJson(<String, dynamic>{'type': 'unknown', 'raw': 'provider data'}),
+      const UnknownBlockDetail(raw: 'provider data'),
+    );
+  });
 }

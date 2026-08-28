@@ -5,9 +5,6 @@ import { assembleBlocks } from "./block-assembly";
 import { blockDisplay, type BlockDetail, type SessionBlock } from "./session-block";
 import type { BlockEventView } from "./terminal-mux";
 
-// The same files the Dart suite asserts (packages/mobile/test/feature/blocks/
-// logic/block_assembly_fixtures_test.dart). A disagreement here is a drift
-// between the two clients, and the fixture is never the thing that gets edited.
 const FIXTURES = [
 	"assembly_turn",
 	"assembly_permission",

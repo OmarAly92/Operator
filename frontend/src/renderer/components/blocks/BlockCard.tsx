@@ -15,38 +15,15 @@ const KIND_KEY: Record<BlockKind, MessageKey> = {
 	notice: "blocks.kind.notice",
 };
 
-function blockTitleKey(block: SessionBlock) {
-	switch (block.kind) {
-		case "prompt":
-			return "blocks.title.prompt" as const;
-		case "assistant":
-			return "blocks.title.assistant" as const;
-		case "reasoning":
-		case "todo":
-		case "compaction":
-			return undefined;
-		case "permission":
-			return "blocks.title.permissionRequested" as const;
-		case "tool":
-			return block.title === "Tool" ? ("blocks.title.tool" as const) : undefined;
-		case "notice":
-			if (block.status === "blocked") return "blocks.title.waitingOnYou" as const;
-			if (block.title === "Session started") return "blocks.title.sessionStarted" as const;
-			if (block.title === "Event") return "blocks.title.event" as const;
-			return undefined;
-	}
-}
-
 export function BlockCardHeader({ block }: { block: SessionBlock }) {
 	const { t } = useTranslation();
-	const titleKey = blockTitleKey(block);
 	const display = blockDisplay(block);
 
 	return (
 		<div className="flex items-center gap-2 border-border border-b px-3 py-2">
 			<BlockStatusDot status={block.status} />
 			<span className="flex-1 truncate font-medium text-foreground text-xs">
-				{titleKey ? t(titleKey) : display.displayName}
+				{display.displayName}
 			</span>
 			<span className="text-[10px] text-muted-foreground">{t(KIND_KEY[block.kind])}</span>
 		</div>

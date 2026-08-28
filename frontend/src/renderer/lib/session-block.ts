@@ -3,25 +3,25 @@ export type BlockKind = "prompt" | "assistant" | "reasoning" | "tool" | "todo" |
 export type BlockStatus = "running" | "ok" | "failed" | "blocked";
 
 export type BlockDetail =
-	| { type: "shell"; command: string; output: string; exitCode: number }
-	| { type: "file_change"; files: BlockFileChange[]; truncated: boolean }
-	| { type: "plan"; steps: BlockPlanStep[] }
-	| { type: "mcp_tool"; server: string; tool: string; args: unknown; result: string }
-	| { type: "usage"; contextUsed: number; contextWindow: number; inputTokens: number; outputTokens: number }
-	| { type: "compaction"; trigger: "auto" | "manual"; preTokens: number }
+	| { type: "shell"; command?: string; output?: string; exitCode?: number }
+	| { type: "file_change"; files?: BlockFileChange[]; truncated?: boolean }
+	| { type: "plan"; steps?: BlockPlanStep[] }
+	| { type: "mcp_tool"; server?: string; tool?: string; args?: unknown; result?: string }
+	| { type: "usage"; contextUsed?: number; contextWindow?: number; inputTokens?: number; outputTokens?: number }
+	| { type: "compaction"; trigger?: "auto" | "manual"; preTokens?: number }
 	| { type: "unknown"; raw: unknown };
 
 export type BlockFileChange = {
-	path: string;
+	path?: string;
 	oldPath?: string;
-	status: string;
-	additions: number;
-	deletions: number;
+	status?: string;
+	additions?: number;
+	deletions?: number;
 };
 
 export type BlockPlanStep = {
-	text: string;
-	status: string;
+	text?: string;
+	status?: string;
 };
 
 export type BlockDisplay = {
@@ -55,21 +55,21 @@ export function blockDisplay(block: SessionBlock): BlockDisplay {
 		case "shell":
 			return {
 				displayName: "Shell",
-				summary: [detail.command, detail.output].filter((part) => part !== "").join("\n\n"),
+				summary: [detail.command, detail.output].filter((part): part is string => part !== undefined && part !== "").join("\n\n"),
 				errorText: detail.exitCode === 0 ? undefined : `Exit code ${detail.exitCode}`,
 			};
 		case "file_change":
-			return { displayName: "File change", summary: `${detail.files.length} ${detail.files.length === 1 ? "file" : "files"} changed` };
+			return { displayName: "File change", summary: `${detail.files?.length ?? 0} ${(detail.files?.length ?? 0) === 1 ? "file" : "files"} changed` };
 		case "plan":
-			return { displayName: "Plan", summary: `${detail.steps.length} ${detail.steps.length === 1 ? "step" : "steps"}` };
+			return { displayName: "Plan", summary: `${detail.steps?.length ?? 0} ${(detail.steps?.length ?? 0) === 1 ? "step" : "steps"}` };
 		case "mcp_tool":
-			return { displayName: `${detail.server}/${detail.tool}`, summary: detail.result };
+			return { displayName: `${detail.server ?? ""}/${detail.tool ?? ""}`, summary: detail.result ?? "" };
 		case "usage":
-			return { displayName: "Usage", summary: `${detail.contextUsed} / ${detail.contextWindow} context` };
+			return { displayName: "Usage", summary: `${detail.contextUsed ?? ""} / ${detail.contextWindow ?? ""} context` };
 		case "compaction":
-			return { displayName: "Compaction", summary: `${detail.trigger} at ${detail.preTokens} tokens` };
+			return { displayName: "Compaction", summary: `${detail.trigger ?? ""} at ${detail.preTokens ?? ""} tokens` };
 		case "unknown":
-			return { displayName: block.title, summary: block.body === "" ? JSON.stringify(detail.raw) : block.body };
+			return { displayName: block.title, summary: block.body === "" ? JSON.stringify(detail.raw) ?? "" : block.body };
 		default:
 			return assertNever(detail);
 	}

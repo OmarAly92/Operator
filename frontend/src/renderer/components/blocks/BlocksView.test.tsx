@@ -73,6 +73,20 @@ describe("BlocksView", () => {
 		expect(screen.getAllByText("Bash").length).toBeGreaterThan(0);
 	});
 
+	it("uses the detail display name for a tool header", async () => {
+		renderView({
+			blocks: [
+				block({
+					title: "Tool",
+					detail: { type: "shell", command: "pwd", output: "/tmp", exitCode: 0 },
+				}),
+			],
+		});
+		await act(async () => {});
+
+		expect(screen.getAllByText("Shell")).toHaveLength(2);
+	});
+
 	it("wraps a long body instead of clipping it to one line", async () => {
 		const long = Array.from({ length: 40 }, () => "wrapping").join(" ");
 		renderView({ blocks: [block({ body: long })] });
