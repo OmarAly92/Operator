@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import type { BlockKind, SessionBlock } from "../../lib/session-block";
 import { BlockStatusDot } from "./BlockStatusDot";
@@ -29,19 +30,27 @@ function blockTitleKey(block: SessionBlock) {
 	}
 }
 
-export function BlockCard({ block }: { block: SessionBlock }) {
+export function BlockCardHeader({ block }: { block: SessionBlock }) {
 	const { t } = useTranslation();
 	const titleKey = blockTitleKey(block);
 
 	return (
+		<div className="flex items-center gap-2 border-border border-b px-3 py-2">
+			<BlockStatusDot status={block.status} />
+			<span className="flex-1 truncate font-medium text-foreground text-xs">
+				{titleKey ? t(titleKey) : block.title}
+			</span>
+			<span className="text-[10px] text-muted-foreground">{t(KIND_KEY[block.kind])}</span>
+		</div>
+	);
+}
+
+export const BlockCard = memo(function BlockCard({ block }: { block: SessionBlock }) {
+	const { t } = useTranslation();
+
+	return (
 		<div className="mx-3 my-1 rounded-md border border-border bg-card" data-testid="session-block">
-			<div className="flex items-center gap-2 border-border border-b px-3 py-2">
-				<BlockStatusDot status={block.status} />
-				<span className="flex-1 truncate font-medium text-foreground text-xs">
-					{titleKey ? t(titleKey) : block.title}
-				</span>
-				<span className="text-[10px] text-muted-foreground">{t(KIND_KEY[block.kind])}</span>
-			</div>
+			<BlockCardHeader block={block} />
 			{block.body === "" ? null : (
 				<p className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-muted-foreground text-xs">
 					{block.body}
@@ -57,4 +66,4 @@ export function BlockCard({ block }: { block: SessionBlock }) {
 			) : null}
 		</div>
 	);
-}
+});
