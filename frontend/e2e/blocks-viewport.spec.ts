@@ -131,11 +131,13 @@ test.describe("blocks viewport", () => {
 			const row = node.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
 			return row === null ? 0 : Number(row.dataset.blockStart) - node.scrollTop;
 		}, anchorIdBefore);
+		const scrollHeightBefore = await log.evaluate((node) => node.scrollHeight);
 
 		const loadOlder = page.getByRole("button", { name: "Load older blocks" });
 		await expect(loadOlder).toBeVisible();
 		await loadOlder.click();
 		await expect.poll(() => historyRequests.filter((url) => url.searchParams.get("beforeSeq") === "1").length).toBe(1);
+		await expect.poll(() => log.evaluate((node) => node.scrollHeight)).toBeGreaterThan(scrollHeightBefore);
 		await expect(log.locator(`[data-block-id="${anchorIdBefore}"]`)).toBeAttached();
 
 		const anchorAfter = await log.evaluate((node, anchorId) => {
