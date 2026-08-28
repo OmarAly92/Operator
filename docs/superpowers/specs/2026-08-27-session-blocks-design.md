@@ -995,7 +995,7 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
 | 5 | ACP adapter, chat presentation retires | 7 | `2026-08-28-acp-block-adapter.md` | written |
 | 6 | Block actions, selection, find | 8 | `2026-08-28-block-actions-find-selection.md` | written |
-| 7 | Shell blocks | 9 | — | |
+| 7 | Shell blocks | 9 | `2026-08-28-shell-blocks.md` | written |
 | 8 | Transcript enrichment | 10 | — | |
 | 9 | Mobile replica cache | — (new) | `2026-08-28-mobile-replica-cache.md` | written |
 
