@@ -737,7 +737,7 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 					isLoading={conversation.isLoading}
 					isLoadingOlder={conversation.isLoadingOlder}
 					onLoadOlder={conversation.loadOlder}
-					onRetry={conversation.loadOlder}
+					onRetry={conversation.refetch}
 					sessionId={sessionId}
 					supported={supported}
 					unavailable={conversation.unavailable}

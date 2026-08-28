@@ -9,7 +9,6 @@ export type BlocksViewProps = {
 	isLoadingOlder: boolean;
 	hasOlder: boolean;
 	error?: string;
-	/** The session has no chat conversation to show (e.g. wrong mode, missing controller). */
 	unavailable?: { code: string; message: string };
 	harness?: string;
 	sessionId: string;

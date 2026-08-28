@@ -71,7 +71,7 @@ const chatWorker = {
 	workspaceId: "proj-1",
 	workspaceName: "my-app",
 	title: "chat worker",
-	provider: "codex",
+	provider: "aider",
 	kind: "worker",
 	mode: "chat",
 	status: "working",
@@ -152,6 +152,7 @@ describe("SessionBlocksPane chat routing", () => {
 			hasOlder: false,
 			isLoadingOlder: false,
 			loadOlder: vi.fn(),
+			refetch: vi.fn(),
 		});
 		sessionMocks.useSessionBlocks = () => ({
 			blocks: [],
@@ -186,6 +187,7 @@ describe("SessionBlocksPane chat routing", () => {
 			hasOlder: false,
 			isLoadingOlder: false,
 			loadOlder: vi.fn(),
+			refetch: vi.fn(),
 		});
 		sessionMocks.useSessionBlocks = () => ({
 			blocks: [],
@@ -219,6 +221,7 @@ describe("SessionBlocksPane chat routing", () => {
 			hasOlder: false,
 			isLoadingOlder: false,
 			loadOlder: vi.fn(),
+			refetch: vi.fn(),
 		});
 		sessionMocks.useSessionBlocks = () => ({
 			blocks: [],
@@ -248,6 +251,7 @@ describe("SessionBlocksPane chat routing", () => {
 			hasOlder: false,
 			isLoadingOlder: false,
 			loadOlder: vi.fn(),
+			refetch: vi.fn(),
 		});
 		sessionMocks.useConversationCommands = () => ({
 			send: (input: { text: string }) => {
