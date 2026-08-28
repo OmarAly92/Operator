@@ -213,11 +213,52 @@ desktop, xterm.dart on mobile, and both matter only in Raw mode.
 One block model, one assembly result, one set of rendering components per client.
 Sources adapt **into** it; nothing downstream knows which source produced a block.
 
-A block carries: id, sequence, kind (`prompt`, `assistant`, `tool`, `command`,
-`permission`, `notice`), title, body, status (`running`, `ok`, `failed`,
-`blocked`), timestamps, and an optional action set the source declares. The
-action set is how mode-specific capability reaches the UI without the UI
-branching on mode.
+A block carries: id, sequence, **turn id**, kind (`prompt`, `assistant`,
+`reasoning`, `tool`, `todo`, `compaction`, `command`, `permission`, `notice`),
+title, body, status (`running`, `ok`, `failed`, `blocked`), timestamps, and an
+optional action set the source declares. The action set is how mode-specific
+capability reaches the UI without the UI branching on mode.
+
+**Three of those kinds were missing and each one is a visible hole.** Paseo's
+`AgentTimelineItem` carries them and the reason is the same in every case — the
+agent did something the user needs to see, and a list without the kind either
+drops it or mislabels it as generic output.
+
+- **`reasoning`** — extended thinking. Claude Code emits it, it is often the only
+  thing on screen for a long stretch, and collapsing it into `assistant` makes
+  the model's visible reasoning indistinguishable from its answer.
+- **`todo`** — the plan list. `AgentTaskItem{text, completed, status, activeForm}`,
+  where `activeForm` is the in-progress phrasing. Claude Code's TodoWrite is how an
+  agent states what it is going to do; rendering it as an anonymous tool call
+  throws away the one block a user scanning a long session actually wants.
+- **`compaction`** — `{status: "loading"|"completed", trigger: "auto"|"manual",
+  preTokens}`. **This is the most important of the three.** A long session
+  auto-compacts, and a timeline that does not mark it shows history that silently
+  stops meaning what it meant, with no explanation on screen. Paseo renders a
+  labelled marker for exactly this.
+
+**Blocks belong to turns.** A `turnId` groups a prompt with the assistant text,
+reasoning, tool calls and stop that answered it. The spec previously described a
+flat list, and a flat list cannot express: how long a turn took, where one turn
+ends and the next begins for navigation or rewind, or — the case the first live
+run hit — that **a turn finished at all**. A conversational turn with no tool
+calls currently renders as a prompt followed by nothing.
+
+Two rules, both from paseo:
+
+- **Canonical turn ids win; a boundary rule is the fallback.** Where the source
+  supplies a turn id, group by it. Where it does not — older rows, harnesses whose
+  hooks carry none — a new turn starts at each `prompt_submit`
+  (`turn-membership.ts`, `continuesTurn`). Persisted rows never need rewriting for
+  a source that learns to emit ids later.
+- **A visible response may span several canonical turns**, because some prompts are
+  system-injected and never appear in the list. Grouping strictly by turn id would
+  render those as headless turns. `continuesResponse` is the relaxed rule the UI
+  uses for run-together display, kept separate from the strict one used for
+  boundaries and rewind.
+
+Turn timing (`startedAt`, `completedAt`, `durationMs`, plus a running start for the
+in-flight turn) is derived from the grouping, not stored per block.
 
 **The id is minted at the source, never by a consumer.** Warp takes this
 seriously enough to shape the id around it: a pty-derived block's id is
@@ -359,6 +400,30 @@ missing span" and "drop the window and re-tail" rather than guessing.
 Operator has an existing renumbering trigger the spec must respect: rollback
 (`/api/v1/sessions/{sessionId}/rollback`). A rollback bumps the epoch.
 
+**A prompt index, served whole.** The Memory section below has clients hold a
+bounded window of blocks. That creates a problem the spec did not resolve:
+navigation and any overview built from the loaded window covers only the window,
+so on a long session "jump to the previous prompt" stops working exactly when it
+becomes useful.
+
+Paseo's answer is a separate, tiny, whole-session index —
+`buildTimelinePromptIndex` is 42 lines and returns `{epoch, prompts: [{seq,
+timestamp, preview}]}` with previews collapsed to 120 characters. It is cheap
+enough to send in full for any session, it is stamped with the same `epoch` as the
+fetch envelope so a client can tell when it has gone stale, and it lets the UI
+light up the prompt whose turn the reader is inside even when that prompt is
+outside the loaded window.
+
+Adopt it as a `blocks` channel message and as a REST read. Prompts are the right
+granularity: they are what a user remembers about a session.
+
+**Usage and the context window.** Hook payloads already carry usage metadata
+(`cli/hooks.go`), and paseo's `AgentUsage` shows the fields worth surfacing:
+`contextWindowUsedTokens` and `contextWindowMaxTokens` alongside token counts and
+cost. This belongs in the spec because it is the other half of the compaction
+block — a meter explains why compaction is about to happen, and a compaction
+marker with no meter reads as an arbitrary event.
+
 **Transport.** A `blocks` channel on the existing `/mux` socket, alongside
 `terminal`, `subscribe`, `sessions` and `system`. Named for what it carries, not
 its first source, because shell marks are republished onto it too.
@@ -463,6 +528,16 @@ if the desktop is in Blocks and a phone is in Raw, the phone becomes the sole
 sizer and the grid follows it. That is correct — the only client rendering a grid
 should choose it — but it inverts today's behaviour.
 
+**Say it explicitly rather than inferring it.** Deriving "who sizes the grid" from
+channel membership makes arbitration depend on a side effect of subscribing, which
+is exactly the coupling that produced the current bug. Paseo carries the intent on
+the resize frame itself — `intent: "claim" | "update"`
+(`binary-frames/terminal.ts`) — separating "I am rendering a grid, size it for me"
+from "the size I already claimed has changed", and it has a test asserting that
+text and virtual-key input never claim a size. Adopt the distinction: a Blocks
+client sends no claim, a Raw client claims, and `largestGrid` arbitrates over
+claimants instead of over whoever happens to be connected.
+
 ### Viewport
 
 The parity bar, and the largest single piece. `block_list_viewport.rs` maintains
@@ -485,7 +560,17 @@ Required on both clients:
 - **Sticky block headers**, disabled when the block is taller than the viewport
   (`block_list_element.rs:135`) — without the exception a tall block traps its
   own header.
-- **Block-boundary navigation**, and scroll-a-block-into-view.
+- **Block-boundary navigation**, and scroll-a-block-into-view. Turn boundaries are
+  the useful unit here, not block boundaries — a user steps between prompts, not
+  between the forty tool calls inside one turn.
+- **An outline over the whole session**, driven by the prompt index rather than the
+  loaded window, so it stays complete while blocks page in and out. Paseo renders
+  it as a rail of prompt ticks and highlights the prompt whose turn is under the
+  top of the viewport (`chat-outline/model.ts`, `resolveActivePromptSeq`). One
+  mechanic there is worth copying verbatim: the reading position is published
+  through a subscribable store **outside React**, because the transcript reports it
+  on every scroll frame and routing that through a render would undo the work the
+  history/live split just did.
 - **Selection and find across blocks** (`app/src/terminal/find/`).
 
 **Virtualize above a threshold, not always.** Paseo mounts everything until the
@@ -529,6 +614,34 @@ lands.
 list (`block_filter.rs` supports a query with configurable context lines). Warp's
 block sharing (`share_block_modal.rs`) is a cloud feature with no analogue here
 and is not adopted.
+
+**Actions are capability-gated, per capability, not per mode.** The block model
+says the source declares an action set; paseo shows what that costs to get right.
+Its session carries individual flags — `supportsRewindConversation`,
+`supportsRewindFiles`, `supportsRewindBoth` — checked before the action is
+offered, with a typed `RewindCapabilityError` when a caller asks anyway
+(`rewind/rewind.ts`). Two consequences for this spec:
+
+- **Never offer an action the source cannot perform.** An action that fails after
+  the user clicks it is worse than an absent one, and "mode supports rewind" is too
+  coarse: within `chat`, providers differ.
+- **Rewind is three capabilities, not one** — conversation, files, or both.
+  Operator has `/api/v1/sessions/{sessionId}/rollback`; which of the three it means
+  must be stated before rewind reaches a block action, because a user who expects
+  files reverted and gets only conversation has lost work.
+
+Paseo also handles a case Phase B will hit: resolving a permission can return a
+`followUpPrompt`, meaning the answer itself starts the next turn
+(`permission-response.ts`). A design that treats a permission reply as terminal
+will strand the session.
+
+**Find uses one ranked matcher, shared.** Paseo's `search/text-match.ts` scores a
+match as `{tier, offset}` over explicit tiers — exact, whole word, prefix, word
+start, substring, subsequence, fuzzy — with fuzzy opt-in, so callers sort ascending
+and never invent a scale. The daemon's history search and the client's pickers use
+the same function. Step 8's find across blocks should not grow a second, weaker
+matcher; and its note that subsequence matching must be off wherever a list
+preselects its first row is a real bug avoided, not a preference.
 
 **Not adopted: GPU text rendering.** Warp rasterizes glyphs because nothing
 beneath it composited. Both our platforms composite. The same smoothness is
@@ -810,10 +923,11 @@ it gets a plan and is not counted here.
 
 ### Amendments from the paseo review, 2026-08-28
 
-Seven changes were folded into this spec after reading `getpaseo/paseo`, which has
-shipped steps 6 through 10 in production. They are listed here against the plans
-they affect, because four plans have already landed and a reviewer needs to know
-which of those are now behind the spec.
+Eighteen changes were folded into this spec across three passes over
+`getpaseo/paseo`, which has shipped steps 6 through 10 in production. They are
+listed here against the plans they affect, because four plans have already landed
+and a reviewer needs to know which of those are now behind the spec. The notes
+after the table say what each pass was looking at.
 
 | Change | Where | Plans affected |
 | --- | --- | --- |
@@ -827,6 +941,13 @@ which of those are now behind the spec.
 | Hooks and structured stream compose | *The constraint everything follows from* | 5 |
 | `pre-tool-use`, `session-end`, `subagent-stop` mappings | *Backend* | 1 |
 | Nested subagent blocks | *Backend*; block model | 5, 8 |
+| `reasoning`, `todo`, `compaction` block kinds | *The block model is shared* | 1, 5 |
+| Turn grouping, boundary fallback, turn timing | *The block model is shared* | 1, 2, 3 |
+| Whole-session prompt index | *Backend*; *Viewport* | 1, 6 |
+| Context-window / usage metering | *Backend* | 1 |
+| Capability-gated actions; rewind is three | *Block actions* | 6 |
+| One shared ranked text matcher for find | *Block actions* | 6 |
+| `claim`/`update` intent on resize | *Grid arbitration* | 2, 3 |
 
 **None of it invalidates landed work.** Plans 1 through 4 shipped a per-event log,
 a `blocks` mux channel, client assembly and two viewports; every change above is an
@@ -834,9 +955,12 @@ addition to those or a refinement of behaviour inside them. The canonical/projec
 change is the one to make before plan 5, because plan 5 introduces the second
 source and the mutation rule it replaces would be load-bearing from then on.
 
-**What paseo does not answer.** Redaction, hook/transcript precedence, shell marks
-and grid arbitration have no analogue there — paseo is ACP-only. Those sections
-stand on their own reasoning and were not revised.
+**What paseo does not answer.** Redaction, hook/transcript precedence and shell
+marks have no analogue there — paseo drives agents structurally and never
+reconstructs a session from a TUI. Those sections stand on their own reasoning and
+were not revised. Paseo does run terminals, which is where the arbitration idea
+below comes from; what it has no equivalent of is two clients competing to size
+one agent's grid.
 
 **Three further changes, from reviewing paseo's Claude Code provider.** Paseo
 reaches its fidelity by owning the stream (`@anthropic-ai/claude-agent-sdk`),
@@ -846,6 +970,22 @@ mode, and step 7 is the fidelity step rather than only the deduplication step.
 The third is concrete and independent of everything else — three hooks Operator
 already installs have no entry in `blockdispatch`, and `pre-tool-use` in
 particular is why a running tool currently produces no block at all.
+
+**A further pass over paseo's timeline surfaces added eight more.** Three are
+model-level and change what a block can be: the missing `reasoning`, `todo` and
+`compaction` kinds, and turn grouping — without which the list cannot say a
+conversational turn finished, which is the exact symptom the first live run hit.
+Two follow from the bounded client window this spec already requires: a
+whole-session prompt index, because navigation built from a loaded window stops
+working on the sessions that need it, and context-window metering, which is the
+other half of a compaction marker. Three are correctness details on features
+already planned: actions gated per capability rather than per mode, one shared
+ranked matcher for find, and an explicit `claim`/`update` intent so grid
+arbitration stops being a side effect of subscribing.
+
+The compaction kind and turn grouping are the two to treat as blocking. Both
+change the persisted model, and both are cheaper before plan 5 adds a second
+source than after.
 
 **Dependencies.** Plan 1 blocks everything. Plans 2 and 3 both depend on 1 and are
 independent of each other. Plan 4 depends on whichever client plan it targets.
