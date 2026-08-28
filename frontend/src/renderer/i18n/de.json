@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "Nächster Block",
 	"blocks.panelAria": "Sitzungsblöcke",
 	"blocks.previousBlock": "Vorheriger Block",
+	"blocks.noDecisions": "Der Agent hat keine Optionen angeboten, die Operator anzeigen kann.",
 	"blocks.redacted": "Geheimnisse wurden aus dieser Ausgabe entfernt",
 	"blocks.retry": "Wiederholen",
 	"blocks.showBlocks": "Blöcke anzeigen",

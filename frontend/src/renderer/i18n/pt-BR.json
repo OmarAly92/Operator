@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "Próximo bloco",
 	"blocks.panelAria": "Blocos da sessão",
 	"blocks.previousBlock": "Bloco anterior",
+	"blocks.noDecisions": "O agente não ofereceu opções que o Operator possa apresentar.",
 	"blocks.redacted": "Segredos foram ocultados desta saída",
 	"blocks.retry": "Tentar novamente",
 	"blocks.showBlocks": "Mostrar blocos",

@@ -21,7 +21,12 @@ import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
 import { useUiStore, type SessionViewMode, type Theme } from "../stores/ui-store";
 import type { TerminalTarget } from "../types/terminal";
-import { can as snapshotCan, type ChatSkill } from "../types/conversation";
+import {
+	brokenMcpServers,
+	can as snapshotCan,
+	type ChatSkill,
+	type ConversationActivity,
+} from "../types/conversation";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { ShellTerminalTab } from "./ShellTerminalTab";
@@ -31,8 +36,20 @@ import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 import { BlockComposer, type BlockComposerSend } from "./blocks/BlockComposer";
 import { BlocksView } from "./blocks/BlocksView";
 import { useSessionBlocks } from "../hooks/useSessionBlocks";
-import { useConversation, useConversationCommands, useConversationSkills, useStageAttachments, useWorkspaceFilePaths } from "../hooks/useConversation";
+import {
+	useConversation,
+	useConversationCommands,
+	useConversationConfigOptions,
+	useConversationModels,
+	useConversationSkills,
+	useStageAttachments,
+	useWorkspaceFilePaths,
+} from "../hooks/useConversation";
+import { ElicitationCard } from "./chat/ElicitationCard";
+import { McpServerBanner, ReauthBanner, ThreadStateBanner } from "./chat/ChatStatusBanners";
+import { TurnSettingsBar } from "./chat/TurnSettingsBar";
 import { blocksFromConversation } from "../lib/conversation-blocks";
+import type { SessionBlock } from "../lib/session-block";
 import { blocksCoverHarness } from "../lib/session-block";
 import type { TurnGroup } from "../lib/block-turns";
 import { MAX_SUGGESTIONS, rankFiles, rankSkills, type Suggestion } from "./chat/composerSuggest";
@@ -732,19 +749,23 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 	const conversation = useConversation(sessionId);
 	const commands = useConversationCommands(sessionId);
 	const blocks = conversation.snapshot ? blocksFromConversation(conversation.snapshot) : [];
-	const supported = conversation.unavailable === undefined && conversation.error === undefined;
+	const supported = conversation.unavailable === undefined;
 	const send = useChatSend(commands);
 	const stageAttachments = useStageAttachments(sessionId);
 	const skillsQuery = useConversationSkills(sessionId, supported);
 	const filePathsQuery = useWorkspaceFilePaths(sessionId, supported);
+	const modelsQuery = useConversationModels(sessionId, supported);
+	const configOptionsQuery = useConversationConfigOptions(sessionId, supported);
+	const { t } = useTranslation();
 
-	const permissionKinds = useMemo(() => {
-		const map = new Map<string, "approval" | "user_input">();
+	const activitiesById = useMemo(() => {
+		const map = new Map<string, ConversationActivity>();
 		if (conversation.snapshot === undefined) return map;
 		for (const item of conversation.snapshot.items) {
 			if (item.kind !== "activity") continue;
-			if (item.activityKind === "approval") map.set(item.id, "approval");
-			else if (item.activityKind === "user_input") map.set(item.id, "user_input");
+			if (item.activityKind === "approval" || item.activityKind === "user_input") {
+				map.set(item.id, item);
+			}
 		}
 		return map;
 	}, [conversation.snapshot]);
@@ -775,7 +796,8 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 		[stageAttachments],
 	);
 
-	const canApprove = conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "approve");
+	const canApprove =
+		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "approvals");
 	const canElicit = conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "elicitation");
 	const canSteerCapability =
 		conversation.snapshot !== undefined && snapshotCan(conversation.snapshot, "steer");
@@ -786,28 +808,47 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 		conversation.snapshot?.turns.find((t) => t.state === "queued")?.id;
 	const hasInFlightTurn = activeTurnId !== undefined;
 
-	const handleApprove = useCallback(
-		(requestId: string, decisionId: string) => {
-			if (!canApprove) return;
-			commands.resolve(requestId, decisionId);
-		},
-		[canApprove, commands],
-	);
+	// Decision ids are the provider's, carried on the activity. Synthesizing one
+	// here would resolve an approval with an option the provider never offered.
+	const renderBlockActions = useCallback(
+		(block: SessionBlock) => {
+			if (block.kind !== "permission" || block.status !== "blocked") return null;
+			const activity = activitiesById.get(block.id);
+			if (activity === undefined) return null;
+			const requestId = activity.requestId;
+			if (requestId === undefined || requestId === "") return null;
 
-	const handleDecline = useCallback(
-		(requestId: string, decisionId: string) => {
-			if (!canApprove) return;
-			commands.resolve(requestId, decisionId);
-		},
-		[canApprove, commands],
-	);
+			if (activity.activityKind === "user_input") {
+				if (!canElicit) return null;
+				return (
+					<ElicitationCard
+						activity={activity}
+						onResolve={(id, action, content) => commands.resolveInput(id, action, content)}
+					/>
+				);
+			}
 
-	const handleAnswer = useCallback(
-		(requestId: string) => {
-			if (!canElicit) return;
-			void commands.resolveInput(requestId, "accept");
+			if (!canApprove) return null;
+			const decisions = activity.decisions ?? [];
+			if (decisions.length === 0) {
+				return (
+					<p className="text-[10px] text-muted-foreground">{t("blocks.noDecisions")}</p>
+				);
+			}
+			return decisions.map((decision, index) => (
+				<Button
+					aria-label={decision.label}
+					data-testid={`block-decision-${decision.id}`}
+					key={decision.id}
+					onClick={() => commands.resolve(requestId, decision.id)}
+					size="sm"
+					variant={index === 0 ? "primary" : "outline"}
+				>
+					{decision.label}
+				</Button>
+			));
 		},
-		[canElicit, commands],
+		[activitiesById, canApprove, canElicit, commands, t],
 	);
 
 	const handleRollbackTurn = useCallback(
@@ -840,8 +881,24 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 		[conversation.snapshot, hasInFlightTurn],
 	);
 
+	const snapshot = conversation.snapshot;
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
+			{snapshot?.account ? (
+				<ReauthBanner account={snapshot.account} harness={snapshot.harness} />
+			) : null}
+			{snapshot?.threadState ? <ThreadStateBanner threadState={snapshot.threadState} /> : null}
+			{snapshot === undefined ? null : (
+				<McpServerBanner
+					error={commands.mcpReloadError}
+					onReload={
+						snapshotCan(snapshot, "mcp_reload") ? () => commands.reloadMcpServers() : undefined
+					}
+					servers={brokenMcpServers(snapshot)}
+					turnInFlight={hasInFlightTurn}
+				/>
+			)}
 			<div className="min-h-0 flex-1">
 				<BlocksView
 					blocks={blocks}
@@ -850,18 +907,28 @@ function ChatSessionBlocksPane({ sessionId }: { sessionId: string }) {
 					hasOlder={conversation.hasOlder}
 					isLoading={conversation.isLoading}
 					isLoadingOlder={conversation.isLoadingOlder}
-					onAnswer={canElicit ? handleAnswer : undefined}
-					onApprove={canApprove ? handleApprove : undefined}
-					onDecline={canApprove ? handleDecline : undefined}
 					onLoadOlder={conversation.loadOlder}
 					onRetry={conversation.refetch}
 					onRollbackTurn={canRollbackCapability ? handleRollbackTurn : undefined}
-					permissionKinds={permissionKinds}
+					renderActions={renderBlockActions}
 					sessionId={sessionId}
 					supported={supported}
 					unavailable={conversation.unavailable}
 				/>
 			</div>
+			{snapshot === undefined ? null : (
+				<TurnSettingsBar
+					configOptions={configOptionsQuery.options}
+					disabled={snapshot.controller.state === "stopped"}
+					models={modelsQuery.models}
+					onChange={(next) => commands.chooseSettings(next)}
+					configPending={configOptionsQuery.pending}
+					error={configOptionsQuery.error}
+					onChangeConfigOption={(id, value) => configOptionsQuery.setOption(id, value)}
+					reroute={snapshot.modelReroute}
+					settings={snapshot.settings}
+				/>
+			)}
 			{sessionId === "" ? null : (
 				<BlockComposer
 					canSteer={canSteerCapability && hasInFlightTurn}

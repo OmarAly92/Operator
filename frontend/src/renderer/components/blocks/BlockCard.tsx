@@ -1,9 +1,8 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { blockDisplay, type BlockKind, type SessionBlock } from "../../lib/session-block";
 import { BlockStatusDot } from "./BlockStatusDot";
 import type { MessageKey } from "../../i18n/messages";
-import { Button } from "../ui/button";
 
 const KIND_KEY: Record<BlockKind, MessageKey> = {
 	prompt: "blocks.kind.prompt",
@@ -33,24 +32,14 @@ export function BlockCardHeader({ block }: { block: SessionBlock }) {
 
 export const BlockCard = memo(function BlockCard({
 	block,
-	permissionKind,
-	onApprove,
-	onDecline,
-	onAnswer,
+	renderActions,
 }: {
 	block: SessionBlock;
-	permissionKind?: "approval" | "user_input";
-	onApprove?: (requestId: string, decisionId: string) => void;
-	onDecline?: (requestId: string, decisionId: string) => void;
-	onAnswer?: (requestId: string) => void;
+	renderActions?: (block: SessionBlock) => ReactNode;
 }) {
 	const { t } = useTranslation();
 	const display = blockDisplay(block);
-	const showApprovalActions =
-		block.kind === "permission" && permissionKind === "approval" && block.status === "blocked";
-	const showAnswerAction =
-		block.kind === "permission" && permissionKind === "user_input" && block.status === "blocked";
-	const requestId = block.id;
+	const actions = renderActions?.(block);
 
 	return (
 		<div className="mx-3 my-1 rounded-md border border-border bg-card" data-testid="session-block">
@@ -63,14 +52,7 @@ export const BlockCard = memo(function BlockCard({
 			{block.children !== undefined && block.children.length > 0 ? (
 				<div className="border-border border-t px-3 py-2 pl-4" data-testid="session-block-children">
 					{block.children.map((child) => (
-						<BlockCard
-							block={child}
-							key={child.id}
-							onAnswer={onAnswer}
-							onApprove={onApprove}
-							onDecline={onDecline}
-							permissionKind={permissionKind}
-						/>
+						<BlockCard block={child} key={child.id} renderActions={renderActions} />
 					))}
 				</div>
 			) : null}
@@ -85,45 +67,11 @@ export const BlockCard = memo(function BlockCard({
 					{t("blocks.truncated", { count: block.truncatedLines })}
 				</p>
 			) : null}
-			{showApprovalActions && (onApprove !== undefined || onDecline !== undefined) ? (
-				<div className="flex gap-2 border-border border-t px-3 py-2">
-					{onApprove !== undefined ? (
-						<Button
-							aria-label={t("blocks.approve")}
-							data-testid="block-approve"
-							onClick={() => onApprove(requestId, "approve")}
-							size="sm"
-							variant="primary"
-						>
-							{t("blocks.approve")}
-						</Button>
-					) : null}
-					{onDecline !== undefined ? (
-						<Button
-							aria-label={t("blocks.deny")}
-							data-testid="block-decline"
-							onClick={() => onDecline(requestId, "decline")}
-							size="sm"
-							variant="outline"
-						>
-							{t("blocks.deny")}
-						</Button>
-					) : null}
+			{actions === undefined || actions === null || actions === false ? null : (
+				<div className="flex gap-2 border-border border-t px-3 py-2" data-testid="block-actions">
+					{actions}
 				</div>
-			) : null}
-			{showAnswerAction && onAnswer !== undefined ? (
-				<div className="flex gap-2 border-border border-t px-3 py-2">
-					<Button
-						aria-label={t("blocks.answer")}
-						data-testid="block-answer"
-						onClick={() => onAnswer(requestId)}
-						size="sm"
-						variant="primary"
-					>
-						{t("blocks.answer")}
-					</Button>
-				</div>
-			) : null}
+			)}
 		</div>
 	);
 });

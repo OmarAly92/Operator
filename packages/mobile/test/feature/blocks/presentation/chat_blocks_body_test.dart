@@ -13,6 +13,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/chat_blocks_body.dart';
+import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
@@ -20,6 +21,7 @@ import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
+import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart';
 
 class _MockCubit extends MockCubit<ConversationBlocksState>
     implements ConversationBlocksCubit {}
@@ -78,7 +80,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(
-      const ResolveApprovalParams(requestId: 'req', decisionId: 'approve'),
+      const ResolveApprovalParams(requestId: 'req', decisionId: 'accept'),
     );
     registerFallbackValue(
       const ResolveInputParams(requestId: 'req', action: 'accept'),
@@ -241,7 +243,7 @@ void main() {
     );
 
     testWidgets(
-      'renders approve and deny buttons when capabilities includes approve',
+      'renders approve and deny buttons when capabilities includes approvals',
       (tester) async {
         when(() => cubit.snapshot).thenReturn(
           ConversationSnapshotModel(
@@ -252,9 +254,13 @@ void main() {
                 activityKind: 'approval',
                 status: 'pending',
                 requestId: 'req-1',
+                decisions: [
+                  DecisionOptionModel(id: 'accept', label: 'Allow'),
+                  DecisionOptionModel(id: 'reject', label: 'Deny'),
+                ],
               ),
             ],
-            capabilities: const ['approve'],
+            capabilities: const ['approvals'],
           ),
         );
         when(() => cubit.state).thenReturn(
@@ -267,8 +273,10 @@ void main() {
 
         await _pump(tester, cubit);
 
-        expect(find.byKey(const ValueKey('block-approve')), findsOneWidget);
-        expect(find.byKey(const ValueKey('block-decline')), findsOneWidget);
+        expect(find.byKey(const ValueKey('block-decision-accept')), findsOneWidget);
+        expect(find.byKey(const ValueKey('block-decision-reject')), findsOneWidget);
+        expect(find.text('Allow'), findsOneWidget);
+        expect(find.text('Deny'), findsOneWidget);
       },
     );
 
@@ -284,6 +292,10 @@ void main() {
                 activityKind: 'approval',
                 status: 'pending',
                 requestId: 'req-1',
+                decisions: [
+                  DecisionOptionModel(id: 'accept', label: 'Allow'),
+                  DecisionOptionModel(id: 'reject', label: 'Deny'),
+                ],
               ),
             ],
             capabilities: const [],
@@ -299,13 +311,13 @@ void main() {
 
         await _pump(tester, cubit);
 
-        expect(find.byKey(const ValueKey('block-approve')), findsNothing);
-        expect(find.byKey(const ValueKey('block-decline')), findsNothing);
+        expect(find.byKey(const ValueKey('block-decision-accept')), findsNothing);
+        expect(find.byKey(const ValueKey('block-decision-reject')), findsNothing);
       },
     );
 
     testWidgets(
-      'calls repository.resolveApproval with the request id and the approve decision',
+      "calls repository.resolveApproval with the provider's own decision id",
       (tester) async {
         when(() => cubit.snapshot).thenReturn(
           ConversationSnapshotModel(
@@ -316,9 +328,13 @@ void main() {
                 activityKind: 'approval',
                 status: 'pending',
                 requestId: 'req-1',
+                decisions: [
+                  DecisionOptionModel(id: 'accept', label: 'Allow'),
+                  DecisionOptionModel(id: 'reject', label: 'Deny'),
+                ],
               ),
             ],
-            capabilities: const ['approve'],
+            capabilities: const ['approvals'],
           ),
         );
         when(() => cubit.state).thenReturn(
@@ -331,7 +347,7 @@ void main() {
 
         await _pump(tester, cubit, repository: repository);
 
-        await tester.tap(find.byKey(const ValueKey('block-approve')));
+        await tester.tap(find.byKey(const ValueKey('block-decision-accept')));
         await tester.pump();
         await tester.pump();
 
@@ -342,12 +358,12 @@ void main() {
         expect(captured[0], 's-1');
         final params = captured[1] as ResolveApprovalParams;
         expect(params.requestId, 'req-1');
-        expect(params.decisionId, 'approve');
+        expect(params.decisionId, 'accept');
       },
     );
 
     testWidgets(
-      'renders the answer button when capabilities includes elicitation',
+      'renders the elicitation surface when capabilities includes elicitation',
       (tester) async {
         when(() => cubit.snapshot).thenReturn(
           ConversationSnapshotModel(
@@ -373,7 +389,7 @@ void main() {
 
         await _pump(tester, cubit);
 
-        expect(find.byKey(const ValueKey('block-answer')), findsOneWidget);
+        expect(find.byType(UserInputCard), findsOneWidget);
       },
     );
 
@@ -404,7 +420,7 @@ void main() {
 
         await _pump(tester, cubit);
 
-        expect(find.byKey(const ValueKey('block-answer')), findsNothing);
+        expect(find.byType(UserInputCard), findsNothing);
       },
     );
 

@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "다음 블록",
 	"blocks.panelAria": "세션 블록",
 	"blocks.previousBlock": "이전 블록",
+	"blocks.noDecisions": "에이전트가 Operator가 표시할 수 있는 옵션을 제공하지 않았습니다.",
 	"blocks.redacted": "이 출력에서 비밀 정보가 제거되었습니다",
 	"blocks.retry": "다시 시도",
 	"blocks.showBlocks": "블록 표시",

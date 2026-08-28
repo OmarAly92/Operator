@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "次のブロック",
 	"blocks.panelAria": "セッションブロック",
 	"blocks.previousBlock": "前のブロック",
+	"blocks.noDecisions": "エージェントは Operator が提示できる選択肢を提供しませんでした。",
 	"blocks.redacted": "この出力からシークレットが除外されました",
 	"blocks.retry": "再試行",
 	"blocks.showBlocks": "ブロックを表示",

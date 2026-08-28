@@ -18,184 +18,90 @@ SessionBlock _permission(String id) => SessionBlock(
   redacted: false,
 );
 
+SessionBlock _prompt(String id) => SessionBlock(
+  id: id,
+  firstSeq: 1,
+  lastSeq: 1,
+  kind: BlockKind.prompt,
+  status: BlockStatus.ok,
+  title: 'Prompt',
+  body: 'run the tests',
+  truncatedLines: 0,
+  redacted: false,
+);
+
 Future<void> _pump(
   WidgetTester tester, {
   required SessionBlock block,
-  BlockPermissionKind? permissionKind,
-  void Function(String, String)? onApprove,
-  void Function(String, String)? onDecline,
-  void Function(String)? onAnswer,
-}) =>
-    tester.pumpWidget(
-      SkinScope(
-        skin: const DarkSkin(),
-        child: ScreenUtilInit(
-          designSize: const Size(390, 844),
-          builder: (context, _) => MaterialApp(
-            home: Scaffold(
-              body: SizedBox(
-                width: 400,
-                child: BlockCard(
-                  block: block,
-                  onAnswer: onAnswer,
-                  onApprove: onApprove,
-                  onDecline: onDecline,
-                  permissionKind: permissionKind,
-                ),
-              ),
-            ),
+  Widget? Function(SessionBlock block)? actionsBuilder,
+}) => tester.pumpWidget(
+  SkinScope(
+    skin: const DarkSkin(),
+    child: ScreenUtilInit(
+      designSize: const Size(390, 844),
+      builder: (context, _) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            child: BlockCard(block: block, actionsBuilder: actionsBuilder),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
-  testWidgets('renders approve and deny for an approval permission block', (tester) async {
+  testWidgets('renders whatever the caller supplies for a block', (tester) async {
     await _pump(
       tester,
       block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.approval,
-      onApprove: (_, _) {},
-      onDecline: (_, _) {},
+      actionsBuilder: (_) => const Text('Allow once'),
     );
 
-    expect(find.byKey(const ValueKey('block-approve')), findsOneWidget);
-    expect(find.byKey(const ValueKey('block-decline')), findsOneWidget);
+    expect(find.text('Allow once'), findsOneWidget);
   });
 
-  testWidgets('hides approve and deny when onApprove and onDecline are not provided', (tester) async {
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.approval,
-    );
+  testWidgets('draws nothing when the caller supplies no builder', (tester) async {
+    await _pump(tester, block: _permission('req-1'));
 
-    expect(find.byKey(const ValueKey('block-approve')), findsNothing);
-    expect(find.byKey(const ValueKey('block-decline')), findsNothing);
+    expect(find.byType(BlockActionButton), findsNothing);
   });
 
-  testWidgets('hides approve and deny when permissionKind is not approval', (tester) async {
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.userInput,
-      onApprove: (_, _) {},
-      onDecline: (_, _) {},
-    );
+  testWidgets('draws nothing when the caller returns null for this block', (tester) async {
+    await _pump(tester, block: _permission('req-1'), actionsBuilder: (_) => null);
 
-    expect(find.byKey(const ValueKey('block-approve')), findsNothing);
-    expect(find.byKey(const ValueKey('block-decline')), findsNothing);
+    expect(find.byType(BlockActionButton), findsNothing);
   });
 
-  testWidgets('renders the answer button for a user_input permission block', (tester) async {
+  testWidgets('passes each block to the caller so it can decide per block', (tester) async {
+    final seen = <String>[];
     await _pump(
       tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.userInput,
-      onAnswer: (_) {},
-    );
-
-    expect(find.byKey(const ValueKey('block-answer')), findsOneWidget);
-  });
-
-  testWidgets('hides the answer button when onAnswer is not provided', (tester) async {
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.userInput,
-    );
-
-    expect(find.byKey(const ValueKey('block-answer')), findsNothing);
-  });
-
-  testWidgets('hides the answer button when permissionKind is not user_input', (tester) async {
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.approval,
-      onAnswer: (_) {},
-    );
-
-    expect(find.byKey(const ValueKey('block-answer')), findsNothing);
-  });
-
-  testWidgets('hides all action buttons when the block is not blocked', (tester) async {
-    final block = SessionBlock(
-      id: 'req-1',
-      firstSeq: 1,
-      lastSeq: 1,
-      kind: BlockKind.permission,
-      status: BlockStatus.ok,
-      title: 'Permission requested',
-      body: 'Bash',
-      truncatedLines: 0,
-      redacted: false,
-    );
-    await _pump(
-      tester,
-      block: block,
-      permissionKind: BlockPermissionKind.approval,
-      onApprove: (_, _) {},
-      onDecline: (_, _) {},
-      onAnswer: (_) {},
-    );
-
-    expect(find.byKey(const ValueKey('block-approve')), findsNothing);
-    expect(find.byKey(const ValueKey('block-decline')), findsNothing);
-    expect(find.byKey(const ValueKey('block-answer')), findsNothing);
-  });
-
-  testWidgets('approves with the request id and the approve decision', (tester) async {
-    String? capturedRequestId;
-    String? capturedDecisionId;
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.approval,
-      onApprove: (requestId, decisionId) {
-        capturedRequestId = requestId;
-        capturedDecisionId = decisionId;
+      block: _prompt('p-1'),
+      actionsBuilder: (block) {
+        seen.add(block.id);
+        return null;
       },
     );
 
-    await tester.tap(find.byKey(const ValueKey('block-approve')));
-    await tester.pump();
-
-    expect(capturedRequestId, 'req-1');
-    expect(capturedDecisionId, 'approve');
+    expect(seen, contains('p-1'));
   });
 
-  testWidgets('declines with the decline decision', (tester) async {
-    String? capturedDecisionId;
+  testWidgets('wires the caller\'s tap handler', (tester) async {
+    var taps = 0;
     await _pump(
       tester,
       block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.approval,
-      onDecline: (_, decisionId) {
-        capturedDecisionId = decisionId;
-      },
+      actionsBuilder: (_) => BlockActionButton(
+        key: const ValueKey('allow'),
+        label: 'Allow',
+        onTap: () => taps++,
+        primary: true,
+      ),
     );
 
-    await tester.tap(find.byKey(const ValueKey('block-decline')));
-    await tester.pump();
-
-    expect(capturedDecisionId, 'decline');
-  });
-
-  testWidgets('answers with the request id', (tester) async {
-    String? capturedRequestId;
-    await _pump(
-      tester,
-      block: _permission('req-1'),
-      permissionKind: BlockPermissionKind.userInput,
-      onAnswer: (requestId) {
-        capturedRequestId = requestId;
-      },
-    );
-
-    await tester.tap(find.byKey(const ValueKey('block-answer')));
-    await tester.pump();
-
-    expect(capturedRequestId, 'req-1');
+    await tester.tap(find.byKey(const ValueKey('allow')));
+    expect(taps, 1);
   });
 }

@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "下一个区块",
 	"blocks.panelAria": "会话区块",
 	"blocks.previousBlock": "上一个区块",
+	"blocks.noDecisions": "该智能体未提供 Operator 可呈现的选项。",
 	"blocks.redacted": "此输出中的密钥已被隐藏",
 	"blocks.retry": "重试",
 	"blocks.showBlocks": "显示区块",

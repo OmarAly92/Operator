@@ -5,37 +5,17 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
 
-enum BlockPermissionKind { approval, userInput }
-
 class BlockCard extends StatelessWidget {
-  const BlockCard({
-    super.key,
-    required this.block,
-    this.permissionKind,
-    this.onApprove,
-    this.onDecline,
-    this.onAnswer,
-  });
+  const BlockCard({super.key, required this.block, this.actionsBuilder});
 
   final SessionBlock block;
-  final BlockPermissionKind? permissionKind;
-  final void Function(String requestId, String decisionId)? onApprove;
-  final void Function(String requestId, String decisionId)? onDecline;
-  final void Function(String requestId)? onAnswer;
+  final Widget? Function(SessionBlock block)? actionsBuilder;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final display = blockDisplay(block);
-    final showApproval =
-        block.kind == BlockKind.permission &&
-        permissionKind == BlockPermissionKind.approval &&
-        block.status == BlockStatus.blocked;
-    final showUserInput =
-        block.kind == BlockKind.permission &&
-        permissionKind == BlockPermissionKind.userInput &&
-        block.status == BlockStatus.blocked;
-    final requestId = block.id;
+    final actions = actionsBuilder?.call(block);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -71,10 +51,7 @@ class BlockCard extends StatelessWidget {
                       child: BlockCard(
                         key: ValueKey('child-${child.id}'),
                         block: child,
-                        onAnswer: onAnswer,
-                        onApprove: onApprove,
-                        onDecline: onDecline,
-                        permissionKind: permissionKind,
+                        actionsBuilder: actionsBuilder,
                       ),
                     ),
                 ],
@@ -107,42 +84,10 @@ class BlockCard extends StatelessWidget {
                 maxLines: 2,
               ),
             ),
-          if (showApproval && (onApprove != null || onDecline != null))
+          if (actions != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: Row(
-                children: [
-                  if (onApprove != null)
-                    Expanded(
-                      child: _ActionButton(
-                        key: const ValueKey('block-approve'),
-                        label: 'Approve',
-                        onTap: () => onApprove!(requestId, 'approve'),
-                        primary: true,
-                      ),
-                    ),
-                  if (onApprove != null && onDecline != null) const SizedBox(width: 8),
-                  if (onDecline != null)
-                    Expanded(
-                      child: _ActionButton(
-                        key: const ValueKey('block-decline'),
-                        label: 'Deny',
-                        onTap: () => onDecline!(requestId, 'decline'),
-                        primary: false,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (showUserInput && onAnswer != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: _ActionButton(
-                key: const ValueKey('block-answer'),
-                label: 'Answer',
-                onTap: () => onAnswer!(requestId),
-                primary: true,
-              ),
+              child: actions,
             ),
         ],
       ),
@@ -150,8 +95,8 @@ class BlockCard extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
+class BlockActionButton extends StatelessWidget {
+  const BlockActionButton({
     super.key,
     required this.label,
     required this.onTap,

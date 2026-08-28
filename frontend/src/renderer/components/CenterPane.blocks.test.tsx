@@ -298,6 +298,10 @@ function approvalActivity(id: string, status: "pending" | "resolved" = "pending"
 		status,
 		summary: "Bash",
 		detail: {},
+		decisions: [
+			{ id: "accept", label: "Allow" },
+			{ id: "reject", label: "Deny" },
+		],
 		requestId: id,
 		createdAt: "2026-08-28T10:00:00Z",
 	};
@@ -367,13 +371,13 @@ function chatSnapshotWith(options: {
 }
 
 describe("CenterPane capability-gated action wiring", () => {
-	it("renders approve and deny buttons when the snapshot's capabilities include 'approve'", () => {
+	it("renders one button per provider decision when the snapshot's capabilities include 'approvals'", () => {
 		const resolve = vi.fn();
 		sessionMocks.useConversation = () => ({
 			snapshot: chatSnapshotWith({
 				activities: [approvalActivity("req-1")],
 				turns: [chatTurn("t-1")],
-				capabilities: ["approve"],
+				capabilities: ["approvals"],
 			}),
 			isLoading: false,
 			unavailable: undefined,
@@ -399,8 +403,10 @@ describe("CenterPane capability-gated action wiring", () => {
 			</Wrapper>,
 		);
 
-		expect(screen.getByTestId("block-approve")).toBeInTheDocument();
-		expect(screen.getByTestId("block-decline")).toBeInTheDocument();
+		expect(screen.getByTestId("block-decision-accept")).toBeInTheDocument();
+		expect(screen.getByTestId("block-decision-reject")).toBeInTheDocument();
+		expect(screen.getByText("Allow")).toBeInTheDocument();
+		expect(screen.getByText("Deny")).toBeInTheDocument();
 	});
 
 	it("does not render approve or deny buttons when the snapshot's capabilities are empty", () => {
@@ -434,17 +440,17 @@ describe("CenterPane capability-gated action wiring", () => {
 			</Wrapper>,
 		);
 
-		expect(screen.queryByTestId("block-approve")).not.toBeInTheDocument();
-		expect(screen.queryByTestId("block-decline")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("block-decision-accept")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("block-decision-reject")).not.toBeInTheDocument();
 	});
 
-	it("calls the resolve mutation with the request id and the approve decision when the approve button is clicked", () => {
+	it("calls the resolve mutation with the provider's own decision id, never a synthesized one", () => {
 		const resolve = vi.fn();
 		sessionMocks.useConversation = () => ({
 			snapshot: chatSnapshotWith({
 				activities: [approvalActivity("req-1")],
 				turns: [chatTurn("t-1")],
-				capabilities: ["approve"],
+				capabilities: ["approvals"],
 			}),
 			isLoading: false,
 			unavailable: undefined,
@@ -470,11 +476,11 @@ describe("CenterPane capability-gated action wiring", () => {
 			</Wrapper>,
 		);
 
-		fireEvent.click(screen.getByTestId("block-approve"));
-		expect(resolve).toHaveBeenCalledWith("req-1", "approve");
+		fireEvent.click(screen.getByTestId("block-decision-accept"));
+		expect(resolve).toHaveBeenCalledWith("req-1", "accept");
 	});
 
-	it("renders the answer button when the snapshot's capabilities include 'elicitation'", () => {
+	it("renders the elicitation surface when the snapshot's capabilities include 'elicitation'", () => {
 		sessionMocks.useConversation = () => ({
 			snapshot: chatSnapshotWith({
 				activities: [userInputActivity("req-2")],
@@ -505,7 +511,7 @@ describe("CenterPane capability-gated action wiring", () => {
 			</Wrapper>,
 		);
 
-		expect(screen.getByTestId("block-answer")).toBeInTheDocument();
+		expect(screen.getByLabelText("Agent question")).toBeInTheDocument();
 	});
 
 	it("does not render the answer button when the snapshot's capabilities are empty", () => {
@@ -539,7 +545,7 @@ describe("CenterPane capability-gated action wiring", () => {
 			</Wrapper>,
 		);
 
-		expect(screen.queryByTestId("block-answer")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Agent question")).not.toBeInTheDocument();
 	});
 
 	it("renders the rollback button when the snapshot's capabilities include 'rollback' and the turn is rollback-eligible", () => {

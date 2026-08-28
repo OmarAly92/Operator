@@ -37,6 +37,7 @@
 	"blocks.nextBlock": "Next block",
 	"blocks.panelAria": "Session blocks",
 	"blocks.previousBlock": "Previous block",
+	"blocks.noDecisions": "The agent offered no options Operator can present.",
 	"blocks.redacted": "Secrets were redacted from this output",
 	"blocks.retry": "Retry",
 	"blocks.showBlocks": "Show blocks",
