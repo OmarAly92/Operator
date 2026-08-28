@@ -25,6 +25,10 @@ class BlockList extends StatefulWidget {
     this.onRollbackTurn,
     this.canRollbackTurn,
     this.highlights = const {},
+    this.selectedIds = const {},
+    this.selectionMode = false,
+    this.onToggleSelect,
+    this.onLongPressHeader,
   });
 
   final String sessionId;
@@ -40,6 +44,10 @@ class BlockList extends StatefulWidget {
   final Set<String> collapsedIds;
   final void Function(String blockId)? onToggleCollapse;
   final Map<String, BlockMatch> highlights;
+  final Set<String> selectedIds;
+  final bool selectionMode;
+  final void Function(String blockId, bool selected)? onToggleSelect;
+  final void Function(String blockId)? onLongPressHeader;
 
   @override
   State<BlockList> createState() => BlockListState();
@@ -337,6 +345,14 @@ class BlockListState extends State<BlockList> {
               ? null
               : () => widget.onToggleCollapse!(block.id),
           highlight: widget.highlights[block.id],
+          selected: widget.selectedIds.contains(block.id),
+          onToggleSelect: widget.onToggleSelect == null
+              ? null
+              : (value) => widget.onToggleSelect!(block.id, value),
+          selectionMode: widget.selectionMode,
+          onLongPressHeader: widget.onLongPressHeader == null
+              ? null
+              : () => widget.onLongPressHeader!(block.id),
         ),
         if (group != null)
           TurnGroupStatus(

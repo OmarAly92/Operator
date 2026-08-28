@@ -23,6 +23,7 @@ class BlockCard extends StatelessWidget {
     this.selected = false,
     this.onToggleSelect,
     this.selectionMode = false,
+    this.onLongPressHeader,
   });
 
   final SessionBlock block;
@@ -35,6 +36,7 @@ class BlockCard extends StatelessWidget {
   final bool selected;
   final ValueChanged<bool>? onToggleSelect;
   final bool selectionMode;
+  final VoidCallback? onLongPressHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +133,14 @@ class BlockCard extends StatelessWidget {
             child: body,
           );
 
+    final selectableBody = selectionMode && onToggleSelect != null
+        ? GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onToggleSelect!(!selected),
+            child: tappableBody,
+          )
+        : tappableBody;
+
     final nameHighlight = highlight?.field == BlockMatchField.displayName
         ? highlight
         : null;
@@ -140,7 +150,9 @@ class BlockCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: skin.bgSurface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: skin.borderSubtle),
+        border: Border.all(
+          color: selected ? skin.blue : skin.borderSubtle,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,8 +162,11 @@ class BlockCard extends StatelessWidget {
             collapsed: collapsed,
             onToggleCollapse: onToggleCollapse,
             nameHighlight: nameHighlight,
+            selectionMode: selectionMode,
+            selected: selected,
+            onLongPressHeader: onLongPressHeader,
           ),
-          if (!collapsed) tappableBody,
+          if (!collapsed) selectableBody,
         ],
       ),
     );
@@ -244,18 +259,25 @@ class BlockCardHeader extends StatelessWidget {
     this.collapsed = false,
     this.onToggleCollapse,
     this.nameHighlight,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onLongPressHeader,
   });
 
   final SessionBlock block;
   final bool collapsed;
   final VoidCallback? onToggleCollapse;
   final BlockMatch? nameHighlight;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onLongPressHeader;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final display = blockDisplay(block);
     final tappable = onToggleCollapse != null;
+    final showChevron = tappable && !selectionMode;
 
     final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -264,7 +286,15 @@ class BlockCardHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (tappable) ...[
+          if (selectionMode) ...[
+            Icon(
+              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 16,
+              color: selected ? skin.blue : skin.textTertiary,
+            ),
+            const SizedBox(width: 6),
+          ],
+          if (showChevron) ...[
             Icon(
               collapsed ? Icons.chevron_right : Icons.expand_more,
               size: 16,
@@ -294,6 +324,13 @@ class BlockCardHeader extends StatelessWidget {
       ),
     );
 
+    if (onLongPressHeader != null) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: onLongPressHeader,
+        child: content,
+      );
+    }
     if (!tappable) return content;
     return InkWell(
       onTap: onToggleCollapse,

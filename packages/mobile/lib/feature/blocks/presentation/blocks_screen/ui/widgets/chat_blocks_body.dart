@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
@@ -15,6 +16,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
@@ -43,6 +45,8 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
   final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
   final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
   final Set<String> _collapsed = <String>{};
+  final Set<String> _selected = <String>{};
+  bool _selectionMode = false;
   String? _lastSessionId;
   bool _findOpen = false;
   String _query = '';
@@ -61,12 +65,39 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
   void _syncCollapsed(String sessionId) {
     if (_lastSessionId == sessionId) return;
     _collapsed.clear();
+    _selected.clear();
+    _selectionMode = false;
     _findOpen = false;
     _query = '';
     _filtering = false;
     _activeMatchId = null;
     _queryController.clear();
     _lastSessionId = sessionId;
+  }
+
+  void _enterSelectionMode(String blockId) {
+    setState(() {
+      _selectionMode = true;
+      _selected.add(blockId);
+    });
+    Haptics.select();
+  }
+
+  void _toggleSelected(String blockId, bool value) {
+    setState(() {
+      if (value) {
+        _selected.add(blockId);
+      } else {
+        _selected.remove(blockId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selected.clear();
+      _selectionMode = false;
+    });
   }
 
   Future<void> _confirmAndRollback({
@@ -380,59 +411,77 @@ class ChatBlocksBodyState extends State<ChatBlocksBody> {
             if (index >= 0) list.scrollBlockIntoView(index);
           });
 
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: Column(
-                  children: [
-                    if (_findOpen)
-                      BlockFindBar(
-                        queryController: _queryController,
-                        onQueryChanged: _onQueryChanged,
-                        onNext: () => _nextMatch(matches),
-                        onPrevious: () => _previousMatch(matches),
-                        onClose: _closeFind,
-                        onToggleFilter: _toggleFilter,
-                        currentIndex: currentIndex,
-                        totalMatches: matches.length,
-                        filtering: _filtering,
-                        hiddenCount: filterResult.hiddenCount,
-                      ),
-                    Expanded(
-                      child: BlockList(
-                        key: _listKey,
-                        sessionId: widget.sessionId,
-                        blocks: visibleBlocks,
-                        header: _olderControl(context, state),
-                        sticky: _sticky,
-                        pinnedListenable: _pinned,
-                        actionsBuilder: actionsBuilder,
-                        actionContext: actionContext,
-                        onAction: (block, action) => _onAction(
-                          repository: repository,
-                          action: action,
+          return PopScope(
+            canPop: !_selectionMode,
+            onPopInvokedWithResult: (didPop, _) {
+              if (_selectionMode) _exitSelectionMode();
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Column(
+                    children: [
+                      if (_findOpen)
+                        BlockFindBar(
+                          queryController: _queryController,
+                          onQueryChanged: _onQueryChanged,
+                          onNext: () => _nextMatch(matches),
+                          onPrevious: () => _previousMatch(matches),
+                          onClose: _closeFind,
+                          onToggleFilter: _toggleFilter,
+                          currentIndex: currentIndex,
+                          totalMatches: matches.length,
+                          filtering: _filtering,
+                          hiddenCount: filterResult.hiddenCount,
                         ),
-                        collapsedIds: _collapsed,
-                        onToggleCollapse: (id) => setState(() {
-                          if (!_collapsed.add(id)) _collapsed.remove(id);
-                        }),
-                        onRollbackTurn: canRollback ? onRollbackTurn : null,
-                        canRollbackTurn: canRollback ? canRollbackTurnGroup : null,
-                        highlights: highlight == null
-                            ? const <String, BlockMatch>{}
-                            : <String, BlockMatch>{highlight.blockId: highlight},
+                      Expanded(
+                        child: BlockList(
+                          key: _listKey,
+                          sessionId: widget.sessionId,
+                          blocks: visibleBlocks,
+                          header: _olderControl(context, state),
+                          sticky: _sticky,
+                          pinnedListenable: _pinned,
+                          actionsBuilder: actionsBuilder,
+                          actionContext: actionContext,
+                          onAction: (block, action) => _onAction(
+                            repository: repository,
+                            action: action,
+                          ),
+                          collapsedIds: _collapsed,
+                          onToggleCollapse: (id) => setState(() {
+                            if (!_collapsed.add(id)) _collapsed.remove(id);
+                          }),
+                          onRollbackTurn: canRollback ? onRollbackTurn : null,
+                          canRollbackTurn: canRollback ? canRollbackTurnGroup : null,
+                          highlights: highlight == null
+                              ? const <String, BlockMatch>{}
+                              : <String, BlockMatch>{highlight.blockId: highlight},
+                          selectedIds: _selected,
+                          selectionMode: _selectionMode,
+                          onToggleSelect: _toggleSelected,
+                          onLongPressHeader: _selectionMode
+                              ? null
+                              : _enterSelectionMode,
+                        ),
                       ),
-                    ),
-                  ],
+                      if (_selectionMode)
+                        BlockSelectionBar(
+                          selectedIds: _selected,
+                          documentOrder: visibleBlocks,
+                          onCancel: _exitSelectionMode,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 6,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
-              ),
-            ],
+                Positioned(
+                  top: 6,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
+                ),
+              ],
+            ),
           );
         }
 

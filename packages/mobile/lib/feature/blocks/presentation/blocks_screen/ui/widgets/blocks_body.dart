@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
+import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
@@ -11,6 +12,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
 class BlocksBody extends StatefulWidget {
@@ -25,6 +27,8 @@ class BlocksBodyState extends State<BlocksBody> {
   final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
   final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
   final Set<String> _collapsed = <String>{};
+  final Set<String> _selected = <String>{};
+  bool _selectionMode = false;
   String? _lastSessionId;
   bool _findOpen = false;
   String _query = '';
@@ -43,12 +47,39 @@ class BlocksBodyState extends State<BlocksBody> {
   void _syncCollapsed(String sessionId) {
     if (_lastSessionId == sessionId) return;
     _collapsed.clear();
+    _selected.clear();
+    _selectionMode = false;
     _findOpen = false;
     _query = '';
     _filtering = false;
     _activeMatchId = null;
     _queryController.clear();
     _lastSessionId = sessionId;
+  }
+
+  void _enterSelectionMode(String blockId) {
+    setState(() {
+      _selectionMode = true;
+      _selected.add(blockId);
+    });
+    Haptics.select();
+  }
+
+  void _toggleSelected(String blockId, bool value) {
+    setState(() {
+      if (value) {
+        _selected.add(blockId);
+      } else {
+        _selected.remove(blockId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selected.clear();
+      _selectionMode = false;
+    });
   }
 
   void _onAction(SessionBlock block, BlockAction action) {
@@ -196,68 +227,88 @@ class BlocksBodyState extends State<BlocksBody> {
           if (index >= 0) list.scrollBlockIntoView(index);
         });
 
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Column(
-                children: [
-                  if (_findOpen)
-                    BlockFindBar(
-                      queryController: _queryController,
-                      onQueryChanged: _onQueryChanged,
-                      onNext: () => _nextMatch(matches),
-                      onPrevious: () => _previousMatch(matches),
-                      onClose: _closeFind,
-                      onToggleFilter: _toggleFilter,
-                      currentIndex: currentIndex,
-                      totalMatches: matches.length,
-                      filtering: _filtering,
-                      hiddenCount: filterResult.hiddenCount,
+        return PopScope(
+          canPop: !_selectionMode,
+          onPopInvokedWithResult: (didPop, _) {
+            if (_selectionMode) _exitSelectionMode();
+          },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    if (_findOpen)
+                      BlockFindBar(
+                        queryController: _queryController,
+                        onQueryChanged: _onQueryChanged,
+                        onNext: () => _nextMatch(matches),
+                        onPrevious: () => _previousMatch(matches),
+                        onClose: _closeFind,
+                        onToggleFilter: _toggleFilter,
+                        currentIndex: currentIndex,
+                        totalMatches: matches.length,
+                        filtering: _filtering,
+                        hiddenCount: filterResult.hiddenCount,
+                      ),
+                    Expanded(
+                      child: BlockList(
+                        key: _listKey,
+                        sessionId: cubit.sessionId,
+                        blocks: visibleBlocks,
+                        header: _olderControl(context, cubit),
+                        sticky: _sticky,
+                        pinnedListenable: _pinned,
+                        actionContext: actionContext,
+                        onAction: _onAction,
+                        collapsedIds: _collapsed,
+                        onToggleCollapse: (id) => setState(() {
+                          if (!_collapsed.add(id)) _collapsed.remove(id);
+                        }),
+                        highlights: highlight == null
+                            ? const <String, BlockMatch>{}
+                            : <String, BlockMatch>{highlight.blockId: highlight},
+                        selectedIds: _selected,
+                        selectionMode: _selectionMode,
+                        onToggleSelect: _toggleSelected,
+                        onLongPressHeader: _selectionMode
+                            ? null
+                            : _enterSelectionMode,
+                      ),
                     ),
-                  Expanded(
-                    child: BlockList(
-                      key: _listKey,
-                      sessionId: cubit.sessionId,
-                      blocks: visibleBlocks,
-                      header: _olderControl(context, cubit),
-                      sticky: _sticky,
-                      pinnedListenable: _pinned,
-                      actionContext: actionContext,
-                      onAction: _onAction,
-                      collapsedIds: _collapsed,
-                      onToggleCollapse: (id) => setState(() {
-                        if (!_collapsed.add(id)) _collapsed.remove(id);
-                      }),
-                      highlights: highlight == null
-                          ? const <String, BlockMatch>{}
-                          : <String, BlockMatch>{highlight.blockId: highlight},
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 6,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
-            ),
-            Positioned(
-              right: 12,
-              bottom: 12,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _pinned,
-                builder: (context, pinned, _) => BlockNavControls(
-                  onPrevious: () =>
-                      _listKey.currentState?.scrollToBoundary(forward: false),
-                  onNext: () =>
-                      _listKey.currentState?.scrollToBoundary(forward: true),
-                  onLatest: () => _listKey.currentState?.jumpToLatest(),
-                  showLatest: !pinned,
+                    if (_selectionMode)
+                      BlockSelectionBar(
+                        selectedIds: _selected,
+                        documentOrder: visibleBlocks,
+                        onCancel: _exitSelectionMode,
+                      ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 6,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
+              ),
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _pinned,
+                  builder: (context, pinned, _) => _selectionMode
+                      ? const SizedBox.shrink()
+                      : BlockNavControls(
+                          onPrevious: () => _listKey.currentState
+                              ?.scrollToBoundary(forward: false),
+                          onNext: () => _listKey.currentState
+                              ?.scrollToBoundary(forward: true),
+                          onLatest: () => _listKey.currentState?.jumpToLatest(),
+                          showLatest: !pinned,
+                        ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
