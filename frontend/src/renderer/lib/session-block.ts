@@ -56,7 +56,7 @@ export function blockDisplay(block: SessionBlock): BlockDisplay {
 			return {
 				displayName: "Shell",
 				summary: [detail.command, detail.output].filter((part): part is string => part !== undefined && part !== "").join("\n\n"),
-				errorText: detail.exitCode === 0 ? undefined : `Exit code ${detail.exitCode}`,
+				errorText: detail.exitCode === undefined || detail.exitCode === 0 ? undefined : `Exit code ${detail.exitCode}`,
 			};
 		case "file_change":
 			return { displayName: "File change", summary: `${detail.files?.length ?? 0} ${(detail.files?.length ?? 0) === 1 ? "file" : "files"} changed` };

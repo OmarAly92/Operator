@@ -83,4 +83,21 @@ describe("shared assembly fixtures", () => {
 			expect(display.errorText).toBe(item.display.errorText);
 		}
 	});
+
+	it("does not render a shell error when exit code is absent", () => {
+		const display = blockDisplay({
+			id: "shell-without-exit-code",
+			firstSeq: 1,
+			lastSeq: 1,
+			kind: "tool",
+			status: "ok",
+			title: "Tool",
+			body: "",
+			detail: { type: "shell", command: "pwd" },
+			truncatedLines: 0,
+			redacted: false,
+		});
+
+		expect(display.errorText).toBeUndefined();
+	});
 });
