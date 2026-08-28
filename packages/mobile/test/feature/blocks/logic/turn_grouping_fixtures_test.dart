@@ -7,7 +7,7 @@ import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 
 void main() {
   test(
-    'keeps canonical boundaries strict while displaying system-injected ACP work with its response',
+    'keeps canonical turn boundaries while allowing a system-injected response to run together',
     () {
       final file = File('../../testdata/blocks/acp_turn_grouping.json');
       expect(
@@ -32,7 +32,7 @@ void main() {
           );
         }
 
-        final expected = (stream['responseGroups'] as List<dynamic>)
+        final expected = (stream['turnGroups'] as List<dynamic>)
             .cast<Map<String, dynamic>>();
         final groups = groupBlocksByTurn(blocks);
         expect(groups, hasLength(expected.length));

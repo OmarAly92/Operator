@@ -6,8 +6,9 @@
       { "id": "acp-system", "firstSeq": 3, "lastSeq": 3, "kind": "reasoning", "status": "running", "turnId": "turn-2", "title": "Reasoning", "body": "Checking the remaining work.", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T10:00:03Z" }
     ],
     "strictBoundaries": [false, true],
-    "responseGroups": [
-      { "ids": ["acp-prompt", "acp-answer", "acp-system"], "turnId": "turn-1", "startedAt": "2026-08-28T10:00:00Z", "completedAt": null, "durationMs": null, "running": true }
+    "turnGroups": [
+      { "ids": ["acp-prompt", "acp-answer"], "turnId": "turn-1", "startedAt": "2026-08-28T10:00:00Z", "completedAt": "2026-08-28T10:00:02Z", "durationMs": 2000, "running": false },
+      { "ids": ["acp-system"], "turnId": "turn-2", "startedAt": "2026-08-28T10:00:03Z", "completedAt": null, "durationMs": null, "running": true }
     ]
   },
   "hooks": {
@@ -17,7 +18,7 @@
       { "id": "hook-prompt-2", "firstSeq": 3, "lastSeq": 3, "kind": "prompt", "status": "running", "title": "Prompt", "body": "Check the report", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T11:01:00Z" }
     ],
     "strictBoundaries": [false, true],
-    "responseGroups": [
+    "turnGroups": [
       { "ids": ["hook-prompt-1", "hook-answer-1"], "startedAt": "2026-08-28T11:00:00Z", "completedAt": "2026-08-28T11:00:05Z", "durationMs": 5000, "running": false },
       { "ids": ["hook-prompt-2"], "startedAt": "2026-08-28T11:01:00Z", "completedAt": null, "durationMs": null, "running": true }
     ]

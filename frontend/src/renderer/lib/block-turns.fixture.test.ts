@@ -16,13 +16,13 @@ type ExpectedGroup = {
 type FixtureStream = {
 	blocks: SessionBlock[];
 	strictBoundaries: boolean[];
-	responseGroups: ExpectedGroup[];
+	turnGroups: ExpectedGroup[];
 };
 
 const fixtureDirectory = path.resolve(process.cwd(), "../testdata/blocks");
 
 describe("shared turn grouping fixture", () => {
-	it("keeps canonical boundaries strict while displaying system-injected ACP work with its response", () => {
+	it("keeps canonical turn boundaries while allowing a system-injected response to run together", () => {
 		const raw = readFileSync(path.join(fixtureDirectory, "acp_turn_grouping.json"), "utf8");
 		const fixture = JSON.parse(raw) as { acp: FixtureStream; hooks: FixtureStream };
 
@@ -34,9 +34,9 @@ describe("shared turn grouping fixture", () => {
 			}
 
 			const groups = groupBlocksByTurn(stream.blocks);
-			expect(groups).toHaveLength(stream.responseGroups.length);
+			expect(groups).toHaveLength(stream.turnGroups.length);
 			groups.forEach((group, index) => {
-				const expected = stream.responseGroups[index]!;
+				const expected = stream.turnGroups[index]!;
 				expect(group.blocks.map((block) => block.id)).toEqual(expected.ids);
 				expect(group.turnId).toBe(expected.turnId);
 				expect(group.startedAt).toBe(expected.startedAt);

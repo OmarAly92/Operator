@@ -34,3 +34,23 @@ No findings. The implementation has no backend, API, migration, SQLC, hook-fixtu
 ## Issues or concerns
 
 None.
+
+## Fix Round 1
+
+### What changed
+
+- Changed both `groupBlocksByTurn` implementations to use strict `continuesTurn`, preserving canonical boundaries and deriving each turn's timing independently.
+- Updated `acp_turn_grouping.json` and both fixture tests so the ACP stream creates separate `turn-1` and `turn-2` groups while `continuesResponse` remains explicitly tested as relaxed.
+- Moved mobile conversation grouping and readability filtering from `feature/chat/logic/timeline_model.dart` into `feature/blocks/logic/turn_grouping.dart`; `timeline_model.dart` now re-exports the moved API for existing chat callers.
+
+### Covering tests
+
+- `npm run frontend:typecheck && npm --prefix frontend run test`
+  - Passed: 156 test files and 1,849 tests.
+- `flutter analyze && flutter test`
+  - `flutter analyze`: `No issues found!`
+  - `flutter test`: 1,193 tests passed.
+
+### Concerns
+
+None.

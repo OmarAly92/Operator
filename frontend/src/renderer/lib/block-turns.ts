@@ -24,7 +24,7 @@ export function groupBlocksByTurn(blocks: readonly SessionBlock[]): TurnGroup[] 
 	const groups: TurnGroup[] = [];
 	for (const block of blocks) {
 		const group = groups.at(-1);
-		if (group !== undefined && continuesResponse(group.blocks.at(-1)!, block)) {
+		if (group !== undefined && continuesTurn(group.blocks.at(-1)!, block)) {
 			group.blocks.push(block);
 			continue;
 		}

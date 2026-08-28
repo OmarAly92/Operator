@@ -1,4 +1,7 @@
 import 'package:equatable/equatable.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
 class TurnGroup extends Equatable {
@@ -29,6 +32,44 @@ class TurnGroup extends Equatable {
   ];
 }
 
+class ConversationGroup extends Equatable {
+  const ConversationGroup({
+    required this.key,
+    required this.anchor,
+    required this.items,
+    this.turnId,
+    this.turn,
+  });
+
+  final String key;
+  final String? turnId;
+  final int anchor;
+  final List<ConversationItemModel> items;
+  final ConversationTurnModel? turn;
+
+  @override
+  List<Object?> get props => [key, turnId, anchor, items, turn];
+}
+
+List<ConversationItemModel> readableConversationItems(
+  ConversationSnapshotModel snapshot,
+) {
+  final plannedTurns = snapshot.turns
+      .where((turn) => turn.hasPlan)
+      .map((turn) => turn.id)
+      .whereType<String>()
+      .toSet();
+  return snapshot.items.where((item) {
+    if (item is! ConversationActivityModel) return true;
+    if (item.activityKind == 'usage' || item.activityKind == 'reasoning') {
+      return false;
+    }
+    return !(item.activityKind == 'plan' &&
+        (item.turnId?.isNotEmpty ?? false) &&
+        plannedTurns.contains(item.turnId));
+  }).toList();
+}
+
 bool continuesTurn(SessionBlock previous, SessionBlock current) {
   if (previous.turnId != null && current.turnId != null) {
     return previous.turnId == current.turnId;
@@ -43,7 +84,7 @@ List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
   final groups = <TurnGroup>[];
   for (final block in blocks) {
     final group = groups.isEmpty ? null : groups.last;
-    if (group != null && continuesResponse(group.blocks.last, block)) {
+    if (group != null && continuesTurn(group.blocks.last, block)) {
       group.blocks.add(block);
       continue;
     }
@@ -72,6 +113,55 @@ List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
       running: running,
     );
   }).toList();
+}
+
+List<ConversationGroup> groupConversationByTurn(
+  ConversationSnapshotModel snapshot, [
+  List<ConversationItemModel>? items,
+]) {
+  final rows = items ?? readableConversationItems(snapshot);
+  final turns = {
+    for (final turn in snapshot.turns)
+      if (turn.id != null) turn.id!: turn,
+  };
+  final byTurn = <String, ConversationGroup>{};
+  final groups = <ConversationGroup>[];
+
+  for (final item in rows) {
+    final turnId = item.turnId;
+    if (turnId == null || turnId.isEmpty) {
+      final previous = groups.isEmpty ? null : groups.last;
+      if (previous != null && previous.turnId == null) {
+        previous.items.add(item);
+      } else {
+        groups.add(
+          ConversationGroup(
+            key: 'loose-${item.sequence ?? 0}',
+            anchor: item.sequence ?? 0,
+            items: [item],
+          ),
+        );
+      }
+      continue;
+    }
+
+    final existing = byTurn[turnId];
+    if (existing != null) {
+      existing.items.add(item);
+      continue;
+    }
+    final group = ConversationGroup(
+      key: 'turn-$turnId',
+      turnId: turnId,
+      anchor: item.sequence ?? 0,
+      items: [item],
+      turn: turns[turnId],
+    );
+    byTurn[turnId] = group;
+    groups.add(group);
+  }
+
+  return groups..sort((left, right) => left.anchor.compareTo(right.anchor));
 }
 
 int? _durationBetween(String? startedAt, String? completedAt) {
