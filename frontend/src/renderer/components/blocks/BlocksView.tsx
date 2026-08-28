@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { blockActionsFor, type BlockAction, type BlockActionContext } from "../../lib/block-actions";
 import type { SessionBlock } from "../../lib/session-block";
 import { Button } from "../ui/button";
 import { BlockList } from "./BlockList";
 import type { TurnGroup } from "../../lib/block-turns";
+import { FIND_CONTEXT_BLOCKS, filterBlocks, findBlockMatches, nextMatchId } from "../../lib/block-find";
+import { BlockFindBar } from "./BlockFindBar";
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 export type BlocksViewProps = {
 	blocks: SessionBlock[];
@@ -45,6 +49,10 @@ export function BlocksView({
 }: BlocksViewProps) {
 	const { t } = useTranslation();
 	const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+	const [findOpen, setFindOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const [filtering, setFiltering] = useState(false);
+	const [activeMatchId, setActiveMatchId] = useState<string | undefined>(undefined);
 	useEffect(() => setCollapsedIds(new Set()), [sessionId]);
 	const actionsByBlockId = useMemo(() => {
 		const byBlockId = new Map<string, readonly BlockAction[]>();
@@ -62,6 +70,32 @@ export function BlocksView({
 			else next.add(blockId);
 			return next;
 		});
+	}, []);
+	const matches = useMemo(() => findBlockMatches(blocks, query), [blocks, query]);
+	const filtered = useMemo(
+		() => filtering && matches.length > 0 ? filterBlocks(blocks, query, FIND_CONTEXT_BLOCKS) : { blocks, matchIds: EMPTY_SET, hiddenCount: 0 },
+		[blocks, filtering, matches.length, query],
+	);
+	const matchesByBlockId = useMemo(() => new Map(matches.map((match) => [match.blockId, match])), [matches]);
+	const activeIndex = matches.findIndex((match) => match.blockId === activeMatchId);
+	const closeFind = useCallback(() => {
+		setFindOpen(false);
+		setQuery("");
+		setFiltering(false);
+		setActiveMatchId(undefined);
+	}, []);
+	const onQueryChange = useCallback((nextQuery: string) => {
+		setQuery(nextQuery);
+		setActiveMatchId(findBlockMatches(blocks, nextQuery)[0]?.blockId);
+	}, [blocks]);
+	const stepMatch = useCallback((forward: boolean) => {
+		setActiveMatchId((current) => nextMatchId(matches, current, forward));
+	}, [matches]);
+	const onFindKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		if (!event.metaKey && !event.ctrlKey) return;
+		if (event.key.toLowerCase() !== "f") return;
+		event.preventDefault();
+		setFindOpen(true);
 	}, []);
 
 	if (unavailable !== undefined) {
@@ -103,17 +137,34 @@ export function BlocksView({
 					</Button>
 				</div>
 			) : null}
+			{findOpen ? (
+				<BlockFindBar
+					activeIndex={Math.max(activeIndex, 0)}
+					filtering={filtering}
+					matchCount={matches.length}
+					onClose={closeFind}
+					onNext={() => stepMatch(true)}
+					onPrevious={() => stepMatch(false)}
+					onQueryChange={onQueryChange}
+					onToggleFilter={() => setFiltering((current) => !current)}
+					query={query}
+				/>
+			) : null}
+			{filtering && filtered.hiddenCount > 0 ? <p className="px-3 py-1 text-muted-foreground text-xs">{t("blocks.find.hidden", { count: filtered.hiddenCount })}</p> : null}
 			<div className="min-h-0 flex-1">
 				<BlockList
-					blocks={blocks}
+					activeMatchId={activeMatchId}
+					blocks={filtered.blocks}
 					actionsByBlockId={actionsByBlockId}
 					canRollbackTurn={canRollbackTurn}
 					collapsedIds={collapsedIds}
 					onAction={onAction}
 					onRollbackTurn={onRollbackTurn}
 					onToggleCollapse={onToggleCollapse}
+					onFindKeyDown={onFindKeyDown}
 					renderActions={renderActions}
 					sessionId={sessionId}
+					matchesByBlockId={matchesByBlockId}
 				/>
 			</div>
 		</div>

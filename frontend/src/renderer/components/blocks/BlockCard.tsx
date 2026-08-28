@@ -32,10 +32,12 @@ export function BlockCardHeader({
 	block,
 	collapsed = false,
 	onToggleCollapse,
+	highlight,
 }: {
 	block: SessionBlock;
 	collapsed?: boolean;
 	onToggleCollapse?: (blockId: string) => void;
+	highlight?: BlockHighlight;
 }) {
 	const { t } = useTranslation();
 	const display = blockDisplay(block);
@@ -43,7 +45,7 @@ export function BlockCardHeader({
 		<>
 			<BlockStatusDot status={block.status} />
 			<span className="flex-1 truncate font-medium text-foreground text-xs">
-				{display.displayName}
+				{highlight?.field === "displayName" ? highlighted(display.displayName, highlight.ranges, highlight.active) : display.displayName}
 			</span>
 			<span className="text-[10px] text-muted-foreground">{t(KIND_KEY[block.kind])}</span>
 			{onToggleCollapse === undefined ? null : collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -76,6 +78,8 @@ export const BlockCard = memo(function BlockCard({
 	collapsed,
 	collapsedIds,
 	onToggleCollapse,
+	highlight,
+	highlightsByBlockId,
 }: {
 	block: SessionBlock;
 	renderActions?: (block: SessionBlock) => ReactNode;
@@ -85,7 +89,8 @@ export const BlockCard = memo(function BlockCard({
 	collapsed?: boolean;
 	collapsedIds?: ReadonlySet<string>;
 	onToggleCollapse?: (blockId: string) => void;
-	highlight?: { field: "displayName" | "summary"; ranges: readonly MatchRange[] };
+	highlight?: BlockHighlight;
+	highlightsByBlockId?: ReadonlyMap<string, BlockHighlight>;
 	selected?: boolean;
 	onToggleSelect?: (blockId: string, extend: boolean) => void;
 }) {
@@ -97,12 +102,12 @@ export const BlockCard = memo(function BlockCard({
 
 	return (
 		<div className="mx-3 my-1 rounded-md border border-border bg-card" data-testid="session-block">
-			<BlockCardHeader block={block} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+			<BlockCardHeader block={block} collapsed={collapsed} highlight={highlight} onToggleCollapse={onToggleCollapse} />
 			{collapsed ? null : (
 				<>
 			{display.summary === "" ? null : (
 				<p className="whitespace-pre-wrap break-words px-3 py-2 font-mono text-muted-foreground text-xs">
-					{display.summary}
+					{highlight?.field === "summary" ? highlighted(display.summary, highlight.ranges, highlight.active) : display.summary}
 				</p>
 			)}
 			{block.children !== undefined && block.children.length > 0 ? (
@@ -114,6 +119,8 @@ export const BlockCard = memo(function BlockCard({
 							block={child}
 							collapsed={collapsedIds?.has(child.id)}
 							collapsedIds={collapsedIds}
+							highlight={highlightsByBlockId?.get(child.id)}
+							highlightsByBlockId={highlightsByBlockId}
 							key={child.id}
 							onAction={onAction}
 							onToggleCollapse={onToggleCollapse}
@@ -155,3 +162,21 @@ export const BlockCard = memo(function BlockCard({
 		</div>
 	);
 });
+
+type BlockHighlight = { field: "displayName" | "summary"; ranges: readonly MatchRange[]; active?: boolean };
+
+function highlighted(text: string, ranges: readonly MatchRange[], active = false): ReactNode {
+	const nodes: ReactNode[] = [];
+	let offset = 0;
+	for (const range of ranges) {
+		nodes.push(text.slice(offset, range.start));
+		nodes.push(
+			<mark className="rounded-[2px] bg-warning/30 text-foreground" data-testid={active ? "block-match-active" : undefined} key={range.start}>
+				{text.slice(range.start, range.start + range.length)}
+			</mark>,
+		);
+		offset = range.start + range.length;
+	}
+	nodes.push(text.slice(offset));
+	return nodes;
+}

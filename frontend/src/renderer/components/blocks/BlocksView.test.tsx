@@ -75,6 +75,67 @@ describe("BlocksView", () => {
 		expect(screen.getByText("ok 42 tests")).toBeInTheDocument();
 	});
 
+	it("finds blocks from the focused pane, navigates matches, filters, and clears on Escape", async () => {
+		const user = userEvent.setup();
+		renderView({
+			blocks: [
+				block({ id: "seq-1", title: "Build", body: "first deploy target" }),
+				block({ id: "seq-2", title: "Test", body: "context before hidden block" }),
+				block({ id: "seq-3", title: "Review", body: "no match here" }),
+				block({ id: "seq-4", title: "Test", body: "context after hidden block" }),
+				block({ id: "seq-5", title: "Deploy", body: "second deploy target" }),
+			],
+		});
+		await act(async () => {});
+
+		const pane = screen.getByRole("log");
+		pane.focus();
+		await user.keyboard("{Meta>}f{/Meta}");
+
+		const input = screen.getByRole("textbox", { name: "Find in blocks" });
+		await user.type(input, "deploy");
+		expect(screen.getByText("1 / 2")).toBeInTheDocument();
+		expect(screen.getAllByTestId("block-match-active")).toHaveLength(1);
+		expect(screen.getAllByTestId("block-match-active")[0]).toHaveTextContent("deploy");
+
+		await user.click(screen.getByRole("button", { name: "Next match" }));
+		expect(screen.getByText("2 / 2")).toBeInTheDocument();
+		expect(screen.getAllByTestId("block-match-active")[0]).toHaveTextContent("Deploy");
+		await user.click(screen.getByRole("button", { name: "Next match" }));
+		expect(screen.getByText("1 / 2")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Previous match" }));
+		expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Filter results" }));
+		expect(screen.getByText("1 block hidden")).toBeInTheDocument();
+		expect(screen.queryByText("no match here")).not.toBeInTheDocument();
+
+		await user.keyboard("{Escape}");
+		expect(screen.queryByRole("textbox", { name: "Find in blocks" })).not.toBeInTheDocument();
+		expect(screen.getByText("no match here")).toBeInTheDocument();
+	});
+
+	it("keeps the list visible when filtering has no block matches", async () => {
+		const user = userEvent.setup();
+		renderView({
+			blocks: [
+				block({ id: "seq-1", body: "first block" }),
+				block({ id: "seq-2", body: "second block" }),
+			],
+		});
+		await act(async () => {});
+
+		const pane = screen.getByRole("log");
+		pane.focus();
+		await user.keyboard("{Control>}f{/Control}");
+		await user.type(screen.getByRole("textbox", { name: "Find in blocks" }), "absent");
+		await user.click(screen.getByRole("button", { name: "Filter results" }));
+
+		expect(screen.getByText("No matches")).toBeInTheDocument();
+		expect(screen.getByText("first block")).toBeInTheDocument();
+		expect(screen.getByText("second block")).toBeInTheDocument();
+	});
+
 	it("lets a user collapse and expand nested blocks with their standard actions", async () => {
 		const nested = block({ id: "child-1", body: "nested output" });
 		const parent = block({ id: "parent-1", body: "parent output", children: [nested] });

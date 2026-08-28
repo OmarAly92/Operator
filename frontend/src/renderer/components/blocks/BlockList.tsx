@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ChevronDown, ChevronUp } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	BLOCK_OVERSCAN,
@@ -14,6 +14,7 @@ import {
 import { groupBlocksByTurn, type TurnGroup } from "../../lib/block-turns";
 import type { BlockAction } from "../../lib/block-actions";
 import type { SessionBlock } from "../../lib/session-block";
+import type { BlockMatch } from "../../lib/block-find";
 import { BlockCard, BlockCardHeader } from "./BlockCard";
 import { Button } from "../ui/button";
 
@@ -27,6 +28,9 @@ export function BlockList({
 	onToggleCollapse,
 	onRollbackTurn,
 	canRollbackTurn,
+	matchesByBlockId,
+	activeMatchId,
+	onFindKeyDown,
 }: {
 	blocks: SessionBlock[];
 	sessionId: string;
@@ -37,6 +41,9 @@ export function BlockList({
 	onToggleCollapse?: (blockId: string) => void;
 	onRollbackTurn?: (turnId: string) => void;
 	canRollbackTurn?: (group: TurnGroup) => boolean;
+	matchesByBlockId?: ReadonlyMap<string, BlockMatch>;
+	activeMatchId?: string;
+	onFindKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
 	const { t } = useTranslation();
 	const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -58,6 +65,10 @@ export function BlockList({
 		for (const group of groupBlocksByTurn(blocks)) endings.set(group.blocks.at(-1)!.id, group);
 		return endings;
 	}, [blocks]);
+	const highlightsByBlockId = useMemo(
+		() => matchHighlights(matchesByBlockId, activeMatchId),
+		[activeMatchId, matchesByBlockId],
+	);
 
 	const sync = useCallback(() => {
 		const node = scrollRef.current;
@@ -82,6 +93,12 @@ export function BlockList({
 		if (!pinnedRef.current || blocks.length === 0) return;
 		virtualizer.scrollToOffset(virtualizer.getTotalSize(), { align: "start" });
 	});
+
+	useEffect(() => {
+		if (activeMatchId === undefined) return;
+		const index = blocks.findIndex((block) => containsBlock(block, activeMatchId));
+		if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+	}, [activeMatchId, blocks, virtualizer]);
 
 	const items = virtualizer.getVirtualItems();
 
@@ -122,9 +139,11 @@ export function BlockList({
 				aria-label={t("blocks.panelAria")}
 				className="h-full min-h-0 overflow-y-auto py-1.5"
 				data-block-scroll
+				onKeyDown={onFindKeyDown}
 				onScroll={sync}
 				ref={scrollRef}
 				role="log"
+				tabIndex={0}
 			>
 				<div
 					data-block-sizer
@@ -155,6 +174,8 @@ export function BlockList({
 									block={item}
 									collapsed={collapsedIds?.has(item.id)}
 									collapsedIds={collapsedIds}
+									highlight={matchHighlight(matchesByBlockId?.get(item.id), item.id === activeMatchId)}
+									highlightsByBlockId={highlightsByBlockId}
 									onAction={onAction}
 									onToggleCollapse={onToggleCollapse}
 									renderActions={renderActions}
@@ -203,6 +224,21 @@ export function BlockList({
 			</div>
 		</div>
 	);
+}
+
+function containsBlock(block: SessionBlock, blockId: string): boolean {
+	if (block.id === blockId) return true;
+	return block.children?.some((child) => containsBlock(child, blockId)) ?? false;
+}
+
+function matchHighlight(match: BlockMatch | undefined, active: boolean) {
+	if (match === undefined) return undefined;
+	return { field: match.field, ranges: match.ranges, active };
+}
+
+function matchHighlights(matches: ReadonlyMap<string, BlockMatch> | undefined, activeMatchId: string | undefined) {
+	if (matches === undefined) return undefined;
+	return new Map([...matches].map(([blockId, match]) => [blockId, matchHighlight(match, blockId === activeMatchId)!]));
 }
 
 function TurnGroupStatus({
