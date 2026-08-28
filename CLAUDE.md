@@ -116,9 +116,15 @@ Material scale would visibly change the design.
 ### Conventions specific to this package
 
 - **Cubit only** — never `Bloc` with events. Static-only classes are `sealed class X`.
-- **No `drift`, `freezed`, `json_serializable`, or `build_runner`** in first-party code.
-  Models are hand-written with all fields nullable and `fromJson` doing the wire→domain
-  mapping. One params class per method under `data/model/params/`, never shared.
+- **No `freezed` or `json_serializable`** in first-party code. Models are hand-written
+  with all fields nullable and `fromJson` doing the wire→domain mapping. One params
+  class per method under `data/model/params/`, never shared.
+- **`drift` and `build_runner` are permitted for the on-device replica cache only**
+  (`lib/core/cache/`), by explicit user decision 2026-08-28. No other package imports
+  `package:drift/drift.dart`, and wire models stay hand-written — drift never parses
+  the wire. See `docs/superpowers/plans/2026-08-28-mobile-replica-cache.md` for the
+  boundary. Generated `*.g.dart` is committed, because CI runs `flutter analyze` and
+  `flutter test` with no generation step.
 - Parameterized paths get static methods on `EndPoints`; interpolating at a call site is
   forbidden.
 - Feature code never imports `flutter_screenutil` — spacing, padding and radii take raw ints.

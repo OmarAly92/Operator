@@ -538,6 +538,39 @@ text and virtual-key input never claim a size. Adopt the distinction: a Blocks
 client sends no claim, a Raw client claims, and `largestGrid` arbitrates over
 claimants instead of over whoever happens to be connected.
 
+### Client presence and resume
+
+A phone is not a small desktop: it is backgrounded, it loses the network, and it
+is frequently not the client anyone is looking at. Paseo treats that as a protocol
+rather than a set of local guesses, and three pieces are worth adopting.
+
+**The client reports what it is looking at.** A heartbeat every 15 seconds
+(`HEARTBEAT_INTERVAL_MS`) carries app visibility plus the focused agent and
+focused terminal (`client-activity-tracker.ts`). This is a better primitive than
+the `members` map for the same reason the `claim`/`update` intent is: it states
+attention instead of inferring it from a subscription. It also lets the daemon stop
+pushing block traffic for sessions nobody is watching, which on a phone is battery
+and cellular data, not just tidiness.
+
+**Resume is a decision, not a reflex.** `onAppResumed(awayMs)` with
+`SESSION_STALE_AFTER_MS = 60_000`: away under a minute does nothing at all, and
+over it bumps a sync generation that forces revalidation
+(`session-resume-revalidation.ts`). Reconnect handling in this spec currently
+treats every resume identically, so a phone unlocked after three seconds does the
+same work as one opened after three hours. With the cursor envelope in place the
+short case should be a no-op and the long case an epoch check.
+
+**Attention notifications are suppressed by focus.** A notification fires only when
+the user is *away from that session* — app not visible, or focused elsewhere — and
+is deduplicated by timestamp. This spec makes permission requests "rich and
+notifying" with no such rule, which as written would notify someone about the
+session already on their screen.
+
+**Terminal mounting is a stated policy, not a side effect.** Paseo has
+`terminal-mount-policy.ts` as a tested rule for when the emulator mounts. This spec
+asserts "in Blocks the client does not join the terminal channel" in prose; making
+it a policy object is what turns that from a claim into something a test can hold.
+
 ### Viewport
 
 The parity bar, and the largest single piece. `block_list_viewport.rs` maintains
@@ -604,6 +637,18 @@ flight, and it is suppressed when the reader is near the bottom, where following
 is the correct behaviour anyway. Making this ours makes it testable and changeable
 rather than something the spec can only document as a limitation.
 
+**The inverted-list result is independently confirmed.** Paseo's native viewport
+renders the stream as an inverted `FlatList` (`renderStrategy: "inverted-stream"`,
+`orderTailReverse: true`) for the same reason plan 4a used
+`CustomScrollView(center: GlobalKey)`: anchoring at the tail means an append needs
+no compensation at all. Two different frameworks, same conclusion.
+
+One platform caveat travels with it and is worth checking on a device rather than
+in `flutter test`, since neither gate covers native behaviour: paseo disables
+`maintainVisibleContentPosition` entirely on Android while sticky-bottom, because
+it "ignores the list inversion transform and fights the controller's offset-zero
+correction while the live header grows."
+
 **Height estimates are per-kind and cached by content.** A single estimate for all
 blocks guarantees drift. Paseo estimates per item kind — a collapsed tool row at
 ~40px, a user message at 96 (220 with images), an assistant message from a
@@ -653,6 +698,16 @@ obligation, and the item most likely to separate parity from nearly-parity.
 **Blocks are output only.** One composer per screen, as in Warp. In `tui` it
 sends keystrokes through the existing route (`send_route.dart` on mobile); in
 `chat` it sends structured messages. No per-block input field on either client.
+
+**Scroll-to-dismiss is a modeled gesture on mobile.** A composer above a scrolling
+list has an interaction that is wrong by default: the platform's dismiss-on-drag
+fires on any scroll, so scrolling back to re-read a block closes the keyboard and
+interrupts a half-written message. Paseo models it explicitly —
+`beginDrag` / `recordScroll` / `releaseDrag` over scroll velocity, as pure functions
+with unit tests whose first case is "keeps the keyboard up for a slow read-scroll"
+(`scroll-keyboard-dismiss/model.ts`). A fast flick dismisses; a reading scroll does
+not. Adopt the distinction and the pure-function shape, which is what makes it
+testable under `flutter test`.
 
 ### Permission requests
 
@@ -725,6 +780,14 @@ the tail silently — `TRUNCATION_MESSAGE = "\n...(truncated)...\n"`, with
 applies here, at both ends of the wire: the daemon caps what it persists and
 transmits, and the block records how much was dropped so the UI can say so and
 offer Raw for the rest.
+
+**The client window is a cache, not just a budget.** The rule below bounds what a
+client holds in memory, and this spec previously left the consequence unstated: a
+mobile client that holds a window and persists nothing starts every launch at a
+spinner and re-fetches history it had five minutes ago. Paseo persists its window
+to on-device SQLite (`runtime/replica-cache/`) with the paging cursor stored
+alongside it, so a relaunch is an incremental catch-up rather than a re-tail. Plan
+9 specifies this for `packages/mobile`.
 
 **Memory.** Warp tracks block memory explicitly
 (`estimated_memory_usage_bytes()`, `blockgrid.rs:685`, backed by the `get-size`
@@ -903,7 +966,7 @@ it withholds the one path with full fidelity.
 
 ## Implementation plans
 
-This spec is delivered as **eight plans**, each producing working, testable
+This spec is delivered as **nine plans**, each producing working, testable
 software on its own. Plans live in `docs/superpowers/plans/`.
 
 | # | Plan | Spec steps | File | Status |
@@ -917,6 +980,7 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 | 6 | Block actions, selection, find | 8 | — | |
 | 7 | Shell blocks | 9 | — | |
 | 8 | Transcript enrichment | 10 | — | |
+| 9 | Mobile replica cache | — (new) | `2026-08-28-mobile-replica-cache.md` | written |
 
 Step 11, actionable permissions, is deferred Phase B. It gets its own spec before
 it gets a plan and is not counted here.
@@ -987,6 +1051,20 @@ The compaction kind and turn grouping are the two to treat as blocking. Both
 change the persisted model, and both are cheaper before plan 5 adds a second
 source than after.
 
+**A fourth pass over paseo's mobile client produced plan 9 and four smaller
+changes.** The client-presence protocol (heartbeat, focused session, `awayMs`
+resume threshold) and focus-suppressed notifications are in *Client presence and
+resume*; scroll-to-dismiss as a modeled gesture is in *Input*; the terminal mount
+policy is in the same presence section. The inverted-list finding changed nothing —
+it independently confirms plan 4a's centre-sliver viewport, and is recorded in
+*Viewport* along with the Android caveat that travels with it.
+
+**One convention was reversed by explicit user decision, 2026-08-28.** `drift` and
+`build_runner` were forbidden in first-party mobile code; they are now permitted
+for the replica cache only. Plan 9 states the boundary and the reasoning, and the
+conventions list above records the exception so a reviewer does not flag it as a
+violation.
+
 **Dependencies.** Plan 1 blocks everything. Plans 2 and 3 both depend on 1 and are
 independent of each other. Plan 4 depends on whichever client plan it targets.
 Plans 5 through 8 depend on 2 and 3.
@@ -996,6 +1074,12 @@ depth, and can be re-ordered or cut — except plan 5. Cutting 5 leaves chat's
 presentation layer alive beside the block screen, which is the duplication this
 design exists to remove, and its cost grows with every block feature that lands
 first.
+
+**Plan 9 was not in the original sequencing.** It came out of the paseo mobile
+review and is not a spec step — it makes `packages/mobile` a replicating client
+instead of a thin one. It depends on plan 2 only, is independent of everything
+after it, and is the one plan here whose value is felt on every launch rather than
+on long sessions.
 
 **Plan 4 split, as anticipated.** Mobile and desktop viewports share no code — a
 Flutter list versus DOM virtualization — only a requirements list, so it is
@@ -1046,9 +1130,11 @@ and say not to write a second one:
 **Conventions a plan must not violate.** These come from `CLAUDE.md` and
 `AGENTS.md` and are not negotiable in review:
 
-- Mobile: Cubit only, never `Bloc` with events. No `freezed`, `json_serializable`,
-  `drift` or `build_runner` in first-party code — models are hand-written with all
-  fields nullable. Static-only classes are `sealed class X`. One params class per
+- Mobile: Cubit only, never `Bloc` with events. No `freezed` or `json_serializable`
+  in first-party code — models are hand-written with all fields nullable.
+  **`drift` and `build_runner` are permitted for the on-device replica cache only**,
+  by explicit user decision 2026-08-28; see plan 9 for the exact boundary. Wire
+  models stay hand-written everywhere, including inside plan 9. Static-only classes are `sealed class X`. One params class per
   method under `data/model/params/`, never shared. Parameterized paths get static
   methods on `EndPoints`; interpolating at a call site is forbidden. Feature code
   never imports `flutter_screenutil`. User-facing copy is inline English.
