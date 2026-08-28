@@ -8,19 +8,22 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 
-SessionBlock block(int seq, {int lines = 1, BlockKind kind = BlockKind.tool}) =>
-    SessionBlock(
-      id: 'seq-$seq',
-      firstSeq: seq,
-      lastSeq: seq,
-      kind: kind,
-      status: BlockStatus.ok,
-      title: 'Bash $seq',
-      body: List.generate(
-        lines,
-        (line) => 'line $line of block $seq',
-      ).join('\n'),
-    );
+SessionBlock block(
+  int seq, {
+  int lines = 1,
+  BlockKind kind = BlockKind.tool,
+  BlockStatus status = BlockStatus.ok,
+  String? createdAt,
+}) => SessionBlock(
+  id: 'seq-$seq',
+  firstSeq: seq,
+  lastSeq: seq,
+  kind: kind,
+  status: status,
+  title: 'Bash $seq',
+  body: List.generate(lines, (line) => 'line $line of block $seq').join('\n'),
+  createdAt: createdAt,
+);
 
 List<SessionBlock> range(int from, int to, {int Function(int)? lines}) => [
   for (var seq = from; seq <= to; seq++)
@@ -131,6 +134,22 @@ void main() {
     expect(find.byType(BlockCard), findsNWidgets(3));
     expect(find.text('Bash 1'), findsOneWidget);
     expect(find.text('Bash 3'), findsOneWidget);
+  });
+
+  testWidgets('renders finished and running turn group status', (tester) async {
+    await pumpList(tester, [
+      block(1, kind: BlockKind.prompt, createdAt: '2026-08-28T10:00:00Z'),
+      block(2, kind: BlockKind.assistant, createdAt: '2026-08-28T10:00:05Z'),
+      block(
+        3,
+        kind: BlockKind.prompt,
+        status: BlockStatus.running,
+        createdAt: '2026-08-28T10:01:00Z',
+      ),
+    ]);
+
+    expect(find.text('FINISHED · 5s'), findsOneWidget);
+    expect(find.textContaining('RUNNING'), findsOneWidget);
   });
 
   testWidgets('builds only a window of a long session', (tester) async {

@@ -1,0 +1,25 @@
+{
+  "acp": {
+    "blocks": [
+      { "id": "acp-prompt", "firstSeq": 1, "lastSeq": 1, "kind": "prompt", "status": "ok", "turnId": "turn-1", "title": "Prompt", "body": "Summarize the change", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T10:00:00Z" },
+      { "id": "acp-answer", "firstSeq": 2, "lastSeq": 2, "kind": "assistant", "status": "ok", "turnId": "turn-1", "title": "Assistant", "body": "The first part is complete.", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T10:00:02Z" },
+      { "id": "acp-system", "firstSeq": 3, "lastSeq": 3, "kind": "reasoning", "status": "running", "turnId": "turn-2", "title": "Reasoning", "body": "Checking the remaining work.", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T10:00:03Z" }
+    ],
+    "strictBoundaries": [false, true],
+    "responseGroups": [
+      { "ids": ["acp-prompt", "acp-answer", "acp-system"], "turnId": "turn-1", "startedAt": "2026-08-28T10:00:00Z", "completedAt": null, "durationMs": null, "running": true }
+    ]
+  },
+  "hooks": {
+    "blocks": [
+      { "id": "hook-prompt-1", "firstSeq": 1, "lastSeq": 1, "kind": "prompt", "status": "ok", "title": "Prompt", "body": "Run the tests", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T11:00:00Z" },
+      { "id": "hook-answer-1", "firstSeq": 2, "lastSeq": 2, "kind": "assistant", "status": "ok", "title": "Assistant", "body": "All tests passed.", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T11:00:05Z" },
+      { "id": "hook-prompt-2", "firstSeq": 3, "lastSeq": 3, "kind": "prompt", "status": "running", "title": "Prompt", "body": "Check the report", "truncatedLines": 0, "redacted": false, "createdAt": "2026-08-28T11:01:00Z" }
+    ],
+    "strictBoundaries": [false, true],
+    "responseGroups": [
+      { "ids": ["hook-prompt-1", "hook-answer-1"], "startedAt": "2026-08-28T11:00:00Z", "completedAt": "2026-08-28T11:00:05Z", "durationMs": 5000, "running": false },
+      { "ids": ["hook-prompt-2"], "startedAt": "2026-08-28T11:01:00Z", "completedAt": null, "durationMs": null, "running": true }
+    ]
+  }
+}
