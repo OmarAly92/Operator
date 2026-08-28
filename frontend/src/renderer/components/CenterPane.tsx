@@ -669,13 +669,18 @@ export function defaultSessionViewMode(session: WorkspaceSession | undefined): S
 	return blocksCoverHarness(session.provider) ? "blocks" : "raw";
 }
 
-export function SessionBlocksPane({ session }: { session: WorkspaceSession | undefined }) {
+export function SessionBlocksPane({ session, headerActions }: { session: WorkspaceSession | undefined; headerActions?: ReactNode }) {
 	const sessionId = session?.id ?? "";
 	const harness = session?.provider;
 	const isChat = session?.mode === "chat";
 
 	if (isChat) {
-		return <ChatSessionBlocksPane sessionId={sessionId} />;
+		return (
+			<div className="flex h-full min-h-0 flex-col">
+				{headerActions}
+				<ChatSessionBlocksPane sessionId={sessionId} />
+			</div>
+		);
 	}
 
 	return (

@@ -41,18 +41,11 @@ const approvedLiterals: Record<string, readonly string[]> = {
 // hardcoded chrome elsewhere in the renderer still fails this test.
 const deferredLocalizationFiles = new Set([
 	"components/SessionInterfaceSwitch.tsx",
-	"components/chat/ActivityRun.tsx",
 	"components/chat/ChatComposer.tsx",
-	"components/chat/ChatMarkdown.tsx",
 	"components/chat/ChatStatusBanners.tsx",
-	"components/chat/ChatTimelineItems.tsx",
-	"components/chat/ChatWorkspace.tsx",
 	"components/chat/ComposerSuggestMenu.tsx",
 	"components/chat/ContextMeter.tsx",
-	"components/chat/CopyButton.tsx",
 	"components/chat/ElicitationCard.tsx",
-	"components/chat/SessionChatSurface.tsx",
-	"components/chat/TurnPlan.tsx",
 	"components/chat/TurnSettingsBar.tsx",
 ]);
 
