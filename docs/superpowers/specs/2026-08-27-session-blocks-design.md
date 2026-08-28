@@ -102,6 +102,44 @@ the block list and hands the display to a full-screen element.
 both the payload (`v`) and the module path (`event/v1.rs`), and the plugin
 version recorded per session.
 
+### What paseo does, verified
+
+Read from `getpaseo/paseo` at `/Users/omaraly/development/AI/paseo`, Apache-2.0.
+Paseo is a voice-driven front end for local coding agents, and it has shipped the
+subsystem this spec's steps 6 through 10 describe. Nothing here derives from its
+source; the design decisions below are adopted deliberately and named so a
+reviewer can check them against the original.
+
+The comparison is asymmetric and worth stating up front. **Paseo is ACP-only** —
+no hooks, no shell blocks, no `tui` mode, and no secret redaction anywhere in its
+timeline pipeline (`redact` appears only in `logger.ts` and the diagnostics
+report). On redaction, source precedence and grid arbitration this spec is ahead
+of it. What paseo is ahead on is everything downstream of "an event arrived":
+storage shape, streaming pressure, pagination, and the render split.
+
+- **Canonical rows, projected entries.** An immutable append-only
+  `AgentTimelineRow{seq, timestamp, item}`, projected into display entries at read
+  time (`timeline-projection.ts`). Adopted below.
+- **Stream coalescing** with a leading-edge flush (`agent-stream-coalescer.ts`).
+  Adopted below.
+- **A real pagination envelope** — `epoch`, `staleCursor`, `gap`, `reset`,
+  `hasOlder`, `hasNewer` (`agent-timeline-store-types.ts`). Adopted below.
+- **Structured tool detail** rather than a formatted string
+  (`ToolCallDetail` in `agent-types.ts`, `tool-call-display.ts`). Adopted below.
+- **A history/live render split** and partial virtualization above a threshold
+  (`agent-stream/model.ts`, `web-virtualization.ts`). Adopted below.
+- **A load-test provider** streaming for five minutes at 40ms
+  (`mock-load-test-agent.ts`). Adopted below.
+- **Field-level forward compatibility** — `z.enum(...).catch("idle")`
+  (`terminal-activity.ts`). Adopted below.
+
+**Not adopted: paseo's bottom-anchor controller.** `bottom-anchor-controller.ts`
+is 826 lines — a request queue, retry counts, post-layout verification passes and
+four `blockedReason` variants — because one abstraction spans React Native and the
+web. Mobile's centre-sliver viewport already has the property that controller
+works hardest to guarantee, in roughly forty lines. Its one transferable idea is
+kept below.
+
 ### Why Operator is most of the way there
 
 `opr hooks <agent> <event>` is Warp's plugin mechanism, and Operator's adapters
@@ -163,6 +201,27 @@ counter, and ACP carries its own item ids. A consumer that invents ids cannot
 deduplicate on reconnect, cannot correlate a `tool_complete` with its
 `prompt_submit`, and cannot let two clients agree on what they are looking at.
 
+**A tool block carries a structured detail, not a formatted string.** The kind
+list above says what a block *is*; it does not say what a consumer can render from
+it. Paseo's `ToolCallDetail` is a discriminated union — `shell{command, output,
+exitCode}`, `read{filePath, content, offset, limit}`, `edit{filePath, oldString,
+newString, unifiedDiff}`, `write`, `search`, `fetch` — with an `unknown{input}`
+variant carrying the raw payload when nothing matched. One shared pure function,
+`buildToolCallDisplayModel()`, turns a detail into `{displayName, summary,
+errorText}`.
+
+Adopt both. A `title`/`body` pair pushes formatting into each client, which is the
+same duplication this design exists to remove — it would retire chat's duplicate
+*components* while leaving duplicate *formatting* behind, and a diff would be
+rendered by two hand-written formatters that drift. The `unknown` variant is what
+makes this safe: a harness whose tool nobody has mapped still produces a block, it
+just shows its raw input. The shared fixtures then assert something stronger than
+string equality — both clients must derive the same detail from the same event.
+
+Per-source mapping into the detail union lives with the source adapter, not in the
+shared model: hooks map from `ToolName` plus `tool_input`, ACP maps from its own
+tool-call content, and shell blocks are always `shell`.
+
 **Mobile.** A new `feature/blocks/` owns the model, assembly, widgets, viewport
 and the screen. `feature/chat/` keeps its data layer — SSE, repository, params —
 and loses its presentation layer. `feature/terminal/` keeps its data layer and
@@ -177,6 +236,36 @@ reduced to a source adapter. This retires most of the 38 files under
 **This reverses an earlier decision** in the superseded draft to keep terminal
 and chat models separate. That call assumed two screens. With one screen, one
 model is the only defensible answer.
+
+### Canonical events, projected blocks
+
+**The persisted log is immutable; blocks are a projection of it.** This is the
+storage shape paseo settled on, and adopting it removes a rule this spec
+previously needed.
+
+A canonical row is `{seq, timestamp, event}` and is never mutated after it is
+appended. Blocks are derived by projecting a window of rows: consecutive assistant
+text merges into one block, a tool's open/complete pair collapses into one block,
+and a transcript record merges into the block its hook event opened. A projected
+block records what it was built from — the source `seq` ranges, and which
+collapses were applied — following `TimelineProjectionEntry{sourceSeqRanges,
+collapsed}`.
+
+Three things follow, and each is a bug avoided:
+
+- **Pagination is over `seq`, not over blocks.** A block's identity can change as
+  more events arrive; a sequence number cannot. Paging a window of mutable objects
+  is where "scroll back and the list reshuffles" comes from.
+- **Refetch is deterministic.** Replaying rows `n..m` produces exactly the blocks
+  a live client assembled from the same rows, so a reconnect cannot diverge from a
+  session that never dropped. Mutation-in-place gives that guarantee only if every
+  mutation is itself replayed in order.
+- **Provenance survives.** "Which events produced this block" is answerable, which
+  is the difference between debugging assembly and guessing at it.
+
+Assembly on both clients is therefore a **pure function from a row window to
+blocks**, which is also what makes the shared fixture contract enforceable: a
+fixture is a row list, and the expectation is a block list.
 
 ### Secret redaction
 
@@ -219,12 +308,52 @@ callback, so existing status behaviour is untouched.
 variant carrying the raw name through. Per-harness derivers register alongside
 the existing activity derivers.
 
-**Persistence.** Appended to a bounded per-session log in sqlite so a client
-joining mid-session gets history, with bounds following `handoff_artifact.go`.
+**Persistence and paging.** Canonical rows are appended to a bounded per-session
+log in sqlite so a client joining mid-session gets history, with bounds following
+`handoff_artifact.go`.
+
+Reads take a direction and a cursor and return an envelope, following
+`AgentTimelineFetchOptions` / `AgentTimelineFetchResult`:
+
+- direction `tail | before | after`, a cursor of `{epoch, seq}`, and a limit;
+- the reply carries `epoch`, `window{minSeq, maxSeq, nextSeq}`, `hasOlder`,
+  `hasNewer`, and three flags the client must branch on — `staleCursor`, `gap`,
+  and `reset`.
+
+**The `epoch` is the part that is easy to skip and expensive to omit.** A bare
+sequence number is only meaningful within one numbering; a session restart, a
+rollback, or a log trim renumbers or truncates, and a client holding a pre-trim
+cursor then asks for rows that no longer mean what it thinks. The epoch makes that
+detectable in one comparison instead of surfacing as blocks that quietly do not
+line up. `staleCursor` and `gap` are what let the client choose between "fetch the
+missing span" and "drop the window and re-tail" rather than guessing.
+
+Operator has an existing renumbering trigger the spec must respect: rollback
+(`/api/v1/sessions/{sessionId}/rollback`). A rollback bumps the epoch.
 
 **Transport.** A `blocks` channel on the existing `/mux` socket, alongside
 `terminal`, `subscribe`, `sessions` and `system`. Named for what it carries, not
 its first source, because shell marks are republished onto it too.
+
+**Coalescing, daemon-side.** A streaming turn produces events far faster than any
+list can usefully repaint, and doing nothing about it makes both clients pay —
+which is why this belongs on the daemon rather than in each viewport. Paseo's
+`AgentStreamCoalescer` is the shape to copy, at a 60ms window:
+
+- **Leading edge**: the first event after an idle window flushes synchronously, so
+  the first token of a turn is never delayed by a full window. Delaying it is
+  exactly the latency users read as "the agent is stuck".
+- **Trailing timer** for sustained bursts, capping the message rate at one per
+  window.
+- **Terminal states bypass the window entirely** — a tool call reaching
+  `completed`, `failed` or `canceled` flushes at once, because a status change is
+  the event a waiting user is actually watching for.
+- Coalescing merges **text within one stream** (same item id) and merges repeated
+  updates to **one tool call**; it never merges across block boundaries.
+
+Coalescing is a transport concern and must not touch the canonical log: every
+event is still appended individually and `seq` is still per event. What coalesces
+is what goes on the wire.
 
 **Source precedence.** In `tui` mode two sources describe the same session: hook
 events, which arrive first and are truncated, and transcript records, which arrive
@@ -233,10 +362,13 @@ the same shape and handles it explicitly: its per-agent handler takes a
 `plugin_already_active` flag so that Codex's cruder OSC 9 fallback is **dropped
 once the rich OSC 777 plugin is live** (`cli_agent_sessions/listener/mod.rs`).
 
-The rule here: a hook event opens a block and sets its status; a transcript record
-for the same id **replaces** the block's body and never creates a second block. A
-transcript record with no matching hook event creates a block. Status always comes
-from hooks, because the transcript does not describe blocking or permission state.
+The rule here, stated as projection rather than mutation: hook events and
+transcript records are both appended as canonical rows, and the projection merges
+rows sharing an id into one block. Within that merge, the transcript record wins
+on **body** and the hook event wins on **status**, because the transcript does not
+describe blocking or permission state. A transcript record with no matching hook
+event projects to its own block. Nothing is overwritten in storage, so a
+projection bug is a bug in one pure function rather than a corrupted log.
 
 **Per-harness handlers, not just parsers.** Warp's `CLIAgentSessionHandler` can
 parse, filter and transform per agent, not merely rename events. Operator's
@@ -302,6 +434,43 @@ Required on both clients:
 - **Block-boundary navigation**, and scroll-a-block-into-view.
 - **Selection and find across blocks** (`app/src/terminal/find/`).
 
+**Virtualize above a threshold, not always.** Paseo mounts everything until the
+list passes `DEFAULT_WEB_PARTIAL_VIRTUALIZATION_THRESHOLD = 100` items and only
+then splits. Adopt the threshold. Virtualization buys nothing on a short session
+and costs measurement error, height-estimate drift and a class of scroll bugs that
+only exist because rows are unmounted — and most sessions are short. Unconditional
+virtualization means every session pays a long session's price.
+
+**Split the live tail from the frozen history.** Paseo's
+`StreamRenderSegments{historyVirtualized, historyMounted, liveHead}` is the
+structural answer to render pressure, and it composes with coalescing rather than
+duplicating it: only the actively-streaming tail stays mounted and re-renders as
+tokens arrive; everything above it is virtualized and re-renders only when an
+explicit revision key changes (`historyRowRevision` — content, per-row display
+state, and a global). The middle `historyMounted` band exists so that scrolling
+just off the tail does not immediately cross a virtualization boundary.
+
+This is what makes "the list does not re-render during scroll" a structural
+property rather than a profiling result. Without it, a single streaming block at
+the bottom invalidates the whole list on every frame and no amount of memoization
+in leaf components recovers it.
+
+**Own the resize-compensation decision.** The one idea worth taking from paseo's
+bottom-anchor work is that the "should a re-measured row shift the scroll offset?"
+question is a **pure function** with named inputs, not behaviour buried in a
+library — `shouldAdjustScrollForVirtualRowResize({isHistoryStartPrependActive,
+rowStart, scrollOffset, remainingDistanceFromBottom, bottomThreshold})`. Two of
+its rules matter here: compensation is suppressed entirely while a prepend is in
+flight, and it is suppressed when the reader is near the bottom, where following
+is the correct behaviour anyway. Making this ours makes it testable and changeable
+rather than something the spec can only document as a limitation.
+
+**Height estimates are per-kind and cached by content.** A single estimate for all
+blocks guarantees drift. Paseo estimates per item kind — a collapsed tool row at
+~40px, a user message at 96 (220 with images), an assistant message from a
+content-keyed cache — which is what keeps the scrollbar honest before measurement
+lands.
+
 **Block actions**: copy command, copy output, re-run, collapse, and filter the
 list (`block_filter.rs` supports a query with configurable context lines). Warp's
 block sharing (`share_block_modal.rs`) is a cloud feature with no analogue here
@@ -361,7 +530,23 @@ Note that `chat` mode already resolves approvals structurally
   update degrades to less detail rather than a gap.
 - A hook schema version newer than the daemon understands is recorded and
   surfaced; known fields still parse.
-- A dropped socket refetches the persisted log by sequence.
+- A dropped socket refetches the persisted log by cursor, and branches on the
+  envelope: `staleCursor` or a changed `epoch` means drop the window and re-tail,
+  `gap` means fetch the missing span before rendering across it. Silently
+  rendering across a gap is how a timeline acquires missing turns nobody notices.
+- **A field whose value the client does not recognize degrades that field, not the
+  payload.** Paseo does this at the parse layer — `z.enum(STATES).catch("idle")` —
+  so a newer daemon sending an unknown status yields a block with a conservative
+  status rather than a dropped message. The spec already handles unknown *event
+  names*; this is the same rule one level down, for enum values inside events the
+  client does know. The conservative fallback must never be an alarming one: an
+  unknown status degrades to the quiet value, never to `failed`.
+- **Backward paging cannot retry forever.** A load request that is issued and never
+  observed must latch rather than re-fire on every scroll event; paseo's
+  `dormant → ready → loading → settling → latched` state machine
+  (`history-start-pagination.ts`) exists for exactly this, and the `settling` state
+  exists because the frame after a prepend is not yet a valid place to decide
+  whether to prepend again.
 - Malformed payloads go to the existing `hooks.log` sink and are skipped.
 - A shell whose output contains something resembling a mark must not produce a
   spurious block boundary.
@@ -420,10 +605,28 @@ and `flutter test` green are the gate.
 
 **Viewport, both clients.** Height estimation and correction with scroll position
 preserved; append anchoring at the bottom and while scrolled up; the
-sticky-header exception for a block taller than the viewport. These decide
-whether scrolling feels right, so they are pinned rather than eyeballed.
-Frame-time profiling under a synthetic long session is part of the work, not an
-afterthought.
+sticky-header exception for a block taller than the viewport; the
+resize-compensation predicate and the paging state machine as pure-function unit
+tests. These decide whether scrolling feels right, so they are pinned rather than
+eyeballed.
+
+**A load-generating source, in the product.** "Frame-time profiling under a
+synthetic long session" is not a testable instruction. Paseo made it one by
+registering `mock-load-test-agent.ts` as a real provider that streams for five
+minutes at 40ms intervals — selectable in the UI, drivable from e2e, and
+reproducible by hand. Build the equivalent: a source that replays a fixture stream
+at a configurable rate onto the `blocks` channel. It is the same fixture format the
+shared contract already requires, so the cost is a replayer, not a second corpus.
+
+**Browser e2e is where the viewport is actually testable**, and jsdom is not. The
+suite exists — 18 specs under `frontend/e2e/`, run by the separate gate
+`npm --prefix frontend run test:e2e` — and blocks must reach it. Two mechanics make
+that practical, both borrowed: a **test-only global overriding the virtualization
+threshold** (paseo's `__PASEO_E2E_WEB_PARTIAL_VIRTUALIZATION_THRESHOLD`) so a
+twelve-block fixture exercises the virtualized path, and a fake `blocks` socket, so
+no production code branches on being under test. Append anchoring, prepend
+stability and the sticky-header exception are asserted there against a real layout
+engine; the jsdom tests keep their value as fast checks of the numeric model.
 
 Native code is covered by none of these gates; nothing here touches `ios/`,
 `android/`, or a vendored package's platform code.
@@ -469,9 +672,11 @@ Limits, so this is not oversold:
   and any growth while the user is still dragging upward, which upstream skips to
   avoid an items-jump cascade (their issue #1218). Both are correct choices, and
   neither is a defect in this design; they are simply not what the requirement
-  above promises. **Mobile has neither limit** — a centre-sliver viewport leaves
-  the read position exactly unchanged when a block above it grows, with no
-  compensation logic involved, which is pinned by a test.
+  above promises. Lifting the decision into an owned predicate, per the viewport
+  section, is what turns this from a documented limitation into a choice.
+  **Mobile has neither limit** — a centre-sliver viewport leaves the read position
+  exactly unchanged when a block above it grows, with no compensation logic
+  involved, which is pinned by a test.
 - **The chat migration is real work.** ~38 desktop components and a large mobile
   presentation layer are retired or rewritten. This is cheap now and expensive
   after both block views exist, which is the argument for doing it in this order.
@@ -504,6 +709,14 @@ Steps 1 through 4 fix mobile and are the shortest path to a usable phone. Steps 
 and 6 are desktop parity. Step 7 is where the duplication actually dies, and
 delaying it past step 8 would mean building block actions twice.
 
+**Two additions from the 2026-08-28 paseo review sit outside this numbering**, so
+that the step numbers the plans already reference keep meaning what they meant.
+The canonical/projected storage change and the `epoch`/cursor fetch envelope
+extend step 1 and must land before step 7, since step 7 adds the second source and
+would otherwise be built against the mutation rule they replace. Daemon-side
+coalescing extends step 2 and is cheapest before either client is tuned; it is the
+one item here that improves both clients without touching either.
+
 **Honest cost.** Steps 6, 7, 8 and 9 are each larger than the original
 agent-blocks work. If the bar has to move, cut from the end: 9, then 8. Cutting 7
 is not a saving — it re-creates the duplication this design exists to prevent.
@@ -527,6 +740,33 @@ software on its own. Plans live in `docs/superpowers/plans/`.
 
 Step 11, actionable permissions, is deferred Phase B. It gets its own spec before
 it gets a plan and is not counted here.
+
+### Amendments from the paseo review, 2026-08-28
+
+Seven changes were folded into this spec after reading `getpaseo/paseo`, which has
+shipped steps 6 through 10 in production. They are listed here against the plans
+they affect, because four plans have already landed and a reviewer needs to know
+which of those are now behind the spec.
+
+| Change | Where | Plans affected |
+| --- | --- | --- |
+| Canonical rows, projected blocks | *Canonical events, projected blocks*; *Source precedence* | 1 (additive), 5, 8 |
+| Daemon-side coalescing, leading-edge | *Backend / Coalescing* | new, before 5 |
+| `epoch`/cursor fetch envelope | *Backend / Persistence and paging* | 1 (additive), 2, 3 |
+| Structured `ToolCallDetail` + shared display model | *The block model is shared* | 5, 8 |
+| History/live split, threshold virtualization | *Viewport* | 4a, 4b |
+| Load-generating source + browser e2e | *Testing* | 4b, then 6 |
+| Field-level enum degradation | *Error handling* | 2, 3 |
+
+**None of it invalidates landed work.** Plans 1 through 4 shipped a per-event log,
+a `blocks` mux channel, client assembly and two viewports; every change above is an
+addition to those or a refinement of behaviour inside them. The canonical/projected
+change is the one to make before plan 5, because plan 5 introduces the second
+source and the mutation rule it replaces would be load-bearing from then on.
+
+**What paseo does not answer.** Redaction, hook/transcript precedence, shell marks
+and grid arbitration have no analogue there — paseo is ACP-only. Those sections
+stand on their own reasoning and were not revised.
 
 **Dependencies.** Plan 1 blocks everything. Plans 2 and 3 both depend on 1 and are
 independent of each other. Plan 4 depends on whichever client plan it targets.
