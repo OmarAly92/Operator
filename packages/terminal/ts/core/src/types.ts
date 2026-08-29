@@ -1,5 +1,22 @@
 export type BlockId = string;
 
+export type BlockState = "running" | "finished" | "abandoned";
+
+export type BlockSource = "osc133" | "extension" | "synthetic";
+
+export type BlockView = Readonly<{
+	id: BlockId;
+	firstRow: number;
+	rowCount: number;
+	state: BlockState;
+	source: BlockSource;
+	exitCode: number | null;
+	durationMs: number | null;
+	command: string;
+	cwd: string;
+	gitBranch: string;
+}>;
+
 export type RowRange = Readonly<{ start: number; end: number }>;
 
 export type FontConfig = Readonly<{
@@ -45,6 +62,8 @@ export type TerminalSnapshot = Readonly<{
 	rows: Uint32Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
+	blocks: Uint32Array;
+	blockText: Uint8Array;
 }>;
 
 export type TerminalCoreOptions = Readonly<{

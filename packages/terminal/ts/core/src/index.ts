@@ -5,6 +5,9 @@ import type { TerminalCoreOptions } from "./types.js";
 export type {
 	BlockId,
 	BlockRenderer,
+	BlockSource,
+	BlockState,
+	BlockView,
 	ChangeListener,
 	FontConfig,
 	RowRange,
@@ -14,6 +17,8 @@ export type {
 } from "./types.js";
 
 export { validateRowRange } from "./types.js";
+
+export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 
 export { TerminalCore };
 

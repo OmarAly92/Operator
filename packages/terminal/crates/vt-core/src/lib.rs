@@ -1,10 +1,12 @@
 pub mod attribute_map;
+pub mod block;
 pub mod content;
 pub mod grid;
 pub mod parser;
 pub mod row_index;
 pub mod style;
 
+pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState, TextSpan};
 pub use style::StyleCode;
 
 use vte::Parser as VteParser;
