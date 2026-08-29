@@ -49,7 +49,7 @@ function isExpectedReport(value) {
 		value.runs === expectedReport.runs;
 }
 
-async function startReporter(reportPath) {
+export async function startReporter(reportPath) {
 	let resolveReport;
 	const report = new Promise((resolve) => {
 		resolveReport = resolve;
@@ -99,6 +99,10 @@ async function startReporter(reportPath) {
 				send(response, 422);
 				return;
 			}
+			if (accepted) {
+				send(response, 409);
+				return;
+			}
 			accepted = true;
 			send(response, 204);
 			resolveReport(value);
@@ -146,27 +150,41 @@ async function waitForReport(report, child) {
 	}
 }
 
-async function terminateProcessGroup(child) {
-	if (!child.pid || child.exitCode !== null || child.signalCode !== null) {
+function isMissingProcessGroup(error) {
+	return Boolean(error && typeof error === "object" && error.code === "ESRCH");
+}
+
+function delay(milliseconds) {
+	return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+export async function terminateProcessGroup(processGroupId, options = {}) {
+	if (!processGroupId) {
 		return;
 	}
-	if (process.platform === "win32") {
-		await run("taskkill", ["/pid", String(child.pid), "/T", "/F"]).catch(() => {});
+	const platform = options.platform ?? process.platform;
+	const kill = options.kill ?? process.kill;
+	const runCommand = options.runCommand ?? run;
+	const wait = options.wait ?? delay;
+	if (platform === "win32") {
+		await runCommand("taskkill", ["/pid", String(processGroupId), "/T", "/F"]);
 		return;
 	}
 	try {
-		process.kill(-child.pid, "SIGTERM");
-	} catch {
-		return;
+		kill(-processGroupId, "SIGTERM");
+	} catch (error) {
+		if (isMissingProcessGroup(error)) {
+			return;
+		}
+		throw error;
 	}
-	await Promise.race([
-		new Promise((resolveExit) => child.once("exit", resolveExit)),
-		new Promise((resolveDelay) => setTimeout(resolveDelay, 2000)),
-	]);
-	if (child.exitCode === null && child.signalCode === null) {
-		try {
-			process.kill(-child.pid, "SIGKILL");
-		} catch {}
+	await wait(2000);
+	try {
+		kill(-processGroupId, "SIGKILL");
+	} catch (error) {
+		if (!isMissingProcessGroup(error)) {
+			throw error;
+		}
 	}
 }
 
@@ -176,6 +194,7 @@ async function main() {
 	const reportPath = `/${randomBytes(24).toString("hex")}`;
 	let reporter;
 	let child;
+	let processGroupId;
 	try {
 		await mkdir(stateDirectory, { recursive: true });
 		reporter = await startReporter(reportPath);
@@ -207,11 +226,12 @@ async function main() {
 			},
 			stdio: "ignore",
 		});
+		processGroupId = child.pid;
 		await waitForReport(reporter.report, child);
 		process.stdout.write("Tauri release smoke loaded vt_core_bg.wasm and painted 2 rows / 3 runs.\n");
 	} finally {
-		if (child) {
-			await terminateProcessGroup(child);
+		if (processGroupId) {
+			await terminateProcessGroup(processGroupId);
 		}
 		if (reporter) {
 			await new Promise((resolveClose) => reporter.server.close(resolveClose));
@@ -220,8 +240,10 @@ async function main() {
 	}
 }
 
-main().catch((error) => {
-	const message = error instanceof Error ? error.message : String(error);
-	process.stderr.write(`smoke-tauri: ${message}\n`);
-	process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	main().catch((error) => {
+		const message = error instanceof Error ? error.message : String(error);
+		process.stderr.write(`smoke-tauri: ${message}\n`);
+		process.exitCode = 1;
+	});
+}

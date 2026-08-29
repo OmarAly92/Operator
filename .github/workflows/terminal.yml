@@ -40,7 +40,7 @@ jobs:
       - run: cargo fmt --manifest-path packages/terminal/Cargo.toml --all --check
       - run: cargo clippy --manifest-path packages/terminal/Cargo.toml --workspace --all-targets -- -D warnings
       - run: cargo test --manifest-path packages/terminal/Cargo.toml --workspace
-      - run: node --test packages/terminal/scripts/check-boundaries.test.mjs
+      - run: node --test packages/terminal/scripts/check-boundaries.test.mjs packages/terminal/scripts/smoke-tauri.test.mjs
       - run: npm --prefix packages/terminal run check:boundaries
       - run: npm --prefix packages/terminal run build
       - run: npm --prefix packages/terminal test
