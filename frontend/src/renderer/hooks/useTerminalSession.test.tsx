@@ -244,6 +244,14 @@ describe("useTerminalSession", () => {
 		expect(transportBytes.join("")).toContain("scrollback from an idle session");
 	});
 
+	it("writes PTY bytes into xterm so the alt-screen surface is not blank", () => {
+		const { terminal, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => muxes[0].emitData("handle-1", "\u001b[?1049hvim is on the alt screen"));
+		act(() => void vi.advanceTimersByTime(60));
+		expect(terminal.lines.join("")).toContain("vim is on the alt screen");
+	});
+
 	it("forwards PTY output, keystrokes, and resizes across the attachment", () => {
 		const { transportBytes, terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));

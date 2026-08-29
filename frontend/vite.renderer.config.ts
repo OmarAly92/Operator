@@ -72,6 +72,8 @@ const injectCspMeta: Plugin = {
 	},
 };
 
+const DEV_PROXY_ORIGIN = "tauri://localhost";
+
 export default defineConfig({
 	// "@/" → the renderer root (src/renderer), the shadcn/ui import convention.
 	resolve: {
@@ -87,11 +89,17 @@ export default defineConfig({
 			"/api": {
 				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
+				headers: { origin: DEV_PROXY_ORIGIN },
 			},
 			"/mux": {
 				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
 				ws: true,
+				headers: { origin: DEV_PROXY_ORIGIN },
+			},
+			"/readyz": {
+				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",
+				changeOrigin: false,
 			},
 		},
 	},

@@ -58,10 +58,23 @@ function createBrowserPreviewBridge(): OperatorBridge {
 			readText: async () => (navigator.clipboard?.readText ? navigator.clipboard.readText() : ""),
 		},
 		daemon: {
-			getStatus: async () => ({
-				state: "stopped",
-				message: "The desktop bridge is not available in browser preview.",
-			}),
+			getStatus: async () => {
+				try {
+					const response = await fetch("/readyz", { cache: "no-store" });
+					if (response.ok) {
+						const port = Number(window.location.port);
+						if (Number.isFinite(port) && port > 0) {
+							return { state: "ready" as const, port };
+						}
+					}
+				} catch {
+					/* no daemon reachable from this origin */
+				}
+				return {
+					state: "stopped" as const,
+					message: "The desktop bridge is not available in browser preview.",
+				};
+			},
 			start: async () => ({ state: "starting" }),
 			stop: async () => ({ state: "stopped" }),
 			restart: async () => ({ state: "starting" }),
@@ -121,7 +134,10 @@ function createBrowserPreviewBridge(): OperatorBridge {
 export const tauriInternalsPresent = (): boolean =>
 	Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 
-export const nativeShellBridgePresent = (): boolean => Boolean(window.operator) || tauriInternalsPresent();
+const forceNativeShell = import.meta.env.VITE_FORCE_NATIVE_SHELL === "1";
+
+export const nativeShellBridgePresent = (): boolean =>
+	forceNativeShell || Boolean(window.operator) || tauriInternalsPresent();
 
 function selectShellBridge(): OperatorBridge {
 	if (window.operator) return createWindowBridge(window.operator);

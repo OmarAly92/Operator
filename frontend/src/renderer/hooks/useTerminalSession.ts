@@ -461,6 +461,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			mux.onData(handle, (bytes) => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
 				for (const listener of [...r.byteListeners]) listener(bytes);
+				r.terminal?.write(bytes);
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
