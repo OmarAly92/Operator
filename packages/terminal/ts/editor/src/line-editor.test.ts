@@ -33,6 +33,16 @@ function mount() {
 }
 
 describe("LineEditor ownership", () => {
+	it("renders command syntax tokens without changing the buffer text", () => {
+		const { editor, container } = mount();
+		editor.setText("git status");
+		const tokens = [...container.querySelectorAll<HTMLElement>(".terminal-editor-token")];
+		expect(tokens.map((token) => [token.dataset.tokenKind, token.textContent])).toEqual([
+			["command", "git"],
+			["argument", "status"],
+		]);
+	});
+
 	it("is read-only and passes keystrokes straight through while Released", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));

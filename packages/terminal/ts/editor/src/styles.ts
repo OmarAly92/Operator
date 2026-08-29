@@ -32,4 +32,29 @@ export const editorStyles = `.terminal-editor {
 	color: inherit;
 	background: transparent;
 	border-bottom: 1px solid var(--terminal-cursor);
+}
+
+.terminal-editor-token[data-token-kind="command"] {
+	color: var(--terminal-ansi-4);
+}
+
+.terminal-editor-token[data-token-kind="flag"] {
+	color: var(--terminal-ansi-3);
+}
+
+.terminal-editor-token[data-token-kind="string"] {
+	color: var(--terminal-ansi-2);
+}
+
+.terminal-editor-token[data-token-kind="operator"] {
+	color: var(--terminal-ansi-5);
+}
+
+.terminal-editor-token[data-token-kind="path"],
+.terminal-editor-token[data-token-kind="variable"] {
+	color: var(--terminal-ansi-6);
+}
+
+.terminal-editor-token[data-token-kind="comment"] {
+	color: var(--terminal-ansi-8);
 }`;

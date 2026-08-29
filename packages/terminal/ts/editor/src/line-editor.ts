@@ -1,5 +1,6 @@
 import type { FontConfig, TerminalCore, TerminalTheme } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
+import { tokenize, type TokenKind } from "./highlight.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { editorStyles } from "./styles.js";
 
@@ -148,24 +149,65 @@ export class LineEditor {
 		const state = this.core?.lineEditorState() ?? "unknown";
 		root.dataset.ownership = state;
 		root.setAttribute("aria-readonly", String(state !== "owned"));
-		const { line: cursorLine, column } = this.buffer.cursorLineColumn();
+		const cursor = this.buffer.cursor;
 		const lines = this.buffer.lines();
-		const nodes = lines.map((text, line) => {
+		const tokens = tokenize(this.buffer.text);
+		let offset = 0;
+		const nodes = lines.map((text) => {
 			const row = document.createElement("div");
 			row.className = "terminal-editor-line";
-			if (line !== cursorLine) {
-				row.textContent = text || "\u00a0";
-				return row;
+			const lineStart = offset;
+			const lineEnd = lineStart + text.length;
+			let position = lineStart;
+			for (const token of tokens) {
+				const start = Math.max(token.start, lineStart);
+				const end = Math.min(token.end, lineEnd);
+				if (start >= end) continue;
+				appendRange(row, this.buffer.text, position, start, null, cursor);
+				appendRange(row, this.buffer.text, start, end, token.kind, cursor);
+				position = end;
 			}
-			row.append(document.createTextNode(text.slice(0, column)));
-			const caret = document.createElement("span");
-			caret.className = "terminal-editor-caret";
-			caret.textContent = text[column] ?? "\u00a0";
-			row.append(caret, document.createTextNode(text.slice(column + 1)));
+			appendRange(row, this.buffer.text, position, lineEnd, null, cursor);
+			if (cursor === lineEnd) row.append(createCaret());
+			else if (!row.hasChildNodes()) row.append(document.createTextNode("\u00a0"));
+			offset = lineEnd + 1;
 			return row;
 		});
 		root.replaceChildren(...nodes);
 	}
+}
+
+function appendRange(
+	row: HTMLElement,
+	text: string,
+	start: number,
+	end: number,
+	kind: TokenKind | null,
+	cursor: number,
+): void {
+	if (start >= end) return;
+	const parent = kind ? document.createElement("span") : document.createDocumentFragment();
+	if (parent instanceof HTMLElement) {
+		parent.className = "terminal-editor-token";
+		parent.dataset.tokenKind = kind ?? undefined;
+	}
+	if (cursor >= start && cursor < end) {
+		parent.append(
+			document.createTextNode(text.slice(start, cursor)),
+			createCaret(text[cursor]),
+			document.createTextNode(text.slice(cursor + 1, end)),
+		);
+	} else {
+		parent.append(document.createTextNode(text.slice(start, end)));
+	}
+	row.append(parent);
+}
+
+function createCaret(character = "\u00a0"): HTMLElement {
+	const caret = document.createElement("span");
+	caret.className = "terminal-editor-caret";
+	caret.textContent = character;
+	return caret;
 }
 
 function passthroughFor(command: EditorCommand): string {
