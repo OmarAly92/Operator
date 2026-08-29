@@ -24,6 +24,22 @@ const topLevelFields = new Set([
 	"scenarios",
 ]);
 
+const commonScenarioFields = [
+	"configuration",
+	"samples",
+	"median",
+	"p95",
+	"unit",
+	"workload",
+	"workloadDigest",
+];
+
+const scenarioFields = {
+	"vtebench": new Set([...commonScenarioFields, "seed"]),
+	"large-output": new Set(commonScenarioFields),
+	"input-latency": new Set(commonScenarioFields),
+};
+
 function requireString(value, field) {
 	if (typeof value !== "string" || value.length === 0) {
 		throw new Error(`${field} must be a non-empty string`);
@@ -37,21 +53,36 @@ function requirePositive(value, field, integer = false) {
 }
 
 function rejectSensitive(value) {
+	if (typeof value === "string") {
+		if (
+			value.startsWith("/") ||
+			value.startsWith("\\\\") ||
+			value.startsWith("file://") ||
+			/^[a-zA-Z]:[\\/]/.test(value)
+		) {
+			throw new Error("absolute path value is forbidden");
+		}
+		return;
+	}
 	if (Array.isArray(value)) {
 		for (const item of value) rejectSensitive(item);
 		return;
 	}
 	if (!value || typeof value !== "object") return;
 	for (const [key, child] of Object.entries(value)) {
-		const normalized = key.toLowerCase();
+		const normalized = key.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 		if (
 			normalized === "cwd" ||
 			normalized === "pid" ||
+			normalized === "processid" ||
 			normalized.includes("path") ||
 			normalized.includes("environment") ||
 			normalized === "env" ||
 			normalized.includes("username") ||
+			normalized === "user" ||
 			normalized === "terminaltext" ||
+			normalized === "terminalcontents" ||
+			normalized === "terminaloutput" ||
 			normalized === "contents"
 		) {
 			throw new Error(`sensitive metadata field is forbidden: ${key}`);
@@ -128,6 +159,12 @@ export function validateBenchmark(result) {
 	if (entries.length === 0) throw new Error("scenarios must not be empty");
 	for (const [name, scenario] of entries) {
 		if (!(name in scenarios)) throw new Error(`unknown scenario: ${name}`);
+		if (!scenario || typeof scenario !== "object" || Array.isArray(scenario)) {
+			throw new Error(`${name} must be an object`);
+		}
+		for (const key of Object.keys(scenario)) {
+			if (!scenarioFields[name].has(key)) throw new Error(`unexpected ${name} field: ${key}`);
+		}
 		validateConfiguration(name, scenario.configuration);
 		if (!Array.isArray(scenario.samples) || scenario.samples.length !== scenarios[name].samples) {
 			throw new Error(`${name} must contain exactly 10 measured samples`);

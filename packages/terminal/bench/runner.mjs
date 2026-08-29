@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 
+import { installReportChannel } from "./report-channel.mjs";
 import { validateBenchmark } from "./schema.mjs";
 import scenarios from "./scenarios.json" with { type: "json" };
 import { WORKLOAD_METADATA } from "./workloads.mjs";
@@ -78,32 +79,24 @@ async function runBrowser(names) {
 		logLevel: "error",
 	});
 	let browser;
+	let channel;
 	try {
 		await server.listen(0);
 		const address = server.httpServer?.address();
 		if (!address || typeof address === "string") throw new Error("Vite did not bind a loopback port");
 		browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-		let resolveReport;
-		let rejectReport;
-		const report = new Promise((resolve, reject) => {
-			resolveReport = resolve;
-			rejectReport = reject;
-		});
-		await page.exposeFunction("__operatorBenchmarkReport", (value) => {
-			if (value && typeof value === "object" && "error" in value) {
-				rejectReport(new Error(String(value.error)));
-			} else {
-				resolveReport(value);
-			}
-		});
-		await page.goto(`http://127.0.0.1:${address.port}/?scenarios=${names.join(",")}`);
-		const measured = await report;
+		channel = await installReportChannel(page);
+		const [, measured] = await Promise.all([
+			page.goto(`http://127.0.0.1:${address.port}/?scenarios=${names.join(",")}`),
+			channel.result,
+		]);
 		return {
 			measured,
 			browserVersion: browser.version(),
 		};
 	} finally {
+		channel?.dispose();
 		await browser?.close();
 		await server.close();
 	}

@@ -32,7 +32,7 @@ function benchmark() {
 					payloadBytes: 8388608,
 					seed: 7000,
 				},
-				samples,
+				samples: [...samples],
 				median: 5.5,
 				p95: 10,
 				unit: "workloads-per-second",
@@ -84,5 +84,24 @@ test("rejects absolute paths, process identifiers, and environment metadata", ()
 		const result = benchmark();
 		result[field] = value;
 		assert.throws(() => validateBenchmark(result), /sensitive metadata/);
+	}
+});
+
+test("rejects unexpected per-scenario result fields", () => {
+	const result = benchmark();
+	result.scenarios.vtebench.notes = "private benchmark note";
+	assert.throws(() => validateBenchmark(result), /unexpected vtebench field: notes/);
+});
+
+test("rejects nested paths, process identifiers, environment, and terminal text", () => {
+	for (const [field, value, message] of [
+		["details", { value: "/Users/example/private" }, /absolute path/],
+		["processId", 1234, /sensitive metadata/],
+		["environment", { CI: "true" }, /sensitive metadata/],
+		["terminalText", "secret output", /sensitive metadata/],
+	]) {
+		const result = benchmark();
+		result.scenarios.vtebench[field] = value;
+		assert.throws(() => validateBenchmark(result), message);
 	}
 });
