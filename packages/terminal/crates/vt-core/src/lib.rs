@@ -2,6 +2,7 @@ pub mod alt_screen;
 pub mod attribute_map;
 pub mod block;
 pub mod block_grid;
+pub mod block_selection;
 pub mod block_tree;
 pub mod content;
 pub mod event_bridge;
@@ -12,6 +13,7 @@ pub mod style;
 
 pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState, TextSpan};
 pub use block_grid::BlockGrid;
+pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use style::StyleCode;
 
