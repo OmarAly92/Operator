@@ -78,4 +78,37 @@ export const terminalStyles = `.terminal-block {
 .terminal-run {
 	color: inherit;
 }
+
+.terminal-block-actions {
+	position: absolute;
+	top: 4px;
+	right: 8px;
+	display: none;
+	gap: 4px;
+	pointer-events: auto;
+}
+
+.terminal-block:hover .terminal-block-actions,
+.terminal-block:focus-within .terminal-block-actions {
+	display: inline-flex;
+}
+
+.terminal-block-action {
+	font: inherit;
+	font-size: 11px;
+	line-height: 1;
+	padding: 2px 6px;
+	color: var(--terminal-block-header-foreground);
+	background: var(--terminal-block-background);
+	border: 1px solid var(--terminal-block-border);
+	border-radius: 3px;
+	cursor: pointer;
+	opacity: 0.85;
+}
+
+.terminal-block-action:hover,
+.terminal-block-action:focus-visible {
+	opacity: 1;
+	outline: 1px solid var(--terminal-block-header-foreground);
+}
 `;

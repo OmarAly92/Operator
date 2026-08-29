@@ -116,3 +116,10 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	rerunCommand: "Re-run",
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
 });
+
+export type HostCapabilities = Readonly<{
+	writeClipboard(text: string): Promise<void>;
+	readClipboard(): Promise<string>;
+	openLink(url: string): Promise<void>;
+	notify?(title: string, body: string): void;
+}>;

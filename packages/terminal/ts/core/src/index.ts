@@ -10,6 +10,7 @@ export type {
 	BlockView,
 	ChangeListener,
 	FontConfig,
+	HostCapabilities,
 	RowRange,
 	TerminalCoreOptions,
 	TerminalSnapshot,

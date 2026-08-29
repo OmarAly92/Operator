@@ -6,11 +6,14 @@ import {
 	type BlockRenderer,
 	type BlockView,
 	type FontConfig,
+	type HostCapabilities,
 	type RowRange,
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
+import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
+import { selectionToBlockRange } from "./selection.js";
 import { styleCodeToCssVar } from "./style-code.js";
 import { terminalStyles } from "./styles.js";
 import { computeWindow, type RowWindow } from "./viewport.js";
@@ -56,6 +59,14 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rafHandle: number | null = null;
 	private knownBlockId: BlockId | null = null;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
+	private host: HostCapabilities | null = null;
+	private latestSnapshot: {
+		content: Uint8Array;
+		rows: Uint32Array;
+		runRanges: Uint32Array;
+		stylePairs: Uint32Array;
+	} | null = null;
+	private latestBlocks: readonly BlockView[] = [];
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -94,6 +105,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.applyStyleVars();
 	}
 
+	setHostCapabilities(host: HostCapabilities | null): void {
+		this.host = host;
+		this.scheduleRepaint();
+	}
+
 	invalidate(range: RowRange): void {
 		validateRowRange(range);
 		this.scheduleRepaint();
@@ -124,6 +140,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		element.scrollIntoView({ block: align, inline: "nearest" });
 	}
 
+	getSelectionRange(): import("./selection.js").BlockRange | null {
+		const root = this.container;
+		if (!root) return null;
+		const doc = root.ownerDocument ?? (typeof document !== "undefined" ? document : null);
+		if (!doc) return null;
+		const selection = doc.getSelection ? doc.getSelection() : null;
+		if (!selection) return null;
+		return selectionToBlockRange(root, selection);
+	}
+
 	dispose(): void {
 		if (this.unsubscribe) {
 			this.unsubscribe();
@@ -151,6 +177,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockElements.clear();
 		this.measureNode = null;
 		this.knownBlockId = null;
+		this.host = null;
+		this.latestSnapshot = null;
+		this.latestBlocks = [];
 	}
 
 	private scheduleRepaint(): void {
@@ -219,6 +248,13 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
+		this.latestSnapshot = {
+			content: snapshot.content,
+			rows: snapshot.rows,
+			runRanges: snapshot.runRanges,
+			stylePairs: snapshot.stylePairs,
+		};
+		this.latestBlocks = blocks;
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const scrollTop = container.scrollTop;
@@ -235,6 +271,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
 
+		const textSource: BlockTextSource = this.buildTextSource();
 		const visibleIds = new Set<BlockId>();
 		if (windowResult.firstBlock <= windowResult.lastBlock) {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
@@ -242,7 +279,7 @@ export class DomBlockRenderer implements BlockRenderer {
 				visibleIds.add(block.id);
 				const element = this.ensureBlockElement(block);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
-				populateBlock(element, block, snapshot, rowWindow, this.decoder);
+				populateBlock(element, block, snapshot, rowWindow, this.decoder, this.host, textSource);
 			}
 		}
 
@@ -262,6 +299,24 @@ export class DomBlockRenderer implements BlockRenderer {
 				this.blockElements.delete(id);
 			}
 		}
+	}
+
+	private buildTextSource(): BlockTextSource {
+		const snapshot = this.latestSnapshot;
+		const blocks = this.latestBlocks;
+		const decoder = this.decoder;
+		const blockById = new Map<BlockId, BlockView>();
+		for (const block of blocks) {
+			blockById.set(block.id, block);
+		}
+		return {
+			command: (id) => blockById.get(id)?.command ?? "",
+			output: (id) => {
+				const block = blockById.get(id);
+				if (!block || !snapshot) return "";
+				return readBlockOutput(block, snapshot, decoder);
+			},
+		};
 	}
 
 	private ensureBlockElement(block: BlockView): HTMLElement {
@@ -335,9 +390,14 @@ function populateBlock(
 	},
 	rowWindow: RowWindow | null,
 	decoder: TextDecoder,
+	host: HostCapabilities | null,
+	textSource: BlockTextSource,
 ): void {
 	const fragment = document.createDocumentFragment();
 	fragment.append(renderBlockHeader(block, defaultStrings));
+	if (host) {
+		fragment.append(renderBlockActions(block, host, defaultStrings, textSource));
+	}
 	const { content, rows, runRanges, stylePairs } = snapshot;
 	const blockFirstRow = block.firstRow;
 	const firstRow = rowWindow ? rowWindow.firstRow : 0;
@@ -382,4 +442,29 @@ function populateBlock(
 		fragment.append(rowNode);
 	}
 	section.replaceChildren(fragment);
+}
+
+function readBlockOutput(
+	block: BlockView,
+	snapshot: {
+		content: Uint8Array;
+		rows: Uint32Array;
+	},
+	decoder: TextDecoder,
+): string {
+	const lines: string[] = [];
+	for (let rowOffset = 0; rowOffset < block.rowCount; rowOffset += 1) {
+		const snapshotRowIndex = block.firstRow + rowOffset;
+		const rowsBase = snapshotRowIndex * 2;
+		const rowContentStart = snapshot.rows[rowsBase] ?? 0;
+		const rowContentEnd = snapshot.rows[rowsBase + 1] ?? rowContentStart;
+		const rowLength = rowContentEnd - rowContentStart;
+		if (rowLength <= 0) {
+			lines.push("");
+			continue;
+		}
+		const slice = snapshot.content.subarray(rowContentStart, rowContentEnd);
+		lines.push(decoder.decode(slice));
+	}
+	return lines.join("\n");
 }
