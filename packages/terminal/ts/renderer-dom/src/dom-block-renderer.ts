@@ -78,6 +78,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		container.style.contain = "strict";
 		const list = document.createElement("div");
 		list.className = "terminal-list";
+		list.setAttribute("data-testid", "terminal-block-list");
 		list.style.position = "relative";
 		const leading = document.createElement("div");
 		leading.className = CLASS_LEADING_SPACER;
