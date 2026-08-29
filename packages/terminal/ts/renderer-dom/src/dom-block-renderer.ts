@@ -54,7 +54,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	private measureNode: HTMLElement | null = null;
 	private readonly blockElements: Map<BlockId, HTMLElement> = new Map();
 	private rafHandle: number | null = null;
-	private pendingGeneration: number | null = null;
 	private knownBlockId: BlockId | null = null;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -81,10 +80,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => this.scheduleRepaint());
-		this.unsubscribe = core.onChange((generation) => {
-			this.pendingGeneration = generation;
-			this.scheduleRepaint();
-		});
+		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
 		this.repaint();
 	}
 
@@ -154,7 +150,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.trailingSpacer = null;
 		this.blockElements.clear();
 		this.measureNode = null;
-		this.pendingGeneration = null;
 		this.knownBlockId = null;
 	}
 
@@ -219,7 +214,6 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		const snapshot = core.snapshot();
-		this.pendingGeneration = null;
 
 		const blocks = decodeBlocks(snapshot);
 		if (blocks.length > 0) {
