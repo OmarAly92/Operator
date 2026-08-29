@@ -5,6 +5,12 @@ pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Words each `BlockRecord` flattens to in the `blocks` buffer.
+///
+/// The TypeScript side pins the same constant and strides its `Uint32Array` by
+/// it, so the two must never drift apart.
+pub const BLOCK_RECORD_WORDS: usize = 14;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportError {
     OffsetOverflow,
@@ -25,6 +31,8 @@ pub struct ExportBuffers {
     rows: Vec<u32>,
     run_ranges: Vec<u32>,
     style_pairs: Vec<u32>,
+    blocks: Vec<u32>,
+    block_text: Vec<u8>,
 }
 
 impl ExportBuffers {
@@ -33,6 +41,8 @@ impl ExportBuffers {
         self.rows.clear();
         self.run_ranges.clear();
         self.style_pairs.clear();
+        self.blocks.clear();
+        self.block_text.clear();
 
         checked_u32_from_u64(snapshot.content.len() as u64)?;
         self.content.extend_from_slice(snapshot.content.as_slice());
@@ -52,6 +62,42 @@ impl ExportBuffers {
             self.style_pairs.push(code.value());
         }
 
+        for record in &snapshot.blocks {
+            let before = self.blocks.len();
+
+            self.blocks.push(record.id as u32);
+            self.blocks.push((record.id >> 32) as u32);
+            self.blocks.push(record.first_row);
+            self.blocks.push(record.row_count);
+            // Presence lives in a spare bit of the packed word so the exit word
+            // can carry the raw two's-complement i32. Encoding presence as a
+            // magic value instead collides with a real exit code and overflows
+            // at i32::MAX -- and the exit parameter arrives from untrusted
+            // terminal output, so neither is hypothetical.
+            let has_exit = u32::from(record.exit_code.is_some());
+            self.blocks
+                .push(record.state.as_u32() | (record.source.as_u32() << 8) | (has_exit << 16));
+            self.blocks.push(record.exit_code.unwrap_or(0) as u32);
+            let (duration_lo, duration_hi) = match record.duration_ms {
+                None => (u32::MAX, u32::MAX),
+                Some(ms) => (ms as u32, (ms >> 32) as u32),
+            };
+            self.blocks.push(duration_lo);
+            self.blocks.push(duration_hi);
+            self.blocks.push(record.command.start);
+            self.blocks.push(record.command.end);
+            self.blocks.push(record.cwd.start);
+            self.blocks.push(record.cwd.end);
+            self.blocks.push(record.git_branch.start);
+            self.blocks.push(record.git_branch.end);
+
+            debug_assert_eq!(self.blocks.len() - before, BLOCK_RECORD_WORDS);
+        }
+
+        checked_u32_from_u64(snapshot.block_text.len() as u64)?;
+        self.block_text
+            .extend_from_slice(snapshot.block_text.as_slice());
+
         Ok(())
     }
 
@@ -69,6 +115,14 @@ impl ExportBuffers {
 
     pub fn style_pairs(&self) -> &[u32] {
         &self.style_pairs
+    }
+
+    pub fn blocks(&self) -> &[u32] {
+        &self.blocks
+    }
+
+    pub fn block_text(&self) -> &[u8] {
+        &self.block_text
     }
 }
 
@@ -136,6 +190,22 @@ impl WasmTerminalCore {
 
     pub fn style_pairs_len(&self) -> usize {
         self.export.style_pairs().len()
+    }
+
+    pub fn blocks_ptr(&self) -> *const u32 {
+        self.export.blocks().as_ptr()
+    }
+
+    pub fn blocks_len(&self) -> usize {
+        self.export.blocks().len()
+    }
+
+    pub fn block_text_ptr(&self) -> *const u8 {
+        self.export.block_text().as_ptr()
+    }
+
+    pub fn block_text_len(&self) -> usize {
+        self.export.block_text().len()
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::attribute_map::AttributeMap;
+use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::style::StyleCode;
@@ -18,11 +19,30 @@ pub struct GridSnapshot {
     pub rows: Vec<(u32, u32)>,
     pub run_ranges: Vec<(u32, u32)>,
     pub style_pairs: Vec<(u32, StyleCode)>,
+    pub blocks: Vec<BlockRecord>,
+    pub block_text: Vec<u8>,
 }
 
 impl GridSnapshot {
     pub fn row_count(&self) -> usize {
         self.rows.len()
+    }
+
+    pub fn block_command(&self, index: usize) -> &str {
+        self.span_text(self.blocks[index].command)
+    }
+
+    pub fn block_cwd(&self, index: usize) -> &str {
+        self.span_text(self.blocks[index].cwd)
+    }
+
+    pub fn block_branch(&self, index: usize) -> &str {
+        self.span_text(self.blocks[index].git_branch)
+    }
+
+    fn span_text(&self, span: TextSpan) -> &str {
+        std::str::from_utf8(&self.block_text[span.start as usize..span.end as usize])
+            .expect("block text is valid utf-8")
     }
 
     pub fn row_text(&self, index: usize) -> &str {
@@ -61,11 +81,27 @@ pub(crate) fn build_snapshot(
 
     append_row(&mut ctx, content, styles, open_start, end)?;
 
+    let blocks = vec![BlockRecord {
+        id: 0,
+        first_row: 0,
+        row_count: checked_u32(row_ranges.len())?,
+        state: BlockState::Running,
+        source: BlockSource::Synthetic,
+        exit_code: None,
+        duration_ms: None,
+        command: TextSpan::default(),
+        cwd: TextSpan::default(),
+        git_branch: TextSpan::default(),
+    }];
+    let block_text: Vec<u8> = Vec::new();
+
     Ok(GridSnapshot {
         content: all_content,
         rows: row_ranges,
         run_ranges,
         style_pairs,
+        blocks,
+        block_text,
     })
 }
 
