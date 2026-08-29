@@ -43,6 +43,20 @@ describe("LineEditor ownership", () => {
 		]);
 	});
 
+	it("suggests mark-derived history and accepts the ghost with Tab", () => {
+		const { editor, container, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		editor.setText("git ");
+		expect(container.querySelector(".terminal-editor-ghost")?.textContent).toBe("status");
+		editor.handleKey(key({ key: "Tab" }));
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git status"]);
+	});
+
 	it("is read-only and passes keystrokes straight through while Released", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));

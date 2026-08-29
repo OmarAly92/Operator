@@ -57,4 +57,9 @@ export const editorStyles = `.terminal-editor {
 
 .terminal-editor-token[data-token-kind="comment"] {
 	color: var(--terminal-ansi-8);
+}
+
+.terminal-editor-ghost {
+	color: var(--terminal-ansi-8);
+	opacity: 0.72;
 }`;

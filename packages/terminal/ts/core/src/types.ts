@@ -149,3 +149,8 @@ export type HostCapabilities = Readonly<{
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 }>;
+
+export type HistoryStore = {
+	load(): Promise<readonly string[]>;
+	save(entries: readonly string[]): Promise<void>;
+};

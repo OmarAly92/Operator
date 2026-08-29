@@ -1,6 +1,12 @@
-import type { FontConfig, TerminalCore, TerminalTheme } from "@operator/terminal-core";
+import {
+	decodeBlocks,
+	type FontConfig,
+	type TerminalCore,
+	type TerminalTheme,
+} from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { tokenize, type TokenKind } from "./highlight.js";
+import { HistoryModel } from "./history.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { editorStyles } from "./styles.js";
 
@@ -11,6 +17,8 @@ export type EditorHost = {
 
 export class LineEditor {
 	private readonly buffer = new EditorBuffer();
+	private history = new HistoryModel();
+	private historyPrefix: string | null = null;
 	private core: TerminalCore | null = null;
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
@@ -21,6 +29,8 @@ export class LineEditor {
 		ensurePackageStyleTag();
 		this.core = core;
 		this.host = host;
+		this.history = new HistoryModel();
+		this.historyPrefix = null;
 		const root = document.createElement("div");
 		root.className = "terminal-editor";
 		root.tabIndex = 0;
@@ -29,7 +39,11 @@ export class LineEditor {
 		root.addEventListener("keydown", this.onKeyDown);
 		container.append(root);
 		this.root = root;
-		this.unsubscribe = core.onChange(() => this.render());
+		this.unsubscribe = core.onChange(() => {
+			this.ingestHistory();
+			this.render();
+		});
+		this.ingestHistory();
 		this.render();
 	}
 
@@ -58,6 +72,7 @@ export class LineEditor {
 
 	setText(text: string): void {
 		this.buffer.setText(text);
+		this.historyPrefix = null;
 		this.render();
 	}
 
@@ -103,22 +118,28 @@ export class LineEditor {
 		switch (command.kind) {
 			case "insert":
 				this.buffer.insert(command.text);
+				this.historyPrefix = null;
 				break;
 			case "newline":
 				this.buffer.insert("\n");
+				this.historyPrefix = null;
 				break;
 			case "submit":
 				host.send(this.buffer.text);
 				this.buffer.clear();
+				this.historyPrefix = null;
 				break;
 			case "delete-backward":
 				this.buffer.deleteBackward();
+				this.historyPrefix = null;
 				break;
 			case "delete-forward":
 				this.buffer.deleteForward();
+				this.historyPrefix = null;
 				break;
 			case "delete-word-backward":
 				this.buffer.deleteWordBackward();
+				this.historyPrefix = null;
 				break;
 			case "move":
 				this.buffer.moveBy(command.delta);
@@ -135,8 +156,18 @@ export class LineEditor {
 			case "end":
 				this.buffer.moveEnd();
 				break;
-			case "history":
-			case "accept-suggestion":
+			case "history": {
+				this.historyPrefix ??= this.buffer.text;
+				const recalled = this.history.recall(this.historyPrefix, command.direction);
+				if (recalled !== null) this.buffer.setText(recalled);
+				break;
+			}
+			case "accept-suggestion": {
+				const suggestion = this.history.suggest(this.buffer.text);
+				if (suggestion !== null) this.buffer.setText(suggestion);
+				this.historyPrefix = null;
+				break;
+			}
 			case "reverse-search":
 				break;
 		}
@@ -173,7 +204,26 @@ export class LineEditor {
 			offset = lineEnd + 1;
 			return row;
 		});
+		if (cursor === this.buffer.text.length) {
+			const suggestion = this.history.suggest(this.buffer.text);
+			if (suggestion !== null) {
+				const ghost = document.createElement("span");
+				ghost.className = "terminal-editor-ghost";
+				ghost.textContent = suggestion.slice(this.buffer.text.length);
+				nodes[nodes.length - 1]?.append(ghost);
+			}
+		}
 		root.replaceChildren(...nodes);
+	}
+
+	private ingestHistory(): void {
+		const core = this.core;
+		if (!core) return;
+		this.history.ingest(
+			decodeBlocks(core.snapshot())
+				.map((block) => block.command)
+				.filter((command) => command.length > 0),
+		);
 	}
 }
 
