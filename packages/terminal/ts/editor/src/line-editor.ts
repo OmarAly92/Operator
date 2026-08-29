@@ -205,7 +205,7 @@ export class LineEditor {
 		const lines = this.buffer.lines();
 		const tokens = tokenize(this.buffer.text);
 		let offset = 0;
-		const nodes = lines.map((text) => {
+		const nodes: HTMLElement[] = lines.map((text) => {
 			const row = document.createElement("div");
 			row.className = "terminal-editor-line";
 			const lineStart = offset;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	TerminalSurface,
@@ -148,6 +148,12 @@ export function BlockTerminal({
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
 	const rootRef = useRef<HTMLDivElement | null>(null);
+	const onSend = useCallback((text: string) => {
+		transportRef.current.write(new TextEncoder().encode(`${text}\n`));
+	}, []);
+	const onSendRaw = useCallback((data: string) => {
+		transportRef.current.write(new TextEncoder().encode(data));
+	}, []);
 
 	useEffect(() => {
 		if (!core) return;
@@ -301,6 +307,8 @@ export function BlockTerminal({
 			copyCommand: t("blocks.copyCommand", { defaultValue: "Copy command" }),
 			copyOutput: t("blocks.copyOutput", { defaultValue: "Copy output" }),
 			rerunCommand: t("blocks.rerunCommand", { defaultValue: "Re-run" }),
+			searchHistory: t("blocks.searchHistory", { defaultValue: "Search history" }),
+			searchNoMatches: t("blocks.searchNoMatches", { defaultValue: "No matches" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -343,7 +351,7 @@ export function BlockTerminal({
 		);
 	}
 
-	const surfaceProps = {
+	const surfaceProps: Parameters<typeof TerminalSurface>[0] = {
 		core,
 		theme: resolvedTheme,
 		font,
@@ -351,7 +359,9 @@ export function BlockTerminal({
 		altScreenSurface: children,
 		host,
 		strings,
-	} as unknown as Parameters<typeof TerminalSurface>[0];
+		onSend,
+		onSendRaw,
+	};
 
 	return (
 		<div

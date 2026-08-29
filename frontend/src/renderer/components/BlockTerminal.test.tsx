@@ -11,6 +11,8 @@ const mockState = vi.hoisted(() => {
 		altScreenActive: false,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		strings: undefined as Record<string, string> | undefined,
+		onSend: undefined as ((text: string) => void) | undefined,
+		onSendRaw: undefined as ((data: string) => void) | undefined,
 		revision: 0,
 		wasmInits: 0,
 	};
@@ -105,10 +107,14 @@ vi.mock("@operator/terminal-react", () => {
 			altScreenSurface?: React.ReactNode;
 			host?: { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> };
 			strings?: Record<string, string>;
+			onSend?: (text: string) => void;
+			onSendRaw?: (data: string) => void;
 		}) => {
 			mockState.altScreenActive = props.altScreenActive;
 			if (props.host) mockState.host = props.host;
 			if (props.strings) mockState.strings = props.strings;
+			mockState.onSend = props.onSend;
+			mockState.onSendRaw = props.onSendRaw;
 			return <MockSurface altScreenActive={props.altScreenActive} altScreenSurface={props.altScreenSurface} />;
 		},
 		warpDarkTheme: {
@@ -230,6 +236,8 @@ beforeEach(() => {
 	mockState.altScreenActive = false;
 	mockState.host = undefined;
 	mockState.strings = undefined;
+	mockState.onSend = undefined;
+	mockState.onSendRaw = undefined;
 	mockState.revision = 0;
 	subscribers.clear();
 });
@@ -240,6 +248,16 @@ describe("BlockTerminal", () => {
 		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		emit("\x1b]133;A\x07\x1b]133;C\x07hello\n\x1b]133;D;0\x07");
 		await waitFor(() => expect(screen.getByText(/hello/)).toBeInTheDocument());
+	});
+
+	it("writes submitted text plus one newline and passes raw bytes unchanged", async () => {
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() => expect(mockState.onSend).toBeTypeOf("function"));
+		mockState.onSend!("make test");
+		mockState.onSendRaw!("\x03");
+		expect(transport.write).toHaveBeenNthCalledWith(1, new TextEncoder().encode("make test\n"));
+		expect(transport.write).toHaveBeenNthCalledWith(2, new TextEncoder().encode("\x03"));
 	});
 
 	it("passes XtermTerminal as the alt-screen surface", async () => {

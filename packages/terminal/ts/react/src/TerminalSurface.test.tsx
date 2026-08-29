@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { act, cleanup, render, screen } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createTerminalCore,
 	initTerminalCore,
@@ -31,6 +31,8 @@ const font: FontConfig = {
 };
 
 const theme: TerminalTheme = warpDarkTheme;
+const ignoreSend = () => undefined;
+const ignoreRaw = () => undefined;
 
 async function loadWasm(): Promise<void> {
 	const bytes = await readFile(wasmPath);
@@ -62,7 +64,7 @@ describe("TerminalSurface", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "first");
 		const { container, unmount } = render(
-			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} />,
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={ignoreSend} onSendRaw={ignoreRaw} />,
 		);
 
 		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
@@ -94,6 +96,8 @@ describe("TerminalSurface", () => {
 				theme={theme}
 				font={font}
 				altScreenActive={false}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
 			/>,
 		);
 		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
@@ -113,6 +117,8 @@ describe("TerminalSurface", () => {
 				font={font}
 				altScreenActive
 				altScreenSurface={<div data-testid="raw-surface" />}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
 			/>,
 		);
 		expect(screen.getByTestId("raw-surface")).toBeVisible();
@@ -128,6 +134,8 @@ describe("TerminalSurface", () => {
 				font={font}
 				altScreenActive
 				altScreenSurface={<div data-testid="raw-surface" />}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
 			/>,
 		);
 		rerender(
@@ -137,6 +145,8 @@ describe("TerminalSurface", () => {
 				font={font}
 				altScreenActive={false}
 				altScreenSurface={<div data-testid="raw-surface" />}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
 			/>,
 		);
 		expect(screen.getByTestId("terminal-block-list")).toBeVisible();
@@ -151,6 +161,8 @@ describe("TerminalSurface", () => {
 				font={font}
 				altScreenActive
 				altScreenSurface={<div data-testid="raw-surface" />}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
 			/>,
 		);
 		expect(screen.getByTestId("terminal-block-list")).toBeInTheDocument();
@@ -158,7 +170,63 @@ describe("TerminalSurface", () => {
 
 	it("falls back to the block list when no alt-screen surface is supplied", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
-		render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive />);
+		render(<TerminalSurface core={core} theme={theme} font={font} altScreenActive onSend={ignoreSend} onSendRaw={ignoreRaw} />);
 		expect(screen.getByTestId("terminal-block-list")).toBeVisible();
+	});
+
+	it("mounts the editor below the block list and hides both in the alt screen", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { container, rerender } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={ignoreSend} onSendRaw={ignoreRaw} />,
+		);
+		const blockList = screen.getByTestId("terminal-block-list");
+		const editor = container.querySelector<HTMLElement>(".terminal-editor");
+		expect(editor).not.toBeNull();
+		expect(blockList.compareDocumentPosition(editor!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+		rerender(
+			<TerminalSurface
+				core={core}
+				theme={theme}
+				font={font}
+				altScreenActive
+				altScreenSurface={<div data-testid="raw-surface" />}
+				onSend={ignoreSend}
+				onSendRaw={ignoreRaw}
+			/>,
+		);
+		expect(editor).not.toBeVisible();
+	});
+
+	it("sends bare submitted text through onSend", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		feed(core, "\x1b]7000;v=1;input-ready=1\x07");
+		const onSend = vi.fn();
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={onSend} onSendRaw={ignoreRaw} />,
+		);
+		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
+		for (const key of "make test") fireEvent.keyDown(editor, { key });
+		fireEvent.keyDown(editor, { key: "Enter" });
+		expect(onSend).toHaveBeenCalledWith("make test");
+		expect(onSend.mock.calls[0]?.[0]).not.toContain("\x1b");
+		expect(onSend.mock.calls[0]?.[0]).not.toContain("\n");
+	});
+
+	it("prefills rerun without submitting", async () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		feed(core, "\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07");
+		const onSend = vi.fn();
+		const host = {
+			writeClipboard: vi.fn().mockResolvedValue(undefined),
+			readClipboard: vi.fn().mockResolvedValue(""),
+			openLink: vi.fn().mockResolvedValue(undefined),
+		};
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={onSend} onSendRaw={ignoreRaw} host={host} />,
+		);
+		await flushRepaint();
+		fireEvent.click(container.querySelector<HTMLButtonElement>("[data-action='rerun']")!);
+		expect(container.querySelector(".terminal-editor-line")?.textContent).toContain("git status");
+		expect(onSend).not.toHaveBeenCalled();
 	});
 });

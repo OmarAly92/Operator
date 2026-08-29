@@ -9,6 +9,7 @@
 	"exclude": ["dist", "node_modules"],
 	"references": [
 		{ "path": "../core" },
+		{ "path": "../editor" },
 		{ "path": "../renderer-dom" }
 	]
 }
