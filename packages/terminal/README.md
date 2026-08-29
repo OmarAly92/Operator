@@ -48,8 +48,19 @@ npm run check:boundaries
 npm run smoke:vite
 npm run smoke:tauri
 npm run bench:terminal -- --renderer xterm --scenario <name>
+npm run bench:baseline -- --renderer xterm --record
 ```
 
 `npm run build` and `npm test` build the WASM first, then the TypeScript
-project references. The benchmark command is implemented in a later
-phase; the script entry exists so callers can wire it up now.
+project references.
+
+The package-owned browser harness measures `vtebench`, `large-output`,
+or `input-latency` with xterm 5.5.0. It activates WebGL first and recovers
+to canvas if WebGL activation or its context fails. A run never combines
+renderer kinds. Uncommitted results are written under the ignored
+`bench/results/` directory.
+
+Baseline recording requires a clean git tree and measures all three
+scenarios in one invocation. It writes
+`bench/baselines/<platform>-<architecture>-xterm.json`; review and commit
+that measured file separately from harness changes.

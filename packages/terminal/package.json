@@ -13,7 +13,8 @@
 		"check:boundaries": "node ./scripts/check-boundaries.mjs",
 		"smoke:vite": "npm run build && node ./scripts/smoke-vite.mjs",
 		"smoke:tauri": "node ./scripts/smoke-tauri.mjs",
-		"bench:terminal": "node ./bench/run.mjs"
+		"bench:terminal": "node ./bench/runner.mjs",
+		"bench:baseline": "node ./bench/runner.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.60.0",
@@ -26,6 +27,7 @@
 		"@xterm/addon-webgl": "0.19.0",
 		"@xterm/xterm": "5.5.0",
 		"jsdom": "29.1.1",
+		"playwright": "1.60.0",
 		"react": "19.2.7",
 		"react-dom": "19.2.7",
 		"typescript": "5.9.3",
