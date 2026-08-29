@@ -1,7 +1,9 @@
 import {
+	decodeBlocks,
 	validateRowRange,
 	type BlockId,
 	type BlockRenderer,
+	type BlockView,
 	type FontConfig,
 	type RowRange,
 	type TerminalCore,
@@ -9,12 +11,16 @@ import {
 } from "@operator/terminal-core";
 import { styleCodeToCssVar } from "./style-code.js";
 import { terminalStyles } from "./styles.js";
+import { computeWindow, type RowWindow } from "./viewport.js";
 
-const SYNTHETIC_BLOCK_ID: BlockId = "synthetic-0";
 const CLASS_BLOCK = "terminal-block";
 const CLASS_ROW = "terminal-row";
 const CLASS_RUN = "terminal-run";
+const CLASS_LEADING_SPACER = "terminal-spacer";
+const CLASS_TRAILING_SPACER = "terminal-spacer";
 const HIDDEN_MEASURE_ID = "terminal-m-measure";
+const DEFAULT_HEADER_HEIGHT = 24;
+const OVERSCAN_ROWS = 6;
 
 export const warpDarkTheme: TerminalTheme = {
 	ansi: [
@@ -35,12 +41,20 @@ export const warpDarkTheme: TerminalTheme = {
 export class DomBlockRenderer implements BlockRenderer {
 	private container: HTMLElement | null = null;
 	private core: TerminalCore | null = null;
-	private block: HTMLElement | null = null;
+	private list: HTMLElement | null = null;
+	private leadingSpacer: HTMLElement | null = null;
+	private trailingSpacer: HTMLElement | null = null;
 	private theme: TerminalTheme = warpDarkTheme;
 	private font: FontConfig = defaultFont();
 	private unsubscribe: (() => void) | null = null;
+	private scrollUnsubscribe: (() => void) | null = null;
 	private measureHost: HTMLElement | null = null;
 	private measureNode: HTMLElement | null = null;
+	private readonly blockElements: Map<BlockId, HTMLElement> = new Map();
+	private rafHandle: number | null = null;
+	private pendingGeneration: number | null = null;
+	private lastSnapshot: Awaited<ReturnType<TerminalCore["snapshot"]>> | null = null;
+	private knownBlockId: BlockId | null = null;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 
 	mount(container: HTMLElement, core: TerminalCore): void {
@@ -48,14 +62,28 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.container = container;
 		this.core = core;
 		ensurePackageStyleTag();
-		this.block = document.createElement("section");
-		this.block.dataset.terminalBlockId = SYNTHETIC_BLOCK_ID;
-		this.block.className = CLASS_BLOCK;
-		this.applyStyleVars();
-		container.append(this.block);
+		container.style.position = "relative";
+		container.style.overflow = "auto";
+		container.style.contain = "strict";
+		const list = document.createElement("div");
+		list.className = "terminal-list";
+		list.style.position = "relative";
+		const leading = document.createElement("div");
+		leading.className = CLASS_LEADING_SPACER;
+		const trailing = document.createElement("div");
+		trailing.className = CLASS_TRAILING_SPACER;
+		list.append(leading, trailing);
+		container.append(list);
+		this.list = list;
+		this.leadingSpacer = leading;
+		this.trailingSpacer = trailing;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
-		this.unsubscribe = core.onChange(() => this.repaint());
+		this.scrollUnsubscribe = listenScroll(container, () => this.scheduleRepaint());
+		this.unsubscribe = core.onChange((generation) => {
+			this.pendingGeneration = generation;
+			this.scheduleRepaint();
+		});
 		this.repaint();
 	}
 
@@ -71,7 +99,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	invalidate(range: RowRange): void {
 		validateRowRange(range);
-		this.repaint();
+		this.scheduleRepaint();
 	}
 
 	measure(): { cellWidth: number; cellHeight: number } {
@@ -89,14 +117,14 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {
-		if (id !== SYNTHETIC_BLOCK_ID) {
+		if (this.knownBlockId !== null && id !== this.knownBlockId) {
 			throw new Error(`unknown block id ${id}`);
 		}
-		const target = this.block;
-		if (!target) {
-			throw new Error(`renderer is not mounted`);
+		const element = this.blockElements.get(id);
+		if (!element) {
+			throw new Error("renderer is not mounted");
 		}
-		target.scrollIntoView({ block: align, inline: "nearest" });
+		element.scrollIntoView({ block: align, inline: "nearest" });
 	}
 
 	dispose(): void {
@@ -104,20 +132,52 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.unsubscribe();
 			this.unsubscribe = null;
 		}
+		if (this.scrollUnsubscribe) {
+			this.scrollUnsubscribe();
+			this.scrollUnsubscribe = null;
+		}
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") {
+			cancelAnimationFrame(this.rafHandle);
+		}
+		this.rafHandle = null;
 		if (this.container) {
 			this.container.replaceChildren();
+			this.container.style.removeProperty("position");
+			this.container.style.removeProperty("overflow");
+			this.container.style.removeProperty("contain");
 		}
 		this.container = null;
 		this.core = null;
-		this.block = null;
+		this.list = null;
+		this.leadingSpacer = null;
+		this.trailingSpacer = null;
+		this.blockElements.clear();
 		this.measureNode = null;
+		this.lastSnapshot = null;
+		this.pendingGeneration = null;
+		this.knownBlockId = null;
+	}
+
+	private scheduleRepaint(): void {
+		if (this.rafHandle !== null) return;
+		if (typeof requestAnimationFrame !== "function") {
+			this.repaint();
+			return;
+		}
+		this.rafHandle = requestAnimationFrame(() => {
+			this.rafHandle = null;
+			this.repaint();
+		});
 	}
 
 	private applyStyleVars(): void {
-		const block = this.block;
-		if (!block) {
-			return;
+		const style = this.styleVarsString();
+		for (const element of this.blockElements.values()) {
+			element.setAttribute("style", style);
 		}
+	}
+
+	private styleVarsString(): string {
 		const entries: string[] = [];
 		this.theme.ansi.forEach((color, index) => {
 			entries.push(`--terminal-ansi-${index}: ${color}`);
@@ -137,7 +197,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		entries.push(
 			`--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`,
 		);
-		block.setAttribute("style", entries.join("; "));
+		return entries.join("; ");
 	}
 
 	private applyFontToMeasureNode(node: HTMLElement): void {
@@ -151,48 +211,78 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private repaint(): void {
 		const core = this.core;
-		const block = this.block;
-		if (!core || !block) {
+		const container = this.container;
+		const list = this.list;
+		const leading = this.leadingSpacer;
+		const trailing = this.trailingSpacer;
+		if (!core || !container || !list || !leading || !trailing) {
 			return;
 		}
 		const snapshot = core.snapshot();
-		const { content, rows, runRanges, stylePairs } = snapshot;
-		const decoder = this.decoder;
-		const fragment = document.createDocumentFragment();
-		for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 2) {
-			const rowContentStart = rows[rowIndex] ?? 0;
-			const rowContentEnd = rows[rowIndex + 1] ?? rowContentStart;
-			const rowLength = rowContentEnd - rowContentStart;
-			const pairStart = runRanges[rowIndex] ?? 0;
-			const pairEnd = runRanges[rowIndex + 1] ?? pairStart;
-			const rowNode = document.createElement("div");
-			rowNode.dataset.terminalRow = String(rowIndex / 2);
-			rowNode.className = CLASS_ROW;
-			let rowCursor = 0;
-			for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
-				const elementIndex = pairIndex * 2;
-				const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
-				const styleCode = stylePairs[elementIndex + 1] ?? 255;
-				const slice = content.subarray(rowContentStart + rowCursor, rowContentStart + pairRunEnd);
-				const text = decoder.decode(slice);
-				const run = document.createElement("span");
-				run.dataset.terminalRun = String(pairIndex);
-				run.className = CLASS_RUN;
-				run.style.color = styleCodeToCssVar(styleCode);
-				run.textContent = text;
-				rowNode.append(run);
-				rowCursor = pairRunEnd;
-			}
-			if (rowCursor < rowLength) {
-				const tail = content.subarray(
-					rowContentStart + rowCursor,
-					rowContentStart + rowLength,
-				);
-				rowNode.append(document.createTextNode(decoder.decode(tail)));
-			}
-			fragment.append(rowNode);
+		if (this.lastSnapshot === snapshot && this.pendingGeneration === null) {
+			return;
 		}
-		block.replaceChildren(fragment);
+		this.lastSnapshot = snapshot;
+		this.pendingGeneration = null;
+
+		const blocks = decodeBlocks(snapshot);
+		if (blocks.length > 0) {
+			this.knownBlockId = blocks[0]!.id;
+		}
+		const { cellHeight } = this.measure();
+		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
+		const scrollTop = container.scrollTop;
+		const viewportHeight = container.clientHeight || 1;
+		const windowResult = computeWindow({
+			blocks,
+			scrollTop,
+			viewportHeight,
+			rowHeight,
+			headerHeight: DEFAULT_HEADER_HEIGHT,
+			overscanRows: OVERSCAN_ROWS,
+		});
+
+		leading.style.height = `${windowResult.leadingSpacer}px`;
+		trailing.style.height = `${windowResult.trailingSpacer}px`;
+
+		const visibleIds = new Set<BlockId>();
+		if (windowResult.firstBlock <= windowResult.lastBlock) {
+			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
+				const block = blocks[i]!;
+				visibleIds.add(block.id);
+				const element = this.ensureBlockElement(block);
+				const rowWindow = windowResult.rowWindows.get(i) ?? null;
+				populateBlock(element, block, snapshot, rowWindow, this.decoder);
+			}
+		}
+
+		const orderedVisible: HTMLElement[] = [];
+		for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
+			const block = blocks[i]!;
+			const element = this.blockElements.get(block.id);
+			if (element) orderedVisible.push(element);
+		}
+		const fragment = document.createDocumentFragment();
+		fragment.append(leading, ...orderedVisible, trailing);
+		list.replaceChildren(fragment);
+
+		for (const [id, element] of this.blockElements) {
+			if (!visibleIds.has(id)) {
+				element.replaceChildren();
+				this.blockElements.delete(id);
+			}
+		}
+	}
+
+	private ensureBlockElement(block: BlockView): HTMLElement {
+		const existing = this.blockElements.get(block.id);
+		if (existing) return existing;
+		const section = document.createElement("section");
+		section.className = CLASS_BLOCK;
+		section.dataset.terminalBlockId = block.id;
+		section.setAttribute("style", this.styleVarsString());
+		this.blockElements.set(block.id, section);
+		return section;
 	}
 }
 
@@ -237,4 +327,68 @@ function ensureMeasureHost(): HTMLElement {
 	host.append(node);
 	document.body.append(host);
 	return host;
+}
+
+function listenScroll(target: EventTarget, listener: () => void): () => void {
+	target.addEventListener("scroll", listener, { passive: true });
+	return () => target.removeEventListener("scroll", listener);
+}
+
+function populateBlock(
+	section: HTMLElement,
+	block: BlockView,
+	snapshot: {
+		content: Uint8Array;
+		rows: Uint32Array;
+		runRanges: Uint32Array;
+		stylePairs: Uint32Array;
+	},
+	rowWindow: RowWindow | null,
+	decoder: TextDecoder,
+): void {
+	const fragment = document.createDocumentFragment();
+	const { content, rows, runRanges, stylePairs } = snapshot;
+	const blockFirstRow = block.firstRow;
+	const firstRow = rowWindow ? rowWindow.firstRow : 0;
+	const lastRow = rowWindow ? rowWindow.lastRow : block.rowCount - 1;
+	for (let rowOffset = firstRow; rowOffset <= lastRow; rowOffset += 1) {
+		const snapshotRowIndex = blockFirstRow + rowOffset;
+		const rowsBase = snapshotRowIndex * 2;
+		const rowContentStart = rows[rowsBase] ?? 0;
+		const rowContentEnd = rows[rowsBase + 1] ?? rowContentStart;
+		const rowLength = rowContentEnd - rowContentStart;
+		if (rowLength <= 0 && rowWindow === null) continue;
+		const pairStart = runRanges[rowsBase] ?? 0;
+		const pairEnd = runRanges[rowsBase + 1] ?? pairStart;
+		const rowNode = document.createElement("div");
+		rowNode.dataset.terminalRow = String(rowOffset);
+		rowNode.className = CLASS_ROW;
+		let rowCursor = 0;
+		for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
+			const elementIndex = pairIndex * 2;
+			const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
+			const styleCode = stylePairs[elementIndex + 1] ?? 255;
+			const slice = content.subarray(
+				rowContentStart + rowCursor,
+				rowContentStart + pairRunEnd,
+			);
+			const text = decoder.decode(slice);
+			const run = document.createElement("span");
+			run.dataset.terminalRun = String(pairIndex);
+			run.className = CLASS_RUN;
+			run.style.color = styleCodeToCssVar(styleCode);
+			run.textContent = text;
+			rowNode.append(run);
+			rowCursor = pairRunEnd;
+		}
+		if (rowCursor < rowLength) {
+			const tail = content.subarray(
+				rowContentStart + rowCursor,
+				rowContentStart + rowLength,
+			);
+			rowNode.append(document.createTextNode(decoder.decode(tail)));
+		}
+		fragment.append(rowNode);
+	}
+	section.replaceChildren(fragment);
 }

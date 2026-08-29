@@ -45,11 +45,17 @@ function feed(core: TerminalCore, text: string): void {
 	core.feed(new TextEncoder().encode(text));
 }
 
+function flushRepaint(): Promise<void> {
+	return new Promise((resolve) => {
+		requestAnimationFrame(() => resolve());
+	});
+}
+
 describe("TerminalSurface", () => {
 	beforeAll(loadWasm);
 	afterAll(() => undefined);
 
-	it("mounts a synthetic block, repaints on feed, and stops touching the host after unmount", () => {
+	it("mounts a synthetic block, repaints on feed, and stops touching the host after unmount", async () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "first");
 		const { container, unmount } = render(
@@ -58,19 +64,20 @@ describe("TerminalSurface", () => {
 
 		const host = container.firstElementChild as HTMLElement;
 		expect(host).not.toBeNull();
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(1);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(1);
 		expect(host.textContent).toBe("first");
 
 		act(() => {
 			feed(core, " second");
 		});
+		await flushRepaint();
 		expect(host.textContent).toBe("first second");
 
 		unmount();
 		expect(host.parentNode).toBeNull();
 
 		feed(core, " third");
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(0);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(0);
 	});
 
 	it("applies a className passthrough and exposes theme + font CSS variables", () => {
@@ -81,7 +88,7 @@ describe("TerminalSurface", () => {
 		);
 		const host = container.firstElementChild as HTMLElement;
 		expect(host.classList.contains("pane")).toBe(true);
-		const block = host.querySelector('[data-terminal-block-id="synthetic-0"]') as HTMLElement;
+		const block = host.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement;
 		const styleAttr = block.getAttribute("style") ?? "";
 		expect(styleAttr).toContain("--terminal-foreground:");
 		expect(styleAttr).toContain("--terminal-font-family:");
