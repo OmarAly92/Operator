@@ -33,6 +33,20 @@ function mount() {
 }
 
 describe("LineEditor ownership", () => {
+	it("renders a prompt row from the newest block and ownership state", () => {
+		const { container, core } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=false;cwd=%2FUsers%2Fx%2Fsrc%2Fapp;branch=main\x07\x1b]133;C\x07\x1b]133;D;1\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		const prompt = container.querySelector<HTMLElement>(".terminal-editor-prompt");
+		expect(prompt?.textContent).toContain("app");
+		expect(prompt?.textContent).toContain("main");
+		expect(prompt?.dataset.lastExit).toBe("1");
+		expect(prompt?.dataset.state).toBe("owned");
+	});
+
 	it("renders command syntax tokens without changing the buffer text", () => {
 		const { editor, container } = mount();
 		editor.setText("git status");

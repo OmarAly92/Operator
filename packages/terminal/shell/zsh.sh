@@ -96,6 +96,10 @@ __operator_terminal_guard() {
 	__operator_terminal_precmd() {
 		emulate -L zsh
 		local __operator_terminal_status=$?
+		if [[ ${OPERATOR_TERMINAL_SUPPRESS_PROMPT:-0} == 1 ]]; then
+			PROMPT=''
+			RPROMPT=''
+		fi
 		if [[ -n ${__OPERATOR_TERMINAL_LAST_CMD+x} ]]; then
 			local id cmd cwd branch
 			id=$(__operator_terminal_next_id)

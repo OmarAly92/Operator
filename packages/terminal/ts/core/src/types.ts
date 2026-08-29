@@ -112,9 +112,7 @@ export type SpawnRecipe = {
 
 /**
  * Which mark tier the host wants and whether the package may suppress the
- * user's prompt. The `suppressPrompt` flag is rejected at runtime in
- * Phase 1a (it would leave the user with no readline); Phase 2 removes
- * the guard alongside the editor.
+ * user's prompt.
  */
 export type BootstrapOptions = Readonly<{
 	integration: "auto" | "osc133-only" | "off";

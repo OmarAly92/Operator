@@ -3,11 +3,22 @@ if set -q __OPERATOR_TERMINAL_LOADED
 end
 set -g __OPERATOR_TERMINAL_LOADED 1
 
+if functions -q fish_prompt
+	functions -c fish_prompt __operator_terminal_user_fish_prompt
+end
+
 function __operator_terminal_pct_encode
 	printf '%s' $argv[1] | string escape --style=url
 end
 
 function __operator_terminal_prompt --on-event fish_prompt
+	if test "$OPERATOR_TERMINAL_SUPPRESS_PROMPT" = 1
+		function fish_prompt
+		end
+	else if functions -q __operator_terminal_user_fish_prompt
+		functions -e fish_prompt
+		functions -c __operator_terminal_user_fish_prompt fish_prompt
+	end
 	set -l cwd (__operator_terminal_pct_encode $PWD)
 	set -l branch ""
 	if command -q git

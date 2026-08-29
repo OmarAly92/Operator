@@ -17,6 +17,9 @@ __operator_terminal_pct_encode() {
 
 __operator_terminal_precmd() {
 	local code=$?
+	if [ "${OPERATOR_TERMINAL_SUPPRESS_PROMPT:-0}" = 1 ]; then
+		PS1=''
+	fi
 	printf '\033]7000;v=1;exit=%s\007' "$code"
 	printf '\033]7000;v=1;cwd=%s\007' "$(__operator_terminal_pct_encode "$PWD")"
 	printf '\033]7000;v=1;input-ready=1\007'

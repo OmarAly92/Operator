@@ -68,3 +68,26 @@
 	padding-bottom: 4px;
 	color: var(--terminal-ansi-6);
 }
+
+.terminal-editor-prompt {
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+	padding-bottom: 4px;
+}
+
+.terminal-editor-prompt-cwd {
+	color: var(--terminal-ansi-4);
+}
+
+.terminal-editor-prompt-branch {
+	color: var(--terminal-ansi-5);
+}
+
+.terminal-editor-prompt-marker {
+	color: var(--terminal-ansi-2);
+}
+
+.terminal-editor-prompt[data-last-exit]:not([data-last-exit="0"]) .terminal-editor-prompt-marker {
+	color: var(--terminal-ansi-1);
+}

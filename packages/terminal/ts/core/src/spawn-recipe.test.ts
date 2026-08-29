@@ -27,9 +27,13 @@ describe("spawnRecipe", () => {
 		expect(recipe.argv.some((argument) => /no-mark/.test(argument))).toBe(false);
 	});
 
-	it("refuses to suppress the prompt in this phase", () => {
-		expect(() => spawnRecipe("zsh", { integration: "auto", suppressPrompt: true })).toThrow(
-			/prompt suppression is not available/i,
-		);
+	it("accepts suppressPrompt now that the editor exists", () => {
+		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: true });
+		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("1");
+	});
+
+	it("still offers a show-shell-prompt fallback", () => {
+		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
+		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("0");
 	});
 });

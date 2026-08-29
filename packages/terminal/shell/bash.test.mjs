@@ -40,3 +40,14 @@ test("is idempotent under a second source", () => {
 	);
 	assert.equal((out.match(/input-ready=1/g) ?? []).length, 1);
 });
+
+test("suppresses the prompt only when requested", () => {
+	const on = runBash(
+		`PS1=SHELLPROMPT; OPERATOR_TERMINAL_SUPPRESS_PROMPT=1; source ${JSON.stringify(bootstrap)}; __operator_terminal_precmd >/dev/null; printf 'prompt=[%s]' "$PS1"`,
+	);
+	assert.match(on, /prompt=\[\]/);
+	const off = runBash(
+		`PS1=SHELLPROMPT; OPERATOR_TERMINAL_SUPPRESS_PROMPT=0; source ${JSON.stringify(bootstrap)}; __operator_terminal_precmd >/dev/null; printf 'prompt=[%s]' "$PS1"`,
+	);
+	assert.match(off, /prompt=\[SHELLPROMPT\]/);
+});

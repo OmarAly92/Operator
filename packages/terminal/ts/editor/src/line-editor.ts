@@ -10,6 +10,7 @@ import { EditorBuffer } from "./buffer.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
+import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
 import { editorStyles } from "./styles.js";
 
@@ -242,6 +243,20 @@ export class LineEditor {
 			search.textContent = `${this.strings.searchHistory}: ${state.query} — ${match}`;
 			nodes.unshift(search);
 		}
+		const blocks = this.core ? decodeBlocks(this.core.snapshot()) : [];
+		const newest = blocks.at(-1);
+		nodes.unshift(
+			renderPromptRow(
+				{
+					cwd: newest?.cwd ?? "",
+					gitBranch: newest?.gitBranch ?? "",
+					lastExitCode: newest?.exitCode ?? null,
+					lastDurationMs: newest?.durationMs ?? null,
+					state,
+				},
+				this.strings,
+			),
+		);
 		root.replaceChildren(...nodes);
 	}
 

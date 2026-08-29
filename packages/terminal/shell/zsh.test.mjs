@@ -70,6 +70,17 @@ test("leaves the user's prompt alone", { skip }, () => {
 	assert.equal(out, expected, "bootstrap must not change the rendered prompt");
 });
 
+test("suppresses the prompt only when requested", { skip }, () => {
+	const on = runZsh(
+		`PROMPT=SHELLPROMPT; RPROMPT=RIGHTPROMPT; OPERATOR_TERMINAL_SUPPRESS_PROMPT=1; source ${bootstrap}; __operator_terminal_precmd; print -r -- "prompt=[$PROMPT] right=[$RPROMPT]"`,
+	);
+	assert.match(on, /prompt=\[\] right=\[\]/);
+	const off = runZsh(
+		`PROMPT=SHELLPROMPT; RPROMPT=RIGHTPROMPT; OPERATOR_TERMINAL_SUPPRESS_PROMPT=0; source ${bootstrap}; __operator_terminal_precmd; print -r -- "prompt=[$PROMPT] right=[$RPROMPT]"`,
+	);
+	assert.match(off, /prompt=\[SHELLPROMPT\] right=\[RIGHTPROMPT\]/);
+});
+
 test("fires input-ready from the real zle line-init hook", { skip: ptySkip }, () => {
 	const out = runInPty("zsh -f -i", [`source ${bootstrap}`, "echo hi"]);
 	const count = (value) => (out.match(new RegExp(value, "g")) ?? []).length;

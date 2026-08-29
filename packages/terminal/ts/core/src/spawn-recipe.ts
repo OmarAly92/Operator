@@ -18,18 +18,8 @@ const BOOTSTRAPS: Record<ShellKind, { file: string; argv: (path: string) => stri
  * shell. `integration: "off"` is for hosts that want a plain grid with no
  * mark consumption at all.
  *
- * `suppressPrompt` exists in the type for forward compatibility but is not
- * available in Phase 1a — calling with `suppressPrompt: true` throws, so a
- * future caller cannot take prompt suppression by accident. Phase 2 removes
- * the guard deliberately when the editor lands.
  */
 export function spawnRecipe(shell: ShellKind, options: BootstrapOptions): SpawnRecipe {
-	if (options.suppressPrompt) {
-		throw new Error(
-			"prompt suppression is not available in Phase 1a; it lands with the editor in Phase 2",
-		);
-	}
-
 	const integration = options.integration;
 
 	if (integration === "off") {
@@ -52,7 +42,7 @@ export function spawnRecipe(shell: ShellKind, options: BootstrapOptions): SpawnR
 		argv: definition.argv(bootstrap),
 		env: {
 			OPERATOR_TERMINAL_INTEGRATION: "auto",
-			OPERATOR_TERMINAL_SUPPRESS_PROMPT: "0",
+			OPERATOR_TERMINAL_SUPPRESS_PROMPT: options.suppressPrompt ? "1" : "0",
 		},
 	};
 }
