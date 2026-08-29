@@ -1,0 +1,40 @@
+{
+	"name": "@operator/terminal-react",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Phase 0 React mount that owns a @operator/terminal-renderer-dom block.",
+	"files": [
+		"dist"
+	],
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"test": "vitest run --config ./vitest.config.ts --passWithNoTests"
+	},
+	"dependencies": {
+		"@operator/terminal-core": "file:../core",
+		"@operator/terminal-renderer-dom": "file:../renderer-dom"
+	},
+	"peerDependencies": {
+		"react": ">=18.2 <20",
+		"react-dom": ">=18.2 <20"
+	},
+	"devDependencies": {
+		"@testing-library/react": "16.3.2",
+		"@types/react": "19.2.17",
+		"@types/react-dom": "19.2.3",
+		"jsdom": "29.1.1",
+		"react": "19.2.7",
+		"react-dom": "19.2.7",
+		"typescript": "5.9.3",
+		"vitest": "4.1.8"
+	}
+}

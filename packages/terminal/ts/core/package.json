@@ -1,0 +1,31 @@
+{
+	"name": "@operator/terminal-core",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Phase 0 typed-array view over the vt-wasm linear memory.",
+	"files": [
+		"dist",
+		"wasm"
+	],
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./browser": {
+			"types": "./dist/browser.d.ts",
+			"import": "./dist/browser.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"test": "vitest run --config ./vitest.config.ts --passWithNoTests"
+	},
+	"devDependencies": {
+		"typescript": "5.9.3",
+		"vitest": "4.1.8"
+	}
+}

@@ -1,0 +1,21 @@
+.terminal-block {
+	background: var(--terminal-block-background);
+	color: var(--terminal-foreground);
+	border: 1px solid var(--terminal-block-border);
+	font-family: var(--terminal-font-family);
+	font-size: var(--terminal-font-size);
+	font-weight: var(--terminal-font-weight);
+	letter-spacing: var(--terminal-letter-spacing);
+	line-height: var(--terminal-line-height);
+	font-variant-ligatures: var(--terminal-ligatures);
+	white-space: pre;
+}
+
+.terminal-row {
+	display: block;
+	min-height: var(--terminal-line-height);
+}
+
+.terminal-run {
+	color: inherit;
+}

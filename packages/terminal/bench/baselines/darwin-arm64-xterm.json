@@ -1,0 +1,102 @@
+{
+	"schema": "operator.terminal-benchmark.v1",
+	"recordedAt": "2026-08-29T02:09:57.228Z",
+	"commit": "ab2715a6ac8704159cce892525af464eca42a118",
+	"platform": "darwin",
+	"architecture": "arm64",
+	"cpu": "Apple M1 Max",
+	"logicalCores": 10,
+	"physicalMemory": 34359738368,
+	"browserVersion": "148.0.7778.96",
+	"displayScale": 1,
+	"renderer": "xterm",
+	"rendererVersion": "5.5.0",
+	"rendererKind": "webgl",
+	"scenarios": {
+		"vtebench": {
+			"configuration": {
+				"warmups": 3,
+				"samples": 10,
+				"unit": "workloads-per-second",
+				"columns": 120,
+				"rows": 40,
+				"scrollback": 5000,
+				"payloadBytes": 8388608,
+				"seed": 7000
+			},
+			"samples": [
+				0.14338767726252583,
+				0.09854644000985464,
+				0.14496955639315745,
+				0.09872253045613301,
+				0.13584372537766481,
+				0.10181744132769943,
+				0.14876303536044588,
+				0.10296434344761124,
+				0.13789109361494345,
+				0.10029587282483325
+			],
+			"median": 0.11940403441263803,
+			"p95": 0.14876303536044588,
+			"unit": "workloads-per-second",
+			"workload": "vtebench-random-write-v1",
+			"seed": 7000,
+			"workloadDigest": "6c9e4053f0f94cabc58028b527c0fb5215cbe565ae35db382728942cc2893676"
+		},
+		"large-output": {
+			"configuration": {
+				"warmups": 3,
+				"samples": 10,
+				"unit": "bytes-per-second",
+				"columns": 120,
+				"rows": 40,
+				"scrollback": 5000,
+				"outputBytes": 16777216
+			},
+			"samples": [
+				1023887.5123575166,
+				959388.8170892007,
+				1062790.8273153426,
+				1010894.8928661546,
+				856806.61454053,
+				598393.4144396436,
+				526877.9343462168,
+				495552.16862168105,
+				561909.6039521059,
+				592070.86266829
+			],
+			"median": 727600.0144900868,
+			"p95": 1062790.8273153426,
+			"unit": "bytes-per-second",
+			"workload": "large-output-x-v1",
+			"workloadDigest": "a06c26cbac8b80704f420222dae5658b88ff2da96702d12ef7a4223e9361f7c1"
+		},
+		"input-latency": {
+			"configuration": {
+				"warmups": 3,
+				"samples": 10,
+				"unit": "milliseconds",
+				"columns": 120,
+				"rows": 40,
+				"scrollback": 5000
+			},
+			"samples": [
+				7.400000023830216,
+				8.099999999976717,
+				8.099999999976717,
+				8.200000000011642,
+				8.200000023818575,
+				7.2999999999883585,
+				8.099999999976717,
+				9.100000035774428,
+				8.200000000011642,
+				8.200000023818575
+			],
+			"median": 8.14999999999418,
+			"p95": 9.100000035774428,
+			"unit": "milliseconds",
+			"workload": "input-loopback-x-v1",
+			"workloadDigest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+		}
+	}
+}
