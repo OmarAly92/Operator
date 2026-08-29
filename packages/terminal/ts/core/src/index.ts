@@ -8,9 +8,12 @@ export type {
 	BlockSource,
 	BlockState,
 	BlockView,
+	BootstrapOptions,
 	ChangeListener,
 	FontConfig,
 	RowRange,
+	ShellKind,
+	SpawnRecipe,
 	TerminalCoreOptions,
 	TerminalSnapshot,
 	TerminalTheme,
@@ -19,6 +22,8 @@ export type {
 export { validateRowRange } from "./types.js";
 
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+
+export { spawnRecipe } from "./spawn-recipe.js";
 
 export { TerminalCore };
 
