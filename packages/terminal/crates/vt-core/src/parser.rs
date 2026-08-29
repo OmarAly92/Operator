@@ -2,6 +2,7 @@ use unicode_width::UnicodeWidthChar;
 use vte::{Params, Perform};
 
 use crate::attribute_map::AttributeMap;
+use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::style::StyleCode;
@@ -20,6 +21,7 @@ pub(crate) struct Parser {
     styles: AttributeMap<StyleCode>,
     pending_style: StyleCode,
     zero_width_in_cell: usize,
+    grid: BlockGrid,
 }
 
 impl Parser {
@@ -32,6 +34,7 @@ impl Parser {
             styles: AttributeMap::new(StyleCode::DEFAULT),
             pending_style: StyleCode::DEFAULT,
             zero_width_in_cell: 0,
+            grid: BlockGrid::new(),
         }
     }
 
@@ -47,17 +50,32 @@ impl Parser {
         &self.styles
     }
 
+    pub fn grid(&self) -> &BlockGrid {
+        &self.grid
+    }
+
+    pub fn grid_mut(&mut self) -> &mut BlockGrid {
+        &mut self.grid
+    }
+
     pub fn open_new_row(&mut self) {
         let end = self.content.end_offset();
         self.rows.complete_row(end);
+        self.grid.note_row_completed();
         self.column = 0;
         self.zero_width_in_cell = 0;
     }
 
     pub fn trim_to(&mut self, max_total: usize) {
+        let before = self.rows.completed().len();
         if let Some(new_start) = self.rows.trim_to(max_total) {
             self.content.drop_before(new_start);
             self.styles.drop_before(new_start);
+            // Every row the row-index dropped off the front shifts the
+            // grid's `first_row` by one. Pass the delta so the block
+            // indices and the byte release can never disagree.
+            let dropped = before - self.rows.completed().len();
+            self.grid.trim_to_first_row(dropped);
         }
     }
 

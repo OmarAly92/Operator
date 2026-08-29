@@ -3,7 +3,10 @@ use crate::event::ExtensionFields;
 /// Decode a Tier-2 (OSC 7000) payload. The payload is the bytes between
 /// `ESC ]` and `ESC \`, so `OSC 7000 ; v=1 ; id=block-001 ; …` arrives here
 /// as `b"7000;v=1; id=block-001; …"`. The pair separator is a literal
-/// `; ` (semicolon then space) per SPEC §4.1.
+/// `; ` (semicolon then space) per SPEC §4.1. A bare `;` is also accepted
+/// as a separator so test vectors and shells that don't insert the space
+/// still decode — the spec is silent on this corner and the protocol
+/// vectors themselves use `; `.
 ///
 /// Returns `Some(ExtensionFields)` for a parseable mark whose `v` major
 /// version is the one this decoder understands (1). A higher major version
@@ -14,35 +17,57 @@ pub fn decode(payload: &[u8]) -> Option<ExtensionFields> {
 
     let mut pairs: Vec<(String, String)> = Vec::new();
     let mut version_seen = false;
+    let mut drop_whole = false;
 
-    for pair in pairs_str.split("; ") {
-        if pair.is_empty() {
-            continue;
-        }
-        let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            continue;
-        };
-        let key = raw_key.to_string();
-        let value = percent_decode(raw_value.as_bytes());
-
-        if key == "v" && !version_seen {
-            // The version check is what gates a "higher major" mark. We read
-            // this key *first* (per SPEC §4.2) so a future v=2 mark is dropped
-            // before any other key is parsed. If we can't parse the version
-            // at all, we still try to extract the keys we know — the spec
-            // only requires whole-mark rejection for a *higher* major.
-            version_seen = true;
-            if let Ok(version) = value.parse::<u32>() {
-                if version > 1 {
-                    return None;
-                }
-            }
-        }
-
-        pairs.push((key, value));
+    // Split on `;`, then trim one leading space off each non-first chunk so
+    // both `7000;k=v;k=v` and `7000;k=v; k=v` parse identically. The leading
+    // chunk is untrimmed because it has no separator before it.
+    let mut chunks = pairs_str.split(';');
+    let first = chunks.next()?;
+    push_pair(&mut pairs, first, &mut version_seen, &mut drop_whole);
+    for chunk in chunks {
+        let trimmed = chunk.strip_prefix(' ').unwrap_or(chunk);
+        push_pair(&mut pairs, trimmed, &mut version_seen, &mut drop_whole);
     }
 
+    if drop_whole {
+        return None;
+    }
     Some(ExtensionFields { pairs })
+}
+
+fn push_pair(
+    pairs: &mut Vec<(String, String)>,
+    chunk: &str,
+    version_seen: &mut bool,
+    drop_whole: &mut bool,
+) {
+    if chunk.is_empty() || *drop_whole {
+        return;
+    }
+    let Some((raw_key, raw_value)) = chunk.split_once('=') else {
+        return;
+    };
+    let key = raw_key.to_string();
+    let value = percent_decode(raw_value.as_bytes());
+
+    if key == "v" && !*version_seen {
+        // The version check is what gates a "higher major" mark. We read
+        // this key *first* (per SPEC §4.2) so a future v=2 mark is dropped
+        // before any other key is parsed. If we can't parse the version
+        // at all, we still try to extract the keys we know — the spec
+        // only requires whole-mark rejection for a *higher* major.
+        *version_seen = true;
+        if let Ok(version) = value.parse::<u32>() {
+            if version > 1 {
+                *drop_whole = true;
+                pairs.clear();
+                return;
+            }
+        }
+    }
+
+    pairs.push((key, value));
 }
 
 /// Minimal percent-decoder for the byte alphabet the protocol allows. Any

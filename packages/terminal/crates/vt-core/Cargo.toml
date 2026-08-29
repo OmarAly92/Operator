@@ -7,5 +7,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+terminal-marks = { path = "../marks" }
 unicode-width = { workspace = true }
 vte = { workspace = true }

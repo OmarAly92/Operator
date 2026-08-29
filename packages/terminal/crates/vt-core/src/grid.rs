@@ -1,5 +1,6 @@
 use crate::attribute_map::AttributeMap;
 use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
+use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::style::StyleCode;
@@ -61,6 +62,7 @@ pub(crate) fn build_snapshot(
     content: &Content,
     rows: &RowIndex,
     styles: &AttributeMap<StyleCode>,
+    grid: &BlockGrid,
 ) -> Result<GridSnapshot, CoreError> {
     let open_start = rows.open_start();
     let end = content.end_offset();
@@ -81,19 +83,52 @@ pub(crate) fn build_snapshot(
 
     append_row(&mut ctx, content, styles, open_start, end)?;
 
-    let blocks = vec![BlockRecord {
-        id: 0,
-        first_row: 0,
-        row_count: checked_u32(row_ranges.len())?,
-        state: BlockState::Running,
-        source: BlockSource::Synthetic,
-        exit_code: None,
-        duration_ms: None,
-        command: TextSpan::default(),
-        cwd: TextSpan::default(),
-        git_branch: TextSpan::default(),
-    }];
-    let block_text: Vec<u8> = Vec::new();
+    let mut block_text: Vec<u8> = Vec::new();
+    let blocks: Vec<BlockRecord> = if grid.is_empty() {
+        // A core that has seen no marks has one block by definition: the
+        // whole scrollback. This is what `output_with_no_marks_lands_in_one_synthetic_block`
+        // and every Phase 0 test rely on.
+        vec![BlockRecord {
+            id: 0,
+            first_row: 0,
+            row_count: checked_u32(row_ranges.len())?,
+            state: BlockState::Running,
+            source: BlockSource::Synthetic,
+            exit_code: None,
+            duration_ms: None,
+            command: TextSpan::default(),
+            cwd: TextSpan::default(),
+            git_branch: TextSpan::default(),
+        }]
+    } else {
+        let mut records = Vec::with_capacity(grid.blocks().count());
+        for block in grid.blocks() {
+            let command = append_block_text(&mut block_text, &block.meta.command)?;
+            let cwd = append_block_text(&mut block_text, &block.meta.cwd)?;
+            let git_branch = append_block_text(&mut block_text, &block.meta.git_branch)?;
+            let first_row = checked_u32(block.first_row)?;
+            let row_count = checked_u32(block.row_count)?;
+            let started = block.meta.started_at_ms;
+            let finished = block.meta.finished_at_ms;
+            let duration_ms = match (started, finished) {
+                (Some(s), Some(f)) if f >= s => Some(f - s),
+                _ => None,
+            };
+            records.push(BlockRecord {
+                id: block.id,
+                first_row,
+                row_count,
+                state: block.state,
+                source: block.source,
+                exit_code: block.meta.exit_code,
+                duration_ms,
+                command,
+                cwd,
+                git_branch,
+            });
+        }
+        records
+    };
 
     Ok(GridSnapshot {
         content: all_content,
@@ -103,6 +138,13 @@ pub(crate) fn build_snapshot(
         blocks,
         block_text,
     })
+}
+
+fn append_block_text(buffer: &mut Vec<u8>, text: &str) -> Result<TextSpan, CoreError> {
+    let start = checked_u32(buffer.len())?;
+    buffer.extend_from_slice(text.as_bytes());
+    let end = checked_u32(buffer.len())?;
+    Ok(TextSpan { start, end })
 }
 
 struct SnapshotCtx<'a> {
