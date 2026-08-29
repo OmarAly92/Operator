@@ -244,6 +244,34 @@ arrives via marks or is computed in our own process. If a feature seems to requi
 running something in the user's shell, it is out of scope until the user approves it
 explicitly.
 
+**Where the line actually is.** This rule has been read too broadly twice, so it is
+drawn here explicitly. What Warp did wrong is *asynchronous background jobs* it spawned
+into the session to gather UI state — jobs it then had to hunt down and kill in
+`warp_preexec` because they were "left running/not cancelled properly". The sin is
+unbounded, invisible, cancellable-in-theory work living in the user's shell.
+
+**Permitted**, because a hook that returns immediately and mutates nothing is not an
+invisible job:
+
+- a synchronous, read-only, fast command in a prompt hook that produces a Tier-2 field
+  §7.2 requires — `git rev-parse --abbrev-ref HEAD` for `branch` is the one that exists,
+  and `shell/zsh.sh` has shipped it since phase 1a;
+- a one-shot command during bootstrap, run once at source time — for example probing
+  whether a tool exists.
+
+**Forbidden:**
+
+- anything backgrounded, `&`-suffixed, or otherwise outliving the hook that started it;
+- anything that mutates shell or repository state;
+- a per-command subprocess for a field we can compute ourselves. Command duration is the
+  concrete case: do **not** shell out to `date` in preexec and precmd to produce
+  `start_ms` / `end_ms`. The package sees when marks arrive and computes duration in its
+  own process. `shell/zsh.sh` deliberately emits neither key, and the other bootstraps
+  MUST match it.
+
+A bootstrap that is unsure should emit fewer Tier-2 fields, never run more commands:
+Tier 2 is additive and every field is ignorable (§7.2).
+
 ### 3.7 What we deliberately copy from Warp
 
 Not everything is a mistake. Adopt these:

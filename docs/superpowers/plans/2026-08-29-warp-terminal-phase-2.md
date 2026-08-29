@@ -766,7 +766,7 @@ Expected: FAIL — `shell/fish.fish` does not exist.
 
 ```fish
 if set -q __OPERATOR_TERMINAL_LOADED
-    exit 0
+    return 0
 end
 set -g __OPERATOR_TERMINAL_LOADED 1
 
@@ -776,23 +776,43 @@ end
 
 function __operator_terminal_prompt --on-event fish_prompt
     set -l cwd (__operator_terminal_pct_encode $PWD)
-    set -l branch (__operator_terminal_pct_encode (git branch --show-current 2>/dev/null; or echo ""))
+    set -l branch ""
+    if command -q git
+        set -l head (git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if test $status -eq 0
+            set branch (__operator_terminal_pct_encode $head)
+        end
+    end
     printf '\e]7000;v=1;cwd=%s;branch=%s\a' $cwd $branch
     printf '\e]7000;v=1;input-ready=1\a'
 end
 
 function __operator_terminal_preexec --on-event fish_preexec
     set -l cmd (__operator_terminal_pct_encode $argv[1])
-    printf '\e]7000;v=1;cmd=%s;start_ms=%s\a' $cmd (math (date +%s) x 1000)
+    printf '\e]7000;v=1;cmd=%s\a' $cmd
     printf '\e]7000;v=1;input-released=1\a'
 end
 
 function __operator_terminal_postexec --on-event fish_postexec
-    printf '\e]7000;v=1;exit=%s;end_ms=%s\a' $status (math (date +%s) x 1000)
+    printf '\e]7000;v=1;exit=%s\a' $status
 end
 ```
 
-Nothing here touches `fish_prompt`; fish's own OSC 133 keeps emitting and the recovery table handles the unpaired `A`.
+Three things to notice, each of which the first attempt at this task got wrong:
+
+- **`return 0`, not `exit 0`.** This file is `source`d into a live interactive shell. `exit`
+  would close the user's shell on the second source instead of being the no-op the
+  idempotency guard promises.
+- **`git rev-parse --abbrev-ref HEAD`, matching `shell/zsh.sh` exactly** — same command,
+  same guards, same silent bail. §7.2 requires the `branch` field and §3.6 permits a
+  synchronous read-only prompt-hook command to produce it. Do not invent a different git
+  invocation for fish.
+- **No `start_ms` / `end_ms`.** `shell/zsh.sh` emits neither, and shelling out to `date`
+  twice per command to produce them is the per-command subprocess §3.6 forbids. Duration
+  is computed in our own process from mark arrival.
+
+Nothing here touches `fish_prompt` itself; fish's own OSC 133 keeps emitting and the
+recovery table handles the unpaired `A`.
 
 - [ ] **Step 4: Run the fish tests**
 
@@ -838,7 +858,9 @@ __operator_terminal_preexec() {
 	printf '\033]7000;v=1;input-released=1\007'
 }
 
-__operator_terminal_existing_debug_trap="$(trap -p DEBUG | sed "s/^trap -- '//;s/' DEBUG$//")"
+__operator_terminal_existing_debug_trap="$(trap -p DEBUG)"
+__operator_terminal_existing_debug_trap="${__operator_terminal_existing_debug_trap#trap -- \'}"
+__operator_terminal_existing_debug_trap="${__operator_terminal_existing_debug_trap%\' DEBUG}"
 if [ -n "$__operator_terminal_existing_debug_trap" ]; then
 	trap "$__operator_terminal_existing_debug_trap; __operator_terminal_preexec" DEBUG
 else
@@ -850,6 +872,11 @@ case ";${PROMPT_COMMAND:-};" in
 	*) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__operator_terminal_precmd" ;;
 esac
 ```
+
+Parameter expansion rather than `sed`: one fewer external dependency, one fewer
+subprocess at source time, and it cannot be defeated by a `sed` alias. This is a
+robustness preference, not a §3.6 rule — a one-shot command during bootstrap is
+permitted — but prefer the builtin where a builtin exists.
 
 Create `packages/terminal/shell/bash.test.mjs` asserting: marks are emitted for a command; a pre-existing `DEBUG` trap still fires; a pre-existing `PROMPT_COMMAND` still runs; sourcing twice emits each mark once.
 
