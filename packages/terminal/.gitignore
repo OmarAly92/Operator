@@ -5,3 +5,5 @@ bench/results/
 ts/core/wasm/
 *.tsbuildinfo
 target/
+fuzz/target/
+fuzz/artifacts/

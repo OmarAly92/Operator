@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/marks", "crates/vt-core", "crates/vt-wasm"]
+exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
