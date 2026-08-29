@@ -356,6 +356,21 @@ fn leaving_the_alt_screen_does_not_invent_ownership() {
 }
 
 #[test]
+fn a_forged_input_ready_inside_the_alt_screen_is_ignored() {
+    // A full-screen program can print bytes that look like our mark. Acting
+    // on one hands the editor a writable line into a running program.
+    let mut c = core();
+    c.feed(b"\x1b]7000;v=1;input-ready=1\x07");
+    c.feed(b"\x1b[?1049h");
+    c.feed(b"\x1b]7000;v=1;input-ready=1\x07");
+    assert_eq!(c.line_editor_state(), LineEditorState::Released);
+    c.feed(b"\x1b[?1049l");
+    assert_eq!(c.line_editor_state(), LineEditorState::Released);
+    c.feed(b"\x1b]7000;v=1;input-ready=1\x07");
+    assert_eq!(c.line_editor_state(), LineEditorState::Owned);
+}
+
+#[test]
 fn a_tier_one_only_session_stays_unknown_forever() {
     let mut c = core();
     c.feed(b"\x1b]133;A\x07ls\x1b]133;C\x07out\n\x1b]133;D;0\x07");
@@ -422,16 +437,33 @@ There is deliberately no `on_alt_screen_leave`. Leaving the alt screen tells us 
 
 - [ ] **Step 4: Drive it from the event loop**
 
-In `packages/terminal/crates/vt-core/src/lib.rs`, add `mod line_editor;` and `pub use line_editor::LineEditorState;`, hold a `LineEditorTracker` on `TerminalCore`, and extend the existing `apply_event` dispatch. Note the placement: this runs **before** the alt-screen suppression `continue`, because ownership must change even while the alt screen swallows block events.
+In `packages/terminal/crates/vt-core/src/lib.rs`, add `mod line_editor;` and `pub use line_editor::LineEditorState;`, hold a `LineEditorTracker` on `TerminalCore`, and extend the feed loop.
+
+**Placement is the whole point of this step.** The dispatch goes **after** the alt-screen suppression `continue`, not before it:
 
 ```rust
+if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
+    continue;
+}
 match event {
     MarkEvent::InputReady => self.line_editor.on_input_ready(),
     MarkEvent::InputReleased => self.line_editor.on_input_released(),
     MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
     _ => {}
 }
+apply_event(&mut self.parser, &mut self.alt_screen, event);
 ```
+
+Phase 1 already drops mark events while the alternate screen is active, and the reason is written into `alt_screen.rs`: *a TUI can draw something that looks like a mark sequence without it being one.* That reasoning applies with more force to ownership than to blocks. A forged `input-ready` from a full-screen program does not corrupt a block — it hands the editor a writable line and lets it submit into a running program, which is the one thing §10.2 says must never happen.
+
+Trace the four cases to see the ordering is right:
+
+| Event | Alt screen at that moment | Result |
+| --- | --- | --- |
+| `AltScreenEnter` | inactive | passes the guard → `Released`, then `apply_event` activates the alt screen |
+| `InputReady` | active | guard fires → **ignored**, stays `Released` |
+| `AltScreenLeave` | active | guard allows it → falls to `_` → `apply_event` deactivates; ownership deliberately unchanged |
+| `InputReady` | inactive | → `Owned` |
 
 Add the accessor:
 
