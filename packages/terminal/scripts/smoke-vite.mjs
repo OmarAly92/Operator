@@ -88,13 +88,145 @@ async function main() {
 			fail(`expected text "${REQUIRED_TEXT}", got "${text}"`);
 		}
 
-		const rowNodes = await page.locator("[data-terminal-row]").count();
+		const geometry = await page.evaluate(() => {
+			const host = document.querySelector("#terminal-smoke-root .terminal-host");
+			const row = document.querySelector("#terminal-smoke-root [data-terminal-row]");
+			const rect = (el) => (el ? el.getBoundingClientRect() : null);
+			const hostRect = rect(host);
+			const rowRect = rect(row);
+			return {
+				hasHost: Boolean(host),
+				hostHeight: hostRect ? hostRect.height : 0,
+				hostWidth: hostRect ? hostRect.width : 0,
+				rowHeight: rowRect ? rowRect.height : 0,
+				rowVisible: rowRect
+					? rowRect.height > 0 &&
+						rowRect.width > 0 &&
+						rowRect.top < window.innerHeight &&
+						rowRect.bottom > 0
+					: false,
+			};
+		});
+		if (!geometry.hasHost) {
+			fail("no .terminal-host element in the DOM");
+		}
+		if (geometry.hostHeight <= 0 || geometry.hostWidth <= 0) {
+			fail(
+				`terminal host collapsed to ${geometry.hostWidth}x${geometry.hostHeight}; ` +
+					"rows exist in the DOM but nothing is on screen",
+			);
+		}
+		if (!geometry.rowVisible) {
+			fail(
+				`first row is not visible on screen (height ${geometry.rowHeight})`,
+			);
+		}
+
+		const rowNodes = await page.locator("#terminal-smoke-root [data-terminal-row]").count();
 		if (rowNodes !== REQUIRED_ROWS) {
 			fail(`expected ${REQUIRED_ROWS} row nodes, got ${rowNodes}`);
 		}
-		const runNodes = await page.locator("[data-terminal-run]").count();
+		const runNodes = await page.locator("#terminal-smoke-root [data-terminal-run]").count();
 		if (runNodes !== REQUIRED_RUNS) {
 			fail(`expected ${REQUIRED_RUNS} run nodes, got ${runNodes}`);
+		}
+
+		await page.waitForSelector('[data-terminal-follow="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const follow = await page.evaluate(() => {
+			const main = document.getElementById("terminal-follow-root");
+			const host = main ? main.querySelector(".terminal-host") : null;
+			if (!host) {
+				return { hasHost: false };
+			}
+			const rows = Array.from(host.querySelectorAll("[data-terminal-row]"));
+			const last = rows.length > 0 ? rows[rows.length - 1] : null;
+			const lastWithText = [...rows].reverse().find((row) => row.textContent !== "") ?? null;
+			const hostRect = host.getBoundingClientRect();
+			const lastRect = last ? last.getBoundingClientRect() : null;
+			return {
+				hasHost: true,
+				scrollTop: host.scrollTop,
+				scrollHeight: host.scrollHeight,
+				clientHeight: host.clientHeight,
+				renderedRows: rows.length,
+				lastText: lastWithText ? lastWithText.textContent : "",
+				lastRowOnScreen: lastRect
+					? lastRect.bottom <= hostRect.bottom + 2 && lastRect.bottom > hostRect.top
+					: false,
+			};
+		});
+		if (!follow.hasHost) {
+			fail("follow fixture did not mount a .terminal-host");
+		}
+		if (follow.scrollHeight <= follow.clientHeight) {
+			fail(
+				`follow fixture did not overflow (scrollHeight ${follow.scrollHeight}, ` +
+					`clientHeight ${follow.clientHeight}); the follow assertion would be vacuous`,
+			);
+		}
+		const expectedScrollHeight = follow.clientHeight * 8;
+		if (follow.scrollHeight < expectedScrollHeight) {
+			fail(
+				`follow fixture scrollHeight is ${follow.scrollHeight} for 500 lines; the block ` +
+					"is not reserving space for its off-screen rows, so scrollback is unreachable",
+			);
+		}
+		const distanceFromBottom = follow.scrollHeight - follow.scrollTop - follow.clientHeight;
+		if (distanceFromBottom > 4) {
+			fail(
+				`terminal did not follow its output: ${distanceFromBottom}px from the bottom ` +
+					`(scrollTop ${follow.scrollTop} of ${follow.scrollHeight})`,
+			);
+		}
+		if (follow.lastText !== "line-500") {
+			fail(
+				`expected the newest non-empty row to be "line-500", got "${follow.lastText}"`,
+			);
+		}
+		if (!follow.lastRowOnScreen) {
+			fail("the newest row is not inside the visible viewport");
+		}
+		if (follow.renderedRows >= 500) {
+			fail(
+				`follow fixture rendered ${follow.renderedRows} rows; virtualization should ` +
+					"keep this near the viewport size",
+			);
+		}
+
+		await page.evaluate(() => {
+			const host = document.querySelector("#terminal-follow-root .terminal-host");
+			if (host) host.scrollTop = 0;
+		});
+		await page.evaluate(
+			() =>
+				new Promise((resolve) => {
+					requestAnimationFrame(() => requestAnimationFrame(resolve));
+				}),
+		);
+		const scrolledBack = await page.evaluate(() => {
+			const host = document.querySelector("#terminal-follow-root .terminal-host");
+			const rows = host ? Array.from(host.querySelectorAll("[data-terminal-row]")) : [];
+			const firstWithText = rows.find((row) => row.textContent !== "");
+			return {
+				scrollTop: host ? host.scrollTop : -1,
+				firstText: firstWithText ? firstWithText.textContent : "",
+				renderedRows: rows.length,
+			};
+		});
+		if (scrolledBack.firstText !== "line-1") {
+			fail(
+				`scrolling to the top showed "${scrolledBack.firstText}" instead of "line-1"; ` +
+					"the oldest output is unreachable",
+			);
+		}
+		if (scrolledBack.renderedRows >= 500) {
+			fail(
+				`scrolled-back view rendered ${scrolledBack.renderedRows} rows; virtualization ` +
+					"should keep this near the viewport size",
+			);
 		}
 
 		const resources = await page.evaluate(() => {
@@ -121,7 +253,8 @@ async function main() {
 		}
 
 		process.stdout.write(
-			`Vite smoke loaded vt_core_bg.wasm and painted ${REQUIRED_ROWS} rows / ${REQUIRED_RUNS} runs.\n`,
+			`Vite smoke loaded vt_core_bg.wasm and painted ${REQUIRED_ROWS} rows / ${REQUIRED_RUNS} runs ` +
+				`in a ${Math.round(geometry.hostWidth)}x${Math.round(geometry.hostHeight)} host; followed 500 lines to the bottom with ${follow.renderedRows} rows in the DOM.\n`,
 		);
 	} finally {
 		await context.close().catch(() => {});

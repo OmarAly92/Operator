@@ -1,4 +1,14 @@
-export const terminalStyles = `.terminal-block {
+export const terminalStyles = `.terminal-host {
+	height: 100%;
+	width: 100%;
+}
+
+.terminal-alt-slot {
+	height: 100%;
+	width: 100%;
+}
+
+.terminal-block {
 	background: var(--terminal-block-background);
 	color: var(--terminal-foreground);
 	border: 1px solid var(--terminal-block-border);
@@ -70,6 +80,10 @@ export const terminalStyles = `.terminal-block {
 	opacity: 0.75;
 }
 
+.terminal-block-branch::before {
+	content: "";
+}
+
 .terminal-row {
 	display: block;
 	min-height: var(--terminal-line-height);
@@ -110,5 +124,4 @@ export const terminalStyles = `.terminal-block {
 .terminal-block-action:focus-visible {
 	opacity: 1;
 	outline: 1px solid var(--terminal-block-header-foreground);
-}
-`;
+}`;

@@ -14,11 +14,11 @@ export function AltScreenSlot({
 	const showSurface = active && surface !== undefined;
 	return (
 		<>
-			<div hidden={showSurface} aria-hidden={showSurface}>
+			<div className="terminal-alt-slot" hidden={showSurface} aria-hidden={showSurface}>
 				{blockList}
 			</div>
 			{surface !== undefined ? (
-				<div hidden={!showSurface} aria-hidden={!showSurface}>
+				<div className="terminal-alt-slot" hidden={!showSurface} aria-hidden={!showSurface}>
 					{surface}
 				</div>
 			) : null}

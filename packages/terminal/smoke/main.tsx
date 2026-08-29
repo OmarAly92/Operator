@@ -128,8 +128,58 @@ function SmokeApp(): ReactElement {
 	);
 }
 
+const FOLLOW_LINES = 500;
+
+function FollowApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		const run = async () => {
+			await initTerminalCoreFromUrl();
+			if (cancelled) {
+				return;
+			}
+			const next = createTerminalCore({ columns: 80, scrollback: 2000 });
+			const lines: string[] = [];
+			for (let i = 1; i <= FOLLOW_LINES; i += 1) {
+				lines.push(`line-${i}`);
+			}
+			next.feed(new TextEncoder().encode(`${lines.join("\r\n")}\r\n`));
+			setCore(next);
+		};
+		void run();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) {
+			return;
+		}
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-follow-root");
+				if (main) {
+					main.dataset.terminalFollow = "ready";
+					main.dataset.lineCount = String(FOLLOW_LINES);
+				}
+			});
+		});
+	}, [core]);
+
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} /> : null;
+}
+
 const root = document.getElementById("terminal-smoke-root");
 if (!root) {
 	throw new Error("missing #terminal-smoke-root");
 }
 createRoot(root).render(<SmokeApp />);
+
+const followRoot = document.getElementById("terminal-follow-root");
+if (!followRoot) {
+	throw new Error("missing #terminal-follow-root");
+}
+createRoot(followRoot).render(<FollowApp />);

@@ -196,9 +196,10 @@ describe("DomBlockRenderer", () => {
 		expect(header?.getAttribute("data-block-status")).toBe("plain");
 	});
 
-	it("repaints when the container scrolls, so the visible window follows scrollTop", async () => {
+	it("opens at the tail and reaches earlier rows when scrolled up", async () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollHeight", { value: 84_000, configurable: true });
 		Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
 		const core = createTerminalCore({ columns: 20, scrollback: 100_000 });
 		for (let i = 0; i < 5_000; i += 1) {
@@ -210,20 +211,49 @@ describe("DomBlockRenderer", () => {
 		const renderer = new DomBlockRenderer();
 		renderer.mount(container, core);
 
-		const firstRow = (): HTMLElement | null =>
-			container.querySelector("[data-terminal-row]");
-		const before = firstRow();
-		expect(before).not.toBeNull();
-		const beforeOffset = Number(before?.dataset.terminalRow ?? "-1");
+		const firstRowOffset = (): number => {
+			const row = container.querySelector("[data-terminal-row]");
+			return Number((row as HTMLElement | null)?.dataset.terminalRow ?? "-1");
+		};
 
-		container.scrollTop = 4_000;
+		const atTail = firstRowOffset();
+		expect(atTail).toBeGreaterThan(4_900);
+
+		container.scrollTop = 0;
 		container.dispatchEvent(new Event("scroll"));
 		await flushRepaint();
 
-		const after = firstRow();
-		expect(after).not.toBeNull();
-		const afterOffset = Number(after?.dataset.terminalRow ?? "-1");
-		expect(afterOffset).toBeGreaterThan(beforeOffset);
+		expect(firstRowOffset()).toBe(0);
+
+		container.scrollTop = 83_900;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+
+		expect(firstRowOffset()).toBeGreaterThan(4_900);
+		renderer.dispose();
+	});
+
+	it("reserves the height of the rows it did not render, so the scrollbar spans the block", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 20, scrollback: 100_000 });
+		for (let i = 0; i < 5_000; i += 1) {
+			core.feed(new TextEncoder().encode(`line ${i}\n`));
+		}
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		const spacers = Array.from(
+			container.querySelectorAll<HTMLElement>("[data-terminal-row-spacer]"),
+		);
+		const reserved = spacers.reduce(
+			(sum, spacer) => sum + Number.parseFloat(spacer.style.height || "0"),
+			0,
+		);
+		const rendered = container.querySelectorAll("[data-terminal-row]").length;
+		expect(rendered).toBeLessThan(200);
+		expect(reserved).toBeGreaterThan(4_000 * 16);
 		renderer.dispose();
 	});
 });

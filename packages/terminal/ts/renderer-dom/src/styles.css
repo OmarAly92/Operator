@@ -1,3 +1,13 @@
+.terminal-host {
+	height: 100%;
+	width: 100%;
+}
+
+.terminal-alt-slot {
+	height: 100%;
+	width: 100%;
+}
+
 .terminal-block {
 	background: var(--terminal-block-background);
 	color: var(--terminal-foreground);

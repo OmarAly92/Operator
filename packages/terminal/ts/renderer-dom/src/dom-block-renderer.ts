@@ -26,6 +26,7 @@ const CLASS_TRAILING_SPACER = "terminal-spacer";
 const HIDDEN_MEASURE_ID = "terminal-m-measure";
 const DEFAULT_HEADER_HEIGHT = 24;
 const OVERSCAN_ROWS = 6;
+const STICK_THRESHOLD_PX = 4;
 
 export const warpDarkTheme: TerminalTheme = {
 	ansi: [
@@ -59,6 +60,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private rafHandle: number | null = null;
 	private readonly paintListeners = new Set<() => void>();
 	private knownBlockId: BlockId | null = null;
+	private stickToBottom = true;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private host: HostCapabilities | null = null;
 	private latestSnapshot: {
@@ -92,7 +94,10 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.trailingSpacer = trailing;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
-		this.scrollUnsubscribe = listenScroll(container, () => this.scheduleRepaint());
+		this.scrollUnsubscribe = listenScroll(container, () => {
+			this.updateStickiness();
+			this.scheduleRepaint();
+		});
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
 		this.repaint();
 	}
@@ -180,6 +185,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockElements.clear();
 		this.measureNode = null;
 		this.knownBlockId = null;
+		this.stickToBottom = true;
 		this.host = null;
 		this.latestSnapshot = null;
 		this.latestBlocks = [];
@@ -278,7 +284,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.latestBlocks = blocks;
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
-		const scrollTop = container.scrollTop;
+		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : container.scrollTop;
 		const viewportHeight = container.clientHeight || 1;
 		const windowResult = computeWindow({
 			blocks,
@@ -300,7 +306,16 @@ export class DomBlockRenderer implements BlockRenderer {
 				visibleIds.add(block.id);
 				const element = this.ensureBlockElement(block);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
-				populateBlock(element, block, snapshot, rowWindow, this.decoder, this.host, textSource);
+				populateBlock(
+					element,
+					block,
+					snapshot,
+					rowWindow,
+					rowHeight,
+					this.decoder,
+					this.host,
+					textSource,
+				);
 			}
 		}
 
@@ -320,7 +335,25 @@ export class DomBlockRenderer implements BlockRenderer {
 				this.blockElements.delete(id);
 			}
 		}
+		this.applyStickiness();
 		this.notifyPainted();
+	}
+
+	private updateStickiness(): void {
+		const container = this.container;
+		if (!container) return;
+		const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+		this.stickToBottom = distance <= STICK_THRESHOLD_PX;
+	}
+
+	private applyStickiness(): void {
+		const container = this.container;
+		if (!container || !this.stickToBottom) return;
+		const target = container.scrollHeight - container.clientHeight;
+		if (target <= 0) return;
+		if (Math.abs(container.scrollTop - target) > 0.5) {
+			container.scrollTop = target;
+		}
 	}
 
 	private buildTextSource(): BlockTextSource {
@@ -411,6 +444,7 @@ function populateBlock(
 		stylePairs: Uint32Array;
 	},
 	rowWindow: RowWindow | null,
+	rowHeight: number,
 	decoder: TextDecoder,
 	host: HostCapabilities | null,
 	textSource: BlockTextSource,
@@ -424,13 +458,15 @@ function populateBlock(
 	const blockFirstRow = block.firstRow;
 	const firstRow = rowWindow ? rowWindow.firstRow : 0;
 	const lastRow = rowWindow ? rowWindow.lastRow : block.rowCount - 1;
+	if (rowWindow && firstRow > 0) {
+		fragment.append(spacerOf(firstRow * rowHeight));
+	}
 	for (let rowOffset = firstRow; rowOffset <= lastRow; rowOffset += 1) {
 		const snapshotRowIndex = blockFirstRow + rowOffset;
 		const rowsBase = snapshotRowIndex * 2;
 		const rowContentStart = rows[rowsBase] ?? 0;
 		const rowContentEnd = rows[rowsBase + 1] ?? rowContentStart;
 		const rowLength = rowContentEnd - rowContentStart;
-		if (rowLength <= 0 && rowWindow === null) continue;
 		const pairStart = runRanges[rowsBase] ?? 0;
 		const pairEnd = runRanges[rowsBase + 1] ?? pairStart;
 		const rowNode = document.createElement("div");
@@ -463,7 +499,21 @@ function populateBlock(
 		}
 		fragment.append(rowNode);
 	}
+	if (rowWindow) {
+		const trailingRows = block.rowCount - 1 - lastRow;
+		if (trailingRows > 0) {
+			fragment.append(spacerOf(trailingRows * rowHeight));
+		}
+	}
 	section.replaceChildren(fragment);
+}
+
+function spacerOf(height: number): HTMLElement {
+	const spacer = document.createElement("div");
+	spacer.className = CLASS_LEADING_SPACER;
+	spacer.dataset.terminalRowSpacer = "true";
+	spacer.style.height = `${height}px`;
+	return spacer;
 }
 
 function readBlockOutput(

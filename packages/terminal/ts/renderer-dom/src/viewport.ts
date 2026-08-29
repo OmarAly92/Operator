@@ -27,8 +27,12 @@ const EMPTY_WINDOW: WindowResult = Object.freeze({
 	rowWindows: new Map(),
 });
 
+function headerHeightFor(block: BlockView, headerHeight: number): number {
+	return block.source === "synthetic" ? 0 : headerHeight;
+}
+
 function blockHeight(block: BlockView, rowHeight: number, headerHeight: number): number {
-	return block.rowCount * rowHeight + headerHeight;
+	return block.rowCount * rowHeight + headerHeightFor(block, headerHeight);
 }
 
 function clampScrollTop(scrollTop: number, total: number, viewport: number): number {
@@ -67,7 +71,7 @@ export function computeWindow(input: WindowInput): WindowResult {
 			}
 			lastBlock = i;
 			if (block.rowCount * rowHeight > viewportHeight) {
-				const headerOffset = headerHeight;
+				const headerOffset = headerHeightFor(block, headerHeight);
 				const firstVisibleRow = Math.max(
 					0,
 					Math.floor((firstRowInWindow - blockStart - headerOffset) / rowHeight) - overscanRows,

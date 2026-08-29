@@ -47,7 +47,8 @@ export function TerminalSurface({
 		rendererRef.current?.setFont(font);
 	}, [font]);
 
-	const host = <div ref={hostRef} className={className} />;
+	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
+	const host = <div ref={hostRef} className={hostClassName} />;
 	return (
 		<AltScreenSlot
 			active={altScreenActive}

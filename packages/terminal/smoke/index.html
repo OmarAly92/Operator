@@ -3,9 +3,25 @@
 	<head>
 		<meta charset="UTF-8" />
 		<title>Terminal Smoke</title>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+			}
+			#terminal-smoke-root {
+				display: block;
+				height: 300px;
+			}
+			#terminal-follow-root {
+				display: block;
+				height: 200px;
+			}
+		</style>
 	</head>
 	<body>
 		<main id="terminal-smoke-root" data-terminal-smoke="pending"></main>
+		<main id="terminal-follow-root" data-terminal-follow="pending"></main>
 		<script type="module" src="./main.tsx"></script>
 	</body>
 </html>
