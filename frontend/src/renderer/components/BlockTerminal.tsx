@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
 	TerminalSurface,
 	createTerminalCore,
+	initTerminalCoreFromUrl,
 	warpDarkTheme,
 	type FontConfig,
 	type HostCapabilities,
@@ -55,24 +56,28 @@ const SOURCE_ID_PATTERN = /\x1b\]7000;v=1;id=([A-Za-z0-9_-]+)/g;
 function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | undefined): TerminalTheme {
 	if (!theme || !skin) return warpDarkTheme;
 	const xterm = skinToXtermTheme(skin, theme);
-	const ansi: TerminalTheme["ansi"] = [
-		xterm.black ?? "#000000",
-		xterm.red ?? "#ff0000",
-		xterm.green ?? "#00ff00",
-		xterm.yellow ?? "#ffff00",
-		xterm.blue ?? "#0000ff",
-		xterm.magenta ?? "#ff00ff",
-		xterm.cyan ?? "#00ffff",
-		xterm.white ?? "#ffffff",
-		xterm.brightBlack ?? "#808080",
-		xterm.brightRed ?? "#ff8080",
-		xterm.brightGreen ?? "#80ff80",
-		xterm.brightYellow ?? "#ffff80",
-		xterm.brightBlue ?? "#8080ff",
-		xterm.brightMagenta ?? "#ff80ff",
-		xterm.brightCyan ?? "#80ffff",
-		xterm.brightWhite ?? "#ffffff",
-	];
+	// The package's own palette is the fallback, never a literal: the skin is
+	// the single source of colour, and inlining one here would be a second
+	// source that drifts silently. Order is the ANSI 0-15 order the renderer
+	// indexes by style code.
+	const ansi = [
+		xterm.black,
+		xterm.red,
+		xterm.green,
+		xterm.yellow,
+		xterm.blue,
+		xterm.magenta,
+		xterm.cyan,
+		xterm.white,
+		xterm.brightBlack,
+		xterm.brightRed,
+		xterm.brightGreen,
+		xterm.brightYellow,
+		xterm.brightBlue,
+		xterm.brightMagenta,
+		xterm.brightCyan,
+		xterm.brightWhite,
+	].map((colour, index) => colour ?? warpDarkTheme.ansi[index]) as unknown as TerminalTheme["ansi"];
 	return {
 		ansi,
 		foreground: xterm.foreground ?? warpDarkTheme.foreground,
@@ -132,18 +137,53 @@ export function BlockTerminal({
 	const coreRef = useRef<TerminalCore | null>(null);
 	const [core, setCore] = useState<TerminalCore | null>(null);
 	const [altScreenActive, setAltScreenActive] = useState(false);
+	const [coreError, setCoreError] = useState<Error | null>(null);
 	const historyIdsRef = useRef<Set<string>>(new Set());
 	const seenLiveIdsRef = useRef<Set<string>>(new Set());
+	// The WASM module loads asynchronously while the transport is already
+	// streaming. Bytes that arrive first are held here and replayed in order
+	// once the core exists, so early output is never dropped.
+	const pendingBytesRef = useRef<Uint8Array[]>([]);
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
 
 	useEffect(() => {
-		const created = createTerminalCore({ columns: DEFAULT_COLUMNS, scrollback: DEFAULT_SCROLLBACK });
-		coreRef.current = created;
-		setCore(created);
+		// The WASM module has to be fetched and instantiated before a core can
+		// exist: `createTerminalCore` throws "terminal core WASM is not
+		// initialized" otherwise. `ensureInitialized` behind this call is
+		// idempotent and shared, so every pane after the first resolves from
+		// the already-instantiated module rather than refetching.
+		let cancelled = false;
+		let created: TerminalCore | null = null;
+		void (async () => {
+			try {
+				await initTerminalCoreFromUrl();
+				if (cancelled) {
+					return;
+				}
+				created = createTerminalCore({
+					columns: DEFAULT_COLUMNS,
+					scrollback: DEFAULT_SCROLLBACK,
+				});
+				coreRef.current = created;
+				const pending = pendingBytesRef.current;
+				pendingBytesRef.current = [];
+				for (const bytes of pending) {
+					feedToCore(created, bytes, seenLiveIdsRef.current, historyIdsRef.current);
+				}
+				setCore(created);
+			} catch (error) {
+				if (!cancelled) {
+					setCoreError(error instanceof Error ? error : new Error(String(error)));
+				}
+			}
+		})();
 		return () => {
-			created.dispose();
+			cancelled = true;
+			created?.dispose();
 			coreRef.current = null;
+			pendingBytesRef.current = [];
+			setCore(null);
 		};
 	}, [sessionId]);
 
@@ -163,6 +203,8 @@ export function BlockTerminal({
 			if (text.includes(ALT_SCREEN_LEAVE)) setAltScreenActive(false);
 			if (coreRef.current) {
 				feedToCore(coreRef.current, bytes, seenLiveIdsRef.current, historyIdsRef.current);
+			} else {
+				pendingBytesRef.current.push(bytes);
 			}
 		});
 		return () => {
@@ -227,7 +269,24 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
-	if (!core) return null;
+	if (coreError || !core) {
+		// Until the core exists -- and permanently if it fails to load -- the
+		// pane shows the raw surface the host handed us. A terminal that cannot
+		// render blocks is still a terminal; replacing it with an error box, or
+		// letting the failure reach the app's error boundary, turns a degraded
+		// feature into a dead window.
+		return (
+			<div
+				aria-label={ariaLabel}
+				data-testid="block-terminal"
+				data-block-core={coreError ? "failed" : "loading"}
+				data-block-core-error={coreError ? coreError.message : undefined}
+				className="block-terminal-root h-full w-full"
+			>
+				{children}
+			</div>
+		);
+	}
 
 	const surfaceProps = {
 		core,

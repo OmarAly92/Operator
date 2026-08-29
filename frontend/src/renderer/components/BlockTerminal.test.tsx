@@ -12,6 +12,7 @@ const mockState = vi.hoisted(() => {
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		revision: 0,
+		wasmInits: 0,
 	};
 });
 
@@ -119,6 +120,11 @@ vi.mock("@operator/terminal-react", () => {
 			blockBackground: "#000000",
 			blockBorder: "#616161",
 			blockHeaderForeground: "#f1f1f1",
+		},
+		// The real component must await this before creating a core; leaving it
+		// off the mock is what let a missing WASM init reach the running app.
+		initTerminalCoreFromUrl: async () => {
+			mockState.wasmInits += 1;
 		},
 		createTerminalCore: () => ({
 			feed: (bytes: Uint8Array) => {
