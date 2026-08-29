@@ -98,7 +98,7 @@ export function validateRowRange(range: RowRange): void {
 	}
 }
 
-export type ShellKind = "zsh";
+export type ShellKind = "zsh" | "bash" | "fish";
 
 /**
  * What the host tells the package to spawn. `argv` is passed to `execvp` as-is;
