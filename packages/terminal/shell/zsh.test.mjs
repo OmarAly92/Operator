@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { haveTmux, runInPty } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./zsh.sh", import.meta.url));
 const haveZsh = (() => {
@@ -13,9 +14,22 @@ const haveZsh = (() => {
 	}
 })();
 const skip = haveZsh ? false : "zsh is not installed";
+const ptySkip = haveZsh && haveTmux() ? false : "zsh and tmux are required";
+
+if (ptySkip) {
+	console.warn("Skipping fires input-ready from the real zle line-init hook: zsh and tmux are required");
+}
 
 function runZsh(script) {
 	return execFileSync("zsh", ["-f", "-c", script], { encoding: "latin1" });
+}
+
+function runZshCapture(script) {
+	return runZsh(script);
+}
+
+function runZshWithBootstrap(script) {
+	return runZsh(`source ${bootstrap}; ${script}`);
 }
 
 test("emits prompt-start, command-end and one extension mark", { skip }, () => {
@@ -54,4 +68,29 @@ test("leaves the user's prompt alone", { skip }, () => {
 		encoding: "latin1",
 	});
 	assert.equal(out, expected, "bootstrap must not change the rendered prompt");
+});
+
+test("fires input-ready from the real zle line-init hook", { skip: ptySkip }, () => {
+	const out = runInPty("zsh -f -i", [`source ${bootstrap}`, "echo hi"]);
+	const count = (value) => (out.match(new RegExp(value, "g")) ?? []).length;
+	assert.ok(count("input-ready=1") >= 1, "zle line-init never fired");
+	assert.ok(count("input-released=1") >= 1, "preexec never fired");
+	assert.ok(
+		out.indexOf("input-ready=1") < out.indexOf("input-released=1"),
+		"ready must precede released for the first command",
+	);
+});
+
+test("does not add or remove any bindkey binding", { skip }, () => {
+	const before = runZshCapture("bindkey -L | sort");
+	const after = runZshWithBootstrap("bindkey -L | sort");
+	assert.equal(after, before);
+});
+
+test("leaves the user's own zle-line-init widget installed and callable", { skip }, () => {
+	const out = runZsh(
+		`user_widget() { print -n user-widget-ran }; zle -N zle-line-init user_widget; source ${bootstrap}; zle -lL; user_widget`,
+	);
+	assert.match(out, /user-widget-ran/);
+	assert.match(out, /zle -N zle-line-init/);
 });
