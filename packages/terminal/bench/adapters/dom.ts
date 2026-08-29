@@ -5,12 +5,21 @@ import rendererDomPackage from "../../ts/renderer-dom/package.json" with { type:
 
 import type { BenchmarkRenderer, Geometry, RendererKind } from "../harness";
 
+/**
+ * The package's own renderer under the benchmark harness.
+ *
+ * `write` and `waitForPaint` deliberately mirror the xterm adapter's
+ * semantics. xterm resolves `write` only once the bytes have been processed
+ * and reports a real paint through `onRender`; timing this renderer on
+ * `core.feed` alone would compare WASM parsing against xterm's parse-plus-
+ * render and report a speedup that is an artifact of the harness.
+ */
 export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	readonly version = String((rendererDomPackage as { version?: string }).version ?? "");
 	private core: TerminalCore | undefined;
 	private renderer: DomBlockRenderer | undefined;
 	private failure: Error | undefined;
-	private readonly rendererKind: RendererKind = "canvas";
+	private readonly rendererKind: RendererKind = "dom";
 
 	async mount(host: HTMLElement, geometry: Geometry): Promise<void> {
 		try {
@@ -28,11 +37,16 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	write(bytes: Uint8Array): Promise<void> {
 		this.assertReady();
+		const renderer = this.renderer as DomBlockRenderer;
 		return new Promise((resolve, reject) => {
+			const off = renderer.onPaint(() => {
+				off();
+				resolve();
+			});
 			try {
 				(this.core as TerminalCore).feed(bytes);
-				resolve();
 			} catch (error) {
+				off();
 				reject(error);
 			}
 		});
@@ -44,15 +58,31 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	waitForPaint(): Promise<number> {
 		this.assertReady();
-		return new Promise((resolve) => {
-			requestAnimationFrame((timestamp) => {
-				resolve(timestamp);
+		const renderer = this.renderer as DomBlockRenderer;
+		return new Promise((resolve, reject) => {
+			const timeout = window.setTimeout(() => {
+				off();
+				reject(new Error("dom renderer did not paint within 10 seconds"));
+			}, 10000);
+			const off = renderer.onPaint(() => {
+				off();
+				requestAnimationFrame((timestamp) => {
+					window.clearTimeout(timeout);
+					resolve(timestamp);
+				});
 			});
 		});
 	}
 
 	dispatchPrintableKey(_data: string): void {
 		this.assertReady();
+		// This renderer has no input path until Phase 2 adds the editor, so
+		// there is nothing here that could be timed. Returning quietly would
+		// let the input-latency scenario report the harness's own overhead as
+		// a latency number and feed it to the perf gate.
+		throw new Error(
+			"the DOM renderer has no input path until Phase 2; input-latency is not measurable for it",
+		);
 	}
 
 	dispose(): void {

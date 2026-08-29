@@ -15,7 +15,8 @@ export interface Geometry {
 	scrollback: number;
 }
 
-export type RendererKind = "webgl" | "canvas";
+// "dom" is this package's renderer; the other two are xterm's backends.
+export type RendererKind = "webgl" | "canvas" | "dom";
 export type RendererName = "xterm" | "dom";
 export type ScenarioName = keyof typeof scenarios;
 

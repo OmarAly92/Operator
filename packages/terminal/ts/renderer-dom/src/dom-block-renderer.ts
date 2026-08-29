@@ -57,6 +57,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private measureNode: HTMLElement | null = null;
 	private readonly blockElements: Map<BlockId, HTMLElement> = new Map();
 	private rafHandle: number | null = null;
+	private readonly paintListeners = new Set<() => void>();
 	private knownBlockId: BlockId | null = null;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private host: HostCapabilities | null = null;
@@ -164,6 +165,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			cancelAnimationFrame(this.rafHandle);
 		}
 		this.rafHandle = null;
+		this.paintListeners.clear();
 		if (this.container) {
 			this.container.replaceChildren();
 			this.container.style.removeProperty("position");
@@ -181,6 +183,24 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.host = null;
 		this.latestSnapshot = null;
 		this.latestBlocks = [];
+	}
+
+	/// Notifies when a repaint has actually landed in the DOM.
+	///
+	/// The bench harness needs this to time the same work xterm's `onRender`
+	/// covers. Without it a caller can only wait for a bare animation frame,
+	/// which fires whether or not anything painted.
+	onPaint(listener: () => void): () => void {
+		this.paintListeners.add(listener);
+		return () => {
+			this.paintListeners.delete(listener);
+		};
+	}
+
+	private notifyPainted(): void {
+		for (const listener of [...this.paintListeners]) {
+			listener();
+		}
 	}
 
 	private scheduleRepaint(): void {
@@ -300,6 +320,7 @@ export class DomBlockRenderer implements BlockRenderer {
 				this.blockElements.delete(id);
 			}
 		}
+		this.notifyPainted();
 	}
 
 	private buildTextSource(): BlockTextSource {
