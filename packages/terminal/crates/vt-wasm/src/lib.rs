@@ -33,6 +33,7 @@ pub struct ExportBuffers {
     style_pairs: Vec<u32>,
     blocks: Vec<u32>,
     block_text: Vec<u8>,
+    line_editor_state: u32,
 }
 
 impl ExportBuffers {
@@ -43,6 +44,7 @@ impl ExportBuffers {
         self.style_pairs.clear();
         self.blocks.clear();
         self.block_text.clear();
+        self.line_editor_state = snapshot.line_editor_state;
 
         checked_u32_from_u64(snapshot.content.len() as u64)?;
         self.content.extend_from_slice(snapshot.content.as_slice());
@@ -123,6 +125,10 @@ impl ExportBuffers {
 
     pub fn block_text(&self) -> &[u8] {
         &self.block_text
+    }
+
+    pub fn line_editor_state(&self) -> u32 {
+        self.line_editor_state
     }
 }
 
@@ -206,6 +212,10 @@ impl WasmTerminalCore {
 
     pub fn block_text_len(&self) -> usize {
         self.export.block_text().len()
+    }
+
+    pub fn line_editor_state(&self) -> u32 {
+        self.export.line_editor_state()
     }
 }
 

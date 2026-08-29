@@ -10,7 +10,7 @@
 		"build:ts": "tsc -b ts/core ts/renderer-dom ts/react",
 		"build": "npm run build:wasm && npm run build:ts",
 		"test": "npm run build:wasm && npm run test --workspaces --if-present",
-		"check:boundaries": "node ./scripts/check-boundaries.mjs",
+		"check:boundaries": "node ./scripts/check-boundaries.mjs && node ./scripts/check-no-ownership-timer.mjs",
 		"smoke:vite": "npm run build && node ./scripts/smoke-vite.mjs",
 		"smoke:tauri": "node ./scripts/smoke-tauri.mjs",
 		"bench:terminal": "node ./bench/runner.mjs",

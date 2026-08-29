@@ -4,6 +4,8 @@ export type BlockState = "running" | "finished" | "abandoned";
 
 export type BlockSource = "osc133" | "extension" | "synthetic";
 
+export type LineEditorState = "unknown" | "owned" | "released";
+
 export type BlockView = Readonly<{
 	id: BlockId;
 	firstRow: number;
@@ -64,6 +66,7 @@ export type TerminalSnapshot = Readonly<{
 	stylePairs: Uint32Array;
 	blocks: Uint32Array;
 	blockText: Uint8Array;
+	lineEditorState: number;
 }>;
 
 export type TerminalCoreOptions = Readonly<{

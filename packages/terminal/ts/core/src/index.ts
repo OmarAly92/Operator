@@ -12,6 +12,7 @@ export type {
 	ChangeListener,
 	FontConfig,
 	HostCapabilities,
+	LineEditorState,
 	RowRange,
 	ShellKind,
 	SpawnRecipe,

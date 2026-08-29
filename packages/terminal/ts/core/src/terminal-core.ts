@@ -9,9 +9,12 @@ import {
 } from "./wasm-runtime.js";
 import type {
 	ChangeListener,
+	LineEditorState,
 	TerminalCoreOptions,
 	TerminalSnapshot,
 } from "./types.js";
+
+const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
 
 export class TerminalCore {
 	private readonly inner: WasmTerminalCore;
@@ -85,7 +88,12 @@ export class TerminalCore {
 			stylePairs: u32View(memory, stylePairsPtr, stylePairsLen),
 			blocks: u32View(memory, blocksPtr, blocksLen),
 			blockText: u8View(memory, blockTextPtr, blockTextLen),
+			lineEditorState: this.inner.line_editor_state(),
 		};
+	}
+
+	lineEditorState(): LineEditorState {
+		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
 
 	onChange(listener: ChangeListener): () => void {
