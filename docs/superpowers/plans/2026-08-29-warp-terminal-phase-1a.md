@@ -332,12 +332,17 @@ In `crates/vt-wasm/src/lib.rs`, add `blocks: Vec<u32>` and `block_text: Vec<u8>`
 | 0, 1 | `id` low 32 bits, high 32 bits |
 | 2 | `first_row` |
 | 3 | `row_count` |
-| 4 | `state.as_u32() \| (source.as_u32() << 8)` |
-| 5 | `exit_code`: `0` for `None`, otherwise `(exit + 1) as u32` |
+| 4 | `state.as_u32() \| (source.as_u32() << 8) \| (has_exit << 16)` |
+| 5 | `exit_code.unwrap_or(0) as u32` — the raw two's-complement i32 |
 | 6, 7 | `duration_ms` low, high — both `u32::MAX` means `None` |
 | 8, 9 | `command.start`, `command.end` |
 | 10, 11 | `cwd.start`, `cwd.end` |
 | 12, 13 | `git_branch.start`, `git_branch.end` |
+
+Exit-code presence is a bit in word 4, never a magic value in word 5. Encoding
+`None` as `0` and `Some(exit)` as `exit + 1` collides with a real exit of `-1`
+and overflows at `i32::MAX` — and that parameter arrives from untrusted terminal
+output via `OSC 133 ; D ; <exit>`, so neither case is hypothetical.
 
 Add `pub const BLOCK_RECORD_WORDS: usize = 14;` and export it. Guard `block_text.len()` with `checked_u32_from_u64` exactly as the content buffer already is. Add the four accessors beside the existing pointer/length pairs, following their shape exactly.
 

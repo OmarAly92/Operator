@@ -37,3 +37,42 @@ describe("block export contract", () => {
 		expect(typeof first).toBe("string");
 	});
 });
+
+describe("exit code decoding", () => {
+	function recordWith(packed: number, exitWord: number): Uint32Array {
+		const words = new Uint32Array(BLOCK_RECORD_WORDS);
+		words[3] = 1;
+		words[4] = packed;
+		words[5] = exitWord;
+		words[6] = 0xffffffff;
+		words[7] = 0xffffffff;
+		return words;
+	}
+
+	const FINISHED_OSC133 = 1;
+	const HAS_EXIT = 1 << 16;
+
+	it("reads an absent exit code as null", () => {
+		const blocks = decodeBlocks({
+			blocks: recordWith(FINISHED_OSC133, 0),
+			blockText: new Uint8Array(),
+		});
+		expect(blocks[0].exitCode).toBeNull();
+	});
+
+	it("round-trips a negative exit code without colliding with absent", () => {
+		const blocks = decodeBlocks({
+			blocks: recordWith(FINISHED_OSC133 | HAS_EXIT, 0xffffffff),
+			blockText: new Uint8Array(),
+		});
+		expect(blocks[0].exitCode).toBe(-1);
+	});
+
+	it("round-trips the largest exit code without overflow", () => {
+		const blocks = decodeBlocks({
+			blocks: recordWith(FINISHED_OSC133 | HAS_EXIT, 0x7fffffff),
+			blockText: new Uint8Array(),
+		});
+		expect(blocks[0].exitCode).toBe(2147483647);
+	});
+});

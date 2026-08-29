@@ -33,7 +33,9 @@ export function decodeBlocks(
 		if (source === undefined) {
 			throw new Error(`block source byte ${sourceByte} is out of range`);
 		}
-		const exitWord = blocks[base + 5];
+		const hasExit = ((packed >> 16) & 1) === 1;
+		// `| 0` reinterprets the u32 word as the i32 it was encoded from.
+		const exitCode = hasExit ? blocks[base + 5] | 0 : null;
 		const durationLow = blocks[base + 6];
 		const durationHigh = blocks[base + 7];
 		const durationMs =
@@ -47,7 +49,7 @@ export function decodeBlocks(
 			rowCount: blocks[base + 3],
 			state,
 			source,
-			exitCode: exitWord === 0 ? null : exitWord - 1,
+			exitCode,
 			durationMs,
 			command: decodeSpan(blockText, blocks[base + 8], blocks[base + 9]),
 			cwd: decodeSpan(blockText, blocks[base + 10], blocks[base + 11]),

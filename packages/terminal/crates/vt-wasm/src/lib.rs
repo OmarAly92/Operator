@@ -69,12 +69,15 @@ impl ExportBuffers {
             self.blocks.push((record.id >> 32) as u32);
             self.blocks.push(record.first_row);
             self.blocks.push(record.row_count);
+            // Presence lives in a spare bit of the packed word so the exit word
+            // can carry the raw two's-complement i32. Encoding presence as a
+            // magic value instead collides with a real exit code and overflows
+            // at i32::MAX -- and the exit parameter arrives from untrusted
+            // terminal output, so neither is hypothetical.
+            let has_exit = u32::from(record.exit_code.is_some());
             self.blocks
-                .push(record.state.as_u32() | (record.source.as_u32() << 8));
-            self.blocks.push(match record.exit_code {
-                None => 0,
-                Some(exit) => (exit + 1) as u32,
-            });
+                .push(record.state.as_u32() | (record.source.as_u32() << 8) | (has_exit << 16));
+            self.blocks.push(record.exit_code.unwrap_or(0) as u32);
             let (duration_lo, duration_hi) = match record.duration_ms {
                 None => (u32::MAX, u32::MAX),
                 Some(ms) => (ms as u32, (ms >> 32) as u32),
