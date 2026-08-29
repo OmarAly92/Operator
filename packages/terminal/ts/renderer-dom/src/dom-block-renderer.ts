@@ -53,7 +53,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	private readonly blockElements: Map<BlockId, HTMLElement> = new Map();
 	private rafHandle: number | null = null;
 	private pendingGeneration: number | null = null;
-	private lastSnapshot: Awaited<ReturnType<TerminalCore["snapshot"]>> | null = null;
 	private knownBlockId: BlockId | null = null;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -153,7 +152,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.trailingSpacer = null;
 		this.blockElements.clear();
 		this.measureNode = null;
-		this.lastSnapshot = null;
 		this.pendingGeneration = null;
 		this.knownBlockId = null;
 	}
@@ -219,10 +217,6 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		const snapshot = core.snapshot();
-		if (this.lastSnapshot === snapshot && this.pendingGeneration === null) {
-			return;
-		}
-		this.lastSnapshot = snapshot;
 		this.pendingGeneration = null;
 
 		const blocks = decodeBlocks(snapshot);

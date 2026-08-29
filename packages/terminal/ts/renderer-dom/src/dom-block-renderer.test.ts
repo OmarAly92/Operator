@@ -187,4 +187,35 @@ describe("DomBlockRenderer", () => {
 		expect(rows.length).toBeGreaterThan(0);
 		renderer.dispose();
 	});
+
+	it("repaints when the container scrolls, so the visible window follows scrollTop", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 20, scrollback: 100_000 });
+		for (let i = 0; i < 5_000; i += 1) {
+			core.feed(new TextEncoder().encode(`line ${i}\n`));
+		}
+		const realSnapshot = core.snapshot.bind(core);
+		const stableSnapshot = realSnapshot();
+		core.snapshot = () => stableSnapshot;
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		const firstRow = (): HTMLElement | null =>
+			container.querySelector("[data-terminal-row]");
+		const before = firstRow();
+		expect(before).not.toBeNull();
+		const beforeOffset = Number(before?.dataset.terminalRow ?? "-1");
+
+		container.scrollTop = 4_000;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+
+		const after = firstRow();
+		expect(after).not.toBeNull();
+		const afterOffset = Number(after?.dataset.terminalRow ?? "-1");
+		expect(afterOffset).toBeGreaterThan(beforeOffset);
+		renderer.dispose();
+	});
 });
