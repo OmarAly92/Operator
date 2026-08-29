@@ -13,6 +13,7 @@
 // derived status flow back (docs/architecture.md).
 
 import { useQueryClient } from "@tanstack/react-query";
+import { terminalDebug } from "../lib/terminal-debug";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
@@ -331,6 +332,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		const mux = (optionsRef.current.createMux ?? defaultCreateMux)();
 		r.mux = mux;
 
+		let muxChunks = 0;
+		let muxBytes = 0;
 		let pendingReplayWrites = 0;
 		let replayRevealDeadlineReached = false;
 		let replayWritesPreserved = false;
@@ -460,8 +463,25 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.disposers.push(
 			mux.onData(handle, (bytes) => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
+				muxChunks += 1;
+				muxBytes += bytes.length;
+				if (muxChunks <= 3 || muxChunks % 50 === 0) {
+					terminalDebug("mux", "data", {
+						handle,
+						chunk: muxChunks,
+						len: bytes.length,
+						total: muxBytes,
+						listeners: r.byteListeners.size,
+						hasXterm: Boolean(r.terminal),
+						buffering: r.replayBuffering,
+					});
+				}
 				for (const listener of [...r.byteListeners]) listener(bytes);
-				r.terminal?.write(bytes);
+				try {
+					r.terminal?.write(bytes);
+				} catch (error) {
+					terminalDebug("mux", "xterm write FAILED", { error: String(error) });
+				}
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
@@ -489,6 +509,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			}),
 			mux.onOpened(handle, () => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
+				terminalDebug("mux", "opened", { handle, listeners: r.byteListeners.size });
 				clearOpenTimer(generation);
 				r.inputReady = true;
 				r.attempts = 0;
@@ -516,6 +537,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			}),
 			mux.onExit(handle, () => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
+				terminalDebug("mux", "exit", { handle, totalBytes: muxBytes });
 				clearOpenTimer(generation);
 				r.inputReady = false;
 				// Land whatever was buffered before the notice, and lift the cover:
@@ -810,6 +832,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			onData: (listener: (bytes: Uint8Array) => void) => {
 				const r = runtime.current;
 				r.byteListeners.add(listener);
+				terminalDebug("mux", "listener added", { listeners: r.byteListeners.size, hasMux: Boolean(r.mux) });
 				return () => {
 					r.byteListeners.delete(listener);
 				};

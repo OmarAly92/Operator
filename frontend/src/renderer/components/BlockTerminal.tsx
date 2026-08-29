@@ -12,6 +12,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { useSkin } from "../theme/skin-context";
 import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
@@ -146,6 +147,33 @@ export function BlockTerminal({
 	const pendingBytesRef = useRef<Uint8Array[]>([]);
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
+	const rootRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		if (!core) return;
+		const measure = () => {
+			const root = rootRef.current;
+			const host = root?.querySelector(".terminal-host") as HTMLElement | null;
+			const slots = root ? [...root.querySelectorAll(".terminal-alt-slot")] : [];
+			terminalDebug("block-terminal", "geometry", {
+				rootH: root ? Math.round(root.getBoundingClientRect().height) : null,
+				rootW: root ? Math.round(root.getBoundingClientRect().width) : null,
+				hostH: host ? Math.round(host.getBoundingClientRect().height) : null,
+				slots: slots.map((slot) => ({
+					hidden: (slot as HTMLElement).hidden,
+					h: Math.round(slot.getBoundingClientRect().height),
+				})),
+				rows: root ? root.querySelectorAll("[data-terminal-row]").length : 0,
+				blocks: root ? root.querySelectorAll("[data-terminal-block-id]").length : 0,
+			});
+		};
+		const first = window.setTimeout(measure, 500);
+		const second = window.setTimeout(measure, 3000);
+		return () => {
+			window.clearTimeout(first);
+			window.clearTimeout(second);
+		};
+	}, [core, altScreenActive]);
 
 	useEffect(() => {
 		// The WASM module has to be fetched and instantiated before a core can
@@ -158,6 +186,7 @@ export function BlockTerminal({
 		void (async () => {
 			try {
 				await initTerminalCoreFromUrl();
+				terminalDebug("block-terminal", "wasm initialized");
 				if (cancelled) {
 					return;
 				}
@@ -168,11 +197,13 @@ export function BlockTerminal({
 				coreRef.current = created;
 				const pending = pendingBytesRef.current;
 				pendingBytesRef.current = [];
+				terminalDebug("block-terminal", "core created", { buffered: pending.length });
 				for (const bytes of pending) {
 					feedToCore(created, bytes, seenLiveIdsRef.current, historyIdsRef.current);
 				}
 				setCore(created);
 			} catch (error) {
+				terminalDebug("block-terminal", "core FAILED", { error: String(error) });
 				if (!cancelled) {
 					setCoreError(error instanceof Error ? error : new Error(String(error)));
 				}
@@ -197,10 +228,30 @@ export function BlockTerminal({
 	}, [core, historyBlocks]);
 
 	useEffect(() => {
+		terminalDebug("block-terminal", "subscribing to transport", { sessionId });
+		let chunks = 0;
+		let bytesSeen = 0;
 		const unsubscribe = transport.onData((bytes) => {
+			chunks += 1;
+			bytesSeen += bytes.length;
 			const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-			if (text.includes(ALT_SCREEN_ENTER)) setAltScreenActive(true);
-			if (text.includes(ALT_SCREEN_LEAVE)) setAltScreenActive(false);
+			if (chunks <= 3 || chunks % 50 === 0) {
+				terminalDebug("block-terminal", "bytes", {
+					chunk: chunks,
+					len: bytes.length,
+					total: bytesSeen,
+					hasCore: Boolean(coreRef.current),
+					head: previewBytes(bytes),
+				});
+			}
+			if (text.includes(ALT_SCREEN_ENTER)) {
+				terminalDebug("block-terminal", "ALT SCREEN ENTER", { chunk: chunks });
+				setAltScreenActive(true);
+			}
+			if (text.includes(ALT_SCREEN_LEAVE)) {
+				terminalDebug("block-terminal", "ALT SCREEN LEAVE", { chunk: chunks });
+				setAltScreenActive(false);
+			}
 			if (coreRef.current) {
 				feedToCore(coreRef.current, bytes, seenLiveIdsRef.current, historyIdsRef.current);
 			} else {
@@ -269,6 +320,10 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
+	terminalDebug("block-terminal", "render", {
+		surface: coreError ? "error" : !core ? "loading" : altScreenActive ? "xterm(alt)" : "block-list",
+	});
+
 	if (coreError || !core) {
 		// Until the core exists -- and permanently if it fails to load -- the
 		// pane shows the raw surface the host handed us. A terminal that cannot
@@ -299,7 +354,12 @@ export function BlockTerminal({
 	} as unknown as Parameters<typeof TerminalSurface>[0];
 
 	return (
-		<div aria-label={ariaLabel} data-testid="block-terminal" className="block-terminal-root h-full w-full">
+		<div
+			aria-label={ariaLabel}
+			data-testid="block-terminal"
+			className="block-terminal-root h-full w-full"
+			ref={rootRef}
+		>
 			<TerminalSurface {...surfaceProps} />
 		</div>
 	);

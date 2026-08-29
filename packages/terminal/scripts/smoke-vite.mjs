@@ -229,6 +229,30 @@ async function main() {
 			);
 		}
 
+		const held = await page.evaluate(async () => {
+			const host = document.querySelector("#terminal-follow-root .terminal-host");
+			if (!host) return { ok: false };
+			const target = Math.round(host.scrollHeight / 2);
+			host.scrollTop = target;
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			const afterScroll = host.scrollTop;
+			for (let i = 0; i < 6; i += 1) {
+				window.dispatchEvent(new Event("resize"));
+				host.dispatchEvent(new Event("scroll"));
+				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			}
+			return { ok: true, target, afterScroll, afterRepaints: host.scrollTop };
+		});
+		if (!held.ok) {
+			fail("follow fixture host vanished before the scroll-hold check");
+		}
+		if (Math.abs(held.afterRepaints - held.afterScroll) > 2) {
+			fail(
+				`scroll position drifted across repaints: parked at ${held.afterScroll}, ` +
+					`ended at ${held.afterRepaints}; scrolling back through history fights the user`,
+			);
+		}
+
 		const resources = await page.evaluate(() => {
 			const seen = new Set();
 			performance.getEntriesByType("resource").forEach((entry) => {

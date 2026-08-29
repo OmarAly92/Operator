@@ -35,6 +35,7 @@ fn main() {
         "tray_attention_state",
         "tray_renderer_ready",
         "tray_set_locale",
+        "debug_log",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest)).unwrap();
 }

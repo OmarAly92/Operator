@@ -468,6 +468,16 @@ fn terminal_benchmark_runtime_identity() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn debug_log(scope: String, message: String) {
+    #[cfg(debug_assertions)]
+    println!("[renderer:{scope}] {message}");
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (scope, message);
+    }
+}
+
+#[tauri::command]
 async fn daemon_status(manager: tauri::State<'_, DaemonManager>) -> Result<DaemonStatus, String> {
     Ok(manager.status().await)
 }
@@ -1018,7 +1028,8 @@ void (async () => {
             native::delete_dropped_file,
             native::tray_attention_state,
             native::tray_renderer_ready,
-            native::tray_set_locale
+            native::tray_set_locale,
+            debug_log
         ]);
     }
     let app = builder

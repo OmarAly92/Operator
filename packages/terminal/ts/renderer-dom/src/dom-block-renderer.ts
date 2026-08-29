@@ -284,7 +284,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.latestBlocks = blocks;
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
-		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : container.scrollTop;
+		const anchorScrollTop = container.scrollTop;
+		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
 		const viewportHeight = container.clientHeight || 1;
 		const windowResult = computeWindow({
 			blocks,
@@ -335,7 +336,11 @@ export class DomBlockRenderer implements BlockRenderer {
 				this.blockElements.delete(id);
 			}
 		}
-		this.applyStickiness();
+		if (this.stickToBottom) {
+			this.applyStickiness();
+		} else if (Math.abs(container.scrollTop - anchorScrollTop) > 0.5) {
+			container.scrollTop = anchorScrollTop;
+		}
 		this.notifyPainted();
 	}
 

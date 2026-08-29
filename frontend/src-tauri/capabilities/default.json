@@ -34,6 +34,7 @@
 		"allow-delete-dropped-file",
 		"allow-tray-attention-state",
 		"allow-tray-renderer-ready",
-		"allow-tray-set-locale"
+		"allow-tray-set-locale",
+		"allow-debug-log"
 	]
 }
