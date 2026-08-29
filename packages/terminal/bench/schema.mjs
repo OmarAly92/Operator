@@ -156,8 +156,14 @@ export function validateBenchmark(result) {
 	} else {
 		throw new Error("renderer must be xterm or dom");
 	}
-	if (!new Set(["webgl", "canvas"]).has(result.rendererKind)) {
-		throw new Error("rendererKind must be webgl or canvas");
+	// xterm reports its backend (webgl/canvas); the package's renderer reports
+	// "dom". Pinning the kind per renderer is what stops a silent backend
+	// fallback from being recorded as a comparable number.
+	const kindsForRenderer = result.renderer === "dom" ? ["dom"] : ["webgl", "canvas"];
+	if (!new Set(kindsForRenderer).has(result.rendererKind)) {
+		throw new Error(
+			`rendererKind for ${result.renderer} must be one of ${kindsForRenderer.join(", ")}`,
+		);
 	}
 	if (!result.scenarios || typeof result.scenarios !== "object" || Array.isArray(result.scenarios)) {
 		throw new Error("scenarios must be an object");
