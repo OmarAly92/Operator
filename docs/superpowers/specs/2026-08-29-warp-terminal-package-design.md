@@ -116,7 +116,7 @@ duration). The user's `starship`/`oh-my-zsh`/`powerlevel10k` prompt stops render
 what makes a block's command text exact rather than scraped off the screen.
 *Consequence accepted:* Ctrl-R and Tab completion become our code (phases 2 and 3).
 
-**2.2 — Desktop first; mobile is phase 7.**
+**2.2 — Desktop first; mobile is phase 8.**
 `frontend/src/renderer` gets the package. `packages/mobile` keeps its current xterm
 fork until the desktop model is proven, then ports against the same daemon block
 stream. The daemon-side work is shared from day one so mobile inherits it.
@@ -143,6 +143,16 @@ hard repo boundary; the import rules in §4.2 are what actually keep it generic.
 **2.6 — OSC 133 is the baseline; our extension is additive.** §7.
 *Reasoning:* it is the single decision that makes the package generic, and it is the
 one Warp can no longer retrofit. See §3.3.
+
+**2.8 — The package renders the alternate screen itself; xterm is retired.**
+Decided 2026-08-29 after instrumenting a live agent session: it enters the alternate
+screen on the *first chunk* of output and stays there. Under the original plan
+`XtermTerminal.tsx` was the permanent alt-screen surface, which meant the pane the user
+actually watches all day was never ours — blocks, headers, actions and the editor only
+ever appeared for a plain shell. Warp does not embed a second emulator; neither will we.
+Phase 3 gives `vt-core` a real alternate-screen grid and the renderer a raw surface, and
+phase 7 deletes `XtermTerminal.tsx` along with the shell-terminal tabs.
+*Consequence accepted:* completions, navigation and chrome each move one phase later.
 
 **2.7 — The terminal pane is pixel-Warp; the app chrome around it stays agent-orchestrator.**
 `DESIGN.md:36` already carves this out: *"the accent is refined blue, and the terminal
@@ -728,7 +738,7 @@ WebGL renderer behind §9.1 — not a redesign of core, blocks or editor.
 ### 10.1 What it is
 
 A DOM-based editor at the bottom of the pane: multi-line, command syntax highlighting,
-ghost-text history suggestion, Ctrl-R history search, and (phase 3) a completions
+ghost-text history suggestion, Ctrl-R history search, and (phase 4) a completions
 dropdown. It is `ts/editor`, it talks to `ts/core`, and it MUST NOT import
 `ts/completions` directly — completions arrive through a provider interface registered
 on the core.
@@ -781,12 +791,38 @@ When the stream enters the alternate screen (`1049`), block capture suspends and
 pane hands the full area to a raw grid renderer. On leave, blocks resume and the
 alt-screen session leaves a single collapsed block recording what ran.
 
-Phase 1 uses the existing `XtermTerminal.tsx` as the raw surface, wired as the host's
-`AltScreenSurface`. It is not deleted — it becomes the fallback. Whether the package
-later ships its own raw surface is a phase 5 question, not a phase 1 one.
+Phases 1 and 2 use the existing `XtermTerminal.tsx` as the raw surface, wired as the
+host's `AltScreenSurface`. **This is a bridge, not the destination.** Phase 3 replaces
+it with the package's own alternate-screen grid, and phase 7 deletes it (§13.4).
+
+*Why this is not optional.* An agent session — Claude Code, or any TUI harness — enters
+the alternate screen on the first chunk of output and never leaves it. Measured on a
+live Operator session, 2026-08-29: the first mux frame was
+`ESC [?1049h ESC [22;0;0t ESC [?1h ESC = ESC [H ESC [2J`. If xterm owns the alt screen
+permanently then the block list, the Warp headers, the block actions and the phase-2
+editor are all invisible in the pane the user actually watches, and "it looks like Warp"
+is true only of a plain shell. §2.8.
+
+**What the package's raw surface MUST do (phase 3):**
+
+- `vt-core` keeps a second, fixed `rows × cols` grid for the alternate buffer. Entering
+  `1049` saves the cursor and switches the active grid; leaving restores both. The
+  alternate buffer has **no scrollback** — that is what the alternate buffer *is*, and
+  synthesizing one is a bug, not a feature.
+- Cursor addressing (`CUP`, `CUU/CUD/CUF/CUB`, `HVP`), scroll regions (`DECSTBM`, `IND`,
+  `RI`), erase (`ED`, `EL`) and line editing (`IL`, `DL`, `ICH`, `DCH`) apply to the
+  active grid. These are the sequences a full-screen TUI actually uses; a raw surface
+  that renders text but ignores them draws garbage.
+- The renderer paints the alternate grid through the same `BlockRenderer` seam, as a
+  single full-height region with no block chrome.
+- Input in the alternate screen is raw passthrough, exactly as the phase-2 editor
+  already does in `Released` (§10.2). The editor is hidden, not disabled-in-place.
 
 `vt-core` MUST track alt-screen as explicit state, not as a rendering detail; the
-daemon-side decoder needs the same signal to suspend capture (§13.2).
+daemon-side decoder needs the same signal to suspend capture (§13.2). Phase 1's boolean
+is the seam this grows from — it already freezes the block list correctly, and that
+behavior MUST survive: a TUI can draw bytes that look like marks, and routing them into
+`BlockGrid` would shred the real blocks the shell produced before the TUI took over.
 
 ---
 
@@ -864,14 +900,22 @@ History (blocks from before this client attached) comes from
 must converge on the same `BlockId` — that is why block id continuity is a Tier-2 field
 (§7.2).
 
-### 13.4 Retirement (phase 6)
+### 13.4 Retirement (phase 7)
 
 Per plan 7's settled decision 3, one session has exactly one terminal surface. These go:
 `ShellTerminalsView.tsx` (180 lines), `ShellTerminalTab.tsx` (194),
 `useShellTerminals.ts`, the `CenterPane` tab strip, the `/terminals` route
 (`frontend/src/renderer/routes/_shell.terminals.tsx`) and
-`frontend/e2e/shell-terminal-tabs.spec.ts`. This is last so a revert costs nothing
-before it.
+`frontend/e2e/shell-terminal-tabs.spec.ts`.
+
+**`XtermTerminal.tsx` goes here too, along with the `@xterm/*` dependencies** — but only
+once phase 3's alternate-screen grid has shipped and been used (§2.8, §11). Removing it
+before that leaves full-screen TUIs with no surface at all. The xterm bench adapter in
+`packages/terminal/bench/adapters/xterm.ts` **stays**: the §9.4 gate is defined against
+recorded xterm baselines, and deleting the thing we measure against would make the gate
+unfalsifiable.
+
+This is last so a revert costs nothing before it.
 
 ---
 
@@ -881,7 +925,7 @@ Each phase is a separate implementation plan. §0.3 applies.
 
 ### 14.0 The usable cutline — read before planning any phase
 
-The eight phases are not eight steps toward a first working terminal. There are two
+The nine phases are not nine steps toward a first working terminal. There are two
 lines that matter, and every phase must respect them.
 
 **Phases 0 + 1 = a terminal that works and ships.** At the end of phase 1, Operator's
@@ -894,17 +938,25 @@ the terminal to be *used*.
 **Phases 0 + 1 + 2 = it feels like Warp.** Phase 2 replaces readline with our editor
 and turns prompt suppression on. This is where the product identity lands.
 
-**Phases 3–7 are enrichment.** Completions, navigation, chrome, retirement and mobile
+**Phase 3 is what makes the agent pane ours.** It is not enrichment. A session running
+an agent CLI sits in the alternate screen from its first chunk of output, so until
+phase 3 lands, everything phases 1 and 2 built is invisible in that pane and xterm is
+what the user is looking at. §2.8, §11.
+
+**Phases 4–8 are enrichment.** Completions, navigation, chrome, retirement and mobile
 each make it better; none of them is load-bearing for a working terminal. If work stops
 after any of them, what exists still works.
 
-Two consequences a planner MUST honour:
+Three consequences a planner MUST honour:
 
 - **Phase 1 MUST be independently shippable.** No phase-1 task may leave the terminal
   unusable pending phase 2. The specific trap is prompt suppression — §8.1, and §15
   item 16.
 - **Phase 2 MUST NOT be partially adopted.** Suppression and the editor land together
   or neither lands.
+- **Phase 3 MUST NOT delete `XtermTerminal.tsx`.** It ships the replacement and leaves
+  the old surface reachable behind a host flag; deletion is phase 7, after the new
+  surface has carried real use. §13.4.
 
 ### Phase 0 — Skeleton and gate
 
@@ -925,7 +977,7 @@ one block.
 ### Phase 1 — Blocks
 
 **Deliver:** `vt-core` parser, flat cell grid, blockgrid with sum tree, selection, and
-the find *engine* (§6.5 — the find UI is phase 4, but the engine ships here because the
+the find *engine* (§6.5 — the find UI is phase 5, but the engine ships here because the
 sum tree it queries is built here and retrofitting it later means rewriting it);
 `crates/marks` and `go/marks` with the §7.4 recovery table, vectors and fuzz target;
 `shell/zsh.sh` per §8 **with prompt suppression disabled** (§8.1); `renderer-dom` with
@@ -969,7 +1021,28 @@ history; Ctrl-R; edit-and-rerun from a block; `shell/bash.sh` and `shell/fish.fi
   timer-driven path can inject a line into a running program;
 - the §9.4 gate still passes, `input-latency` included.
 
-### Phase 3 — Completions
+### Phase 3 — The alternate screen
+
+**Deliver:** the alternate-screen grid in `vt-core` per §11 — second grid, saved cursor,
+cursor addressing, scroll regions, erase and line editing; the raw surface in
+`renderer-dom` behind the existing `BlockRenderer` seam; the alt-screen slot switched
+from `XtermTerminal` to the package's own surface; raw input passthrough while the
+alternate screen is active.
+
+**Accept when:**
+- `vim`, `htop` and `less` render correctly, including window resize and `less`'s
+  scroll-region use — verified by running them, not by unit tests alone;
+- an agent CLI (Claude Code) runs end to end in the package's own surface with
+  `XtermTerminal` unmounted;
+- entering and leaving the alternate screen leaves exactly one collapsed block, and the
+  blocks recorded before entry are byte-identical afterwards (the §11 shred rule);
+- the alternate buffer has no scrollback: scrolling up in a full-screen TUI moves
+  nothing, matching every other terminal;
+- `XtermTerminal.tsx` is still present and still reachable behind a host flag, so a
+  regression is one flag away from a working pane — its deletion is phase 7;
+- the §9.4 gate still passes.
+
+### Phase 4 — Completions
 
 **Deliver:** `ts/completions`; the provider interface on the core; path, flag and git
 subcommand providers; fuzzy ranking; the dropdown UI; a declarative spec format for
@@ -981,7 +1054,7 @@ per-command completions.
 - the spec format has at least three commands defined in it and a documented schema;
 - the §9.4 gate still passes.
 
-### Phase 4 — Navigation
+### Phase 5 — Navigation
 
 **Deliver:** command palette; block find, filter and bookmark; sticky command header;
 jump-to-block; the full block action menu.
@@ -989,7 +1062,7 @@ jump-to-block; the full block action menu.
 **Accept when:** find across a 500k-row scrollback returns first results under 100ms and
 is cancellable; every action is keyboard-reachable; the §9.4 gate still passes.
 
-### Phase 5 — Chrome and configuration
+### Phase 6 — Chrome and configuration
 
 **Deliver:** the theme system with Warp theme-file loading; font and ligature settings;
 splits and panes; scrollback persistence and restore.
@@ -997,14 +1070,14 @@ splits and panes; scrollback persistence and restore.
 **Accept when:** a stock Warp theme file loads and renders; a restored session shows
 its prior blocks with correct metadata; the §9.4 gate still passes.
 
-### Phase 6 — Retirement
+### Phase 7 — Retirement
 
 **Deliver:** §13.4.
 
 **Accept when:** the files listed in §13.4 are gone, no route references `/terminals`,
 and the full e2e suite passes.
 
-### Phase 7 — Mobile
+### Phase 8 — Mobile
 
 **Deliver:** the block renderer and input editor in Flutter against the same daemon
 block stream, per `CLAUDE.md`'s `packages/mobile` conventions.
@@ -1036,7 +1109,9 @@ broken.
 10. **Importing across the package boundary by relative path.** §4.2.
 11. **Adding a canvas fast-path inside a DOM block.** §9.3. The escape hatch is a whole
     renderer, not a hybrid.
-12. **Deleting `XtermTerminal.tsx` in phase 1.** It becomes the alt-screen surface. §11.
+12. **Deleting `XtermTerminal.tsx` before phase 7.** It is the alt-screen surface for
+    phases 1 and 2, and phase 3's own surface must prove itself before the fallback goes.
+    §11, §13.4.
 13. **Reading the user's shell history file.** §10.4.
 14. **Adding a second extension encoding.** §7.3. Unknown keys are ignored; that is the
     versioning story.
@@ -1129,8 +1204,8 @@ Our component on the left, what to read on the right.
 | `ts/editor` (§10) | `app/src/terminal/input.rs` (16,760 lines — skim), `app/src/terminal/input/{classic.rs,buffer_model.rs}`, `app/src/editor/` | the buffer model and what the editor must own | `input.rs`'s size is the §3.4 lesson; ours is split by §4.3 |
 | Line-editor ownership (§10.2) | `app/src/terminal/line_editor_status.rs` | the exact problem statement, stated well in its own comments | the 50ms timer and the `did_receive_zsh_precmd` proxy — §3.5 |
 | History (§10.4) | `app/src/terminal/{history.rs,history_tests.rs}` | dedup, ordering, per-directory ranking | reading the user's shell history file — §10.4 |
-| `ts/completions` (§14 phase 3) | `crates/warp_completer/src/{lib.rs,meta.rs,parsers/,signatures/}`, `crates/warp_completer/src/parsers/README.md`, `app/src/completer/`, `app/src/terminal/dynamic_enum_suggestions.rs`, `command-signatures-v2/` | the spec format and the command-signature idea | anything that executes in the user's shell — §3.6 |
-| Command palette (§14 phase 4) | `app/src/command_palette.rs` | action registry and ranking | — |
+| `ts/completions` (§14 phase 4) | `crates/warp_completer/src/{lib.rs,meta.rs,parsers/,signatures/}`, `crates/warp_completer/src/parsers/README.md`, `app/src/completer/`, `app/src/terminal/dynamic_enum_suggestions.rs`, `command-signatures-v2/` | the spec format and the command-signature idea | anything that executes in the user's shell — §3.6 |
+| Command palette (§14 phase 5) | `app/src/command_palette.rs` | action registry and ranking | — |
 | Themes (§12.1) | `app/src/themes/{theme.rs,default_themes.rs}` | the theme file format we must load | their theme creator UI is out of scope |
 | Links (§9) | `app/src/terminal/links.rs`, `model/grid/hyperlink_registry.rs` | OSC 8 hyperlinks and detected links as a side table | — |
 | Keys (§10) | `app/src/terminal/{keys.rs,keys_settings.rs,meta_shortcuts.rs}` | keymap layering | — |
@@ -1173,11 +1248,11 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 5 | the single vite alias | `frontend/vite.renderer.config.ts:78-80` |
 | 5.2 | the only Cargo package, standalone, Rust 1.96 | `frontend/src-tauri/Cargo.toml` |
 | 9.4 | existing perf scenarios and runner | `frontend/perf/scenarios.json`, `frontend/scripts/benchmark-terminal.mjs` |
-| 11, 13.3 | the surface that becomes the alt-screen fallback | `frontend/src/renderer/components/XtermTerminal.tsx` (1,057 lines) |
+| 11, 13.3 | the alt-screen bridge for phases 1–2, replaced in phase 3, deleted in phase 7 | `frontend/src/renderer/components/XtermTerminal.tsx` (1,057 lines) |
 | 12.2 | the eight locale files | `frontend/src/renderer/i18n/{en,zh-CN,ja,ko,es,fr,de,pt-BR}.json` |
 | 13.1 | per-client attach makes in-band parsing wrong | `backend/internal/terminal/manager.go:448`, `backend/internal/terminal/doc.go:11` |
 | 13.1 | `SourceID` was always meant to carry a shell mark's counter | `backend/internal/service/blockevent/types.go:11-17` |
 | 13.1 | `ActivitySignal` is hook-shaped and must not be overloaded | `backend/internal/ports/runtime_observations.go:41` |
 | 13.2 | the existing `blocks` mux channel and its frames | `frontend/src/renderer/lib/terminal-mux.ts:12`, `:75-80` |
 | 13.3 | host link policy Operator already has | `frontend/src/renderer/lib/external-link-policy.ts` |
-| 13.4 | what phase 6 retires | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` (194) · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` |
+| 13.4 | what phase 7 retires | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` (194) · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` · `XtermTerminal.tsx` (1,057) · the `@xterm/*` dependencies — **not** `bench/adapters/xterm.ts`, which the §9.4 gate measures against |
