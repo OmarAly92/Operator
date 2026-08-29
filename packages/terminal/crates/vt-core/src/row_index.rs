@@ -36,17 +36,31 @@ impl RowIndex {
         &self.completed
     }
 
+    /// Drops the oldest completed rows until at most `max_total` rows (the open
+    /// row included) remain, and returns the monotonic start offset of the
+    /// earliest row still referenced by the index.
+    ///
+    /// The returned offset is what the caller may release. It is the first
+    /// retained row's start, never the open row's start: rows between them are
+    /// still rendered, and releasing their bytes blanks the scrollback.
     pub fn trim_to(&mut self, max_total: usize) -> Option<u64> {
         let mut dropped = false;
         while self.completed.len() + 1 > max_total {
-            self.completed.pop_front()?;
+            if self.completed.pop_front().is_none() {
+                break;
+            }
             dropped = true;
         }
-        if dropped {
-            Some(self.open_start)
-        } else {
-            None
+        if !dropped {
+            return None;
         }
+        Some(self.earliest_retained_start())
+    }
+
+    fn earliest_retained_start(&self) -> u64 {
+        self.completed
+            .front()
+            .map_or(self.open_start, |row| row.start)
     }
 }
 
@@ -60,10 +74,31 @@ mod tests {
         r.complete_row(10);
         r.complete_row(20);
         r.complete_row(30);
-        let _ = r.trim_to(2);
+        let released = r.trim_to(2);
         assert_eq!(r.completed().len(), 1);
         assert_eq!(r.completed()[0].start, 20);
         assert_eq!(r.completed()[0].end, 30);
+        assert_eq!(
+            released,
+            Some(20),
+            "must release only up to the first retained row"
+        );
+    }
+
+    #[test]
+    fn trim_to_zero_still_reports_the_release_offset() {
+        let mut r = RowIndex::new(0);
+        r.complete_row(10);
+        assert_eq!(r.trim_to(0), Some(10));
+        assert_eq!(r.completed().len(), 0);
+    }
+
+    #[test]
+    fn trim_to_reports_nothing_when_under_the_limit() {
+        let mut r = RowIndex::new(0);
+        r.complete_row(10);
+        assert_eq!(r.trim_to(8), None);
+        assert_eq!(r.completed().len(), 1);
     }
 
     #[test]

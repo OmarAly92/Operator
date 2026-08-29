@@ -10,12 +10,13 @@ pub enum ExportError {
     OffsetOverflow,
 }
 
+/// Narrows a byte count to the `u32` the JavaScript views index with.
+///
+/// `refresh` uses it on the content length: `GridSnapshot` row offsets are
+/// already checked `u32`s, but the flat content buffer is a `usize` that the
+/// TypeScript side addresses as `u32`, so it needs its own guard.
 pub fn checked_u32_from_u64(value: u64) -> Result<u32, ExportError> {
-    if value > u32::MAX as u64 {
-        Err(ExportError::OffsetOverflow)
-    } else {
-        Ok(value as u32)
-    }
+    u32::try_from(value).map_err(|_| ExportError::OffsetOverflow)
 }
 
 #[derive(Default)]
@@ -33,6 +34,7 @@ impl ExportBuffers {
         self.run_ranges.clear();
         self.style_pairs.clear();
 
+        checked_u32_from_u64(snapshot.content.len() as u64)?;
         self.content.extend_from_slice(snapshot.content.as_slice());
 
         for &(start, end) in &snapshot.rows {
@@ -83,7 +85,8 @@ impl WasmTerminalCore {
     pub fn new(columns: usize, scrollback_rows: usize) -> Result<WasmTerminalCore, JsError> {
         let core = TerminalCore::new(columns, scrollback_rows).map_err(js_error_from_core)?;
         let mut export = ExportBuffers::default();
-        export.refresh(&core.snapshot())?;
+        let snapshot = core.snapshot().map_err(js_error_from_core)?;
+        export.refresh(&snapshot)?;
         Ok(WasmTerminalCore {
             core,
             export,
@@ -93,7 +96,8 @@ impl WasmTerminalCore {
 
     pub fn feed(&mut self, bytes: &[u8]) -> Result<(), JsError> {
         self.core.feed(bytes);
-        self.export.refresh(&self.core.snapshot())?;
+        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
+        self.export.refresh(&snapshot)?;
         self.generation = self.generation.wrapping_add(1);
         Ok(())
     }
@@ -141,6 +145,7 @@ fn js_error_from_core(err: vt_core::CoreError) -> JsError {
         vt_core::CoreError::ZeroScrollback => {
             JsError::new("terminal core requires scrollback_rows > 0")
         }
+        vt_core::CoreError::OffsetOverflow => JsError::new("snapshot offset overflows u32"),
     }
 }
 

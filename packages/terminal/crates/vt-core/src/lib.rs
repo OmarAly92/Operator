@@ -13,6 +13,8 @@ use vte::Parser as VteParser;
 pub enum CoreError {
     ZeroColumns,
     ZeroScrollback,
+    /// A snapshot offset did not fit the `u32` the export buffers carry.
+    OffsetOverflow,
 }
 
 pub struct TerminalCore {
@@ -41,7 +43,7 @@ impl TerminalCore {
         self.parser.trim_to(self.scrollback_rows);
     }
 
-    pub fn snapshot(&self) -> grid::GridSnapshot {
+    pub fn snapshot(&self) -> Result<grid::GridSnapshot, CoreError> {
         grid::build_snapshot(
             self.parser.content(),
             self.parser.rows(),

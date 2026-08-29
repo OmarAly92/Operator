@@ -38,7 +38,14 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+      - uses: actions/cache@v4
+        id: wasm-bindgen-cli
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}
+
+      - if: steps.wasm-bindgen-cli.outputs.cache-hit != 'true'
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
 
       - run: npm ci --prefix ../packages/terminal
 
@@ -91,7 +98,14 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+      - uses: actions/cache@v4
+        id: wasm-bindgen-cli
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}
+
+      - if: steps.wasm-bindgen-cli.outputs.cache-hit != 'true'
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
 
       - run: npm ci --prefix ../packages/terminal
 

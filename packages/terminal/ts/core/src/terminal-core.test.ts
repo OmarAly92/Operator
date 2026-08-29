@@ -33,6 +33,21 @@ describe("TerminalCore", () => {
 	});
 });
 
+describe("TerminalCore.onChange failure isolation", () => {
+	it("runs every listener and reports the failures together", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const later = vi.fn();
+		core.onChange(() => {
+			throw new Error("renderer exploded");
+		});
+		core.onChange(later);
+
+		expect(() => core.feed(new TextEncoder().encode("x"))).toThrow(AggregateError);
+		expect(later).toHaveBeenCalledTimes(1);
+		expect(new TextDecoder().decode(core.snapshot().content)).toBe("x");
+	});
+});
+
 describe("TerminalCore.onChange", () => {
 	it("fires once per successful feed and unsubscribes cleanly", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });

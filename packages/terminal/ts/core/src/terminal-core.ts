@@ -35,8 +35,19 @@ export class TerminalCore {
 		}
 		this.inner.feed(bytes);
 		const generation = this.inner.generation();
+		// Every listener runs even when one throws: the core has already
+		// consumed the bytes, so skipping the rest would leave subscribers
+		// disagreeing with core state. Failures surface together afterwards.
+		let failures: unknown[] | null = null;
 		for (const listener of this.listeners) {
-			listener(generation);
+			try {
+				listener(generation);
+			} catch (error) {
+				(failures ??= []).push(error);
+			}
+		}
+		if (failures) {
+			throw new AggregateError(failures, "terminal core change listener failed");
 		}
 	}
 

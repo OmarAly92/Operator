@@ -6,7 +6,7 @@ fn flattens_rows_and_runs_as_u32_pairs() {
     let mut core = TerminalCore::new(16, 10).unwrap();
     core.feed(b"\x1b[31mred\x1b[0m ok\nplain");
     let mut buffers = ExportBuffers::default();
-    buffers.refresh(&core.snapshot()).unwrap();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
 
     assert_eq!(buffers.content(), b"red okplain");
     assert_eq!(buffers.rows(), &[0, 6, 6, 11]);
@@ -29,12 +29,12 @@ fn refresh_clears_previous_buffers() {
     let mut core = TerminalCore::new(16, 10).unwrap();
     core.feed(b"first row\nsecond");
     let mut buffers = ExportBuffers::default();
-    buffers.refresh(&core.snapshot()).unwrap();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
     let first_content = buffers.content().to_vec();
     let first_rows = buffers.rows().to_vec();
 
     core.feed(b"\nshort");
-    buffers.refresh(&core.snapshot()).unwrap();
+    buffers.refresh(&core.snapshot().unwrap()).unwrap();
 
     assert_ne!(first_content.len(), buffers.content().len());
     assert_ne!(first_rows, buffers.rows());

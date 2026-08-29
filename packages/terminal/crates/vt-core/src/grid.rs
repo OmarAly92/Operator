@@ -2,6 +2,16 @@ use crate::attribute_map::AttributeMap;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::style::StyleCode;
+use crate::CoreError;
+
+/// Narrows a snapshot-local length to the `u32` the export buffers carry.
+///
+/// Every offset in a `GridSnapshot` is a `u32`, so an unchecked `as` here would
+/// silently truncate on a snapshot past 4 GiB and hand the renderer ranges that
+/// point at the wrong bytes. The failure surfaces instead.
+pub(crate) fn checked_u32(value: usize) -> Result<u32, CoreError> {
+    u32::try_from(value).map_err(|_| CoreError::OffsetOverflow)
+}
 
 pub struct GridSnapshot {
     pub content: Vec<u8>,
@@ -31,7 +41,7 @@ pub(crate) fn build_snapshot(
     content: &Content,
     rows: &RowIndex,
     styles: &AttributeMap<StyleCode>,
-) -> GridSnapshot {
+) -> Result<GridSnapshot, CoreError> {
     let open_start = rows.open_start();
     let end = content.end_offset();
     let mut all_content = Vec::new();
@@ -46,17 +56,17 @@ pub(crate) fn build_snapshot(
     };
 
     for row in rows.completed() {
-        append_row(&mut ctx, content, styles, row.start, row.end);
+        append_row(&mut ctx, content, styles, row.start, row.end)?;
     }
 
-    append_row(&mut ctx, content, styles, open_start, end);
+    append_row(&mut ctx, content, styles, open_start, end)?;
 
-    GridSnapshot {
+    Ok(GridSnapshot {
         content: all_content,
         rows: row_ranges,
         run_ranges,
         style_pairs,
-    }
+    })
 }
 
 struct SnapshotCtx<'a> {
@@ -72,20 +82,23 @@ fn append_row(
     styles: &AttributeMap<StyleCode>,
     row_start: u64,
     row_end: u64,
-) {
+) -> Result<(), CoreError> {
     let bytes = content.copy_range(row_start, row_end);
-    let content_base = ctx.all_content.len() as u32;
-    ctx.row_ranges
-        .push((content_base, content_base + bytes.len() as u32));
+    let content_base = checked_u32(ctx.all_content.len())?;
+    let content_end = checked_u32(ctx.all_content.len() + bytes.len())?;
+    ctx.row_ranges.push((content_base, content_end));
     ctx.all_content.extend_from_slice(&bytes);
 
-    let pair_start = ctx.style_pairs.len() as u32;
+    let pair_start = checked_u32(ctx.style_pairs.len())?;
     if !bytes.is_empty() {
+        // Style runs are keyed by the row's own byte span. `copy_range` returns
+        // exactly that span, so the pair offsets and `bytes` always agree.
         let pairs = styles.runs(row_start, row_end);
         for (end, code) in pairs {
             ctx.style_pairs.push((end, code));
         }
     }
-    let pair_end = ctx.style_pairs.len() as u32;
+    let pair_end = checked_u32(ctx.style_pairs.len())?;
     ctx.run_ranges.push((pair_start, pair_end));
+    Ok(())
 }
