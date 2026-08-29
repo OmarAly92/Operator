@@ -82,7 +82,7 @@ wild. The vectors under `vectors/osc133-st-terminator.json` and
 ### 4.1 Encoding
 
 ```
-OSC 7000 ; key=value ; key=value ST
+OSC 7000 ; key=value ; key=value (ST | BEL)
 ```
 
 - The leading `OSC 7000 ;` is fixed text; the first key follows immediately
@@ -94,8 +94,9 @@ OSC 7000 ; key=value ; key=value ST
   alphabet for the unencoded form is the bytes that are safe in a pty
   stream: `[A-Za-z0-9._~/:@!$&'()*+,;=-]`. Every other byte — including
   space — MUST be percent-encoded.
-- `ST` is the terminator (BEL is not accepted for Tier 2; Tier 2 marks are
-  emitted by our bootstrap, which uses ST).
+- `ST` or `BEL` terminates a Tier-2 mark. The bootstrap emits `ST`, while
+  decoders also accept `BEL` for compatible pty producers and the official
+  compact ownership-mark vectors.
 
 ### 4.2 Version key
 

@@ -73,6 +73,13 @@ fn event_kind_tier(ev: &MarkEvent) -> (String, MarkTier) {
 }
 
 fn expected_event(name: &str, ev: &RawEvent) -> MarkEvent {
+    if ev
+        .tier
+        .as_ref()
+        .is_some_and(|tier| tier.mark_tier().is_none())
+    {
+        panic!("unsupported tier in vector {name}: {:?}", ev.tier);
+    }
     match ev.kind.as_str() {
         "prompt_start" => MarkEvent::PromptStart {
             tier: expected_tier(name, ev),
@@ -150,6 +157,26 @@ fn every_vector_decodes_to_its_expected_events() {
 fn unsupported_vector_tiers_are_rejected() {
     assert_eq!(RawTier::Number(3).mark_tier(), None);
     assert_eq!(RawTier::Name("extension".to_string()).mark_tier(), None);
+}
+
+#[test]
+fn unsupported_declared_tiers_are_rejected_for_every_event_kind() {
+    for kind in [
+        "extension",
+        "input_ready",
+        "input_released",
+        "alt_screen_enter",
+        "alt_screen_leave",
+    ] {
+        let event = RawEvent {
+            kind: kind.to_string(),
+            tier: Some(RawTier::Number(3)),
+            exit_code: None,
+            path: Some("/".to_string()),
+            pairs: None,
+        };
+        assert!(std::panic::catch_unwind(|| expected_event("invalid-tier", &event)).is_err());
+    }
 }
 
 #[test]
