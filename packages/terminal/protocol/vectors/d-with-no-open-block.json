@@ -1,0 +1,12 @@
+{
+  "name": "d-with-no-open-block",
+  "input": "stray D with no open block\u001b]133;D;0\u0007",
+  "events": [
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ],
+  "note": "The decoder reports the mark; recovery row 3 -- a D with no open block is ignored -- is enforced by the block layer, proven by BlockGrid::closing_with_no_open_block_is_ignored."
+}

@@ -5,3 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[features]
+default = []
+# Enables the `testing` module (dev helpers, requires serde/serde_json). The
+# decoder itself never depends on serde — the test harness is the only consumer.
+testing = ["dep:serde", "dep:serde_json"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+# `cargo test` enables the `testing` feature on this crate so the integration
+# test under `tests/vectors.rs` can call `marks::testing::load_vector`.
+terminal-marks = { path = ".", features = ["testing"] }

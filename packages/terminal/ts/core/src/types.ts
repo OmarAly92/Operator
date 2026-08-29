@@ -94,3 +94,26 @@ export function validateRowRange(range: RowRange): void {
 		throw new Error("row range end must be greater than or equal to start");
 	}
 }
+
+export type ShellKind = "zsh";
+
+/**
+ * What the host tells the package to spawn. `argv` is passed to `execvp` as-is;
+ * `env` is merged into the child's environment. The package is the only
+ * authority on the spawn contract — the host never invents the argv.
+ */
+export type SpawnRecipe = {
+	argv: string[];
+	env: Record<string, string>;
+};
+
+/**
+ * Which mark tier the host wants and whether the package may suppress the
+ * user's prompt. The `suppressPrompt` flag is rejected at runtime in
+ * Phase 1a (it would leave the user with no readline); Phase 2 removes
+ * the guard alongside the editor.
+ */
+export type BootstrapOptions = Readonly<{
+	integration: "auto" | "osc133-only" | "off";
+	suppressPrompt: boolean;
+}>;

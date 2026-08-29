@@ -1,0 +1,23 @@
+{
+  "name": "extension-higher-version-ignored",
+  "input": "\u001b]133;A\u0007$  \u001b]133;B\u0007ls\u001b]133;C\u0007out\u001b]7000;v=2; cmd=ls\u001b\\\u001b]133;D;0\u0007",
+  "events": [
+    {
+      "kind": "prompt_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_start",
+      "tier": 1
+    },
+    {
+      "kind": "output_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ]
+}

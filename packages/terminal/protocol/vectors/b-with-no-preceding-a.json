@@ -1,0 +1,19 @@
+{
+  "name": "b-with-no-preceding-a",
+  "input": "hello\u001b]133;B\u0007ls\u001b]133;C\u0007out\u001b]133;D;0\u0007",
+  "events": [
+    {
+      "kind": "command_start",
+      "tier": 1
+    },
+    {
+      "kind": "output_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ]
+}
