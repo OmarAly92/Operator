@@ -195,6 +195,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// The current attachment's flush, published so teardown can land buffered
 		// bytes instead of discarding them (the closure lives inside connect).
 		flushReplay: null as ((preserveBeforeTeardown?: boolean) => void) | null,
+		byteListeners: new Set<(bytes: Uint8Array) => void>(),
 	});
 
 	const transition = useCallback((next: TerminalSessionState) => {
@@ -459,6 +460,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.disposers.push(
 			mux.onData(handle, (bytes) => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
+				for (const listener of [...r.byteListeners]) listener(bytes);
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
@@ -806,8 +808,10 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			},
 			onData: (listener: (bytes: Uint8Array) => void) => {
 				const r = runtime.current;
-				if (!r.mux || !r.handle) return () => undefined;
-				return r.mux.onData(r.handle, listener);
+				r.byteListeners.add(listener);
+				return () => {
+					r.byteListeners.delete(listener);
+				};
 			},
 			resize: (cols: number, rows: number) => {
 				const r = runtime.current;

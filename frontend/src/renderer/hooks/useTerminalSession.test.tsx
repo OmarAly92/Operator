@@ -182,19 +182,14 @@ function setup({
 		{ initialProps, wrapper },
 	);
 	const terminal = createFakeTerminal();
-	let detach: () => void = () => undefined;
-	act(() => {
-		detach = view.result.current.attach(terminal);
-	});
-	// Subscribe to the transport AFTER attach so the hook has wired the mux.
-	// The transport's onData looks up r.mux/r.handle from runtime.current, so a
-	// pre-attach subscribe would get a no-op unsubscribe.
 	const transportBytes: string[] = [];
 	let unsubscribeTransport = view.result.current.transport.onData((bytes) => {
 		transportBytes.push(new TextDecoder().decode(bytes));
 	});
-	// A reconnect spins up a fresh mux and tears down the old one; tests that
-	// simulate reconnects should call this to re-subscribe to the new attachment.
+	let detach: () => void = () => undefined;
+	act(() => {
+		detach = view.result.current.attach(terminal);
+	});
 	const resubscribeTransport = () => {
 		unsubscribeTransport();
 		unsubscribeTransport = view.result.current.transport.onData((bytes) => {
@@ -238,6 +233,15 @@ describe("useTerminalSession", () => {
 		const { view, muxes } = setup({ attachedSession: { ...session, terminalHandleId: undefined } });
 		expect(view.result.current.state).toBe("idle");
 		expect(muxes).toHaveLength(0);
+	});
+
+	it("delivers the replayed scrollback to a subscriber that subscribed before attach", () => {
+		const { transportBytes, muxes } = setup();
+		expect(transportBytes).toEqual([]);
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => muxes[0].emitData("handle-1", "scrollback from an idle session"));
+		act(() => void vi.advanceTimersByTime(60));
+		expect(transportBytes.join("")).toContain("scrollback from an idle session");
 	});
 
 	it("forwards PTY output, keystrokes, and resizes across the attachment", () => {
