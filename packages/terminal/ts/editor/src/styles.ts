@@ -62,4 +62,9 @@ export const editorStyles = `.terminal-editor {
 .terminal-editor-ghost {
 	color: var(--terminal-ansi-8);
 	opacity: 0.72;
+}
+
+.terminal-editor-search {
+	padding-bottom: 4px;
+	color: var(--terminal-ansi-6);
 }`;

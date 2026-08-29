@@ -83,6 +83,8 @@
 	"blocks.copyCommand": "Befehl kopieren",
 	"blocks.copyOutput": "Ausgabe kopieren",
 	"blocks.rerunCommand": "Erneut ausführen",
+	"blocks.searchHistory": "Verlauf durchsuchen",
+	"blocks.searchNoMatches": "Keine Treffer",
 	"blocks.shellBlocksUnavailable": "Shell-Blöcke sind in diesem Terminal nicht verfügbar.",
 	"command.back": "Zurück",
 	"command.copyBranch": "Branch-Namen kopieren",

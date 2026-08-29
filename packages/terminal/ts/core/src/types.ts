@@ -130,6 +130,8 @@ export type TerminalStrings = Readonly<{
 	copyOutput: string;
 	rerunCommand: string;
 	shellBlocksUnavailable: string;
+	searchHistory: string;
+	searchNoMatches: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -141,6 +143,8 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	copyOutput: "Copy output",
 	rerunCommand: "Re-run",
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
+	searchHistory: "Search history",
+	searchNoMatches: "No matches",
 });
 
 export type HostCapabilities = Readonly<{

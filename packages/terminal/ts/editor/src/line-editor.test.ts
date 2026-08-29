@@ -57,6 +57,23 @@ describe("LineEditor ownership", () => {
 		expect(host.sent).toEqual(["git status"]);
 	});
 
+	it("accepts a Ctrl-R match without submitting it", () => {
+		const { editor, container, core, host } = mount();
+		core.feed(
+			encode(
+				"\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07",
+			),
+		);
+		editor.handleKey(key({ key: "r", ctrlKey: true }));
+		editor.handleKey(key({ key: "s" }));
+		editor.handleKey(key({ key: "t" }));
+		expect(container.querySelector(".terminal-editor-search")?.textContent).toContain("git status");
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual([]);
+		editor.handleKey(key({ key: "Enter" }));
+		expect(host.sent).toEqual(["git status"]);
+	});
+
 	it("is read-only and passes keystrokes straight through while Released", () => {
 		const { editor, host, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));

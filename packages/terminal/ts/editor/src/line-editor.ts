@@ -1,13 +1,16 @@
 import {
 	decodeBlocks,
+	defaultStrings,
 	type FontConfig,
 	type TerminalCore,
+	type TerminalStrings,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
+import { ReverseSearch } from "./reverse-search.js";
 import { editorStyles } from "./styles.js";
 
 export type EditorHost = {
@@ -19,6 +22,9 @@ export class LineEditor {
 	private readonly buffer = new EditorBuffer();
 	private history = new HistoryModel();
 	private historyPrefix: string | null = null;
+	private readonly search = new ReverseSearch();
+	private searchOpen = false;
+	private strings: TerminalStrings = defaultStrings;
 	private core: TerminalCore | null = null;
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
@@ -31,6 +37,8 @@ export class LineEditor {
 		this.host = host;
 		this.history = new HistoryModel();
 		this.historyPrefix = null;
+		this.search.cancel();
+		this.searchOpen = false;
 		const root = document.createElement("div");
 		root.className = "terminal-editor";
 		root.tabIndex = 0;
@@ -76,6 +84,11 @@ export class LineEditor {
 		this.render();
 	}
 
+	setStrings(strings: TerminalStrings): void {
+		this.strings = strings;
+		this.render();
+	}
+
 	focus(): void {
 		this.root?.focus();
 	}
@@ -93,11 +106,16 @@ export class LineEditor {
 	}
 
 	handleKey(event: KeyboardEvent): void {
+		if (this.handleSearchKey(event)) return;
 		const command = mapKey(event);
 		if (command) this.apply(command);
 	}
 
 	private readonly onKeyDown = (event: KeyboardEvent): void => {
+		if (this.handleSearchKey(event)) {
+			event.preventDefault();
+			return;
+		}
 		const command = mapKey(event);
 		if (!command) return;
 		event.preventDefault();
@@ -169,6 +187,8 @@ export class LineEditor {
 				break;
 			}
 			case "reverse-search":
+				this.search.open(this.history.entries());
+				this.searchOpen = true;
 				break;
 		}
 		this.render();
@@ -213,7 +233,47 @@ export class LineEditor {
 				nodes[nodes.length - 1]?.append(ghost);
 			}
 		}
+		if (this.searchOpen) {
+			const state = this.search.state();
+			const search = document.createElement("div");
+			search.className = "terminal-editor-search";
+			search.dataset.matches = String(state.total);
+			const match = state.match ?? this.strings.searchNoMatches;
+			search.textContent = `${this.strings.searchHistory}: ${state.query} — ${match}`;
+			nodes.unshift(search);
+		}
 		root.replaceChildren(...nodes);
+	}
+
+	private handleSearchKey(event: KeyboardEvent): boolean {
+		if (!this.searchOpen) return false;
+		if (this.core?.lineEditorState() !== "owned") {
+			this.search.cancel();
+			this.searchOpen = false;
+			return false;
+		}
+		if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "r") {
+			this.search.next();
+		} else if (event.key === "Backspace") {
+			this.search.backspace();
+		} else if (event.key === "ArrowDown") {
+			this.search.next();
+		} else if (event.key === "ArrowUp") {
+			this.search.previous();
+		} else if (event.key === "Enter") {
+			const match = this.search.accept();
+			if (match !== null) this.buffer.setText(match);
+			this.searchOpen = false;
+		} else if (event.key === "Escape") {
+			this.search.cancel();
+			this.searchOpen = false;
+		} else if (!event.ctrlKey && !event.altKey && !event.metaKey && event.key.length === 1) {
+			this.search.type(event.key);
+		} else {
+			return true;
+		}
+		this.render();
+		return true;
 	}
 
 	private ingestHistory(): void {
