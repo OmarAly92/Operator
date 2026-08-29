@@ -572,18 +572,76 @@ git commit -m "feat(terminal): track line-editor ownership from marks, never fro
 - Consumes: the mark encoding from Task 1.
 - Produces: a zsh session emitting `input-ready` when the line editor starts and `input-released` before a command runs. Task 10 adds suppression to the same file.
 
-- [ ] **Step 1: Write the failing shell test**
+- [ ] **Step 1: Add a PTY harness, because the existing one cannot see this**
 
-Add to `packages/terminal/shell/zsh.test.mjs`. The existing harness runs a real zsh with the bootstrap sourced and captures the byte stream; follow its established pattern for spawning.
+`zsh.test.mjs` spawns `zsh -f -c`, which is **non-interactive**. zle never initializes there, so `zle -N` and `add-zle-hook-widget` silently do nothing and `line-init` never fires. A test written against that harness passes whether or not the hook is registered — deleting the entire `add-zle-hook-widget` block leaves every assertion green. That is not a hypothetical: it is what the first implementation of this task shipped.
+
+`preexec` is fine non-interactively (a test can iterate `$preexec_functions`). **`line-init` is not.** It needs a real PTY.
+
+Add `packages/terminal/shell/pty.mjs`, used by this task and Task 4. tmux is the PTY source — it is already a dependency of the daemon, and `pipe-pane` captures raw bytes including OSC sequences, which `capture-pane` would strip:
 
 ```js
-test("emits input-ready when the line editor starts and input-released before a command runs", async () => {
-	const out = await runZsh(["echo hi"]);
-	const readyAt = out.indexOf("input-ready=1");
-	const releasedAt = out.indexOf("input-released=1");
-	assert.ok(readyAt >= 0, "expected an input-ready mark");
-	assert.ok(releasedAt >= 0, "expected an input-released mark");
-	assert.ok(readyAt < releasedAt, "ready must precede released for the first command");
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+export function haveTmux() {
+	try {
+		execFileSync("tmux", ["-V"], { stdio: "ignore" });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Run `command` in a real interactive PTY, send each line of `keys`, and
+ * return every raw byte the pane produced.
+ */
+export function runInPty(command, keys, { settleMs = 1000 } = {}) {
+	const dir = mkdtempSync(join(tmpdir(), "opr-pty-"));
+	const raw = join(dir, "pane.raw");
+	const session = `opr_pty_${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
+	const tmux = (...args) => execFileSync("tmux", args, { encoding: "latin1" });
+	try {
+		tmux("new-session", "-d", "-s", session, "-x", "120", "-y", "40", command);
+		tmux("pipe-pane", "-t", session, "-o", `cat >> ${raw}`);
+		sleep(settleMs);
+		for (const line of keys) {
+			tmux("send-keys", "-t", session, line, "Enter");
+			sleep(settleMs);
+		}
+		return readFileSync(raw, "latin1");
+	} finally {
+		try { tmux("kill-session", "-t", session); } catch {}
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+function sleep(ms) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+```
+
+Skip the PTY tests with a clear reason when `haveTmux()` is false, the same way the file already skips when zsh is absent. A skipped test says so; a vacuous one does not.
+
+- [ ] **Step 2: Write the failing shell test**
+
+Add to `packages/terminal/shell/zsh.test.mjs`. The `line-init` assertion MUST go through `runInPty`; only the `preexec` and `bindkey` assertions may use the existing non-interactive harness.
+
+```js
+test("fires input-ready from the real zle line-init hook", { skip: ptySkip }, () => {
+	const out = runInPty("zsh -f -i", [`source ${bootstrap}`, "echo hi"]);
+	// Verified on macOS zsh 5.9: 2 and 1 with the hook registered, 0 and 1
+	// without it. The released count is what proves the pane really ran a
+	// command, so a ready count of 0 cannot be blamed on a dead harness.
+	assert.ok(count(out, "input-ready=1") >= 1, "zle line-init never fired");
+	assert.ok(count(out, "input-released=1") >= 1, "preexec never fired");
+	assert.ok(
+		out.indexOf("input-ready=1") < out.indexOf("input-released=1"),
+		"ready must precede released for the first command",
+	);
 });
 
 test("does not add or remove any bindkey binding", async () => {
@@ -598,15 +656,17 @@ test("leaves the user's own zle-line-init widget installed and callable", async 
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [ ] **Step 3: Run it to verify it fails**
 
 ```bash
 cd packages/terminal && node --test shell/zsh.test.mjs
 ```
 
-Expected: FAIL — no `input-ready` in the stream.
+Expected: FAIL — `zle line-init never fired`.
 
-- [ ] **Step 3: Add the additive zle hooks**
+**Then prove the test can fail for the right reason.** After Step 4 makes it pass, delete the `add-zle-hook-widget` block, re-run, and confirm this specific test fails while the others still pass. Restore it. A test for a hook registration that passes with the registration deleted is worth less than no test, because it certifies the opposite of what it claims.
+
+- [ ] **Step 4: Add the additive zle hooks**
 
 In `packages/terminal/shell/zsh.sh`, inside the existing guard function. `add-zle-hook-widget` is the additive API; assigning `zle-line-init` directly would clobber a user widget and violate spec §8.
 
@@ -631,7 +691,7 @@ In `packages/terminal/shell/zsh.sh`, inside the existing guard function. `add-zl
 
 `add-zle-hook-widget` is absent on very old zsh. The `if` is the Tier-1 degrade path required by spec §8: no hook, no line-editor marks, blocks still work, and the editor stays read-only in `Unknown`.
 
-- [ ] **Step 4: Run the shell tests**
+- [ ] **Step 5: Run the shell tests**
 
 ```bash
 cd packages/terminal && node --test shell/zsh.test.mjs
@@ -639,7 +699,7 @@ cd packages/terminal && node --test shell/zsh.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/shell/zsh.sh packages/terminal/shell/zsh.test.mjs
@@ -666,7 +726,7 @@ git commit -m "feat(terminal): emit line-editor ownership marks from the zsh boo
 
 This is the spec §3.2 test and it is the reason fish is in this phase at all. Warp's answer to fish was to launch it with `-f no-mark-prompt`, turning standard OSC 133 off. Ours must work with it on.
 
-Create `packages/terminal/shell/fish.test.mjs`:
+Create `packages/terminal/shell/fish.test.mjs`. fish's `--on-event fish_prompt` has the same problem zsh's `line-init` does — it only fires in an interactive shell — so the prompt and ownership assertions go through `runInPty` from `shell/pty.mjs` (Task 3 Step 1). `fish_preexec` and `fish_postexec` can be emitted by calling the functions directly, but a test that only does that proves the function body, not the wiring.
 
 ```js
 test("produces correct blocks with fish's own OSC 133 left enabled", async () => {
