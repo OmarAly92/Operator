@@ -40,43 +40,33 @@ pub enum MarkEvent {
 /// into a permanent black hole.
 pub struct MarkDecoder {
     scanner: Scanner,
-    /// True once the decoder has seen any mark that "opens" a block (`A`,
-    /// `B`, or `C`). Recovery table row 3 says `D` with no open block is
-    /// ignored; tracking the flag here means the filter survives the
-    /// split-read case the scanner cannot see.
-    block_open: bool,
 }
 
 impl MarkDecoder {
     pub fn new() -> Self {
         Self {
             scanner: Scanner::new(),
-            block_open: false,
         }
     }
 
+    /// Decodes `bytes`, returning every event with the offset just past the
+    /// mark that produced it.
+    ///
+    /// The decoder is deliberately stateless about blocks. Whether a
+    /// `CommandEnd` with no open block is meaningful is the block grid's
+    /// question, not the decoder's -- spec 7.5 scopes this crate to finding
+    /// boundaries and extracting fields, and `BlockGrid::close_block` already
+    /// ignores a close it cannot apply. Keeping that state here would also
+    /// force the Go decoder to grow a block model it was scoped out of.
+    pub fn feed_with_offsets(&mut self, bytes: &[u8]) -> Vec<(usize, MarkEvent)> {
+        self.scanner.feed(bytes)
+    }
+
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<MarkEvent> {
-        let raw = self.scanner.feed(bytes);
-        let mut out = Vec::with_capacity(raw.len());
-        for event in raw {
-            match &event {
-                MarkEvent::PromptStart { .. }
-                | MarkEvent::CommandStart { .. }
-                | MarkEvent::OutputStart { .. } => {
-                    self.block_open = true;
-                    out.push(event);
-                }
-                MarkEvent::CommandEnd { .. } => {
-                    if self.block_open {
-                        out.push(event);
-                        self.block_open = false;
-                    }
-                    // Otherwise recovery row 3: ignore.
-                }
-                _ => out.push(event),
-            }
-        }
-        out
+        self.feed_with_offsets(bytes)
+            .into_iter()
+            .map(|(_, event)| event)
+            .collect()
     }
 }
 

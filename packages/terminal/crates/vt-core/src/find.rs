@@ -142,31 +142,16 @@ impl<'a> FindCursor<'a> {
     }
 }
 
-/// The byte range of `block` inside the content store.
+/// Byte range of a block's rows in the content buffer.
 ///
-/// In the happy path (the block's tracked `row_count` reflects the rows
-/// that were completed while the block was open) the range is the
-/// concatenation of the rows `first_row..first_row + row_count`. The
-/// per-row byte offsets come straight from [`RowIndex::completed`].
-///
-/// The fallback path handles a pre-existing timing bug in
-/// `TerminalCore::feed`: every mark event is applied to the block grid
-/// BEFORE the parser feeds the same bytes to `vte`, so by the time a row
-/// is completed the block that should own it has already been closed by
-/// the trailing `CommandEnd` and `note_row_completed` is a no-op. The
-/// block's `row_count` therefore stays at zero even though the row is in
-/// the index. Working around the bug here — by reading the row at
-/// `block.id` rather than `block.first_row` — keeps the find engine
-/// correct for the common "one row of output per block" case the tests
-/// cover. A real fix would either reorder mark/vte processing or have
-/// the parser attribute completed rows to the most recently closed
-/// block; that's a follow-up, not part of this task.
+/// Every block owns the rows its command produced, so this is a plain lookup:
+/// there is no fallback for a zero-row block, because a closed block with no
+/// rows is a bug in mark/parse ordering rather than a case to paper over.
 fn block_byte_range(rows: &RowIndex, block: &Block) -> Option<Range<u64>> {
-    let completed = rows.completed();
     if block.row_count == 0 {
-        let row = completed.get(block.id as usize)?;
-        return Some(row.start..row.end);
+        return None;
     }
+    let completed = rows.completed();
     let first = block.first_row;
     let last = block.first_row + block.row_count - 1;
     let first_row = completed.get(first)?;

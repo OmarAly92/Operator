@@ -147,17 +147,16 @@ fn a_mark_split_byte_by_byte_still_decodes() {
         events.extend(decoder.feed(&[*byte]));
     }
     // The split-read is the point of this test: a D OSC fed one byte at a
-    // time must round-trip through the scanner without panicking. The exact
-    // event set depends on the recovery table — a lone `D` with no
-    // preceding block is filtered out (SPEC §7 row 3), so we accept either
-    // an empty stream or a single CommandEnd with the parsed exit code.
-    let expected_close = MarkEvent::CommandEnd {
-        tier: MarkTier::Osc133,
-        exit_code: Some(7),
-    };
-    assert!(
-        events.is_empty() || events == vec![expected_close],
-        "events were {events:?}"
+    // time must round-trip through the scanner and produce exactly the close
+    // event, with its exit code intact. Accepting "either an empty stream or
+    // the event" would let a decoder that silently stopped emitting
+    // CommandEnd pass this test.
+    assert_eq!(
+        events,
+        vec![MarkEvent::CommandEnd {
+            tier: MarkTier::Osc133,
+            exit_code: Some(7),
+        }]
     );
 }
 

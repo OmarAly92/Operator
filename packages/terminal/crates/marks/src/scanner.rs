@@ -52,15 +52,21 @@ impl Scanner {
         }
     }
 
-    pub fn feed(&mut self, bytes: &[u8]) -> Vec<MarkEvent> {
+    /// Scans `bytes`, pairing every event with the offset just past the byte
+    /// that completed it.
+    ///
+    /// The offset is what lets the caller interleave events with its own
+    /// parse of the same bytes. Applying a chunk's events before parsing any
+    /// of its text closes each block before the rows it produced exist.
+    pub fn feed(&mut self, bytes: &[u8]) -> Vec<(usize, MarkEvent)> {
         let mut events = Vec::new();
-        for &byte in bytes {
-            self.step(byte, &mut events);
+        for (index, &byte) in bytes.iter().enumerate() {
+            self.step(byte, index + 1, &mut events);
         }
         events
     }
 
-    fn step(&mut self, byte: u8, events: &mut Vec<MarkEvent>) {
+    fn step(&mut self, byte: u8, next_offset: usize, events: &mut Vec<(usize, MarkEvent)>) {
         match self.state {
             State::Ground => {
                 if byte == ESC {
@@ -83,7 +89,7 @@ impl Scanner {
             },
             State::Osc => {
                 if byte == BEL {
-                    self.flush_osc(events);
+                    self.flush_osc(next_offset, events);
                     self.state = State::Ground;
                 } else if byte == ESC {
                     // Defer the ST-or-abort decision to the next byte.
@@ -95,7 +101,7 @@ impl Scanner {
             State::OscSawEsc => {
                 if byte == BACKSLASH {
                     // Real ST — close the OSC.
-                    self.flush_osc(events);
+                    self.flush_osc(next_offset, events);
                     self.state = State::Ground;
                 } else {
                     // A bare ESC inside an OSC is what shells send when they
@@ -106,7 +112,7 @@ impl Scanner {
                     // abort opens a fresh OSC, matching the expected output.
                     self.pending.clear();
                     self.state = State::AfterEsc;
-                    self.step(byte, events);
+                    self.step(byte, next_offset, events);
                 }
             }
             State::CsiPrivate => {
@@ -118,12 +124,12 @@ impl Scanner {
                     }
                 } else if byte == b'h' {
                     if self.private_digits == b"1049" {
-                        events.push(MarkEvent::AltScreenEnter);
+                        events.push((next_offset, MarkEvent::AltScreenEnter));
                     }
                     self.state = State::Ground;
                 } else if byte == b'l' {
                     if self.private_digits == b"1049" {
-                        events.push(MarkEvent::AltScreenLeave);
+                        events.push((next_offset, MarkEvent::AltScreenLeave));
                     }
                     self.state = State::Ground;
                 } else {
@@ -144,13 +150,13 @@ impl Scanner {
         }
     }
 
-    fn flush_osc(&mut self, events: &mut Vec<MarkEvent>) {
+    fn flush_osc(&mut self, next_offset: usize, events: &mut Vec<(usize, MarkEvent)>) {
         // An empty OSC payload is meaningless; both decoders must ignore it.
         let payload = std::mem::take(&mut self.pending);
         if let Some(event) = crate::osc::decode(&payload) {
-            events.push(event);
+            events.push((next_offset, event));
         } else if let Some(fields) = crate::extension::decode(&payload) {
-            events.push(MarkEvent::Extension(fields));
+            events.push((next_offset, MarkEvent::Extension(fields)));
         }
     }
 }
@@ -163,6 +169,10 @@ impl Default for Scanner {
 
 #[cfg(test)]
 mod tests {
+    fn events_only(pairs: Vec<(usize, MarkEvent)>) -> Vec<MarkEvent> {
+        pairs.into_iter().map(|(_, event)| event).collect()
+    }
+
     use super::*;
 
     #[test]
@@ -171,7 +181,7 @@ mod tests {
         s.feed(b"\x1b]");
         let pad = vec![b'x'; PENDING_CAP + 16];
         s.feed(&pad);
-        let events = s.feed(b"\x1b]133;A\x07");
+        let events = events_only(s.feed(b"\x1b]133;A\x07"));
         assert_eq!(
             events,
             vec![MarkEvent::PromptStart {
@@ -183,8 +193,14 @@ mod tests {
     #[test]
     fn alt_screen_enter_and_leave() {
         let mut s = Scanner::new();
-        assert_eq!(s.feed(b"\x1b[?1049h"), vec![MarkEvent::AltScreenEnter]);
-        assert_eq!(s.feed(b"\x1b[?1049l"), vec![MarkEvent::AltScreenLeave]);
+        assert_eq!(
+            events_only(s.feed(b"\x1b[?1049h")),
+            vec![MarkEvent::AltScreenEnter]
+        );
+        assert_eq!(
+            events_only(s.feed(b"\x1b[?1049l")),
+            vec![MarkEvent::AltScreenLeave]
+        );
     }
 
     #[test]
@@ -192,6 +208,6 @@ mod tests {
         let mut s = Scanner::new();
         // `?25h` (show cursor) is not in our vocabulary; the scanner must
         // consume it without emitting anything.
-        assert_eq!(s.feed(b"\x1b[?25h"), vec![]);
+        assert_eq!(events_only(s.feed(b"\x1b[?25h")), vec![]);
     }
 }

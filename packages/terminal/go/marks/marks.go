@@ -51,8 +51,7 @@ type Event struct {
 // inside the scanner is what stops an unterminated OSC from turning the
 // decoder into a permanent black hole.
 type Decoder struct {
-	scanner    *scanner
-	blockOpen  bool
+	scanner *scanner
 }
 
 // NewDecoder returns a fresh decoder. It is safe to call repeatedly; each
@@ -69,24 +68,10 @@ func NewDecoder() *Decoder {
 // freshly allocated; the caller may retain it freely. The decoder retains
 // any partial state needed to complete a sequence on the next call.
 func (d *Decoder) Feed(p []byte) []Event {
-	raw := d.scanner.feed(p)
-	out := make([]Event, 0, len(raw))
-	for _, e := range raw {
-		switch e.Kind {
-		case "prompt_start", "command_start", "output_start":
-			d.blockOpen = true
-			out = append(out, e)
-		case "command_end":
-			// Recovery table row 3 (SPEC §7): a `D` with no open block is
-			// ignored. Tracking the flag here means the filter survives
-			// the split-read case the scanner cannot see.
-			if d.blockOpen {
-				out = append(out, e)
-				d.blockOpen = false
-			}
-		default:
-			out = append(out, e)
-		}
-	}
-	return out
+	// The decoder is deliberately stateless about blocks. Whether a
+	// command_end with no open block is meaningful is the block layer's
+	// question (SPEC 7.5 scopes this package to finding boundaries and
+	// extracting fields), and keeping that state here would make this
+	// package and the Rust one disagree about where block state lives.
+	return d.scanner.feed(p)
 }

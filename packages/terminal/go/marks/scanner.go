@@ -34,10 +34,10 @@ const (
 )
 
 type scanner struct {
-	state            state
-	pending          []byte
-	privateQuestion  bool
-	privateDigits    []byte
+	state           state
+	pending         []byte
+	privateQuestion bool
+	privateDigits   []byte
 }
 
 func newScanner() *scanner {

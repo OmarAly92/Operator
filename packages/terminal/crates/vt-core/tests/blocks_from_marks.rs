@@ -3,13 +3,21 @@ use vt_core::{BlockSource, BlockState, TerminalCore};
 #[test]
 fn osc133_alone_produces_correct_blocks_with_no_bootstrap() {
     let mut core = TerminalCore::new(40, 200).unwrap();
-    core.feed(b"\x1b]133;A\x07$ \x1b]133;B\x07ls\x1b]133;C\x07a.txt\nb.txt\n\x1b]133;D;0\x07");
+    core.feed(b"\x1b]133;A\x07$ \x1b]133;B\x07ls\n\x1b]133;C\x07a.txt\nb.txt\n\x1b]133;D;0\x07");
     let snapshot = core.snapshot().unwrap();
 
     assert_eq!(snapshot.blocks.len(), 1);
     assert_eq!(snapshot.blocks[0].state, BlockState::Finished);
     assert_eq!(snapshot.blocks[0].source, BlockSource::Osc133);
     assert_eq!(snapshot.blocks[0].exit_code, Some(0));
+    // The block must own the rows its command produced. Asserting only on
+    // metadata lets a block that owns nothing pass while the terminal renders
+    // an empty card.
+    assert_eq!(snapshot.blocks[0].first_row, 0);
+    assert_eq!(snapshot.blocks[0].row_count, 3);
+    assert_eq!(snapshot.row_text(0), "$ ls");
+    assert_eq!(snapshot.row_text(1), "a.txt");
+    assert_eq!(snapshot.row_text(2), "b.txt");
 }
 
 #[test]
@@ -83,4 +91,18 @@ fn blocks_survive_scrollback_trimming() {
     assert!(snapshot.blocks.len() <= 10);
     assert!(snapshot.blocks.iter().all(|b| b.row_count > 0));
     assert_eq!(snapshot.blocks.first().unwrap().first_row, 0);
+    // Without these two the test passes on the synthetic fallback block that
+    // is emitted when every real block has been trimmed away -- which is
+    // exactly what happened while blocks owned no rows.
+    assert!(
+        snapshot
+            .blocks
+            .iter()
+            .all(|b| b.source == BlockSource::Osc133),
+        "trimming must retain marked blocks, not fall back to a synthetic one"
+    );
+    assert!(
+        snapshot.blocks.len() > 1,
+        "expected several retained blocks"
+    );
 }

@@ -10,6 +10,10 @@ pub struct BlockGrid {
     closed: BlockTree,
     open: Option<Block>,
     next_id: BlockId,
+    /// Index of the next row to be completed, relative to the oldest
+    /// retained row. It is where the next opened block starts, and it is
+    /// what stops every block from claiming row 0.
+    next_row: usize,
 }
 
 impl BlockGrid {
@@ -18,6 +22,7 @@ impl BlockGrid {
             closed: BlockTree::new(),
             open: None,
             next_id: 0,
+            next_row: 0,
         }
     }
 
@@ -35,7 +40,7 @@ impl BlockGrid {
         }
         self.open = Some(Block {
             id: self.next_id,
-            first_row: 0,
+            first_row: self.next_row,
             row_count: 0,
             state: BlockState::Running,
             source,
@@ -61,6 +66,7 @@ impl BlockGrid {
     /// — closed blocks have already been pushed to the tree and the next
     /// row, if any, will start a new block when `open_block` runs.
     pub fn note_row_completed(&mut self) {
+        self.next_row += 1;
         if let Some(block) = self.open.as_mut() {
             block.row_count += 1;
         }
@@ -134,6 +140,10 @@ impl BlockGrid {
     /// runs once per feed, only past the row cap). The deliberate-O(n)
     /// decision is recorded for the CHANGELOG in Task 11.
     pub fn trim_to_first_row(&mut self, first_row: usize) {
+        // The row cursor is relative to the oldest retained row, so it
+        // rebases with everything else.
+        self.next_row = self.next_row.saturating_sub(first_row);
+
         // The open block's pre-trim position is the sum of every closed
         // block's row count BEFORE phase 1 pops anything — phase 1 only
         // removes blocks that have no surviving rows, so the open

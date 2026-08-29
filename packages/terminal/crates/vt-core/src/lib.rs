@@ -58,25 +58,32 @@ impl TerminalCore {
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
-        // Decode marks independently of `vte` so the block state machine
-        // never depends on the parser's callback shape, and so a split-read
-        // across two feeds still produces a complete event list. Order
-        // matters: the protocol's events are pre-vte bytes that the parser
-        // would otherwise see as OSC payload and swallow.
-        let events = self.mark_decoder.feed(bytes);
-        for event in events {
-            // Re-read the alt-screen state after every event so a single
-            // `feed` call's `AltScreenEnter` correctly freezes the rest of
-            // the event list, and a trailing `AltScreenLeave` correctly
-            // thaws it. Snapshotting once before the loop would let an
-            // enter-then-marks-in-the-same-feed shred the block list.
-            let in_alt = self.alt_screen.is_active();
-            if in_alt && !matches!(event, MarkEvent::AltScreenLeave) {
+        // Marks are decoded separately from `vte` so the block state machine
+        // never depends on the parser's callback shape and a split read still
+        // produces a complete event list. But the two must be applied in
+        // stream order: each event lands only after the bytes before it have
+        // been parsed. Applying a whole chunk's events first closes every
+        // block before the rows it produced exist, leaving blocks that own
+        // nothing and rows that belong to no block.
+        let events = self.mark_decoder.feed_with_offsets(bytes);
+        let mut parsed = 0usize;
+        for (offset, event) in events {
+            let upto = offset.min(bytes.len());
+            if upto > parsed {
+                self.vte.advance(&mut self.parser, &bytes[parsed..upto]);
+                parsed = upto;
+            }
+            // Re-read the alt-screen state after every event so an
+            // `AltScreenEnter` freezes the rest of this chunk's events and a
+            // trailing `AltScreenLeave` thaws them.
+            if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
                 continue;
             }
             apply_event(&mut self.parser, &mut self.alt_screen, event);
         }
-        self.vte.advance(&mut self.parser, bytes);
+        if parsed < bytes.len() {
+            self.vte.advance(&mut self.parser, &bytes[parsed..]);
+        }
         self.parser.trim_to(self.scrollback_rows);
     }
 
