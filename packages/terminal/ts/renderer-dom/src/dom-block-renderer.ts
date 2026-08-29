@@ -1,5 +1,6 @@
 import {
 	decodeBlocks,
+	defaultStrings,
 	validateRowRange,
 	type BlockId,
 	type BlockRenderer,
@@ -9,6 +10,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
+import { renderBlockHeader } from "./block-header.js";
 import { styleCodeToCssVar } from "./style-code.js";
 import { terminalStyles } from "./styles.js";
 import { computeWindow, type RowWindow } from "./viewport.js";
@@ -341,6 +343,7 @@ function populateBlock(
 	decoder: TextDecoder,
 ): void {
 	const fragment = document.createDocumentFragment();
+	fragment.append(renderBlockHeader(block, defaultStrings));
 	const { content, rows, runRanges, stylePairs } = snapshot;
 	const blockFirstRow = block.firstRow;
 	const firstRow = rowWindow ? rowWindow.firstRow : 0;

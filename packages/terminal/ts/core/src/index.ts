@@ -13,10 +13,11 @@ export type {
 	RowRange,
 	TerminalCoreOptions,
 	TerminalSnapshot,
+	TerminalStrings,
 	TerminalTheme,
 } from "./types.js";
 
-export { validateRowRange } from "./types.js";
+export { defaultStrings, validateRowRange } from "./types.js";
 
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 

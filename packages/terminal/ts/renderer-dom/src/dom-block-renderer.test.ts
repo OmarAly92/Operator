@@ -188,6 +188,14 @@ describe("DomBlockRenderer", () => {
 		renderer.dispose();
 	});
 
+	it("renders a block header inside each block with a data-block-status", () => {
+		const { host } = mountWith("alpha\r\nbeta");
+		const block = host.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement;
+		const header = block.querySelector(".terminal-block-header");
+		expect(header).not.toBeNull();
+		expect(header?.getAttribute("data-block-status")).toBe("plain");
+	});
+
 	it("repaints when the container scrolls, so the visible window follows scrollTop", async () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });

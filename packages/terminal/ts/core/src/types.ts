@@ -94,3 +94,25 @@ export function validateRowRange(range: RowRange): void {
 		throw new Error("row range end must be greater than or equal to start");
 	}
 }
+
+export type TerminalStrings = Readonly<{
+	blockRunning: string;
+	blockSucceeded: string;
+	blockFailed: string;
+	blockAbandoned: string;
+	copyCommand: string;
+	copyOutput: string;
+	rerunCommand: string;
+	shellBlocksUnavailable: string;
+}>;
+
+export const defaultStrings: TerminalStrings = Object.freeze({
+	blockRunning: "Running",
+	blockSucceeded: "Succeeded",
+	blockFailed: "Failed",
+	blockAbandoned: "Abandoned",
+	copyCommand: "Copy command",
+	copyOutput: "Copy output",
+	rerunCommand: "Re-run",
+	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
+});
