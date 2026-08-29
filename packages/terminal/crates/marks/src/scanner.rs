@@ -1,4 +1,4 @@
-use crate::event::MarkEvent;
+use crate::event::{ExtensionFields, MarkEvent};
 
 /// Hard cap on an in-flight OSC payload. Past this we abandon the sequence
 /// rather than buffer it forever — the spec says a decoder "MUST handle an OSC
@@ -156,9 +156,40 @@ impl Scanner {
         if let Some(event) = crate::osc::decode(&payload) {
             events.push((next_offset, event));
         } else if let Some(fields) = crate::extension::decode(&payload) {
-            events.push((next_offset, MarkEvent::Extension(fields)));
+            for event in extension_events(fields) {
+                events.push((next_offset, event));
+            }
         }
     }
+}
+
+fn extension_events(fields: ExtensionFields) -> Vec<MarkEvent> {
+    let mut out = Vec::new();
+    let mut remaining = ExtensionFields::default();
+    let mut ready = false;
+    let mut released = false;
+    let mut has_extension_field = false;
+    for (key, value) in fields.pairs {
+        match key.as_str() {
+            "input-ready" => ready = true,
+            "input-released" => released = true,
+            _ => {
+                if key != "v" {
+                    has_extension_field = true;
+                }
+                remaining.pairs.push((key, value));
+            }
+        }
+    }
+    if !remaining.pairs.is_empty() && (!ready && !released || has_extension_field) {
+        out.push(MarkEvent::Extension(remaining));
+    }
+    if released {
+        out.push(MarkEvent::InputReleased);
+    } else if ready {
+        out.push(MarkEvent::InputReady);
+    }
+    out
 }
 
 impl Default for Scanner {

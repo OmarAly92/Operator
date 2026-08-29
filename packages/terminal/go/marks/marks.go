@@ -46,6 +46,11 @@ type Event struct {
 	Fields map[string]string
 }
 
+const (
+	EventInputReady    = "input_ready"
+	EventInputReleased = "input_released"
+)
+
 // Decoder is a stateful byte-level decoder. It survives across Feed calls so
 // a mark split across two reads still decodes. The 4096-byte pending cap
 // inside the scanner is what stops an unterminated OSC from turning the

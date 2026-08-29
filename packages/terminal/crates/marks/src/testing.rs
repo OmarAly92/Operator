@@ -13,11 +13,29 @@ pub struct TestVector {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct RawEvent {
     pub kind: String,
-    pub tier: u8,
-    #[serde(default, rename = "exitCode")]
+    #[serde(default)]
+    pub tier: Option<RawTier>,
+    #[serde(default, alias = "exitCode")]
     pub exit_code: Option<i32>,
     #[serde(default)]
     pub path: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum RawTier {
+    Number(u8),
+    Name(String),
+}
+
+impl RawTier {
+    pub fn is_osc133(&self) -> bool {
+        match self {
+            Self::Number(1) => true,
+            Self::Name(name) => name == "osc133",
+            _ => false,
+        }
+    }
 }
 
 pub fn load_vector(path: &Path) -> TestVector {

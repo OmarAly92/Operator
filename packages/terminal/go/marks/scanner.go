@@ -145,8 +145,33 @@ func (s *scanner) flushOsc(events *[]Event) {
 	if e, ok := decodeOsc(payload); ok {
 		*events = append(*events, e)
 	} else if f, ok := decodeExtension(payload); ok {
-		*events = append(*events, Event{Kind: "extension", Tier: TierExtension, Fields: f})
+		*events = append(*events, extensionEvents(f)...)
 	}
+}
+
+func extensionEvents(fields map[string]string) []Event {
+	remaining := make(map[string]string, len(fields))
+	_, ready := fields["input-ready"]
+	_, released := fields["input-released"]
+	hasExtensionField := false
+	for key, value := range fields {
+		if key != "input-ready" && key != "input-released" {
+			if key != "v" {
+				hasExtensionField = true
+			}
+			remaining[key] = value
+		}
+	}
+	var out []Event
+	if len(remaining) > 0 && (!ready && !released || hasExtensionField) {
+		out = append(out, Event{Kind: "extension", Tier: TierExtension, Fields: remaining})
+	}
+	if released {
+		out = append(out, Event{Kind: EventInputReleased})
+	} else if ready {
+		out = append(out, Event{Kind: EventInputReady})
+	}
+	return out
 }
 
 // decodeOsc decodes a Tier-1 OSC payload. The payload is the bytes between
@@ -291,11 +316,13 @@ func decodeExtension(payload []byte) (map[string]string, bool) {
 func splitPairs(s string) []string {
 	var out []string
 	start := 0
-	for i := 0; i+1 < len(s); i++ {
-		if s[i] == ';' && s[i+1] == ' ' {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ';' {
 			out = append(out, s[start:i])
-			start = i + 2
-			i++ // skip the space on the next iteration
+			start = i + 1
+			if start < len(s) && s[start] == ' ' {
+				start++
+			}
 		}
 	}
 	out = append(out, s[start:])

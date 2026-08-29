@@ -127,17 +127,20 @@ key is a non-breaking change because unknown keys are ignored.
 | `start_ms` | millisecond Unix epoch at command start | integer |
 | `end_ms` | millisecond Unix epoch at command end | integer |
 
-### 4.4 Reserved keys — MUST NOT be emitted by Phase 1a
+### 4.4 Line-editor ownership keys
 
-The following keys are reserved and MUST NOT be emitted by any Phase-1a
-mark. They are Phase 2's line-editor signal (spec §3.5, §10.2) and are
-named here to stop the key space being reused:
+| Key | Meaning | Value |
+| --- | --- | --- |
+| `input-ready` | the shell's line editor is idle and accepting input | `1` |
+| `input-released` | a program has taken over the tty | `1` |
 
-- `input-ready` — emitted when the shell's line editor becomes idle;
-- `input-released` — emitted when a program takes over the tty.
+These are the explicit signal that replaces Warp's 50ms activation timer
+(spec §3.5, §10.2). A decoder MUST surface them as the `input_ready` and
+`input_released` events in §8. A mark carrying both MUST be surfaced as
+`input_released` only: the safe state is "a program owns the tty".
 
-A decoder MUST ignore both keys if it sees them in a Phase-1a mark
-(it will not, but MUST NOT crash on the rare misconfigured shell).
+They remain strictly additive. A decoder that ignores them still produces
+correct blocks, and no block lifecycle transition depends on either key.
 
 ## 5. Tier 2 — events emitted
 
@@ -199,6 +202,8 @@ list; this is the wire-level contract.
 | `command_end` | OSC 133 `D[; exit]`; command finished, with optional exit code |
 | `cwd_changed` | OSC 7; working directory update |
 | `extension` | OSC 7000 mark; carries the extension fields |
+| `input_ready` | shell line editor is idle and accepting input |
+| `input_released` | a program has taken over the tty |
 | `alt_screen_enter` | DCS / private-mode enter of the alternate screen |
 | `alt_screen_leave` | leave of the alternate screen |
 
@@ -208,10 +213,6 @@ the renderer can suspend block capture between them. The vectors do not
 cover alt-screen transitions; the existing alt-screen handling in
 `vt-core` is the reference. They are listed here so a decoder does not
 introduce a second event vocabulary for them.
-
-`input-ready` and `input-released` are NOT events in this list. They are
-Tier-2 keys (see §4.4) and do not yet produce decoder events; they are
-Phase 2's input-editor signal.
 
 ## 9. Decoder contract
 

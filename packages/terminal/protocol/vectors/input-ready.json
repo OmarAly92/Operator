@@ -1,0 +1,8 @@
+{
+  "name": "input-ready",
+  "description": "A Tier-2 mark carrying input-ready produces an InputReady event and nothing else.",
+  "input": "\u001b]7000;v=1;input-ready=1\u0007",
+  "events": [
+    { "kind": "input_ready" }
+  ]
+}

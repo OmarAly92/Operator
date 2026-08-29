@@ -30,6 +30,8 @@ pub enum MarkEvent {
         path: String,
     },
     Extension(ExtensionFields),
+    InputReady,
+    InputReleased,
     AltScreenEnter,
     AltScreenLeave,
 }

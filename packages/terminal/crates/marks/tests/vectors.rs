@@ -65,13 +65,15 @@ fn event_kind_tier(ev: &MarkEvent) -> (String, MarkTier) {
         MarkEvent::CommandEnd { tier, .. } => ("command_end".to_string(), *tier),
         MarkEvent::CwdChanged { .. } => ("cwd_changed".to_string(), MarkTier::Osc133),
         MarkEvent::Extension(_) => ("extension".to_string(), MarkTier::Extension),
+        MarkEvent::InputReady => ("input_ready".to_string(), MarkTier::Extension),
+        MarkEvent::InputReleased => ("input_released".to_string(), MarkTier::Extension),
         MarkEvent::AltScreenEnter => ("alt_screen_enter".to_string(), MarkTier::Osc133),
         MarkEvent::AltScreenLeave => ("alt_screen_leave".to_string(), MarkTier::Osc133),
     }
 }
 
 fn expected_event(name: &str, ev: &RawEvent) -> MarkEvent {
-    let tier = if ev.tier == 1 {
+    let tier = if ev.tier.as_ref().is_some_and(|tier| tier.is_osc133()) {
         MarkTier::Osc133
     } else {
         MarkTier::Extension
@@ -88,6 +90,8 @@ fn expected_event(name: &str, ev: &RawEvent) -> MarkEvent {
             path: ev.path.clone().expect("cwd_changed has path"),
         },
         "extension" => MarkEvent::Extension(Default::default()),
+        "input_ready" => MarkEvent::InputReady,
+        "input_released" => MarkEvent::InputReleased,
         "alt_screen_enter" => MarkEvent::AltScreenEnter,
         "alt_screen_leave" => MarkEvent::AltScreenLeave,
         other => panic!("unknown event kind in vector {name}: {other}"),
