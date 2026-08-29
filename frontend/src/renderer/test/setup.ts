@@ -1,5 +1,59 @@
 import "@testing-library/jest-dom/vitest";
+import React from "react";
+import { vi } from "vitest";
 import "../i18n";
+
+vi.mock("@operator/terminal-react", () => {
+	const h = React.createElement;
+	const Surface = ({
+		altScreenSurface,
+		altScreenActive,
+	}: {
+		altScreenSurface?: React.ReactNode;
+		altScreenActive: boolean;
+	}) => {
+		const showSurface = altScreenActive && altScreenSurface !== undefined;
+		return h(
+			"div",
+			{ "data-testid": "block-terminal-surface", "data-alt-screen-active": altScreenActive ? "true" : "false" },
+			h("div", { "data-testid": "block-list", hidden: showSurface, "aria-hidden": showSurface }),
+			altScreenSurface !== undefined
+				? h(
+						"div",
+						{ "data-testid": "alt-screen-slot", hidden: !showSurface, "aria-hidden": !showSurface },
+						altScreenSurface,
+					)
+				: null,
+		);
+	};
+	return {
+		TerminalSurface: Surface,
+		warpDarkTheme: {
+			ansi: new Array(16).fill("#000000"),
+			foreground: "#ffffff",
+			background: "#000000",
+			cursor: "#00c2ff",
+			selection: "rgba(0,0,0,0)",
+			blockBackground: "#000000",
+			blockBorder: "#616161",
+			blockHeaderForeground: "#f1f1f1",
+		},
+		createTerminalCore: () => ({
+			feed: () => undefined,
+			snapshot: () => ({
+				generation: 0,
+				content: new Uint8Array(0),
+				rows: new Uint32Array(0),
+				runRanges: new Uint32Array(0),
+				stylePairs: new Uint32Array(0),
+				blocks: new Uint32Array(0),
+				blockText: new Uint8Array(0),
+			}),
+			onChange: () => () => undefined,
+			dispose: () => undefined,
+		}),
+	};
+});
 
 // Guard: node-environment vitest projects (no DOM) still route this setup file,
 // so only install the DOM stubs when a DOM exists.

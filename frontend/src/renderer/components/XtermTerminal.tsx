@@ -996,6 +996,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 				ref={hostRef}
 				aria-label={props.ariaLabel}
 				className={props.className}
+				data-testid="xterm-surface"
 				style={{
 					backgroundColor: "var(--color-bg-terminal-opaque)",
 					height: "100%",

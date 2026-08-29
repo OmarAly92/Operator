@@ -106,6 +106,12 @@ vi.mock("../hooks/useTerminalSession", () => ({
 			state: terminalState.value,
 			error: terminalError.value,
 			replaySettled: replaySettled.value,
+			transport: {
+				write: vi.fn(),
+				onData: () => () => undefined,
+				resize: vi.fn(),
+				dispose: vi.fn(),
+			},
 		};
 	},
 }));
@@ -235,8 +241,10 @@ describe("TerminalPane empty states", () => {
 		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
 		try {
 			await screen.findByTestId("xterm");
-			expect(screen.getByTestId("xterm").parentElement).toHaveClass("pl-2");
-			expect(screen.getByTestId("xterm").parentElement).not.toHaveClass("pt-2", "pr-2", "pb-2", "p-2");
+			const host = screen.getByTestId("xterm").closest(".pl-2");
+			expect(host).not.toBeNull();
+			expect(host).toHaveClass("pl-2");
+			expect(host).not.toHaveClass("pt-2", "pr-2", "pb-2", "p-2");
 		} finally {
 			view.restore();
 		}

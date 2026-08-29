@@ -13,7 +13,7 @@
 // derived status flow back (docs/architecture.md).
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
 import { createTerminalMux, muxUrlFromApiBase, type TerminalMux } from "../lib/terminal-mux";
@@ -862,5 +862,32 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		[teardownMux],
 	);
 
-	return { attach, state, error, replaySettled, syncVisibleSize };
+	const transport = useMemo(
+		() => ({
+			write: (data: Uint8Array) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle || !r.inputReady) return;
+				const decoder = new TextDecoder("utf-8", { fatal: false });
+				r.mux.sendInput(r.handle, decoder.decode(data));
+			},
+			onData: (listener: (bytes: Uint8Array) => void) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return () => undefined;
+				return r.mux.onData(r.handle, listener);
+			},
+			resize: (cols: number, rows: number) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return;
+				r.mux.resize(r.handle, cols, rows);
+			},
+			dispose: () => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return;
+				r.mux.close(r.handle);
+			},
+		}),
+		[],
+	);
+
+	return { attach, state, error, replaySettled, syncVisibleSize, transport };
 }
