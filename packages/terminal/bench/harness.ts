@@ -7,6 +7,7 @@ import {
 	createVtebench,
 } from "./workloads.mjs";
 import { XtermBenchmarkRenderer } from "./adapters/xterm";
+import { DomBenchmarkRenderer } from "./adapters/dom";
 
 export interface Geometry {
 	columns: number;
@@ -15,6 +16,7 @@ export interface Geometry {
 }
 
 export type RendererKind = "webgl" | "canvas";
+export type RendererName = "xterm" | "dom";
 export type ScenarioName = keyof typeof scenarios;
 
 export interface BenchmarkRenderer {
@@ -91,11 +93,14 @@ async function inputLatency(renderer: BenchmarkRenderer): Promise<number> {
 
 async function runScenario(
 	host: HTMLElement,
+	rendererName: RendererName,
 	name: ScenarioName,
 	invocationKinds: Set<RendererKind>,
 ): Promise<{ result: ScenarioResult; rendererVersion: string; rendererKind: RendererKind }> {
 	const configuration = scenarios[name];
-	const renderer = new XtermBenchmarkRenderer();
+	const renderer = rendererName === "xterm"
+		? new XtermBenchmarkRenderer()
+		: new DomBenchmarkRenderer();
 	await renderer.mount(host, configuration);
 	const workload = name === "vtebench"
 		? createVtebench(scenarios.vtebench.seed)
@@ -148,20 +153,20 @@ async function runScenario(
 	}
 }
 
-export async function runBenchmarks(host: HTMLElement, names: ScenarioName[]) {
+export async function runBenchmarks(host: HTMLElement, rendererName: RendererName, names: ScenarioName[]) {
 	const invocationKinds = new Set<RendererKind>();
 	const measured: Partial<Record<ScenarioName, ScenarioResult>> = {};
 	let rendererVersion = "";
 	let rendererKind: RendererKind | undefined;
 	for (const name of names) {
-		const scenario = await runScenario(host, name, invocationKinds);
+		const scenario = await runScenario(host, rendererName, name, invocationKinds);
 		measured[name] = scenario.result;
 		rendererVersion = scenario.rendererVersion;
 		rendererKind = scenario.rendererKind;
 	}
 	if (!rendererKind || invocationKinds.size !== 1) throw new Error("benchmark did not preserve one renderer kind");
 	return {
-		renderer: "xterm",
+		renderer: rendererName,
 		rendererVersion,
 		rendererKind,
 		scenarios: measured,

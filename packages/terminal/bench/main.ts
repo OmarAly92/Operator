@@ -1,4 +1,4 @@
-import { runBenchmarks, type ScenarioName } from "./harness";
+import { runBenchmarks, type RendererName, type ScenarioName } from "./harness";
 
 declare global {
 	interface Window {
@@ -12,14 +12,24 @@ const knownScenarios = new Set<ScenarioName>([
 	"input-latency",
 ]);
 
+const knownRenderers = new Set<RendererName>([
+	"xterm",
+	"dom",
+]);
+
 async function main() {
 	const host = document.getElementById("terminal");
 	if (!host) throw new Error("benchmark host is missing");
-	const requested = new URLSearchParams(location.search).get("scenarios")?.split(",") ?? [];
+	const params = new URLSearchParams(location.search);
+	const renderer = params.get("renderer") ?? "xterm";
+	if (!knownRenderers.has(renderer as RendererName)) {
+		throw new Error(`invalid benchmark renderer: ${renderer}`);
+	}
+	const requested = params.get("scenarios")?.split(",") ?? [];
 	if (requested.length === 0 || requested.some((name) => !knownScenarios.has(name as ScenarioName))) {
 		throw new Error("invalid benchmark scenarios");
 	}
-	const result = await runBenchmarks(host, requested as ScenarioName[]);
+	const result = await runBenchmarks(host, renderer as RendererName, requested as ScenarioName[]);
 	await window.__operatorBenchmarkReport({
 		...result,
 		displayScale: window.devicePixelRatio,

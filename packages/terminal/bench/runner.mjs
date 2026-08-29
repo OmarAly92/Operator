@@ -16,15 +16,22 @@ const benchDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageDirectory = path.dirname(benchDirectory);
 const repositoryDirectory = path.resolve(packageDirectory, "../..");
 const scenarioNames = Object.keys(scenarios);
+const supportedRenderers = new Set(["xterm", "dom"]);
+
+export class UsageError extends Error {
+	constructor(message) {
+		super(message);
+		this.name = "UsageError";
+	}
+}
 
 function usage(message) {
 	if (message) process.stderr.write(`${message}\n`);
-	process.stderr.write("usage: npm run bench:terminal -- --renderer xterm --scenario vtebench|large-output|input-latency\n");
-	process.stderr.write("       npm run bench:baseline -- --renderer xterm --record\n");
-	process.exit(2);
+	process.stderr.write("usage: npm run bench:terminal -- --renderer xterm|dom --scenario vtebench|large-output|input-latency\n");
+	process.stderr.write("       npm run bench:baseline -- --renderer xterm|dom --record\n");
 }
 
-function parseArguments(args) {
+export function parseArguments(args) {
 	let renderer;
 	let scenario;
 	let record = false;
@@ -33,12 +40,12 @@ function parseArguments(args) {
 		if (argument === "--renderer" && renderer === undefined) renderer = args[++index];
 		else if (argument === "--scenario" && scenario === undefined) scenario = args[++index];
 		else if (argument === "--record" && !record) record = true;
-		else usage(`unsupported argument: ${argument}`);
+		else throw new UsageError(`unsupported argument: ${argument}`);
 	}
-	if (renderer !== "xterm") usage("--renderer must be xterm");
-	if (record && scenario !== undefined) usage("--record measures all scenarios and does not accept --scenario");
-	if (!record && !scenarioNames.includes(scenario)) usage("--scenario must name a documented scenario");
-	return { record, names: record ? scenarioNames : [scenario] };
+	if (!supportedRenderers.has(renderer)) throw new UsageError("--renderer must be xterm or dom");
+	if (record && scenario !== undefined) throw new UsageError("--record measures all scenarios and does not accept --scenario");
+	if (!record && !scenarioNames.includes(scenario)) throw new UsageError("--scenario must name a documented scenario");
+	return { renderer, record, names: record ? scenarioNames : [scenario] };
 }
 
 function git(...args) {
@@ -48,16 +55,36 @@ function git(...args) {
 	}).trim();
 }
 
-async function rendererVersion() {
-	const manifest = JSON.parse(
-		await readFile(path.join(packageDirectory, "node_modules/@xterm/xterm/package.json"), "utf8"),
-	);
-	return manifest.version;
+async function rendererVersion(renderer) {
+	if (renderer === "xterm") {
+		const manifest = JSON.parse(
+			await readFile(path.join(packageDirectory, "node_modules/@xterm/xterm/package.json"), "utf8"),
+		);
+		return manifest.version;
+	}
+	if (renderer === "dom") {
+		const manifest = JSON.parse(
+			await readFile(path.join(packageDirectory, "ts/renderer-dom/package.json"), "utf8"),
+		);
+		if (typeof manifest.version !== "string" || manifest.version.length === 0) {
+			throw new Error("@operator/terminal-renderer-dom is missing a version");
+		}
+		return manifest.version;
+	}
+	throw new Error(`unknown renderer: ${renderer}`);
 }
 
-function verifyWorkloads(result, names) {
-	if (result.renderer !== "xterm") throw new Error("browser returned an unexpected renderer");
-	if (result.rendererVersion !== "5.5.0") throw new Error("xterm renderer version must be 5.5.0");
+async function verifyWorkloads(result, names) {
+	if (result.renderer === "xterm") {
+		if (result.rendererVersion !== "5.5.0") throw new Error("xterm renderer version must be 5.5.0");
+	} else if (result.renderer === "dom") {
+		const expected = await rendererVersion("dom");
+		if (result.rendererVersion !== expected) {
+			throw new Error(`dom renderer version mismatch: browser ${result.rendererVersion} != package ${expected}`);
+		}
+	} else {
+		throw new Error(`browser returned an unexpected renderer: ${result.renderer}`);
+	}
 	for (const name of names) {
 		const measured = result.scenarios[name];
 		if (!measured) throw new Error(`browser omitted ${name}`);
@@ -73,7 +100,7 @@ function verifyWorkloads(result, names) {
 	}
 }
 
-async function runBrowser(names) {
+async function runBrowser(renderer, names) {
 	const server = await createServer({
 		configFile: path.join(benchDirectory, "vite.config.ts"),
 		logLevel: "error",
@@ -88,7 +115,7 @@ async function runBrowser(names) {
 		const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 		channel = await installReportChannel(page);
 		const [, measured] = await Promise.all([
-			page.goto(`http://127.0.0.1:${address.port}/?scenarios=${names.join(",")}`),
+			page.goto(`http://127.0.0.1:${address.port}/?scenarios=${names.join(",")}&renderer=${renderer}`),
 			channel.result,
 		]);
 		return {
@@ -122,31 +149,49 @@ async function writeResult(result, record) {
 	}
 }
 
-const { record, names } = parseArguments(process.argv.slice(2));
-if (record && git("status", "--porcelain", "--untracked-files=all") !== "") {
-	throw new Error("refusing to record a baseline from a dirty git tree");
-}
-if (record && names.length !== 3) throw new Error("baseline recording requires all three scenarios");
-if (await rendererVersion() !== "5.5.0") throw new Error("installed xterm version must be exactly 5.5.0");
+async function run() {
+	let parsed;
+	try {
+		parsed = parseArguments(process.argv.slice(2));
+	} catch (error) {
+		if (error instanceof UsageError) {
+			usage(error.message);
+			process.exit(2);
+		}
+		throw error;
+	}
+	const { renderer, record, names } = parsed;
+	if (record && git("status", "--porcelain", "--untracked-files=all") !== "") {
+		throw new Error("refusing to record a baseline from a dirty git tree");
+	}
+	if (record && names.length !== 3) throw new Error("baseline recording requires all three scenarios");
+	if (renderer === "xterm" && (await rendererVersion(renderer)) !== "5.5.0") {
+		throw new Error("installed xterm version must be exactly 5.5.0");
+	}
 
-const { measured, browserVersion } = await runBrowser(names);
-verifyWorkloads(measured, names);
-const cpus = os.cpus();
-const result = {
-	schema: "operator.terminal-benchmark.v1",
-	recordedAt: new Date().toISOString(),
-	commit: git("rev-parse", "HEAD"),
-	platform: os.platform(),
-	architecture: os.arch(),
-	cpu: cpus[0]?.model ?? "unknown",
-	logicalCores: cpus.length,
-	physicalMemory: os.totalmem(),
-	browserVersion,
-	displayScale: measured.displayScale,
-	renderer: measured.renderer,
-	rendererVersion: measured.rendererVersion,
-	rendererKind: measured.rendererKind,
-	scenarios: measured.scenarios,
-};
-validateBenchmark(result);
-await writeResult(result, record);
+	const { measured, browserVersion } = await runBrowser(renderer, names);
+	await verifyWorkloads(measured, names);
+	const cpus = os.cpus();
+	const result = {
+		schema: "operator.terminal-benchmark.v1",
+		recordedAt: new Date().toISOString(),
+		commit: git("rev-parse", "HEAD"),
+		platform: os.platform(),
+		architecture: os.arch(),
+		cpu: cpus[0]?.model ?? "unknown",
+		logicalCores: cpus.length,
+		physicalMemory: os.totalmem(),
+		browserVersion,
+		displayScale: measured.displayScale,
+		renderer: measured.renderer,
+		rendererVersion: measured.rendererVersion,
+		rendererKind: measured.rendererKind,
+		scenarios: measured.scenarios,
+	};
+	validateBenchmark(result);
+	await writeResult(result, record);
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+	await run();
+}

@@ -54,6 +54,14 @@ test("accepts benchmark results with hardware and runtime metadata", () => {
 	assert.doesNotThrow(() => validateBenchmark(benchmark()));
 });
 
+test("accepts a dom renderer result with a non-empty renderer version", () => {
+	const result = benchmark();
+	result.renderer = "dom";
+	result.rendererVersion = "0.1.0";
+	result.rendererKind = "canvas";
+	assert.doesNotThrow(() => validateBenchmark(result));
+});
+
 test("requires exactly ten measured samples", () => {
 	const result = benchmark();
 	result.scenarios.vtebench.samples.pop();
