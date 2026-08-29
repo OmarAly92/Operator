@@ -6,6 +6,7 @@ pub mod block_selection;
 pub mod block_tree;
 pub mod content;
 pub mod event_bridge;
+pub mod find;
 pub mod grid;
 pub mod parser;
 pub mod row_index;
@@ -15,6 +16,7 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
+pub use find::{FindCursor, FindMatch, FindQuery};
 pub use style::StyleCode;
 
 use terminal_marks::{MarkDecoder, MarkEvent};
@@ -84,6 +86,15 @@ impl TerminalCore {
             self.parser.rows(),
             self.parser.styles(),
             self.parser.grid(),
+        )
+    }
+
+    pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
+        find::FindCursor::new(
+            self.parser.grid(),
+            self.parser.rows(),
+            self.parser.content(),
+            query,
         )
     }
 
