@@ -1,0 +1,15 @@
+{
+  "name": "c-with-no-preceding-b",
+  "input": "some output\u001b]133;C\u0007more\u001b]133;D;0\u0007",
+  "events": [
+    {
+      "kind": "output_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ]
+}

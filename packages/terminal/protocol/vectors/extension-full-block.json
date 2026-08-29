@@ -1,0 +1,27 @@
+{
+  "name": "extension-full-block",
+  "input": "\u001b]133;A\u0007$  \u001b]133;B\u0007ls -la\u001b]133;C\u0007out\u001b]7000;v=1; id=block-001; cmd=ls%20-la; cwd=%2Fhome%2Fuser; branch=main; exit=0; start_ms=1700000000000; end_ms=1700000000123\u001b\\\u001b]133;D;0\u0007",
+  "events": [
+    {
+      "kind": "prompt_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_start",
+      "tier": 1
+    },
+    {
+      "kind": "output_start",
+      "tier": 1
+    },
+    {
+      "kind": "extension",
+      "tier": 2
+    },
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ]
+}

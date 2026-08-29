@@ -1,0 +1,10 @@
+{
+  "name": "unknown-7000-key",
+  "input": "preamble\u001b]7000;v=1; cmd=ls; foo=unknown; bar=also-unknown\u001b\\postamble",
+  "events": [
+    {
+      "kind": "extension",
+      "tier": 2
+    }
+  ]
+}

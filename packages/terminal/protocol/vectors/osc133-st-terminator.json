@@ -1,0 +1,23 @@
+{
+  "name": "osc133-st-terminator",
+  "input": "\u001b]133;A\u001b\\$  \u001b]133;B\u001b\\ls -la\u001b]133;C\u001b\\hi\n\u001b]133;D;0\u001b\\",
+  "events": [
+    {
+      "kind": "prompt_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_start",
+      "tier": 1
+    },
+    {
+      "kind": "output_start",
+      "tier": 1
+    },
+    {
+      "kind": "command_end",
+      "tier": 1,
+      "exitCode": 0
+    }
+  ]
+}

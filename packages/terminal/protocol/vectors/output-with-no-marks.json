@@ -1,0 +1,5 @@
+{
+  "name": "output-with-no-marks",
+  "input": "just plain text with no marks at all\nanother line\n",
+  "events": []
+}
