@@ -17,8 +17,7 @@ const REQUIRED_RUNS = 3;
 const READY_SELECTOR = '[data-terminal-smoke="ready"]';
 
 function fail(message) {
-	process.stderr.write(`smoke-vite: ${message}\n`);
-	process.exit(1);
+	throw new Error(message);
 }
 
 async function main() {
@@ -132,6 +131,7 @@ async function main() {
 }
 
 main().catch((error) => {
-	const message = error instanceof Error ? error.stack ?? error.message : String(error);
-	fail(message);
+	const message = error instanceof Error ? error.message : String(error);
+	process.stderr.write(`smoke-vite: ${message}\n`);
+	process.exitCode = 1;
 });

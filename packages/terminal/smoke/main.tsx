@@ -82,8 +82,9 @@ function SmokeApp(): ReactElement {
 			}
 			requestAnimationFrame(frame);
 		};
-		requestAnimationFrame(frame);
-		requestAnimationFrame(frame);
+		requestAnimationFrame(() => {
+			requestAnimationFrame(frame);
+		});
 	}, [core]);
 
 	if (error) {
