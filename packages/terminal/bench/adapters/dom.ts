@@ -9,10 +9,11 @@ import type { BenchmarkRenderer, Geometry, RendererKind } from "../harness";
  * The package's own renderer under the benchmark harness.
  *
  * `write` and `waitForPaint` deliberately mirror the xterm adapter's
- * semantics. xterm resolves `write` only once the bytes have been processed
- * and reports a real paint through `onRender`; timing this renderer on
- * `core.feed` alone would compare WASM parsing against xterm's parse-plus-
- * render and report a speedup that is an artifact of the harness.
+ * semantics: `write` resolves when the bytes are parsed, and `waitForPaint`
+ * resolves on a real paint. Resolving `waitForPaint` on a bare animation
+ * frame, as the first version did, reports a frame that fires whether or not
+ * anything rendered -- which is how this renderer came to look 54x faster
+ * than xterm.
  */
 export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	readonly version = String((rendererDomPackage as { version?: string }).version ?? "");
@@ -37,16 +38,16 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	write(bytes: Uint8Array): Promise<void> {
 		this.assertReady();
-		const renderer = this.renderer as DomBlockRenderer;
+		// Mirrors xterm's `terminal.write(bytes, cb)`, whose callback fires
+		// when the bytes have been parsed -- not when they have been painted.
+		// `core.feed` parses synchronously in WASM, so this is the same point
+		// in the pipeline. The paint is measured once at the end of the
+		// workload by `waitForPaint`, exactly as it is for xterm.
 		return new Promise((resolve, reject) => {
-			const off = renderer.onPaint(() => {
-				off();
-				resolve();
-			});
 			try {
 				(this.core as TerminalCore).feed(bytes);
+				resolve();
 			} catch (error) {
-				off();
 				reject(error);
 			}
 		});
