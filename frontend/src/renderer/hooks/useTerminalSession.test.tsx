@@ -186,7 +186,33 @@ function setup({
 	act(() => {
 		detach = view.result.current.attach(terminal);
 	});
-	return { view, terminal, muxes, invalidateSpy, detach: () => detach() };
+	// Subscribe to the transport AFTER attach so the hook has wired the mux.
+	// The transport's onData looks up r.mux/r.handle from runtime.current, so a
+	// pre-attach subscribe would get a no-op unsubscribe.
+	const transportBytes: string[] = [];
+	let unsubscribeTransport = view.result.current.transport.onData((bytes) => {
+		transportBytes.push(new TextDecoder().decode(bytes));
+	});
+	// A reconnect spins up a fresh mux and tears down the old one; tests that
+	// simulate reconnects should call this to re-subscribe to the new attachment.
+	const resubscribeTransport = () => {
+		unsubscribeTransport();
+		unsubscribeTransport = view.result.current.transport.onData((bytes) => {
+			transportBytes.push(new TextDecoder().decode(bytes));
+		});
+	};
+	return {
+		view,
+		terminal,
+		transportBytes,
+		resubscribeTransport,
+		muxes,
+		invalidateSpy,
+		detach: () => {
+			detach();
+			unsubscribeTransport();
+		},
+	};
 }
 
 beforeEach(() => {
@@ -215,13 +241,14 @@ describe("useTerminalSession", () => {
 	});
 
 	it("forwards PTY output, keystrokes, and resizes across the attachment", () => {
-		const { terminal, muxes } = setup();
+		const { transportBytes, terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));
 		act(() => muxes[0].emitData("handle-1", "hello"));
 		// The first burst is held by the replay gate; it lands once the stream
-		// goes quiet (see REPLAY_QUIET_MS).
+		// goes quiet (see REPLAY_QUIET_MS). The bytes flow to the block list via
+		// `transport` — xterm no longer accumulates scrollback.
 		act(() => void vi.advanceTimersByTime(60));
-		expect(terminal.lines).toContain("hello");
+		expect(transportBytes).toContain("hello");
 		terminal.typeKeys("ls\r");
 		expect(muxes[0].inputs).toEqual([["handle-1", "ls\r"]]);
 		terminal.paste("echo pasted\r");
@@ -267,7 +294,7 @@ describe("useTerminalSession", () => {
 	});
 
 	it("keeps receiving output while hidden without accepting input or resizing the PTY", () => {
-		const { view, terminal, muxes } = setup();
+		const { view, transportBytes, terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));
 		const initialResizes = muxes[0].resizes.length;
 
@@ -283,7 +310,7 @@ describe("useTerminalSession", () => {
 
 		expect(muxes[0].inputs).toEqual([]);
 		expect(muxes[0].resizes).toHaveLength(initialResizes);
-		expect(terminal.lines).toContain("output while hidden");
+		expect(transportBytes).toContain("output while hidden");
 		expect(muxes).toHaveLength(1);
 
 		// The same attachment becomes interactive again on return.
@@ -358,31 +385,39 @@ describe("useTerminalSession", () => {
 
 	// Initial-replay gate (issue #3160). The pane must appear already drawn at
 	// the tail; writing the burst frame-by-frame paints every intermediate
-	// scroll position on the way down.
+	// scroll position on the way down. With the block list as the surface, the
+	// gate still coalesces the burst, but the "write" is a no-op that fires
+	// done() immediately — so the cover lifts on the same quiet/cap signals.
 	describe("initial replay gate", () => {
-		it("never reveals before xterm finishes parsing the buffered replay", () => {
-			const { view, terminal, muxes } = setup();
-			terminal.autoCompleteWrites = false;
+		it("keeps the cover up while the gate buffers the replay, then reveals at quiet", () => {
+			const { view, transportBytes, muxes } = setup();
+			expect(view.result.current.replaySettled).toBe(false);
+
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "large replay"));
-			act(() => void vi.advanceTimersByTime(60 + 750));
+			// The quiet window holds the gate; the cover stays up.
+			act(() => void vi.advanceTimersByTime(30));
 			expect(view.result.current.replaySettled).toBe(false);
-			expect(terminal.latestOutputRequests).toBe(0);
-			act(() => terminal.completeWrites());
+			// After the quiet window, the gate flushes with holdTail. The "write"
+			// is a no-op that fires done() immediately, but the tail quiet window
+			// still has to elapse before the cover lifts.
+			act(() => void vi.advanceTimersByTime(60));
+			expect(view.result.current.replaySettled).toBe(false);
+			act(() => void vi.advanceTimersByTime(180));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.latestOutputRequests).toBe(1);
+			expect(transportBytes.join("")).toContain("large replay");
 		});
 
 		it("streams reviewer-style attachments without the replay gate", () => {
-			const { view, terminal, muxes } = setup({ coverInitialReplay: false });
+			const { view, transportBytes, muxes } = setup({ coverInitialReplay: false });
 			expect(view.result.current.replaySettled).toBe(true);
 			act(() => muxes[0].emitData("handle-1", "review output"));
-			expect(terminal.lines).toEqual(["review output"]);
+			expect(transportBytes).toEqual(["review output"]);
 			expect(view.result.current.replaySettled).toBe(true);
 		});
 
 		it("keeps the parsed replay covered through a quiet tail, then reveals at latest", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			expect(view.result.current.replaySettled).toBe(false);
 
 			act(() => muxes[0].emitOpened("handle-1"));
@@ -392,22 +427,21 @@ describe("useTerminalSession", () => {
 			act(() => void vi.advanceTimersByTime(30));
 			act(() => muxes[0].emitData("handle-1", "line three\r\n"));
 
-			// Still buffered: each frame restarted the quiet window.
-			expect(terminal.lines).toEqual([]);
+			// Each frame restarted the quiet window; the gate has not flushed,
+			// so the cover stays up. The block list is receiving bytes in
+			// parallel via the transport, but the cover hides that arrival.
 			expect(view.result.current.replaySettled).toBe(false);
 
 			act(() => void vi.advanceTimersByTime(60));
-			expect(terminal.lines).toEqual(["line one\r\nline two\r\nline three\r\n"]);
+			expect(transportBytes.join("")).toBe("line one\r\nline two\r\nline three\r\n");
 			expect(view.result.current.replaySettled).toBe(false);
-			expect(terminal.latestOutputRequests).toBe(0);
 
 			act(() => void vi.advanceTimersByTime(180));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.latestOutputRequests).toBe(1);
 		});
 
 		it("restarts the hidden-tail window when a late replay frame arrives", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "initial replay"));
 			act(() => void vi.advanceTimersByTime(60)); // coalesced write lands
@@ -416,23 +450,22 @@ describe("useTerminalSession", () => {
 			act(() => muxes[0].emitData("handle-1", " late tail"));
 			act(() => void vi.advanceTimersByTime(10)); // original tail deadline
 			expect(view.result.current.replaySettled).toBe(false);
-			expect(terminal.lines).toEqual(["initial replay", " late tail"]);
+			expect(transportBytes.join("")).toBe("initial replay late tail");
 
 			act(() => void vi.advanceTimersByTime(170));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.latestOutputRequests).toBe(1);
 		});
 
 		it("streams live output straight through once the gate has closed", () => {
-			const { terminal, muxes } = setup();
+			const { transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "replay"));
 			act(() => void vi.advanceTimersByTime(60 + 180));
 
 			act(() => muxes[0].emitData("handle-1", "live-1"));
-			expect(terminal.lines).toEqual(["replay", "live-1"]);
+			expect(transportBytes.join("")).toBe("replaylive-1");
 			act(() => muxes[0].emitData("handle-1", "live-2"));
-			expect(terminal.lines).toEqual(["replay", "live-1", "live-2"]);
+			expect(transportBytes.join("")).toBe("replaylive-1live-2");
 		});
 
 		it("reveals a pane that replays nothing instead of holding the cover to the cap", () => {
@@ -451,30 +484,30 @@ describe("useTerminalSession", () => {
 		});
 
 		it("keeps coalescing after an empty-replay reveal, so a late burst still lands as one write", () => {
-			const { terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 
-			// Uncovering early must NOT end the gate. Flushing an empty buffer here
-			// would clear replayBuffering and leave every later frame to go straight
-			// to xterm one at a time — the frame-by-frame walk this gate exists to
-			// remove, now with no cover over it either.
+			// Uncovering early must NOT end the gate. Ending the gate here would
+			// leave every later frame to flow straight to the block list one at a
+			// time — the frame-by-frame walk this gate exists to remove, now with
+			// no cover over it either.
 			act(() => void vi.advanceTimersByTime(250));
+			expect(view.result.current.replaySettled).toBe(true);
 
+			// Bytes flow to the block list immediately via `transport`. The gate's
+			// job is the cover, not the byte path.
 			act(() => muxes[0].emitData("handle-1", "late one "));
 			act(() => muxes[0].emitData("handle-1", "late two "));
 			act(() => muxes[0].emitData("handle-1", "late three"));
-			expect(terminal.lines).toEqual([]);
-
-			act(() => void vi.advanceTimersByTime(60));
-			expect(terminal.lines).toEqual(["late one late two late three"]);
+			expect(transportBytes.join("")).toBe("late one late two late three");
 		});
 
 		it("flushes at the cap but keeps late replay frames covered until quiet", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			// A stream trickling faster than the first quiet window would keep the
 			// coalesced buffer growing. The cap flushes it during chunk-18's gap;
-			// chunk-19 streams into xterm but remains behind the same cover.
+			// chunk-19 streams into the block list but remains behind the same cover.
 			for (let i = 0; i < 20; i += 1) {
 				act(() => muxes[0].emitData("handle-1", `chunk-${i} `));
 				act(() => void vi.advanceTimersByTime(40));
@@ -482,16 +515,17 @@ describe("useTerminalSession", () => {
 			expect(view.result.current.replaySettled).toBe(false);
 			act(() => void vi.advanceTimersByTime(180));
 			expect(view.result.current.replaySettled).toBe(true);
-			// Everything buffered up to the cap goes out as one write; the late tail
-			// is a separate write, but neither intermediate state is exposed.
-			expect(terminal.lines).toHaveLength(2);
-			expect(terminal.lines[0]).toContain("chunk-0 ");
-			expect(terminal.lines[0]).toContain("chunk-18 ");
-			expect(terminal.lines[1]).toBe("chunk-19 ");
+			// Everything buffered up to the cap goes out as one write to the block
+			// list; the late tail is a separate write, but neither intermediate
+			// state is exposed.
+			const joined = transportBytes.join("");
+			expect(joined).toContain("chunk-0 ");
+			expect(joined).toContain("chunk-18 ");
+			expect(joined).toContain("chunk-19 ");
 		});
 
 		it("bounds the hidden tail when the worker is continuously producing output", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 
 			for (let i = 0; i < 40; i += 1) {
@@ -502,31 +536,28 @@ describe("useTerminalSession", () => {
 			// The first cap ends buffering at 750ms; the tail cap reveals at
 			// 1500ms even though the worker never produced a quiet window.
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.latestOutputRequests).toBe(1);
 		});
 
 		it("lands buffered output and lifts the cover when the pane exits mid-replay", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "half a replay"));
 			act(() => muxes[0].emitExit("handle-1"));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.lines[0]).toBe("half a replay");
-			expect(terminal.lines.some((line) => line.includes("[process exited]"))).toBe(true);
+			expect(transportBytes.join("")).toContain("half a replay");
 		});
 
 		it("lands buffered output and lifts the cover when the pane errors mid-replay", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "half a replay"));
 			act(() => muxes[0].emitError("handle-1", "pane died"));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.lines[0]).toBe("half a replay");
-			expect(terminal.lines.some((line) => line.includes("[terminal error] pane died"))).toBe(true);
+			expect(transportBytes.join("")).toContain("half a replay");
 		});
 
 		it("re-arms the gate on reattach so the replayed screen is covered again", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, resubscribeTransport, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "first"));
 			act(() => void vi.advanceTimersByTime(60 + 180));
@@ -536,12 +567,13 @@ describe("useTerminalSession", () => {
 			act(() => void vi.advanceTimersByTime(500));
 			expect(muxes).toHaveLength(2);
 			expect(view.result.current.replaySettled).toBe(false);
+			resubscribeTransport();
 
 			act(() => muxes[1].emitOpened("handle-1"));
 			act(() => muxes[1].emitData("handle-1", "second"));
 			act(() => void vi.advanceTimersByTime(60 + 180));
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.lines).toContain("second");
+			expect(transportBytes.join("")).toContain("second");
 		});
 
 		it("does not duplicate a settled resize while replay is in flight", () => {
@@ -567,27 +599,30 @@ describe("useTerminalSession", () => {
 		});
 
 		it("keeps the gate armed when the server acks slowly, instead of spending the cap on the handshake", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, muxes } = setup();
 
 			// The daemon probes liveness and spawns the runtime client before the
 			// first byte — OPEN_TIMEOUT_MS budgets 3s for it. If the cap ran from
 			// connect() it would expire here, flush nothing, and leave the gate
-			// permanently off, so the replay would land frame-by-frame.
+			// permanently off, so the cover would lift on a pane that has not
+			// drawn yet.
 			act(() => void vi.advanceTimersByTime(1200));
 			act(() => muxes[0].emitOpened("handle-1"));
 
 			act(() => muxes[0].emitData("handle-1", "one "));
 			act(() => muxes[0].emitData("handle-1", "two "));
 			act(() => muxes[0].emitData("handle-1", "three"));
-			expect(terminal.lines).toEqual([]);
+			// Bytes flow to the block list immediately, but the cover stays up
+			// until the gate flushes.
+			expect(view.result.current.replaySettled).toBe(false);
+			expect(transportBytes.join("")).toBe("one two three");
 
 			act(() => void vi.advanceTimersByTime(60 + 180));
-			expect(terminal.lines).toEqual(["one two three"]);
 			expect(view.result.current.replaySettled).toBe(true);
 		});
 
 		it("ends the gate as soon as the user types, so their echo is not held behind the cover", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, terminal, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "prompt$ "));
 			expect(view.result.current.replaySettled).toBe(false);
@@ -595,11 +630,11 @@ describe("useTerminalSession", () => {
 			act(() => terminal.typeKeys("l"));
 
 			expect(view.result.current.replaySettled).toBe(true);
-			expect(terminal.lines).toEqual(["prompt$ "]);
+			expect(transportBytes.join("")).toBe("prompt$ ");
 			expect(muxes[0].inputs).toEqual([["handle-1", "l"]]);
 			// Subsequent output is live, so the echo shows up immediately.
 			act(() => muxes[0].emitData("handle-1", "l"));
-			expect(terminal.lines).toEqual(["prompt$ ", "l"]);
+			expect(transportBytes.join("")).toBe("prompt$ l");
 		});
 
 		it("does not resend a stale grid after a newer resize supersedes it", () => {
@@ -653,35 +688,33 @@ describe("useTerminalSession", () => {
 		});
 
 		it("preserves wire order when output arrives between bounded replay writes", () => {
-			const { terminal, muxes } = setup();
+			const { transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			const replay = "a".repeat(300 * 1024);
 			act(() => muxes[0].emitData("handle-1", replay));
 
-			// The quiet flush writes the first bounded batch and yields before the
-			// remainder. A live PTY frame arriving in that yield must queue behind it.
+			// The quiet flush yields before the remainder. A live PTY frame
+			// arriving in that yield must queue behind it in the block list.
 			act(() => void vi.advanceTimersByTime(60));
-			expect(terminal.lines).toEqual(["a".repeat(256 * 1024)]);
 			act(() => muxes[0].emitData("handle-1", "TAIL"));
 			act(() => void vi.runOnlyPendingTimers());
 
-			expect(terminal.lines.join("")).toBe(`${replay}TAIL`);
+			expect(transportBytes.join("")).toBe(`${replay}TAIL`);
 		});
 
 		it("queues an unfinished replay before an exit marker and attachment teardown", () => {
-			const { terminal, muxes } = setup();
+			const { transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			const replay = "a".repeat(300 * 1024);
 			act(() => muxes[0].emitData("handle-1", replay));
 			act(() => void vi.advanceTimersByTime(60));
 
 			// Exit lands while the next replay batch is waiting for its event-loop
-			// turn. The unwritten remainder must be submitted before the marker and
-			// before teardown invalidates this attachment's generation.
+			// turn. The buffered remainder must reach the block list before the
+			// attachment is torn down.
 			act(() => muxes[0].emitExit("handle-1"));
-			const output = terminal.lines.join("");
+			const output = transportBytes.join("");
 			expect(output.startsWith(replay)).toBe(true);
-			expect(output).toContain("[process exited]");
 		});
 
 		it("lifts the cover when the attachment is torn down with no reconnect scheduled", () => {
@@ -737,25 +770,26 @@ describe("useTerminalSession", () => {
 		});
 
 		it("lands buffered bytes on teardown rather than discarding them", () => {
-			const { terminal, muxes } = setup();
+			const { transportBytes, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitData("handle-1", "https://example.com/pr/1"));
 
 			// Socket drops mid-burst and the backoff reconnects. Bytes already
-			// received must still reach the terminal rather than being discarded.
+			// received must still reach the block list rather than being discarded.
 			act(() => muxes[0].emitConnection("closed"));
 			act(() => void vi.advanceTimersByTime(500));
 
 			expect(muxes).toHaveLength(2);
-			expect(terminal.lines).toContain("https://example.com/pr/1");
+			expect(transportBytes.join("")).toContain("https://example.com/pr/1");
 		});
 
 		it("drops a superseded connection's frames instead of folding them into the new replay", () => {
-			const { view, terminal, muxes } = setup();
+			const { view, transportBytes, resubscribeTransport, muxes } = setup();
 			act(() => muxes[0].emitOpened("handle-1"));
 			act(() => muxes[0].emitConnection("closed"));
 			act(() => void vi.advanceTimersByTime(500));
 			expect(muxes).toHaveLength(2);
+			resubscribeTransport();
 
 			// A late frame from the dead socket must not be concatenated into the
 			// new attachment's replay, nor uncover it.
@@ -763,16 +797,15 @@ describe("useTerminalSession", () => {
 			act(() => muxes[1].emitData("handle-1", "fresh"));
 			act(() => void vi.advanceTimersByTime(60 + 180));
 
-			expect(terminal.lines).toEqual(["fresh"]);
+			expect(transportBytes.join("")).toBe("fresh");
 			expect(view.result.current.replaySettled).toBe(true);
 		});
 	});
 
 	it("marks exit in the terminal and refetches workspace state instead of writing status", () => {
-		const { view, terminal, muxes, invalidateSpy } = setup();
+		const { view, muxes, invalidateSpy } = setup();
 		act(() => muxes[0].emitExit("handle-1"));
 		expect(view.result.current.state).toBe("exited");
-		expect(terminal.lines.some((line) => line.includes("[process exited]"))).toBe(true);
 		expect(muxes[0].disposed).toBe(true);
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
 	});

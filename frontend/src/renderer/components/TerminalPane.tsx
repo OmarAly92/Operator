@@ -961,9 +961,27 @@ function AttachedTerminal({
 		session !== undefined &&
 		!isSessionActive;
 
+	const detachRef = useRef<(() => void) | undefined>(undefined);
 	const handleReady = useCallback((handle: AttachableTerminal) => {
+		// Detach any previous attachment before the new xterm takes over. The cache
+		// re-mounts a new xterm on a generation change; the old one has already
+		// disposed, but the hook still needs the explicit flush to land any tail
+		// bytes and bump the generation so the new open isn't treated as a
+		// superseded reconnect.
+		detachRef.current?.();
+		detachRef.current = undefined;
 		setTerminal(handle);
-	}, []);
+		// A new xterm starts at its constructor default (80×24). Opening the PTY
+		// before FitAddon has measured its real slot makes full-screen worker TUIs
+		// redraw once at 80×24 and again at the actual grid. Settle that first fit
+		// before attaching so the daemon receives only the authoritative size.
+		// xterm no longer receives mux bytes — the block list does, via `transport`.
+		// The hook still needs the terminal for onUserInput/onResize forwarding
+		// when an alt-screen TUI is on top, and for the initial cols/rows.
+		void handle.prepareForActivation().then(() => {
+			detachRef.current = attach(handle);
+		});
+	}, [attach]);
 	useLayoutEffect(() => {
 		if (terminal) onTerminalReady?.(terminal);
 	}, [onTerminalReady, terminal]);
@@ -1005,22 +1023,11 @@ function AttachedTerminal({
 	}, [canRestoreSession, isRestoring, restoreSessionById, session?.id, t]);
 
 	useEffect(() => {
-		if (!terminal) return;
-		let current = true;
-		let detach: (() => void) | undefined;
-		// A new xterm starts at its constructor default (80×24). Opening the PTY
-		// before FitAddon has measured its real slot makes full-screen worker TUIs
-		// redraw once at 80×24 and again at the actual grid. Settle that first fit
-		// before attaching so the daemon receives only the authoritative size.
-		void terminal.prepareForActivation().then(() => {
-			if (!current) return;
-			detach = attach(terminal);
-		});
 		return () => {
-			current = false;
-			detach?.();
+			detachRef.current?.();
+			detachRef.current = undefined;
 		};
-	}, [terminal, handleId, attach, attachSession?.id]);
+	}, []);
 
 	if (initFailed) {
 		return (
