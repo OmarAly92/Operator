@@ -39,6 +39,7 @@ import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
 import { nativeShellBridgePresent } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
+import { BlockTerminal } from "./BlockTerminal";
 
 // The xterm renderer stack (~570KB parsed) is the single largest eager edge
 // from the shell route (route-bundle-report before.json, 2026-08-24) and no
@@ -922,7 +923,7 @@ function AttachedTerminal({
 	// A shell pane has no session, so it hands the hook its handle directly
 	// instead of reading one off `attachSession`.
 	const shellTerminalHandleId = terminalTarget?.kind === "shell" ? terminalTarget.handleId : undefined;
-	const { attach, state, error, replaySettled, syncVisibleSize } = useTerminalSession(attachSession, {
+	const { attach, state, error, replaySettled, syncVisibleSize, transport } = useTerminalSession(attachSession, {
 		coverInitialReplay: terminalTarget?.kind !== "reviewer",
 		createMux,
 		daemonReady,
@@ -960,9 +961,27 @@ function AttachedTerminal({
 		session !== undefined &&
 		!isSessionActive;
 
+	const detachRef = useRef<(() => void) | undefined>(undefined);
 	const handleReady = useCallback((handle: AttachableTerminal) => {
+		// Detach any previous attachment before the new xterm takes over. The cache
+		// re-mounts a new xterm on a generation change; the old one has already
+		// disposed, but the hook still needs the explicit flush to land any tail
+		// bytes and bump the generation so the new open isn't treated as a
+		// superseded reconnect.
+		detachRef.current?.();
+		detachRef.current = undefined;
 		setTerminal(handle);
-	}, []);
+		// A new xterm starts at its constructor default (80×24). Opening the PTY
+		// before FitAddon has measured its real slot makes full-screen worker TUIs
+		// redraw once at 80×24 and again at the actual grid. Settle that first fit
+		// before attaching so the daemon receives only the authoritative size.
+		// xterm no longer receives mux bytes — the block list does, via `transport`.
+		// The hook still needs the terminal for onUserInput/onResize forwarding
+		// when an alt-screen TUI is on top, and for the initial cols/rows.
+		void handle.prepareForActivation().then(() => {
+			detachRef.current = attach(handle);
+		});
+	}, [attach]);
 	useLayoutEffect(() => {
 		if (terminal) onTerminalReady?.(terminal);
 	}, [onTerminalReady, terminal]);
@@ -1004,22 +1023,11 @@ function AttachedTerminal({
 	}, [canRestoreSession, isRestoring, restoreSessionById, session?.id, t]);
 
 	useEffect(() => {
-		if (!terminal) return;
-		let current = true;
-		let detach: (() => void) | undefined;
-		// A new xterm starts at its constructor default (80×24). Opening the PTY
-		// before FitAddon has measured its real slot makes full-screen worker TUIs
-		// redraw once at 80×24 and again at the actual grid. Settle that first fit
-		// before attaching so the daemon receives only the authoritative size.
-		void terminal.prepareForActivation().then(() => {
-			if (!current) return;
-			detach = attach(terminal);
-		});
 		return () => {
-			current = false;
-			detach?.();
+			detachRef.current?.();
+			detachRef.current = undefined;
 		};
-	}, [terminal, handleId, attach, attachSession?.id]);
+	}, []);
 
 	if (initFailed) {
 		return (
@@ -1066,24 +1074,34 @@ function AttachedTerminal({
 					}
 				/>
 			)}
-			{/* Keep a small gutter where terminal output starts, but let xterm use the
-			    full top/right/bottom extent. The host fills the remaining
-			    content box, so FitAddon still measures it correctly and the absolute
-			    overlays (empty state, banner) keep covering the full padding box. */}
+			{/* Keep a small gutter where terminal output starts, but let the block list
+			    (or alt-screen xterm) use the full top/right/bottom extent. The block
+			    list host fills the remaining content box; FitAddon still measures
+			    correctly inside the alt-screen xterm, and the absolute overlays
+			    (empty state, banner) keep covering the full padding box. */}
 			<div className="relative min-h-0 flex-1 pl-2">
 				<Suspense fallback={null}>
-					<XtermTerminal
+					<BlockTerminal
+						transport={transport}
+						sessionId={handleId ?? "no-session"}
+						historyBlocks={[]}
+						theme={theme}
 						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 						fontSize={fontSize}
-						focusRequested={focusRequested}
-						isVisible={isVisible}
-						onError={handleInitError}
-						onLinkOpen={handleLinkOpen}
-						onReady={handleReady}
-						onVisibleSize={syncVisibleSize}
-						paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
-						theme={theme}
-					/>
+					>
+						<XtermTerminal
+							ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
+							fontSize={fontSize}
+							focusRequested={focusRequested}
+							isVisible={isVisible}
+							onError={handleInitError}
+							onLinkOpen={handleLinkOpen}
+							onReady={handleReady}
+							onVisibleSize={syncVisibleSize}
+							paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
+							theme={theme}
+						/>
+					</BlockTerminal>
 				</Suspense>
 				{showEmptyState && (
 					<div className="terminal-surface absolute inset-0 grid place-items-center font-mono text-control">

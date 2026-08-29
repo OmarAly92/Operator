@@ -1,15 +1,25 @@
-import { useLayoutEffect, useRef, type ReactElement } from "react";
+import { useLayoutEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { DomBlockRenderer } from "@operator/terminal-renderer-dom";
 import type { FontConfig, TerminalCore, TerminalTheme } from "@operator/terminal-core";
+import { AltScreenSlot } from "./AltScreenSlot.js";
 
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
 	theme: TerminalTheme;
 	font: FontConfig;
 	className?: string;
+	altScreenSurface?: ReactNode;
+	altScreenActive: boolean;
 }
 
-export function TerminalSurface({ core, theme, font, className }: TerminalSurfaceProps): ReactElement {
+export function TerminalSurface({
+	core,
+	theme,
+	font,
+	className,
+	altScreenSurface,
+	altScreenActive,
+}: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 
@@ -37,5 +47,12 @@ export function TerminalSurface({ core, theme, font, className }: TerminalSurfac
 		rendererRef.current?.setFont(font);
 	}, [font]);
 
-	return <div ref={hostRef} className={className} />;
+	const host = <div ref={hostRef} className={className} />;
+	return (
+		<AltScreenSlot
+			active={altScreenActive}
+			surface={altScreenSurface}
+			blockList={host}
+		/>
+	);
 }

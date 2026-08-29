@@ -11,15 +11,17 @@ export type {
 	BootstrapOptions,
 	ChangeListener,
 	FontConfig,
+	HostCapabilities,
 	RowRange,
 	ShellKind,
 	SpawnRecipe,
 	TerminalCoreOptions,
 	TerminalSnapshot,
+	TerminalStrings,
 	TerminalTheme,
 } from "./types.js";
 
-export { validateRowRange } from "./types.js";
+export { defaultStrings, validateRowRange } from "./types.js";
 
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 

@@ -117,3 +117,32 @@ export type BootstrapOptions = Readonly<{
 	integration: "auto" | "osc133-only" | "off";
 	suppressPrompt: boolean;
 }>;
+
+export type TerminalStrings = Readonly<{
+	blockRunning: string;
+	blockSucceeded: string;
+	blockFailed: string;
+	blockAbandoned: string;
+	copyCommand: string;
+	copyOutput: string;
+	rerunCommand: string;
+	shellBlocksUnavailable: string;
+}>;
+
+export const defaultStrings: TerminalStrings = Object.freeze({
+	blockRunning: "Running",
+	blockSucceeded: "Succeeded",
+	blockFailed: "Failed",
+	blockAbandoned: "Abandoned",
+	copyCommand: "Copy command",
+	copyOutput: "Copy output",
+	rerunCommand: "Re-run",
+	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
+});
+
+export type HostCapabilities = Readonly<{
+	writeClipboard(text: string): Promise<void>;
+	readClipboard(): Promise<string>;
+	openLink(url: string): Promise<void>;
+	notify?(title: string, body: string): void;
+}>;

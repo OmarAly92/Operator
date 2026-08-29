@@ -39,6 +39,12 @@ function feed(core: TerminalCore, text: string): void {
 	core.feed(new TextEncoder().encode(text));
 }
 
+function flushRepaint(): Promise<void> {
+	return new Promise((resolve) => {
+		requestAnimationFrame(() => resolve());
+	});
+}
+
 beforeAll(async () => {
 	await loadedCore();
 });
@@ -58,7 +64,7 @@ describe("DomBlockRenderer", () => {
 	it("renders one block, one row node per row, and one span per style run", () => {
 		const { host } = mountWith("[31mred[0m café\r\nplain");
 
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(1);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(1);
 		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(2);
 		expect(host.querySelectorAll("[data-terminal-run]")).toHaveLength(3);
 		expect(host.textContent).toBe("red caféplain");
@@ -74,29 +80,30 @@ describe("DomBlockRenderer", () => {
 		expect(runs[2]?.getAttribute("style")).toContain("color: var(--terminal-foreground)");
 	});
 
-	it("rebuilds the block when the core fires an onChange after a feed", () => {
+	it("rebuilds the block when the core fires an onChange after a feed", async () => {
 		const { core, host } = mountWith("alpha");
 		expect(host.textContent).toBe("alpha");
 
 		feed(core, "\r\nbeta");
+		await flushRepaint();
 		expect(host.querySelectorAll("[data-terminal-row]")).toHaveLength(2);
 		expect(host.textContent).toBe("alphabeta");
 	});
 
 	it("writes the theme as CSS variables on the host without remounting", () => {
 		const { host, renderer } = mountWith("alpha");
-		const beforeBlock = host.querySelector('[data-terminal-block-id="synthetic-0"]');
+		const beforeBlock = host.querySelector('[data-terminal-block-id="0:0"]');
 
 		const newTheme: TerminalTheme = { ...theme, foreground: "#abcdef" };
 		renderer.setTheme(newTheme);
-		const afterBlock = host.querySelector('[data-terminal-block-id="synthetic-0"]');
+		const afterBlock = host.querySelector('[data-terminal-block-id="0:0"]');
 		expect(afterBlock).toBe(beforeBlock);
 		expect(afterBlock?.getAttribute("style") ?? "").toContain("--terminal-foreground: #abcdef");
 	});
 
 	it("exposes theme and font as CSS variables that the host can override", () => {
 		const { host } = mountWith("alpha");
-		const block = host.querySelector('[data-terminal-block-id="synthetic-0"]') as HTMLElement;
+		const block = host.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement;
 		const styleAttr = block.getAttribute("style") ?? "";
 		expect(styleAttr).toContain("--terminal-foreground:");
 		expect(styleAttr).toContain("--terminal-ansi-0:");
@@ -128,9 +135,9 @@ describe("DomBlockRenderer", () => {
 
 	it("scrolls to the synthetic block by id", () => {
 		const { host, renderer } = mountWith("alpha\r\nbeta");
-		const block = host.querySelector('[data-terminal-block-id="synthetic-0"]') as HTMLElement;
+		const block = host.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement;
 		block.scrollIntoView = () => undefined;
-		expect(() => renderer.scrollToBlock("synthetic-0", "start")).not.toThrow();
+		expect(() => renderer.scrollToBlock("0:0", "start")).not.toThrow();
 	});
 
 	it("rejects an unknown block id with a thrown error", () => {
@@ -155,13 +162,68 @@ describe("DomBlockRenderer", () => {
 		renderer.mount(host, core);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(1);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(1);
 
 		renderer.dispose();
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(0);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(0);
 		expect(host.children).toHaveLength(0);
 
 		feed(core, "beta");
-		expect(host.querySelectorAll('[data-terminal-block-id="synthetic-0"]')).toHaveLength(0);
+		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(0);
+	});
+
+	it("renders only the visible slice of a tall block", () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		const core = createTerminalCore({ columns: 20, scrollback: 100_000 });
+		for (let i = 0; i < 5_000; i += 1) {
+			core.feed(new TextEncoder().encode(`line ${i}\n`));
+		}
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		const rows = container.querySelectorAll("[data-terminal-row]");
+		expect(rows.length).toBeLessThan(60);
+		expect(rows.length).toBeGreaterThan(0);
+		renderer.dispose();
+	});
+
+	it("renders a block header inside each block with a data-block-status", () => {
+		const { host } = mountWith("alpha\r\nbeta");
+		const block = host.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement;
+		const header = block.querySelector(".terminal-block-header");
+		expect(header).not.toBeNull();
+		expect(header?.getAttribute("data-block-status")).toBe("plain");
+	});
+
+	it("repaints when the container scrolls, so the visible window follows scrollTop", async () => {
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
+		Object.defineProperty(container, "scrollTop", { value: 0, configurable: true, writable: true });
+		const core = createTerminalCore({ columns: 20, scrollback: 100_000 });
+		for (let i = 0; i < 5_000; i += 1) {
+			core.feed(new TextEncoder().encode(`line ${i}\n`));
+		}
+		const realSnapshot = core.snapshot.bind(core);
+		const stableSnapshot = realSnapshot();
+		core.snapshot = () => stableSnapshot;
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		const firstRow = (): HTMLElement | null =>
+			container.querySelector("[data-terminal-row]");
+		const before = firstRow();
+		expect(before).not.toBeNull();
+		const beforeOffset = Number(before?.dataset.terminalRow ?? "-1");
+
+		container.scrollTop = 4_000;
+		container.dispatchEvent(new Event("scroll"));
+		await flushRepaint();
+
+		const after = firstRow();
+		expect(after).not.toBeNull();
+		const afterOffset = Number(after?.dataset.terminalRow ?? "-1");
+		expect(afterOffset).toBeGreaterThan(beforeOffset);
+		renderer.dispose();
 	});
 });

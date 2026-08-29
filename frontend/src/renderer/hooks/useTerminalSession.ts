@@ -13,7 +13,7 @@
 // derived status flow back (docs/architecture.md).
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
 import { createTerminalMux, muxUrlFromApiBase, type TerminalMux } from "../lib/terminal-mux";
@@ -120,11 +120,10 @@ const REPLAY_TAIL_CAP_MS = 750;
 // it, and tripping it ends only the coalesced phase: later bytes still render
 // behind the cover until the tail settles.
 const REPLAY_MAX_BYTES = 1024 * 1024;
-// A replay below the byte ceiling can still be large enough to monopolize the
-// renderer in one xterm parser task. Feed it in bounded writes behind the same
-// cover and yield between them; the user still sees one final reveal while
-// fullscreen/window input remains responsive.
-const REPLAY_WRITE_BATCH_BYTES = 256 * 1024;
+// The bounded batch/parse loop is no longer needed: xterm is no longer the
+// byte sink, so the gate's "write" is a no-op that fires done() immediately.
+// The byte cap and quiet/cap timers still bound the cover, but the per-batch
+// pause between writes was a property of handing work to xterm.
 // Cover-only grace on the first replay byte. A pane that has produced NOTHING
 // has no walk to hide, so holding the cover to the cap just shows a blank
 // overlay — and past the pane's label delay (REPLAY_COVER_LABEL_MS in
@@ -333,17 +332,11 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 
 		let pendingReplayWrites = 0;
 		let replayRevealDeadlineReached = false;
-		const postReplayWriteQueue: Uint8Array[] = [];
-		let postReplayWriteActive = false;
-		let replayBatchBytes: Uint8Array | null = null;
-		let replayBatchOffset = 0;
-		let replayBatchTimer: ReturnType<typeof setTimeout> | null = null;
-		let replayBatchDone: (() => void) | null = null;
 		let replayWritesPreserved = false;
 
-		// Reveal only after xterm has parsed the coalesced replay and any late tail
-		// frames have gone quiet. The tail itself streams straight into xterm behind
-		// the cover, avoiding an unbounded duplicate replay buffer.
+		// Reveal only after the coalesced replay has been released to the block
+		// list and any late tail frames have gone quiet. xterm is no longer the
+		// surface, so the cover lifts on the same signal the block list uses.
 		const revealReplayTail = () => {
 			if (!r.replayTailPending || !isCurrentAttachment(generation, handle, mux)) return;
 			if (r.replayTailQuietTimer) {
@@ -360,7 +353,6 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			}
 			r.replayTailPending = false;
 			replayRevealDeadlineReached = false;
-			terminal.showLatestOutput();
 			setReplaySettled(true);
 		};
 		const scheduleReplayTailReveal = () => {
@@ -380,83 +372,32 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			}
 		};
 		const writeReplayBatches = (bytes: Uint8Array, done: () => void) => {
-			replayBatchBytes = bytes;
-			replayBatchOffset = 0;
-			replayBatchDone = done;
-			const writeNext = () => {
-				replayBatchTimer = null;
-				if (replayWritesPreserved) return;
-				if (!isCurrentAttachment(generation, handle, mux)) return;
-				const current = replayBatchBytes;
-				if (!current) return;
-				const end = Math.min(current.length, replayBatchOffset + REPLAY_WRITE_BATCH_BYTES);
-				const batch = current.subarray(replayBatchOffset, end);
-				replayBatchOffset = end;
-				terminal.write(batch, () => {
-					if (replayWritesPreserved) return;
-					if (!isCurrentAttachment(generation, handle, mux)) return;
-					if (replayBatchOffset >= current.length) {
-						const finished = replayBatchDone;
-						replayBatchBytes = null;
-						replayBatchOffset = 0;
-						replayBatchDone = null;
-						finished?.();
-						return;
-					}
-					replayBatchTimer = setTimeout(writeNext, 0);
-				});
-			};
-			writeNext();
+			// xterm is no longer the byte sink — the block list is. The replay gate
+			// still coalesces and bounds the cover flip, but the "write" is a no-op
+			// that fires the done callback immediately, so the gate's settled/not-
+			// settled signal stays correct without parking bytes in xterm.
+			void bytes;
+			done();
 		};
 		const preservePendingReplayWrites = () => {
 			if (replayWritesPreserved) return;
 			replayWritesPreserved = true;
-			if (replayBatchTimer !== null) {
-				clearTimeout(replayBatchTimer);
-				replayBatchTimer = null;
-			}
-			if (replayBatchBytes && replayBatchOffset < replayBatchBytes.length) {
-				// The current batch is already in xterm's queue. Queue the remainder in
-				// one call before dispose so it cannot be overtaken or discarded.
-				terminal.write(replayBatchBytes.subarray(replayBatchOffset));
-			}
-			replayBatchBytes = null;
-			replayBatchOffset = 0;
-			replayBatchDone = null;
-			for (const bytes of postReplayWriteQueue) terminal.write(bytes);
-			postReplayWriteQueue.length = 0;
-			postReplayWriteActive = false;
 			pendingReplayWrites = 0;
 			r.replayTailPending = false;
-			terminal.showLatestOutput();
 			setReplaySettled(true);
 		};
 		const settleAfterReplayWrites = () => {
-			if (pendingReplayWrites > 0 || postReplayWriteActive || postReplayWriteQueue.length > 0) return;
+			if (pendingReplayWrites > 0) return;
 			if (r.replayTailPending) {
 				scheduleReplayTailReveal();
 				return;
 			}
-			terminal.showLatestOutput();
 			setReplaySettled(true);
 		};
 		const drainPostReplayWrites = () => {
 			if (!isCurrentAttachment(generation, handle, mux)) return;
-			if (pendingReplayWrites > 0 || postReplayWriteActive) return;
-			const bytes = postReplayWriteQueue.shift();
-			if (!bytes) {
-				settleAfterReplayWrites();
-				return;
-			}
-			postReplayWriteActive = true;
-			pendingReplayWrites += 1;
-			terminal.write(bytes, () => {
-				if (replayWritesPreserved) return;
-				if (!isCurrentAttachment(generation, handle, mux)) return;
-				postReplayWriteActive = false;
-				pendingReplayWrites = Math.max(0, pendingReplayWrites - 1);
-				drainPostReplayWrites();
-			});
+			if (pendingReplayWrites > 0) return;
+			settleAfterReplayWrites();
 		};
 
 		// End the buffered part of the initial replay: concatenate what arrived so
@@ -502,7 +443,6 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				offset += chunk.length;
 			}
 			if (preserveBeforeTeardown) {
-				terminal.write(replay);
 				preservePendingReplayWrites();
 				return;
 			}
@@ -534,19 +474,15 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 					r.replayQuietTimer = setTimeout(() => flushReplay(true), REPLAY_QUIET_MS);
 					return;
 				}
-				if (pendingReplayWrites > 0 || postReplayWriteActive || r.replayTailPending) {
-					// Preserve wire order while the bounded initial replay is yielding,
-					// and do not let a previous quiet deadline reveal before this newer
-					// chunk has been parsed by xterm.
-					if (r.replayTailQuietTimer) {
-						clearTimeout(r.replayTailQuietTimer);
-						r.replayTailQuietTimer = null;
-					}
-					postReplayWriteQueue.push(bytes);
-					drainPostReplayWrites();
+				if (pendingReplayWrites > 0 || r.replayTailPending) {
+					// The gate is mid-flush or the tail is still settling. A late
+					// frame must restart the tail quiet window so the cover stays
+					// up until the stream actually goes idle.
+					if (r.replayTailPending) scheduleReplayTailReveal();
 					return;
 				}
-				terminal.write(bytes);
+				// Bytes are routed to the block list through `transport.onData`; the
+				// block list owns what paints, so xterm no longer accumulates scrollback.
 			}),
 			mux.onOpened(handle, () => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
@@ -582,10 +518,9 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				// Land whatever was buffered before the notice, and lift the cover:
 				// a pane that exits mid-replay must never be left behind it.
 				flushReplay(false, true);
-				terminal.writeln("\r\n\x1b[2m[process exited]\x1b[0m");
 				transition("exited");
-				// Preserve xterm scrollback, but release the attachment: an exited
-				// pane has no reason to keep a WebSocket/client writer alive.
+				// Release the attachment: an exited pane has no reason to keep a
+				// WebSocket/client writer alive.
 				teardownMux();
 				invalidateWorkspaces();
 			}),
@@ -594,7 +529,6 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				clearOpenTimer(generation);
 				r.inputReady = false;
 				flushReplay(false, true);
-				terminal.writeln(`\r\n\x1b[2m[terminal error] ${message}\x1b[0m`);
 				setError(message);
 				transition("error");
 				// Pane errors are terminal for this attachment. Keep the renderer
@@ -862,5 +796,32 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		[teardownMux],
 	);
 
-	return { attach, state, error, replaySettled, syncVisibleSize };
+	const transport = useMemo(
+		() => ({
+			write: (data: Uint8Array) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle || !r.inputReady) return;
+				const decoder = new TextDecoder("utf-8", { fatal: false });
+				r.mux.sendInput(r.handle, decoder.decode(data));
+			},
+			onData: (listener: (bytes: Uint8Array) => void) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return () => undefined;
+				return r.mux.onData(r.handle, listener);
+			},
+			resize: (cols: number, rows: number) => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return;
+				r.mux.resize(r.handle, cols, rows);
+			},
+			dispose: () => {
+				const r = runtime.current;
+				if (!r.mux || !r.handle) return;
+				r.mux.close(r.handle);
+			},
+		}),
+		[],
+	);
+
+	return { attach, state, error, replaySettled, syncVisibleSize, transport };
 }

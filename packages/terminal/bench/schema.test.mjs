@@ -54,6 +54,28 @@ test("accepts benchmark results with hardware and runtime metadata", () => {
 	assert.doesNotThrow(() => validateBenchmark(benchmark()));
 });
 
+test("accepts a dom renderer result with a non-empty renderer version", () => {
+	const result = benchmark();
+	result.renderer = "dom";
+	result.rendererVersion = "0.1.0";
+	result.rendererKind = "dom";
+	assert.doesNotThrow(() => validateBenchmark(result));
+});
+
+test("rejects a dom result claiming an xterm backend", () => {
+	const result = benchmark();
+	result.renderer = "dom";
+	result.rendererVersion = "0.1.0";
+	result.rendererKind = "canvas";
+	assert.throws(() => validateBenchmark(result), /rendererKind for dom/);
+});
+
+test("rejects an xterm result claiming the dom kind", () => {
+	const result = benchmark();
+	result.rendererKind = "dom";
+	assert.throws(() => validateBenchmark(result), /rendererKind for xterm/);
+});
+
 test("requires exactly ten measured samples", () => {
 	const result = benchmark();
 	result.scenarios.vtebench.samples.pop();
