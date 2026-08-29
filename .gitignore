@@ -100,3 +100,7 @@ pnpm-lock.yaml
 
 # Subagent-driven-development scratch (task briefs and reports)
 .superpowers/
+
+# Local git worktrees (created via superpowers:using-git-worktrees)
+.worktrees/
+worktrees/
