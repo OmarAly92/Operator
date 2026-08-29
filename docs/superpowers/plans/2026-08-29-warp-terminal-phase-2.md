@@ -504,13 +504,24 @@ Expected: PASS.
 
 - [ ] **Step 8: Prove no timer decides ownership, and commit**
 
-This is a spec acceptance criterion, so it gets a real check rather than a promise. Add `packages/terminal/scripts/check-no-ownership-timer.mjs` that greps the ownership path — `crates/vt-core/src/line_editor.rs`, `crates/vt-core/src/lib.rs`, `ts/editor/src/line-editor.ts` — for `setTimeout`, `setInterval`, `requestIdleCallback`, `Duration::from_millis`, `sleep`, and fails with the offending file and line. Add it to the `check:boundaries` npm script chain.
+This is a spec acceptance criterion, so it gets a real check rather than a promise. Add `packages/terminal/scripts/check-no-ownership-timer.mjs`.
+
+**Do not hardcode the full file list.** `ts/editor/` does not exist until Task 5, and a list that has to be extended by hand in a later task is a list that goes stale — which is the exact defect that stopped the first run of this plan. The scanned set is derived instead:
+
+- **Core set, always scanned, must all exist:** `crates/vt-core/src/line_editor.rs`, `crates/vt-core/src/lib.rs`. If any core file is missing, **fail** — a checker that silently scans nothing and prints success is worse than no checker.
+- **Derived set:** every file under `ts/editor/src/` whose text matches `/\blineEditorState\b|\bLineEditorState\b/`. Before Task 5 this directory does not exist and the derived set is empty, which is correct and not an error. From Task 6 onward `line-editor.ts` reads ownership, so it joins the set with no plan step required.
+
+Scoping to files that actually reference ownership is deliberate: a cursor-blink `setInterval` or a ghost-text debounce elsewhere in the editor is legitimate, and flagging those would train everyone to ignore the checker.
+
+Forbidden patterns in the scanned set: `setTimeout`, `setInterval`, `requestIdleCallback`, `requestAnimationFrame`, `Duration::from_millis`, `Duration::from_secs`, `thread::sleep`, `tokio::time`. Report the offending file, line number and matched text.
+
+The script MUST print the number of files it scanned, so a run that covered nothing is visible rather than green. Add it to the `check:boundaries` npm script chain.
 
 ```bash
 cd packages/terminal && node ./scripts/check-no-ownership-timer.mjs
 ```
 
-Expected: `no ownership timers found`.
+Expected: `no ownership timers found (2 files scanned)` — the two core Rust files. The count is the assertion; a run reporting 0 files is a failure even though it found no timers.
 
 ```bash
 git add packages/terminal/crates packages/terminal/ts/core packages/terminal/scripts
@@ -1820,7 +1831,9 @@ A spec acceptance criterion. Add a Playwright case to the vite smoke: spawn with
 cd packages/terminal && node ./scripts/check-no-ownership-timer.mjs
 ```
 
-Expected: `no ownership timers found`. If a timer was introduced anywhere in the editor's ownership handling during Tasks 6–11, this is where it is caught and removed — not worked around.
+Expected: `no ownership timers found`, with a scanned-file count of **at least 3** — the two core Rust files plus `ts/editor/src/line-editor.ts`, which reads `lineEditorState()` and therefore joins the derived set automatically. If the count is still 2, the editor is not consulting core state on the input path and the phase's headline guarantee is unproven; fix that before closing, do not lower the check.
+
+If a timer was introduced anywhere in the editor's ownership handling during Tasks 6–11, this is where it is caught and removed — not worked around.
 
 - [ ] **Step 5: Full gate sweep**
 
