@@ -87,7 +87,9 @@ OSC 7000 ; key=value ; key=value ST
 
 - The leading `OSC 7000 ;` is fixed text; the first key follows immediately
   after the semicolon.
-- Pairs are separated by a literal `; ` (semicolon then space).
+- Pairs are separated by `;` (semicolon). A single ASCII space immediately
+  after a separator is accepted and ignored, so both `k=v;k=v` and
+  `k=v; k=v` are valid encodings.
 - Each value MUST be percent-encoded per RFC 3986 §2.1. The character
   alphabet for the unencoded form is the bytes that are safe in a pty
   stream: `[A-Za-z0-9._~/:@!$&'()*+,;=-]`. Every other byte — including

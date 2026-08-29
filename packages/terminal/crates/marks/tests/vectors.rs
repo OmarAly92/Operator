@@ -1,18 +1,13 @@
 use std::fs;
 use std::path::PathBuf;
 
-use terminal_marks::testing::RawEvent;
+use terminal_marks::testing::{RawEvent, RawTier};
 use terminal_marks::{MarkDecoder, MarkEvent, MarkTier};
 
 fn vectors_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../protocol/vectors")
 }
 
-/// Per-vector structural comparison. The JSON vectors pin the event *kind*
-/// and *tier* (and, for command_end, exit_code; for cwd_changed, path). They
-/// do not pin the contents of an extension mark's `pairs` — the spec's
-/// closed vocabulary is the event kind, not the field shape (SPEC §8).
-/// So we compare kind-by-kind and ignore the extension pair contents.
 fn events_match(actual: &[MarkEvent], expected: &[MarkEvent], name: &str) -> bool {
     if actual.len() != expected.len() {
         eprintln!(
@@ -41,8 +36,13 @@ fn events_match(actual: &[MarkEvent], expected: &[MarkEvent], name: &str) -> boo
                     return false;
                 }
             }
-            (MarkEvent::Extension(_), MarkEvent::Extension(_)) => {
-                // Pairs are not pinned by the JSON vectors.
+            (MarkEvent::Extension(actual), MarkEvent::Extension(expected)) => {
+                if !expected.pairs.is_empty() && actual != expected {
+                    eprintln!(
+                        "vector {name}: extension pairs mismatch: {actual:?} vs {expected:?}"
+                    );
+                    return false;
+                }
             }
             _ => {
                 let (ak, at) = event_kind_tier(a);
@@ -73,29 +73,44 @@ fn event_kind_tier(ev: &MarkEvent) -> (String, MarkTier) {
 }
 
 fn expected_event(name: &str, ev: &RawEvent) -> MarkEvent {
-    let tier = if ev.tier.as_ref().is_some_and(|tier| tier.is_osc133()) {
-        MarkTier::Osc133
-    } else {
-        MarkTier::Extension
-    };
     match ev.kind.as_str() {
-        "prompt_start" => MarkEvent::PromptStart { tier },
-        "command_start" => MarkEvent::CommandStart { tier },
-        "output_start" => MarkEvent::OutputStart { tier },
+        "prompt_start" => MarkEvent::PromptStart {
+            tier: expected_tier(name, ev),
+        },
+        "command_start" => MarkEvent::CommandStart {
+            tier: expected_tier(name, ev),
+        },
+        "output_start" => MarkEvent::OutputStart {
+            tier: expected_tier(name, ev),
+        },
         "command_end" => MarkEvent::CommandEnd {
-            tier,
+            tier: expected_tier(name, ev),
             exit_code: ev.exit_code,
         },
         "cwd_changed" => MarkEvent::CwdChanged {
             path: ev.path.clone().expect("cwd_changed has path"),
         },
-        "extension" => MarkEvent::Extension(Default::default()),
+        "extension" => MarkEvent::Extension(terminal_marks::ExtensionFields {
+            pairs: ev.pairs.clone().unwrap_or_default(),
+        }),
         "input_ready" => MarkEvent::InputReady,
         "input_released" => MarkEvent::InputReleased,
         "alt_screen_enter" => MarkEvent::AltScreenEnter,
         "alt_screen_leave" => MarkEvent::AltScreenLeave,
         other => panic!("unknown event kind in vector {name}: {other}"),
     }
+}
+
+fn expected_tier(name: &str, ev: &RawEvent) -> MarkTier {
+    ev.tier
+        .as_ref()
+        .and_then(RawTier::mark_tier)
+        .unwrap_or_else(|| {
+            panic!(
+                "unsupported or missing tier in vector {name}: {:?}",
+                ev.tier
+            )
+        })
 }
 
 #[test]
@@ -129,6 +144,12 @@ fn every_vector_decodes_to_its_expected_events() {
         checked >= 16,
         "expected the full vector set, found {checked}"
     );
+}
+
+#[test]
+fn unsupported_vector_tiers_are_rejected() {
+    assert_eq!(RawTier::Number(3).mark_tier(), None);
+    assert_eq!(RawTier::Name("extension".to_string()).mark_tier(), None);
 }
 
 #[test]

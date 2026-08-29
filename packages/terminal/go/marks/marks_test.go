@@ -19,6 +19,7 @@ type vectorEvent struct {
 	ExitCode      *int            `json:"exitCode"`
 	ExitCodeSnake *int            `json:"exit_code"`
 	Path          string          `json:"path"`
+	Pairs         *[][2]string    `json:"pairs"`
 }
 
 func TestEveryVectorDecodesToItsExpectedEvents(t *testing.T) {
@@ -49,8 +50,23 @@ func TestEveryVectorDecodesToItsExpectedEvents(t *testing.T) {
 			if (got[i].ExitCode == nil) != (want.exitCode() == nil) {
 				t.Errorf("%s event %d: exit code presence differs", v.Name, i)
 			}
+			if want.Kind == "extension" && want.Pairs != nil && !equalPairs(got[i].Fields, *want.Pairs) {
+				t.Errorf("%s event %d: got fields %+v, want pairs %+v", v.Name, i, got[i].Fields, want.Pairs)
+			}
 		}
 	}
+}
+
+func equalPairs(fields map[string]string, pairs [][2]string) bool {
+	if len(fields) != len(pairs) {
+		return false
+	}
+	for _, pair := range pairs {
+		if fields[pair[0]] != pair[1] {
+			return false
+		}
+	}
+	return true
 }
 
 func (e vectorEvent) exitCode() *int {

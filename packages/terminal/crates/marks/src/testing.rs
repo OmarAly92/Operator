@@ -19,6 +19,8 @@ pub struct RawEvent {
     pub exit_code: Option<i32>,
     #[serde(default)]
     pub path: Option<String>,
+    #[serde(default)]
+    pub pairs: Option<Vec<(String, String)>>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -29,11 +31,12 @@ pub enum RawTier {
 }
 
 impl RawTier {
-    pub fn is_osc133(&self) -> bool {
+    pub fn mark_tier(&self) -> Option<crate::event::MarkTier> {
         match self {
-            Self::Number(1) => true,
-            Self::Name(name) => name == "osc133",
-            _ => false,
+            Self::Number(1) => Some(crate::event::MarkTier::Osc133),
+            Self::Name(name) if name == "osc133" => Some(crate::event::MarkTier::Osc133),
+            Self::Number(2) => Some(crate::event::MarkTier::Extension),
+            _ => None,
         }
     }
 }
