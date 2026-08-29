@@ -52,6 +52,11 @@ jobs:
       - run: npm --prefix packages/terminal run build
       - run: npm --prefix packages/terminal test
       - run: npm --prefix packages/terminal run smoke:vite
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+      - run: cd packages/terminal/go/marks && go test ./... && go vet ./...
+      - run: node --test packages/terminal/shell/zsh.test.mjs
 
   tauri-smoke:
     runs-on: macos-14

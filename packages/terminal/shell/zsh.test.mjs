@@ -49,6 +49,9 @@ test("is idempotent under a second source", { skip }, () => {
 });
 
 test("leaves the user's prompt alone", { skip }, () => {
-	const out = runZsh(`PROMPT='MYPROMPT'; source ${bootstrap}; print -n $PROMPT`);
-	assert.match(out, /MYPROMPT/, "Phase 1 must not suppress the user's prompt");
+	const out = runZsh(`source ${bootstrap}; print -P -- '%n@%m'`);
+	const expected = execFileSync("zsh", ["-f", "-c", "print -P -- '%n@%m'"], {
+		encoding: "latin1",
+	});
+	assert.equal(out, expected, "bootstrap must not change the rendered prompt");
 });

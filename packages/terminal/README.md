@@ -13,6 +13,17 @@ VT parse. Full VT support, OSC 133 decoding, block sum trees,
 virtualization, selection, find, editor, completions, and `TerminalPane`
 integration belong to later phases.
 
+## Phase 1a capability
+
+Phase 1a layers the block-aware core on top of the Phase 0 parser. The
+core forms blocks from OSC 133 (Tier 1) and the `OSC 7000` extension
+(Tier 2), tracks the alt screen so marks observed inside it do not
+change the block list, and exposes the block list through the
+`CoreSnapshot` export. The package does **not** own input — it does
+not spawn the host shell, read from its pty, or claim prompt
+suppression. `spawnRecipe` returns the argv and env to launch the
+host's shell; the host owns the pty and the read loop.
+
 Phase 0 handles only: printable UTF-8, combining characters, CRLF/LF,
 tab expansion to the next 8-column stop, hard wrapping at the column
 boundary, and SGR `0`/`30..37`/`39`/`90..97`. Every other CSI, ESC,
