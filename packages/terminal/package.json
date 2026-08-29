@@ -14,6 +14,7 @@
 		"smoke:vite": "npm run build && node ./scripts/smoke-vite.mjs",
 		"smoke:tauri": "node ./scripts/smoke-tauri.mjs",
 		"bench:terminal": "node ./bench/runner.mjs",
+		"bench:scroll": "node ./bench/scroll-gate.mjs",
 		"bench:baseline": "node ./bench/runner.mjs"
 	},
 	"devDependencies": {

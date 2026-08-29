@@ -26,6 +26,10 @@ export class LineEditor {
 	private readonly search = new ReverseSearch();
 	private searchOpen = false;
 	private strings: TerminalStrings = defaultStrings;
+	private promptCwd = "";
+	private promptBranch = "";
+	private promptExitCode: number | null = null;
+	private promptDurationMs: number | null = null;
 	private core: TerminalCore | null = null;
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
@@ -38,6 +42,10 @@ export class LineEditor {
 		this.host = host;
 		this.history = new HistoryModel();
 		this.historyPrefix = null;
+		this.promptCwd = "";
+		this.promptBranch = "";
+		this.promptExitCode = null;
+		this.promptDurationMs = null;
 		this.search.cancel();
 		this.searchOpen = false;
 		const root = document.createElement("div");
@@ -243,15 +251,13 @@ export class LineEditor {
 			search.textContent = `${this.strings.searchHistory}: ${state.query} — ${match}`;
 			nodes.unshift(search);
 		}
-		const blocks = this.core ? decodeBlocks(this.core.snapshot()) : [];
-		const newest = blocks.at(-1);
 		nodes.unshift(
 			renderPromptRow(
 				{
-					cwd: newest?.cwd ?? "",
-					gitBranch: newest?.gitBranch ?? "",
-					lastExitCode: newest?.exitCode ?? null,
-					lastDurationMs: newest?.durationMs ?? null,
+					cwd: this.promptCwd,
+					gitBranch: this.promptBranch,
+					lastExitCode: this.promptExitCode,
+					lastDurationMs: this.promptDurationMs,
 					state,
 				},
 				this.strings,
@@ -294,11 +300,13 @@ export class LineEditor {
 	private ingestHistory(): void {
 		const core = this.core;
 		if (!core) return;
-		this.history.ingest(
-			decodeBlocks(core.snapshot())
-				.map((block) => block.command)
-				.filter((command) => command.length > 0),
-		);
+		const blocks = decodeBlocks(core.snapshot());
+		this.history.ingest(blocks.map((block) => block.command).filter((command) => command.length > 0));
+		const newest = blocks.at(-1);
+		this.promptCwd = newest?.cwd ?? "";
+		this.promptBranch = newest?.gitBranch ?? "";
+		this.promptExitCode = newest?.exitCode ?? null;
+		this.promptDurationMs = newest?.durationMs ?? null;
 	}
 }
 

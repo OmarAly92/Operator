@@ -1,5 +1,6 @@
 import { createTerminalCore, type TerminalCore } from "@operator/terminal-core";
 import { initTerminalCoreFromUrl } from "@operator/terminal-core/browser";
+import { LineEditor } from "@operator/terminal-editor";
 import { DomBlockRenderer } from "@operator/terminal-renderer-dom";
 import rendererDomPackage from "../../ts/renderer-dom/package.json" with { type: "json" };
 
@@ -19,6 +20,9 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	readonly version = String((rendererDomPackage as { version?: string }).version ?? "");
 	private core: TerminalCore | undefined;
 	private renderer: DomBlockRenderer | undefined;
+	private editor: LineEditor | undefined;
+	private editorRoot: HTMLElement | undefined;
+	private editorPaintPending = false;
 	private failure: Error | undefined;
 	private readonly rendererKind: RendererKind = "dom";
 
@@ -34,6 +38,11 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		const renderer = new DomBlockRenderer();
 		renderer.mount(host, core);
 		this.renderer = renderer;
+		const editor = new LineEditor();
+		editor.mount(host, core, { send: () => undefined, sendRaw: () => undefined });
+		this.editor = editor;
+		this.editorRoot = host.querySelector<HTMLElement>(".terminal-editor") ?? undefined;
+		core.feed(new TextEncoder().encode("\x1b]7000;v=1;input-ready=1\x07"));
 	}
 
 	write(bytes: Uint8Array): Promise<void> {
@@ -59,6 +68,10 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	waitForPaint(): Promise<number> {
 		this.assertReady();
+		if (this.editorPaintPending) {
+			this.editorPaintPending = false;
+			return new Promise((resolve) => requestAnimationFrame(resolve));
+		}
 		const renderer = this.renderer as DomBlockRenderer;
 		return new Promise((resolve, reject) => {
 			const timeout = window.setTimeout(() => {
@@ -75,18 +88,16 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		});
 	}
 
-	dispatchPrintableKey(_data: string): void {
+	dispatchPrintableKey(data: string): void {
 		this.assertReady();
-		// This renderer has no input path until Phase 2 adds the editor, so
-		// there is nothing here that could be timed. Returning quietly would
-		// let the input-latency scenario report the harness's own overhead as
-		// a latency number and feed it to the perf gate.
-		throw new Error(
-			"the DOM renderer has no input path until Phase 2; input-latency is not measurable for it",
-		);
+		this.editorPaintPending = true;
+		this.editorRoot?.dispatchEvent(new KeyboardEvent("keydown", { key: data, bubbles: true }));
 	}
 
 	dispose(): void {
+		try {
+			this.editor?.dispose();
+		} catch {}
 		try {
 			this.renderer?.dispose();
 		} catch {}
@@ -95,6 +106,9 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		} catch {}
 		this.core = undefined;
 		this.renderer = undefined;
+		this.editor = undefined;
+		this.editorRoot = undefined;
+		this.editorPaintPending = false;
 	}
 
 	get kind(): RendererKind {
@@ -104,6 +118,8 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	private assertReady(): void {
 		if (this.failure) throw this.failure;
-		if (!this.core || !this.renderer) throw new Error("dom renderer is not mounted");
+		if (!this.core || !this.renderer || !this.editor || !this.editorRoot) {
+			throw new Error("dom renderer is not mounted");
+		}
 	}
 }

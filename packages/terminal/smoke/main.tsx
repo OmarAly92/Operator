@@ -6,6 +6,7 @@ import {
 	initTerminalCoreFromUrl,
 	warpDarkTheme,
 } from "@operator/terminal-react";
+import { spawnRecipe } from "@operator/terminal-core";
 
 const FONT = {
 	family: "ui-monospace, monospace",
@@ -18,6 +19,7 @@ const FONT = {
 
 const INPUT = "\x1b[31mred\x1b[0m café\r\nplain";
 const REPORT_URL = import.meta.env.TERMINAL_SMOKE_REPORT_URL;
+const IGNORE_INPUT = () => undefined;
 
 function markReady(rows: number, runs: number): void {
 	const main = document.getElementById("terminal-smoke-root");
@@ -123,7 +125,7 @@ function SmokeApp(): ReactElement {
 
 	return (
 		<StrictMode>
-			{core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} /> : null}
+			{core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null}
 		</StrictMode>
 	);
 }
@@ -169,7 +171,61 @@ function FollowApp(): ReactElement | null {
 		});
 	}, [core]);
 
-	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} /> : null;
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
+}
+
+function TierOneApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+	const raw = useRef("");
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 80, scrollback: 100 });
+			next.feed(
+				new TextEncoder().encode(
+					"\x1b]133;A\x07\x1b]133;B\x07echo tier-one\x1b]133;C\x07tier one\n\x1b]133;D;0\x07",
+				),
+			);
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-tier-one-root");
+				const editor = main?.querySelector<HTMLElement>(".terminal-editor");
+				if (!main || !editor) return;
+				editor.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
+				editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+				const recipe = spawnRecipe("zsh", { integration: "osc133-only", suppressPrompt: false });
+				main.dataset.lineEditorState = core.lineEditorState();
+				main.dataset.editorReadOnly = editor.getAttribute("aria-readonly") ?? "";
+				main.dataset.rawInput = raw.current.replaceAll("\r", "\\r");
+				main.dataset.spawnRecipe = `${recipe.argv.join(",")}:${recipe.env.OPERATOR_TERMINAL_INTEGRATION}`;
+				main.dataset.terminalTierOne = "ready";
+			});
+		});
+	}, [core]);
+
+	return core ? (
+		<TerminalSurface
+			core={core}
+			theme={warpDarkTheme}
+			font={FONT}
+			altScreenActive={false}
+			onSend={IGNORE_INPUT}
+			onSendRaw={(data) => {
+				raw.current += data;
+			}}
+		/>
+	) : null;
 }
 
 const root = document.getElementById("terminal-smoke-root");
@@ -183,3 +239,9 @@ if (!followRoot) {
 	throw new Error("missing #terminal-follow-root");
 }
 createRoot(followRoot).render(<FollowApp />);
+
+const tierOneRoot = document.getElementById("terminal-tier-one-root");
+if (!tierOneRoot) {
+	throw new Error("missing #terminal-tier-one-root");
+}
+createRoot(tierOneRoot).render(<TierOneApp />);

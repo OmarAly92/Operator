@@ -75,6 +75,11 @@ async function writeWorkload(renderer: BenchmarkRenderer, bytes: Uint8Array): Pr
 }
 
 async function inputLatency(renderer: BenchmarkRenderer): Promise<number> {
+	if (renderer.kind === "dom") {
+		const startedAt = performance.now();
+		renderer.dispatchPrintableKey("x");
+		return (await renderer.waitForPaint()) - startedAt;
+	}
 	return new Promise((resolve, reject) => {
 		let startedAt = 0;
 		const unsubscribe = renderer.onInput((data) => {
