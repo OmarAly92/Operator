@@ -1,0 +1,69 @@
+name: Terminal
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "packages/terminal/**"
+      - "frontend/package*.json"
+      - "frontend/src-tauri/**"
+      - ".github/workflows/terminal.yml"
+  pull_request:
+    paths:
+      - "packages/terminal/**"
+      - "frontend/package*.json"
+      - "frontend/src-tauri/**"
+      - ".github/workflows/terminal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: packages/terminal/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      - run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+      - run: npm ci --prefix packages/terminal
+      - run: npx --prefix packages/terminal playwright install --with-deps chromium
+      - run: cargo fmt --manifest-path packages/terminal/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path packages/terminal/Cargo.toml --workspace --all-targets -- -D warnings
+      - run: cargo test --manifest-path packages/terminal/Cargo.toml --workspace
+      - run: node --test packages/terminal/scripts/check-boundaries.test.mjs
+      - run: npm --prefix packages/terminal run check:boundaries
+      - run: npm --prefix packages/terminal run build
+      - run: npm --prefix packages/terminal test
+      - run: npm --prefix packages/terminal run smoke:vite
+
+  tauri-smoke:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            packages/terminal/package-lock.json
+            frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      - run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+      - run: npm ci --prefix packages/terminal
+      - run: npm ci --prefix frontend
+      - run: npm --prefix packages/terminal run smoke:tauri
