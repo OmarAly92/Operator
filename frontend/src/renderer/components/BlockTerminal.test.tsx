@@ -9,8 +9,11 @@ const mockState = vi.hoisted(() => {
 		feeds: [] as Array<Uint8Array>,
 		blocks: new Map<string, RenderedBlock>(),
 		altScreenActive: false,
+		altScreenSurfaceProvided: false,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		strings: undefined as Record<string, string> | undefined,
+		onSend: undefined as ((text: string) => void) | undefined,
+		onSendRaw: undefined as ((data: string) => void) | undefined,
 		revision: 0,
 		wasmInits: 0,
 	};
@@ -105,10 +108,15 @@ vi.mock("@operator/terminal-react", () => {
 			altScreenSurface?: React.ReactNode;
 			host?: { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> };
 			strings?: Record<string, string>;
+			onSend?: (text: string) => void;
+			onSendRaw?: (data: string) => void;
 		}) => {
 			mockState.altScreenActive = props.altScreenActive;
+			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
 			if (props.host) mockState.host = props.host;
 			if (props.strings) mockState.strings = props.strings;
+			mockState.onSend = props.onSend;
+			mockState.onSendRaw = props.onSendRaw;
 			return <MockSurface altScreenActive={props.altScreenActive} altScreenSurface={props.altScreenSurface} />;
 		},
 		warpDarkTheme: {
@@ -228,8 +236,11 @@ beforeEach(() => {
 	mockState.feeds = [];
 	mockState.blocks = new Map();
 	mockState.altScreenActive = false;
+	mockState.altScreenSurfaceProvided = false;
 	mockState.host = undefined;
 	mockState.strings = undefined;
+	mockState.onSend = undefined;
+	mockState.onSendRaw = undefined;
 	mockState.revision = 0;
 	subscribers.clear();
 });
@@ -242,7 +253,17 @@ describe("BlockTerminal", () => {
 		await waitFor(() => expect(screen.getByText(/hello/)).toBeInTheDocument());
 	});
 
-	it("passes XtermTerminal as the alt-screen surface", async () => {
+	it("writes submitted text plus one newline and passes raw bytes unchanged", async () => {
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() => expect(mockState.onSend).toBeTypeOf("function"));
+		mockState.onSend!("make test");
+		mockState.onSendRaw!("\x03");
+		expect(transport.write).toHaveBeenNthCalledWith(1, new TextEncoder().encode("make test\n"));
+		expect(transport.write).toHaveBeenNthCalledWith(2, new TextEncoder().encode("\x03"));
+	});
+
+	it("keeps the package renderer on the alternate screen by default", async () => {
 		const { transport, emit } = harness();
 		render(
 			<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]}>
@@ -250,7 +271,25 @@ describe("BlockTerminal", () => {
 			</BlockTerminal>,
 		);
 		emit("\x1b[?1049h");
-		await waitFor(() => expect(screen.getByTestId("xterm-surface")).toBeVisible());
+		// The default is the package's own surface even in the alternate screen;
+		// handing it to xterm is opt-in via VITE_ALT_SCREEN_SURFACE=xterm.
+		await waitFor(() => expect(mockState.altScreenActive).toBe(false));
+	});
+
+	it("still hands XtermTerminal to the surface so the opt-in path has something to show", async () => {
+		const { transport, emit } = harness();
+		render(
+			<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]}>
+				<XtermTerminalLite />
+			</BlockTerminal>,
+		);
+		emit("\x1b[?1049h");
+		// This asserted visibility before the package renderer became the default
+		// alt-screen surface, at which point it started passing only because the
+		// loading branch also renders children. What matters now is that the
+		// surface still receives it, so VITE_ALT_SCREEN_SURFACE=xterm has a
+		// surface to hand the alternate screen back to.
+		await waitFor(() => expect(mockState.altScreenSurfaceProvided).toBe(true));
 	});
 
 	it("routes copy actions through Operator's clipboard bridge", async () => {

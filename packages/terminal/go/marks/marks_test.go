@@ -8,14 +8,18 @@ import (
 )
 
 type vector struct {
-	Name   string `json:"name"`
-	Input  string `json:"input"`
-	Events []struct {
-		Kind     string `json:"kind"`
-		Tier     int    `json:"tier"`
-		ExitCode *int   `json:"exitCode"`
-		Path     string `json:"path"`
-	} `json:"events"`
+	Name   string        `json:"name"`
+	Input  string        `json:"input"`
+	Events []vectorEvent `json:"events"`
+}
+
+type vectorEvent struct {
+	Kind          string          `json:"kind"`
+	Tier          json.RawMessage `json:"tier"`
+	ExitCode      *int            `json:"exitCode"`
+	ExitCodeSnake *int            `json:"exit_code"`
+	Path          string          `json:"path"`
+	Pairs         *[][2]string    `json:"pairs"`
 }
 
 func TestEveryVectorDecodesToItsExpectedEvents(t *testing.T) {
@@ -40,14 +44,59 @@ func TestEveryVectorDecodesToItsExpectedEvents(t *testing.T) {
 			t.Fatalf("%s: got %d events, want %d", v.Name, len(got), len(v.Events))
 		}
 		for i, want := range v.Events {
-			if got[i].Kind != want.Kind || int(got[i].Tier) != want.Tier {
+			if got[i].Kind != want.Kind || int(got[i].Tier) != vectorTier(t, want.Kind, want.Tier) {
 				t.Errorf("%s event %d: got %+v, want %+v", v.Name, i, got[i], want)
 			}
-			if (got[i].ExitCode == nil) != (want.ExitCode == nil) {
+			if (got[i].ExitCode == nil) != (want.exitCode() == nil) {
 				t.Errorf("%s event %d: exit code presence differs", v.Name, i)
+			}
+			if want.Kind == "extension" && want.Pairs != nil && !equalPairs(got[i].Fields, *want.Pairs) {
+				t.Errorf("%s event %d: got fields %+v, want pairs %+v", v.Name, i, got[i].Fields, want.Pairs)
 			}
 		}
 	}
+}
+
+func equalPairs(fields map[string]string, pairs [][2]string) bool {
+	if len(fields) != len(pairs) {
+		return false
+	}
+	for _, pair := range pairs {
+		if fields[pair[0]] != pair[1] {
+			return false
+		}
+	}
+	return true
+}
+
+func (e vectorEvent) exitCode() *int {
+	if e.ExitCodeSnake != nil {
+		return e.ExitCodeSnake
+	}
+	return e.ExitCode
+}
+
+func vectorTier(t *testing.T, kind string, raw json.RawMessage) int {
+	t.Helper()
+	if len(raw) == 0 {
+		if kind == "extension" {
+			return int(TierExtension)
+		}
+		return 0
+	}
+	var numeric int
+	if err := json.Unmarshal(raw, &numeric); err == nil {
+		return numeric
+	}
+	var named string
+	if err := json.Unmarshal(raw, &named); err != nil {
+		t.Fatalf("parse vector tier %q: %v", raw, err)
+	}
+	if named == "osc133" {
+		return int(TierOSC133)
+	}
+	t.Fatalf("unknown vector tier %q", named)
+	return 0
 }
 
 func TestMarkSplitAcrossFeedsStillDecodes(t *testing.T) {

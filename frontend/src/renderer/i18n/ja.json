@@ -83,6 +83,8 @@
 	"blocks.copyCommand": "コマンドをコピー",
 	"blocks.copyOutput": "出力をコピー",
 	"blocks.rerunCommand": "再実行",
+	"blocks.searchHistory": "履歴を検索",
+	"blocks.searchNoMatches": "一致する項目はありません",
 	"blocks.shellBlocksUnavailable": "このターミナルではシェルブロックは利用できません。",
 	"command.back": "戻る",
 	"command.copyBranch": "ブランチ名をコピー",

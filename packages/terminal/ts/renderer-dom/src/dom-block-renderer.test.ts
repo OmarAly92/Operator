@@ -233,6 +233,47 @@ describe("DomBlockRenderer", () => {
 		renderer.dispose();
 	});
 
+	it("paints an idle surface synchronously instead of waiting out a frame", async () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 200, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		await new Promise((resolve) => setTimeout(resolve, 12));
+
+		let paintedSynchronously = false;
+		const off = renderer.onPaint(() => {
+			paintedSynchronously = true;
+		});
+		feed(core, "x");
+		off();
+
+		// A keystroke echoed into a quiet terminal must not wait for the next
+		// animation frame; that cost the passthrough input-latency gate a full
+		// frame and put it at twice xterm's p95.
+		expect(paintedSynchronously).toBe(true);
+		renderer.dispose();
+	});
+
+	it("still coalesces a burst rather than painting once per chunk", async () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 1000 });
+		const container = document.createElement("div");
+		Object.defineProperty(container, "clientHeight", { value: 200, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.mount(container, core);
+
+		let paints = 0;
+		const off = renderer.onPaint(() => {
+			paints += 1;
+		});
+		for (let i = 0; i < 50; i += 1) feed(core, `line ${i}\n`);
+		off();
+
+		expect(paints).toBeLessThan(50);
+		renderer.dispose();
+	});
+
 	it("reserves the height of the rows it did not render, so the scrollbar spans the block", async () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });

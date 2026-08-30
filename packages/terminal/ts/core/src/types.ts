@@ -4,6 +4,8 @@ export type BlockState = "running" | "finished" | "abandoned";
 
 export type BlockSource = "osc133" | "extension" | "synthetic";
 
+export type LineEditorState = "unknown" | "owned" | "released";
+
 export type BlockView = Readonly<{
 	id: BlockId;
 	firstRow: number;
@@ -64,6 +66,7 @@ export type TerminalSnapshot = Readonly<{
 	stylePairs: Uint32Array;
 	blocks: Uint32Array;
 	blockText: Uint8Array;
+	lineEditorState: number;
 }>;
 
 export type TerminalCoreOptions = Readonly<{
@@ -95,7 +98,7 @@ export function validateRowRange(range: RowRange): void {
 	}
 }
 
-export type ShellKind = "zsh";
+export type ShellKind = "zsh" | "bash" | "fish";
 
 /**
  * What the host tells the package to spawn. `argv` is passed to `execvp` as-is;
@@ -109,9 +112,7 @@ export type SpawnRecipe = {
 
 /**
  * Which mark tier the host wants and whether the package may suppress the
- * user's prompt. The `suppressPrompt` flag is rejected at runtime in
- * Phase 1a (it would leave the user with no readline); Phase 2 removes
- * the guard alongside the editor.
+ * user's prompt.
  */
 export type BootstrapOptions = Readonly<{
 	integration: "auto" | "osc133-only" | "off";
@@ -127,6 +128,8 @@ export type TerminalStrings = Readonly<{
 	copyOutput: string;
 	rerunCommand: string;
 	shellBlocksUnavailable: string;
+	searchHistory: string;
+	searchNoMatches: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -138,6 +141,8 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	copyOutput: "Copy output",
 	rerunCommand: "Re-run",
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
+	searchHistory: "Search history",
+	searchNoMatches: "No matches",
 });
 
 export type HostCapabilities = Readonly<{
@@ -146,3 +151,8 @@ export type HostCapabilities = Readonly<{
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
 }>;
+
+export type HistoryStore = {
+	load(): Promise<readonly string[]>;
+	save(entries: readonly string[]): Promise<void>;
+};

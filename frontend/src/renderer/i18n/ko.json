@@ -83,6 +83,8 @@
 	"blocks.copyCommand": "명령 복사",
 	"blocks.copyOutput": "출력 복사",
 	"blocks.rerunCommand": "다시 실행",
+	"blocks.searchHistory": "기록 검색",
+	"blocks.searchNoMatches": "일치 항목 없음",
 	"blocks.shellBlocksUnavailable": "이 터미널에서는 셸 블록을 사용할 수 없습니다.",
 	"command.back": "뒤로",
 	"command.copyBranch": "브랜치 이름 복사",

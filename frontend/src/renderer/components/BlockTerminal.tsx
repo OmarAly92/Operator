@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	TerminalSurface,
@@ -53,6 +53,12 @@ const DEFAULT_SCROLLBACK = 5000;
 const ALT_SCREEN_ENTER = "\x1b[?1049h";
 const ALT_SCREEN_LEAVE = "\x1b[?1049l";
 const SOURCE_ID_PATTERN = /\x1b\]7000;v=1;id=([A-Za-z0-9_-]+)/g;
+
+// Which surface owns the alternate screen. The package's own renderer is the
+// default so the pane is ours end to end; until the phase-3 alternate-screen
+// grid lands it has no cursor addressing, so a full-screen TUI draws wrong
+// here. `VITE_ALT_SCREEN_SURFACE=xterm` hands the alternate screen back.
+const handsAltScreenToXterm = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
 function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | undefined): TerminalTheme {
 	if (!theme || !skin) return warpDarkTheme;
@@ -148,6 +154,12 @@ export function BlockTerminal({
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
 	const rootRef = useRef<HTMLDivElement | null>(null);
+	const onSend = useCallback((text: string) => {
+		transportRef.current.write(new TextEncoder().encode(`${text}\n`));
+	}, []);
+	const onSendRaw = useCallback((data: string) => {
+		transportRef.current.write(new TextEncoder().encode(data));
+	}, []);
 
 	useEffect(() => {
 		if (!core) return;
@@ -301,6 +313,8 @@ export function BlockTerminal({
 			copyCommand: t("blocks.copyCommand", { defaultValue: "Copy command" }),
 			copyOutput: t("blocks.copyOutput", { defaultValue: "Copy output" }),
 			rerunCommand: t("blocks.rerunCommand", { defaultValue: "Re-run" }),
+			searchHistory: t("blocks.searchHistory", { defaultValue: "Search history" }),
+			searchNoMatches: t("blocks.searchNoMatches", { defaultValue: "No matches" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),
@@ -320,8 +334,18 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
+	const handOffAltScreen = altScreenActive && handsAltScreenToXterm;
+
 	terminalDebug("block-terminal", "render", {
-		surface: coreError ? "error" : !core ? "loading" : altScreenActive ? "xterm(alt)" : "block-list",
+		surface: coreError
+			? "error"
+			: !core
+				? "loading"
+				: handOffAltScreen
+					? "xterm(alt)"
+					: altScreenActive
+						? "block-list(alt)"
+						: "block-list",
 	});
 
 	if (coreError || !core) {
@@ -343,15 +367,17 @@ export function BlockTerminal({
 		);
 	}
 
-	const surfaceProps = {
+	const surfaceProps: Parameters<typeof TerminalSurface>[0] = {
 		core,
 		theme: resolvedTheme,
 		font,
-		altScreenActive,
+		altScreenActive: handOffAltScreen,
 		altScreenSurface: children,
 		host,
 		strings,
-	} as unknown as Parameters<typeof TerminalSurface>[0];
+		onSend,
+		onSendRaw,
+	};
 
 	return (
 		<div

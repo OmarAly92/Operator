@@ -145,8 +145,33 @@ func (s *scanner) flushOsc(events *[]Event) {
 	if e, ok := decodeOsc(payload); ok {
 		*events = append(*events, e)
 	} else if f, ok := decodeExtension(payload); ok {
-		*events = append(*events, Event{Kind: "extension", Tier: TierExtension, Fields: f})
+		*events = append(*events, extensionEvents(f)...)
 	}
+}
+
+func extensionEvents(fields map[string]string) []Event {
+	remaining := make(map[string]string, len(fields))
+	_, ready := fields["input-ready"]
+	_, released := fields["input-released"]
+	hasExtensionField := false
+	for key, value := range fields {
+		if key != "input-ready" && key != "input-released" {
+			if key != "v" {
+				hasExtensionField = true
+			}
+			remaining[key] = value
+		}
+	}
+	var out []Event
+	if len(remaining) > 0 && (!ready && !released || hasExtensionField) {
+		out = append(out, Event{Kind: "extension", Tier: TierExtension, Fields: remaining})
+	}
+	if released {
+		out = append(out, Event{Kind: EventInputReleased})
+	} else if ready {
+		out = append(out, Event{Kind: EventInputReady})
+	}
+	return out
 }
 
 // decodeOsc decodes a Tier-1 OSC payload. The payload is the bytes between
@@ -234,8 +259,8 @@ func pathFromFileURL(url string) (string, bool) {
 
 // decodeExtension decodes a Tier-2 (OSC 7000) payload. The payload is the
 // bytes between `ESC ]` and `ESC \`, so `OSC 7000 ; v=1 ; id=block-001 ; …`
-// arrives here as `"7000;v=1; id=block-001; …"`. The pair separator is a
-// literal `; ` (semicolon then space) per SPEC §4.1.
+// arrives here as `"7000;v=1; id=block-001; …"`. Pairs are separated by `;`,
+// with one optional ASCII space after the separator ignored per SPEC §4.1.
 //
 // Returns the fields map and true for a parseable mark whose `v` major
 // version is the one this decoder understands (1). A higher major version
@@ -285,17 +310,19 @@ func decodeExtension(payload []byte) (map[string]string, bool) {
 	return fields, true
 }
 
-// splitPairs splits a Tier-2 payload on the literal `; ` (semicolon then
-// space) per SPEC §4.1. A trailing `;` without a space leaves an empty
+// splitPairs splits a Tier-2 payload on `;` per SPEC §4.1 and ignores one
+// optional ASCII space immediately after it. A trailing `;` leaves an empty
 // trailing pair, which the caller filters out.
 func splitPairs(s string) []string {
 	var out []string
 	start := 0
-	for i := 0; i+1 < len(s); i++ {
-		if s[i] == ';' && s[i+1] == ' ' {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ';' {
 			out = append(out, s[start:i])
-			start = i + 2
-			i++ // skip the space on the next iteration
+			start = i + 1
+			if start < len(s) && s[start] == ' ' {
+				start++
+			}
 		}
 	}
 	out = append(out, s[start:])

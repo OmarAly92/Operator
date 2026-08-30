@@ -8,6 +8,7 @@ pub mod content;
 pub mod event_bridge;
 pub mod find;
 pub mod grid;
+mod line_editor;
 pub mod parser;
 pub mod row_index;
 pub mod style;
@@ -17,6 +18,7 @@ pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use find::{FindCursor, FindMatch, FindQuery};
+pub use line_editor::LineEditorState;
 pub use style::StyleCode;
 
 use terminal_marks::{MarkDecoder, MarkEvent};
@@ -37,6 +39,7 @@ pub struct TerminalCore {
     vte: VteParser,
     mark_decoder: MarkDecoder,
     alt_screen: alt_screen::AltScreen,
+    line_editor: line_editor::LineEditorTracker,
     scrollback_rows: usize,
 }
 
@@ -53,6 +56,7 @@ impl TerminalCore {
             vte: VteParser::new(),
             mark_decoder: MarkDecoder::new(),
             alt_screen: alt_screen::AltScreen::new(),
+            line_editor: line_editor::LineEditorTracker::default(),
             scrollback_rows,
         })
     }
@@ -79,6 +83,12 @@ impl TerminalCore {
             if self.alt_screen.is_active() && !matches!(event, MarkEvent::AltScreenLeave) {
                 continue;
             }
+            match event {
+                MarkEvent::InputReady => self.line_editor.on_input_ready(),
+                MarkEvent::InputReleased => self.line_editor.on_input_released(),
+                MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
+                _ => {}
+            }
             apply_event(&mut self.parser, &mut self.alt_screen, event);
         }
         if parsed < bytes.len() {
@@ -93,6 +103,7 @@ impl TerminalCore {
             self.parser.rows(),
             self.parser.styles(),
             self.parser.grid(),
+            self.line_editor.state(),
         )
     }
 
@@ -107,6 +118,10 @@ impl TerminalCore {
 
     pub fn alt_screen_active(&self) -> bool {
         self.alt_screen.is_active()
+    }
+
+    pub fn line_editor_state(&self) -> LineEditorState {
+        self.line_editor.state()
     }
 }
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 - 2026-08-30
+
+Phase 2 replaces shell line editing with the package-owned editor and prompt row.
+
+- Explicit `input-ready` and `input-released` marks drive `Unknown`, `Owned`, and
+  `Released` states without an ownership timer.
+- The DOM editor provides multi-line editing, syntax highlighting, mark-derived
+  history, ghost text, Ctrl-R reverse search, and edit-and-rerun.
+- Prompt suppression lands with the prompt row and remains reversible through the
+  show-shell-prompt option.
+- Additive zsh, bash, and fish bootstraps emit ownership marks; fish keeps its own
+  OSC 133 enabled.
+- Operator mounts the editor below the block list, sends submitted text with one
+  newline, preserves raw passthrough outside `Owned`, and hides the editor in the
+  alternate screen.
+- The Phase 2 perf gate passes against the xterm baseline: large-output median
+  49,063,386 B/s, vtebench median 4.801 workloads/s, input p95 8.60 ms, and the
+  50,000-block scroll p95 13.40 ms with 20 live blocks.
+
 ## 0.2.0 - 2026-08-29
 
 Phase 1a: the block-aware core, the mark protocol, and the slice of

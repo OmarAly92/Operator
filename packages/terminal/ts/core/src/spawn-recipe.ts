@@ -1,4 +1,13 @@
-import type { BootstrapOptions, SpawnRecipe } from "./types.js";
+import type { BootstrapOptions, ShellKind, SpawnRecipe } from "./types.js";
+
+const BOOTSTRAPS: Record<ShellKind, { file: string; argv: (path: string) => string[] }> = {
+	zsh: { file: "zsh.sh", argv: (path) => ["zsh", "-c", `source ${JSON.stringify(path)}; exec zsh`] },
+	bash: {
+		file: "bash.sh",
+		argv: (path) => ["bash", "-c", `source ${JSON.stringify(path)}; exec bash`],
+	},
+	fish: { file: "fish.fish", argv: (path) => ["fish", "-C", `source ${JSON.stringify(path)}`] },
+};
 
 /**
  * Compose the argv and env to spawn the requested shell.
@@ -9,44 +18,31 @@ import type { BootstrapOptions, SpawnRecipe } from "./types.js";
  * shell. `integration: "off"` is for hosts that want a plain grid with no
  * mark consumption at all.
  *
- * `suppressPrompt` exists in the type for forward compatibility but is not
- * available in Phase 1a — calling with `suppressPrompt: true` throws, so a
- * future caller cannot take prompt suppression by accident. Phase 2 removes
- * the guard deliberately when the editor lands.
  */
-export function spawnRecipe(shell: "zsh", options: BootstrapOptions): SpawnRecipe {
-	if (options.suppressPrompt) {
-		throw new Error(
-			"prompt suppression is not available in Phase 1a; it lands with the editor in Phase 2",
-		);
-	}
-
-	if (shell !== "zsh") {
-		throw new Error(`unsupported shell: ${shell as string}`);
-	}
-
+export function spawnRecipe(shell: ShellKind, options: BootstrapOptions): SpawnRecipe {
 	const integration = options.integration;
 
 	if (integration === "off") {
 		return {
-			argv: ["zsh"],
+			argv: [shell],
 			env: { OPERATOR_TERMINAL_INTEGRATION: "off" },
 		};
 	}
 
 	if (integration === "osc133-only") {
 		return {
-			argv: ["zsh"],
+			argv: [shell],
 			env: { OPERATOR_TERMINAL_INTEGRATION: "osc133-only" },
 		};
 	}
 
-	const bootstrap = new URL("./shell/zsh.sh", import.meta.url).pathname;
+	const definition = BOOTSTRAPS[shell];
+	const bootstrap = new URL(`../../../shell/${definition.file}`, import.meta.url).pathname;
 	return {
-		argv: ["zsh", "-c", `source ${JSON.stringify(bootstrap)}; exec zsh`],
+		argv: definition.argv(bootstrap),
 		env: {
 			OPERATOR_TERMINAL_INTEGRATION: "auto",
-			OPERATOR_TERMINAL_SUPPRESS_PROMPT: "0",
+			OPERATOR_TERMINAL_SUPPRESS_PROMPT: options.suppressPrompt ? "1" : "0",
 		},
 	};
 }

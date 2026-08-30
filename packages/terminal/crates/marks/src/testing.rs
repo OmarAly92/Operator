@@ -13,11 +13,32 @@ pub struct TestVector {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct RawEvent {
     pub kind: String,
-    pub tier: u8,
-    #[serde(default, rename = "exitCode")]
+    #[serde(default)]
+    pub tier: Option<RawTier>,
+    #[serde(default, alias = "exitCode")]
     pub exit_code: Option<i32>,
     #[serde(default)]
     pub path: Option<String>,
+    #[serde(default)]
+    pub pairs: Option<Vec<(String, String)>>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum RawTier {
+    Number(u8),
+    Name(String),
+}
+
+impl RawTier {
+    pub fn mark_tier(&self) -> Option<crate::event::MarkTier> {
+        match self {
+            Self::Number(1) => Some(crate::event::MarkTier::Osc133),
+            Self::Name(name) if name == "osc133" => Some(crate::event::MarkTier::Osc133),
+            Self::Number(2) => Some(crate::event::MarkTier::Extension),
+            _ => None,
+        }
+    }
 }
 
 pub fn load_vector(path: &Path) -> TestVector {

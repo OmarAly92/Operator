@@ -4,7 +4,7 @@ use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::style::StyleCode;
-use crate::CoreError;
+use crate::{CoreError, LineEditorState};
 
 /// Narrows a snapshot-local length to the `u32` the export buffers carry.
 ///
@@ -22,6 +22,7 @@ pub struct GridSnapshot {
     pub style_pairs: Vec<(u32, StyleCode)>,
     pub blocks: Vec<BlockRecord>,
     pub block_text: Vec<u8>,
+    pub line_editor_state: u32,
 }
 
 impl GridSnapshot {
@@ -63,6 +64,7 @@ pub(crate) fn build_snapshot(
     rows: &RowIndex,
     styles: &AttributeMap<StyleCode>,
     grid: &BlockGrid,
+    line_editor_state: LineEditorState,
 ) -> Result<GridSnapshot, CoreError> {
     let open_start = rows.open_start();
     let end = content.end_offset();
@@ -137,6 +139,7 @@ pub(crate) fn build_snapshot(
         style_pairs,
         blocks,
         block_text,
+        line_editor_state: line_editor_state.wire(),
     })
 }
 

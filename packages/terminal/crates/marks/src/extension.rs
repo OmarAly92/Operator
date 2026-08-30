@@ -2,11 +2,8 @@ use crate::event::ExtensionFields;
 
 /// Decode a Tier-2 (OSC 7000) payload. The payload is the bytes between
 /// `ESC ]` and `ESC \`, so `OSC 7000 ; v=1 ; id=block-001 ; …` arrives here
-/// as `b"7000;v=1; id=block-001; …"`. The pair separator is a literal
-/// `; ` (semicolon then space) per SPEC §4.1. A bare `;` is also accepted
-/// as a separator so test vectors and shells that don't insert the space
-/// still decode — the spec is silent on this corner and the protocol
-/// vectors themselves use `; `.
+/// as `b"7000;v=1; id=block-001; …"`. Pairs are separated by `;`, with one
+/// optional ASCII space after the separator ignored per SPEC §4.1.
 ///
 /// Returns `Some(ExtensionFields)` for a parseable mark whose `v` major
 /// version is the one this decoder understands (1). A higher major version

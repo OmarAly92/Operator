@@ -83,6 +83,8 @@
 	"blocks.copyCommand": "复制命令",
 	"blocks.copyOutput": "复制输出",
 	"blocks.rerunCommand": "重新运行",
+	"blocks.searchHistory": "搜索历史记录",
+	"blocks.searchNoMatches": "无匹配项",
 	"blocks.shellBlocksUnavailable": "此终端不支持 shell 区块。",
 	"command.back": "返回",
 	"command.copyBranch": "复制分支名",

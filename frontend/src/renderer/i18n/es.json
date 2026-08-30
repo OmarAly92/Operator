@@ -84,6 +84,8 @@
 	"blocks.copyCommand": "Copiar comando",
 	"blocks.copyOutput": "Copiar salida",
 	"blocks.rerunCommand": "Volver a ejecutar",
+	"blocks.searchHistory": "Buscar en el historial",
+	"blocks.searchNoMatches": "Sin coincidencias",
 	"blocks.shellBlocksUnavailable": "Los bloques de shell no están disponibles en este terminal.",
 	"command.back": "Atrás",
 	"command.copyBranch": "Copiar nombre de la rama",

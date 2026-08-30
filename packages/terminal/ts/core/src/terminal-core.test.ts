@@ -31,6 +31,16 @@ describe("TerminalCore", () => {
 		expect(new TextDecoder().decode(b.snapshot().content)).toBe("");
 		expect(new TextDecoder().decode(a.snapshot().content)).toBe("alpha");
 	});
+
+	it("reports line-editor ownership exactly as the shell states it", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 100 });
+		expect(core.lineEditorState()).toBe("unknown");
+		core.feed(new TextEncoder().encode("\x1b]7000;v=1;input-ready=1\x07"));
+		expect(core.lineEditorState()).toBe("owned");
+		core.feed(new TextEncoder().encode("\x1b]7000;v=1;input-released=1\x07"));
+		expect(core.lineEditorState()).toBe("released");
+		core.dispose();
+	});
 });
 
 describe("TerminalCore.onChange failure isolation", () => {

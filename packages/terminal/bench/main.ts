@@ -10,6 +10,7 @@ const knownScenarios = new Set<ScenarioName>([
 	"vtebench",
 	"large-output",
 	"input-latency",
+	"input-latency-owned",
 ]);
 
 const knownRenderers = new Set<RendererName>([

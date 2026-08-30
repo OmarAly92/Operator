@@ -47,6 +47,15 @@ test("rejects forbidden package edges", async () => {
 	]);
 });
 
+test("rejects shell history and filesystem access from editor production code", async () => {
+	const errors = await errorsFor({
+		"ts/editor/src/history.ts": 'import "node:fs";\nconst path = ".zsh_history";\n',
+	});
+	assert.deepEqual(errors, [
+		"ts/editor/src/history.ts: editor must not access shell history or the filesystem",
+	]);
+});
+
 test("rejects an oversized source file", async () => {
 	const errors = await errorsFor({
 		"ts/core/src/large.ts": "export {};\n".repeat(601),

@@ -81,7 +81,7 @@ async function main() {
 		}
 
 		const text = await page.evaluate(() => {
-			const node = document.getElementById("terminal-smoke-root");
+			const node = document.querySelector("#terminal-smoke-root [data-testid='terminal-block-list']");
 			return node ? node.textContent : "";
 		});
 		if (text !== REQUIRED_TEXT) {
@@ -251,6 +251,36 @@ async function main() {
 				`scroll position drifted across repaints: parked at ${held.afterScroll}, ` +
 					`ended at ${held.afterRepaints}; scrolling back through history fights the user`,
 			);
+		}
+
+		await page.waitForSelector('[data-terminal-tier-one="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const tierOne = await page.evaluate(() => {
+			const main = document.getElementById("terminal-tier-one-root");
+			return {
+				state: main?.dataset.lineEditorState ?? "",
+				readOnly: main?.dataset.editorReadOnly ?? "",
+				raw: main?.dataset.rawInput ?? "",
+				blocks: main?.querySelectorAll("[data-terminal-block-id]").length ?? 0,
+				recipe: main?.dataset.spawnRecipe ?? "",
+			};
+		});
+		if (tierOne.state !== "unknown") {
+			fail(`Tier-1 editor state must stay unknown, got ${tierOne.state}`);
+		}
+		if (tierOne.readOnly !== "true") {
+			fail(`Tier-1 editor must render read-only, got ${tierOne.readOnly}`);
+		}
+		if (tierOne.raw !== "x\\r") {
+			fail(`Tier-1 input must pass through as raw x\\r, got ${JSON.stringify(tierOne.raw)}`);
+		}
+		if (tierOne.blocks !== 1) {
+			fail(`Tier-1 OSC 133 stream must render one block, got ${tierOne.blocks}`);
+		}
+		if (tierOne.recipe !== "zsh:osc133-only") {
+			fail(`Tier-1 spawn recipe mismatch: ${tierOne.recipe}`);
 		}
 
 		const resources = await page.evaluate(() => {

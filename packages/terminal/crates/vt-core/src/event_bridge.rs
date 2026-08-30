@@ -39,6 +39,7 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
                 grid.set_meta_field(&key, &value);
             }
         }
+        MarkEvent::InputReady | MarkEvent::InputReleased => {}
         MarkEvent::AltScreenEnter => {
             alt.set(true);
         }

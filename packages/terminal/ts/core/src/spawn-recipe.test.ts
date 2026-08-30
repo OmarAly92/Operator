@@ -15,9 +15,25 @@ describe("spawnRecipe", () => {
 		expect(recipe.env.OPERATOR_TERMINAL_INTEGRATION).toBe("osc133-only");
 	});
 
-	it("refuses to suppress the prompt in this phase", () => {
-		expect(() => spawnRecipe("zsh", { integration: "auto", suppressPrompt: true })).toThrow(
-			/prompt suppression is not available/i,
-		);
+	it.each(["bash", "fish"] as const)("returns an auto integration recipe for %s", (shell) => {
+		const recipe = spawnRecipe(shell, { integration: "auto", suppressPrompt: false });
+		expect(recipe.argv[0]).toBe(shell);
+		expect(recipe.env.OPERATOR_TERMINAL_INTEGRATION).toBe("auto");
+	});
+
+	it("leaves fish OSC 133 enabled", () => {
+		const recipe = spawnRecipe("fish", { integration: "auto", suppressPrompt: false });
+		expect(recipe.argv).not.toContain("no-mark-prompt");
+		expect(recipe.argv.some((argument) => /no-mark/.test(argument))).toBe(false);
+	});
+
+	it("accepts suppressPrompt now that the editor exists", () => {
+		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: true });
+		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("1");
+	});
+
+	it("still offers a show-shell-prompt fallback", () => {
+		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
+		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("0");
 	});
 });

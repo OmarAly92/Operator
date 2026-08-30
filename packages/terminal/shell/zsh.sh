@@ -9,6 +9,23 @@ __operator_terminal_guard() {
 
 	autoload -Uz add-zsh-hook 2>/dev/null
 
+	__operator_terminal_input_ready() {
+		emulate -L zsh
+		print -nr -- $'\e]7000;v=1;input-ready=1\a'
+	}
+
+	__operator_terminal_input_released() {
+		emulate -L zsh
+		print -nr -- $'\e]7000;v=1;input-released=1\a'
+	}
+
+	if autoload -Uz add-zle-hook-widget 2>/dev/null; then
+		zle -N __operator_terminal_input_ready
+		add-zle-hook-widget line-init __operator_terminal_input_ready
+	fi
+
+	add-zsh-hook preexec __operator_terminal_input_released
+
 	__operator_terminal_pct_encode() {
 		emulate -L zsh
 		local s=$1 out='' i ch code hi lo
@@ -79,6 +96,10 @@ __operator_terminal_guard() {
 	__operator_terminal_precmd() {
 		emulate -L zsh
 		local __operator_terminal_status=$?
+		if [[ ${OPERATOR_TERMINAL_SUPPRESS_PROMPT:-0} == 1 ]]; then
+			PROMPT=''
+			RPROMPT=''
+		fi
 		if [[ -n ${__OPERATOR_TERMINAL_LAST_CMD+x} ]]; then
 			local id cmd cwd branch
 			id=$(__operator_terminal_next_id)

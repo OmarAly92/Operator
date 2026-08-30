@@ -82,18 +82,21 @@ wild. The vectors under `vectors/osc133-st-terminator.json` and
 ### 4.1 Encoding
 
 ```
-OSC 7000 ; key=value ; key=value ST
+OSC 7000 ; key=value ; key=value (ST | BEL)
 ```
 
 - The leading `OSC 7000 ;` is fixed text; the first key follows immediately
   after the semicolon.
-- Pairs are separated by a literal `; ` (semicolon then space).
+- Pairs are separated by `;` (semicolon). A single ASCII space immediately
+  after a separator is accepted and ignored, so both `k=v;k=v` and
+  `k=v; k=v` are valid encodings.
 - Each value MUST be percent-encoded per RFC 3986 §2.1. The character
   alphabet for the unencoded form is the bytes that are safe in a pty
   stream: `[A-Za-z0-9._~/:@!$&'()*+,;=-]`. Every other byte — including
   space — MUST be percent-encoded.
-- `ST` is the terminator (BEL is not accepted for Tier 2; Tier 2 marks are
-  emitted by our bootstrap, which uses ST).
+- `ST` or `BEL` terminates a Tier-2 mark. The bootstrap emits `ST`, while
+  decoders also accept `BEL` for compatible pty producers and the official
+  compact ownership-mark vectors.
 
 ### 4.2 Version key
 
@@ -127,17 +130,20 @@ key is a non-breaking change because unknown keys are ignored.
 | `start_ms` | millisecond Unix epoch at command start | integer |
 | `end_ms` | millisecond Unix epoch at command end | integer |
 
-### 4.4 Reserved keys — MUST NOT be emitted by Phase 1a
+### 4.4 Line-editor ownership keys
 
-The following keys are reserved and MUST NOT be emitted by any Phase-1a
-mark. They are Phase 2's line-editor signal (spec §3.5, §10.2) and are
-named here to stop the key space being reused:
+| Key | Meaning | Value |
+| --- | --- | --- |
+| `input-ready` | the shell's line editor is idle and accepting input | `1` |
+| `input-released` | a program has taken over the tty | `1` |
 
-- `input-ready` — emitted when the shell's line editor becomes idle;
-- `input-released` — emitted when a program takes over the tty.
+These are the explicit signal that replaces Warp's 50ms activation timer
+(spec §3.5, §10.2). A decoder MUST surface them as the `input_ready` and
+`input_released` events in §8. A mark carrying both MUST be surfaced as
+`input_released` only: the safe state is "a program owns the tty".
 
-A decoder MUST ignore both keys if it sees them in a Phase-1a mark
-(it will not, but MUST NOT crash on the rare misconfigured shell).
+They remain strictly additive. A decoder that ignores them still produces
+correct blocks, and no block lifecycle transition depends on either key.
 
 ## 5. Tier 2 — events emitted
 
@@ -199,6 +205,8 @@ list; this is the wire-level contract.
 | `command_end` | OSC 133 `D[; exit]`; command finished, with optional exit code |
 | `cwd_changed` | OSC 7; working directory update |
 | `extension` | OSC 7000 mark; carries the extension fields |
+| `input_ready` | shell line editor is idle and accepting input |
+| `input_released` | a program has taken over the tty |
 | `alt_screen_enter` | DCS / private-mode enter of the alternate screen |
 | `alt_screen_leave` | leave of the alternate screen |
 
@@ -208,10 +216,6 @@ the renderer can suspend block capture between them. The vectors do not
 cover alt-screen transitions; the existing alt-screen handling in
 `vt-core` is the reference. They are listed here so a decoder does not
 introduce a second event vocabulary for them.
-
-`input-ready` and `input-released` are NOT events in this list. They are
-Tier-2 keys (see §4.4) and do not yet produce decoder events; they are
-Phase 2's input-editor signal.
 
 ## 9. Decoder contract
 

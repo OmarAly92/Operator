@@ -1,5 +1,6 @@
 {
 	"vtebench": { "warmups": 3, "samples": 10, "unit": "workloads-per-second", "columns": 120, "rows": 40, "scrollback": 5000, "payloadBytes": 8388608, "seed": 7000 },
 	"large-output": { "warmups": 3, "samples": 10, "unit": "bytes-per-second", "columns": 120, "rows": 40, "scrollback": 5000, "outputBytes": 16777216 },
-	"input-latency": { "warmups": 3, "samples": 10, "unit": "milliseconds", "columns": 120, "rows": 40, "scrollback": 5000 }
+	"input-latency": { "warmups": 10, "samples": 100, "unit": "milliseconds", "columns": 120, "rows": 40, "scrollback": 5000 },
+	"input-latency-owned": { "warmups": 10, "samples": 100, "unit": "milliseconds", "columns": 120, "rows": 40, "scrollback": 5000, "maxP95Milliseconds": 16.7 }
 }

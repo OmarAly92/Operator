@@ -43,6 +43,7 @@ const LINE_LIMIT = 600;
 
 const STATIC_IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)\s+(?:[^"';]+\s+from\s+)?["']([^"']+)["']/g;
 const DYNAMIC_IMPORT_PATTERN = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+const EDITOR_HISTORY_PATTERN = /(?:node:fs(?:\/promises)?|(?:zsh|bash|fish)_history)/i;
 
 const CARGO_PATH_DEPENDENCY_PATTERN = /path\s*=\s*"([^"]+)"/g;
 const GO_REPLACE_PATTERN = /^\s*replace\s+\S+\s+=>\s+(\S+)/gm;
@@ -215,6 +216,13 @@ async function collectBoundaryErrors(rootDir) {
 
 		if (JS_TS_EXTENSIONS.has(extension)) {
 			const text = await readFile(absolute, "utf8");
+			if (
+				relativeFile.startsWith("ts/editor/src/") &&
+				!relativeFile.includes(".test.") &&
+				EDITOR_HISTORY_PATTERN.test(text)
+			) {
+				errors.push(`${relativeFile}: editor must not access shell history or the filesystem`);
+			}
 			const specifiers = collectSpecifiers(text);
 			const sourceRoot = packageRoot(relativeFile);
 			const forbidden = forbiddenTargetsFor(sourceRoot);

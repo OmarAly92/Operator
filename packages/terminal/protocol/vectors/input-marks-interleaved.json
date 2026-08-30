@@ -1,0 +1,14 @@
+{
+  "name": "input-marks-interleaved",
+  "description": "Line-editor marks interleave with the block lifecycle without opening, closing or altering a block.",
+  "input": "\u001b]7000;v=1;input-ready=1\u0007\u001b]133;A\u0007\u001b]7000;v=1;cmd=ls\u0007\u001b]7000;v=1;input-released=1\u0007\u001b]133;C\u0007out\n\u001b]133;D;0\u0007\u001b]7000;v=1;input-ready=1\u0007",
+  "events": [
+    { "kind": "input_ready" },
+    { "kind": "prompt_start", "tier": "osc133" },
+    { "kind": "extension", "pairs": [["v", "1"], ["cmd", "ls"]] },
+    { "kind": "input_released" },
+    { "kind": "output_start", "tier": "osc133" },
+    { "kind": "command_end", "tier": "osc133", "exit_code": 0 },
+    { "kind": "input_ready" }
+  ]
+}

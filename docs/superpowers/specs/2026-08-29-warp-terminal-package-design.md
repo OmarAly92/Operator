@@ -1052,6 +1052,8 @@ grid. We draw chrome around blocks, we do not yet own the typing. §14.0.
 
 ### Phase 2 — Input
 
+**Status: complete as of 2026-08-30.**
+
 **Deliver:** `ts/editor`; **prompt suppression turned on, in the same change** (§8.1)
 together with the Warp prompt row that replaces it; `input-ready`/`input-released`
 marks and the `LineEditorState` machine (§10.2); command syntax highlighting; multi-line; ghost-text

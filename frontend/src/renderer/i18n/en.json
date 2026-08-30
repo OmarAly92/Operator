@@ -83,6 +83,8 @@
 	"blocks.copyCommand": "Copy command",
 	"blocks.copyOutput": "Copy output",
 	"blocks.rerunCommand": "Re-run",
+	"blocks.searchHistory": "Search history",
+	"blocks.searchNoMatches": "No matches",
 	"blocks.shellBlocksUnavailable": "Shell blocks are unavailable in this terminal.",
 	"command.back": "Back",
 	"command.copyBranch": "Copy branch name",

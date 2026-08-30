@@ -84,6 +84,8 @@
 	"blocks.copyCommand": "Copier la commande",
 	"blocks.copyOutput": "Copier la sortie",
 	"blocks.rerunCommand": "Relancer",
+	"blocks.searchHistory": "Rechercher dans l’historique",
+	"blocks.searchNoMatches": "Aucun résultat",
 	"blocks.shellBlocksUnavailable": "Les blocs shell ne sont pas disponibles dans ce terminal.",
 	"command.back": "Retour",
 	"command.copyBranch": "Copier le nom de la branche",
