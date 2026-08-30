@@ -818,6 +818,35 @@ comparable work, and the answer is a second scenario with its own yardstick — 
 If `renderer-dom` misses a gate after honest optimization, that is the trigger for a
 WebGL renderer behind §9.1 — not a redesign of core, blocks or editor.
 
+### 9.5 Paint scheduling and row reuse — **landed 2026-08-30**
+
+The gate in §9.4 measures throughput and latency. It does not measure *smoothness*, and
+the first raw surface to carry a live agent pane was measurably janky while passing every
+gate. Two rules close that, both copied from Warp:
+
+**One paint per frame, at most 60 per second.** `DomBlockRenderer` schedules every repaint
+through `requestAnimationFrame` and drops a frame whose timestamp is less than
+`1000 / 60` ms after the last painted one (with a 0.25 ms epsilon, because rAF timestamps
+are not exactly 16.667 ms apart). There is **no synchronous escape hatch**: the first
+implementation painted inline whenever more than 4 ms had passed, which under a chatty
+agent redraw meant roughly 250 paints per second, each one fighting the compositor. Warp
+caps the same way — `MAX_WAKEUPS_PER_SECOND = 60` and `WAKEUP_THROTTLE_PERIOD`
+(`app/src/terminal/view.rs:613-615`), applied as `throttle(WAKEUP_THROTTLE_PERIOD,
+wakeups_rx)` (`view.rs:3752-3754`) with trailing-edge coalescing (`app/src/throttle.rs:23-45`)
+so the last state in a burst is always the one drawn.
+
+**Repaint only the rows that changed.** `renderAltSurface` keeps a per-surface fingerprint
+of each row — the row's slice of `content` and its slice of `stylePairs` — and rebuilds a
+row's children only when that slice differs from the previous paint. A full-screen TUI
+frame typically rewrites a handful of rows; rebuilding all of them (measured: 46 rows /
+506 spans / 1.6 ms median) is the difference between a paint that fits in a frame and one
+that does not. The fingerprints live in a `WeakMap` keyed by the surface node, so a
+disposed surface takes its fingerprints with it, and a row-count change falls back to a
+full replace rather than trying to diff across a resize.
+
+Neither rule may be traded away for a §9.4 number. A renderer that wins `large-output` by
+painting more often than the display refreshes has not made anything faster.
+
 ---
 
 ## 10. The input editor
@@ -914,6 +943,31 @@ is true only of a plain shell. §2.8.
   single full-height region with no block chrome.
 - Input in the alternate screen is raw passthrough, exactly as the phase-2 editor
   already does in `Released` (§10.2). The editor is hidden, not disabled-in-place.
+- **The wheel goes to the program when the program asked for it.** `vt-core` tracks
+  `1006` (SGR encoding) and `1000`/`1002`/`1003` (tracking level) as private-mode state
+  and publishes both on the snapshot. When SGR encoding and any tracking level are both
+  on — which is what a full-screen TUI with a scrollable pane sets — a wheel event is
+  reported as `CSI < 64 ; col ; row M` (up) or `65` (down) at the cell under the pointer,
+  so the program scrolls its own pane. Only when the program has *not* asked does the
+  surface synthesize arrow keys (`CSI A`/`B`, or `SS3 A`/`B` under application cursor
+  keys). Getting this backwards is the shape of a real bug we shipped: an agent CLI read
+  the synthesized `CSI A` as "up arrow" and walked its prompt history every time the user
+  tried to scroll.
+- **Wheel deltas are normalized against the measured cell height, and the remainder is
+  kept.** `deltaMode` is one of pixels, lines or pages; pixels are divided by
+  `renderer.measure().cellHeight` and pages by the grid height. The fractional remainder
+  accumulates across events instead of being truncated away, which is what makes a
+  trackpad feel continuous rather than stepping. There is no line cap — capping a burst
+  loses scroll distance the user asked for.
+
+*A correction to the correction below (§14, Phase 3).* Claude Code driven directly emits
+no `?1049`. Claude Code as Operator actually runs it does, because the **tmux client**
+emits `?1049h` within the first chunk it writes to its terminal. Agent panes are
+therefore always in the alternate screen, and the normal-buffer grid landed by the
+2026-08-30 plan is what carries a pane after tmux leaves it. Two capture attempts got
+this wrong by reading the wrong layer: probing the agent directly, and `tmux pipe-pane`,
+both capture what the *program inside the pane* writes, never what tmux writes to its
+client. Capture through a pty running `tmux attach`.
 
 `vt-core` MUST track alt-screen as explicit state, not as a rendering detail; the
 daemon-side decoder needs the same signal to suspend capture (§13.2). Phase 1's boolean
@@ -996,6 +1050,30 @@ History (blocks from before this client attached) comes from
 `GET /sessions/{id}/blocks` and is fed into the core as pre-parsed blocks. Both paths
 must converge on the same `BlockId` — that is why block id continuity is a Tier-2 field
 (§7.2).
+
+**What landed 2026-08-30, and the three host-side rules it settled.**
+
+*A session opens on the raw terminal.* `defaultSessionViewMode` returns `"raw"` for every
+session. It previously returned `"blocks"` for any harness with a block mapper
+(`claude-code`, `codex`, `grok`), so all three agents opened on the block view and had to
+be switched by hand — and because `sessionViewModeBySession` is in-memory only, never
+persisted, that switch was lost on every restart as well as on every new session. The
+toggle is unchanged and `blocksCoverHarness` still gates whether blocks are offered at
+all, so a harness with no mapper says so rather than offering an empty list.
+
+*`XtermTerminal` runs headless when it is not the surface.* Under the default
+(`VITE_ALT_SCREEN_SURFACE` unset), `XtermTerminal` mounts a headless attachment that
+satisfies the `onReady` handle and renders nothing, and `useTerminalSession` stops
+mirroring bytes into it. Keeping a second full VT parsing and painting the same stream
+off-screen is pure waste, and it is exactly the fallback path §13.4.2 will delete; the
+flag still swaps the real component back in.
+
+*Geometry is published from the measured surface, never from the fallback's defaults.*
+The open call and the post-open resize both use `surfaceGeometry` — the grid the package
+surface actually measured — falling back to the terminal handle's `cols`/`rows` only when
+nothing has measured yet, and `transport.resize` no-ops until the channel is open. Opening
+at an unmeasured 80×24 and resizing afterwards makes the pane render a partial screen for
+the first frames, which is what "the terminal not showing full" was.
 
 ### 13.4 Retirement (phase 7)
 
@@ -1203,6 +1281,15 @@ showed Claude Code emitting no `?1049` and no OSC 133, and redrawing inline with
 `FlatStorage` + `GridStorage` split and the 2026-08-30 work landed the
 cursor-addressable rows that an inline-redrawing TUI needs, including the zero-width
 scalar regression in §6.2a and the scrollback semantic change in §6.2a.
+
+**Status 2026-08-30, end of day.** The 2026-08-30 plan landed in full (`255770fbd`
+through `4f2b6d62d`), and four follow-ups landed on top of it, each recorded in the
+section it changed: the zero-width scalar regression closed with Warp's per-cell grapheme
+storage (`4fa3c00a2`, §6.2a); wheel events reported to a mouse-tracking pane, and panes
+opened at the measured grid (`b2ce3f9cc`, §11 and §13.3); sessions opening raw with a
+headless `XtermTerminal` (`ac9236563`, §13.3); and the paint-scheduling and row-reuse
+rules that fixed the jank (`ac9236563`/`d45009946`, §9.5). The correction above is itself
+corrected in §11: an agent pane *is* in the alternate screen, because tmux puts it there.
 
 ### Phase 4 — Completions
 

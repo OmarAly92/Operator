@@ -1,5 +1,22 @@
 # Normal-Buffer Screen Grid Implementation Plan
 
+> **Landed 2026-08-30.** All 11 tasks are complete, `255770fbd` through `4f2b6d62d`.
+> Four follow-ups landed on top and are recorded in the spec, not here:
+> per-cell grapheme storage closing the zero-width regression this plan's Self-Review
+> logged (`4fa3c00a2`, spec §6.2a); wheel reported to a mouse-tracking pane plus panes
+> opened at the measured grid (`b2ce3f9cc`, §11/§13.3); sessions opening raw with a
+> headless `XtermTerminal` (`ac9236563`, §13.3); and 60 Hz paint coalescing with
+> per-row reuse, which fixed the jank (`ac9236563`/`d45009946`, §9.5).
+>
+> One item from Self-Review is still open and deliberately so: **column-change reflow of
+> committed scrollback rows**. Agent panes take the no-reflow path, so it is only visible
+> in a shell pane resized narrower.
+>
+> One finding here is superseded: Task 8 and the Phase 3 correction say an agent CLI
+> does not enter the alternate screen. Driven directly it does not; as Operator runs it,
+> the **tmux client** emits `?1049h` in its first chunk, so agent panes are always in the
+> alternate screen. See spec §11.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give `vt-core`'s normal buffer a real cursor-addressable screen, so an inline TUI that redraws with cursor-up overwrites its previous frame instead of appending a new copy of it to scrollback.
@@ -88,7 +105,7 @@ A pure move. The alternate screen must behave identically afterwards, which the 
 - Consumes: nothing.
 - Produces: `pub struct ScreenGrid` with exactly today's `AltGrid` API — `new(rows, cols)`, `rows()`, `cols()`, `cursor()`, `cursor_visible()`, `set_cursor_visible(bool)`, `cell(row, col) -> Cell`, `move_to(usize, usize)`, `move_by(isize, isize)`, `carriage_return()`, `tab()`, `save_cursor()`, `restore_cursor()`, `print(char, StyleCode)`, `row_text(usize) -> String`, `reset()`, `resize(rows, cols)`, `csi(&Params, &[u8], char)`, `esc(u8)`, plus the `edit.rs` and `scroll.rs` methods. `pub type AltGrid = ScreenGrid;` and `pub use screen::{Cell, MAX_DIMENSION};` in `alt.rs`.
 
-- [ ] **Step 1: Move the files**
+- [x] **Step 1: Move the files**
 
 ```bash
 cd packages/terminal/crates/vt-core/src
@@ -100,7 +117,7 @@ git mv alt/snapshot.rs screen/snapshot.rs
 git mv alt/mod.rs screen.rs
 ```
 
-- [ ] **Step 2: Rename the type inside the moved files**
+- [x] **Step 2: Rename the type inside the moved files**
 
 In `screen.rs`, `screen/dispatch.rs`, `screen/edit.rs`, `screen/scroll.rs`, `screen/snapshot.rs`, replace `AltGrid` with `ScreenGrid` and `crate::alt::` with `crate::screen::`. In `screen.rs` the module declarations become:
 
@@ -113,7 +130,7 @@ mod snapshot;
 pub use snapshot::AltSnapshot;
 ```
 
-- [ ] **Step 3: Write the re-export shim**
+- [x] **Step 3: Write the re-export shim**
 
 Create `crates/vt-core/src/alt.rs`:
 
@@ -121,7 +138,7 @@ Create `crates/vt-core/src/alt.rs`:
 pub use crate::screen::{AltSnapshot, Cell, MAX_DIMENSION, ScreenGrid as AltGrid};
 ```
 
-- [ ] **Step 4: Register the module**
+- [x] **Step 4: Register the module**
 
 In `crates/vt-core/src/lib.rs`, alongside the existing `mod alt;`, add:
 
@@ -129,12 +146,12 @@ In `crates/vt-core/src/lib.rs`, alongside the existing `mod alt;`, add:
 mod screen;
 ```
 
-- [ ] **Step 5: Verify the move changed nothing**
+- [x] **Step 5: Verify the move changed nothing**
 
 Run: `cargo test -p vt-core`
 Expected: PASS, with `alt_conformance`, `alt_grid` and `alt_routing` all green and no test edited.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A packages/terminal/crates/vt-core/src
@@ -158,7 +175,7 @@ Only a scroll of the **whole** screen evicts. A scroll region (`DECSTBM` with `s
 - Consumes: `ScreenGrid` from Task 1.
 - Produces: `ScreenGrid::take_evicted(&mut self) -> Vec<Vec<Cell>>` draining rows evicted since the last call, oldest first. `ScreenGrid::set_records_eviction(&mut self, on: bool)` — off by default, so the alternate buffer keeps discarding.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `crates/vt-core/tests/screen_eviction.rs`:
 
@@ -213,12 +230,12 @@ pub mod testing {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test screen_eviction`
 Expected: FAIL — `no method named set_records_eviction`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `crates/vt-core/src/screen.rs`, add to the struct and `new`:
 
@@ -290,12 +307,12 @@ pub fn scroll_up(&mut self, count: usize) {
 
 `record_eviction` is `pub(crate)` on the `ScreenGrid` impl in `screen.rs`; `scroll.rs` is the same crate so it resolves.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cargo test -p vt-core`
 Expected: PASS, all four new tests plus the untouched alt suite.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
@@ -329,7 +346,7 @@ function does not exist yet.
   either, or every committed row gains a stray byte and every `row_text` assertion in the
   suite breaks.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `crates/vt-core/src/scrollback.rs` with the tests but no implementation:
 
@@ -408,12 +425,12 @@ mod tests {
 already has — it ignores a zero-length row (`row_index.rs:25-33`) — so a blank screen row
 does not manufacture scrollback entries.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core scrollback`
 Expected: FAIL to compile — `cannot find function commit_row in this scope`. Paste the error.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 At the top of `crates/vt-core/src/scrollback.rs`:
 
@@ -445,12 +462,12 @@ pub(crate) fn commit_row(
 
 Add `mod scrollback;` to `crates/vt-core/src/lib.rs`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cargo test -p vt-core`
 Expected: PASS. Nothing outside `scrollback.rs` changed, so the rest of the suite is untouched.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
@@ -487,7 +504,7 @@ Work through the three cycles below in order, each with its own RED evidence, th
 
 #### Cycle A — cursor addressing reaches the normal buffer
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `crates/vt-core/tests/screen_normal.rs`:
 
@@ -543,13 +560,13 @@ fn a_repeated_redraw_does_not_grow_the_row_count() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test screen_normal`
 Expected: FAIL. `cursor_up_rewrites_in_place_instead_of_appending` reports `text[1] == "bravo"`;
 `a_repeated_redraw_does_not_grow_the_row_count` reports about 100 rows. Paste both.
 
-- [ ] **Step 3: Implement the routing**
+- [x] **Step 3: Implement the routing**
 
 In `crates/vt-core/src/parser.rs`, add `screen: ScreenGrid` to the struct, built in `new` as:
 
@@ -632,13 +649,13 @@ tell you rather than guessing.
 
 #### Cycle B — the snapshot spans scrollback and screen
 
-- [ ] **Step 4: Confirm Cycle A's tests still fail, for a new reason**
+- [x] **Step 4: Confirm Cycle A's tests still fail, for a new reason**
 
 Run: `cargo test -p vt-core --test screen_normal`
 Expected: still FAIL, now because the snapshot shows no screen content at all. This is the
 entanglement this task exists to resolve — do not stop here.
 
-- [ ] **Step 5: Implement the row space**
+- [x] **Step 5: Implement the row space**
 
 In `crates/vt-core/src/screen.rs`, track the cursor high-water mark (correction **C1**;
 do **not** scan for the last non-blank cell). Add `max_cursor_row: usize`, initialised to
@@ -692,7 +709,7 @@ renderer's one-span-per-run contract (spec §6.2) is unchanged. `open_start`/`en
 
 #### Cycle C — block row counts, and the expectations this invalidates
 
-- [ ] **Step 6: Write the failing test**
+- [x] **Step 6: Write the failing test**
 
 Append to `crates/vt-core/tests/screen_normal.rs`:
 
@@ -747,7 +764,7 @@ fn rows_scrolled_off_a_three_row_screen_reach_scrollback() {
 }
 ```
 
-- [ ] **Step 7: Implement**
+- [x] **Step 7: Implement**
 
 In `crates/vt-core/src/block_grid.rs`, `note_row_completed` stops advancing the open
 block's `row_count`. `build_snapshot` computes the last block's count as
@@ -758,7 +775,7 @@ Delete `write_char`, `open_new_row` and `expand_tab` from `parser.rs` if the com
 reports them unused. If anything still calls them, say so in your report rather than
 leaving dead code.
 
-- [ ] **Step 8: Repair the expectations this invalidates**
+- [x] **Step 8: Repair the expectations this invalidates**
 
 `terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs` contain assertions of
 the form "N lines fed produce N rows", true only while N is under the screen height. Give
@@ -768,12 +785,12 @@ each such test an explicit `core.resize(cols, rows)` tall enough for its fixture
 it pass.** If a test cannot be repaired that way, it has found a real defect — stop and
 report it instead of editing it.
 
-- [ ] **Step 9: Run the full suite**
+- [x] **Step 9: Run the full suite**
 
 Run: `cargo test -p vt-core`
 Expected: PASS. Paste the count.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add packages/terminal
@@ -792,7 +809,7 @@ Entering the alternate buffer must still freeze the block list and leave recorde
 - Consumes: `active_screen_mut` from Task 4.
 - Produces: no new API.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `crates/vt-core/tests/alt_routing.rs`:
 
@@ -829,12 +846,12 @@ fn rows_written_before_the_alternate_screen_survive_it_byte_for_byte() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test alt_routing`
 Expected: FAIL if `enter_alt` left `records_eviction` on for the alternate grid, or if the normal screen's contents were disturbed by the alternate buffer's writes.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `enter_alt` builds the alternate grid at the current screen's dimensions and leaves `records_eviction` false; the normal `screen` is untouched while `alt` is `Some`, so leaving simply drops the alternate grid:
 
@@ -851,12 +868,12 @@ pub fn enter_alt(&mut self, rows: usize) {
 }
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `cargo test -p vt-core`
 Expected: PASS, including the existing `alt_conformance` vectors for `vim`, `less` and `htop`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
@@ -878,7 +895,7 @@ Correction **C2**. `CSI 2 J` means different things in the two buffers, and two 
 - Consumes: `commit_evicted` and `content_rows` (Task 4).
 - Produces: `ScreenGrid::set_clear_policy(&mut self, policy: ClearPolicy)` where `pub enum ClearPolicy { Scroll, ClearInPlace }`, defaulting to `Scroll` for the normal buffer and `ClearInPlace` for the alternate buffer.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `crates/vt-core/tests/clear_policy.rs`:
 
@@ -907,12 +924,12 @@ fn clear_on_the_alternate_screen_destroys_nothing_and_saves_nothing() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test clear_policy`
 Expected: FAIL on the first test — `keep me` is gone, because `erase_in_display` blanks cells in place and the row never reaches scrollback.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `crates/vt-core/src/screen.rs`:
 
@@ -942,12 +959,12 @@ Add `clear_policy: ClearPolicy` to the struct, defaulting to `ClearPolicy::Scrol
 
 In `parser.rs`, `enter_alt` sets `alt.set_clear_policy(ClearPolicy::ClearInPlace)` alongside `set_records_eviction(false)`.
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `cargo test -p vt-core`
 Expected: PASS, `alt_conformance` included.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
@@ -969,7 +986,7 @@ Correction **C3**. Warp's `resize.rs:57-66` skips reflow for the alternate scree
 - Consumes: `ClearPolicy` (Task 6), `set_records_eviction` (Task 2).
 - Produces: `ScreenGrid::set_reflow_on_resize(&mut self, on: bool)`, default `true`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `crates/vt-core/tests/resize_policy.rs`:
 
@@ -1003,23 +1020,23 @@ fn resizing_a_shell_still_keeps_its_scrollback() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test resize_policy`
 Expected: FAIL — `no method named set_agent_tui_mode`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `ScreenGrid::resize` gains an early branch: when `reflow_on_resize` is false, adjust the cell buffer to the new dimensions without evicting anything, and clamp `max_cursor_row` and the cursor into the new bounds. When it is true, keep today's behaviour.
 
 `TerminalCore::set_agent_tui_mode(on: bool)` in `lib.rs` sets, on the normal screen: `set_reflow_on_resize(!on)` and `set_clear_policy(if on { ClearInPlace } else { Scroll })`.
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `cargo test -p vt-core`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
@@ -1044,7 +1061,7 @@ Trailing-blank trimming rides along here, because Warp enables it in the same ha
 - Consumes: `set_agent_tui_mode` (Task 7).
 - Produces: `TerminalCore.setAgentTuiMode(on: boolean)` in TypeScript; a `agentTui?: boolean` prop on `BlockTerminal`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `frontend/src/renderer/components/BlockTerminal.test.tsx`:
 
@@ -1064,16 +1081,16 @@ it("leaves a plain shell pane out of agent-tui mode", () => {
 
 Match `renderTerminal`'s real signature in that file; add a `coreOverrides` option to the helper if it has none.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd frontend && npx vitest run src/renderer/components/BlockTerminal.test.tsx`
 Expected: FAIL — `setAgentTuiMode` is never called.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Export `set_agent_tui_mode` through `vt-wasm` as `setAgentTuiMode`, surface it on `TerminalCore`, and have `BlockTerminal` call it in the effect that creates the core and whenever `agentTui` changes. `TerminalPane` passes `agentTui={terminalTarget?.kind === "session"}` — a session pane runs an agent, a shell pane does not.
 
-- [ ] **Step 4: Run the suites**
+- [x] **Step 4: Run the suites**
 
 ```bash
 cd packages/terminal && npm run build:wasm && npm run build:ts && npm test
@@ -1082,7 +1099,7 @@ cd ../frontend && npm test
 
 Expected: PASS. Report the counts you actually read.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A packages/terminal frontend
@@ -1103,7 +1120,7 @@ The bug arrived from a real program. The regression test replays that program's 
 - Consumes: the unified row space from Task 4.
 - Produces: no new API.
 
-- [ ] **Step 1: Record the vector**
+- [x] **Step 1: Record the vector**
 
 ```bash
 tmux kill-session -t rec 2>/dev/null
@@ -1116,7 +1133,7 @@ tmux kill-session -t rec
 
 Store the capture as `{"columns": 100, "rows": 30, "bytes": [ ... ]}` with the raw bytes as a decimal array, matching the existing alt-vector shape.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `crates/vt-core/tests/redraw_conformance.rs`:
 
@@ -1148,17 +1165,17 @@ fn thirty_replays_of_an_agent_redraw_stay_within_the_screen() {
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails against the old core**
+- [x] **Step 3: Run test to verify it fails against the old core**
 
 Run: `git stash && cargo test -p vt-core --test redraw_conformance; git stash pop`
 Expected: FAIL with ~841 rows, matching the number measured on 2026-08-30.
 
-- [ ] **Step 4: Run against the new core**
+- [x] **Step 4: Run against the new core**
 
 Run: `cargo test -p vt-core --test redraw_conformance`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/protocol/redraw-vectors packages/terminal/crates/vt-core/tests/redraw_conformance.rs
@@ -1179,7 +1196,7 @@ git commit -m "test(terminal): pin a real agent redraw against scrollback inflat
 - Consumes: everything above.
 - Produces: no new TypeScript API.
 
-- [ ] **Step 1: Rebuild**
+- [x] **Step 1: Rebuild**
 
 ```bash
 cd packages/terminal
@@ -1189,7 +1206,7 @@ npm run build:ts
 
 Both are required. `npm test` runs only the first, and a stale `ts/core/dist` makes TypeScript tests pass against the old core.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Add to `ts/renderer-dom/src/dom-block-renderer.test.ts`:
 
@@ -1206,7 +1223,7 @@ it("keeps a redrawing program inside one screen of rows", () => {
 
 Match `mountRenderer`'s real helper name and signature in that file rather than the placeholder above.
 
-- [ ] **Step 3: Run the suites**
+- [x] **Step 3: Run the suites**
 
 ```bash
 cd packages/terminal && npm test
@@ -1215,7 +1232,7 @@ cd ../../frontend && npm test
 
 Expected: PASS. Report the actual counts; do not claim a number you did not read.
 
-- [ ] **Step 4: Verify in the real app**
+- [x] **Step 4: Verify in the real app**
 
 ```bash
 npm run tauri:dev
@@ -1223,7 +1240,7 @@ npm run tauri:dev
 
 Check, by running them: an agent CLI redraws in place and scrolling back reaches real history rather than duplicate frames; `vim`, `htop` and `less` still render, resize, and scroll; entering and leaving a full-screen TUI leaves one collapsed block with the prior blocks unchanged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A packages/terminal frontend
@@ -1239,19 +1256,19 @@ The spec's §6.2 describes Warp's `flat_storage` without noting that Warp itself
 **Files:**
 - Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` §6.2, §11, and the Phase 3 entry in §14
 
-- [ ] **Step 1: Amend §6.2**
+- [x] **Step 1: Amend §6.2**
 
 Record that `FlatStorage` is Warp's **scrollback** tier and its own doc comment rules out `Insert`, being suited to "grids that are immutable, or the portion of a grid that cannot be accessed via the cursor"; that the cursor-addressable rows live in `GridStorage`, a mutable circular buffer of `Row`s; and that `grid_handler.rs`'s `storage_row()` resolves a row index across the two by comparing against `flat_storage.total_rows()`. Cite `flat_storage/mod.rs:11-17` and `grid_handler.rs:2399-2409`.
 
-- [ ] **Step 2: Amend §11**
+- [x] **Step 2: Amend §11**
 
 State that cursor addressing, scroll regions, erase and line editing apply to **both** buffers, since both are `ScreenGrid`, and that the only difference is eviction policy. Note that Warp models the same distinction as `FullGridClearBehavior::{Clear, Scroll}` (`grid_handler.rs:405`).
 
-- [ ] **Step 3: Correct the Phase 3 record in §14**
+- [x] **Step 3: Correct the Phase 3 record in §14**
 
 Note that the accept criterion "an agent CLI (Claude Code) runs end to end in the package's own surface" was signed off on the assumption that Claude Code drives the alternate screen, that a capture on 2026-08-30 showed it emits no `?1049` and no OSC 133 and redraws inline with CUU, and that this plan closes the gap.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md
