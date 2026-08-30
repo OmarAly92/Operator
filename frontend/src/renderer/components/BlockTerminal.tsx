@@ -54,6 +54,12 @@ const ALT_SCREEN_ENTER = "\x1b[?1049h";
 const ALT_SCREEN_LEAVE = "\x1b[?1049l";
 const SOURCE_ID_PATTERN = /\x1b\]7000;v=1;id=([A-Za-z0-9_-]+)/g;
 
+// Which surface owns the alternate screen. The package's own renderer is the
+// default so the pane is ours end to end; until the phase-3 alternate-screen
+// grid lands it has no cursor addressing, so a full-screen TUI draws wrong
+// here. `VITE_ALT_SCREEN_SURFACE=xterm` hands the alternate screen back.
+const handsAltScreenToXterm = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
+
 function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | undefined): TerminalTheme {
 	if (!theme || !skin) return warpDarkTheme;
 	const xterm = skinToXtermTheme(skin, theme);
@@ -328,8 +334,18 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
+	const handOffAltScreen = altScreenActive && handsAltScreenToXterm;
+
 	terminalDebug("block-terminal", "render", {
-		surface: coreError ? "error" : !core ? "loading" : altScreenActive ? "xterm(alt)" : "block-list",
+		surface: coreError
+			? "error"
+			: !core
+				? "loading"
+				: handOffAltScreen
+					? "xterm(alt)"
+					: altScreenActive
+						? "block-list(alt)"
+						: "block-list",
 	});
 
 	if (coreError || !core) {
@@ -355,7 +371,7 @@ export function BlockTerminal({
 		core,
 		theme: resolvedTheme,
 		font,
-		altScreenActive,
+		altScreenActive: handOffAltScreen,
 		altScreenSurface: children,
 		host,
 		strings,

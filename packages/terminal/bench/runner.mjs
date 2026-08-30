@@ -31,24 +31,30 @@ export class UsageError extends Error {
 function usage(message) {
 	if (message) process.stderr.write(`${message}\n`);
 	process.stderr.write("usage: npm run bench:terminal -- --renderer xterm|dom --scenario vtebench|large-output|input-latency\n");
-	process.stderr.write("       npm run bench:baseline -- --renderer xterm|dom --record\n");
+	process.stderr.write("       npm run bench:baseline -- --renderer xterm|dom --record [--repeat N]\n");
 }
 
 export function parseArguments(args) {
 	let renderer;
 	let scenario;
 	let record = false;
+	let repeat;
 	for (let index = 0; index < args.length; index += 1) {
 		const argument = args[index];
 		if (argument === "--renderer" && renderer === undefined) renderer = args[++index];
 		else if (argument === "--scenario" && scenario === undefined) scenario = args[++index];
 		else if (argument === "--record" && !record) record = true;
+		else if (argument === "--repeat" && repeat === undefined) repeat = Number(args[++index]);
 		else throw new UsageError(`unsupported argument: ${argument}`);
 	}
 	if (!supportedRenderers.has(renderer)) throw new UsageError("--renderer must be xterm or dom");
+	if (repeat !== undefined && (!Number.isInteger(repeat) || repeat < 1 || repeat > 25)) {
+		throw new UsageError("--repeat must be an integer between 1 and 25");
+	}
+	if (repeat !== undefined && !record) throw new UsageError("--repeat only applies to --record");
 	if (record && scenario !== undefined) throw new UsageError("--record measures all scenarios and does not accept --scenario");
 	if (!record && !scenarioNames.includes(scenario)) throw new UsageError("--scenario must name a documented scenario");
-	return { renderer, record, names: record ? baselineScenarioNames : [scenario] };
+	return { renderer, record, repeat: repeat ?? (record ? 5 : 1), names: record ? baselineScenarioNames : [scenario] };
 }
 
 function git(...args) {
@@ -138,6 +144,27 @@ async function runBrowser(renderer, names) {
 	}
 }
 
+/**
+ * The run sitting at the median of each scenario's p95. Scenarios are chosen
+ * independently: a run can be typical for one and an outlier for another, and
+ * taking one whole run would carry its outliers into the baseline.
+ */
+export function medianRun(runs, names) {
+	if (runs.length === 1) return runs[0];
+	const chosen = {};
+	for (const name of names) {
+		const ordered = [...runs].sort(
+			(a, b) => a.measured.scenarios[name].p95 - b.measured.scenarios[name].p95,
+		);
+		chosen[name] = ordered[Math.floor((ordered.length - 1) / 2)].measured.scenarios[name];
+	}
+	const base = runs[runs.length - 1];
+	return {
+		...base,
+		measured: { ...base.measured, scenarios: chosen },
+	};
+}
+
 async function writeResult(result, record) {
 	const json = `${JSON.stringify(result, null, "\t")}\n`;
 	const resultsDirectory = path.join(benchDirectory, "results");
@@ -169,7 +196,7 @@ async function run() {
 		}
 		throw error;
 	}
-	const { renderer, record, names } = parsed;
+	const { renderer, record, repeat, names } = parsed;
 	if (record && git("status", "--porcelain", "--untracked-files=all") !== "") {
 		throw new Error("refusing to record a baseline from a dirty git tree");
 	}
@@ -183,8 +210,19 @@ async function run() {
 		throw new Error("installed xterm version must be exactly 5.5.0");
 	}
 
-	const { measured, browserVersion } = await runBrowser(renderer, names);
-	await verifyWorkloads(measured, names);
+	// A baseline is the reference every later run is judged against, so it must
+	// not be one draw from a distribution. Input latency is quantised to
+	// animation frames: a single run's p95 lands on whichever vsync boundary it
+	// happened to catch, which is how the same code passed or failed by luck.
+	// Recording keeps the run whose p95 is the median across repeats.
+	const runs = [];
+	for (let index = 0; index < repeat; index += 1) {
+		const attempt = await runBrowser(renderer, names);
+		await verifyWorkloads(attempt.measured, names);
+		runs.push(attempt);
+		if (repeat > 1) process.stdout.write(`run ${index + 1}/${repeat} complete\n`);
+	}
+	const { measured, browserVersion } = medianRun(runs, names);
 	const cpus = os.cpus();
 	const result = {
 		schema: "operator.terminal-benchmark.v1",
