@@ -69,6 +69,8 @@ export type TerminalSnapshot = Readonly<{
 	lineEditorState: number;
 	altScreen: AltScreenView | null;
 	applicationCursorKeys: boolean;
+	sgrMouse: boolean;
+	mouseTracking: boolean;
 }>;
 
 export type AltScreenView = Readonly<{

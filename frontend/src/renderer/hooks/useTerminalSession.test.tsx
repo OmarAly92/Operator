@@ -982,6 +982,22 @@ describe("useTerminalSession", () => {
 		expect(view.result.current.state).toBe("attached");
 	});
 
+	it("opens at the surface geometry rather than the unfitted xterm default", () => {
+		const { view, muxes } = setup();
+		act(() => view.result.current.transport.resize(83, 45));
+		act(() => muxes[0].emitConnection("closed"));
+		act(() => void vi.advanceTimersByTime(500));
+		expect(muxes[1].opens).toEqual([["handle-1", 83, 45]]);
+	});
+
+	it("republishes the surface geometry when the handle opens", () => {
+		const { view, muxes } = setup();
+		act(() => view.result.current.transport.resize(83, 45));
+		muxes[0].resizes.length = 0;
+		act(() => muxes[0].emitOpened("handle-1"));
+		expect(muxes[0].resizes).toContainEqual(["handle-1", 83, 45]);
+	});
+
 	it("ignores stale frames after a reconnect starts", () => {
 		const { view, terminal, muxes } = setup();
 		act(() => muxes[0].emitConnection("closed"));

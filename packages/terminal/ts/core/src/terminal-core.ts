@@ -108,6 +108,8 @@ export class TerminalCore {
 			lineEditorState: this.inner.line_editor_state(),
 			altScreen,
 			applicationCursorKeys: this.inner.application_cursor_keys(),
+			sgrMouse: this.inner.sgr_mouse(),
+			mouseTracking: this.inner.mouse_tracking(),
 		};
 	}
 

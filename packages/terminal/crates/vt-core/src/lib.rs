@@ -168,6 +168,14 @@ impl TerminalCore {
     pub fn application_cursor_keys(&self) -> bool {
         self.parser.app_cursor()
     }
+
+    pub fn sgr_mouse(&self) -> bool {
+        self.parser.sgr_mouse()
+    }
+
+    pub fn mouse_tracking(&self) -> bool {
+        self.parser.mouse_tracking()
+    }
 }
 
 pub use grid::GridSnapshot;

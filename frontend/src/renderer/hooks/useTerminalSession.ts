@@ -521,6 +521,14 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				r.attempts = 0;
 				setError(undefined);
 				transition("attached");
+				const measured = r.surfaceGeometry;
+				if (measured) {
+					const published = r.lastPublishedGrid;
+					if (published?.cols !== measured.cols || published.rows !== measured.rows) {
+						r.lastPublishedGrid = { cols: measured.cols, rows: measured.rows };
+						mux.resize(handle, measured.cols, measured.rows);
+					}
+				}
 				// Bound the gate from here: the daemon fires onOpen from setPTY and
 				// starts copyOut immediately after, so the replay is imminent and
 				// the cap now measures the burst rather than the connect handshake.
@@ -654,8 +662,9 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// visible fit emits the authoritative grid after activation.
 		const visible = optionsRef.current.isVisible !== false;
 		r.needsVisibleSizeSync = !visible;
-		const openCols = visible ? terminal.cols : 0;
-		const openRows = visible ? terminal.rows : 0;
+		const surface = r.surfaceGeometry;
+		const openCols = visible ? (surface?.cols ?? terminal.cols) : 0;
+		const openRows = visible ? (surface?.rows ?? terminal.rows) : 0;
 		mux.open(handle, openCols, openRows);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;
@@ -849,7 +858,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				const r = runtime.current;
 				if (cols <= 0 || rows <= 0) return;
 				r.surfaceGeometry = { cols, rows };
-				if (!r.mux || !r.handle) return;
+				if (!r.mux || !r.handle || !r.inputReady) return;
 				const published = r.lastPublishedGrid;
 				if (published?.cols === cols && published.rows === rows) return;
 				r.lastPublishedGrid = { cols, rows };

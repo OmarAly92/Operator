@@ -163,9 +163,17 @@ export function TerminalSurface({
 				return;
 			}
 			event.preventDefault();
+			const count = Math.min(Math.abs(lines), MAX_WHEEL_LINES);
+			const snapshot = core.snapshot();
+			if (snapshot.sgrMouse && snapshot.mouseTracking) {
+				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
+				const button = lines > 0 ? 65 : 64;
+				onSendRaw(`\x1b[<${button};${column};${row}M`.repeat(count));
+				return;
+			}
 			const prefix = appCursor() ? "\x1bO" : "\x1b[";
 			const key = lines > 0 ? "B" : "A";
-			onSendRaw(`${prefix}${key}`.repeat(Math.min(Math.abs(lines), MAX_WHEEL_LINES)));
+			onSendRaw(`${prefix}${key}`.repeat(count));
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
@@ -190,4 +198,19 @@ export function TerminalSurface({
 			blockList={blockList}
 		/>
 	);
+}
+
+function pointerCell(
+	host: HTMLElement,
+	event: WheelEvent,
+	renderer: DomBlockRenderer | null,
+): { column: number; row: number } {
+	const metrics = renderer?.measure();
+	if (!metrics || metrics.cellWidth <= 0 || metrics.cellHeight <= 0) {
+		return { column: 1, row: 1 };
+	}
+	const bounds = host.getBoundingClientRect();
+	const column = Math.floor((event.clientX - bounds.left) / metrics.cellWidth) + 1;
+	const row = Math.floor((event.clientY - bounds.top) / metrics.cellHeight) + 1;
+	return { column: Math.max(1, column), row: Math.max(1, row) };
 }

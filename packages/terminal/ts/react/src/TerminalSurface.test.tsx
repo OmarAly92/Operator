@@ -348,6 +348,40 @@ describe("TerminalSurface", () => {
 		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
 	});
 
+	it("sends sgr wheel reports when the program tracks the mouse", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1006h\x1b[?1000h\x1b[?1002h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+		expect(onSendRaw).toHaveBeenCalled();
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1b\[<65;\d+;\d+M)+$/);
+	});
+
+	it("reports wheel up with button 64", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1006h\x1b[?1002h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true, cancelable: true }));
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1b\[<64;\d+;\d+M)+$/);
+	});
+
+	it("falls back to arrow keys when only sgr mouse is enabled", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1006h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
+	});
+
 	it("does not turn the wheel into keys outside the alternate screen", () => {
 		const onSendRaw = vi.fn();
 		const { container } = renderSurface({ onSendRaw });

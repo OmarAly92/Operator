@@ -20,6 +20,8 @@ pub(crate) struct Parser {
     alt: Option<AltGrid>,
     saved_style: StyleCode,
     app_cursor: bool,
+    sgr_mouse: bool,
+    mouse_tracking: u8,
 }
 
 impl Parser {
@@ -37,6 +39,8 @@ impl Parser {
             alt: None,
             saved_style: StyleCode::DEFAULT,
             app_cursor: false,
+            sgr_mouse: false,
+            mouse_tracking: 0,
         }
     }
 
@@ -109,6 +113,36 @@ impl Parser {
 
     pub fn app_cursor(&self) -> bool {
         self.app_cursor
+    }
+
+    pub fn sgr_mouse(&self) -> bool {
+        self.sgr_mouse
+    }
+
+    pub fn mouse_tracking(&self) -> bool {
+        self.mouse_tracking != 0
+    }
+
+    /// Records the DEC private modes that decide how a wheel event must be
+    /// encoded. Warp gates the same decision on `SGR_MOUSE` plus any of the
+    /// tracking modes (`alt_screen/mod.rs:11-25`); without both, a wheel falls
+    /// back to arrow keys.
+    fn note_private_mode(&mut self, mode: u16, set: bool) {
+        let bit = match mode {
+            1006 => {
+                self.sgr_mouse = set;
+                return;
+            }
+            1000 => 0b001,
+            1002 => 0b010,
+            1003 => 0b100,
+            _ => return,
+        };
+        if set {
+            self.mouse_tracking |= bit;
+        } else {
+            self.mouse_tracking &= !bit;
+        }
     }
 
     pub fn set_agent_tui_mode(&mut self, on: bool) {
@@ -316,13 +350,14 @@ impl Perform for Parser {
             self.apply_sgr(params);
             return;
         }
-        if intermediates.first() == Some(&b'?')
-            && params.iter().next().and_then(|g| g.first().copied()) == Some(1)
-        {
-            match c {
-                'h' => self.app_cursor = true,
-                'l' => self.app_cursor = false,
-                _ => {}
+        if intermediates.first() == Some(&b'?') && matches!(c, 'h' | 'l') {
+            let set = c == 'h';
+            for group in params.iter() {
+                match group.first().copied() {
+                    Some(1) => self.app_cursor = set,
+                    Some(mode) => self.note_private_mode(mode, set),
+                    None => {}
+                }
             }
         }
         self.active_screen_mut().csi(params, intermediates, c);

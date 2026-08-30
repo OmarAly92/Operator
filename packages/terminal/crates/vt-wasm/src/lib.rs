@@ -317,6 +317,14 @@ impl WasmTerminalCore {
         self.core.application_cursor_keys()
     }
 
+    pub fn sgr_mouse(&self) -> bool {
+        self.core.sgr_mouse()
+    }
+
+    pub fn mouse_tracking(&self) -> bool {
+        self.core.mouse_tracking()
+    }
+
     pub fn alt_active(&self) -> bool {
         self.export.alt_active()
     }
