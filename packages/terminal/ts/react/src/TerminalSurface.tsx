@@ -194,10 +194,10 @@ export function TerminalSurface({
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
-		<>
+		<div className="terminal-surface">
 			<div ref={hostRef} className={hostClassName} tabIndex={0} />
 			<div ref={editorHostRef} className="terminal-editor-host" hidden={altActive} />
-		</>
+		</div>
 	);
 	return (
 		<AltScreenSlot

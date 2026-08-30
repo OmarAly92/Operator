@@ -10,6 +10,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
+import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface, warpDarkTheme } from "./index";
 
 const wasmPath = join(
@@ -73,7 +74,8 @@ function renderSurface(
 		/>,
 	);
 	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
-	return { core, host, ...result };
+	const surface = host.parentElement as HTMLElement;
+	return { core, host, surface, ...result };
 }
 
 function setHostSize(host: HTMLElement, width: number, height: number): void {
@@ -267,6 +269,25 @@ describe("TerminalSurface", () => {
 		const [columns, rows] = resize.mock.calls.at(-1)!;
 		expect(columns).toBeGreaterThan(0);
 		expect(rows).toBeGreaterThan(0);
+	});
+
+	it("defines the surface padding the way Warp does", () => {
+		const { surface } = renderSurface();
+		expect(surface).toHaveClass("terminal-surface");
+		expect(terminalStyles).toContain("--terminal-padding-x: 16px;");
+		expect(terminalStyles).toContain("--terminal-padding-y: 8px;");
+	});
+
+	it("resizes from the inner grid inside the Warp padding", () => {
+		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockReturnValue({ cellWidth: 8, cellHeight: 16 });
+		const { core, host, surface } = renderSurface();
+		Object.defineProperty(surface, "clientWidth", { value: 816, configurable: true });
+		Object.defineProperty(surface, "clientHeight", { value: 408, configurable: true });
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 784, 400);
+		expect(host.clientWidth).toBe(784);
+		expect(resize).toHaveBeenLastCalledWith(98, 25);
+		measure.mockRestore();
 	});
 
 	it("does not resize when the measured geometry has not changed", () => {

@@ -380,7 +380,7 @@ export function BlockTerminal({
 		() => ({
 			family: 'ui-monospace, "SF Mono", Menlo, monospace',
 			sizePx: fontSize ?? 14,
-			lineHeight: 1.35,
+			lineHeight: 1.2,
 			weight: 400,
 			letterSpacingPx: 0,
 			ligatures: false,
