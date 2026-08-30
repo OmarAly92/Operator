@@ -90,4 +90,40 @@ export const editorStyles = `.terminal-editor {
 
 .terminal-editor-prompt[data-last-exit]:not([data-last-exit="0"]) .terminal-editor-prompt-marker {
 	color: var(--terminal-ansi-1);
+}
+
+.terminal-completions {
+	padding: 4px 0;
+	color: var(--terminal-foreground);
+	background: var(--terminal-background);
+	border: 1px solid var(--terminal-ansi-8);
+}
+
+.terminal-completion-row {
+	display: flex;
+	gap: 8px;
+	padding: 2px 8px;
+	color: var(--terminal-foreground);
+}
+
+.terminal-completion-row[data-selected="true"] {
+	background: var(--terminal-selection);
+	color: var(--terminal-background);
+}
+
+.terminal-completion-row[data-selected="true"] .terminal-completion-description {
+	color: var(--terminal-background);
+}
+
+.terminal-completion-match {
+	color: var(--terminal-ansi-3);
+	font-weight: var(--terminal-font-weight);
+}
+
+.terminal-completion-row[data-selected="true"] .terminal-completion-match {
+	color: var(--terminal-background);
+}
+
+.terminal-completion-description {
+	color: var(--terminal-ansi-8);
 }`;

@@ -7,6 +7,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
+import { CompletionsDropdown } from "./completions-dropdown.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
@@ -25,6 +26,8 @@ export class LineEditor {
 	private historyPrefix: string | null = null;
 	private readonly search = new ReverseSearch();
 	private searchOpen = false;
+	private readonly dropdown = new CompletionsDropdown();
+	private dropdownOpen = false;
 	private strings: TerminalStrings = defaultStrings;
 	private promptCwd = "";
 	private promptBranch = "";
@@ -34,6 +37,7 @@ export class LineEditor {
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
 	private unsubscribe: (() => void) | null = null;
+	private unsubscribeCompletions: (() => void) | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore, host: EditorHost): void {
 		this.dispose();
@@ -48,6 +52,8 @@ export class LineEditor {
 		this.promptDurationMs = null;
 		this.search.cancel();
 		this.searchOpen = false;
+		this.dropdownOpen = false;
+		this.dropdown.close();
 		const root = document.createElement("div");
 		root.className = "terminal-editor";
 		root.tabIndex = 0;
@@ -56,8 +62,14 @@ export class LineEditor {
 		root.addEventListener("keydown", this.onKeyDown);
 		container.append(root);
 		this.root = root;
+		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
 			this.ingestHistory();
+			this.render();
+		});
+		this.unsubscribeCompletions = core.onCompletions((result) => {
+			this.dropdown.setResult(result);
+			this.dropdownOpen = this.dropdown.isOpen();
 			this.render();
 		});
 		this.ingestHistory();
@@ -105,6 +117,10 @@ export class LineEditor {
 	dispose(): void {
 		this.unsubscribe?.();
 		this.unsubscribe = null;
+		this.unsubscribeCompletions?.();
+		this.unsubscribeCompletions = null;
+		this.dropdown.dispose();
+		this.dropdownOpen = false;
 		if (this.root) {
 			this.root.removeEventListener("keydown", this.onKeyDown);
 			this.root.remove();
@@ -116,6 +132,7 @@ export class LineEditor {
 
 	handleKey(event: KeyboardEvent): void {
 		if (this.handleSearchKey(event)) return;
+		if (this.dropdown.isOpen() && this.handleDropdownKey(event)) return;
 		const command = mapKey(event);
 		if (command) this.apply(command);
 	}
@@ -125,11 +142,27 @@ export class LineEditor {
 			event.preventDefault();
 			return;
 		}
+		if (this.dropdown.isOpen() && this.handleDropdownKey(event)) {
+			event.preventDefault();
+			return;
+		}
 		const command = mapKey(event);
 		if (!command) return;
 		event.preventDefault();
 		this.apply(command);
 	};
+
+	private handleDropdownKey(event: KeyboardEvent): boolean {
+		if (this.dropdown.handleKey(event)) {
+			if (!this.dropdown.isOpen()) {
+				this.dropdownOpen = false;
+				this.core?.cancelCompletions();
+				this.render();
+			}
+			return true;
+		}
+		return false;
+	}
 
 	private apply(command: EditorCommand): void {
 		const host = this.host;
@@ -142,31 +175,44 @@ export class LineEditor {
 			host.sendRaw(passthroughFor(command));
 			return;
 		}
+		const wasDropdownOpen = this.dropdownOpen;
 		switch (command.kind) {
 			case "insert":
 				this.buffer.insert(command.text);
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "newline":
 				this.buffer.insert("\n");
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "submit":
+				if (wasDropdownOpen) {
+					this.applySelectedCompletion();
+					this.historyPrefix = null;
+					this.render();
+					return;
+				}
 				host.send(this.buffer.text);
 				this.buffer.clear();
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "delete-backward":
 				this.buffer.deleteBackward();
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "delete-forward":
 				this.buffer.deleteForward();
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "delete-word-backward":
 				this.buffer.deleteWordBackward();
 				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
 				break;
 			case "move":
 				this.buffer.moveBy(command.delta);
@@ -190,17 +236,53 @@ export class LineEditor {
 				break;
 			}
 			case "accept-suggestion": {
-				const suggestion = this.history.suggest(this.buffer.text);
-				if (suggestion !== null) this.buffer.setText(suggestion);
-				this.historyPrefix = null;
+				if (this.buffer.cursor === this.buffer.text.length) {
+					const suggestion = this.history.suggest(this.buffer.text);
+					if (suggestion !== null) this.buffer.setText(suggestion);
+					this.historyPrefix = null;
+				} else {
+					this.buffer.moveBy(1);
+				}
 				break;
 			}
+			case "complete":
+				if (wasDropdownOpen) {
+					this.applySelectedCompletion();
+				} else {
+					this.core?.requestCompletions(this.buffer.text, this.buffer.cursor);
+				}
+				break;
 			case "reverse-search":
 				this.search.open(this.history.entries());
 				this.searchOpen = true;
 				break;
 		}
 		this.render();
+	}
+
+	private cancelDropdownIfOpen(): void {
+		if (!this.dropdownOpen) return;
+		this.dropdownOpen = false;
+		this.dropdown.close();
+		this.core?.cancelCompletions();
+	}
+
+	private applySelectedCompletion(): void {
+		const selected = this.dropdown.selected();
+		const span = this.dropdown.currentResult()?.span;
+		this.dropdownOpen = false;
+		this.dropdown.close();
+		this.core?.cancelCompletions();
+		if (selected === null || span === undefined) return;
+		const before = this.buffer.text.slice(0, span.start);
+		const after = this.buffer.text.slice(span.end);
+		const insertion = selected.value;
+		const cursor = before.length + insertion.length;
+		this.buffer.setText(before + insertion + after, cursor);
+		this.historyPrefix = null;
+		if (insertion.length > 0) {
+			this.core?.requestCompletions(this.buffer.text, this.buffer.cursor);
+		}
 	}
 
 	private render(): void {
@@ -370,6 +452,8 @@ export function passthroughFor(command: EditorCommand, applicationCursorKeys = f
 		case "delete-word-backward":
 			return "\x17";
 		case "accept-suggestion":
+			return "\t";
+		case "complete":
 			return "\t";
 		case "reverse-search":
 			return "\x12";

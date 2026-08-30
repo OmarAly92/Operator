@@ -57,7 +57,7 @@ describe("LineEditor ownership", () => {
 		]);
 	});
 
-	it("suggests mark-derived history and accepts the ghost with Tab", () => {
+	it("suggests mark-derived history and accepts the ghost with ArrowRight", () => {
 		const { editor, container, core, host } = mount();
 		core.feed(
 			encode(
@@ -66,9 +66,47 @@ describe("LineEditor ownership", () => {
 		);
 		editor.setText("git ");
 		expect(container.querySelector(".terminal-editor-ghost")?.textContent).toBe("status");
-		editor.handleKey(key({ key: "Tab" }));
+		editor.handleKey(key({ key: "ArrowRight" }));
 		editor.handleKey(key({ key: "Enter" }));
 		expect(host.sent).toEqual(["git status"]);
+	});
+
+	it("asks the core for completions when Tab is pressed", () => {
+		const { editor, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		const requested: { line: string; cursor: number }[] = [];
+		const original = core.requestCompletions.bind(core);
+		core.requestCompletions = (line, cursor) => {
+			requested.push({ line, cursor });
+			original(line, cursor);
+		};
+		editor.setText("git st");
+		editor.handleKey(key({ key: "Tab" }));
+		expect(requested).toEqual([{ line: "git st", cursor: 6 }]);
+	});
+
+	it("cancels completions when typing while the dropdown is open", () => {
+		const { editor, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		const cancelled: number[] = [];
+		const original = core.cancelCompletions.bind(core);
+		core.cancelCompletions = () => {
+			cancelled.push(1);
+			original();
+		};
+		const internal = editor as unknown as {
+			dropdown: { isOpen(): boolean; setResult(result: unknown): void; close(): void };
+			dropdownOpen: boolean;
+		};
+		internal.dropdown.setResult({
+			items: [{ value: "status", displayValue: "status", description: null, kind: "subcommand", matchedIndices: [] }],
+			span: { start: 4, end: 4 },
+			query: "stat",
+		});
+		internal.dropdownOpen = internal.dropdown.isOpen();
+		editor.setText("git");
+		editor.handleKey(key({ key: "s" }));
+		expect(cancelled.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("accepts a Ctrl-R match without submitting it", () => {

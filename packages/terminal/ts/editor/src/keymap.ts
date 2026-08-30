@@ -12,6 +12,7 @@ export type EditorCommand =
 	| { kind: "end" }
 	| { kind: "history"; direction: -1 | 1 }
 	| { kind: "accept-suggestion" }
+	| { kind: "complete" }
 	| { kind: "reverse-search" }
 	| { kind: "passthrough"; data: string };
 
@@ -34,7 +35,7 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 			case "a":
 				return { kind: "home" };
 			case "e":
-				return { kind: "end" };
+				return { kind: "accept-suggestion" };
 			case "w":
 			case "u":
 				return { kind: "delete-word-backward" };
@@ -57,7 +58,7 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 		case "ArrowLeft":
 			return altKey ? { kind: "move-word", direction: -1 } : { kind: "move", delta: -1 };
 		case "ArrowRight":
-			return altKey ? { kind: "move-word", direction: 1 } : { kind: "move", delta: 1 };
+			return altKey ? { kind: "move-word", direction: 1 } : { kind: "accept-suggestion" };
 		case "ArrowUp":
 			return { kind: "history", direction: -1 };
 		case "ArrowDown":
@@ -67,7 +68,7 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 		case "End":
 			return { kind: "end" };
 		case "Tab":
-			return { kind: "accept-suggestion" };
+			return { kind: "complete" };
 	}
 
 	if (altKey && !ctrlKey && !metaKey && key.length === 1) {
