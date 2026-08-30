@@ -302,3 +302,124 @@ fn deleting_every_line_from_the_top_blanks_the_screen_without_underflow() {
     assert_eq!(g.row_text(0), "    ");
     assert_eq!(g.row_text(2), "    ");
 }
+
+fn numbered(rows: usize) -> AltGrid {
+    let mut g = AltGrid::new(rows, 2);
+    for row in 0..rows {
+        g.move_to(row, 0);
+        print(&mut g, &format!("{row}"));
+    }
+    g
+}
+
+#[test]
+fn a_line_feed_at_the_bottom_scrolls_the_whole_screen_by_default() {
+    let mut g = numbered(3);
+    g.move_to(2, 0);
+    g.line_feed();
+    assert_eq!(g.row_text(0), "1 ");
+    assert_eq!(g.row_text(1), "2 ");
+    assert_eq!(g.row_text(2), "  ");
+    assert_eq!(g.cursor().0, 2);
+}
+
+#[test]
+fn a_line_feed_elsewhere_just_moves_down_and_keeps_the_column() {
+    let mut g = numbered(3);
+    g.move_to(0, 1);
+    g.line_feed();
+    assert_eq!(g.cursor(), (1, 1));
+    assert_eq!(g.row_text(0), "0 ");
+}
+
+#[test]
+fn a_line_feed_at_the_region_bottom_scrolls_only_the_region() {
+    let mut g = numbered(4);
+    g.set_scroll_region(1, 2);
+    g.move_to(2, 0);
+    g.line_feed();
+    assert_eq!(g.row_text(0), "0 ");
+    assert_eq!(g.row_text(1), "2 ");
+    assert_eq!(g.row_text(2), "  ");
+    assert_eq!(g.row_text(3), "3 ");
+}
+
+#[test]
+fn reverse_index_at_the_region_top_scrolls_the_region_down() {
+    let mut g = numbered(4);
+    g.set_scroll_region(1, 2);
+    g.move_to(1, 0);
+    g.reverse_index();
+    assert_eq!(g.row_text(0), "0 ");
+    assert_eq!(g.row_text(1), "  ");
+    assert_eq!(g.row_text(2), "1 ");
+    assert_eq!(g.row_text(3), "3 ");
+}
+
+#[test]
+fn setting_a_region_homes_the_cursor() {
+    let mut g = numbered(4);
+    g.move_to(3, 1);
+    g.set_scroll_region(1, 2);
+    assert_eq!(g.cursor(), (0, 0));
+}
+
+#[test]
+fn an_inverted_or_out_of_range_region_resets_to_the_full_screen() {
+    let mut g = numbered(4);
+    g.set_scroll_region(3, 1);
+    g.move_to(3, 0);
+    g.line_feed();
+    assert_eq!(g.row_text(0), "1 ");
+}
+
+#[test]
+fn insert_lines_outside_the_region_does_nothing() {
+    let mut g = numbered(4);
+    g.set_scroll_region(1, 2);
+    g.move_to(0, 0);
+    g.insert_lines(1);
+    assert_eq!(g.row_text(0), "0 ");
+    assert_eq!(g.row_text(1), "1 ");
+}
+
+#[test]
+fn next_line_returns_to_column_zero_and_moves_down() {
+    let mut g = numbered(3);
+    g.move_to(0, 1);
+    g.next_line();
+    assert_eq!(g.cursor(), (1, 0));
+}
+
+#[test]
+fn scrolling_by_more_than_the_region_blanks_it_without_underflow() {
+    let mut g = numbered(4);
+    g.set_scroll_region(1, 2);
+    g.scroll_up(99);
+    assert_eq!(g.row_text(0), "0 ");
+    assert_eq!(g.row_text(1), "  ");
+    assert_eq!(g.row_text(2), "  ");
+    assert_eq!(g.row_text(3), "3 ");
+    g.scroll_down(99);
+    assert_eq!(g.row_text(3), "3 ");
+}
+
+#[test]
+fn resize_resets_the_region_to_the_new_full_screen() {
+    let mut g = numbered(4);
+    g.set_scroll_region(1, 2);
+    g.resize(3, 2);
+    g.move_to(2, 0);
+    g.line_feed();
+    assert_eq!(g.row_text(0), "1 ");
+}
+
+#[test]
+fn wrapping_at_the_last_row_scrolls_rather_than_overwriting() {
+    let mut g = AltGrid::new(2, 2);
+    g.move_to(1, 0);
+    print(&mut g, "ab");
+    print(&mut g, "cd");
+    assert_eq!(g.row_text(0), "ab");
+    assert_eq!(g.row_text(1), "cd");
+}
