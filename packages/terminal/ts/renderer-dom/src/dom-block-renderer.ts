@@ -16,7 +16,7 @@ import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
-import { terminalStyles } from "./styles.js";
+import { terminalStylesForDocument } from "./styles.js";
 import { computeWindow, type RowWindow } from "./viewport.js";
 
 const CLASS_BLOCK = "terminal-block";
@@ -486,7 +486,7 @@ function ensurePackageStyleTag(): HTMLStyleElement {
 	}
 	const tag = document.createElement("style");
 	tag.setAttribute("data-terminal-package", "renderer-dom");
-	tag.textContent = terminalStyles;
+	tag.textContent = terminalStylesForDocument();
 	document.head.append(tag);
 	return tag;
 }

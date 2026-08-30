@@ -1,4 +1,36 @@
-export const terminalStyles = `.terminal-surface {
+export const terminalStyles = `@font-face {
+	font-family: "Hack";
+	src: url("./fonts/hack-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Hack";
+	src: url("./fonts/hack-bold.woff2") format("woff2");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Hack";
+	src: url("./fonts/hack-italic.woff2") format("woff2");
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Hack";
+	src: url("./fonts/hack-bolditalic.woff2") format("woff2");
+	font-weight: 700;
+	font-style: italic;
+	font-display: swap;
+}
+
+.terminal-surface {
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
@@ -157,3 +189,16 @@ export const terminalStyles = `.terminal-surface {
 	background: var(--terminal-cursor);
 	opacity: 0.8;
 }`;
+
+const terminalFontUrls: Record<string, string> = {
+	"hack-regular.woff2": new URL("../src/fonts/hack-regular.woff2", import.meta.url).href,
+	"hack-bold.woff2": new URL("../src/fonts/hack-bold.woff2", import.meta.url).href,
+	"hack-italic.woff2": new URL("../src/fonts/hack-italic.woff2", import.meta.url).href,
+	"hack-bolditalic.woff2": new URL("../src/fonts/hack-bolditalic.woff2", import.meta.url).href,
+};
+
+export function terminalStylesForDocument(): string {
+	return terminalStyles.replace(/url\("\.\/fonts\/([^"]+)"\)/g, (_match, filename: string) => {
+		return `url("${terminalFontUrls[filename]}")`;
+	});
+}

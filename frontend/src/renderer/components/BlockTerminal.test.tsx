@@ -21,7 +21,7 @@ const mockState = vi.hoisted(() => {
 		core: undefined as MockCore | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
-		font: undefined as { lineHeight?: number } | undefined,
+		font: undefined as { family?: string; lineHeight?: number } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		onSend: undefined as ((text: string) => void) | undefined,
 		onSendRaw: undefined as ((data: string) => void) | undefined,
@@ -130,7 +130,7 @@ vi.mock("@operator/terminal-react", () => {
 			mockState.altScreenActive = props.altScreenActive;
 			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
 			if (props.host) mockState.host = props.host;
-			mockState.font = props.font as { lineHeight?: number };
+			mockState.font = props.font as { family?: string; lineHeight?: number };
 			if (props.strings) mockState.strings = props.strings;
 			mockState.onSend = props.onSend;
 			mockState.onSendRaw = props.onSendRaw;
@@ -354,6 +354,13 @@ describe("BlockTerminal", () => {
 		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		await waitFor(() => expect(mockState.font).toBeDefined());
 		expect(mockState.font?.lineHeight).toBe(1.2);
+	});
+
+	it("prefers the bundled Hack family", async () => {
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() => expect(mockState.font).toBeDefined());
+		expect(mockState.font?.family?.split(",")[0]).toBe('"Hack"');
 	});
 
 	it("feeds bytes from the mux channel into the core", async () => {
