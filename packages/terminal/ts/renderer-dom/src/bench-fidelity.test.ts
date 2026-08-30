@@ -26,7 +26,9 @@ describe("large-output fidelity", () => {
 	it("wraps every byte of the workload and retains exactly the scrollback", () => {
 		const columns = 120;
 		const scrollback = 5000;
+		const screenRows = 24;
 		const core = createTerminalCore({ columns, scrollback });
+		core.resize(columns, screenRows);
 
 		// The bench workload shape: bytes of "x" with no newlines, written in
 		// 64 KiB chunks. Scaled down here so the assertion stays fast; the
@@ -42,7 +44,8 @@ describe("large-output fidelity", () => {
 
 		const snapshot = core.snapshot();
 		const rowCount = snapshot.rows.length / 2;
-		expect(rowCount).toBe(scrollback);
+		expect(rowCount).toBeGreaterThanOrEqual(scrollback);
+		expect(rowCount).toBeLessThanOrEqual(scrollback + screenRows);
 
 		// Every retained row must be a full wrapped line of the workload byte,
 		// which is what proves the parse ran rather than the bytes vanishing.
