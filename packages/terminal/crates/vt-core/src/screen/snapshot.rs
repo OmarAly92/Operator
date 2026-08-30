@@ -1,4 +1,4 @@
-use crate::alt::AltGrid;
+use crate::screen::ScreenGrid;
 use crate::style::StyleCode;
 
 pub struct AltSnapshot {
@@ -13,7 +13,7 @@ pub struct AltSnapshot {
     pub cursor_visible: bool,
 }
 
-impl AltGrid {
+impl ScreenGrid {
     pub fn snapshot(&self) -> AltSnapshot {
         let mut content: Vec<u8> = Vec::new();
         let mut row_ranges: Vec<(u32, u32)> = Vec::with_capacity(self.rows());

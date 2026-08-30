@@ -1,6 +1,6 @@
-use crate::alt::AltGrid;
+use crate::screen::ScreenGrid;
 
-impl AltGrid {
+impl ScreenGrid {
     pub fn set_scroll_region(&mut self, top: usize, bottom: usize) {
         if top >= bottom || bottom >= self.rows() {
             self.scroll_top = 0;

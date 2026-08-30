@@ -1,6 +1,6 @@
-use crate::alt::{AltGrid, Cell};
+use crate::screen::{Cell, ScreenGrid};
 
-impl AltGrid {
+impl ScreenGrid {
     pub fn erase_in_display(&mut self, mode: u16) {
         let (row, col) = self.cursor();
         let rows = self.rows();

@@ -1,6 +1,6 @@
 use vte::Params;
 
-use crate::alt::AltGrid;
+use crate::screen::ScreenGrid;
 
 fn param(params: &Params, index: usize, default: u16) -> u16 {
     params
@@ -11,7 +11,7 @@ fn param(params: &Params, index: usize, default: u16) -> u16 {
         .unwrap_or(default)
 }
 
-impl AltGrid {
+impl ScreenGrid {
     pub(crate) fn csi(&mut self, params: &Params, intermediates: &[u8], c: char) {
         if intermediates.first() == Some(&b'?') {
             match (param(params, 0, 0), c) {

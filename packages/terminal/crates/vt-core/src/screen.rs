@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::style::StyleCode;
 
-pub(crate) const MAX_DIMENSION: usize = 1000;
+pub const MAX_DIMENSION: usize = 1000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {
@@ -24,7 +24,7 @@ impl Cell {
     };
 }
 
-pub struct AltGrid {
+pub struct ScreenGrid {
     rows: usize,
     cols: usize,
     cells: Vec<Cell>,
@@ -41,7 +41,7 @@ fn clamp_dimension(value: usize) -> usize {
     value.clamp(1, MAX_DIMENSION)
 }
 
-impl AltGrid {
+impl ScreenGrid {
     pub fn new(rows: usize, cols: usize) -> Self {
         let rows = clamp_dimension(rows);
         let cols = clamp_dimension(cols);

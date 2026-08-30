@@ -4,8 +4,7 @@
 /// While it's active, the block list must be frozen — a TUI can draw
 /// something that looks like a mark sequence without it being one, and
 /// routing those bytes into `BlockGrid` would shred the real blocks the
-/// shell produced before the TUI took over. The plan's "things that are
-/// easy to get wrong" section calls this drop rule out by name.
+/// shell produced before the TUI took over.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct AltScreen {
     active: bool,

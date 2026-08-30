@@ -12,6 +12,7 @@ pub mod grid;
 mod line_editor;
 pub mod parser;
 pub mod row_index;
+mod screen;
 pub mod style;
 
 pub use alt::{AltGrid, Cell};
