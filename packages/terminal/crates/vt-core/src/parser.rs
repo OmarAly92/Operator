@@ -122,7 +122,12 @@ impl Parser {
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
         self.width = columns;
-        self.screen.resize(rows, columns);
+        if self.alt.is_some() {
+            self.screen.resize_without_reflow(rows, columns);
+        } else {
+            self.screen.resize(rows, columns);
+            self.commit_evicted();
+        }
         if let Some(alt) = self.alt.as_mut() {
             alt.resize(rows, columns);
         }

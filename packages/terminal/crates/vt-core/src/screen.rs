@@ -243,7 +243,14 @@ impl ScreenGrid {
             self.resize_cells(rows, cols);
             return;
         }
+        for row in 0..self.content_rows() {
+            self.record_eviction(row);
+        }
         self.resize_cells(rows, cols);
+    }
+
+    pub(crate) fn resize_without_reflow(&mut self, rows: usize, cols: usize) {
+        self.resize_cells(clamp_dimension(rows), clamp_dimension(cols));
     }
 
     fn resize_cells(&mut self, rows: usize, cols: usize) {

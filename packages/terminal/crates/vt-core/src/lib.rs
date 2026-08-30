@@ -150,6 +150,7 @@ impl TerminalCore {
         let rows = rows.clamp(1, alt::MAX_DIMENSION);
         self.rows = rows;
         self.parser.resize(columns, rows);
+        self.parser.trim_to(self.scrollback_rows);
     }
 
     pub fn set_agent_tui_mode(&mut self, on: bool) {
