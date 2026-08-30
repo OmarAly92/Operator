@@ -157,6 +157,24 @@ function setNavigatorPlatform(platform: string) {
 }
 
 describe("XtermTerminal", () => {
+	it("can attach without constructing an xterm renderer", async () => {
+		let terminal: AttachableTerminal | undefined;
+		const { container } = render(
+			<XtermTerminal
+				headless
+				theme="dark"
+				onReady={(ready) => {
+					terminal = ready;
+				}}
+			/>,
+		);
+		await waitFor(() => expect(terminal).toBeDefined());
+		expect(container.querySelector(".xterm")).toBeNull();
+		expect(state.lastTerminal).toBeNull();
+		expect(terminal?.cols).toBe(80);
+		expect(terminal?.rows).toBe(24);
+	});
+
 	beforeEach(() => {
 		state.lastTerminal = null;
 		state.linkHandler = null;

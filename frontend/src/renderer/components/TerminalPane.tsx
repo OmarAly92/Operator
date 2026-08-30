@@ -49,6 +49,8 @@ const XtermTerminal = lazy(() =>
 	import("./XtermTerminal").then((module) => ({ default: module.XtermTerminal })),
 );
 
+const usesXtermSurface = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
+
 type TerminalPaneProps = {
 	session?: WorkspaceSession;
 	theme: Theme;
@@ -1094,6 +1096,7 @@ function AttachedTerminal({
 							ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 							fontSize={fontSize}
 							focusRequested={focusRequested}
+							headless={!usesXtermSurface}
 							isVisible={isVisible}
 							onError={handleInitError}
 							onLinkOpen={handleLinkOpen}

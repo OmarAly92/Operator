@@ -12,9 +12,6 @@ import {
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
 
-const WHEEL_LINE_HEIGHT_PX = 40;
-const MAX_WHEEL_LINES = 10;
-
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
 	theme: TerminalTheme;
@@ -148,6 +145,7 @@ export function TerminalSurface({
 		if (!blockHost || !altActive) {
 			return;
 		}
+		let pendingWheelLines = 0;
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		const onKeyDown = (event: KeyboardEvent) => {
 			const command = mapKey(event);
@@ -158,13 +156,23 @@ export function TerminalSurface({
 			onSendRaw(passthroughFor(command, appCursor()));
 		};
 		const onWheel = (event: WheelEvent) => {
-			const lines = Math.trunc(event.deltaY / WHEEL_LINE_HEIGHT_PX);
-			if (lines === 0) {
-				return;
-			}
 			event.preventDefault();
-			const count = Math.min(Math.abs(lines), MAX_WHEEL_LINES);
 			const snapshot = core.snapshot();
+			const measuredCellHeight = rendererRef.current?.measure().cellHeight ?? 0;
+			const deltaLines =
+				event.deltaMode === WheelEvent.DOM_DELTA_LINE
+					? event.deltaY
+					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
+						: measuredCellHeight > 0
+							? event.deltaY / measuredCellHeight
+							: 0;
+			if (!Number.isFinite(deltaLines)) return;
+			pendingWheelLines += deltaLines;
+			const lines = Math.trunc(pendingWheelLines);
+			pendingWheelLines -= lines;
+			if (lines === 0) return;
+			const count = Math.abs(lines);
 			if (snapshot.sgrMouse && snapshot.mouseTracking) {
 				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
 				const button = lines > 0 ? 65 : 64;

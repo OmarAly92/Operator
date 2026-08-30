@@ -348,6 +348,36 @@ describe("TerminalSurface", () => {
 		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
 	});
 
+	it("accumulates precise trackpad pixels using the measured cell height", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 8, bubbles: true, cancelable: true }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 9, bubbles: true, cancelable: true }));
+		expect(onSendRaw).toHaveBeenCalledOnce();
+		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
+	});
+
+	it("treats line-mode wheel deltas as terminal lines", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", {
+			deltaY: 1,
+			deltaMode: WheelEvent.DOM_DELTA_LINE,
+			bubbles: true,
+			cancelable: true,
+		}));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
+	});
+
 	it("sends sgr wheel reports when the program tracks the mouse", () => {
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });

@@ -59,6 +59,7 @@ export type XtermTerminalProps = {
 	columns?: number;
 	fontSize?: number;
 	geometryMode?: "fit" | "fixed";
+	headless?: boolean;
 	theme: Theme;
 	rows?: number;
 	scrollback?: number;
@@ -277,6 +278,30 @@ function removeHiddenScrollbarReservation(term: Terminal): void {
 }
 
 export function XtermTerminal(props: XtermTerminalProps) {
+	if (props.headless) return <HeadlessTerminalAttachment {...props} />;
+	return <RenderedXtermTerminal {...props} />;
+}
+
+function HeadlessTerminalAttachment({ columns = 80, rows = 24, onReady }: XtermTerminalProps) {
+	const onReadyRef = useRef(onReady);
+	onReadyRef.current = onReady;
+	useLayoutEffect(() => {
+		const disposable = { dispose: () => undefined };
+		onReadyRef.current?.({
+			cols: columns,
+			rows,
+			write: (_data, done) => done?.(),
+			writeln: () => undefined,
+			showLatestOutput: () => undefined,
+			prepareForActivation: () => Promise.resolve(),
+			onUserInput: () => disposable,
+			onResize: () => disposable,
+		});
+	}, [columns, rows]);
+	return null;
+}
+
+function RenderedXtermTerminal(props: XtermTerminalProps) {
 	const { t } = useTranslation();
 	const skin = useSkin();
 	const hostRef = useRef<HTMLDivElement | null>(null);
