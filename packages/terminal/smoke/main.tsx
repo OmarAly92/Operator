@@ -366,6 +366,51 @@ function FallbackApp(): ReactElement | null {
 	) : null;
 }
 
+function PaddingApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 40, scrollback: 100 });
+			next.feed(new TextEncoder().encode("padded"));
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-padding-root");
+				const surface = main?.querySelector<HTMLElement>(".terminal-surface");
+				const host = main?.querySelector<HTMLElement>(".terminal-host");
+				const editor = main?.querySelector<HTMLElement>(".terminal-editor-host");
+				if (!main || !surface || !host) return;
+				const surfaceRect = surface.getBoundingClientRect();
+				const hostRect = host.getBoundingClientRect();
+				const editorHeight = editor ? editor.getBoundingClientRect().height : 0;
+				main.dataset.terminalPaddingInsetLeft = String(Math.round(hostRect.left - surfaceRect.left));
+				main.dataset.terminalPaddingInsetTop = String(Math.round(hostRect.top - surfaceRect.top));
+				main.dataset.terminalPaddingInsetRight = String(Math.round(surfaceRect.right - hostRect.right));
+				main.dataset.terminalPaddingOverflow = String(
+					Math.round(hostRect.height + editorHeight - (surfaceRect.height - 16)),
+				);
+				main.dataset.terminalPaddingHostHeight = String(Math.round(hostRect.height));
+				main.dataset.terminalPaddingSurfaceHeight = String(Math.round(surfaceRect.height));
+				main.dataset.terminalPaddingEditorHeight = String(Math.round(editorHeight));
+				main.dataset.terminalPadding = "ready";
+			});
+		});
+	}, [core]);
+
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
+}
+
 const root = document.getElementById("terminal-smoke-root");
 if (!root) {
 	throw new Error("missing #terminal-smoke-root");
@@ -401,3 +446,9 @@ if (!altScrollRoot) {
 	throw new Error("missing #terminal-alt-scroll-root");
 }
 createRoot(altScrollRoot).render(<AltScrollApp />);
+
+const paddingRoot = document.getElementById("terminal-padding-root");
+if (!paddingRoot) {
+	throw new Error("missing #terminal-padding-root");
+}
+createRoot(paddingRoot).render(<PaddingApp />);
