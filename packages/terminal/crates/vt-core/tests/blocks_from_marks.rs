@@ -63,6 +63,26 @@ fn successive_blocks_on_screen_have_distinct_row_ranges() {
 }
 
 #[test]
+fn newline_then_finish_then_prompt_has_adjacent_block_ranges() {
+    let mut core = TerminalCore::new(20, 200).unwrap();
+    core.resize(20, 24);
+    core.feed(
+        b"\x1b]133;A\x07\x1b]133;C\x07one\r\n\x1b]133;D;0\x07\x1b]133;A\x07\x1b]133;C\x07two",
+    );
+    let snapshot = core.snapshot().unwrap();
+
+    assert_eq!(snapshot.blocks.len(), 2);
+    assert_eq!(snapshot.blocks[0].first_row, 0);
+    assert_eq!(snapshot.blocks[0].row_count, 1);
+    assert_eq!(snapshot.blocks[1].first_row, 1);
+    assert_eq!(snapshot.blocks[1].row_count, 1);
+    assert_eq!(
+        snapshot.blocks[0].first_row + snapshot.blocks[0].row_count,
+        snapshot.blocks[1].first_row
+    );
+}
+
+#[test]
 fn output_with_no_marks_lands_in_one_synthetic_block() {
     let mut core = TerminalCore::new(40, 200).unwrap();
     core.feed(b"no marks here\nat all\n");
@@ -102,12 +122,12 @@ fn blocks_survive_scrollback_trimming() {
     core.resize(20, 1);
     for index in 0..50 {
         core.feed(
-            format!("\x1b]133;A\x07\x1b]133;C\x07row{index:03}\n\x1b]133;D;0\x07").as_bytes(),
+            format!("\x1b]133;A\x07\x1b]133;C\x07row{index:03}\x1b]133;D;0\x07\r\n").as_bytes(),
         );
     }
     let snapshot = core.snapshot().unwrap();
 
-    assert!(snapshot.blocks.len() <= 10);
+    assert_eq!(snapshot.blocks.len(), 9);
     assert!(snapshot.blocks.iter().all(|b| b.row_count > 0));
     assert_eq!(snapshot.blocks.first().unwrap().first_row, 0);
     // Without these two the test passes on the synthetic fallback block that
@@ -119,9 +139,5 @@ fn blocks_survive_scrollback_trimming() {
             .iter()
             .all(|b| b.source == BlockSource::Osc133),
         "trimming must retain marked blocks, not fall back to a synthetic one"
-    );
-    assert!(
-        snapshot.blocks.len() > 1,
-        "expected several retained blocks"
     );
 }

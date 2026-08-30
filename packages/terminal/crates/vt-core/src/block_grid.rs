@@ -32,7 +32,7 @@ impl BlockGrid {
     /// renderer should not pretend otherwise.
     pub fn open_block(&mut self, source: BlockSource) {
         if let Some(mut prev) = self.open.take() {
-            prev.row_count = self.next_row - prev.first_row;
+            prev.row_count = self.next_row.saturating_sub(prev.first_row);
             let abandoned = Block {
                 state: BlockState::Abandoned,
                 ..prev
@@ -57,7 +57,7 @@ impl BlockGrid {
         let Some(mut block) = self.open.take() else {
             return;
         };
-        block.row_count = self.next_row - block.first_row;
+        block.row_count = self.next_row.saturating_sub(block.first_row);
         block.state = BlockState::Finished;
         block.meta.exit_code = exit_code;
         self.closed.push(block);
@@ -69,6 +69,23 @@ impl BlockGrid {
 
     pub fn sync_next_row(&mut self, next_row: usize) {
         self.next_row = next_row;
+    }
+
+    pub fn remove_row(&mut self, row: usize) {
+        let mut closed_blocks = Vec::new();
+        while let Some(block) = self.closed.pop_front() {
+            closed_blocks.push(block);
+        }
+        for mut block in closed_blocks {
+            rebase_after_row_removal(&mut block, row);
+            self.closed.push(block);
+        }
+        if let Some(block) = self.open.as_mut() {
+            rebase_after_row_removal(block, row);
+        }
+        if row < self.next_row {
+            self.next_row -= 1;
+        }
     }
 
     /// Apply a tier-2 extension field to the open block. Unknown keys are
@@ -147,12 +164,7 @@ impl BlockGrid {
         // rebases with everything else.
         self.next_row = self.next_row.saturating_sub(first_row);
 
-        // The open block's pre-trim position is the sum of every closed
-        // block's row count BEFORE phase 1 pops anything — phase 1 only
-        // removes blocks that have no surviving rows, so the open
-        // block's true pre-trim start does not change. The tree
-        // maintains a running summary, so this is O(1).
-        let open_first_row_pre_trim: usize = self.closed.summary().rows;
+        let open_first_row_pre_trim = self.open.as_ref().map(|block| block.first_row);
 
         // Phase 1: pop whole blocks off the front whose row range ends at or
         // before `first_row`. They have no surviving rows, so no
@@ -172,10 +184,7 @@ impl BlockGrid {
         // shifts down by `first_row` to track the new row 0. Special-
         // casing the front block avoids subtracting from its `first_row`
         // when the cut has already moved the row-0 anchor into the
-        // middle of it. The open block, whose own `first_row` field is
-        // never updated past construction, lands at `open_first_row_pre_trim
-        // - first_row` in renumbered coordinates and only loses rows
-        // when the cut reaches into its own range.
+        // middle of it.
         let shift = first_row;
         let mut drained: Vec<Block> = Vec::new();
         while let Some(block) = self.closed.pop_front() {
@@ -194,6 +203,7 @@ impl BlockGrid {
             self.closed.push(block);
         }
         if let Some(block) = self.open.as_mut() {
+            let open_first_row_pre_trim = open_first_row_pre_trim.unwrap_or_default();
             let drop_within = first_row.saturating_sub(open_first_row_pre_trim);
             block.first_row = open_first_row_pre_trim.saturating_sub(first_row);
             block.row_count = open_row_count_pre_trim
@@ -210,6 +220,14 @@ impl BlockGrid {
 
     pub fn is_empty(&self) -> bool {
         self.closed.is_empty() && self.open.is_none()
+    }
+}
+
+fn rebase_after_row_removal(block: &mut Block, row: usize) {
+    if row < block.first_row {
+        block.first_row -= 1;
+    } else if row < block.first_row + block.row_count {
+        block.row_count -= 1;
     }
 }
 
@@ -338,5 +356,22 @@ mod tests {
             blocks[0].row_count, 3,
             "rows 5..8 of the open block survive (pre-trim pos 2, 6 rows)"
         );
+    }
+
+    #[test]
+    fn partial_trim_rebases_an_open_block_after_an_unmarked_prefix() {
+        let mut grid = BlockGrid::new();
+        grid.sync_next_row(2);
+        grid.open_block(BlockSource::Osc133);
+        for _ in 0..6 {
+            grid.note_row_completed();
+        }
+
+        grid.trim_to_first_row(5);
+
+        let blocks: Vec<_> = grid.blocks().collect();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].first_row, 0);
+        assert_eq!(blocks[0].row_count, 3);
     }
 }

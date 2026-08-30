@@ -115,7 +115,7 @@ pub(crate) fn build_snapshot(
             let git_branch = append_block_text(&mut block_text, &block.meta.git_branch)?;
             let first_row = checked_u32(block.first_row)?;
             let row_count = if block.state == BlockState::Running {
-                checked_u32(row_ranges.len() - block.first_row)?
+                checked_u32(row_ranges.len().saturating_sub(block.first_row))?
             } else {
                 checked_u32(block.row_count)?
             };

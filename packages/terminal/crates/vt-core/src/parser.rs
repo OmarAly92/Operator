@@ -62,19 +62,14 @@ impl Parser {
 
     pub(crate) fn open_block(&mut self, source: BlockSource) {
         self.commit_evicted();
-        let first_row = self
-            .rows
-            .completed()
-            .len()
-            .saturating_add(self.screen.content_rows())
-            .saturating_sub(1);
+        let first_row = self.block_start_row();
         self.grid.sync_next_row(first_row);
         self.grid.open_block(source);
     }
 
     pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
         self.commit_evicted();
-        let next_row = self.rows.completed().len() + self.screen.content_rows();
+        let next_row = self.block_end_row();
         self.grid.sync_next_row(next_row);
         self.grid.close_block(exit_code);
     }
@@ -94,6 +89,7 @@ impl Parser {
         if self.alt.is_some() {
             return;
         }
+        self.commit_evicted();
         self.alt = Some(AltGrid::new(rows, self.width));
         self.saved_style = self.pending_style;
         self.pending_style = StyleCode::DEFAULT;
@@ -125,14 +121,35 @@ impl Parser {
             return;
         }
         for row in self.screen.take_evicted() {
+            let row_index = self.rows.completed().len();
+            let completed_before = row_index;
             crate::scrollback::commit_row(
                 &row,
                 &mut self.content,
                 &mut self.rows,
                 &mut self.styles,
             );
-            self.grid.note_row_completed();
+            if self.rows.completed().len() > completed_before {
+                self.grid.note_row_completed();
+            } else {
+                self.grid.remove_row(row_index);
+            }
         }
+        self.grid
+            .sync_next_row(self.rows.completed().len() + self.screen.content_rows());
+    }
+
+    fn block_start_row(&self) -> usize {
+        let screen_rows = self.screen.content_rows();
+        self.rows.completed().len() + self.screen.cursor().0.min(screen_rows)
+    }
+
+    fn block_end_row(&self) -> usize {
+        let screen_rows = self.screen.content_rows();
+        let cursor_row = self.screen.cursor().0.min(screen_rows);
+        let visible_cursor_row =
+            usize::from(cursor_row < screen_rows && self.screen.row_has_content(cursor_row));
+        self.rows.completed().len() + (cursor_row + visible_cursor_row).min(screen_rows)
     }
 
     pub fn trim_to(&mut self, max_total: usize) {

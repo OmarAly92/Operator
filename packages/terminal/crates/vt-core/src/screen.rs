@@ -98,6 +98,10 @@ impl ScreenGrid {
         self.max_cursor_row + 1
     }
 
+    pub(crate) fn row_has_content(&self, row: usize) -> bool {
+        (0..self.cols).any(|col| !matches!(self.cell(row, col).ch, ' ' | '\0'))
+    }
+
     pub fn cursor_visible(&self) -> bool {
         self.cursor_visible
     }

@@ -12,9 +12,12 @@ pub(crate) fn commit_row(
 ) {
     let width = cells
         .iter()
-        .rposition(|cell| cell.ch != ' ')
+        .rposition(|cell| !matches!(cell.ch, ' ' | '\0'))
         .map_or(0, |index| index + 1);
     for cell in &cells[..width] {
+        if cell.ch == '\0' {
+            continue;
+        }
         styles.set_from(content.end_offset(), cell.style);
         let mut buffer = [0u8; 4];
         content.push_char(cell.ch.encode_utf8(&mut buffer));
