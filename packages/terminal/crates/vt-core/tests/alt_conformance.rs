@@ -21,8 +21,7 @@ fn vectors_dir() -> PathBuf {
 }
 
 fn parse_vector(raw: &str) -> Vector {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).expect("vector is valid JSON");
+    let value: serde_json::Value = serde_json::from_str(raw).expect("vector is valid JSON");
     let obj = value.as_object().expect("vector is an object");
     let name = obj
         .get("name")

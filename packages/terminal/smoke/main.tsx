@@ -228,6 +228,144 @@ function TierOneApp(): ReactElement | null {
 	) : null;
 }
 
+function AltScreenApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 80, scrollback: 100 });
+			next.feed(
+				new TextEncoder().encode(
+					"\x1b]133;A\x07\x1b]133;B\x07ls\x1b]133;C\x07file.txt\n\x1b]133;D;0\x07",
+				),
+			);
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-alt-root");
+				if (!main) return;
+				const blocks = Array.from(main.querySelectorAll<HTMLElement>("[data-terminal-block-id]"));
+				const beforeIds = blocks.map((node) => node.dataset.terminalBlockId ?? "");
+				const beforeCount = blocks.length;
+				core.feed(new TextEncoder().encode("\x1b[?1049h"));
+				core.feed(
+					new TextEncoder().encode(
+						"\x1b]133;A\x07\x1b]133;B\x07garbage\x1b]133;C\x07mark-shaped bytes inside the alt screen\x1b]133;D;7\x07",
+					),
+				);
+				core.feed(new TextEncoder().encode("\x1b[?1049l"));
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						const blocksAfter = Array.from(
+							main.querySelectorAll<HTMLElement>("[data-terminal-block-id]"),
+						);
+						const afterIds = blocksAfter.map((node) => node.dataset.terminalBlockId ?? "");
+						const surface = main.querySelector("[data-terminal-alt-surface]") as HTMLElement | null;
+						const hidden = surface === null || surface.hidden;
+						main.dataset.terminalAltShred = "ready";
+						main.dataset.terminalAltShredBefore = beforeIds.join(",");
+						main.dataset.terminalAltShredAfter = afterIds.join(",");
+						main.dataset.terminalAltShredBeforeCount = String(beforeCount);
+						main.dataset.terminalAltShredAfterCount = String(blocksAfter.length);
+						main.dataset.terminalAltShredSurfaceHidden = String(hidden);
+					});
+				});
+			});
+		});
+	}, [core]);
+
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
+}
+
+function AltScrollApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 40, scrollback: 100 });
+			next.feed(new TextEncoder().encode("\x1b[?1049h\x1b[2;1Hinside-alt-stay"));
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-alt-scroll-root");
+				if (!main) return;
+				const host = main.querySelector<HTMLElement>(".terminal-host");
+				const surface = main.querySelector("[data-terminal-alt-surface]") as HTMLElement | null;
+				main.dataset.terminalAltScroll = "ready";
+				main.dataset.terminalAltScrollHostHeight = String(host?.clientHeight ?? 0);
+				main.dataset.terminalAltScrollOverflow = host?.style.overflow ?? "";
+				main.dataset.terminalAltScrollSurfaceVisible =
+					surface === null ? "missing" : String(!surface.hidden);
+			});
+		});
+	}, [core]);
+
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
+}
+
+function FallbackApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 20, scrollback: 100 });
+			next.feed(new TextEncoder().encode("\x1b[?1049h\x1b[2;3Hfrom-fallback"));
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const main = document.getElementById("terminal-fallback-root");
+				if (!main) return;
+				const slot = main.querySelector(".terminal-fallback-surface");
+				const slotVisible = slot ? !slot.hidden : false;
+				main.dataset.terminalFallback = "ready";
+				main.dataset.terminalFallbackVisible = String(slotVisible);
+			});
+		});
+	}, [core]);
+
+	return core ? (
+		<TerminalSurface
+			core={core}
+			theme={warpDarkTheme}
+			font={FONT}
+			altScreenActive={true}
+			altScreenSurface={<div className="terminal-fallback-surface" data-testid="terminal-fallback-surface">fallback-xterm-slot</div>}
+			onSend={IGNORE_INPUT}
+			onSendRaw={IGNORE_INPUT}
+		/>
+	) : null;
+}
+
 const root = document.getElementById("terminal-smoke-root");
 if (!root) {
 	throw new Error("missing #terminal-smoke-root");
@@ -245,3 +383,21 @@ if (!tierOneRoot) {
 	throw new Error("missing #terminal-tier-one-root");
 }
 createRoot(tierOneRoot).render(<TierOneApp />);
+
+const altRoot = document.getElementById("terminal-alt-root");
+if (!altRoot) {
+	throw new Error("missing #terminal-alt-root");
+}
+createRoot(altRoot).render(<AltScreenApp />);
+
+const fallbackRoot = document.getElementById("terminal-fallback-root");
+if (!fallbackRoot) {
+	throw new Error("missing #terminal-fallback-root");
+}
+createRoot(fallbackRoot).render(<FallbackApp />);
+
+const altScrollRoot = document.getElementById("terminal-alt-scroll-root");
+if (!altScrollRoot) {
+	throw new Error("missing #terminal-alt-scroll-root");
+}
+createRoot(altScrollRoot).render(<AltScrollApp />);

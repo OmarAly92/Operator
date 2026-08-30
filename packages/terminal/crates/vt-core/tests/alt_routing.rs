@@ -33,7 +33,9 @@ fn the_normal_buffer_is_untouched_by_what_the_alt_screen_printed() {
     c.feed(b"\x1b[?1049hinside\x1b[?1049l");
     c.feed(b"after\n");
     let snapshot = c.snapshot().expect("snapshot");
-    let text: Vec<&str> = (0..snapshot.row_count()).map(|i| snapshot.row_text(i)).collect();
+    let text: Vec<&str> = (0..snapshot.row_count())
+        .map(|i| snapshot.row_text(i))
+        .collect();
     assert!(text.contains(&"before"));
     assert!(text.contains(&"after"));
     assert!(!text.iter().any(|row| row.contains("inside")));
