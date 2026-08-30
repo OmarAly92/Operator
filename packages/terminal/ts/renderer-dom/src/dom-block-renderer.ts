@@ -11,6 +11,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
+import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
@@ -47,6 +48,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private container: HTMLElement | null = null;
 	private core: TerminalCore | null = null;
 	private list: HTMLElement | null = null;
+	private altRoot: HTMLElement | null = null;
 	private leadingSpacer: HTMLElement | null = null;
 	private trailingSpacer: HTMLElement | null = null;
 	private theme: TerminalTheme = warpDarkTheme;
@@ -61,6 +63,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private knownBlockId: BlockId | null = null;
 	private stickToBottom = true;
 	private lastPaintAt = Number.NEGATIVE_INFINITY;
+	private wasAltActive = false;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private host: HostCapabilities | null = null;
 	private latestSnapshot: {
@@ -180,6 +183,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.container = null;
 		this.core = null;
 		this.list = null;
+		this.altRoot = null;
 		this.leadingSpacer = null;
 		this.trailingSpacer = null;
 		this.blockElements.clear();
@@ -187,6 +191,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.knownBlockId = null;
 		this.stickToBottom = true;
 		this.lastPaintAt = Number.NEGATIVE_INFINITY;
+		this.wasAltActive = false;
 		this.host = null;
 		this.latestSnapshot = null;
 		this.latestBlocks = [];
@@ -281,6 +286,28 @@ export class DomBlockRenderer implements BlockRenderer {
 			return;
 		}
 		const snapshot = core.snapshot();
+
+		const alt = snapshot.altScreen;
+		if (alt) {
+			if (!this.wasAltActive) {
+				this.clearBlockSelection();
+				this.wasAltActive = true;
+			}
+			container.style.overflow = "hidden";
+			container.scrollTop = 0;
+			this.ensureAltRoot(container).hidden = false;
+			if (this.list) this.list.hidden = true;
+			renderAltSurface(alt, this.altRoot!, this.decoder);
+			this.lastPaintAt = this.now();
+			this.notifyPainted();
+			return;
+		}
+		if (this.altRoot) {
+			this.altRoot.hidden = true;
+		}
+		if (this.list) this.list.hidden = false;
+		container.style.overflow = "auto";
+		this.wasAltActive = false;
 
 		const blocks = decodeBlocks(snapshot);
 		if (blocks.length > 0) {
@@ -400,6 +427,28 @@ export class DomBlockRenderer implements BlockRenderer {
 		section.setAttribute("style", this.styleVarsString());
 		this.blockElements.set(block.id, section);
 		return section;
+	}
+
+	private ensureAltRoot(container: HTMLElement): HTMLElement {
+		if (this.altRoot) return this.altRoot;
+		const root = document.createElement("div");
+		root.setAttribute("data-terminal-alt-surface", "");
+		root.classList.add("terminal-alt-surface");
+		root.setAttribute("style", this.styleVarsString());
+		container.append(root);
+		this.altRoot = root;
+		return root;
+	}
+
+	private clearBlockSelection(): void {
+		const root = this.container;
+		if (!root) return;
+		const doc = root.ownerDocument ?? (typeof document !== "undefined" ? document : null);
+		if (!doc) return;
+		const selection = doc.getSelection ? doc.getSelection() : null;
+		if (!selection) return;
+		if (selection.rangeCount === 0) return;
+		selection.removeAllRanges();
 	}
 }
 
