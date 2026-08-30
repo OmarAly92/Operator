@@ -1,4 +1,13 @@
-export const terminalStyles = `.terminal-host {
+export const terminalStyles = `.terminal-surface {
+	box-sizing: border-box;
+	height: 100%;
+	width: 100%;
+	--terminal-padding-x: 16px;
+	--terminal-padding-y: 8px;
+	padding: var(--terminal-padding-y) var(--terminal-padding-x);
+}
+
+.terminal-host {
 	height: 100%;
 	width: 100%;
 }
