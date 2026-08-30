@@ -466,6 +466,48 @@ runs as a compact `(endOffset, value)` pair array. The DOM renderer reads slices
 **never materializes a JS object per cell**. This is the load-bearing decision that
 makes a DOM renderer viable — the pixels can look right and the design still be broken.
 
+**The two-tier shape that the normal buffer needs.** `FlatStorage` is Warp's
+**scrollback** tier — its own doc comment rules out `Insert`, listing only `Index`,
+`Scan`/`Iterate`, `Push` and `Pop`, and is suited to "grids that are immutable, or the
+portion of a grid that cannot be accessed via the cursor"
+(`crates/warp_terminal/src/model/grid/flat_storage/mod.rs:11-17`). The
+cursor-addressable rows live in `GridStorage`, a mutable buffer of `Row`s; the normal
+buffer is the union of the two, and `grid_handler.rs`'s `storage_row()` resolves a row
+index across them by comparing against `flat_storage.total_rows()` and returning
+`StorageRow::FlatStorage` for the scrollback side and `StorageRow::GridStorage` for the
+cursor-addressable side (`grid_handler.rs:2399-2409`). A normal buffer built only
+from `FlatStorage` cannot service `CUP`/`IL`/`DL`/`DECSTBM`, and the only way to make
+a screen that does service them is to keep both tiers and route through `storage_row()`.
+
+### 6.2a Known limits
+
+Two semantic gaps that the work so far leaves open, recorded so a follow-up plan can
+pick them up without re-deriving the shape from Warp.
+
+**Zero-width scalars are dropped on the normal buffer.** `ScreenGrid::Cell` holds a
+single `char`, so the normal buffer no longer keeps the zero-width scalars the
+append-only path carried (it allowed up to `MAX_ZERO_WIDTH_PER_CELL = 8`). Measured at
+`4ce87cfc6`: `e`+U+0301 renders as `e` (combining acute dropped), `\u{26a0}`+U+FE0F
+renders the text-presentation glyph rather than the emoji-presentation glyph (the
+variation selector is dropped), and a ZWJ family sequence renders as three separate
+people (the joiners are dropped). Skin-tone modifiers survive because they are
+non-zero-width scalars on the base code point. The alternate screen already behaved
+this way, so TUIs are unaffected; this is new for normal output. Warp does not have
+this limitation — it stores graphemes
+(`flat_storage/grapheme.rs`, `grid/grapheme_cursor.rs`), which is the shape a fix
+should take. `terminal_core.rs`'s `hard_wraps_wide_text_and_drops_zero_width_scalars`
+was renamed and its assertion changed to match; this is the one place in the plan
+where a test's content assertion was relaxed rather than repaired, and it is a
+follow-up, not a completed item.
+
+**`scrollback` bounds history, not history plus screen.** `createTerminalCore({
+scrollback: 5000 })` retains 5000 history rows *plus* the live screen. This matches
+Warp, where `max_scroll_limit` applies to `FlatStorage` and `total_rows()` is
+`flat_storage.total_rows() + grid_height`. It is a semantic change visible to any
+consumer of the row count: the previous behaviour counted the live screen against the
+budget, and any caller that sized a backing store off the returned row count must
+revisit that math.
+
 ### 6.3 The blockgrid and its sum tree
 
 A block is a half-open range over the scrollback plus its metadata:
@@ -860,9 +902,16 @@ is true only of a plain shell. §2.8.
   alternate buffer has **no scrollback** — that is what the alternate buffer *is*, and
   synthesizing one is a bug, not a feature.
 - Cursor addressing (`CUP`, `CUU/CUD/CUF/CUB`, `HVP`), scroll regions (`DECSTBM`, `IND`,
-  `RI`), erase (`ED`, `EL`) and line editing (`IL`, `DL`, `ICH`, `DCH`) apply to the
-  active grid. These are the sequences a full-screen TUI actually uses; a raw surface
-  that renders text but ignores them draws garbage.
+  `RI`), erase (`ED`, `EL`) and line editing (`IL`, `DL`, `ICH`, `DCH`) apply to **both**
+  buffers, since both are `ScreenGrid`; the only difference between the normal and
+  alternate buffers is the **eviction policy** — the alternate buffer discards the row
+  it scrolls off the bottom instead of promoting it to scrollback. These are the
+  sequences a full-screen TUI actually uses; a raw surface that renders text but
+  ignores them draws garbage. Warp models the same distinction as
+  `FullGridClearBehavior::{Clear, Scroll}` (`grid_handler.rs:405`): `Clear` resets
+  visible cells in place for TUI-style redraws on the primary grid, `Scroll` preserves
+  the normal primary-grid behaviour where full-grid clears and resizes move visible
+  rows into scrollback.
 - The renderer paints the alternate grid through the same `BlockRenderer` seam, as a
   single full-height region with no block chrome.
 - Input in the alternate screen is raw passthrough, exactly as the phase-2 editor
@@ -1147,6 +1196,15 @@ alternate screen is active.
 - `XtermTerminal.tsx` is still present and still reachable behind a host flag, so a
   regression is one flag away from a working pane — its deletion is phase 7;
 - the §9.4 gate still passes.
+
+**Correction recorded by Task 11 (2026-08-30 plan).** The "an agent CLI (Claude Code)
+runs end to end in the package's own surface" criterion above was signed off on the
+assumption that Claude Code drives the alternate screen; a fresh capture on 2026-08-30
+showed Claude Code emitting no `?1049` and no OSC 133, and redrawing inline with
+`CUU`. The 2026-08-30 plan (this one) closes the gap: §6.2 records the
+`FlatStorage` + `GridStorage` split and the 2026-08-30 work landed the
+cursor-addressable rows that an inline-redrawing TUI needs, including the zero-width
+scalar regression in §6.2a and the scrollback semantic change in §6.2a.
 
 ### Phase 4 — Completions
 
