@@ -25,6 +25,7 @@ fn encode(exit: Option<i32>) -> Vec<u32> {
         blocks: vec![record(exit)],
         block_text: Vec::new(),
         line_editor_state: 0,
+        alt: None,
     };
     let mut buffers = ExportBuffers::default();
     buffers.refresh(&snapshot).unwrap();

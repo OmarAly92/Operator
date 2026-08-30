@@ -173,3 +173,46 @@ fn a_sequence_split_across_two_feeds_still_switches() {
     c.feed(b"split");
     assert_eq!(alt_row(&c, 0), "split");
 }
+
+#[test]
+fn the_snapshot_carries_the_alt_grid_only_while_it_is_active() {
+    let mut c = core();
+    assert!(c.snapshot().expect("snapshot").alt.is_none());
+    c.feed(b"\x1b[?1049h\x1b[2;3Hhi");
+    let snapshot = c.snapshot().expect("snapshot");
+    let alt = snapshot.alt.as_ref().expect("alt snapshot");
+    assert_eq!(alt.rows, 24);
+    assert_eq!(alt.cols, 80);
+    assert_eq!(alt.cursor_row, 1);
+    assert_eq!(alt.cursor_col, 4);
+    let (start, end) = alt.row_ranges[1];
+    let text = std::str::from_utf8(&alt.content[start as usize..end as usize]).expect("utf-8");
+    assert_eq!(text.trim_end(), "  hi");
+}
+
+#[test]
+fn every_alt_row_ends_its_style_runs_at_the_row_length() {
+    let mut c = core();
+    c.feed(b"\x1b[?1049h\x1b[31mred\x1b[0m tail");
+    let snapshot = c.snapshot().expect("snapshot");
+    let alt = snapshot.alt.as_ref().expect("alt snapshot");
+    for row in 0..alt.rows {
+        let (row_start, row_end) = alt.row_ranges[row];
+        let (pair_start, pair_end) = alt.run_ranges[row];
+        assert!(pair_end > pair_start, "row {row} has no style runs");
+        let last = alt.style_pairs[pair_end as usize - 1].0;
+        assert_eq!(last, row_end - row_start, "row {row} runs stop short");
+    }
+}
+
+#[test]
+fn the_alt_snapshot_never_grows_past_one_screen() {
+    let mut c = core();
+    c.resize(10, 3);
+    c.feed(b"\x1b[?1049h");
+    for i in 0..50 {
+        c.feed(format!("line {i}\r\n").as_bytes());
+    }
+    let snapshot = c.snapshot().expect("snapshot");
+    assert_eq!(snapshot.alt.as_ref().expect("alt").row_ranges.len(), 3);
+}

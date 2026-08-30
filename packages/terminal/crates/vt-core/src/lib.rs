@@ -116,6 +116,7 @@ impl TerminalCore {
             self.parser.styles(),
             self.parser.grid(),
             self.line_editor.state(),
+            self.parser.alt(),
         )
     }
 

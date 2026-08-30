@@ -34,6 +34,16 @@ pub struct ExportBuffers {
     blocks: Vec<u32>,
     block_text: Vec<u8>,
     line_editor_state: u32,
+    alt_active: bool,
+    alt_rows: u32,
+    alt_cols: u32,
+    alt_cursor_row: u32,
+    alt_cursor_col: u32,
+    alt_cursor_visible: bool,
+    alt_content: Vec<u8>,
+    alt_row_ranges: Vec<u32>,
+    alt_run_ranges: Vec<u32>,
+    alt_style_pairs: Vec<u32>,
 }
 
 impl ExportBuffers {
@@ -45,6 +55,16 @@ impl ExportBuffers {
         self.blocks.clear();
         self.block_text.clear();
         self.line_editor_state = snapshot.line_editor_state;
+        self.alt_active = false;
+        self.alt_rows = 0;
+        self.alt_cols = 0;
+        self.alt_cursor_row = 0;
+        self.alt_cursor_col = 0;
+        self.alt_cursor_visible = false;
+        self.alt_content.clear();
+        self.alt_row_ranges.clear();
+        self.alt_run_ranges.clear();
+        self.alt_style_pairs.clear();
 
         checked_u32_from_u64(snapshot.content.len() as u64)?;
         self.content.extend_from_slice(snapshot.content.as_slice());
@@ -62,6 +82,28 @@ impl ExportBuffers {
         for &(end, code) in &snapshot.style_pairs {
             self.style_pairs.push(end);
             self.style_pairs.push(code.value());
+        }
+
+        if let Some(alt) = snapshot.alt.as_ref() {
+            self.alt_active = true;
+            self.alt_rows = alt.rows as u32;
+            self.alt_cols = alt.cols as u32;
+            self.alt_cursor_row = alt.cursor_row as u32;
+            self.alt_cursor_col = alt.cursor_col as u32;
+            self.alt_cursor_visible = alt.cursor_visible;
+            self.alt_content.extend_from_slice(&alt.content);
+            for &(start, end) in &alt.row_ranges {
+                self.alt_row_ranges.push(start);
+                self.alt_row_ranges.push(end);
+            }
+            for &(start, end) in &alt.run_ranges {
+                self.alt_run_ranges.push(start);
+                self.alt_run_ranges.push(end);
+            }
+            for &(end, code) in &alt.style_pairs {
+                self.alt_style_pairs.push(end);
+                self.alt_style_pairs.push(code.value());
+            }
         }
 
         for record in &snapshot.blocks {
@@ -130,6 +172,46 @@ impl ExportBuffers {
     pub fn line_editor_state(&self) -> u32 {
         self.line_editor_state
     }
+
+    pub fn alt_active(&self) -> bool {
+        self.alt_active
+    }
+
+    pub fn alt_rows(&self) -> u32 {
+        self.alt_rows
+    }
+
+    pub fn alt_cols(&self) -> u32 {
+        self.alt_cols
+    }
+
+    pub fn alt_cursor_row(&self) -> u32 {
+        self.alt_cursor_row
+    }
+
+    pub fn alt_cursor_col(&self) -> u32 {
+        self.alt_cursor_col
+    }
+
+    pub fn alt_cursor_visible(&self) -> bool {
+        self.alt_cursor_visible
+    }
+
+    pub fn alt_content(&self) -> &[u8] {
+        &self.alt_content
+    }
+
+    pub fn alt_row_ranges(&self) -> &[u32] {
+        &self.alt_row_ranges
+    }
+
+    pub fn alt_run_ranges(&self) -> &[u32] {
+        &self.alt_run_ranges
+    }
+
+    pub fn alt_style_pairs(&self) -> &[u32] {
+        &self.alt_style_pairs
+    }
 }
 
 #[wasm_bindgen]
@@ -156,6 +238,14 @@ impl WasmTerminalCore {
 
     pub fn feed(&mut self, bytes: &[u8]) -> Result<(), JsError> {
         self.core.feed(bytes);
+        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
+        self.export.refresh(&snapshot)?;
+        self.generation = self.generation.wrapping_add(1);
+        Ok(())
+    }
+
+    pub fn resize(&mut self, columns: usize, rows: usize) -> Result<(), JsError> {
+        self.core.resize(columns, rows);
         let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
         self.export.refresh(&snapshot)?;
         self.generation = self.generation.wrapping_add(1);
@@ -216,6 +306,66 @@ impl WasmTerminalCore {
 
     pub fn line_editor_state(&self) -> u32 {
         self.export.line_editor_state()
+    }
+
+    pub fn application_cursor_keys(&self) -> bool {
+        self.core.application_cursor_keys()
+    }
+
+    pub fn alt_active(&self) -> bool {
+        self.export.alt_active()
+    }
+
+    pub fn alt_rows(&self) -> u32 {
+        self.export.alt_rows()
+    }
+
+    pub fn alt_cols(&self) -> u32 {
+        self.export.alt_cols()
+    }
+
+    pub fn alt_cursor_row(&self) -> u32 {
+        self.export.alt_cursor_row()
+    }
+
+    pub fn alt_cursor_col(&self) -> u32 {
+        self.export.alt_cursor_col()
+    }
+
+    pub fn alt_cursor_visible(&self) -> bool {
+        self.export.alt_cursor_visible()
+    }
+
+    pub fn alt_content_ptr(&self) -> *const u8 {
+        self.export.alt_content().as_ptr()
+    }
+
+    pub fn alt_content_len(&self) -> usize {
+        self.export.alt_content().len()
+    }
+
+    pub fn alt_row_ranges_ptr(&self) -> *const u32 {
+        self.export.alt_row_ranges().as_ptr()
+    }
+
+    pub fn alt_row_ranges_len(&self) -> usize {
+        self.export.alt_row_ranges().len()
+    }
+
+    pub fn alt_run_ranges_ptr(&self) -> *const u32 {
+        self.export.alt_run_ranges().as_ptr()
+    }
+
+    pub fn alt_run_ranges_len(&self) -> usize {
+        self.export.alt_run_ranges().len()
+    }
+
+    pub fn alt_style_pairs_ptr(&self) -> *const u32 {
+        self.export.alt_style_pairs().as_ptr()
+    }
+
+    pub fn alt_style_pairs_len(&self) -> usize {
+        self.export.alt_style_pairs().len()
     }
 }
 

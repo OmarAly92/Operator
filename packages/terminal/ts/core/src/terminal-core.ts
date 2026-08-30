@@ -30,7 +30,11 @@ export class TerminalCore {
 			throw new Error("terminal core WASM is not initialized");
 		}
 		const inner = new WasmTerminalCore(options.columns, options.scrollback);
-		return new TerminalCore(inner);
+		const core = new TerminalCore(inner);
+		if (options.rows !== undefined) {
+			core.resize(options.columns, options.rows);
+		}
+		return core;
 	}
 
 	feed(bytes: Uint8Array): void {
@@ -80,6 +84,19 @@ export class TerminalCore {
 				`blocks length ${blocksLen} is not a multiple of ${BLOCK_RECORD_WORDS}`,
 			);
 		}
+		const altScreen = this.inner.alt_active()
+			? {
+					rows: this.inner.alt_rows(),
+					columns: this.inner.alt_cols(),
+					content: u8View(memory, this.inner.alt_content_ptr(), this.inner.alt_content_len()),
+					rowRanges: u32View(memory, this.inner.alt_row_ranges_ptr(), this.inner.alt_row_ranges_len()),
+					runRanges: u32View(memory, this.inner.alt_run_ranges_ptr(), this.inner.alt_run_ranges_len()),
+					stylePairs: u32View(memory, this.inner.alt_style_pairs_ptr(), this.inner.alt_style_pairs_len()),
+					cursorRow: this.inner.alt_cursor_row(),
+					cursorColumn: this.inner.alt_cursor_col(),
+					cursorVisible: this.inner.alt_cursor_visible(),
+				}
+			: null;
 		return {
 			generation: this.inner.generation(),
 			content: u8View(memory, contentPtr, contentLen),
@@ -89,7 +106,19 @@ export class TerminalCore {
 			blocks: u32View(memory, blocksPtr, blocksLen),
 			blockText: u8View(memory, blockTextPtr, blockTextLen),
 			lineEditorState: this.inner.line_editor_state(),
+			altScreen,
+			applicationCursorKeys: this.inner.application_cursor_keys(),
 		};
+	}
+
+	resize(columns: number, rows: number): void {
+		if (this.disposed) {
+			return;
+		}
+		this.inner.resize(columns, rows);
+		for (const listener of this.listeners) {
+			listener(this.inner.generation());
+		}
 	}
 
 	lineEditorState(): LineEditorState {

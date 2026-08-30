@@ -67,11 +67,26 @@ export type TerminalSnapshot = Readonly<{
 	blocks: Uint32Array;
 	blockText: Uint8Array;
 	lineEditorState: number;
+	altScreen: AltScreenView | null;
+	applicationCursorKeys: boolean;
+}>;
+
+export type AltScreenView = Readonly<{
+	rows: number;
+	columns: number;
+	content: Uint8Array;
+	rowRanges: Uint32Array;
+	runRanges: Uint32Array;
+	stylePairs: Uint32Array;
+	cursorRow: number;
+	cursorColumn: number;
+	cursorVisible: boolean;
 }>;
 
 export type TerminalCoreOptions = Readonly<{
 	columns: number;
 	scrollback: number;
+	rows?: number;
 }>;
 
 export type ChangeListener = (generation: number) => void;

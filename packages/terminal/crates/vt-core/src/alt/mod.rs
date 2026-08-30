@@ -3,6 +3,8 @@ mod edit;
 mod scroll;
 mod snapshot;
 
+pub use snapshot::AltSnapshot;
+
 use unicode_width::UnicodeWidthChar;
 
 use crate::style::StyleCode;
