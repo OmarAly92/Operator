@@ -21,6 +21,24 @@ Measured on 2026-08-30, against `8440751e6`:
 
 The scroll container itself is healthy: an identical Chromium harness run against `695223617` (before the colour/width/UTF-8 fixes) and against `8440751e6` holds `scrollTop` at 0 and at 200 in both. There is no scrolling regression to find — the scrollback is full of redraw garbage.
 
+## Verified against Warp's own implementation
+
+Read on 2026-08-30 at `/Users/omaraly/development/AI/warp`. Four decisions confirmed, four corrected.
+
+**Confirmed.**
+
+1. **The two-tier split.** `grid_handler.rs:419` holds both `flat_storage: FlatStorage` and `GridStorage`; `storage_row()` (`:2399-2409`) resolves an index by `row_idx.checked_sub(self.flat_storage.total_rows())`. `flat_storage/mod.rs:11-17` rules out `Insert`, suiting only rows "that cannot be accessed via the cursor". Our `Content`/`RowIndex` is the `FlatStorage` tier; `ScreenGrid` is `GridStorage`.
+2. **Only a scroll whose region starts at the top evicts.** `grid_storage.rs:379` guards on `region.start != VisibleRow(0)`. Task 2's `scroll_top != 0` rule is the same condition.
+3. **Trailing blanks are trimmed per row**, via `rightmost_visible_nonempty_cell_in_row` (`grid_handler.rs:2653`). Task 3 trims.
+4. **The alternate buffer never reaches flat storage.** `resize_storage` (`resize.rs:63`) notes "there's no flat storage for the alt screen". Task 6 pins it.
+
+**Corrected — each of these was wrong in the first draft of this plan.**
+
+- **C1. Grid extent is a cursor high-water mark, not a blank scan.** `content_len()` (`grid_handler.rs:2640`) falls back to `max_cursor_point.row + history_size() + 1`, and `max_cursor_point` is updated on every cursor move (`grid_storage.rs:265-268`). Scanning for the last non-blank cell is Warp's *opt-in trimming* refinement, not its notion of extent. A blank scan makes rows vanish when a program clears its lower half, and costs `rows × cols` reads per snapshot. Task 5 uses the high-water mark.
+- **C2. `ED All` on the primary screen needs a policy.** `ansi_handler.rs:852-862` branches three ways: alt screen clears the region in place; primary with `FullGridClearBehavior::Clear` calls `clear_visible_rows_in_place`; primary with `Scroll` calls `clear_viewport`, which pushes the visible rows into scrollback. Delegating to the alternate screen's `erase_in_display` would make a shell's `clear` destroy scrollback. Task 7 implements both paths.
+- **C3. Resize must not reflow an agent TUI.** `resize.rs:57-66` skips reflow when the alt screen is active **or** `full_grid_clear_behavior == Clear`, with the comment: "We also do this for CLI agent TUIs so pane resizes don't append old frames into block scrollback before the app redraws (GH #9838)." That is this bug, in Warp's own tracker. Task 8 covers it.
+- **C4. The three settings above are one mode, switched by an explicit signal.** `view.rs:13456-13460` flips the active block on `CLIAgentSessionsModelEvent::Started`: `enable_full_grid_clear_behavior()` plus `set_trim_trailing_blank_rows(true)`, which also sets `set_track_content_length(true)` (`blockgrid.rs:306-313`). Warp does not sniff the byte stream; it is told. We have the same signal — the daemon knows the provider, and `TerminalPane.tsx:878` already branches on it. Task 9 wires it.
+
 ## Global Constraints
 
 - **No code comments.** The user's global instruction. Doc comments (`///`) explaining *why* a structure exists are the existing house style in `vt-core` and are kept; inline `//` narration is not.
@@ -47,6 +65,8 @@ The scroll container itself is healthy: an identical Chromium harness run agains
 | `crates/vt-core/src/grid.rs` | `build_snapshot` emits scrollback rows followed by screen rows as one contiguous row list. |
 | `crates/vt-core/tests/screen_normal.rs` | **Create.** Cursor addressing in the normal buffer. |
 | `crates/vt-core/tests/redraw_conformance.rs` | **Create.** Replays a captured agent-CLI redraw and pins the row count. |
+| `crates/vt-core/tests/clear_policy.rs` | **Create.** `ED All` scrolls history away on the primary screen, clears in place on the alternate. |
+| `crates/vt-core/tests/resize_policy.rs` | **Create.** A resize in agent-TUI mode appends no frame to scrollback. |
 
 `AltGrid` keeps its name as an alias so the ~40 existing call sites and `alt_conformance.rs` / `alt_grid.rs` / `alt_routing.rs` do not churn in the same commit as a behaviour change.
 
@@ -561,7 +581,9 @@ The open block's `row_count` can no longer be accumulated by `note_row_completed
 
 **Interfaces:**
 - Consumes: `Parser::screen()` from Task 4.
-- Produces: `build_snapshot(content, rows, styles, grid, line_editor_state, screen, alt)` — one added `screen: &ScreenGrid` parameter before `alt`. `ScreenGrid::occupied_rows(&self) -> usize` returning the count up to and including the last row holding a non-blank cell, minimum 1.
+- Produces: `build_snapshot(content, rows, styles, grid, line_editor_state, screen, alt)` — one added `screen: &ScreenGrid` parameter before `alt`. `ScreenGrid::content_rows(&self) -> usize` returning `max_cursor_row + 1`, the cursor high-water mark (Warp's `content_len`, `grid_handler.rs:2640`).
+
+**C1 applies here.** Do **not** compute this by scanning for the last non-blank cell. A program that prints ten rows and then clears rows five through nine still occupies ten rows; a blank scan would report five and the block would visibly shrink under the user. The high-water mark is also O(1) per snapshot instead of `rows × cols`. Blank-row trimming is a separate, opt-in behaviour and arrives in Task 9.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -577,6 +599,22 @@ fn the_open_block_counts_scrollback_and_screen_rows_together() {
     let snapshot = core.snapshot().unwrap();
     let total: usize = snapshot.blocks.iter().map(|b| b.row_count as usize).sum();
     assert_eq!(total, snapshot.row_count());
+}
+
+#[test]
+fn clearing_the_lower_half_does_not_shrink_the_row_count() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 24);
+    for _ in 0..10 {
+        core.feed(b"x\r\n");
+    }
+    let before = core.snapshot().unwrap().row_count();
+    core.feed(b"\x1b[6;1H\x1b[J");
+    assert_eq!(
+        core.snapshot().unwrap().row_count(),
+        before,
+        "the cursor high-water mark, not a blank scan, decides extent",
+    );
 }
 
 #[test]
@@ -599,19 +637,30 @@ Expected: FAIL — the row totals disagree, because the snapshot still emits onl
 
 - [ ] **Step 3: Implement**
 
-In `crates/vt-core/src/screen.rs`:
+In `crates/vt-core/src/screen.rs`, track the high-water mark. Add `max_cursor_row: usize` to the struct, initialised to `0`, and update it in the one place the cursor is assigned — `move_to`, which every other movement routes through:
 
 ```rust
-pub fn occupied_rows(&self) -> usize {
-    for row in (0..self.rows).rev() {
-        let start = row * self.cols;
-        if self.cells[start..start + self.cols].iter().any(|cell| cell.ch != ' ') {
-            return row + 1;
-        }
+pub fn move_to(&mut self, row: usize, col: usize) {
+    self.row = row.min(self.rows - 1);
+    self.col = col.min(self.cols - 1);
+    self.pending_wrap = false;
+    if self.row > self.max_cursor_row {
+        self.max_cursor_row = self.row;
     }
-    1
+}
+
+pub fn content_rows(&self) -> usize {
+    self.max_cursor_row + 1
 }
 ```
+
+`scroll_up` lowers the mark by the scroll distance, since the rows it referred to have left the screen:
+
+```rust
+self.max_cursor_row = self.max_cursor_row.saturating_sub(count);
+```
+
+`reset()` sets it back to `0`. Confirm by reading `move_to`'s current body that it is genuinely the single assignment point; if `print`'s wrap handling assigns `self.row` directly, update the mark there too.
 
 In `crates/vt-core/src/grid.rs`, replace the single `append_row(open_start, end)` call with the screen's rows:
 
@@ -620,7 +669,7 @@ for row in rows.completed() {
     append_row(&mut ctx, content, styles, row.start, row.end)?;
 }
 
-for row in 0..screen.occupied_rows() {
+for row in 0..screen.content_rows() {
     append_screen_row(&mut ctx, screen, row)?;
 }
 ```
@@ -732,7 +781,233 @@ git commit -m "test(terminal): pin the alt-screen contract across the shared scr
 
 ---
 
-### Task 7: Pin the real agent-CLI redraw as a conformance vector
+### Task 7: Give `ED All` on the primary screen the two behaviours Warp has
+
+Correction **C2**. `CSI 2 J` means different things in the two buffers, and two different things in the primary buffer depending on mode. Warp branches three ways at `ansi_handler.rs:852-862`. Getting this wrong makes a shell's `clear` destroy scrollback, which is a worse bug than the one this plan fixes.
+
+**Files:**
+- Modify: `crates/vt-core/src/screen.rs` (add `ClearPolicy`), `crates/vt-core/src/screen/edit.rs:4-32` (`erase_in_display`)
+- Modify: `crates/vt-core/src/parser.rs`
+- Test: `crates/vt-core/tests/clear_policy.rs` (create)
+
+**Interfaces:**
+- Consumes: `commit_evicted` (Task 3), `content_rows` (Task 5).
+- Produces: `ScreenGrid::set_clear_policy(&mut self, policy: ClearPolicy)` where `pub enum ClearPolicy { Scroll, ClearInPlace }`, defaulting to `Scroll` for the normal buffer and `ClearInPlace` for the alternate buffer.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `crates/vt-core/tests/clear_policy.rs`:
+
+```rust
+use vt_core::TerminalCore;
+
+#[test]
+fn clear_on_the_primary_screen_pushes_the_viewport_into_scrollback() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 5);
+    core.feed(b"keep me\r\n");
+    core.feed(b"\x1b[2J\x1b[H");
+    let snapshot = core.snapshot().unwrap();
+    let found = (0..snapshot.row_count()).any(|i| snapshot.row_text(i).trim_end() == "keep me");
+    assert!(found, "clear must scroll history away, not destroy it");
+}
+
+#[test]
+fn clear_on_the_alternate_screen_destroys_nothing_and_saves_nothing() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 5);
+    core.feed(b"before\r\n");
+    let before = core.snapshot().unwrap().row_count();
+    core.feed(b"\x1b[?1049htui text\x1b[2J\x1b[?1049l");
+    assert_eq!(core.snapshot().unwrap().row_count(), before);
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test clear_policy`
+Expected: FAIL on the first test — `keep me` is gone, because `erase_in_display` blanks cells in place and the row never reaches scrollback.
+
+- [ ] **Step 3: Implement**
+
+In `crates/vt-core/src/screen.rs`:
+
+```rust
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClearPolicy {
+    Scroll,
+    ClearInPlace,
+}
+```
+
+Add `clear_policy: ClearPolicy` to the struct, defaulting to `ClearPolicy::Scroll`. In `screen/edit.rs`, the `mode == 2` arm of `erase_in_display` becomes:
+
+```rust
+2 => match self.clear_policy {
+    ClearPolicy::Scroll => self.scroll_up(self.content_rows()),
+    ClearPolicy::ClearInPlace => {
+        for row in 0..self.rows() {
+            self.blank_row(row);
+        }
+        self.max_cursor_row = 0;
+    }
+},
+```
+
+`scroll_up` already records evictions when `scroll_top == 0`, so the `Scroll` path reaches scrollback through the Task 3 machinery with no new code.
+
+In `parser.rs`, `enter_alt` sets `alt.set_clear_policy(ClearPolicy::ClearInPlace)` alongside `set_records_eviction(false)`.
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `cargo test -p vt-core`
+Expected: PASS, `alt_conformance` included.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "feat(terminal): make clear scroll history away on the primary screen"
+```
+
+---
+
+### Task 8: Do not reflow or evict on a resize in agent-TUI mode
+
+Correction **C3**. Warp's `resize.rs:57-66` skips reflow for the alternate screen *and* for agent TUIs, because a pane resize otherwise appends the pre-resize frame into scrollback before the program has redrawn — Warp GH #9838, which is this plan's bug arriving by a second route.
+
+**Files:**
+- Modify: `crates/vt-core/src/screen.rs` (`resize`)
+- Modify: `crates/vt-core/src/parser.rs` (`resize`)
+- Test: `crates/vt-core/tests/resize_policy.rs` (create)
+
+**Interfaces:**
+- Consumes: `ClearPolicy` (Task 7), `set_records_eviction` (Task 2).
+- Produces: `ScreenGrid::set_reflow_on_resize(&mut self, on: bool)`, default `true`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `crates/vt-core/tests/resize_policy.rs`:
+
+```rust
+use vt_core::TerminalCore;
+
+#[test]
+fn resizing_an_agent_tui_appends_no_frame_to_scrollback() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.set_agent_tui_mode(true);
+    core.feed(b"\x1b[Hframe one\x1b[K");
+    let before = core.snapshot().unwrap().row_count();
+    core.resize(100, 30);
+    core.resize(80, 24);
+    assert_eq!(
+        core.snapshot().unwrap().row_count(),
+        before,
+        "a resize must not push the pre-resize frame into scrollback",
+    );
+}
+
+#[test]
+fn resizing_a_shell_still_keeps_its_scrollback() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 3);
+    core.feed(b"one\r\ntwo\r\nthree\r\nfour\r\n");
+    let before = core.snapshot().unwrap().row_count();
+    core.resize(80, 5);
+    assert!(core.snapshot().unwrap().row_count() >= before);
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test resize_policy`
+Expected: FAIL — `no method named set_agent_tui_mode`.
+
+- [ ] **Step 3: Implement**
+
+`ScreenGrid::resize` gains an early branch: when `reflow_on_resize` is false, adjust the cell buffer to the new dimensions without evicting anything, and clamp `max_cursor_row` and the cursor into the new bounds. When it is true, keep today's behaviour.
+
+`TerminalCore::set_agent_tui_mode(on: bool)` in `lib.rs` sets, on the normal screen: `set_reflow_on_resize(!on)` and `set_clear_policy(if on { ClearInPlace } else { Scroll })`.
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `cargo test -p vt-core`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "feat(terminal): stop a resize appending the pre-resize frame to scrollback"
+```
+
+---
+
+### Task 9: Switch agent-TUI mode from the provider the daemon already knows
+
+Correction **C4**. Warp does not sniff the byte stream to decide a pane is an agent TUI — `view.rs:13456` flips the active block on `CLIAgentSessionsModelEvent::Started`. We have the same signal already: `TerminalPane.tsx:878` branches on `provider` today for wheel routing.
+
+Trailing-blank trimming rides along here, because Warp enables it in the same handler and behind a flag (`FeatureFlag::TrimTrailingBlankLines`); ours is the `agentTui` boolean.
+
+**Files:**
+- Modify: `crates/vt-core/src/lib.rs`, `crates/vt-wasm/src/lib.rs`
+- Modify: `ts/core/src/terminal-core.ts`, `ts/core/src/types.ts`
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx`, `frontend/src/renderer/components/TerminalPane.tsx`
+- Test: `frontend/src/renderer/components/BlockTerminal.test.tsx`
+
+**Interfaces:**
+- Consumes: `set_agent_tui_mode` (Task 8).
+- Produces: `TerminalCore.setAgentTuiMode(on: boolean)` in TypeScript; a `agentTui?: boolean` prop on `BlockTerminal`.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `frontend/src/renderer/components/BlockTerminal.test.tsx`:
+
+```tsx
+it("puts the core in agent-tui mode when the pane runs an agent", () => {
+	const setAgentTuiMode = vi.fn();
+	renderTerminal({ agentTui: true, coreOverrides: { setAgentTuiMode } });
+	expect(setAgentTuiMode).toHaveBeenCalledWith(true);
+});
+
+it("leaves a plain shell pane out of agent-tui mode", () => {
+	const setAgentTuiMode = vi.fn();
+	renderTerminal({ agentTui: false, coreOverrides: { setAgentTuiMode } });
+	expect(setAgentTuiMode).toHaveBeenCalledWith(false);
+});
+```
+
+Match `renderTerminal`'s real signature in that file; add a `coreOverrides` option to the helper if it has none.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd frontend && npx vitest run src/renderer/components/BlockTerminal.test.tsx`
+Expected: FAIL — `setAgentTuiMode` is never called.
+
+- [ ] **Step 3: Implement**
+
+Export `set_agent_tui_mode` through `vt-wasm` as `setAgentTuiMode`, surface it on `TerminalCore`, and have `BlockTerminal` call it in the effect that creates the core and whenever `agentTui` changes. `TerminalPane` passes `agentTui={terminalTarget?.kind === "session"}` — a session pane runs an agent, a shell pane does not.
+
+- [ ] **Step 4: Run the suites**
+
+```bash
+cd packages/terminal && npm run build:wasm && npm run build:ts && npm test
+cd ../frontend && npm test
+```
+
+Expected: PASS. Report the counts you actually read.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A packages/terminal frontend
+git commit -m "feat(terminal): put agent panes in the tui redraw mode Warp uses"
+```
+
+---
+
+### Task 10: Pin the real agent-CLI redraw as a conformance vector
 
 The bug arrived from a real program. The regression test replays that program's real bytes, in the same shape the existing `protocol/alt-vectors/` fixtures use.
 
@@ -808,7 +1083,7 @@ git commit -m "test(terminal): pin a real agent redraw against scrollback inflat
 
 ---
 
-### Task 8: Rebuild the WASM boundary and verify in a browser
+### Task 11: Rebuild the WASM boundary and verify in a browser
 
 `vt-wasm` exports the snapshot; the row space changed shape but not type, so this is a rebuild plus an end-to-end check that the renderer still paints and scrolls.
 
@@ -873,7 +1148,7 @@ git commit -m "feat(terminal): rebuild the wasm boundary on the unified row spac
 
 ---
 
-### Task 9: Record the design in the spec
+### Task 12: Record the design in the spec
 
 The spec's §6.2 describes Warp's `flat_storage` without noting that Warp itself does not use it for cursor-addressable rows. That omission is what let Phase 3 ship an append-only normal buffer.
 
@@ -903,6 +1178,8 @@ git commit -m "spec: record the two-tier storage the normal buffer needs"
 
 ## Self-Review
 
+**Warp fidelity.** Every design decision now cites a file and line in `/Users/omaraly/development/AI/warp`, listed in "Verified against Warp's own implementation" above: four confirmed, four corrected after the first draft. The corrections are load-bearing — C2 alone was a scrollback-destroying bug, and C3 is a Warp issue number.
+
 **Spec coverage.** §6.2 storage shape — Tasks 3 and 5 keep `Content`/`AttributeMap`/`RowIndex` as the scrollback tier and preserve the run-per-span export. §6.3 blockgrid — Task 5. §11 alt screen — Task 6. The §11 shred rule and "no scrollback in the alternate buffer" both get named tests. Phase 3's accept criteria are re-verified in Task 8 Step 4. §6.1's "no WASM-specific code in `vt-core`" holds: nothing added here is WASM-aware.
 
 **Placeholders.** Two steps deliberately point at the real code instead of quoting it — Task 3 Step 3's `AttributeMap` setter and Task 8 Step 2's `mountRenderer` helper — because inventing a signature that does not match would be worse than telling the implementer to read the neighbouring call. Both name the exact call site to copy. Task 7 Step 1 records a fresh capture rather than embedding several KB of bytes.
@@ -910,3 +1187,7 @@ git commit -m "spec: record the two-tier storage the normal buffer needs"
 **Type consistency.** `ScreenGrid` is the type throughout; `AltGrid` is an alias declared in Task 1 and used unchanged by existing tests. `take_evicted`/`set_records_eviction`/`record_eviction` (Task 2) are consumed under those names in Tasks 3 and 6. `occupied_rows` (Task 5) is defined before its use in `build_snapshot`. `commit_evicted` (Task 3) is called from `feed` in Task 4.
 
 **Ordering risk.** Task 4 knowingly leaves three test files red until Task 5 fixes their expectations. That is called out in Task 4 Step 4 so an executor does not "fix" it by weakening the new tests. Tasks 4 and 5 must land together before any release build.
+
+**Type consistency, second pass.** `content_rows()` replaced the first draft's `occupied_rows()` everywhere (Task 5 defines it, Task 7's `ED All` arm calls it). `ClearPolicy` is defined in Task 7 and consumed in Task 8's `set_agent_tui_mode`. `set_agent_tui_mode` is defined in Task 8 and reaches TypeScript as `setAgentTuiMode` in Task 9. `max_cursor_row` is introduced in Task 5 and mutated in Task 7's `ClearInPlace` arm.
+
+**Known limits, deliberately out of scope.** Column-change reflow of existing scrollback rows is not implemented — rows already committed keep the width they were written at, which is what `flat_storage.set_columns` guards against in Warp (`resize.rs:70-77`) rather than solving. Agent panes take the no-reflow path (Task 8) so this is invisible there; a shell pane resized narrower will show rows that do not re-wrap. If that matters, it is a follow-up plan, not a task here.
