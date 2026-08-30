@@ -16,6 +16,9 @@ const benchDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageDirectory = path.dirname(benchDirectory);
 const repositoryDirectory = path.resolve(packageDirectory, "../..");
 const scenarioNames = Object.keys(scenarios);
+// `input-latency-owned` measures a path xterm does not have, so it is gated on
+// an absolute budget (spec 9.4) and never belongs in an xterm baseline.
+const baselineScenarioNames = scenarioNames.filter((name) => name !== "input-latency-owned");
 const supportedRenderers = new Set(["xterm", "dom"]);
 
 export class UsageError extends Error {
@@ -45,7 +48,7 @@ export function parseArguments(args) {
 	if (!supportedRenderers.has(renderer)) throw new UsageError("--renderer must be xterm or dom");
 	if (record && scenario !== undefined) throw new UsageError("--record measures all scenarios and does not accept --scenario");
 	if (!record && !scenarioNames.includes(scenario)) throw new UsageError("--scenario must name a documented scenario");
-	return { renderer, record, names: record ? scenarioNames : [scenario] };
+	return { renderer, record, names: record ? baselineScenarioNames : [scenario] };
 }
 
 function git(...args) {
@@ -170,9 +173,8 @@ async function run() {
 	if (record && git("status", "--porcelain", "--untracked-files=all") !== "") {
 		throw new Error("refusing to record a baseline from a dirty git tree");
 	}
-	const BASELINE_SCENARIOS = ["vtebench", "large-output", "input-latency"];
-	if (record && !BASELINE_SCENARIOS.every((n) => names.includes(n))) {
-		throw new Error(`baseline recording requires ${BASELINE_SCENARIOS.join(", ")}`);
+	if (record && !baselineScenarioNames.every((n) => names.includes(n))) {
+		throw new Error(`baseline recording requires ${baselineScenarioNames.join(", ")}`);
 	}
 	if (record && names.includes("input-latency-owned")) {
 		throw new Error("input-latency-owned has no xterm counterpart and is gated on an absolute budget, not a baseline");
