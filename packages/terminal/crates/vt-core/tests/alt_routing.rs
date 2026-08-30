@@ -218,3 +218,25 @@ fn the_alt_snapshot_never_grows_past_one_screen() {
     let snapshot = c.snapshot().expect("snapshot");
     assert_eq!(snapshot.alt.as_ref().expect("alt").row_ranges.len(), 3);
 }
+
+#[test]
+fn the_alt_flag_and_the_alt_grid_never_disagree() {
+    let mut c = core();
+    let cases: &[&[u8]] = &[
+        b"\x1b[?1049h",
+        b"\x1b[?1049h",
+        b"text",
+        b"\x1b[?1049l",
+        b"\x1b[?1049l",
+        b"\x1b[?1049h\x1b[?1049l\x1b[?1049h",
+    ];
+    for chunk in cases {
+        c.feed(chunk);
+        assert_eq!(
+            c.alt_screen_active(),
+            c.alt_grid().is_some(),
+            "flag and grid disagree after {:?}",
+            String::from_utf8_lossy(chunk)
+        );
+    }
+}
