@@ -18,6 +18,10 @@ export const WORKLOAD_METADATA = {
 		workload: "input-loopback-x-v1",
 		workloadDigest: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
 	},
+	"input-latency-owned": {
+		workload: "input-loopback-x-v1",
+		workloadDigest: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+	},
 };
 
 export function createLargeOutput() {

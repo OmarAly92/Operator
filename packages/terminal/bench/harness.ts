@@ -28,6 +28,7 @@ export interface BenchmarkRenderer {
 	onInput(listener: (data: string) => void): () => void;
 	waitForPaint(): Promise<number>;
 	dispatchPrintableKey(data: string): void;
+	setOwnedInput?(owned: boolean): void;
 	dispose(): void;
 }
 
@@ -74,12 +75,12 @@ async function writeWorkload(renderer: BenchmarkRenderer, bytes: Uint8Array): Pr
 	return performance.now() - startedAt;
 }
 
-async function inputLatency(renderer: BenchmarkRenderer): Promise<number> {
-	if (renderer.kind === "dom") {
-		const startedAt = performance.now();
-		renderer.dispatchPrintableKey("x");
-		return (await renderer.waitForPaint()) - startedAt;
-	}
+/**
+ * Keystroke to painted glyph with the program owning the tty: the key leaves
+ * as raw bytes, the echo comes back, the parser renders it. Both renderers do
+ * identical work here, which is what makes the xterm baseline a fair yardstick.
+ */
+async function inputLatencyPassthrough(renderer: BenchmarkRenderer): Promise<number> {
 	return new Promise((resolve, reject) => {
 		let startedAt = 0;
 		const unsubscribe = renderer.onInput((data) => {
@@ -95,6 +96,28 @@ async function inputLatency(renderer: BenchmarkRenderer): Promise<number> {
 		startedAt = performance.now();
 		renderer.dispatchPrintableKey("x");
 	});
+}
+
+/**
+ * Keystroke to painted glyph with our editor owning the line. There is no echo
+ * and no round trip -- that is the point of owning input -- so xterm has no
+ * comparable measurement and this scenario is gated on an absolute budget
+ * instead (spec 9.4).
+ */
+async function inputLatencyOwned(renderer: BenchmarkRenderer): Promise<number> {
+	if (!renderer.setOwnedInput) {
+		throw new Error(
+			"input-latency-owned requires a renderer that owns its line editor; xterm has none",
+		);
+	}
+	renderer.setOwnedInput(true);
+	try {
+		const startedAt = performance.now();
+		renderer.dispatchPrintableKey("x");
+		return (await renderer.waitForPaint()) - startedAt;
+	} finally {
+		renderer.setOwnedInput(false);
+	}
 }
 
 async function runScenario(
@@ -113,6 +136,7 @@ async function runScenario(
 		: name === "large-output"
 			? createLargeOutput()
 			: INPUT_BYTE;
+	const isInputScenario = name === "input-latency" || name === "input-latency-owned";
 	const metadata = WORKLOAD_METADATA[name];
 	if (await digest(workload) !== metadata.workloadDigest) {
 		renderer.dispose();
@@ -122,8 +146,10 @@ async function runScenario(
 		await clear(renderer);
 		const before = renderer.kind;
 		const duration = name === "input-latency"
-			? await inputLatency(renderer)
-			: await writeWorkload(renderer, workload);
+			? await inputLatencyPassthrough(renderer)
+			: name === "input-latency-owned"
+				? await inputLatencyOwned(renderer)
+				: await writeWorkload(renderer, workload);
 		const after = renderer.kind;
 		invocationKinds.add(before);
 		invocationKinds.add(after);
@@ -133,6 +159,7 @@ async function runScenario(
 		if (!Number.isFinite(duration) || duration <= 0) throw new Error(`${name} produced an invalid duration`);
 		if (name === "vtebench") return 1000 / duration;
 		if (name === "large-output") return workload.byteLength * 1000 / duration;
+		void isInputScenario;
 		return duration;
 	};
 

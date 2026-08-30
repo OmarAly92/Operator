@@ -164,7 +164,13 @@ async function run() {
 	if (record && git("status", "--porcelain", "--untracked-files=all") !== "") {
 		throw new Error("refusing to record a baseline from a dirty git tree");
 	}
-	if (record && names.length !== 3) throw new Error("baseline recording requires all three scenarios");
+	const BASELINE_SCENARIOS = ["vtebench", "large-output", "input-latency"];
+	if (record && !BASELINE_SCENARIOS.every((n) => names.includes(n))) {
+		throw new Error(`baseline recording requires ${BASELINE_SCENARIOS.join(", ")}`);
+	}
+	if (record && names.includes("input-latency-owned")) {
+		throw new Error("input-latency-owned has no xterm counterpart and is gated on an absolute budget, not a baseline");
+	}
 	if (renderer === "xterm" && (await rendererVersion(renderer)) !== "5.5.0") {
 		throw new Error("installed xterm version must be exactly 5.5.0");
 	}

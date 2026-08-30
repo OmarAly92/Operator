@@ -38,6 +38,7 @@ const scenarioFields = {
 	"vtebench": new Set([...commonScenarioFields, "seed"]),
 	"large-output": new Set(commonScenarioFields),
 	"input-latency": new Set(commonScenarioFields),
+	"input-latency-owned": new Set([...commonScenarioFields, "maxP95Milliseconds"]),
 };
 
 function requireString(value, field) {

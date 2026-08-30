@@ -24,6 +24,8 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	private editorRoot: HTMLElement | undefined;
 	private editorPaintPending = false;
 	private editorTextBefore = "";
+	private ownedInput = false;
+	private readonly inputListeners = new Set<(data: string) => void>();
 	private failure: Error | undefined;
 	private readonly rendererKind: RendererKind = "dom";
 
@@ -40,10 +42,15 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		renderer.mount(host, core);
 		this.renderer = renderer;
 		const editor = new LineEditor();
-		editor.mount(host, core, { send: () => undefined, sendRaw: () => undefined });
+		editor.mount(host, core, {
+			send: () => undefined,
+			sendRaw: (data: string) => {
+				for (const listener of [...this.inputListeners]) listener(data);
+			},
+		});
 		this.editor = editor;
 		this.editorRoot = host.querySelector<HTMLElement>(".terminal-editor") ?? undefined;
-		core.feed(new TextEncoder().encode("\x1b]7000;v=1;input-ready=1\x07"));
+		this.setOwnedInput(false);
 	}
 
 	write(bytes: Uint8Array): Promise<void> {
@@ -63,8 +70,22 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		});
 	}
 
-	onInput(_listener: (data: string) => void): () => void {
-		return () => {};
+	onInput(listener: (data: string) => void): () => void {
+		this.inputListeners.add(listener);
+		return () => {
+			this.inputListeners.delete(listener);
+		};
+	}
+
+	setOwnedInput(owned: boolean): void {
+		const core = this.core;
+		if (!core) return;
+		this.ownedInput = owned;
+		core.feed(
+			new TextEncoder().encode(
+				owned ? "\x1b]7000;v=1;input-ready=1\x07" : "\x1b]7000;v=1;input-released=1\x07",
+			),
+		);
 	}
 
 	waitForPaint(): Promise<number> {
@@ -106,7 +127,7 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	dispatchPrintableKey(data: string): void {
 		this.assertReady();
-		this.editorPaintPending = true;
+		this.editorPaintPending = this.ownedInput;
 		this.editorTextBefore = this.editorRoot?.textContent ?? "";
 		this.editorRoot?.dispatchEvent(new KeyboardEvent("keydown", { key: data, bubbles: true }));
 	}
@@ -126,6 +147,8 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		this.editor = undefined;
 		this.editorRoot = undefined;
 		this.editorPaintPending = false;
+		this.ownedInput = false;
+		this.inputListeners.clear();
 	}
 
 	get kind(): RendererKind {

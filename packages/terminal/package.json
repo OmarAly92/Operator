@@ -15,7 +15,8 @@
 		"smoke:tauri": "node ./scripts/smoke-tauri.mjs",
 		"bench:terminal": "node ./bench/runner.mjs",
 		"bench:scroll": "node ./bench/scroll-gate.mjs",
-		"bench:baseline": "node ./bench/runner.mjs"
+		"bench:baseline": "node ./bench/runner.mjs",
+		"bench:gate": "node ./bench/gate.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.60.0",
