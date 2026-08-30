@@ -94,8 +94,14 @@ async function verifyWorkloads(result, names) {
 		if (measured.workloadDigest !== WORKLOAD_METADATA[name].workloadDigest) {
 			throw new Error(`${name} workload digest changed`);
 		}
-		if (measured.configuration.warmups !== 3 || measured.samples.length !== 10) {
-			throw new Error(`${name} must contain 3 warmups and 10 samples`);
+		const expected = scenarios[name];
+		if (
+			measured.configuration.warmups !== expected.warmups ||
+			measured.samples.length !== expected.samples
+		) {
+			throw new Error(
+				`${name} must contain ${expected.warmups} warmups and ${expected.samples} samples`,
+			);
 		}
 	}
 }

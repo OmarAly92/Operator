@@ -181,7 +181,7 @@ export function validateBenchmark(result) {
 		}
 		validateConfiguration(name, scenario.configuration);
 		if (!Array.isArray(scenario.samples) || scenario.samples.length !== scenarios[name].samples) {
-			throw new Error(`${name} must contain exactly 10 measured samples`);
+			throw new Error(`${name} must contain exactly ${scenarios[name].samples} measured samples`);
 		}
 		const summary = summarizeSamples(scenario.samples);
 		if (scenario.median !== summary.median || scenario.p95 !== summary.p95) {
