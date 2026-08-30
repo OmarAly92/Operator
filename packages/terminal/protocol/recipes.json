@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "shells": {
+    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; exec zsh"] },
+    "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "source {{script}}; exec bash"] },
+    "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
+  },
+  "env": {
+    "auto":         { "OPERATOR_TERMINAL_INTEGRATION": "auto" },
+    "osc133-only":  { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" },
+    "off":          { "OPERATOR_TERMINAL_INTEGRATION": "off" }
+  }
+}
