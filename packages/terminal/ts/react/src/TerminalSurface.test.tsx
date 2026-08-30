@@ -53,6 +53,29 @@ function flushRepaint(): Promise<void> {
 	});
 }
 
+function renderSurface(overrides: { onGeometry?: (columns: number, rows: number) => void } = {}) {
+	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+	const result = render(
+		<TerminalSurface
+			core={core}
+			theme={theme}
+			font={font}
+			altScreenActive={false}
+			onSend={ignoreSend}
+			onSendRaw={ignoreRaw}
+			onGeometry={overrides.onGeometry}
+		/>,
+	);
+	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+	return { core, host, ...result };
+}
+
+function setHostSize(host: HTMLElement, width: number, height: number): void {
+	Object.defineProperty(host, "clientWidth", { value: width, configurable: true });
+	Object.defineProperty(host, "clientHeight", { value: height, configurable: true });
+	host.dispatchEvent(new Event("resize"));
+}
+
 describe("TerminalSurface", () => {
 	beforeAll(loadWasm);
 	afterEach(() => {
@@ -228,5 +251,23 @@ describe("TerminalSurface", () => {
 		fireEvent.click(container.querySelector<HTMLButtonElement>("[data-action='rerun']")!);
 		expect(container.querySelector(".terminal-editor-line")?.textContent).toContain("git status");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("resizes the core to the measured geometry", () => {
+		const { core, host } = renderSurface();
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 1000, 500);
+		expect(resize).toHaveBeenCalled();
+		const [columns, rows] = resize.mock.calls.at(-1)!;
+		expect(columns).toBeGreaterThan(0);
+		expect(rows).toBeGreaterThan(0);
+	});
+
+	it("does not resize when the measured geometry has not changed", () => {
+		const { core, host } = renderSurface();
+		setHostSize(host, 1000, 500);
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 1000, 500);
+		expect(resize).not.toHaveBeenCalled();
 	});
 });

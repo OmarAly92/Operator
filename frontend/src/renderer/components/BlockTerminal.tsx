@@ -160,6 +160,9 @@ export function BlockTerminal({
 	const onSendRaw = useCallback((data: string) => {
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
+	const onGeometry = useCallback((columns: number, rows: number) => {
+		transportRef.current.resize?.(columns, rows);
+	}, []);
 
 	useEffect(() => {
 		if (!core) return;
@@ -377,6 +380,7 @@ export function BlockTerminal({
 		strings,
 		onSend,
 		onSendRaw,
+		onGeometry,
 	};
 
 	return (

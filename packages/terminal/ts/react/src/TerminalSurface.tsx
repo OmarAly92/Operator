@@ -23,6 +23,7 @@ export interface TerminalSurfaceProps {
 	strings?: TerminalStrings;
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
+	onGeometry?: (columns: number, rows: number) => void;
 }
 
 export function TerminalSurface({
@@ -36,6 +37,7 @@ export function TerminalSurface({
 	strings = defaultStrings,
 	onSend,
 	onSendRaw,
+	onGeometry,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +97,41 @@ export function TerminalSurface({
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);
 	}, [strings]);
+
+	useLayoutEffect(() => {
+		const blockHost = hostRef.current;
+		const renderer = rendererRef.current;
+		if (!blockHost || !renderer) {
+			return;
+		}
+		let lastColumns = 0;
+		let lastRows = 0;
+		const apply = () => {
+			if (blockHost.clientWidth <= 0 || blockHost.clientHeight <= 0) {
+				return;
+			}
+			const { cellWidth, cellHeight } = renderer.measure();
+			if (cellWidth <= 0 || cellHeight <= 0) {
+				return;
+			}
+			const columns = Math.max(1, Math.floor(blockHost.clientWidth / cellWidth));
+			const rows = Math.max(1, Math.floor(blockHost.clientHeight / cellHeight));
+			if (columns === lastColumns && rows === lastRows) {
+				return;
+			}
+			lastColumns = columns;
+			lastRows = rows;
+			core.resize(columns, rows);
+			onGeometry?.(columns, rows);
+		};
+		apply();
+		if (typeof ResizeObserver !== "function") {
+			return;
+		}
+		const observer = new ResizeObserver(apply);
+		observer.observe(blockHost);
+		return () => observer.disconnect();
+	}, [core, onGeometry]);
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (

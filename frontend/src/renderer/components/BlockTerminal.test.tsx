@@ -110,6 +110,7 @@ vi.mock("@operator/terminal-react", () => {
 			strings?: Record<string, string>;
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
+			onGeometry?: (columns: number, rows: number) => void;
 		}) => {
 			mockState.altScreenActive = props.altScreenActive;
 			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
@@ -117,6 +118,7 @@ vi.mock("@operator/terminal-react", () => {
 			if (props.strings) mockState.strings = props.strings;
 			mockState.onSend = props.onSend;
 			mockState.onSendRaw = props.onSendRaw;
+			props.onGeometry?.(80, 24);
 			return <MockSurface altScreenActive={props.altScreenActive} altScreenSurface={props.altScreenSurface} />;
 		},
 		warpDarkTheme: {
@@ -327,5 +329,16 @@ describe("BlockTerminal", () => {
 		);
 		emit("\x1b]133;A\x07\x1b]7000;v=1;id=block-1;cmd=git%20log\x07\x1b]133;C\x07commit abc\n\x1b]133;D;0\x07");
 		await waitFor(() => expect(screen.getAllByText(/git log/)).toHaveLength(1));
+	});
+
+	it("tells the transport its size so the pty matches the pane", async () => {
+		const resize = vi.fn();
+		const { transport } = harness();
+		const merged = { ...transport, resize };
+		render(<BlockTerminal transport={merged} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() => expect(resize).toHaveBeenCalled());
+		const [cols, rows] = resize.mock.calls.at(-1)!;
+		expect(cols).toBeGreaterThan(0);
+		expect(rows).toBeGreaterThan(0);
 	});
 });
