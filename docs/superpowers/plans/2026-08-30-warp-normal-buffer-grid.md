@@ -1,0 +1,912 @@
+# Normal-Buffer Screen Grid Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Give `vt-core`'s normal buffer a real cursor-addressable screen, so an inline TUI that redraws with cursor-up overwrites its previous frame instead of appending a new copy of it to scrollback.
+
+**Architecture:** Port Warp's two-tier storage. A fixed `rows × cols` **screen** holds every row the cursor can still reach; an append-only **scrollback** (`Content` + `RowIndex` + `AttributeMap`) holds rows that have scrolled off the top and can never be addressed again. A row index below `scrollback.len()` resolves to scrollback, at or above it to the screen — Warp's `storage_row()`/`StorageRow` split. `AltGrid` already implements every sequence the screen needs, so it is generalised into `ScreenGrid` and used for both buffers; the only difference between them is what happens to a row evicted off the top (the normal buffer commits it to scrollback, the alternate buffer discards it — which is what "the alternate buffer has no scrollback" means).
+
+**Tech Stack:** Rust (`vt-core`, `vt-wasm`), `vte` parser, wasm-bindgen, TypeScript (`ts/core`, `ts/renderer-dom`), vitest, cargo test.
+
+**Spec:** `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` (§6.2 cell storage, §6.3 blockgrid, §11 alt screen)
+
+## Why this plan exists
+
+Measured on 2026-08-30, against `8440751e6`:
+
+- Feeding `"alpha\r\nbravo\r\ncharlie\r\n"` then `ESC[2A CR "REWRITTEN" ESC[K` produces **five** rows (`alpha`, `bravo`, `charlie`, `REWRITTEN`, empty). A real terminal produces three, with `bravo` replaced. The cursor-up is discarded and the text appended.
+- `parser.rs:296` `csi_dispatch` handles `m` and `?1` and then delegates to `alt` **only if the alternate grid exists**. In the normal buffer `CSI A/B/C/D/H/G/d/J/K/L/M/@/P/X/S/T/r` are all dropped.
+- Claude Code redraws with CUU + CR + EL continuously (5 CUU in 7 idle seconds, measured identically at 12 and 100 columns), emits **no OSC 133 marks**, and **never enters the alternate screen** (no `?1049` in the capture at all). Every redraw frame is therefore appended to one ever-growing block.
+- Replaying 30 real captured frames produced **841 rows where a real terminal shows 28** — ~30× scrollback inflation. Scrolling back shows stale duplicate frames instead of history.
+
+The scroll container itself is healthy: an identical Chromium harness run against `695223617` (before the colour/width/UTF-8 fixes) and against `8440751e6` holds `scrollTop` at 0 and at 200 in both. There is no scrolling regression to find — the scrollback is full of redraw garbage.
+
+## Global Constraints
+
+- **No code comments.** The user's global instruction. Doc comments (`///`) explaining *why* a structure exists are the existing house style in `vt-core` and are kept; inline `//` narration is not.
+- **`no_std`-friendly, zero WASM-specific code in `vt-core`** (spec §6.1). WASM lives in `vt-wasm`.
+- **Never materialise a JS object per cell** (spec §6.2). The renderer reads typed-array slices; snapshots stay `(offset, value)` pair arrays.
+- **The alternate buffer has no scrollback** (spec §11). Synthesising one is a bug.
+- **`XtermTerminal.tsx` stays present and reachable behind the host flag.** Its deletion is Phase 7.
+- **The §11 shred rule:** blocks recorded before entering the alternate screen must be byte-identical after leaving it.
+- `MAX_DIMENSION` is 1000; all grid dimensions clamp to `1..=1000`.
+- Rust toolchain is pinned: `rustc 1.96.0`, `wasm-bindgen 0.2.127`, target `wasm32-unknown-unknown`.
+- After any Rust change, `npm run build:wasm` then `npm run build:ts` before running TypeScript tests. `npm test` runs `build:wasm` but **not** `build:ts`; stale `ts/core/dist` silently produces green tests against an old core.
+
+## File Structure
+
+| File | Responsibility after this plan |
+|---|---|
+| `crates/vt-core/src/screen.rs` | **Create.** `ScreenGrid` — the fixed `rows × cols` cursor-addressable grid. Moved from `alt/mod.rs`, with `EvictionPolicy` added. |
+| `crates/vt-core/src/screen/{dispatch,edit,scroll,snapshot}.rs` | **Move** from `crates/vt-core/src/alt/`. Unchanged logic. |
+| `crates/vt-core/src/alt.rs` | **Shrink** to a re-export shim so `alt::AltGrid`, `alt::AltSnapshot`, `alt::Cell`, `alt::MAX_DIMENSION` keep resolving. |
+| `crates/vt-core/src/parser.rs` | Owns `screen: ScreenGrid` for the normal buffer plus `alt: Option<ScreenGrid>`. Routes every CSI/ESC to the active screen. Commits evicted rows to scrollback. |
+| `crates/vt-core/src/row_index.rs` | Unchanged. Still the immutable scrollback index. |
+| `crates/vt-core/src/content.rs` | Unchanged. Still append-only. |
+| `crates/vt-core/src/block_grid.rs` | Open block's `row_count` derived from the unified row total instead of accumulated by `note_row_completed`. |
+| `crates/vt-core/src/grid.rs` | `build_snapshot` emits scrollback rows followed by screen rows as one contiguous row list. |
+| `crates/vt-core/tests/screen_normal.rs` | **Create.** Cursor addressing in the normal buffer. |
+| `crates/vt-core/tests/redraw_conformance.rs` | **Create.** Replays a captured agent-CLI redraw and pins the row count. |
+
+`AltGrid` keeps its name as an alias so the ~40 existing call sites and `alt_conformance.rs` / `alt_grid.rs` / `alt_routing.rs` do not churn in the same commit as a behaviour change.
+
+---
+
+### Task 1: Extract `ScreenGrid` from `AltGrid` with no behaviour change
+
+A pure move. The alternate screen must behave identically afterwards, which the existing suite already pins.
+
+**Files:**
+- Create: `crates/vt-core/src/screen.rs` (moved from `crates/vt-core/src/alt/mod.rs`)
+- Create: `crates/vt-core/src/screen/dispatch.rs`, `screen/edit.rs`, `screen/scroll.rs`, `screen/snapshot.rs` (moved from `alt/`)
+- Create: `crates/vt-core/src/alt.rs` (re-export shim)
+- Delete: `crates/vt-core/src/alt/` directory and `crates/vt-core/src/alt_screen.rs`'s stale doc reference
+- Modify: `crates/vt-core/src/lib.rs` (add `mod screen;`)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `pub struct ScreenGrid` with exactly today's `AltGrid` API — `new(rows, cols)`, `rows()`, `cols()`, `cursor()`, `cursor_visible()`, `set_cursor_visible(bool)`, `cell(row, col) -> Cell`, `move_to(usize, usize)`, `move_by(isize, isize)`, `carriage_return()`, `tab()`, `save_cursor()`, `restore_cursor()`, `print(char, StyleCode)`, `row_text(usize) -> String`, `reset()`, `resize(rows, cols)`, `csi(&Params, &[u8], char)`, `esc(u8)`, plus the `edit.rs` and `scroll.rs` methods. `pub type AltGrid = ScreenGrid;` and `pub use screen::{Cell, MAX_DIMENSION};` in `alt.rs`.
+
+- [ ] **Step 1: Move the files**
+
+```bash
+cd packages/terminal/crates/vt-core/src
+mkdir screen
+git mv alt/dispatch.rs screen/dispatch.rs
+git mv alt/edit.rs screen/edit.rs
+git mv alt/scroll.rs screen/scroll.rs
+git mv alt/snapshot.rs screen/snapshot.rs
+git mv alt/mod.rs screen.rs
+```
+
+- [ ] **Step 2: Rename the type inside the moved files**
+
+In `screen.rs`, `screen/dispatch.rs`, `screen/edit.rs`, `screen/scroll.rs`, `screen/snapshot.rs`, replace `AltGrid` with `ScreenGrid` and `crate::alt::` with `crate::screen::`. In `screen.rs` the module declarations become:
+
+```rust
+mod dispatch;
+mod edit;
+mod scroll;
+mod snapshot;
+
+pub use snapshot::AltSnapshot;
+```
+
+- [ ] **Step 3: Write the re-export shim**
+
+Create `crates/vt-core/src/alt.rs`:
+
+```rust
+pub use crate::screen::{AltSnapshot, Cell, MAX_DIMENSION, ScreenGrid as AltGrid};
+```
+
+- [ ] **Step 4: Register the module**
+
+In `crates/vt-core/src/lib.rs`, alongside the existing `mod alt;`, add:
+
+```rust
+mod screen;
+```
+
+- [ ] **Step 5: Verify the move changed nothing**
+
+Run: `cargo test -p vt-core`
+Expected: PASS, with `alt_conformance`, `alt_grid` and `alt_routing` all green and no test edited.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A packages/terminal/crates/vt-core/src
+git commit -m "refactor(terminal): extract ScreenGrid from AltGrid with no behaviour change"
+```
+
+---
+
+### Task 2: Give `ScreenGrid` an eviction hook
+
+`scroll_up` is the single point where a row leaves the top of the screen. Today it is overwritten and lost — correct for the alternate buffer, wrong for the normal one. The hook reports the evicted row so the caller can decide.
+
+Only a scroll of the **whole** screen evicts. A scroll region (`DECSTBM` with `scroll_top > 0`) moves rows within the region and pushes nothing to scrollback, which is what every real terminal does and what `less` depends on.
+
+**Files:**
+- Modify: `crates/vt-core/src/screen.rs`
+- Modify: `crates/vt-core/src/screen/scroll.rs:15-31`
+- Test: `crates/vt-core/tests/screen_eviction.rs` (create)
+
+**Interfaces:**
+- Consumes: `ScreenGrid` from Task 1.
+- Produces: `ScreenGrid::take_evicted(&mut self) -> Vec<Vec<Cell>>` draining rows evicted since the last call, oldest first. `ScreenGrid::set_records_eviction(&mut self, on: bool)` — off by default, so the alternate buffer keeps discarding.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `crates/vt-core/tests/screen_eviction.rs`:
+
+```rust
+use vt_core::testing::ScreenGrid;
+
+#[test]
+fn full_screen_scroll_reports_the_evicted_row() {
+    let mut screen = ScreenGrid::new(3, 10);
+    screen.set_records_eviction(true);
+    for ch in "top".chars() {
+        screen.print(ch, Default::default());
+    }
+    screen.scroll_up(1);
+    let evicted = screen.take_evicted();
+    assert_eq!(evicted.len(), 1);
+    let text: String = evicted[0].iter().map(|cell| cell.ch).collect();
+    assert_eq!(text.trim_end(), "top");
+}
+
+#[test]
+fn a_scroll_region_evicts_nothing() {
+    let mut screen = ScreenGrid::new(5, 10);
+    screen.set_records_eviction(true);
+    screen.set_scroll_region(1, 3);
+    screen.scroll_up(1);
+    assert!(screen.take_evicted().is_empty());
+}
+
+#[test]
+fn eviction_is_off_by_default() {
+    let mut screen = ScreenGrid::new(3, 10);
+    screen.scroll_up(1);
+    assert!(screen.take_evicted().is_empty());
+}
+
+#[test]
+fn take_evicted_drains() {
+    let mut screen = ScreenGrid::new(2, 10);
+    screen.set_records_eviction(true);
+    screen.scroll_up(1);
+    assert_eq!(screen.take_evicted().len(), 1);
+    assert!(screen.take_evicted().is_empty());
+}
+```
+
+Add to `crates/vt-core/src/lib.rs` so the test can reach the type:
+
+```rust
+pub mod testing {
+    pub use crate::screen::{Cell, ScreenGrid};
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test screen_eviction`
+Expected: FAIL — `no method named set_records_eviction`.
+
+- [ ] **Step 3: Implement**
+
+In `crates/vt-core/src/screen.rs`, add to the struct and `new`:
+
+```rust
+pub struct ScreenGrid {
+    rows: usize,
+    cols: usize,
+    cells: Vec<Cell>,
+    row: usize,
+    col: usize,
+    cursor_visible: bool,
+    pending_wrap: bool,
+    saved: Option<(usize, usize)>,
+    pub(crate) scroll_top: usize,
+    pub(crate) scroll_bottom: usize,
+    records_eviction: bool,
+    evicted: Vec<Vec<Cell>>,
+}
+```
+
+with `records_eviction: false` and `evicted: Vec::new()` in `new`, and:
+
+```rust
+pub fn set_records_eviction(&mut self, on: bool) {
+    self.records_eviction = on;
+}
+
+pub fn take_evicted(&mut self) -> Vec<Vec<Cell>> {
+    std::mem::take(&mut self.evicted)
+}
+
+fn record_eviction(&mut self, row: usize) {
+    if !self.records_eviction || self.scroll_top != 0 {
+        return;
+    }
+    let start = row * self.cols;
+    self.evicted.push(self.cells[start..start + self.cols].to_vec());
+}
+```
+
+In `crates/vt-core/src/screen/scroll.rs`, `scroll_up` records before overwriting:
+
+```rust
+pub fn scroll_up(&mut self, count: usize) {
+    if count == 0 {
+        return;
+    }
+    let span = self.scroll_bottom - self.scroll_top + 1;
+    if count >= span {
+        for r in self.scroll_top..=self.scroll_bottom {
+            self.record_eviction(r);
+        }
+        for r in self.scroll_top..=self.scroll_bottom {
+            self.blank_row(r);
+        }
+        return;
+    }
+    for r in self.scroll_top..(self.scroll_top + count) {
+        self.record_eviction(r);
+    }
+    for r in self.scroll_top..=(self.scroll_bottom - count) {
+        self.copy_row(r + count, r);
+    }
+    for r in (self.scroll_bottom + 1 - count)..=self.scroll_bottom {
+        self.blank_row(r);
+    }
+}
+```
+
+`record_eviction` is `pub(crate)` on the `ScreenGrid` impl in `screen.rs`; `scroll.rs` is the same crate so it resolves.
+
+- [ ] **Step 4: Run tests**
+
+Run: `cargo test -p vt-core`
+Expected: PASS, all four new tests plus the untouched alt suite.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "feat(terminal): let a screen report the rows it scrolls off the top"
+```
+
+---
+
+### Task 3: Commit evicted rows into scrollback
+
+The bridge between the two tiers. A row of `Cell`s becomes bytes in `Content`, a range in `RowIndex`, and style runs in `AttributeMap` — exactly what a row written by today's `print` path already becomes.
+
+Trailing blanks are trimmed. A terminal row is `cols` cells wide whether or not anything was written to the tail, and storing 100 spaces per row would both bloat scrollback and change `row_text` for every existing test.
+
+**Files:**
+- Modify: `crates/vt-core/src/parser.rs`
+- Test: `crates/vt-core/tests/screen_commit.rs` (create)
+
+**Interfaces:**
+- Consumes: `ScreenGrid::take_evicted` from Task 2.
+- Produces: `Parser::commit_evicted(&mut self)` — private; drains the active screen's evicted rows into `content`/`rows`/`styles`. Called after every `feed` chunk is parsed.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `crates/vt-core/tests/screen_commit.rs`:
+
+```rust
+use vt_core::TerminalCore;
+
+#[test]
+fn rows_scrolled_off_a_three_row_screen_reach_scrollback() {
+    let mut core = TerminalCore::new(20, 100).unwrap();
+    core.resize(20, 3);
+    core.feed(b"one\r\ntwo\r\nthree\r\nfour\r\n");
+    let snapshot = core.snapshot().unwrap();
+    let text: Vec<String> = (0..snapshot.row_count())
+        .map(|i| snapshot.row_text(i).trim_end().to_string())
+        .collect();
+    assert!(text.contains(&"one".to_string()), "got {text:?}");
+    assert!(text.contains(&"four".to_string()), "got {text:?}");
+}
+
+#[test]
+fn committed_rows_keep_their_style() {
+    let mut core = TerminalCore::new(20, 100).unwrap();
+    core.resize(20, 2);
+    core.feed(b"\x1b[31mred\x1b[0m\r\nb\r\nc\r\n");
+    let snapshot = core.snapshot().unwrap();
+    let row = (0..snapshot.row_count())
+        .find(|i| snapshot.row_text(*i).trim_end() == "red")
+        .expect("the red row reached scrollback");
+    let pairs = snapshot.row_style_pairs(row);
+    assert!(
+        pairs.iter().any(|(_, style)| style.colour() == vt_core::StyleCode::ansi(1)),
+        "expected ansi 1 in {pairs:?}",
+    );
+}
+
+#[test]
+fn trailing_blanks_are_trimmed() {
+    let mut core = TerminalCore::new(40, 100).unwrap();
+    core.resize(40, 2);
+    core.feed(b"hi\r\nb\r\nc\r\n");
+    let snapshot = core.snapshot().unwrap();
+    let row = (0..snapshot.row_count())
+        .find(|i| snapshot.row_text(*i).starts_with("hi"))
+        .expect("the hi row reached scrollback");
+    assert_eq!(snapshot.row_text(row), "hi");
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test screen_commit`
+Expected: FAIL — `core.resize(20, 3)` does not bound the normal buffer yet, so nothing is ever evicted and `row_text` still holds the append-only output.
+
+- [ ] **Step 3: Implement**
+
+In `crates/vt-core/src/parser.rs`:
+
+```rust
+fn commit_evicted(&mut self) {
+    let evicted = match self.alt.as_mut() {
+        Some(_) => return,
+        None => self.screen.take_evicted(),
+    };
+    for row in evicted {
+        let end = row.iter().rposition(|cell| cell.ch != ' ').map_or(0, |i| i + 1);
+        for cell in &row[..end] {
+            let start = self.content.end_offset();
+            let mut buffer = [0u8; 4];
+            self.content.push_char(cell.ch.encode_utf8(&mut buffer));
+            self.styles.set_range(start, self.content.end_offset(), cell.style);
+        }
+        self.content.push_char("\n");
+        self.rows.complete_row(self.content.end_offset());
+        self.grid.note_row_completed();
+    }
+}
+```
+
+The `"\n"` terminator matches what `open_new_row` already writes, so `row_text` slices identically for committed and open rows.
+
+If `AttributeMap` has no `set_range`, use the existing per-offset setter that `print` already calls — mirror the exact call `Perform::print` makes today rather than inventing an API.
+
+- [ ] **Step 4: Run tests**
+
+Run: `cargo test -p vt-core`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "feat(terminal): commit rows evicted off the screen into scrollback"
+```
+
+---
+
+### Task 4: Route printing and control sequences through the normal screen
+
+The behaviour change. `Perform::print` writes into `self.screen` instead of appending to `content`; `csi_dispatch` and `esc_dispatch` reach the screen whether or not the alternate buffer is active.
+
+**Files:**
+- Modify: `crates/vt-core/src/parser.rs:17-46` (struct and `new`), `:90-103` (`resize`, `open_new_row`), `:230-320` (`Perform`)
+- Test: `crates/vt-core/tests/screen_normal.rs` (create)
+
+**Interfaces:**
+- Consumes: `commit_evicted` from Task 3.
+- Produces: `Parser::screen(&self) -> &ScreenGrid`, `Parser::active_screen_mut(&mut self) -> &mut ScreenGrid` returning `alt` when present and `screen` otherwise.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `crates/vt-core/tests/screen_normal.rs`:
+
+```rust
+use vt_core::TerminalCore;
+
+fn rows(core: &TerminalCore) -> Vec<String> {
+    let snapshot = core.snapshot().unwrap();
+    (0..snapshot.row_count())
+        .map(|i| snapshot.row_text(i).trim_end().to_string())
+        .collect()
+}
+
+#[test]
+fn cursor_up_rewrites_in_place_instead_of_appending() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.feed(b"alpha\r\nbravo\r\ncharlie\r\n");
+    core.feed(b"\x1b[2A\rREWRITTEN\x1b[K");
+    let text = rows(&core);
+    assert_eq!(text[0], "alpha");
+    assert_eq!(text[1], "REWRITTEN");
+    assert_eq!(text[2], "charlie");
+}
+
+#[test]
+fn erase_in_line_clears_to_the_end() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.feed(b"abcdefgh\r\x1b[3C\x1b[K");
+    assert_eq!(rows(&core)[0], "abc");
+}
+
+#[test]
+fn absolute_cursor_addressing_lands_on_the_right_row() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.feed(b"one\r\ntwo\r\nthree");
+    core.feed(b"\x1b[1;1HX");
+    assert_eq!(rows(&core)[0], "Xne");
+}
+
+#[test]
+fn a_repeated_redraw_does_not_grow_the_row_count() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.feed(b"\x1b[2J\x1b[H");
+    for _ in 0..50 {
+        core.feed(b"\x1b[Hframe line one\x1b[K\r\nframe line two\x1b[K\x1b[K");
+    }
+    let count = rows(&core).len();
+    assert!(count <= 24, "50 redraws produced {count} rows");
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test screen_normal`
+Expected: FAIL — `cursor_up_rewrites_in_place_instead_of_appending` reports `text[1] == "bravo"`, and `a_repeated_redraw_does_not_grow_the_row_count` reports ~100 rows.
+
+- [ ] **Step 3: Implement**
+
+In `crates/vt-core/src/parser.rs`, add `screen: ScreenGrid` to the struct, built in `new` as `ScreenGrid::new(24, width)` with `set_records_eviction(true)`, and:
+
+```rust
+pub fn screen(&self) -> &ScreenGrid {
+    &self.screen
+}
+
+fn active_screen_mut(&mut self) -> &mut ScreenGrid {
+    match self.alt.as_mut() {
+        Some(alt) => alt,
+        None => &mut self.screen,
+    }
+}
+```
+
+`resize` sizes both:
+
+```rust
+pub fn resize(&mut self, columns: usize, rows: usize) {
+    self.width = columns;
+    self.screen.resize(rows, columns);
+    if let Some(alt) = self.alt.as_mut() {
+        alt.resize(rows, columns);
+    }
+}
+```
+
+`Perform::print` writes to the active screen:
+
+```rust
+fn print(&mut self, ch: char) {
+    let style = self.pending_style;
+    self.active_screen_mut().print(ch, style);
+}
+```
+
+`Perform::execute` routes `\r` to `carriage_return`, `\n`/`\x0b`/`\x0c` to `line_feed`, `\t` to `tab`, and `\x08` to a backspace on the active screen, replacing today's `open_new_row`/`expand_tab` calls.
+
+`csi_dispatch` keeps the SGR and `?1` handling, then always delegates:
+
+```rust
+fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+    if c == 'm' {
+        self.apply_sgr(params);
+        return;
+    }
+    if intermediates.first() == Some(&b'?')
+        && params.iter().next().and_then(|g| g.first().copied()) == Some(1)
+    {
+        match c {
+            'h' => self.app_cursor = true,
+            'l' => self.app_cursor = false,
+            _ => {}
+        }
+    }
+    self.active_screen_mut().csi(params, intermediates, c);
+}
+
+fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+    self.active_screen_mut().esc(byte);
+}
+```
+
+Call `self.commit_evicted()` at the end of `TerminalCore::feed` in `lib.rs:70`, after the parser has consumed the chunk and before `trim_to`.
+
+- [ ] **Step 4: Run tests**
+
+Run: `cargo test -p vt-core`
+Expected: the four new tests PASS. Tests in `terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs` that assert append-only row counts will fail — that is the point of Task 5, and they are fixed there, not by weakening the new tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "feat(terminal): give the normal buffer a cursor-addressable screen"
+```
+
+---
+
+### Task 5: Unify the snapshot's row space and the block row counts
+
+`build_snapshot` currently emits `rows.completed()` then the single open row. It must now emit `rows.completed()` (scrollback) followed by the screen's occupied rows. Blocks index into that unified space.
+
+The open block's `row_count` can no longer be accumulated by `note_row_completed`, because a redraw rewrites rows rather than adding them. It is derived at snapshot time.
+
+**Files:**
+- Modify: `crates/vt-core/src/grid.rs:64-96`
+- Modify: `crates/vt-core/src/block_grid.rs:68-79`
+- Modify: `crates/vt-core/tests/terminal_core.rs`, `block_contract.rs`, `blocks_from_marks.rs` (expectations only)
+
+**Interfaces:**
+- Consumes: `Parser::screen()` from Task 4.
+- Produces: `build_snapshot(content, rows, styles, grid, line_editor_state, screen, alt)` — one added `screen: &ScreenGrid` parameter before `alt`. `ScreenGrid::occupied_rows(&self) -> usize` returning the count up to and including the last row holding a non-blank cell, minimum 1.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `crates/vt-core/tests/screen_normal.rs`:
+
+```rust
+#[test]
+fn the_open_block_counts_scrollback_and_screen_rows_together() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 3);
+    core.feed(b"\x1b]133;A\x07\x1b]133;C\x07");
+    core.feed(b"one\r\ntwo\r\nthree\r\nfour\r\n");
+    let snapshot = core.snapshot().unwrap();
+    let total: usize = snapshot.blocks.iter().map(|b| b.row_count as usize).sum();
+    assert_eq!(total, snapshot.row_count());
+}
+
+#[test]
+fn a_redraw_does_not_inflate_the_open_block() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 24);
+    core.feed(b"\x1b]133;A\x07\x1b]133;C\x07");
+    for _ in 0..50 {
+        core.feed(b"\x1b[Hline\x1b[K");
+    }
+    let snapshot = core.snapshot().unwrap();
+    assert!(snapshot.blocks[0].row_count <= 24, "got {}", snapshot.blocks[0].row_count);
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test screen_normal`
+Expected: FAIL — the row totals disagree, because the snapshot still emits only the open row.
+
+- [ ] **Step 3: Implement**
+
+In `crates/vt-core/src/screen.rs`:
+
+```rust
+pub fn occupied_rows(&self) -> usize {
+    for row in (0..self.rows).rev() {
+        let start = row * self.cols;
+        if self.cells[start..start + self.cols].iter().any(|cell| cell.ch != ' ') {
+            return row + 1;
+        }
+    }
+    1
+}
+```
+
+In `crates/vt-core/src/grid.rs`, replace the single `append_row(open_start, end)` call with the screen's rows:
+
+```rust
+for row in rows.completed() {
+    append_row(&mut ctx, content, styles, row.start, row.end)?;
+}
+
+for row in 0..screen.occupied_rows() {
+    append_screen_row(&mut ctx, screen, row)?;
+}
+```
+
+`append_screen_row` pushes the row's text into `all_content`, records the `(start, end)` range, and emits one `(end_offset, StyleCode)` pair per style run, coalescing equal neighbours — the same shape `append_row` produces, so the renderer's span-per-run contract (spec §6.2) is unchanged.
+
+In `crates/vt-core/src/block_grid.rs`, `note_row_completed` stops advancing the open block's `row_count`; `build_snapshot` computes it as `row_ranges.len() - block.first_row` for the last block, and closed blocks keep the count frozen at `close_block`.
+
+- [ ] **Step 4: Update the expectations the change invalidates**
+
+In `terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs`, any assertion of the form "N lines fed produce N rows" now holds only while N is under the screen height. Give those tests an explicit `core.resize(cols, rows)` tall enough for their fixture rather than relaxing the assertion. Do not change what a test asserts about *content*; only about how many rows a bounded screen holds.
+
+- [ ] **Step 5: Run the full suite**
+
+Run: `cargo test -p vt-core`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/terminal
+git commit -m "feat(terminal): emit scrollback and screen rows as one row space"
+```
+
+---
+
+### Task 6: Preserve the alternate-screen contract
+
+Entering the alternate buffer must still freeze the block list and leave recorded blocks byte-identical (spec §11 shred rule), and the alternate buffer must still have no scrollback. Task 4 made both screens share one code path, so this is the task that proves the sharing did not leak.
+
+**Files:**
+- Modify: `crates/vt-core/src/parser.rs` (`enter_alt`, `leave_alt`)
+- Test: `crates/vt-core/tests/alt_routing.rs` (add)
+
+**Interfaces:**
+- Consumes: `active_screen_mut` from Task 4.
+- Produces: no new API.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `crates/vt-core/tests/alt_routing.rs`:
+
+```rust
+#[test]
+fn the_alternate_buffer_never_commits_to_scrollback() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 3);
+    core.feed(b"before\r\n");
+    let before = core.snapshot().unwrap().row_count();
+    core.feed(b"\x1b[?1049h");
+    for _ in 0..20 {
+        core.feed(b"tui\r\n");
+    }
+    core.feed(b"\x1b[?1049l");
+    assert_eq!(core.snapshot().unwrap().row_count(), before);
+}
+
+#[test]
+fn rows_written_before_the_alternate_screen_survive_it_byte_for_byte() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 5);
+    core.feed(b"keep me\r\n");
+    let before: Vec<String> = {
+        let s = core.snapshot().unwrap();
+        (0..s.row_count()).map(|i| s.row_text(i).to_string()).collect()
+    };
+    core.feed(b"\x1b[?1049hgarbage\x1b[2J\x1b[?1049l");
+    let after: Vec<String> = {
+        let s = core.snapshot().unwrap();
+        (0..s.row_count()).map(|i| s.row_text(i).to_string()).collect()
+    };
+    assert_eq!(before, after);
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core --test alt_routing`
+Expected: FAIL if `enter_alt` left `records_eviction` on for the alternate grid, or if the normal screen's contents were disturbed by the alternate buffer's writes.
+
+- [ ] **Step 3: Implement**
+
+`enter_alt` builds the alternate grid at the current screen's dimensions and leaves `records_eviction` false; the normal `screen` is untouched while `alt` is `Some`, so leaving simply drops the alternate grid:
+
+```rust
+pub fn enter_alt(&mut self, rows: usize) {
+    if self.alt.is_some() {
+        return;
+    }
+    let mut alt = ScreenGrid::new(rows, self.width);
+    alt.set_records_eviction(false);
+    self.alt = Some(alt);
+    self.saved_style = self.pending_style;
+    self.pending_style = StyleCode::DEFAULT;
+}
+```
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `cargo test -p vt-core`
+Expected: PASS, including the existing `alt_conformance` vectors for `vim`, `less` and `htop`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/crates/vt-core
+git commit -m "test(terminal): pin the alt-screen contract across the shared screen"
+```
+
+---
+
+### Task 7: Pin the real agent-CLI redraw as a conformance vector
+
+The bug arrived from a real program. The regression test replays that program's real bytes, in the same shape the existing `protocol/alt-vectors/` fixtures use.
+
+**Files:**
+- Create: `packages/terminal/protocol/redraw-vectors/agent-cli-idle.json`
+- Create: `crates/vt-core/tests/redraw_conformance.rs`
+
+**Interfaces:**
+- Consumes: the unified row space from Task 5.
+- Produces: no new API.
+
+- [ ] **Step 1: Record the vector**
+
+```bash
+tmux kill-session -t rec 2>/dev/null
+tmux new-session -d -s rec -x 100 -y 30 'claude'
+tmux set-option -t rec status off
+tmux pipe-pane -t rec -O 'cat >> /tmp/agent.raw'
+sleep 10
+tmux kill-session -t rec
+```
+
+Store the capture as `{"columns": 100, "rows": 30, "bytes": [ ... ]}` with the raw bytes as a decimal array, matching the existing alt-vector shape.
+
+- [ ] **Step 2: Write the failing test**
+
+Create `crates/vt-core/tests/redraw_conformance.rs`:
+
+```rust
+use vt_core::TerminalCore;
+
+#[test]
+fn thirty_replays_of_an_agent_redraw_stay_within_the_screen() {
+    let raw = include_str!("../../../protocol/redraw-vectors/agent-cli-idle.json");
+    let vector: serde_json::Value = serde_json::from_str(raw).unwrap();
+    let bytes: Vec<u8> = vector["bytes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_u64().unwrap() as u8)
+        .collect();
+
+    let mut core = TerminalCore::new(100, 5000).unwrap();
+    core.resize(100, 30);
+    for _ in 0..30 {
+        core.feed(&bytes);
+    }
+
+    let rows = core.snapshot().unwrap().row_count();
+    assert!(
+        rows < 300,
+        "30 replays produced {rows} rows; before the screen grid this was 841",
+    );
+}
+```
+
+- [ ] **Step 3: Run test to verify it fails against the old core**
+
+Run: `git stash && cargo test -p vt-core --test redraw_conformance; git stash pop`
+Expected: FAIL with ~841 rows, matching the number measured on 2026-08-30.
+
+- [ ] **Step 4: Run against the new core**
+
+Run: `cargo test -p vt-core --test redraw_conformance`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/protocol/redraw-vectors packages/terminal/crates/vt-core/tests/redraw_conformance.rs
+git commit -m "test(terminal): pin a real agent redraw against scrollback inflation"
+```
+
+---
+
+### Task 8: Rebuild the WASM boundary and verify in a browser
+
+`vt-wasm` exports the snapshot; the row space changed shape but not type, so this is a rebuild plus an end-to-end check that the renderer still paints and scrolls.
+
+**Files:**
+- Modify: `crates/vt-wasm/src/lib.rs` if `build_snapshot`'s new parameter reaches it
+- Test: `ts/renderer-dom/src/dom-block-renderer.test.ts` (add)
+
+**Interfaces:**
+- Consumes: everything above.
+- Produces: no new TypeScript API.
+
+- [ ] **Step 1: Rebuild**
+
+```bash
+cd packages/terminal
+npm run build:wasm
+npm run build:ts
+```
+
+Both are required. `npm test` runs only the first, and a stale `ts/core/dist` makes TypeScript tests pass against the old core.
+
+- [ ] **Step 2: Write the failing test**
+
+Add to `ts/renderer-dom/src/dom-block-renderer.test.ts`:
+
+```ts
+it("keeps a redrawing program inside one screen of rows", () => {
+	const { core } = mountRenderer({ columns: 80, rows: 24 });
+	const encoder = new TextEncoder();
+	for (let frame = 0; frame < 40; frame += 1) {
+		core.feed(encoder.encode("\x1b[Hstatus line\x1b[K"));
+	}
+	expect(core.snapshot().rows.length / 2).toBeLessThanOrEqual(24);
+});
+```
+
+Match `mountRenderer`'s real helper name and signature in that file rather than the placeholder above.
+
+- [ ] **Step 3: Run the suites**
+
+```bash
+cd packages/terminal && npm test
+cd ../../frontend && npm test
+```
+
+Expected: PASS. Report the actual counts; do not claim a number you did not read.
+
+- [ ] **Step 4: Verify in the real app**
+
+```bash
+npm run tauri:dev
+```
+
+Check, by running them: an agent CLI redraws in place and scrolling back reaches real history rather than duplicate frames; `vim`, `htop` and `less` still render, resize, and scroll; entering and leaving a full-screen TUI leaves one collapsed block with the prior blocks unchanged.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A packages/terminal frontend
+git commit -m "feat(terminal): rebuild the wasm boundary on the unified row space"
+```
+
+---
+
+### Task 9: Record the design in the spec
+
+The spec's §6.2 describes Warp's `flat_storage` without noting that Warp itself does not use it for cursor-addressable rows. That omission is what let Phase 3 ship an append-only normal buffer.
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` §6.2, §11, and the Phase 3 entry in §14
+
+- [ ] **Step 1: Amend §6.2**
+
+Record that `FlatStorage` is Warp's **scrollback** tier and its own doc comment rules out `Insert`, being suited to "grids that are immutable, or the portion of a grid that cannot be accessed via the cursor"; that the cursor-addressable rows live in `GridStorage`, a mutable circular buffer of `Row`s; and that `grid_handler.rs`'s `storage_row()` resolves a row index across the two by comparing against `flat_storage.total_rows()`. Cite `flat_storage/mod.rs:11-17` and `grid_handler.rs:2399-2409`.
+
+- [ ] **Step 2: Amend §11**
+
+State that cursor addressing, scroll regions, erase and line editing apply to **both** buffers, since both are `ScreenGrid`, and that the only difference is eviction policy. Note that Warp models the same distinction as `FullGridClearBehavior::{Clear, Scroll}` (`grid_handler.rs:405`).
+
+- [ ] **Step 3: Correct the Phase 3 record in §14**
+
+Note that the accept criterion "an agent CLI (Claude Code) runs end to end in the package's own surface" was signed off on the assumption that Claude Code drives the alternate screen, that a capture on 2026-08-30 showed it emits no `?1049` and no OSC 133 and redraws inline with CUU, and that this plan closes the gap.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md
+git commit -m "spec: record the two-tier storage the normal buffer needs"
+```
+
+---
+
+## Self-Review
+
+**Spec coverage.** §6.2 storage shape — Tasks 3 and 5 keep `Content`/`AttributeMap`/`RowIndex` as the scrollback tier and preserve the run-per-span export. §6.3 blockgrid — Task 5. §11 alt screen — Task 6. The §11 shred rule and "no scrollback in the alternate buffer" both get named tests. Phase 3's accept criteria are re-verified in Task 8 Step 4. §6.1's "no WASM-specific code in `vt-core`" holds: nothing added here is WASM-aware.
+
+**Placeholders.** Two steps deliberately point at the real code instead of quoting it — Task 3 Step 3's `AttributeMap` setter and Task 8 Step 2's `mountRenderer` helper — because inventing a signature that does not match would be worse than telling the implementer to read the neighbouring call. Both name the exact call site to copy. Task 7 Step 1 records a fresh capture rather than embedding several KB of bytes.
+
+**Type consistency.** `ScreenGrid` is the type throughout; `AltGrid` is an alias declared in Task 1 and used unchanged by existing tests. `take_evicted`/`set_records_eviction`/`record_eviction` (Task 2) are consumed under those names in Tasks 3 and 6. `occupied_rows` (Task 5) is defined before its use in `build_snapshot`. `commit_evicted` (Task 3) is called from `feed` in Task 4.
+
+**Ordering risk.** Task 4 knowingly leaves three test files red until Task 5 fixes their expectations. That is called out in Task 4 Step 4 so an executor does not "fix" it by weakening the new tests. Tasks 4 and 5 must land together before any release build.
