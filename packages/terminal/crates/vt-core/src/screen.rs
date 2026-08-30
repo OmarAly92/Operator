@@ -17,17 +17,59 @@ pub enum ClearPolicy {
     ClearInPlace,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The byte cap on one cell's accumulated grapheme, matching Warp's
+/// `MAX_GRAPHEME_BYTES` (`grid/cell.rs:33`). A cell that reaches it silently
+/// drops further zero-width scalars rather than growing without bound.
+pub const MAX_GRAPHEME_BYTES: usize = 256;
+
+/// A grid cell. `extra` carries the base scalar followed by every zero-width
+/// scalar attached to it, held together so a read never has to join them --
+/// the shape of Warp's `CellExtra::cell_with_zero_width` (`grid/cell.rs:114`).
+/// It is boxed so the common cell stays two words.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
     pub style: StyleCode,
+    extra: Option<Box<String>>,
 }
 
 impl Cell {
     pub const BLANK: Self = Self {
         ch: ' ',
         style: StyleCode::DEFAULT,
+        extra: None,
     };
+
+    pub const fn new(ch: char, style: StyleCode) -> Self {
+        Self {
+            ch,
+            style,
+            extra: None,
+        }
+    }
+
+    pub fn text<'a>(&'a self, buffer: &'a mut [u8; 4]) -> &'a str {
+        match self.extra.as_deref() {
+            Some(text) => text,
+            None => self.ch.encode_utf8(buffer),
+        }
+    }
+
+    pub fn is_blank(&self) -> bool {
+        matches!(self.ch, ' ' | '\0') && self.extra.is_none()
+    }
+
+    pub(crate) fn push_zerowidth(&mut self, ch: char) {
+        match self.extra.as_deref_mut() {
+            Some(text) => {
+                if text.len() + ch.len_utf8() > MAX_GRAPHEME_BYTES {
+                    return;
+                }
+                text.push(ch);
+            }
+            None => self.extra = Some(Box::new(format!("{}{}", self.ch, ch))),
+        }
+    }
 }
 
 pub struct ScreenGrid {
@@ -132,7 +174,14 @@ impl ScreenGrid {
         if row >= self.rows || col >= self.cols {
             return Cell::BLANK;
         }
-        self.cells[row * self.cols + col]
+        self.cells[row * self.cols + col].clone()
+    }
+
+    pub(crate) fn cell_ref(&self, row: usize, col: usize) -> Option<&Cell> {
+        if row >= self.rows || col >= self.cols {
+            return None;
+        }
+        self.cells.get(row * self.cols + col)
     }
 
     pub(crate) fn set(&mut self, row: usize, col: usize, cell: Cell) {
@@ -199,6 +248,7 @@ impl ScreenGrid {
     pub fn print(&mut self, ch: char, style: StyleCode) {
         let width = UnicodeWidthChar::width(ch).unwrap_or(0);
         if width == 0 {
+            self.attach_zerowidth(ch);
             return;
         }
         if self.pending_wrap || self.col + width > self.cols {
@@ -206,9 +256,9 @@ impl ScreenGrid {
             self.line_feed();
         }
         self.max_cursor_row = self.max_cursor_row.max(self.row);
-        self.set(self.row, self.col, Cell { ch, style });
+        self.set(self.row, self.col, Cell::new(ch, style));
         for offset in 1..width {
-            self.set(self.row, self.col + offset, Cell { ch: '\0', style });
+            self.set(self.row, self.col + offset, Cell::new('\0', style));
         }
         self.col += width;
         if self.col >= self.cols {
@@ -217,11 +267,40 @@ impl ScreenGrid {
         }
     }
 
+    /// Attaches a zero-width scalar to the cell that owns it. Warp resolves the
+    /// same target at `grid/ansi_handler.rs:201-215`: the column before the
+    /// cursor unless a wrap is pending, stepping back once more off a
+    /// wide-character spacer so the scalar lands on the base cell.
+    fn attach_zerowidth(&mut self, ch: char) {
+        let mut col = self.col;
+        if !self.pending_wrap {
+            col = col.saturating_sub(1);
+        }
+        if self.cell_ref(self.row, col).is_some_and(|cell| cell.ch == '\0') {
+            col = col.saturating_sub(1);
+        }
+        let row = self.row;
+        self.max_cursor_row = self.max_cursor_row.max(row);
+        if row >= self.rows || col >= self.cols {
+            return;
+        }
+        let index = row * self.cols + col;
+        self.cells[index].push_zerowidth(ch);
+    }
+
     pub fn row_text(&self, row: usize) -> String {
-        (0..self.cols)
-            .map(|col| self.cell(row, col).ch)
-            .filter(|ch| *ch != '\0')
-            .collect()
+        let mut out = String::new();
+        let mut buffer = [0u8; 4];
+        for col in 0..self.cols {
+            let Some(cell) = self.cell_ref(row, col) else {
+                continue;
+            };
+            if cell.ch == '\0' {
+                continue;
+            }
+            out.push_str(cell.text(&mut buffer));
+        }
+        out
     }
 
     pub fn reset(&mut self) {
@@ -257,7 +336,7 @@ impl ScreenGrid {
         let mut next = vec![Cell::BLANK; rows * cols];
         for row in 0..rows.min(self.rows) {
             for col in 0..cols.min(self.cols) {
-                next[row * cols + col] = self.cells[row * self.cols + col];
+                next[row * cols + col] = self.cells[row * self.cols + col].clone();
             }
         }
         self.cells = next;

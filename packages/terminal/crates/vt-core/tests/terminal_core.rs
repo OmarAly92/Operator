@@ -17,12 +17,12 @@ fn parses_utf8_crlf_wrap_and_sgr_into_flat_runs() {
 }
 
 #[test]
-fn hard_wraps_wide_text_and_drops_zero_width_scalars() {
+fn hard_wraps_wide_and_combining_text_without_splitting_utf8() {
     let mut core = TerminalCore::new(4, 100).unwrap();
     core.feed("A界e\u{301}B".as_bytes());
     let snapshot = core.snapshot().unwrap();
 
-    assert_eq!(snapshot.row_text(0), "A界e");
+    assert_eq!(snapshot.row_text(0), "A界e\u{301}");
     assert_eq!(snapshot.row_text(1), "B");
 }
 

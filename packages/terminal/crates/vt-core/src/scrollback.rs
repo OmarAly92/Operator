@@ -12,7 +12,7 @@ pub(crate) fn commit_row(
 ) {
     let width = cells
         .iter()
-        .rposition(|cell| !matches!(cell.ch, ' ' | '\0'))
+        .rposition(|cell| !cell.is_blank())
         .map_or(0, |index| index + 1);
     for cell in &cells[..width] {
         if cell.ch == '\0' {
@@ -20,7 +20,7 @@ pub(crate) fn commit_row(
         }
         styles.set_from(content.end_offset(), cell.style);
         let mut buffer = [0u8; 4];
-        content.push_char(cell.ch.encode_utf8(&mut buffer));
+        content.push_char(cell.text(&mut buffer));
     }
     rows.complete_row(content.end_offset());
 }
@@ -37,10 +37,7 @@ mod tests {
     fn row(text: &str, width: usize) -> Vec<Cell> {
         let mut cells = vec![Cell::BLANK; width];
         for (index, ch) in text.chars().enumerate() {
-            cells[index] = Cell {
-                ch,
-                style: StyleCode::DEFAULT,
-            };
+            cells[index] = Cell::new(ch, StyleCode::DEFAULT);
         }
         cells
     }

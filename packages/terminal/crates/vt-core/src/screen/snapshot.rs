@@ -36,7 +36,7 @@ impl ScreenGrid {
                     }
                     run_style = Some(cell.style);
                 }
-                content.extend_from_slice(cell.ch.encode_utf8(&mut buffer).as_bytes());
+                content.extend_from_slice(cell.text(&mut buffer).as_bytes());
             }
             let row_end = content.len() as u32;
             if let Some(style) = run_style {

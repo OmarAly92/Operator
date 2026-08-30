@@ -481,24 +481,22 @@ a screen that does service them is to keep both tiers and route through `storage
 
 ### 6.2a Known limits
 
-Two semantic gaps that the work so far leaves open, recorded so a follow-up plan can
-pick them up without re-deriving the shape from Warp.
+One semantic change that callers must know about, and the grapheme storage that closes
+the gap the first pass left open.
 
-**Zero-width scalars are dropped on the normal buffer.** `ScreenGrid::Cell` holds a
-single `char`, so the normal buffer no longer keeps the zero-width scalars the
-append-only path carried (it allowed up to `MAX_ZERO_WIDTH_PER_CELL = 8`). Measured at
-`4ce87cfc6`: `e`+U+0301 renders as `e` (combining acute dropped), `\u{26a0}`+U+FE0F
-renders the text-presentation glyph rather than the emoji-presentation glyph (the
-variation selector is dropped), and a ZWJ family sequence renders as three separate
-people (the joiners are dropped). Skin-tone modifiers survive because they are
-non-zero-width scalars on the base code point. The alternate screen already behaved
-this way, so TUIs are unaffected; this is new for normal output. Warp does not have
-this limitation — it stores graphemes
-(`flat_storage/grapheme.rs`, `grid/grapheme_cursor.rs`), which is the shape a fix
-should take. `terminal_core.rs`'s `hard_wraps_wide_text_and_drops_zero_width_scalars`
-was renamed and its assertion changed to match; this is the one place in the plan
-where a test's content assertion was relaxed rather than repaired, and it is a
-follow-up, not a completed item.
+**Zero-width scalars are carried per cell.** `ScreenGrid::Cell` holds the base scalar
+plus an `Option<Box<String>>` that, when present, carries the base scalar followed by
+every zero-width scalar attached to it. That is the shape of Warp's
+`CellExtra::cell_with_zero_width` (`crates/warp_terminal/src/model/grid/cell.rs:114-122`):
+the accumulated grapheme is stored joined so a read never allocates to concatenate it,
+and it is boxed so the common cell stays two words. Accumulation is capped at
+`MAX_GRAPHEME_BYTES = 256`, matching Warp (`cell.rs:33`); past the cap further scalars
+are dropped rather than growing a cell without bound. The owning cell is resolved the
+way Warp resolves it (`grid/ansi_handler.rs:201-215`): the column before the cursor
+unless a wrap is pending, stepping back once more off a wide-character spacer so a mark
+lands on the base of a wide character rather than its continuation cell. A cell holding
+only a space plus marks is **not** blank, so trailing-blank trimming must test the cell
+rather than its base scalar.
 
 **`scrollback` bounds history, not history plus screen.** `createTerminalCore({
 scrollback: 5000 })` retains 5000 history rows *plus* the live screen. This matches

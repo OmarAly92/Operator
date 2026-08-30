@@ -200,7 +200,7 @@ fn append_screen_row(
     row: usize,
 ) -> Result<(), CoreError> {
     let width = (0..screen.cols())
-        .rposition(|col| screen.cell(row, col).ch != ' ')
+        .rposition(|col| !screen.cell(row, col).is_blank())
         .map_or(0, |col| col + 1);
     let content_base = checked_u32(ctx.all_content.len())?;
     let pair_start = checked_u32(ctx.style_pairs.len())?;
@@ -220,7 +220,7 @@ fn append_screen_row(
             run_style = Some(cell.style);
         }
         ctx.all_content
-            .extend_from_slice(cell.ch.encode_utf8(&mut buffer).as_bytes());
+            .extend_from_slice(cell.text(&mut buffer).as_bytes());
     }
 
     let content_end = checked_u32(ctx.all_content.len())?;
