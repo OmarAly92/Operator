@@ -1274,4 +1274,17 @@ git commit -m "spec: record the two-tier storage the normal buffer needs"
 
 **Type consistency, second pass.** `content_rows()` replaced the first draft's `occupied_rows()` everywhere (Task 4 defines it, Task 6's `ED All` arm calls it). `ClearPolicy` is defined in Task 6 and consumed in Task 7's `set_agent_tui_mode`. `set_agent_tui_mode` is defined in Task 7 and reaches TypeScript as `setAgentTuiMode` in Task 8. `max_cursor_row` is introduced in Task 4 and mutated in Task 6's `ClearInPlace` arm.
 
+**Regression accepted during execution, and it must be recorded in Task 11.** `ScreenGrid::Cell`
+holds a single `char`, so the normal buffer no longer keeps the zero-width scalars the
+append-only path carried (it allowed up to `MAX_ZERO_WIDTH_PER_CELL = 8`). Measured at
+`4ce87cfc6`: `e`+U+0301 renders `e`, `\u{26a0}`+U+FE0F renders the text-presentation
+glyph, and a ZWJ family sequence renders as three separate people. Skin-tone modifiers
+survive. The alternate screen already behaved this way, so TUIs are unaffected; this is
+new for normal output. Warp does not have this limitation — it stores graphemes
+(`flat_storage/grapheme.rs`, `grid/grapheme_cursor.rs`), which is the shape a fix should
+take. `terminal_core.rs`'s `hard_wraps_wide_text_and_drops_zero_width_scalars` was renamed
+and its assertion changed to match; that is the one place in this plan where a test's
+content assertion was relaxed rather than repaired, and it is a follow-up, not a
+completed item.
+
 **Known limits, deliberately out of scope.** Column-change reflow of existing scrollback rows is not implemented — rows already committed keep the width they were written at, which is what `flat_storage.set_columns` guards against in Warp (`resize.rs:70-77`) rather than solving. Agent panes take the no-reflow path (Task 7) so this is invisible there; a shell pane resized narrower will show rows that do not re-wrap. If that matters, it is a follow-up plan, not a task here.
