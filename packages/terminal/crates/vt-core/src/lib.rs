@@ -13,6 +13,7 @@ mod line_editor;
 pub mod parser;
 pub mod row_index;
 mod screen;
+mod scrollback;
 pub mod style;
 
 pub mod testing {
