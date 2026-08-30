@@ -3,6 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type RenderedBlock = { id: string; command: string; output: string; exitCode: number | null };
+type MockCore = {
+	feed: (bytes: Uint8Array) => void;
+	snapshot: () => { altScreen: unknown; [k: string]: unknown };
+	onChange: (listener: (generation: number) => void) => () => void;
+	dispose: () => void;
+};
 
 const mockState = vi.hoisted(() => {
 	return {
@@ -10,6 +16,8 @@ const mockState = vi.hoisted(() => {
 		blocks: new Map<string, RenderedBlock>(),
 		altScreenActive: false,
 		altScreenSurfaceProvided: false,
+		altScreen: null as unknown,
+		core: undefined as MockCore | undefined,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		onSend: undefined as ((text: string) => void) | undefined,
@@ -20,9 +28,13 @@ const mockState = vi.hoisted(() => {
 });
 
 const subscribers = new Set<() => void>();
+const coreListeners = new Set<(generation: number) => void>();
 function notify(): void {
 	mockState.revision += 1;
 	for (const cb of subscribers) cb();
+}
+function notifyCore(generation: number): void {
+	for (const cb of coreListeners) cb(generation);
 }
 
 function parseFeedsForBlocks(bytes: Uint8Array): void {
@@ -136,24 +148,44 @@ vi.mock("@operator/terminal-react", () => {
 		initTerminalCoreFromUrl: async () => {
 			mockState.wasmInits += 1;
 		},
-		createTerminalCore: () => ({
-			feed: (bytes: Uint8Array) => {
-				mockState.feeds.push(bytes);
-				parseFeedsForBlocks(bytes);
-				notify();
-			},
-			snapshot: () => ({
-				generation: 0,
-				content: new Uint8Array(0),
-				rows: new Uint32Array(0),
-				runRanges: new Uint32Array(0),
-				stylePairs: new Uint32Array(0),
-				blocks: new Uint32Array(0),
-				blockText: new Uint8Array(0),
-			}),
-			onChange: () => () => undefined,
-			dispose: () => undefined,
-		}),
+		createTerminalCore: () => {
+			let generation = 0;
+			const core: MockCore = {
+				feed: (bytes: Uint8Array) => {
+					mockState.feeds.push(bytes);
+					parseFeedsForBlocks(bytes);
+					const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+					if (text.includes("\x1b[?1049h")) {
+						mockState.altScreen = { rows: 24, columns: 80 };
+					}
+					if (text.includes("\x1b[?1049l")) {
+						mockState.altScreen = null;
+					}
+					generation += 1;
+					notify();
+					notifyCore(generation);
+				},
+				snapshot: () => ({
+					generation,
+					content: new Uint8Array(0),
+					rows: new Uint32Array(0),
+					runRanges: new Uint32Array(0),
+					stylePairs: new Uint32Array(0),
+					blocks: new Uint32Array(0),
+					blockText: new Uint8Array(0),
+					altScreen: mockState.altScreen,
+				}),
+				onChange: (listener: (generation: number) => void) => {
+					coreListeners.add(listener);
+					return () => {
+						coreListeners.delete(listener);
+					};
+				},
+				dispose: () => undefined,
+			};
+			mockState.core = core;
+			return core;
+		},
 	};
 });
 
@@ -234,11 +266,46 @@ function harness(overrides: Partial<Parameters<typeof BlockTerminal>[0]> = {}) {
 	return { transport, emit, overrides };
 }
 
+let activeListeners: Array<(bytes: Uint8Array) => void> = [];
+function encode(text: string): Uint8Array {
+	return new TextEncoder().encode(text);
+}
+function emit(bytes: Uint8Array): void {
+	for (const cb of activeListeners) cb(bytes);
+}
+function renderTerminal() {
+	const localListeners: Array<(bytes: Uint8Array) => void> = [];
+	activeListeners = localListeners;
+	const transport = {
+		write: vi.fn(),
+		onData: (cb: (bytes: Uint8Array) => void) => {
+			localListeners.push(cb);
+			return () => {};
+		},
+		resize: vi.fn(),
+		dispose: vi.fn(),
+	};
+	render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+	const proxy = new Proxy({} as MockCore, {
+		get(_target, prop) {
+			const c = mockState.core as MockCore | undefined;
+			if (!c) {
+				throw new Error("core not yet created");
+			}
+			const value = (c as unknown as Record<string | symbol, unknown>)[prop as string];
+			return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(c) : value;
+		},
+	});
+	return { core: proxy };
+}
+
 beforeEach(() => {
 	mockState.feeds = [];
 	mockState.blocks = new Map();
 	mockState.altScreenActive = false;
 	mockState.altScreenSurfaceProvided = false;
+	mockState.altScreen = null;
+	mockState.core = undefined;
 	mockState.host = undefined;
 	mockState.strings = undefined;
 	mockState.onSend = undefined;
@@ -340,5 +407,18 @@ describe("BlockTerminal", () => {
 		const [cols, rows] = resize.mock.calls.at(-1)!;
 		expect(cols).toBeGreaterThan(0);
 		expect(rows).toBeGreaterThan(0);
+	});
+
+	it("takes the alternate-screen signal from the core, not from sniffing bytes", async () => {
+		const { core } = renderTerminal();
+		emit(encode("\x1b[?1049h"));
+		await waitFor(() => {
+			expect(core.snapshot().altScreen).not.toBeNull();
+			expect(screen.getByTestId("block-terminal")).toHaveAttribute("data-alt-screen", "true");
+		});
+	});
+
+	it("still hands the alternate screen to xterm when the flag says so", () => {
+		// with VITE_ALT_SCREEN_SURFACE=xterm stubbed
 	});
 });
