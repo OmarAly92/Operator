@@ -27,6 +27,7 @@ const HIDDEN_MEASURE_ID = "terminal-m-measure";
 const DEFAULT_HEADER_HEIGHT = 24;
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
+const FRAME_MS = 4;
 
 export const warpDarkTheme: TerminalTheme = {
 	ansi: [
@@ -61,6 +62,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private readonly paintListeners = new Set<() => void>();
 	private knownBlockId: BlockId | null = null;
 	private stickToBottom = true;
+	private lastPaintAt = Number.NEGATIVE_INFINITY;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private host: HostCapabilities | null = null;
 	private latestSnapshot: {
@@ -186,6 +188,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureNode = null;
 		this.knownBlockId = null;
 		this.stickToBottom = true;
+		this.lastPaintAt = Number.NEGATIVE_INFINITY;
 		this.host = null;
 		this.latestSnapshot = null;
 		this.latestBlocks = [];
@@ -215,10 +218,20 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.repaint();
 			return;
 		}
+		if (this.now() - this.lastPaintAt >= FRAME_MS) {
+			this.repaint();
+			return;
+		}
 		this.rafHandle = requestAnimationFrame(() => {
 			this.rafHandle = null;
 			this.repaint();
 		});
+	}
+
+	private now(): number {
+		return typeof performance === "object" && typeof performance.now === "function"
+			? performance.now()
+			: 0;
 	}
 
 	private applyStyleVars(): void {
@@ -341,6 +354,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		} else if (Math.abs(container.scrollTop - anchorScrollTop) > 0.5) {
 			container.scrollTop = anchorScrollTop;
 		}
+		this.lastPaintAt = this.now();
 		this.notifyPainted();
 	}
 

@@ -25,6 +25,9 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	private editorPaintPending = false;
 	private editorTextBefore = "";
 	private ownedInput = false;
+	private paintSeq = 0;
+	private observedPaintSeq = 0;
+	private stopPaintCounter: (() => void) | undefined;
 	private readonly inputListeners = new Set<(data: string) => void>();
 	private failure: Error | undefined;
 	private readonly rendererKind: RendererKind = "dom";
@@ -41,6 +44,13 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		const renderer = new DomBlockRenderer();
 		renderer.mount(host, core);
 		this.renderer = renderer;
+		// The renderer paints an idle surface synchronously inside `feed`, so a
+		// listener registered afterwards by `waitForPaint` would miss the very
+		// paint it is waiting for. Counting paints from mount makes the signal
+		// level-triggered instead of edge-triggered.
+		this.stopPaintCounter = renderer.onPaint(() => {
+			this.paintSeq += 1;
+		});
 		const editor = new LineEditor();
 		editor.mount(host, core, {
 			send: () => undefined,
@@ -110,6 +120,12 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 			});
 		}
 		const renderer = this.renderer as DomBlockRenderer;
+		if (this.paintSeq !== this.observedPaintSeq) {
+			this.observedPaintSeq = this.paintSeq;
+			// Still one animation frame, exactly as the xterm adapter does after
+			// `onRender`, so the two remain comparable.
+			return new Promise((resolve) => requestAnimationFrame(resolve));
+		}
 		return new Promise((resolve, reject) => {
 			const timeout = window.setTimeout(() => {
 				off();
@@ -117,6 +133,7 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 			}, 10000);
 			const off = renderer.onPaint(() => {
 				off();
+				this.observedPaintSeq = this.paintSeq;
 				requestAnimationFrame((timestamp) => {
 					window.clearTimeout(timeout);
 					resolve(timestamp);
@@ -134,6 +151,9 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 
 	dispose(): void {
 		try {
+			this.stopPaintCounter?.();
+		} catch {}
+		try {
 			this.editor?.dispose();
 		} catch {}
 		try {
@@ -149,6 +169,9 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		this.editorPaintPending = false;
 		this.ownedInput = false;
 		this.inputListeners.clear();
+		this.paintSeq = 0;
+		this.observedPaintSeq = 0;
+		this.stopPaintCounter = undefined;
 	}
 
 	get kind(): RendererKind {
