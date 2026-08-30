@@ -67,7 +67,89 @@ Read in `/Users/omaraly/development/AI/warp` on 2026-08-31.
 
 ---
 
-### Task 1: A host that can list a directory
+### Task 1: Never complete in an agent pane
+
+**Files:**
+- Modify: `packages/terminal/ts/react/src/TerminalSurface.tsx` — accept and honour `agentTui`
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx` — pass it through
+- Test: `packages/terminal/ts/react/src/TerminalSurface.test.tsx`
+
+**Interfaces:**
+- Produces: `TerminalSurfaceProps.agentTui?: boolean`.
+
+The editor host is hidden on `altActive` alone (`TerminalSurface.tsx:199`), and `altActive`
+is not the same thing as "this is an agent pane". The host already knows the difference —
+`agentTui={terminalTarget?.kind === "worker"}` (`TerminalPane.tsx:1090`) — and the core
+already takes it (`setAgentTuiMode`). The two come apart in two real cases:
+
+- an agent CLI that redraws **inline in the normal buffer**, which is the case the whole
+  2026-08-30 normal-buffer grid plan exists for: Claude Code driven directly emits no
+  `?1049`, and it is tmux that puts the pane in the alternate screen;
+- the startup window before tmux's first `?1049h` arrives, when `altActive` is still false.
+
+In both, an agent pane shows the editor today. That is harmless while completions only fire
+on Tab; once Task 4 lands as-you-type, it would flash a dropdown over a TUI. This task must
+land **before** Task 4 for that reason.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+	it("hides the editor in an agent pane even outside the alternate screen", () => {
+		const { editorHost } = mountSurface({ agentTui: true });
+		expect(editorHost.hidden).toBe(true);
+	});
+
+	it("keeps the editor in a shell pane", () => {
+		const { editorHost } = mountSurface({ agentTui: false });
+		expect(editorHost.hidden).toBe(false);
+	});
+
+	it("asks for no completions in an agent pane", () => {
+		const { editor, core } = mountSurface({ agentTui: true });
+		let calls = 0;
+		core.requestCompletions = () => {
+			calls += 1;
+		};
+		editor.handleKey(new KeyboardEvent("keydown", { key: "Tab" }));
+		expect(calls).toBe(0);
+	});
+```
+
+- [ ] **Step 2: Run them and watch them fail**
+
+```bash
+npm --prefix packages/terminal/ts/react test
+```
+
+Expected: the first and third FAIL — `agentTui` is not a prop yet.
+
+- [ ] **Step 3: Honour it**
+
+Add `agentTui?: boolean` to `TerminalSurfaceProps`, and hide the editor host when
+`altActive || agentTui`. Do not mount the `LineEditor` at all when `agentTui` is true: a
+hidden editor that still holds a keydown listener and a completions subscription is a
+liability, not a saving.
+
+In `BlockTerminal.tsx`, pass the `agentTui` prop it already receives straight through to
+`TerminalSurface`.
+
+- [ ] **Step 4: Run the suites**
+
+```bash
+npm --prefix packages/terminal test
+npm --prefix frontend test
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/terminal/ts/react frontend/src/renderer
+git commit -m "feat(terminal): never show the editor, or complete, in an agent pane"
+```
+
+---
+
+### Task 2: A host that can list a directory
 
 **Files:**
 - Modify: `frontend/src-tauri/src/native.rs` — add `list_directory`
@@ -189,7 +271,7 @@ git commit -m "feat(terminal): let the host list a directory for path completion
 
 ---
 
-### Task 2: Register the engine where the core is created
+### Task 3: Register the engine where the core is created
 
 **Files:**
 - Modify: `frontend/package.json` — add the dependency
@@ -273,7 +355,7 @@ git commit -m "feat(terminal): register the completion engine on every pane's co
 
 ---
 
-### Task 3: Complete as you type, the way Warp does
+### Task 4: Complete as you type, the way Warp does
 
 **Files:**
 - Modify: `packages/terminal/ts/editor/src/line-editor.ts` — request on edit instead of cancelling
@@ -405,7 +487,7 @@ git commit -m "feat(terminal): complete as you type, the way Warp does"
 
 ---
 
-### Task 4: Prove it in the running app, then record it
+### Task 5: Prove it in the running app, then record it
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` — §13.3 and §14 Phase 4
@@ -480,7 +562,8 @@ are all agent panes, this feature stays invisible to you no matter what lands he
 is worth deciding before Task 1 rather than discovering at Task 4. It also does not touch
 the `input-latency` gate, which is red for an unrelated reason (§9.5).
 
-**Ordering risk.** Task 2 depends on Task 1 only for path completion; commands, subcommands
+**Ordering risk.** Task 1 must precede Task 4: as-you-type is what would make an agent
+pane flash a dropdown, and Task 1 is the guarantee that it cannot. Task 3 depends on Task 2 only for path completion; commands, subcommands
 and flags all work with no host filesystem, so a reviewer can accept Task 2 on its own.
 Task 3 is independent of both and could land first, but would then be untestable by hand.
 
