@@ -987,6 +987,23 @@ loader for **Warp's own theme file format**, so the ecosystem of Warp themes wor
 here. Operator passes a theme derived from its skin for the chrome colors only; the
 ANSI palette stays the terminal's own per `DESIGN.md:36`.
 
+**Warp's own defaults, for the values we currently get wrong.** Recorded 2026-08-30 so
+Phase 6 does not have to re-derive them:
+
+| Property | Warp | Ours today | Source |
+| --- | --- | --- | --- |
+| Line-height ratio | `1.2` | `1.35` (host override) | `crates/warpui_core/src/elements/gui/text.rs:33`, wired at `app/src/settings/font.rs:50-58` |
+| Monospace family | `Hack` | `ui-monospace, "SF Mono", Menlo, monospace` | `app/src/settings/font.rs:11` |
+| Monospace size | `13.0` | `14` package default, host passes its own | `app/src/settings/font.rs:12` |
+| Monospace weight | `Normal` | `400` | `app/src/settings/font.rs:13` |
+| Grid padding | `16` left, `8` vertical | none | `app/src/terminal/view.rs:744, 13098-13099` |
+
+The package's own `defaultFont()` already uses `1.2`; the `1.35` comes from
+`BlockTerminal.tsx`, which overrides it. Warp also makes alt-screen padding separately
+configurable (`alt_screen_padding`, `app/src/terminal/settings.rs:163`) with a carve-out
+set for apps that must match blocklist padding — `k9s` and `lazygit`
+(`view.rs:603-609`). Copy the setting, not just the number.
+
 ### 12.2 Strings
 
 `TerminalStrings` is a flat object of English defaults the host may override. The
@@ -1316,8 +1333,25 @@ is cancellable; every action is keyboard-reachable; the §9.4 gate still passes.
 **Deliver:** the theme system with Warp theme-file loading; font and ligature settings;
 splits and panes; scrollback persistence and restore.
 
+**Deferred here on 2026-08-30, from a look-comparison against Warp.** Phase 3 delivered
+the alternate-screen *grid*, not Warp's *look*, and a side-by-side found four gaps. The
+first three are wrong values, not missing machinery, and their Warp-side numbers are
+tabulated in §12.1: the host passes line-height `1.35` where Warp uses `1.2`; the grid
+has no padding where Warp pads 16px left and 8px vertical; and the font is the system
+monospace stack rather than Hack 13. The fourth is not understood: in a live agent pane
+the bottom row rendered clipped with the TUI's input composer missing, which
+`Math.floor(clientHeight / cellHeight)` in `TerminalSurface.tsx:118` should make
+impossible — it under-fills, it cannot clip. That one needs reproduction before a fix,
+and it may not belong in this phase at all.
+
+What was checked and is **correct**, so nobody re-opens it: a full-screen TUI renders as
+a plain grid with no block chrome. That is §11, and it is what Warp's own
+`AltScreenElement` does (`app/src/terminal/view.rs:24363`). "No blocks in the agent pane"
+is not a defect.
+
 **Accept when:** a stock Warp theme file loads and renders; a restored session shows
-its prior blocks with correct metadata; the §9.4 gate still passes.
+its prior blocks with correct metadata; the four deferred items above are each fixed or
+explicitly re-deferred with a reason; the §9.4 gate still passes.
 
 ### Phase 7 — Retirement
 
