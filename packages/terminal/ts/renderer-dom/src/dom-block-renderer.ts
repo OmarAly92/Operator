@@ -13,14 +13,12 @@ import {
 } from "@operator/terminal-core";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
+import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
-import { styleCodeToCssVar } from "./style-code.js";
 import { terminalStyles } from "./styles.js";
 import { computeWindow, type RowWindow } from "./viewport.js";
 
 const CLASS_BLOCK = "terminal-block";
-const CLASS_ROW = "terminal-row";
-const CLASS_RUN = "terminal-run";
 const CLASS_LEADING_SPACER = "terminal-spacer";
 const CLASS_TRAILING_SPACER = "terminal-spacer";
 const HIDDEN_MEASURE_ID = "terminal-m-measure";
@@ -473,7 +471,7 @@ function populateBlock(
 	if (host) {
 		fragment.append(renderBlockActions(block, host, defaultStrings, textSource));
 	}
-	const { content, rows, runRanges, stylePairs } = snapshot;
+	const source: RowSource = snapshot;
 	const blockFirstRow = block.firstRow;
 	const firstRow = rowWindow ? rowWindow.firstRow : 0;
 	const lastRow = rowWindow ? rowWindow.lastRow : block.rowCount - 1;
@@ -481,41 +479,7 @@ function populateBlock(
 		fragment.append(spacerOf(firstRow * rowHeight));
 	}
 	for (let rowOffset = firstRow; rowOffset <= lastRow; rowOffset += 1) {
-		const snapshotRowIndex = blockFirstRow + rowOffset;
-		const rowsBase = snapshotRowIndex * 2;
-		const rowContentStart = rows[rowsBase] ?? 0;
-		const rowContentEnd = rows[rowsBase + 1] ?? rowContentStart;
-		const rowLength = rowContentEnd - rowContentStart;
-		const pairStart = runRanges[rowsBase] ?? 0;
-		const pairEnd = runRanges[rowsBase + 1] ?? pairStart;
-		const rowNode = document.createElement("div");
-		rowNode.dataset.terminalRow = String(rowOffset);
-		rowNode.className = CLASS_ROW;
-		let rowCursor = 0;
-		for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
-			const elementIndex = pairIndex * 2;
-			const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
-			const styleCode = stylePairs[elementIndex + 1] ?? 255;
-			const slice = content.subarray(
-				rowContentStart + rowCursor,
-				rowContentStart + pairRunEnd,
-			);
-			const text = decoder.decode(slice);
-			const run = document.createElement("span");
-			run.dataset.terminalRun = String(pairIndex);
-			run.className = CLASS_RUN;
-			run.style.color = styleCodeToCssVar(styleCode);
-			run.textContent = text;
-			rowNode.append(run);
-			rowCursor = pairRunEnd;
-		}
-		if (rowCursor < rowLength) {
-			const tail = content.subarray(
-				rowContentStart + rowCursor,
-				rowContentStart + rowLength,
-			);
-			rowNode.append(document.createTextNode(decoder.decode(tail)));
-		}
+		const rowNode = buildRowNode(source, blockFirstRow + rowOffset, rowOffset, decoder);
 		fragment.append(rowNode);
 	}
 	if (rowWindow) {
