@@ -21,6 +21,7 @@ const mockState = vi.hoisted(() => {
 		core: undefined as MockCore | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
+		font: undefined as { lineHeight?: number } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		onSend: undefined as ((text: string) => void) | undefined,
 		onSendRaw: undefined as ((data: string) => void) | undefined,
@@ -129,6 +130,7 @@ vi.mock("@operator/terminal-react", () => {
 			mockState.altScreenActive = props.altScreenActive;
 			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
 			if (props.host) mockState.host = props.host;
+			mockState.font = props.font as { lineHeight?: number };
 			if (props.strings) mockState.strings = props.strings;
 			mockState.onSend = props.onSend;
 			mockState.onSendRaw = props.onSendRaw;
@@ -326,6 +328,7 @@ beforeEach(() => {
 	mockState.core = undefined;
 	mockState.coreOverrides = undefined;
 	mockState.host = undefined;
+	mockState.font = undefined;
 	mockState.strings = undefined;
 	mockState.onSend = undefined;
 	mockState.onSendRaw = undefined;
@@ -344,6 +347,13 @@ describe("BlockTerminal", () => {
 		const setAgentTuiMode = vi.fn();
 		renderTerminal({ agentTui: false, coreOverrides: { setAgentTuiMode } });
 		await waitFor(() => expect(setAgentTuiMode).toHaveBeenCalledWith(false));
+	});
+
+	it("uses Warp's line-height ratio", async () => {
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() => expect(mockState.font).toBeDefined());
+		expect(mockState.font?.lineHeight).toBe(1.2);
 	});
 
 	it("feeds bytes from the mux channel into the core", async () => {
