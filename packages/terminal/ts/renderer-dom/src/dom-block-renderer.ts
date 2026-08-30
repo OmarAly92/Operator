@@ -297,7 +297,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			container.scrollTop = 0;
 			this.ensureAltRoot(container).hidden = false;
 			if (this.list) this.list.hidden = true;
-			renderAltSurface(alt, this.altRoot!, this.decoder);
+			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
 			this.lastPaintAt = this.now();
 			this.notifyPainted();
 			return;
@@ -427,6 +427,14 @@ export class DomBlockRenderer implements BlockRenderer {
 		section.setAttribute("style", this.styleVarsString());
 		this.blockElements.set(block.id, section);
 		return section;
+	}
+
+	private cellMetrics(): { cellWidth: number; cellHeight: number } {
+		const { cellWidth, cellHeight } = this.measure();
+		return {
+			cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6,
+			cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx,
+		};
 	}
 
 	private ensureAltRoot(container: HTMLElement): HTMLElement {

@@ -6,10 +6,13 @@ const CURSOR_ATTR = "data-terminal-cursor";
 const CLASS_SURFACE = "terminal-alt-surface";
 const CLASS_CURSOR = "terminal-alt-cursor";
 
+export type CellMetrics = Readonly<{ cellWidth: number; cellHeight: number }>;
+
 export function renderAltSurface(
 	view: AltScreenView,
 	into: HTMLElement,
 	decoder: TextDecoder,
+	metrics: CellMetrics,
 ): void {
 	if (!into.hasAttribute(SURFACE_ATTR)) {
 		into.dataset.terminalAltSurface = "";
@@ -38,29 +41,32 @@ export function renderAltSurface(
 			into.append(existingCursor);
 		}
 	}
-	applyCursor(into, view);
+	applyCursor(into, view, metrics);
 }
 
-function applyCursor(into: HTMLElement, view: AltScreenView): void {
+function applyCursor(into: HTMLElement, view: AltScreenView, metrics: CellMetrics): void {
 	const existing = into.querySelector<HTMLElement>(`[${CURSOR_ATTR}]`);
 	if (!view.cursorVisible) {
 		existing?.remove();
 		return;
 	}
 	if (existing) {
-		positionCursor(existing, view);
+		positionCursor(existing, view, metrics);
 		return;
 	}
 	const cursor = document.createElement("div");
 	cursor.dataset.terminalCursor = "";
 	cursor.classList.add(CLASS_CURSOR);
-	positionCursor(cursor, view);
+	positionCursor(cursor, view, metrics);
 	into.append(cursor);
 }
 
-function positionCursor(cursor: HTMLElement, view: AltScreenView): void {
+function positionCursor(cursor: HTMLElement, view: AltScreenView, metrics: CellMetrics): void {
 	cursor.dataset.row = String(view.cursorRow);
 	cursor.dataset.column = String(view.cursorColumn);
-	cursor.style.transform =
-		`translate(calc(var(--cell-w) * ${view.cursorColumn}), calc(var(--cell-h) * ${view.cursorRow}))`;
+	const x = view.cursorColumn * metrics.cellWidth;
+	const y = view.cursorRow * metrics.cellHeight;
+	cursor.style.width = `${metrics.cellWidth}px`;
+	cursor.style.height = `${metrics.cellHeight}px`;
+	cursor.style.transform = `translate(${x}px, ${y}px)`;
 }

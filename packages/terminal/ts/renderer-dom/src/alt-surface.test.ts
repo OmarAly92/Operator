@@ -47,6 +47,8 @@ function buildAltView(
 	};
 }
 
+const METRICS = { cellWidth: 8, cellHeight: 20 } as const;
+
 function mountAlt(
 	rows: number,
 	columns: number,
@@ -56,7 +58,7 @@ function mountAlt(
 	const view = buildAltView(rows, columns, rowTexts, overrides);
 	const host = document.createElement("div");
 	const decoder = new TextDecoder("utf-8", { fatal: true });
-	renderAltSurface(view, host, decoder);
+	renderAltSurface(view, host, decoder, METRICS);
 	return host;
 }
 
@@ -67,11 +69,11 @@ function mountAltReusable(
 ): { host: HTMLElement; render: (rowTexts: readonly string[]) => void } {
 	const decoder = new TextDecoder("utf-8", { fatal: true });
 	const host = document.createElement("div");
-	renderAltSurface(buildAltView(rows, columns, rowTexts), host, decoder);
+	renderAltSurface(buildAltView(rows, columns, rowTexts), host, decoder, METRICS);
 	return {
 		host,
 		render: (newRowTexts: readonly string[]): void => {
-			renderAltSurface(buildAltView(rows, columns, newRowTexts), host, decoder);
+			renderAltSurface(buildAltView(rows, columns, newRowTexts), host, decoder, METRICS);
 		},
 	};
 }
@@ -95,6 +97,20 @@ describe("renderAltSurface", () => {
 		const cursor = host.querySelector("[data-terminal-cursor]") as HTMLElement;
 		expect(cursor.dataset.row).toBe("0");
 		expect(cursor.dataset.column).toBe("2");
+	});
+
+	it("positions the cursor in resolved pixels, not through undefined css variables", () => {
+		const host = mountAlt(5, 10, ["abc", "", "", "", ""], { cursorRow: 3, cursorColumn: 7 });
+		const cursor = host.querySelector("[data-terminal-cursor]") as HTMLElement;
+		expect(cursor.style.transform).toBe("translate(56px, 60px)");
+		expect(cursor.style.transform).not.toContain("var(");
+	});
+
+	it("sizes the cursor to one cell", () => {
+		const host = mountAlt(3, 10, ["abc", "", ""], { cursorRow: 0, cursorColumn: 0 });
+		const cursor = host.querySelector("[data-terminal-cursor]") as HTMLElement;
+		expect(cursor.style.width).toBe("8px");
+		expect(cursor.style.height).toBe("20px");
 	});
 
 	it("hides the cursor when the program hid it", () => {

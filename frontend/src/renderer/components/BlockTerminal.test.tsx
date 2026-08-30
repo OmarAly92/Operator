@@ -418,7 +418,42 @@ describe("BlockTerminal", () => {
 		});
 	});
 
-	it("still hands the alternate screen to xterm when the flag says so", () => {
-		// with VITE_ALT_SCREEN_SURFACE=xterm stubbed
+	it("keeps the alternate screen in the package surface by default", async () => {
+		renderTerminal();
+		emit(encode("\x1b[?1049h"));
+		await waitFor(() =>
+			expect(screen.getByTestId("block-terminal")).toHaveAttribute("data-alt-screen", "true"),
+		);
+		expect(mockState.altScreenActive).toBe(false);
+	});
+
+	it("still hands the alternate screen to xterm when the flag says so", async () => {
+		vi.stubEnv("VITE_ALT_SCREEN_SURFACE", "xterm");
+		vi.resetModules();
+		try {
+			const reloaded = await import("./BlockTerminal");
+			const localListeners: Array<(bytes: Uint8Array) => void> = [];
+			activeListeners = localListeners;
+			const transport = {
+				write: vi.fn(),
+				onData: (cb: (bytes: Uint8Array) => void) => {
+					localListeners.push(cb);
+					return () => {};
+				},
+				resize: vi.fn(),
+				dispose: vi.fn(),
+			};
+			render(
+				<reloaded.BlockTerminal transport={transport} sessionId="s-xterm" historyBlocks={[]}>
+					<div data-testid="xterm-fallback" />
+				</reloaded.BlockTerminal>,
+			);
+			emit(encode("\x1b[?1049h"));
+			await waitFor(() => expect(mockState.altScreenActive).toBe(true));
+			expect(mockState.altScreenSurfaceProvided).toBe(true);
+		} finally {
+			vi.unstubAllEnvs();
+			vi.resetModules();
+		}
 	});
 });
