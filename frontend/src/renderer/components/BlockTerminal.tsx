@@ -378,7 +378,7 @@ export function BlockTerminal({
 
 	const font: FontConfig = useMemo(
 		() => ({
-			family: 'ui-monospace, "SF Mono", Menlo, monospace',
+			family: '"Hack", ui-monospace, "SF Mono", Menlo, monospace',
 			sizePx: fontSize ?? 14,
 			lineHeight: 1.2,
 			weight: 400,

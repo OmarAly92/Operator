@@ -85,6 +85,9 @@ export default defineConfig({
 	// /mux to the daemon so the renderer can be tested against a running daemon
 	// from a plain browser without the desktop shell.
 	server: {
+		fs: {
+			allow: [fileURLToPath(new URL("..", import.meta.url))],
+		},
 		proxy: {
 			"/api": {
 				target: process.env.OPERATOR_DEV_API_TARGET ?? "http://127.0.0.1:3001",

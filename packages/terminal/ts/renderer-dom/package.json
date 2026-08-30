@@ -6,7 +6,8 @@
 	"description": "Phase 0 one-block DOM renderer that reads typed-array views from @operator/terminal-core.",
 	"files": [
 		"dist",
-		"src/styles.css"
+		"src/styles.css",
+		"src/fonts"
 	],
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
