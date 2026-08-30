@@ -15,6 +15,10 @@ pub mod row_index;
 mod screen;
 pub mod style;
 
+pub mod testing {
+    pub use crate::screen::{Cell, ScreenGrid};
+}
+
 pub use alt::{AltGrid, Cell};
 pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState, TextSpan};
 pub use block_grid::BlockGrid;

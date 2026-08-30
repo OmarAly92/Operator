@@ -19,9 +19,15 @@ impl ScreenGrid {
         let span = self.scroll_bottom - self.scroll_top + 1;
         if count >= span {
             for r in self.scroll_top..=self.scroll_bottom {
+                self.record_eviction(r);
+            }
+            for r in self.scroll_top..=self.scroll_bottom {
                 self.blank_row(r);
             }
             return;
+        }
+        for r in self.scroll_top..(self.scroll_top + count) {
+            self.record_eviction(r);
         }
         for r in self.scroll_top..=(self.scroll_bottom - count) {
             self.copy_row(r + count, r);

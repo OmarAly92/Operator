@@ -35,6 +35,8 @@ pub struct ScreenGrid {
     saved: Option<(usize, usize)>,
     pub(crate) scroll_top: usize,
     pub(crate) scroll_bottom: usize,
+    records_eviction: bool,
+    evicted: Vec<Vec<Cell>>,
 }
 
 fn clamp_dimension(value: usize) -> usize {
@@ -56,7 +58,26 @@ impl ScreenGrid {
             saved: None,
             scroll_top: 0,
             scroll_bottom: rows - 1,
+            records_eviction: false,
+            evicted: Vec::new(),
         }
+    }
+
+    pub fn set_records_eviction(&mut self, on: bool) {
+        self.records_eviction = on;
+    }
+
+    pub fn take_evicted(&mut self) -> Vec<Vec<Cell>> {
+        std::mem::take(&mut self.evicted)
+    }
+
+    pub(crate) fn record_eviction(&mut self, row: usize) {
+        if !self.records_eviction || self.scroll_top != 0 {
+            return;
+        }
+        let start = row * self.cols;
+        self.evicted
+            .push(self.cells[start..start + self.cols].to_vec());
     }
 
     pub fn rows(&self) -> usize {
