@@ -3,6 +3,7 @@ import type { SignatureRegistry } from "../registry.js";
 import {
 	clampPriority,
 	isVariadic,
+	type ArgumentSpec,
 	type CommandSpec,
 	type TemplateType,
 } from "../signature.js";
@@ -25,14 +26,9 @@ export function subcommandCandidates(command: CommandSpec): Candidate[] {
 	}));
 }
 
-export function argumentCandidates(
-	command: CommandSpec,
-	position: number,
+export function valuesFor(
+	argument: ArgumentSpec | undefined,
 ): { literals: Candidate[]; template: TemplateType | null } {
-	const args = command.arguments ?? [];
-	const last = args[args.length - 1];
-	const argument =
-		args[position] ?? (last !== undefined && isVariadic(last) ? last : undefined);
 	if (argument === undefined) return { literals: [], template: null };
 
 	const literals: Candidate[] = [];
@@ -51,4 +47,13 @@ export function argumentCandidates(
 		}
 	}
 	return { literals, template };
+}
+
+export function argumentCandidates(
+	command: CommandSpec,
+	position: number,
+): { literals: Candidate[]; template: TemplateType | null } {
+	const args = command.arguments ?? [];
+	const last = args[args.length - 1];
+	return valuesFor(args[position] ?? (last !== undefined && isVariadic(last) ? last : undefined));
 }

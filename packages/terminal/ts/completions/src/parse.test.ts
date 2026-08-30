@@ -94,6 +94,32 @@ describe("locate", () => {
 		});
 	});
 
+	it("locates the value half of an equals-form flag", () => {
+		expect(locate("docker build --file=Docker", 26)).toEqual({
+			kind: "flag-value",
+			query: "Docker",
+			span: { start: 20, end: 26 },
+			commandTokens: ["docker", "build"],
+			flagName: "file",
+		});
+	});
+
+	it("locates an empty equals-form value", () => {
+		expect(locate("git commit --message=", 21)).toEqual({
+			kind: "flag-value",
+			query: "",
+			span: { start: 21, end: 21 },
+			commandTokens: ["git", "commit"],
+			flagName: "message",
+		});
+	});
+
+	it("still locates the flag name while the cursor is left of the equals", () => {
+		const found = locate("docker build --file=x", 17);
+		expect(found?.kind).toBe("flag");
+		expect(found?.query).toBe("--fi");
+	});
+
 	it("declines a variable, which is deferred", () => {
 		expect(locate("echo $HO", 8)).toBeNull();
 	});

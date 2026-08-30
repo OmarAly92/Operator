@@ -3,10 +3,11 @@ export type Span = Readonly<{ start: number; end: number }>;
 export type Token = Readonly<{ text: string; span: Span }>;
 
 export type CompletionLocation = Readonly<{
-	kind: "command" | "flag" | "argument";
+	kind: "command" | "flag" | "flag-value" | "argument";
 	query: string;
 	span: Span;
 	commandTokens: readonly string[];
+	flagName?: string;
 }>;
 
 export function tokenize(line: string): Token[] {
@@ -64,6 +65,19 @@ export function locate(line: string, cursor: number): CompletionLocation | null 
 	if (index === 0) {
 		return { kind: "command", query, span: token.span, commandTokens: [] };
 	}
-	const kind = query.startsWith("-") ? "flag" : "argument";
-	return { kind, query, span: token.span, commandTokens };
+	if (query.startsWith("-")) {
+		const equals = query.indexOf("=");
+		if (equals !== -1) {
+			const start = token.span.start + equals + 1;
+			return {
+				kind: "flag-value",
+				query: line.slice(start, clamped),
+				span: { start, end: token.span.end },
+				commandTokens,
+				flagName: query.slice(0, equals).replace(/^--?/, ""),
+			};
+		}
+		return { kind: "flag", query, span: token.span, commandTokens };
+	}
+	return { kind: "argument", query, span: token.span, commandTokens };
 }

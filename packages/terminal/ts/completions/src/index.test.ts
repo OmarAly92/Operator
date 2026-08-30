@@ -75,6 +75,27 @@ describe("createCompletionProvider", () => {
 		expect(result?.items.map((item) => item.value)).toContain("commit");
 	});
 
+	it("completes an option value given as a separate token", async () => {
+		const result = await complete("docker build -f ");
+		expect(result?.items.map((item) => item.value).sort()).toEqual(["README.md", "src/"]);
+	});
+
+	it("completes an option value given in the equals form", async () => {
+		const result = await complete("docker build --file=");
+		expect(result?.items.map((item) => item.value).sort()).toEqual(["README.md", "src/"]);
+	});
+
+	it("replaces only the value half of an equals-form flag", async () => {
+		const result = await complete("docker build --file=RE");
+		expect(result?.span).toEqual({ start: 20, end: 22 });
+		expect(result?.items.map((item) => item.value)).toEqual(["README.md"]);
+	});
+
+	it("completes a global option value that wants a folder", async () => {
+		const result = await complete("git -C ");
+		expect(result?.items.map((item) => item.value)).toEqual(["src/"]);
+	});
+
 	it("never calls the host for anything but a directory listing", async () => {
 		const calls: string[] = [];
 		const watched = {

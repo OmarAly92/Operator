@@ -24,7 +24,7 @@ export const docker: CommandSpec = {
 				{ name: ["-d", "--detach"], description: "Run the container in the background" },
 				{ name: ["--name"], description: "Assign a name to the container", arguments: [{ name: "name" }] },
 				{ name: ["-e", "--env"], description: "Set environment variables", arguments: [{ name: "env" }] },
-				{ name: ["-v", "--volume"], description: "Bind mount a volume", arguments: [{ name: "volume" }] },
+				{ name: ["-v", "--volume"], description: "Bind mount a volume", arguments: [{ name: "volume", values: [{ kind: "template", template: "files-and-folders" }] }] },
 				{ name: ["--network"], description: "Connect the container to a network", arguments: [{ name: "network" }] },
 				{ name: ["--restart"], description: "Restart policy to apply when the container exits", arguments: [{ name: "policy" }] },
 				{ name: ["-u", "--user"], description: "Username or UID (format: <name|uid>[:<group|gid>])", arguments: [{ name: "user" }] },
@@ -43,7 +43,7 @@ export const docker: CommandSpec = {
 			],
 			options: [
 				{ name: ["-t", "--tag"], description: "Name and optionally a tag in the 'name:tag' format", arguments: [{ name: "tag" }] },
-				{ name: ["-f", "--file"], description: "Name of the Dockerfile (default: 'PATH/Dockerfile')", arguments: [{ name: "dockerfile" }] },
+				{ name: ["-f", "--file"], description: "Name of the Dockerfile (default: 'PATH/Dockerfile')", arguments: [{ name: "dockerfile", values: [{ kind: "template", template: "files" }] }] },
 				{ name: ["--build-arg"], description: "Set build-time variables", arguments: [{ name: "arg" }] },
 				{ name: ["--no-cache"], description: "Do not use cache when building the image" },
 				{ name: ["--pull"], description: "Always attempt to pull a newer version of the image" },

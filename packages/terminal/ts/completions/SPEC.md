@@ -75,6 +75,12 @@ through `git` -> `remote` -> `remove` (matched by alias), and produces
 | `required`    | `boolean`                     | yes      | `false`       |
 | `priority`    | `number` (clamped, see below) | yes      | `0`           |
 
+An option's first argument is what gets completed after the option, in both forms the
+engine understands: `--file <TAB>` as a separate token, and `--file=<TAB>` where only the
+text right of the `=` is replaced. Give that argument `values` if the option takes a path
+or a fixed set — `--file` taking a `files` template is why `docker build --file=` offers
+files rather than nothing.
+
 **Declare `arguments` on every option that takes a value.** It is not decoration: the
 engine counts positional arguments by walking the tokens after the command, and it skips
 an option's value only when the option says it has one. An undeclared `-t` in

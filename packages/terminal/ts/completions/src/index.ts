@@ -4,15 +4,26 @@ import type {
 	CompletionRequest,
 	CompletionResult,
 } from "@operator/terminal-core";
-import { locate } from "./parse.js";
+import { locate, type CompletionLocation } from "./parse.js";
 import type { Candidate, Ranked } from "./rank.js";
 import { rankChunked } from "./schedule.js";
 import { SignatureRegistry } from "./registry.js";
-import { commandCandidates, subcommandCandidates, argumentCandidates } from "./providers/command.js";
+import {
+	commandCandidates,
+	subcommandCandidates,
+	argumentCandidates,
+	valuesFor,
+} from "./providers/command.js";
 import { flagCandidates } from "./providers/flag.js";
 import { pathCandidates } from "./providers/path.js";
 import { defaultSignatures } from "./specs/index.js";
-import { optHasName, type CommandSpec } from "./signature.js";
+import {
+	optHasName,
+	type ArgumentSpec,
+	type CommandSpec,
+	type OptSpec,
+	type TemplateType,
+} from "./signature.js";
 
 export type { CommandSpec, ArgumentSpec, OptSpec, ArgumentValue } from "./signature.js";
 export { SignatureRegistry } from "./registry.js";
@@ -57,10 +68,20 @@ async function collect(
 		return flagCandidates(resolved.command, used);
 	}
 
-	const position = positionalIndex(
-		resolved.command,
-		location.commandTokens.slice(resolved.consumed),
-	);
+	const tail = location.commandTokens.slice(resolved.consumed);
+
+	if (location.kind === "flag-value") {
+		const option = optionNamed(resolved.command, location.flagName ?? "");
+		if (option === undefined) return null;
+		return await withPaths(valuesFor((option.arguments ?? [])[0]), location, request);
+	}
+
+	const pending = pendingOptionValue(resolved.command, tail);
+	if (pending !== undefined) {
+		return await withPaths(valuesFor(pending), location, request);
+	}
+
+	const position = positionalIndex(resolved.command, tail);
 	const { literals, template } = argumentCandidates(resolved.command, position);
 	const subcommands = position === 0 ? subcommandCandidates(resolved.command) : [];
 	const paths =
@@ -74,6 +95,36 @@ async function collect(
 					signal: request.signal,
 				});
 	return [...subcommands, ...literals, ...paths];
+}
+
+function optionNamed(command: CommandSpec, name: string): OptSpec | undefined {
+	return (command.options ?? []).find((candidate) => optHasName(candidate, name));
+}
+
+function pendingOptionValue(
+	command: CommandSpec,
+	tokens: readonly string[],
+): ArgumentSpec | undefined {
+	const last = tokens[tokens.length - 1];
+	if (last === undefined || !last.startsWith("-") || last.includes("=")) return undefined;
+	const option = optionNamed(command, last.replace(/^--?/, ""));
+	return (option?.arguments ?? [])[0];
+}
+
+async function withPaths(
+	values: { literals: Candidate[]; template: TemplateType | null },
+	location: CompletionLocation,
+	request: CompletionRequest,
+): Promise<Candidate[]> {
+	if (values.template === null) return values.literals;
+	const paths = await pathCandidates({
+		query: location.query,
+		cwd: request.cwd,
+		template: values.template,
+		host: request.host,
+		signal: request.signal,
+	});
+	return [...values.literals, ...paths];
 }
 
 function positionalIndex(command: CommandSpec, tokens: readonly string[]): number {

@@ -337,10 +337,10 @@ export const git: CommandSpec = {
 		},
 	],
 	options: [
-		{ name: ["-C"], description: "Run as if git was started in the given path", arguments: [{ name: "path" }] },
+		{ name: ["-C"], description: "Run as if git was started in the given path", arguments: [{ name: "path", values: [{ kind: "template", template: "folders" }] }] },
 		{ name: ["-c"], description: "Pass a configuration parameter to the command", arguments: [{ name: "name=value" }] },
-		{ name: ["--git-dir"], description: "Set the path to the repository", arguments: [{ name: "path" }] },
-		{ name: ["--work-tree"], description: "Set the path to the working tree", arguments: [{ name: "path" }] },
+		{ name: ["--git-dir"], description: "Set the path to the repository", arguments: [{ name: "path", values: [{ kind: "template", template: "folders" }] }] },
+		{ name: ["--work-tree"], description: "Set the path to the working tree", arguments: [{ name: "path", values: [{ kind: "template", template: "folders" }] }] },
 		{ name: ["--no-pager"], description: "Do not pipe output into a pager" },
 		{ name: ["--bare"], description: "Treat the repository as a bare repository" },
 		{ name: ["--version"], description: "Print the git version" },
