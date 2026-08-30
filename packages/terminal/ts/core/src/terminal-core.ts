@@ -121,6 +121,13 @@ export class TerminalCore {
 		}
 	}
 
+	setAgentTuiMode(on: boolean): void {
+		if (this.disposed) {
+			return;
+		}
+		this.inner.setAgentTuiMode(on);
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}

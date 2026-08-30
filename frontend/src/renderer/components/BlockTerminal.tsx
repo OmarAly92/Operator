@@ -45,6 +45,7 @@ export type BlockTerminalProps = {
 	clipboard?: BlockTerminalClipboard;
 	ariaLabel?: string;
 	fontSize?: number;
+	agentTui?: boolean;
 	children?: ReactNode;
 };
 
@@ -181,6 +182,7 @@ export function BlockTerminal({
 	clipboard,
 	ariaLabel,
 	fontSize,
+	agentTui,
 	children,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
@@ -197,6 +199,8 @@ export function BlockTerminal({
 	const pendingBytesRef = useRef<Uint8Array[]>([]);
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
+	const agentTuiRef = useRef(agentTui ?? false);
+	agentTuiRef.current = agentTui ?? false;
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const onSend = useCallback((text: string) => {
 		transportRef.current.write(new TextEncoder().encode(`${text}\n`));
@@ -253,6 +257,7 @@ export function BlockTerminal({
 					columns: DEFAULT_COLUMNS,
 					scrollback: DEFAULT_SCROLLBACK,
 				});
+				created.setAgentTuiMode(agentTuiRef.current);
 				coreRef.current = created;
 				const pending = pendingBytesRef.current;
 				pendingBytesRef.current = [];
@@ -276,6 +281,10 @@ export function BlockTerminal({
 			setCore(null);
 		};
 	}, [sessionId]);
+
+	useEffect(() => {
+		coreRef.current?.setAgentTuiMode(agentTui ?? false);
+	}, [agentTui]);
 
 	useEffect(() => {
 		if (!core) return;

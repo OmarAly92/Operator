@@ -252,6 +252,11 @@ impl WasmTerminalCore {
         Ok(())
     }
 
+    #[wasm_bindgen(js_name = setAgentTuiMode)]
+    pub fn set_agent_tui_mode(&mut self, on: bool) {
+        self.core.set_agent_tui_mode(on);
+    }
+
     pub fn generation(&self) -> u32 {
         self.generation
     }

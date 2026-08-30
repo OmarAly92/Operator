@@ -7,6 +7,7 @@ type MockCore = {
 	feed: (bytes: Uint8Array) => void;
 	snapshot: () => { altScreen: unknown; [k: string]: unknown };
 	onChange: (listener: (generation: number) => void) => () => void;
+	setAgentTuiMode: (on: boolean) => void;
 	dispose: () => void;
 };
 
@@ -18,6 +19,7 @@ const mockState = vi.hoisted(() => {
 		altScreenSurfaceProvided: false,
 		altScreen: null as unknown,
 		core: undefined as MockCore | undefined,
+		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		strings: undefined as Record<string, string> | undefined,
 		onSend: undefined as ((text: string) => void) | undefined,
@@ -181,7 +183,9 @@ vi.mock("@operator/terminal-react", () => {
 						coreListeners.delete(listener);
 					};
 				},
+				setAgentTuiMode: vi.fn(),
 				dispose: () => undefined,
+				...mockState.coreOverrides,
 			};
 			mockState.core = core;
 			return core;
@@ -273,9 +277,16 @@ function encode(text: string): Uint8Array {
 function emit(bytes: Uint8Array): void {
 	for (const cb of activeListeners) cb(bytes);
 }
-function renderTerminal(options: { historyBlocks?: BlockTerminalHistoryBlock[] } = {}) {
+function renderTerminal(
+	options: {
+		historyBlocks?: BlockTerminalHistoryBlock[];
+		agentTui?: boolean;
+		coreOverrides?: Partial<MockCore>;
+	} = {},
+) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
 	activeListeners = localListeners;
+	mockState.coreOverrides = options.coreOverrides;
 	const transport = {
 		write: vi.fn(),
 		onData: (cb: (bytes: Uint8Array) => void) => {
@@ -290,6 +301,7 @@ function renderTerminal(options: { historyBlocks?: BlockTerminalHistoryBlock[] }
 			transport={transport}
 			sessionId="s1"
 			historyBlocks={options.historyBlocks ?? []}
+			agentTui={options.agentTui}
 		/>,
 	);
 	const proxy = new Proxy({} as MockCore, {
@@ -312,6 +324,7 @@ beforeEach(() => {
 	mockState.altScreenSurfaceProvided = false;
 	mockState.altScreen = null;
 	mockState.core = undefined;
+	mockState.coreOverrides = undefined;
 	mockState.host = undefined;
 	mockState.strings = undefined;
 	mockState.onSend = undefined;
@@ -321,6 +334,18 @@ beforeEach(() => {
 });
 
 describe("BlockTerminal", () => {
+	it("puts the core in agent-tui mode when the pane runs an agent", async () => {
+		const setAgentTuiMode = vi.fn();
+		renderTerminal({ agentTui: true, coreOverrides: { setAgentTuiMode } });
+		await waitFor(() => expect(setAgentTuiMode).toHaveBeenCalledWith(true));
+	});
+
+	it("leaves a plain shell pane out of agent-tui mode", async () => {
+		const setAgentTuiMode = vi.fn();
+		renderTerminal({ agentTui: false, coreOverrides: { setAgentTuiMode } });
+		await waitFor(() => expect(setAgentTuiMode).toHaveBeenCalledWith(false));
+	});
+
 	it("feeds bytes from the mux channel into the core", async () => {
 		const { transport, emit } = harness();
 		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);

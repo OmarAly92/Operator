@@ -1085,6 +1085,7 @@ function AttachedTerminal({
 						transport={transport}
 						sessionId={handleId ?? "no-session"}
 						historyBlocks={[]}
+						agentTui={terminalTarget?.kind === "worker"}
 						theme={theme}
 						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 						fontSize={fontSize}
