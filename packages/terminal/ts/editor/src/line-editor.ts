@@ -343,7 +343,8 @@ function createCaret(character = "\u00a0"): HTMLElement {
 	return caret;
 }
 
-function passthroughFor(command: EditorCommand): string {
+export function passthroughFor(command: EditorCommand, applicationCursorKeys = false): string {
+	const cursorPrefix = applicationCursorKeys ? "\x1bO" : "\x1b[";
 	switch (command.kind) {
 		case "insert":
 			return command.text;
@@ -356,12 +357,12 @@ function passthroughFor(command: EditorCommand): string {
 		case "delete-forward":
 			return "\x1b[3~";
 		case "move":
-			return command.delta < 0 ? "\x1b[D" : "\x1b[C";
+			return `${cursorPrefix}${command.delta < 0 ? "D" : "C"}`;
 		case "move-word":
 			return command.direction < 0 ? "\x1bb" : "\x1bf";
 		case "move-line":
 		case "history":
-			return command.direction < 0 ? "\x1b[A" : "\x1b[B";
+			return `${cursorPrefix}${command.direction < 0 ? "A" : "B"}`;
 		case "home":
 			return "\x01";
 		case "end":
