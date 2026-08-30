@@ -145,3 +145,36 @@ how a provider would register a sandboxed callback that returns a list
 instead of running a script, and what the security review for that
 callback would look like. Until that decision is made, the engine only
 accepts `suggestion`, `template`, and `root-command`.
+
+## Fuzzy scoring
+
+`matchQuery(text, query)` first tries an exact match, then a prefix
+match, then falls through to a subsequence (fuzzy) match. Case
+sensitivity follows the smart-case rule: a query is case-insensitive
+while every character is lowercase and becomes case-sensitive as soon
+as it contains an uppercase letter. When a query is all lowercase the
+haystack is folded to lowercase before comparison, so `"readme"` matches
+`"README"`; when the query is mixed case the original casing of both
+sides is compared byte-for-byte, so `"README"` no longer matches
+`"readme"`.
+
+The fuzzy tier scores each candidate by the table below and returns
+`null` when the query is not a subsequence of the text. The same
+five constants are exported from `match.ts` so a future tuning change
+can update the table and the code in one place.
+
+| Constant            | Value | Rule |
+| ------------------- | ----- | ---- |
+| `BONUS_FIRST_CHAR`  | `24`  | Awarded when the first query character lands on index 0 of the text. |
+| `BONUS_WORD_START`  | `16`  | Awarded when a query character lands after a word separator (`/ - _ . space : @`) or at a camelCase boundary (previous character is lowercase, current is uppercase, current has a lowercase form). |
+| `BONUS_CONSECUTIVE` | `8`   | Awarded when a query character immediately follows the previous matched character. |
+| `PENALTY_GAP`       | `3`   | Subtracted per intervening character between two matched characters that are not consecutive. |
+| `MAX_GAP_PENALTY`   | `12`  | Caps the per-gap penalty so a single wide gap cannot dominate the score. |
+
+Warp implements the same algorithm as `SkimMatcherV2`
+(`crates/fuzzy_match/src/lib.rs:81-83`) - the smart-case rule, the
+word-start bonus, and the consecutive-run bonus all originate there.
+This scorer is a behavioural equivalent written from the same rules,
+not a port: the constants above are our values and may diverge on
+purpose. If a tuning change moves a constant, update this table in the
+same commit.
