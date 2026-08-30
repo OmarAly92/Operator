@@ -115,6 +115,71 @@ detector, in the parser that already has to be right.
 
 ---
 
+## 2.5 Verified against Warp's own implementation
+
+Read at `/Users/omaraly/development/AI/warp` on 2026-08-30, in `crates/warp_terminal` and
+`app/src/terminal/model`. Four things it confirms, and four it corrects.
+
+**Confirmed — keep doing these:**
+
+- **The screen swap is handled above the ANSI parser.** Warp's ANSI handler literally
+  `unreachable!("Handled in model layer")` on `Mode::SwapScreen`
+  (`grid/ansi_handler.rs:987`); `TerminalModel::set_mode` intercepts it first
+  (`terminal_model.rs:2799`). That is our arrangement exactly: the marks scanner owns the
+  switch and `AltGrid::csi` ignores `?1049`.
+- **Alt-screen resize does not reflow.** *"If this is the alt screen, we can skip
+  reflowing the grid and simply adjust the size of rows"* (`grid/resize.rs:60-70`). Our
+  `AltGrid::resize` truncates and pads. Correct.
+- **`ED 2` inside the alt screen clears in place** rather than pushing rows to scrollback
+  (`ansi_handler.rs:852`). Ours does the same, because there is nowhere to push to.
+- **A repeated enter is ignored, not re-applied.** *"Tried to enter the alternate screen,
+  but it was already active"* (`terminal_model.rs:2109`). Our `enter_alt` early-returns and
+  a test pins it.
+
+**Corrections — these change the plan:**
+
+- **C1 (a real bug). Application Cursor Keys (`DECCKM`, `?1`) must change how arrows are
+  encoded.** When it is set, arrows are `SS3 A` (`\x1bOA`), not `CSI A` (`\x1b[A`). Warp
+  routes every escape sequence through `get_c1_sequence`, whose comment says this is
+  *"critical when we want the arrow keys to work in the interactive programs as well as
+  alt_screen"* (`escape_sequences.rs:206-216`). **Our own spec records an agent CLI setting
+  it**: §11's measured first frame is
+  `ESC [?1049h ESC [22;0;0t ESC [?1h ESC = ESC [H ESC [2J` — `ESC [?1h` *is* DECCKM. Task 9
+  as originally written would have sent CSI arrows to a program that asked for SS3. Tasks
+  4, 5 and 9 now carry it.
+- **C2. The mouse wheel in the alternate screen should send arrow keys to the program.**
+  Warp's `alt_screen_scroll_to_pty_bytes` (`escape_sequences.rs:368`) converts wheel deltas
+  into repeated `SS3 A`/`SS3 B`, or into SGR mouse reports when mouse reporting is on.
+  Without this, `less` and `man` cannot be scrolled with a trackpad — which reads as
+  broken, not as "correctly has no scrollback". Task 9 adds it.
+- **C3. Clear the selection when entering the alternate screen.** Warp does
+  `alt_screen_mut().clear_selection()` on entry (`terminal_model.rs:2148`). A block
+  selection left standing across a TUI session points at rows the user can no longer see.
+- **C4. Warp keeps the alt grid alive permanently and flips a boolean; we create and drop
+  an `Option<AltGrid>`.** Deliberate difference: Warp needs persistence because `?47`
+  (no-clear swap) can return to previous alt content, and because it reuses one allocation.
+  We only recognise `?1049`, which always clears, so `Option` is simpler and makes
+  "inactive" unrepresentable rather than merely false. **If we ever support `?47`, this
+  decision has to be revisited** — write that down rather than discovering it.
+
+**Named, still out of scope, now with Warp's evidence for what it would cost:**
+
+- Mouse reporting (`?1000/1002/1003/1006`) — Warp carries a full `MouseState` →
+  escape-sequence encoder. If Task 7's vectors or Task 10's manual check show the agent CLI
+  enabling `?1000`, escalate rather than shipping a pane that swallows clicks.
+- Synchronized output (`?2026`) — Warp redraws on unset (`terminal_model.rs:2820`). Ours
+  will flicker slightly on TUIs that use BSU/ESU. Acceptable for this phase.
+- Application keypad (`ESC =`, `DECKPAM`) — also in that recorded agent frame, but it only
+  affects the numeric keypad.
+- **Full-grid clears in the *primary* buffer.** Warp added `FullGridClearBehavior::Clear`
+  and turns it on *when a CLI agent session starts* (`view.rs:13458`), so a program that
+  redraws full-screen without entering the alt screen does not append every frame to
+  scrollback (GH #9838). Our append-only primary buffer ignores `ED` entirely, so a
+  primary-buffer TUI would grow scrollback without bound. Not this phase — but it is a real
+  hazard with a known shape, and it belongs in the Phase 4 plan.
+
+---
+
 ## 3. Global constraints
 
 Every task's requirements implicitly include all of these.
@@ -210,32 +275,35 @@ Expected: all Rust suites pass; TS reports 119 tests (core 21, editor 44, react 
 renderer-dom 45). If anything is red **before** your first edit, that is the thing to
 report — do not start Task 1 on a red tree.
 
-- [ ] **Step 3: Record the perf baseline that Phase 2 shipped the tool for**
+- [ ] **Step 3: Confirm the perf baseline is the best-of-5 one**
 
-The gate currently fails `input-latency` at 8.90 against an 8.60 baseline. That 8.60 is a
-single lucky draw: measured across runs the two renderers overlap completely (dom
-8.30–8.90, xterm 8.30–9.20). Phase 2 added `--repeat` to fix exactly this and it was never
-run. Run it now, on a clean master-equivalent tree, before any Phase 3 code can be blamed:
+This is **already done** — the best-of-5 re-record completed on 2026-08-30 and
+`bench/baselines/darwin-arm64-xterm.json` now reads:
+
+| scenario | p95 | median |
+| --- | --- | --- |
+| `vtebench` | 0.1470 | 0.1225 |
+| `large-output` | 1,068,462 | 1,023,473 |
+| `input-latency` | **9.00 ms** | 8.20 ms |
+
+The `input-latency` ceiling moved from the single-draw 8.60 to 9.00, which is what the
+overlap between the two renderers predicted. Verify the file is the new one and commit it
+if it is still unstaged:
 
 ```bash
-cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:baseline -- --renderer xterm --record --repeat 5
+cd /Users/omaraly/development/AI/Operator && node -e "const b=require('./packages/terminal/bench/baselines/darwin-arm64-xterm.json'); console.log(b.recordedAt, b.scenarios['input-latency'].p95)"
 ```
 
-This takes roughly 40 minutes. Then:
-
-```bash
-cd /Users/omaraly/development/AI/Operator/packages/terminal && npm run bench:gate
-```
-
-Commit the new baseline:
+Expected: `2026-08-30T01:48:49.135Z 9`.
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git add packages/terminal/bench/baselines && git commit -m "bench(terminal): re-record the xterm baseline as a best-of-5"
 ```
 
-**If the gate still fails `input-latency` after a best-of-5 baseline, say so and continue
-to Task 1.** Do not re-record a third time hoping for friendlier numbers. A gate you
-re-roll until it passes is not a gate, and Task 11 will re-check it anyway.
+`npm run bench:gate` cannot run yet — it needs a recorded `dom` result and
+`bench/results/` holds only the xterm run. Task 11 Step 4 records both and runs it. **Do
+not re-record the baseline** at any point in this phase; if the gate fails at Task 11, the
+cause is Phase 3 code.
 
 ---
 
@@ -1444,6 +1512,28 @@ fn ownership_stays_released_inside_the_alt_screen() {
 }
 
 #[test]
+fn application_cursor_keys_is_tracked_and_survives_leaving_the_alt_screen() {
+    let mut c = core();
+    assert!(!c.application_cursor_keys());
+    c.feed(b"\x1b[?1049h\x1b[?1h");
+    assert!(c.application_cursor_keys());
+    c.feed(b"\x1b[?1049l");
+    assert!(c.application_cursor_keys());
+    c.feed(b"\x1b[?1l");
+    assert!(!c.application_cursor_keys());
+}
+
+#[test]
+fn the_recorded_agent_cli_first_frame_parses_the_way_the_spec_says() {
+    let mut c = core();
+    c.feed(b"\x1b[?1049h\x1b[22;0;0t\x1b[?1h\x1b=\x1b[H\x1b[2J");
+    assert!(c.alt_grid().is_some());
+    assert!(c.application_cursor_keys());
+    assert_eq!(c.alt_grid().expect("alt").cursor(), (0, 0));
+    assert_eq!(alt_row(&c, 0), "");
+}
+
+#[test]
 fn a_sequence_split_across_two_feeds_still_switches() {
     let mut c = core();
     c.feed(b"\x1b[?10");
@@ -1606,7 +1696,22 @@ In `crates/vt-core/src/parser.rs`:
    ignore a second `1049h`, and an agent CLI that re-sends it on redraw would otherwise
    wipe its own screen.
 
-4. Replace the whole `impl Perform for Parser` block with:
+4. Track **application cursor keys** on the `Parser`, not on the grid. `DECCKM` is
+   terminal-level state: it can be set before the alt screen is entered and it must survive
+   leaving it. Add a field `app_cursor: bool` (initialised `false`) plus:
+
+```rust
+    pub fn app_cursor(&self) -> bool {
+        self.app_cursor
+    }
+```
+
+   and handle it in `csi_dispatch` **before** the alt fork, so it works in both buffers.
+   See correction C1 in §2.5: our own spec's recorded agent-CLI frame sets `?1h`, and an
+   arrow encoded as `CSI A` instead of `SS3 A` is a wrong keystroke delivered to the
+   program, not a cosmetic difference.
+
+5. Replace the whole `impl Perform for Parser` block with:
 
 ```rust
 impl Perform for Parser {
@@ -1660,6 +1765,33 @@ impl Perform for Parser {
    `carriage_return_is_still_a_no_op_in_the_normal_buffer` exists so a later reader cannot
    "fix" it by accident.
 
+   The `csi_dispatch` body becomes:
+
+```rust
+    fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
+        if c == 'm' {
+            self.apply_sgr(params);
+            return;
+        }
+        if intermediates.first() == Some(&b'?')
+            && params.iter().next().and_then(|g| g.first().copied()) == Some(1)
+        {
+            match c {
+                'h' => self.app_cursor = true,
+                'l' => self.app_cursor = false,
+                _ => {}
+            }
+        }
+        if let Some(alt) = self.alt.as_mut() {
+            alt.csi(params, intermediates, c);
+        }
+    }
+```
+
+   It falls through to `alt.csi` rather than returning, because `?1` and `?25` can arrive in
+   the same parameter position and `AltGrid::csi` already ignores everything it does not
+   know.
+
 - [ ] **Step 5: Give `TerminalCore` rows, `resize` and `alt_grid`**
 
 In `crates/vt-core/src/lib.rs`:
@@ -1689,6 +1821,10 @@ pub const DEFAULT_ROWS: usize = 24;
 
     pub fn alt_grid(&self) -> Option<&alt::AltGrid> {
         self.parser.alt()
+    }
+
+    pub fn application_cursor_keys(&self) -> bool {
+        self.parser.app_cursor()
     }
 ```
 
@@ -1758,7 +1894,9 @@ export type AltScreenView = Readonly<{
 }>;
 ```
 
-with `altScreen: AltScreenView | null` on `TerminalSnapshot`.
+with `altScreen: AltScreenView | null` **and** `applicationCursorKeys: boolean` on
+`TerminalSnapshot`. The second is terminal-level, not alt-level — it survives leaving the
+alternate screen, so it does not belong inside `AltScreenView`.
 
 This is **deliberately the same wire shape as the block path**: `renderer-dom` already has
 a loop driven by `(content, rowRanges, runRanges, stylePairs)` where each style pair is
@@ -1940,7 +2078,8 @@ In `crates/vt-wasm/src/lib.rs`:
 ```
 
 3. Add the matching `#[wasm_bindgen]` accessors on `WasmTerminalCore`, following the exact
-   naming pattern the block buffers already use: `alt_active() -> bool`,
+   naming pattern the block buffers already use: `application_cursor_keys() -> bool`,
+   `alt_active() -> bool`,
    `alt_rows() -> u32`, `alt_cols() -> u32`, `alt_cursor_row() -> u32`,
    `alt_cursor_col() -> u32`, `alt_cursor_visible() -> bool`, and
    `alt_content_ptr/len`, `alt_row_ranges_ptr/len`, `alt_run_ranges_ptr/len`,
@@ -1996,6 +2135,16 @@ it("reports no scrollback for the alternate buffer", () => {
 	core.dispose();
 });
 
+it("reports application cursor keys, and keeps reporting it after the program leaves", () => {
+	const core = createTerminalCore({ columns: 20, scrollback: 100 });
+	expect(core.snapshot().applicationCursorKeys).toBe(false);
+	core.feed(new TextEncoder().encode("\x1b[?1049h\x1b[?1h"));
+	expect(core.snapshot().applicationCursorKeys).toBe(true);
+	core.feed(new TextEncoder().encode("\x1b[?1049l"));
+	expect(core.snapshot().applicationCursorKeys).toBe(true);
+	core.dispose();
+});
+
 it("drops the alternate view when the program leaves", () => {
 	const core = createTerminalCore({ columns: 10, scrollback: 100 });
 	core.feed(new TextEncoder().encode("\x1b[?1049hx\x1b[?1049l"));
@@ -2006,8 +2155,9 @@ it("drops the alternate view when the program leaves", () => {
 
 - [ ] **Step 6: Implement the TypeScript side**
 
-`ts/core/src/types.ts`: add `AltScreenView`, add `altScreen: AltScreenView | null` to
-`TerminalSnapshot`, and add optional `rows?: number` to `TerminalCoreOptions`.
+`ts/core/src/types.ts`: add `AltScreenView`, add `altScreen: AltScreenView | null` and
+`applicationCursorKeys: boolean` to `TerminalSnapshot`, and add optional `rows?: number` to
+`TerminalCoreOptions`.
 
 `ts/core/src/terminal-core.ts`: in `snapshot()`, after the existing views, add
 
@@ -2610,7 +2760,14 @@ At the very top of `DomBlockRenderer.repaint`, after the null guards and `core.s
 ```
 
 `container.style.overflow = "hidden"` and `scrollTop = 0` are the no-scrollback rule made
-physical — Task 11 asserts it in a real browser.
+physical — Task 11 asserts it in a real browser. The wheel still does something useful;
+Task 9 turns it into arrow keys for the program.
+
+**Clear the block selection on the transition into the alternate screen** (correction C3 in
+§2.5) — do it once on the edge, not on every alt repaint. A selection left standing points
+at rows the user can no longer see, and Warp clears it at the same moment
+(`terminal_model.rs:2148`). Track the previous alt state in a field and call the existing
+selection-clearing path when it goes false → true.
 
 Keep the block-path branch below untouched. Do **not** reset `stickToBottom` on the way in
 or out; the block list's scroll position must survive a TUI running and exiting, and the
@@ -2705,12 +2862,46 @@ it("sends alternate-screen keystrokes raw and never as a submitted line", () => 
 	expect(onSendRaw).toHaveBeenNthCalledWith(2, "\r");
 });
 
-it("encodes arrows and control keys the way a tui expects", () => {
+it("encodes arrows as CSI while application cursor keys are off", () => {
 	const { container, core, onSendRaw } = renderSurface();
 	feed(core, "\x1b[?1049h");
 	const surface = container.querySelector(".terminal-host") as HTMLElement;
 	surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
 	expect(onSendRaw).toHaveBeenCalledWith("\x1b[A");
+});
+
+it("encodes arrows as SS3 once the program sets application cursor keys", () => {
+	const { container, core, onSendRaw } = renderSurface();
+	feed(core, "\x1b[?1049h\x1b[?1h");
+	const surface = container.querySelector(".terminal-host") as HTMLElement;
+	surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+	expect(onSendRaw).toHaveBeenCalledWith("\x1bOA");
+	surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+	expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
+});
+
+it("sends the whole recorded agent-cli frame's worth of state through correctly", () => {
+	const { container, core, onSendRaw } = renderSurface();
+	feed(core, "\x1b[?1049h\x1b[22;0;0t\x1b[?1h\x1b=\x1b[H\x1b[2J");
+	const surface = container.querySelector(".terminal-host") as HTMLElement;
+	surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+	expect(onSendRaw).toHaveBeenCalledWith("\x1bOD");
+});
+
+it("turns the wheel into arrow keys instead of scrolling nothing", () => {
+	const { container, core, onSendRaw } = renderSurface();
+	feed(core, "\x1b[?1049h");
+	const surface = container.querySelector(".terminal-host") as HTMLElement;
+	surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+	expect(onSendRaw).toHaveBeenCalled();
+	expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
+});
+
+it("does not turn the wheel into keys outside the alternate screen", () => {
+	const { container, onSendRaw } = renderSurface();
+	const surface = container.querySelector(".terminal-host") as HTMLElement;
+	surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+	expect(onSendRaw).not.toHaveBeenCalled();
 });
 
 it("takes focus when the alternate screen opens and gives it back on leave", () => {
@@ -2734,11 +2925,32 @@ it("returns to the block list when the program leaves the alternate screen", () 
 - [ ] **Step 2: Export the key encoder**
 
 In `ts/editor/src/line-editor.ts`, change `function passthroughFor` to
-`export function passthroughFor`, and add to `ts/editor/src/index.ts`:
+`export function passthroughFor`, and give it a second parameter:
+
+```ts
+export function passthroughFor(command: EditorCommand, applicationCursorKeys = false): string {
+```
+
+The four cursor-key cases must branch on it. `SS3` is `\x1bO`; `CSI` is `\x1b[`:
+
+```ts
+	const cursorPrefix = applicationCursorKeys ? "\x1bO" : "\x1b[";
+```
+
+then `move` returns `` `${cursorPrefix}${command.delta < 0 ? "D" : "C"}` ``,
+`move-line`/`history` return `` `${cursorPrefix}${command.direction < 0 ? "A" : "B"}` ``,
+and `home`/`end` keep their `\x01`/`\x05` control codes. The default parameter keeps every
+existing call site — including the editor's own `Released` passthrough — behaving exactly as
+before, so no existing editor test changes.
+
+Add to `ts/editor/src/index.ts`:
 
 ```ts
 export { passthroughFor } from "./line-editor.js";
 ```
+
+Why this and not a separate encoder: the editor already owns key→bytes for the whole app,
+and a second encoder in `react` would be a second thing to keep in sync with `mapKey`.
 
 - [ ] **Step 3: Implement in `TerminalSurface`**
 
@@ -2761,19 +2973,44 @@ export { passthroughFor } from "./line-editor.js";
 		if (!blockHost || !altActive) {
 			return;
 		}
+		const appCursor = () => core.snapshot().applicationCursorKeys;
 		const onKeyDown = (event: KeyboardEvent) => {
 			const command = mapKey(event);
 			if (!command) {
 				return;
 			}
 			event.preventDefault();
-			onSendRaw(passthroughFor(command));
+			onSendRaw(passthroughFor(command, appCursor()));
+		};
+		const onWheel = (event: WheelEvent) => {
+			const lines = Math.trunc(event.deltaY / WHEEL_LINE_HEIGHT_PX);
+			if (lines === 0) {
+				return;
+			}
+			event.preventDefault();
+			const prefix = appCursor() ? "\x1bO" : "\x1b[";
+			const key = lines > 0 ? "B" : "A";
+			onSendRaw(`${prefix}${key}`.repeat(Math.min(Math.abs(lines), MAX_WHEEL_LINES)));
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
+		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.focus();
-		return () => blockHost.removeEventListener("keydown", onKeyDown);
-	}, [altActive, onSendRaw]);
+		return () => {
+			blockHost.removeEventListener("keydown", onKeyDown);
+			blockHost.removeEventListener("wheel", onWheel);
+		};
+	}, [altActive, core, onSendRaw]);
 ```
+
+with `const WHEEL_LINE_HEIGHT_PX = 40;` and `const MAX_WHEEL_LINES = 10;` at module scope.
+The cap is not arbitrary caution: a trackpad flick produces a `deltaY` in the hundreds, and
+an uncapped repeat sends a burst of arrows the program will still be processing after the
+user has stopped scrolling.
+
+**The wheel handler is why the alt screen is not simply `overflow: hidden` and done**
+(correction C2 in §2.5). Having no scrollback is correct; having a dead wheel in `less` is
+not, and every other terminal turns the wheel into arrow keys here. The listener is
+`passive: false` because it calls `preventDefault`.
 
 - Render the editor host with `hidden={altActive}`.
 
