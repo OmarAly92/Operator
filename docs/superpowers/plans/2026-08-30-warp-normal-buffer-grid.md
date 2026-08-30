@@ -30,14 +30,14 @@ Read on 2026-08-30 at `/Users/omaraly/development/AI/warp`. Four decisions confi
 1. **The two-tier split.** `grid_handler.rs:419` holds both `flat_storage: FlatStorage` and `GridStorage`; `storage_row()` (`:2399-2409`) resolves an index by `row_idx.checked_sub(self.flat_storage.total_rows())`. `flat_storage/mod.rs:11-17` rules out `Insert`, suiting only rows "that cannot be accessed via the cursor". Our `Content`/`RowIndex` is the `FlatStorage` tier; `ScreenGrid` is `GridStorage`.
 2. **Only a scroll whose region starts at the top evicts.** `grid_storage.rs:379` guards on `region.start != VisibleRow(0)`. Task 2's `scroll_top != 0` rule is the same condition.
 3. **Trailing blanks are trimmed per row**, via `rightmost_visible_nonempty_cell_in_row` (`grid_handler.rs:2653`). Task 3 trims.
-4. **The alternate buffer never reaches flat storage.** `resize_storage` (`resize.rs:63`) notes "there's no flat storage for the alt screen". Task 6 pins it.
+4. **The alternate buffer never reaches flat storage.** `resize_storage` (`resize.rs:63`) notes "there's no flat storage for the alt screen". Task 5 pins it.
 
 **Corrected — each of these was wrong in the first draft of this plan.**
 
-- **C1. Grid extent is a cursor high-water mark, not a blank scan.** `content_len()` (`grid_handler.rs:2640`) falls back to `max_cursor_point.row + history_size() + 1`, and `max_cursor_point` is updated on every cursor move (`grid_storage.rs:265-268`). Scanning for the last non-blank cell is Warp's *opt-in trimming* refinement, not its notion of extent. A blank scan makes rows vanish when a program clears its lower half, and costs `rows × cols` reads per snapshot. Task 5 uses the high-water mark.
-- **C2. `ED All` on the primary screen needs a policy.** `ansi_handler.rs:852-862` branches three ways: alt screen clears the region in place; primary with `FullGridClearBehavior::Clear` calls `clear_visible_rows_in_place`; primary with `Scroll` calls `clear_viewport`, which pushes the visible rows into scrollback. Delegating to the alternate screen's `erase_in_display` would make a shell's `clear` destroy scrollback. Task 7 implements both paths.
-- **C3. Resize must not reflow an agent TUI.** `resize.rs:57-66` skips reflow when the alt screen is active **or** `full_grid_clear_behavior == Clear`, with the comment: "We also do this for CLI agent TUIs so pane resizes don't append old frames into block scrollback before the app redraws (GH #9838)." That is this bug, in Warp's own tracker. Task 8 covers it.
-- **C4. The three settings above are one mode, switched by an explicit signal.** `view.rs:13456-13460` flips the active block on `CLIAgentSessionsModelEvent::Started`: `enable_full_grid_clear_behavior()` plus `set_trim_trailing_blank_rows(true)`, which also sets `set_track_content_length(true)` (`blockgrid.rs:306-313`). Warp does not sniff the byte stream; it is told. We have the same signal — the daemon knows the provider, and `TerminalPane.tsx:878` already branches on it. Task 9 wires it.
+- **C1. Grid extent is a cursor high-water mark, not a blank scan.** `content_len()` (`grid_handler.rs:2640`) falls back to `max_cursor_point.row + history_size() + 1`, and `max_cursor_point` is updated on every cursor move (`grid_storage.rs:265-268`). Scanning for the last non-blank cell is Warp's *opt-in trimming* refinement, not its notion of extent. A blank scan makes rows vanish when a program clears its lower half, and costs `rows × cols` reads per snapshot. Task 4 uses the high-water mark (cycle B).
+- **C2. `ED All` on the primary screen needs a policy.** `ansi_handler.rs:852-862` branches three ways: alt screen clears the region in place; primary with `FullGridClearBehavior::Clear` calls `clear_visible_rows_in_place`; primary with `Scroll` calls `clear_viewport`, which pushes the visible rows into scrollback. Delegating to the alternate screen's `erase_in_display` would make a shell's `clear` destroy scrollback. Task 6 implements both paths.
+- **C3. Resize must not reflow an agent TUI.** `resize.rs:57-66` skips reflow when the alt screen is active **or** `full_grid_clear_behavior == Clear`, with the comment: "We also do this for CLI agent TUIs so pane resizes don't append old frames into block scrollback before the app redraws (GH #9838)." That is this bug, in Warp's own tracker. Task 7 covers it.
+- **C4. The three settings above are one mode, switched by an explicit signal.** `view.rs:13456-13460` flips the active block on `CLIAgentSessionsModelEvent::Started`: `enable_full_grid_clear_behavior()` plus `set_trim_trailing_blank_rows(true)`, which also sets `set_track_content_length(true)` (`blockgrid.rs:306-313`). Warp does not sniff the byte stream; it is told. We have the same signal — the daemon knows the provider, and `TerminalPane.tsx:878` already branches on it. Task 8 wires it.
 
 ## Global Constraints
 
@@ -65,6 +65,7 @@ Read on 2026-08-30 at `/Users/omaraly/development/AI/warp`. Four decisions confi
 | `crates/vt-core/src/grid.rs` | `build_snapshot` emits scrollback rows followed by screen rows as one contiguous row list. |
 | `crates/vt-core/tests/screen_normal.rs` | **Create.** Cursor addressing in the normal buffer. |
 | `crates/vt-core/tests/redraw_conformance.rs` | **Create.** Replays a captured agent-CLI redraw and pins the row count. |
+| `crates/vt-core/src/scrollback.rs` | **Create.** `commit_row` — screen cells to scrollback bytes. Unit-tested inline. |
 | `crates/vt-core/tests/clear_policy.rs` | **Create.** `ED All` scrolls history away on the primary screen, clears in place on the alternate. |
 | `crates/vt-core/tests/resize_policy.rs` | **Create.** A resize in agent-TUI mode appends no frame to scrollback. |
 
@@ -303,128 +304,188 @@ git commit -m "feat(terminal): let a screen report the rows it scrolls off the t
 
 ---
 
-### Task 3: Commit evicted rows into scrollback
+### Task 3: A pure `commit_row` that turns screen cells into scrollback bytes
 
-The bridge between the two tiers. A row of `Cell`s becomes bytes in `Content`, a range in `RowIndex`, and style runs in `AttributeMap` — exactly what a row written by today's `print` path already becomes.
-
-Trailing blanks are trimmed. A terminal row is `cols` cells wide whether or not anything was written to the tail, and storing 100 spaces per row would both bloat scrollback and change `row_text` for every existing test.
+The one genuinely independent piece of the seam. It needs no `Parser` field and no
+snapshot change, so it can be driven directly and its test is discriminating: the
+function does not exist yet.
 
 **Files:**
-- Modify: `crates/vt-core/src/parser.rs`
-- Test: `crates/vt-core/tests/screen_commit.rs` (create)
+- Create: `crates/vt-core/src/scrollback.rs`
+- Modify: `crates/vt-core/src/lib.rs` (add `mod scrollback;`)
 
 **Interfaces:**
-- Consumes: `ScreenGrid::take_evicted` from Task 2.
-- Produces: `Parser::commit_evicted(&mut self)` — private; drains the active screen's evicted rows into `content`/`rows`/`styles`. Called after every `feed` chunk is parsed.
+- Consumes: `screen::Cell` from Task 1.
+- Produces: `pub(crate) fn commit_row(cells: &[Cell], content: &mut Content, rows: &mut RowIndex, styles: &mut AttributeMap<StyleCode>)`.
+
+**Two facts verified in the code on 2026-08-30 — an earlier draft of this task got both wrong:**
+
+- `AttributeMap` has **`set_from(offset, value)`**, not `set_range`. It is a tail-setting
+  run map: writing a value at an offset makes it hold from that offset onward until the
+  next `set_from`. Style must therefore be set **before** the character bytes are pushed.
+- `open_new_row` (`parser.rs:97-103`) does **not** push a newline byte. It calls
+  `complete_row(content.end_offset())` and nothing else, so a row's byte range excludes
+  any terminator and `row_text` slices it directly. `commit_row` must not push `"\n"`
+  either, or every committed row gains a stray byte and every `row_text` assertion in the
+  suite breaks.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `crates/vt-core/tests/screen_commit.rs`:
+Create `crates/vt-core/src/scrollback.rs` with the tests but no implementation:
 
 ```rust
-use vt_core::TerminalCore;
+#[cfg(test)]
+mod tests {
+    use super::commit_row;
+    use crate::attribute_map::AttributeMap;
+    use crate::content::Content;
+    use crate::row_index::RowIndex;
+    use crate::screen::Cell;
+    use crate::style::StyleCode;
 
-#[test]
-fn rows_scrolled_off_a_three_row_screen_reach_scrollback() {
-    let mut core = TerminalCore::new(20, 100).unwrap();
-    core.resize(20, 3);
-    core.feed(b"one\r\ntwo\r\nthree\r\nfour\r\n");
-    let snapshot = core.snapshot().unwrap();
-    let text: Vec<String> = (0..snapshot.row_count())
-        .map(|i| snapshot.row_text(i).trim_end().to_string())
-        .collect();
-    assert!(text.contains(&"one".to_string()), "got {text:?}");
-    assert!(text.contains(&"four".to_string()), "got {text:?}");
-}
-
-#[test]
-fn committed_rows_keep_their_style() {
-    let mut core = TerminalCore::new(20, 100).unwrap();
-    core.resize(20, 2);
-    core.feed(b"\x1b[31mred\x1b[0m\r\nb\r\nc\r\n");
-    let snapshot = core.snapshot().unwrap();
-    let row = (0..snapshot.row_count())
-        .find(|i| snapshot.row_text(*i).trim_end() == "red")
-        .expect("the red row reached scrollback");
-    let pairs = snapshot.row_style_pairs(row);
-    assert!(
-        pairs.iter().any(|(_, style)| style.colour() == vt_core::StyleCode::ansi(1)),
-        "expected ansi 1 in {pairs:?}",
-    );
-}
-
-#[test]
-fn trailing_blanks_are_trimmed() {
-    let mut core = TerminalCore::new(40, 100).unwrap();
-    core.resize(40, 2);
-    core.feed(b"hi\r\nb\r\nc\r\n");
-    let snapshot = core.snapshot().unwrap();
-    let row = (0..snapshot.row_count())
-        .find(|i| snapshot.row_text(*i).starts_with("hi"))
-        .expect("the hi row reached scrollback");
-    assert_eq!(snapshot.row_text(row), "hi");
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `cargo test -p vt-core --test screen_commit`
-Expected: FAIL — `core.resize(20, 3)` does not bound the normal buffer yet, so nothing is ever evicted and `row_text` still holds the append-only output.
-
-- [ ] **Step 3: Implement**
-
-In `crates/vt-core/src/parser.rs`:
-
-```rust
-fn commit_evicted(&mut self) {
-    let evicted = match self.alt.as_mut() {
-        Some(_) => return,
-        None => self.screen.take_evicted(),
-    };
-    for row in evicted {
-        let end = row.iter().rposition(|cell| cell.ch != ' ').map_or(0, |i| i + 1);
-        for cell in &row[..end] {
-            let start = self.content.end_offset();
-            let mut buffer = [0u8; 4];
-            self.content.push_char(cell.ch.encode_utf8(&mut buffer));
-            self.styles.set_range(start, self.content.end_offset(), cell.style);
+    fn row(text: &str, width: usize) -> Vec<Cell> {
+        let mut cells = vec![Cell::BLANK; width];
+        for (index, ch) in text.chars().enumerate() {
+            cells[index] = Cell { ch, style: StyleCode::DEFAULT };
         }
-        self.content.push_char("\n");
-        self.rows.complete_row(self.content.end_offset());
-        self.grid.note_row_completed();
+        cells
+    }
+
+    fn commit(cells: &[Cell]) -> (Content, RowIndex, AttributeMap<StyleCode>) {
+        let mut content = Content::new();
+        let mut rows = RowIndex::new(0);
+        let mut styles = AttributeMap::new(StyleCode::DEFAULT);
+        commit_row(cells, &mut content, &mut rows, &mut styles);
+        (content, rows, styles)
+    }
+
+    #[test]
+    fn trailing_blanks_are_dropped() {
+        let (content, rows, _) = commit(&row("hi", 40));
+        let range = rows.completed().front().expect("one committed row");
+        assert_eq!(content.copy_range(range.start, range.end), b"hi");
+    }
+
+    #[test]
+    fn no_terminator_byte_is_written() {
+        let (content, _, _) = commit(&row("hi", 40));
+        assert_eq!(content.end_offset(), 2);
+    }
+
+    #[test]
+    fn an_all_blank_row_commits_as_an_empty_range() {
+        let (_, rows, _) = commit(&row("", 40));
+        assert_eq!(rows.completed().len(), 0);
+        assert_eq!(rows.open_start(), 0);
+    }
+
+    #[test]
+    fn interior_blanks_survive() {
+        let (content, rows, _) = commit(&row("a b", 40));
+        let range = rows.completed().front().expect("one committed row");
+        assert_eq!(content.copy_range(range.start, range.end), b"a b");
+    }
+
+    #[test]
+    fn style_runs_follow_the_cells() {
+        let mut cells = row("ab", 40);
+        cells[0].style = StyleCode::ansi(1);
+        let (content, _, styles) = commit(&cells);
+        let runs = styles.runs(0, content.end_offset());
+        assert_eq!(runs.first().map(|(_, style)| *style), Some(StyleCode::ansi(1)));
+    }
+
+    #[test]
+    fn a_multibyte_glyph_commits_whole() {
+        let (content, rows, _) = commit(&row("\u{2500}", 40));
+        let range = rows.completed().front().expect("one committed row");
+        assert_eq!(content.copy_range(range.start, range.end), "\u{2500}".as_bytes());
     }
 }
 ```
 
-The `"\n"` terminator matches what `open_new_row` already writes, so `row_text` slices identically for committed and open rows.
+`an_all_blank_row_commits_as_an_empty_range` pins the behaviour that `RowIndex::complete_row`
+already has — it ignores a zero-length row (`row_index.rs:25-33`) — so a blank screen row
+does not manufacture scrollback entries.
 
-If `AttributeMap` has no `set_range`, use the existing per-offset setter that `print` already calls — mirror the exact call `Perform::print` makes today rather than inventing an API.
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cargo test -p vt-core scrollback`
+Expected: FAIL to compile — `cannot find function commit_row in this scope`. Paste the error.
+
+- [ ] **Step 3: Implement**
+
+At the top of `crates/vt-core/src/scrollback.rs`:
+
+```rust
+use crate::attribute_map::AttributeMap;
+use crate::content::Content;
+use crate::row_index::RowIndex;
+use crate::screen::Cell;
+use crate::style::StyleCode;
+
+pub(crate) fn commit_row(
+    cells: &[Cell],
+    content: &mut Content,
+    rows: &mut RowIndex,
+    styles: &mut AttributeMap<StyleCode>,
+) {
+    let width = cells
+        .iter()
+        .rposition(|cell| cell.ch != ' ')
+        .map_or(0, |index| index + 1);
+    for cell in &cells[..width] {
+        styles.set_from(content.end_offset(), cell.style);
+        let mut buffer = [0u8; 4];
+        content.push_char(cell.ch.encode_utf8(&mut buffer));
+    }
+    rows.complete_row(content.end_offset());
+}
+```
+
+Add `mod scrollback;` to `crates/vt-core/src/lib.rs`.
 
 - [ ] **Step 4: Run tests**
 
 Run: `cargo test -p vt-core`
-Expected: PASS.
+Expected: PASS. Nothing outside `scrollback.rs` changed, so the rest of the suite is untouched.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-core
-git commit -m "feat(terminal): commit rows evicted off the screen into scrollback"
+git commit -m "feat(terminal): turn a screen row into scrollback bytes"
 ```
 
 ---
 
-### Task 4: Route printing and control sequences through the normal screen
+### Task 4: Make the normal buffer a screen — the atomic seam
 
-The behaviour change. `Perform::print` writes into `self.screen` instead of appending to `content`; `csi_dispatch` and `esc_dispatch` reach the screen whether or not the alternate buffer is active.
+**This task is deliberately large, and it may not be split.** The write target, the commit
+path and the snapshot row space are one seam: routing `print` to a screen without also
+teaching `build_snapshot` to emit screen rows makes every row currently on screen
+**invisible**, and committing evicted rows is unobservable until both of those land. An
+earlier draft of this plan split them into three tasks; Task 3 was found unimplementable
+in isolation, because `build_snapshot` (`grid.rs:84-88`) emits only `rows.completed()`
+plus the open row.
+
+Work through the three cycles below in order, each with its own RED evidence, then make
+**one** commit.
 
 **Files:**
-- Modify: `crates/vt-core/src/parser.rs:17-46` (struct and `new`), `:90-103` (`resize`, `open_new_row`), `:230-320` (`Perform`)
+- Modify: `crates/vt-core/src/parser.rs` — struct, `new`, `resize`, `Perform`
+- Modify: `crates/vt-core/src/screen.rs` — `max_cursor_row`, `content_rows`
+- Modify: `crates/vt-core/src/grid.rs:64-96` — `build_snapshot`
+- Modify: `crates/vt-core/src/lib.rs` — `feed` calls `commit_evicted`, `snapshot` passes the screen
+- Modify: `crates/vt-core/src/block_grid.rs:68-79`
+- Modify: `crates/vt-core/tests/terminal_core.rs`, `block_contract.rs`, `blocks_from_marks.rs` — expectations only
 - Test: `crates/vt-core/tests/screen_normal.rs` (create)
 
 **Interfaces:**
-- Consumes: `commit_evicted` from Task 3.
-- Produces: `Parser::screen(&self) -> &ScreenGrid`, `Parser::active_screen_mut(&mut self) -> &mut ScreenGrid` returning `alt` when present and `screen` otherwise.
+- Consumes: `commit_row` (Task 3), `take_evicted`/`set_records_eviction` (Task 2).
+- Produces: `Parser::screen(&self) -> &ScreenGrid`, `Parser::active_screen_mut(&mut self) -> &mut ScreenGrid`, `ScreenGrid::content_rows(&self) -> usize`, and `build_snapshot(..., screen: &ScreenGrid, alt: Option<&AltGrid>)`.
+
+#### Cycle A — cursor addressing reaches the normal buffer
 
 - [ ] **Step 1: Write the failing test**
 
@@ -475,7 +536,7 @@ fn a_repeated_redraw_does_not_grow_the_row_count() {
     core.resize(80, 24);
     core.feed(b"\x1b[2J\x1b[H");
     for _ in 0..50 {
-        core.feed(b"\x1b[Hframe line one\x1b[K\r\nframe line two\x1b[K\x1b[K");
+        core.feed(b"\x1b[Hframe line one\x1b[K\r\nframe line two\x1b[K");
     }
     let count = rows(&core).len();
     assert!(count <= 24, "50 redraws produced {count} rows");
@@ -485,11 +546,19 @@ fn a_repeated_redraw_does_not_grow_the_row_count() {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p vt-core --test screen_normal`
-Expected: FAIL — `cursor_up_rewrites_in_place_instead_of_appending` reports `text[1] == "bravo"`, and `a_repeated_redraw_does_not_grow_the_row_count` reports ~100 rows.
+Expected: FAIL. `cursor_up_rewrites_in_place_instead_of_appending` reports `text[1] == "bravo"`;
+`a_repeated_redraw_does_not_grow_the_row_count` reports about 100 rows. Paste both.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: Implement the routing**
 
-In `crates/vt-core/src/parser.rs`, add `screen: ScreenGrid` to the struct, built in `new` as `ScreenGrid::new(24, width)` with `set_records_eviction(true)`, and:
+In `crates/vt-core/src/parser.rs`, add `screen: ScreenGrid` to the struct, built in `new` as:
+
+```rust
+let mut screen = ScreenGrid::new(24, width);
+screen.set_records_eviction(true);
+```
+
+and:
 
 ```rust
 pub fn screen(&self) -> &ScreenGrid {
@@ -516,20 +585,25 @@ pub fn resize(&mut self, columns: usize, rows: usize) {
 }
 ```
 
-`Perform::print` writes to the active screen:
+`Perform` collapses its two branches into one:
 
 ```rust
-fn print(&mut self, ch: char) {
+fn print(&mut self, c: char) {
     let style = self.pending_style;
-    self.active_screen_mut().print(ch, style);
+    self.active_screen_mut().print(c, style);
 }
-```
 
-`Perform::execute` routes `\r` to `carriage_return`, `\n`/`\x0b`/`\x0c` to `line_feed`, `\t` to `tab`, and `\x08` to a backspace on the active screen, replacing today's `open_new_row`/`expand_tab` calls.
+fn execute(&mut self, byte: u8) {
+    let screen = self.active_screen_mut();
+    match byte {
+        0x08 => screen.move_by(0, -1),
+        0x09 => screen.tab(),
+        0x0A..=0x0C => screen.line_feed(),
+        0x0D => screen.carriage_return(),
+        _ => {}
+    }
+}
 
-`csi_dispatch` keeps the SGR and `?1` handling, then always delegates:
-
-```rust
 fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
     if c == 'm' {
         self.apply_sgr(params);
@@ -552,40 +626,73 @@ fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
 }
 ```
 
-Call `self.commit_evicted()` at the end of `TerminalCore::feed` in `lib.rs:70`, after the parser has consumed the chunk and before `trim_to`.
+`write_char`, `open_new_row` and `expand_tab` lose their callers here. Leave them in place
+for this cycle; delete them in Cycle C once nothing references them, and let the compiler
+tell you rather than guessing.
 
-- [ ] **Step 4: Run tests**
+#### Cycle B — the snapshot spans scrollback and screen
 
-Run: `cargo test -p vt-core`
-Expected: the four new tests PASS. Tests in `terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs` that assert append-only row counts will fail — that is the point of Task 5, and they are fixed there, not by weakening the new tests.
+- [ ] **Step 4: Confirm Cycle A's tests still fail, for a new reason**
 
-- [ ] **Step 5: Commit**
+Run: `cargo test -p vt-core --test screen_normal`
+Expected: still FAIL, now because the snapshot shows no screen content at all. This is the
+entanglement this task exists to resolve — do not stop here.
 
-```bash
-git add packages/terminal/crates/vt-core
-git commit -m "feat(terminal): give the normal buffer a cursor-addressable screen"
+- [ ] **Step 5: Implement the row space**
+
+In `crates/vt-core/src/screen.rs`, track the cursor high-water mark (correction **C1**;
+do **not** scan for the last non-blank cell). Add `max_cursor_row: usize`, initialised to
+`0`, updated wherever `self.row` is assigned — read `move_to` and `print`'s wrap handling
+and cover both:
+
+```rust
+pub fn content_rows(&self) -> usize {
+    self.max_cursor_row + 1
+}
 ```
 
----
+`scroll_up` lowers it by the scroll distance (`self.max_cursor_row.saturating_sub(count)`);
+`reset()` sets it to `0`; `resize` clamps it to `rows - 1`.
 
-### Task 5: Unify the snapshot's row space and the block row counts
+In `crates/vt-core/src/parser.rs`:
 
-`build_snapshot` currently emits `rows.completed()` then the single open row. It must now emit `rows.completed()` (scrollback) followed by the screen's occupied rows. Blocks index into that unified space.
+```rust
+fn commit_evicted(&mut self) {
+    if self.alt.is_some() {
+        return;
+    }
+    for row in self.screen.take_evicted() {
+        crate::scrollback::commit_row(&row, &mut self.content, &mut self.rows, &mut self.styles);
+        self.grid.note_row_completed();
+    }
+}
+```
 
-The open block's `row_count` can no longer be accumulated by `note_row_completed`, because a redraw rewrites rows rather than adding them. It is derived at snapshot time.
+Call it from `TerminalCore::feed` (`lib.rs:70`) after the parser has consumed the chunk and
+before `trim_to`.
 
-**Files:**
-- Modify: `crates/vt-core/src/grid.rs:64-96`
-- Modify: `crates/vt-core/src/block_grid.rs:68-79`
-- Modify: `crates/vt-core/tests/terminal_core.rs`, `block_contract.rs`, `blocks_from_marks.rs` (expectations only)
+In `crates/vt-core/src/grid.rs`, `build_snapshot` gains a `screen: &ScreenGrid` parameter
+and replaces the lone `append_row(open_start, end)` call:
 
-**Interfaces:**
-- Consumes: `Parser::screen()` from Task 4.
-- Produces: `build_snapshot(content, rows, styles, grid, line_editor_state, screen, alt)` — one added `screen: &ScreenGrid` parameter before `alt`. `ScreenGrid::content_rows(&self) -> usize` returning `max_cursor_row + 1`, the cursor high-water mark (Warp's `content_len`, `grid_handler.rs:2640`).
+```rust
+for row in rows.completed() {
+    append_row(&mut ctx, content, styles, row.start, row.end)?;
+}
 
-**C1 applies here.** Do **not** compute this by scanning for the last non-blank cell. A program that prints ten rows and then clears rows five through nine still occupies ten rows; a blank scan would report five and the block would visibly shrink under the user. The high-water mark is also O(1) per snapshot instead of `rows × cols`. Blank-row trimming is a separate, opt-in behaviour and arrives in Task 9.
+for row in 0..screen.content_rows() {
+    append_screen_row(&mut ctx, screen, row)?;
+}
+```
 
-- [ ] **Step 1: Write the failing test**
+`append_screen_row` pushes the row's text into `all_content` after trimming trailing
+blanks, records the `(start, end)` range, and emits one `(end_offset, StyleCode)` pair per
+style run, coalescing equal neighbours — the same shape `append_row` produces, so the
+renderer's one-span-per-run contract (spec §6.2) is unchanged. `open_start`/`end` and the
+`RowIndex` open row are no longer part of the snapshot; the screen holds that row now.
+
+#### Cycle C — block row counts, and the expectations this invalidates
+
+- [ ] **Step 6: Write the failing test**
 
 Append to `crates/vt-core/tests/screen_normal.rs`:
 
@@ -628,75 +735,52 @@ fn a_redraw_does_not_inflate_the_open_block() {
     let snapshot = core.snapshot().unwrap();
     assert!(snapshot.blocks[0].row_count <= 24, "got {}", snapshot.blocks[0].row_count);
 }
-```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `cargo test -p vt-core --test screen_normal`
-Expected: FAIL — the row totals disagree, because the snapshot still emits only the open row.
-
-- [ ] **Step 3: Implement**
-
-In `crates/vt-core/src/screen.rs`, track the high-water mark. Add `max_cursor_row: usize` to the struct, initialised to `0`, and update it in the one place the cursor is assigned — `move_to`, which every other movement routes through:
-
-```rust
-pub fn move_to(&mut self, row: usize, col: usize) {
-    self.row = row.min(self.rows - 1);
-    self.col = col.min(self.cols - 1);
-    self.pending_wrap = false;
-    if self.row > self.max_cursor_row {
-        self.max_cursor_row = self.row;
-    }
-}
-
-pub fn content_rows(&self) -> usize {
-    self.max_cursor_row + 1
+#[test]
+fn rows_scrolled_off_a_three_row_screen_reach_scrollback() {
+    let mut core = TerminalCore::new(20, 100).unwrap();
+    core.resize(20, 3);
+    core.feed(b"one\r\ntwo\r\nthree\r\nfour\r\n");
+    let text = rows(&core);
+    assert!(text.contains(&"one".to_string()), "got {text:?}");
+    assert!(text.contains(&"four".to_string()), "got {text:?}");
 }
 ```
 
-`scroll_up` lowers the mark by the scroll distance, since the rows it referred to have left the screen:
+- [ ] **Step 7: Implement**
 
-```rust
-self.max_cursor_row = self.max_cursor_row.saturating_sub(count);
-```
+In `crates/vt-core/src/block_grid.rs`, `note_row_completed` stops advancing the open
+block's `row_count`. `build_snapshot` computes the last block's count as
+`row_ranges.len() - block.first_row`; blocks closed by `close_block` keep the count frozen
+at close time.
 
-`reset()` sets it back to `0`. Confirm by reading `move_to`'s current body that it is genuinely the single assignment point; if `print`'s wrap handling assigns `self.row` directly, update the mark there too.
+Delete `write_char`, `open_new_row` and `expand_tab` from `parser.rs` if the compiler
+reports them unused. If anything still calls them, say so in your report rather than
+leaving dead code.
 
-In `crates/vt-core/src/grid.rs`, replace the single `append_row(open_start, end)` call with the screen's rows:
+- [ ] **Step 8: Repair the expectations this invalidates**
 
-```rust
-for row in rows.completed() {
-    append_row(&mut ctx, content, styles, row.start, row.end)?;
-}
+`terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs` contain assertions of
+the form "N lines fed produce N rows", true only while N is under the screen height. Give
+each such test an explicit `core.resize(cols, rows)` tall enough for its fixture.
 
-for row in 0..screen.content_rows() {
-    append_screen_row(&mut ctx, screen, row)?;
-}
-```
+**Do not change what any test asserts about content, and do not relax an assertion to make
+it pass.** If a test cannot be repaired that way, it has found a real defect — stop and
+report it instead of editing it.
 
-`append_screen_row` pushes the row's text into `all_content`, records the `(start, end)` range, and emits one `(end_offset, StyleCode)` pair per style run, coalescing equal neighbours — the same shape `append_row` produces, so the renderer's span-per-run contract (spec §6.2) is unchanged.
-
-In `crates/vt-core/src/block_grid.rs`, `note_row_completed` stops advancing the open block's `row_count`; `build_snapshot` computes it as `row_ranges.len() - block.first_row` for the last block, and closed blocks keep the count frozen at `close_block`.
-
-- [ ] **Step 4: Update the expectations the change invalidates**
-
-In `terminal_core.rs`, `block_contract.rs` and `blocks_from_marks.rs`, any assertion of the form "N lines fed produce N rows" now holds only while N is under the screen height. Give those tests an explicit `core.resize(cols, rows)` tall enough for their fixture rather than relaxing the assertion. Do not change what a test asserts about *content*; only about how many rows a bounded screen holds.
-
-- [ ] **Step 5: Run the full suite**
+- [ ] **Step 9: Run the full suite**
 
 Run: `cargo test -p vt-core`
-Expected: PASS.
+Expected: PASS. Paste the count.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add packages/terminal
-git commit -m "feat(terminal): emit scrollback and screen rows as one row space"
+git commit -m "feat(terminal): give the normal buffer a cursor-addressable screen"
 ```
 
----
-
-### Task 6: Preserve the alternate-screen contract
+### Task 5: Preserve the alternate-screen contract
 
 Entering the alternate buffer must still freeze the block list and leave recorded blocks byte-identical (spec §11 shred rule), and the alternate buffer must still have no scrollback. Task 4 made both screens share one code path, so this is the task that proves the sharing did not leak.
 
@@ -781,7 +865,7 @@ git commit -m "test(terminal): pin the alt-screen contract across the shared scr
 
 ---
 
-### Task 7: Give `ED All` on the primary screen the two behaviours Warp has
+### Task 6: Give `ED All` on the primary screen the two behaviours Warp has
 
 Correction **C2**. `CSI 2 J` means different things in the two buffers, and two different things in the primary buffer depending on mode. Warp branches three ways at `ansi_handler.rs:852-862`. Getting this wrong makes a shell's `clear` destroy scrollback, which is a worse bug than the one this plan fixes.
 
@@ -791,7 +875,7 @@ Correction **C2**. `CSI 2 J` means different things in the two buffers, and two 
 - Test: `crates/vt-core/tests/clear_policy.rs` (create)
 
 **Interfaces:**
-- Consumes: `commit_evicted` (Task 3), `content_rows` (Task 5).
+- Consumes: `commit_evicted` and `content_rows` (Task 4).
 - Produces: `ScreenGrid::set_clear_policy(&mut self, policy: ClearPolicy)` where `pub enum ClearPolicy { Scroll, ClearInPlace }`, defaulting to `Scroll` for the normal buffer and `ClearInPlace` for the alternate buffer.
 
 - [ ] **Step 1: Write the failing test**
@@ -872,7 +956,7 @@ git commit -m "feat(terminal): make clear scroll history away on the primary scr
 
 ---
 
-### Task 8: Do not reflow or evict on a resize in agent-TUI mode
+### Task 7: Do not reflow or evict on a resize in agent-TUI mode
 
 Correction **C3**. Warp's `resize.rs:57-66` skips reflow for the alternate screen *and* for agent TUIs, because a pane resize otherwise appends the pre-resize frame into scrollback before the program has redrawn — Warp GH #9838, which is this plan's bug arriving by a second route.
 
@@ -882,7 +966,7 @@ Correction **C3**. Warp's `resize.rs:57-66` skips reflow for the alternate scree
 - Test: `crates/vt-core/tests/resize_policy.rs` (create)
 
 **Interfaces:**
-- Consumes: `ClearPolicy` (Task 7), `set_records_eviction` (Task 2).
+- Consumes: `ClearPolicy` (Task 6), `set_records_eviction` (Task 2).
 - Produces: `ScreenGrid::set_reflow_on_resize(&mut self, on: bool)`, default `true`.
 
 - [ ] **Step 1: Write the failing test**
@@ -944,7 +1028,7 @@ git commit -m "feat(terminal): stop a resize appending the pre-resize frame to s
 
 ---
 
-### Task 9: Switch agent-TUI mode from the provider the daemon already knows
+### Task 8: Switch agent-TUI mode from the provider the daemon already knows
 
 Correction **C4**. Warp does not sniff the byte stream to decide a pane is an agent TUI — `view.rs:13456` flips the active block on `CLIAgentSessionsModelEvent::Started`. We have the same signal already: `TerminalPane.tsx:878` branches on `provider` today for wheel routing.
 
@@ -957,7 +1041,7 @@ Trailing-blank trimming rides along here, because Warp enables it in the same ha
 - Test: `frontend/src/renderer/components/BlockTerminal.test.tsx`
 
 **Interfaces:**
-- Consumes: `set_agent_tui_mode` (Task 8).
+- Consumes: `set_agent_tui_mode` (Task 7).
 - Produces: `TerminalCore.setAgentTuiMode(on: boolean)` in TypeScript; a `agentTui?: boolean` prop on `BlockTerminal`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1007,7 +1091,7 @@ git commit -m "feat(terminal): put agent panes in the tui redraw mode Warp uses"
 
 ---
 
-### Task 10: Pin the real agent-CLI redraw as a conformance vector
+### Task 9: Pin the real agent-CLI redraw as a conformance vector
 
 The bug arrived from a real program. The regression test replays that program's real bytes, in the same shape the existing `protocol/alt-vectors/` fixtures use.
 
@@ -1016,7 +1100,7 @@ The bug arrived from a real program. The regression test replays that program's 
 - Create: `crates/vt-core/tests/redraw_conformance.rs`
 
 **Interfaces:**
-- Consumes: the unified row space from Task 5.
+- Consumes: the unified row space from Task 4.
 - Produces: no new API.
 
 - [ ] **Step 1: Record the vector**
@@ -1083,7 +1167,7 @@ git commit -m "test(terminal): pin a real agent redraw against scrollback inflat
 
 ---
 
-### Task 11: Rebuild the WASM boundary and verify in a browser
+### Task 10: Rebuild the WASM boundary and verify in a browser
 
 `vt-wasm` exports the snapshot; the row space changed shape but not type, so this is a rebuild plus an end-to-end check that the renderer still paints and scrolls.
 
@@ -1148,7 +1232,7 @@ git commit -m "feat(terminal): rebuild the wasm boundary on the unified row spac
 
 ---
 
-### Task 12: Record the design in the spec
+### Task 11: Record the design in the spec
 
 The spec's §6.2 describes Warp's `flat_storage` without noting that Warp itself does not use it for cursor-addressable rows. That omission is what let Phase 3 ship an append-only normal buffer.
 
@@ -1186,8 +1270,8 @@ git commit -m "spec: record the two-tier storage the normal buffer needs"
 
 **Type consistency.** `ScreenGrid` is the type throughout; `AltGrid` is an alias declared in Task 1 and used unchanged by existing tests. `take_evicted`/`set_records_eviction`/`record_eviction` (Task 2) are consumed under those names in Tasks 3 and 6. `occupied_rows` (Task 5) is defined before its use in `build_snapshot`. `commit_evicted` (Task 3) is called from `feed` in Task 4.
 
-**Ordering risk.** Task 4 knowingly leaves three test files red until Task 5 fixes their expectations. That is called out in Task 4 Step 4 so an executor does not "fix" it by weakening the new tests. Tasks 4 and 5 must land together before any release build.
+**Ordering risk, and the reason Task 4 is large.** An earlier draft split the seam into three tasks. A subagent found Task 3 unimplementable in isolation and stopped rather than fake it: its integration tests passed 3/3 against the old append-only core, and its `commit_evicted` referenced a `Parser::screen` field that a later task introduced. Verifying that showed the entanglement runs deeper still — `build_snapshot` emits only `rows.completed()` plus the open row, so routing `print` to a screen without changing the snapshot makes on-screen content invisible. Write target, commit path and row space are one seam and now land as one task, with three internal RED/GREEN cycles. Task 3 was re-cut as the one piece that genuinely is independent: a pure `commit_row` with no `Parser` dependency.
 
-**Type consistency, second pass.** `content_rows()` replaced the first draft's `occupied_rows()` everywhere (Task 5 defines it, Task 7's `ED All` arm calls it). `ClearPolicy` is defined in Task 7 and consumed in Task 8's `set_agent_tui_mode`. `set_agent_tui_mode` is defined in Task 8 and reaches TypeScript as `setAgentTuiMode` in Task 9. `max_cursor_row` is introduced in Task 5 and mutated in Task 7's `ClearInPlace` arm.
+**Type consistency, second pass.** `content_rows()` replaced the first draft's `occupied_rows()` everywhere (Task 4 defines it, Task 6's `ED All` arm calls it). `ClearPolicy` is defined in Task 6 and consumed in Task 7's `set_agent_tui_mode`. `set_agent_tui_mode` is defined in Task 7 and reaches TypeScript as `setAgentTuiMode` in Task 8. `max_cursor_row` is introduced in Task 4 and mutated in Task 6's `ClearInPlace` arm.
 
-**Known limits, deliberately out of scope.** Column-change reflow of existing scrollback rows is not implemented — rows already committed keep the width they were written at, which is what `flat_storage.set_columns` guards against in Warp (`resize.rs:70-77`) rather than solving. Agent panes take the no-reflow path (Task 8) so this is invisible there; a shell pane resized narrower will show rows that do not re-wrap. If that matters, it is a follow-up plan, not a task here.
+**Known limits, deliberately out of scope.** Column-change reflow of existing scrollback rows is not implemented — rows already committed keep the width they were written at, which is what `flat_storage.set_columns` guards against in Warp (`resize.rs:70-77`) rather than solving. Agent panes take the no-reflow path (Task 7) so this is invisible there; a shell pane resized narrower will show rows that do not re-wrap. If that matters, it is a follow-up plan, not a task here.
