@@ -75,6 +75,13 @@ through `git` -> `remote` -> `remove` (matched by alias), and produces
 | `required`    | `boolean`                     | yes      | `false`       |
 | `priority`    | `number` (clamped, see below) | yes      | `0`           |
 
+**Declare `arguments` on every option that takes a value.** It is not decoration: the
+engine counts positional arguments by walking the tokens after the command, and it skips
+an option's value only when the option says it has one. An undeclared `-t` in
+`docker build -t img .` makes `img` look like the first positional argument, and the build
+context never gets completed. The `=` form (`--tag=img`) is counted as a single token
+regardless.
+
 Each entry in `name` is one declared form of the option, e.g. `"-f"` and
 `"--force"`. The engine looks them up with the hyphens stripped (see
 `optHasName`).

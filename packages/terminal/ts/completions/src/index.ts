@@ -12,7 +12,7 @@ import { commandCandidates, subcommandCandidates, argumentCandidates } from "./p
 import { flagCandidates } from "./providers/flag.js";
 import { pathCandidates } from "./providers/path.js";
 import { defaultSignatures } from "./specs/index.js";
-import type { CommandSpec } from "./signature.js";
+import { optHasName, type CommandSpec } from "./signature.js";
 
 export type { CommandSpec, ArgumentSpec, OptSpec, ArgumentValue } from "./signature.js";
 export { SignatureRegistry } from "./registry.js";
@@ -57,7 +57,10 @@ async function collect(
 		return flagCandidates(resolved.command, used);
 	}
 
-	const position = location.commandTokens.length - resolved.consumed;
+	const position = positionalIndex(
+		resolved.command,
+		location.commandTokens.slice(resolved.consumed),
+	);
 	const { literals, template } = argumentCandidates(resolved.command, position);
 	const subcommands = position === 0 ? subcommandCandidates(resolved.command) : [];
 	const paths =
@@ -71,6 +74,24 @@ async function collect(
 					signal: request.signal,
 				});
 	return [...subcommands, ...literals, ...paths];
+}
+
+function positionalIndex(command: CommandSpec, tokens: readonly string[]): number {
+	let position = 0;
+	let index = 0;
+	while (index < tokens.length) {
+		const token = tokens[index]!;
+		if (!token.startsWith("-")) {
+			position += 1;
+			index += 1;
+			continue;
+		}
+		const name = token.replace(/^--?/, "").split("=")[0]!;
+		const option = (command.options ?? []).find((candidate) => optHasName(candidate, name));
+		const separate = option !== undefined && (option.arguments ?? []).length > 0;
+		index += separate && !token.includes("=") ? 2 : 1;
+	}
+	return position;
 }
 
 function toItem(entry: Ranked): CompletionItem {

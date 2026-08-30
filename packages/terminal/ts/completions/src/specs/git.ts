@@ -37,7 +37,7 @@ export const git: CommandSpec = {
 				},
 			],
 			options: [
-				{ name: ["-m", "--message"], description: "Use the given message as the commit message" },
+				{ name: ["-m", "--message"], description: "Use the given message as the commit message", arguments: [{ name: "message" }] },
 				{ name: ["-a", "--all"], description: "Stage all modified and deleted files" },
 				{ name: ["--amend"], description: "Amend the previous commit instead of creating a new one" },
 				{ name: ["-e", "--edit"], description: "Force the editor to start with the existing message" },
@@ -67,8 +67,8 @@ export const git: CommandSpec = {
 				},
 			],
 			options: [
-				{ name: ["-b"], description: "Create a new branch and check it out" },
-				{ name: ["-B"], description: "Create or reset a branch and check it out" },
+				{ name: ["-b"], description: "Create a new branch and check it out", arguments: [{ name: "branch" }] },
+				{ name: ["-B"], description: "Create or reset a branch and check it out", arguments: [{ name: "branch" }] },
 				{ name: ["-f", "--force"], description: "Force the checkout" },
 				{ name: ["-q", "--quiet"], description: "Suppress feedback messages" },
 				{ name: ["--"], description: "Separate the branch from the paths" },
@@ -109,7 +109,7 @@ export const git: CommandSpec = {
 				{ name: ["--branch"], description: "Show the branch and tracking info even in short format" },
 				{ name: ["--porcelain"], description: "Give the output in an easy-to-parse format for scripts" },
 				{ name: ["--long"], description: "Give the output in the long format (default)" },
-				{ name: ["-u", "--untracked-files"], description: "Show untracked files" },
+				{ name: ["-u", "--untracked-files"], description: "Show untracked files", arguments: [{ name: "mode" }] },
 			],
 		},
 		{
@@ -182,7 +182,7 @@ export const git: CommandSpec = {
 				{ name: ["--oneline"], description: "Show each commit on a single line" },
 				{ name: ["--graph"], description: "Draw a text-based graph of commit history" },
 				{ name: ["--all"], description: "Show all branches" },
-				{ name: ["-n", "--max-count"], description: "Limit the number of commits to show" },
+				{ name: ["-n", "--max-count"], description: "Limit the number of commits to show", arguments: [{ name: "count" }] },
 			],
 		},
 		{
@@ -335,5 +335,15 @@ export const git: CommandSpec = {
 				{ name: ["--skip"], description: "Skip the current commit" },
 			],
 		},
+	],
+	options: [
+		{ name: ["-C"], description: "Run as if git was started in the given path", arguments: [{ name: "path" }] },
+		{ name: ["-c"], description: "Pass a configuration parameter to the command", arguments: [{ name: "name=value" }] },
+		{ name: ["--git-dir"], description: "Set the path to the repository", arguments: [{ name: "path" }] },
+		{ name: ["--work-tree"], description: "Set the path to the working tree", arguments: [{ name: "path" }] },
+		{ name: ["--no-pager"], description: "Do not pipe output into a pager" },
+		{ name: ["--bare"], description: "Treat the repository as a bare repository" },
+		{ name: ["--version"], description: "Print the git version" },
+		{ name: ["--help"], description: "Print the synopsis and a list of the most commonly used commands" },
 	],
 };

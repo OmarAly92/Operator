@@ -20,14 +20,14 @@ export const docker: CommandSpec = {
 			options: [
 				{ name: ["-it"], description: "Allocate a pseudo-TTY and keep STDIN open" },
 				{ name: ["--rm"], description: "Automatically remove the container when it exits" },
-				{ name: ["-p", "--publish"], description: "Publish a container's port(s) to the host" },
+				{ name: ["-p", "--publish"], description: "Publish a container's port(s) to the host", arguments: [{ name: "port" }] },
 				{ name: ["-d", "--detach"], description: "Run the container in the background" },
-				{ name: ["--name"], description: "Assign a name to the container" },
-				{ name: ["-e", "--env"], description: "Set environment variables" },
-				{ name: ["-v", "--volume"], description: "Bind mount a volume" },
-				{ name: ["--network"], description: "Connect the container to a network" },
-				{ name: ["--restart"], description: "Restart policy to apply when the container exits" },
-				{ name: ["-u", "--user"], description: "Username or UID (format: <name|uid>[:<group|gid>])" },
+				{ name: ["--name"], description: "Assign a name to the container", arguments: [{ name: "name" }] },
+				{ name: ["-e", "--env"], description: "Set environment variables", arguments: [{ name: "env" }] },
+				{ name: ["-v", "--volume"], description: "Bind mount a volume", arguments: [{ name: "volume" }] },
+				{ name: ["--network"], description: "Connect the container to a network", arguments: [{ name: "network" }] },
+				{ name: ["--restart"], description: "Restart policy to apply when the container exits", arguments: [{ name: "policy" }] },
+				{ name: ["-u", "--user"], description: "Username or UID (format: <name|uid>[:<group|gid>])", arguments: [{ name: "user" }] },
 			],
 		},
 		{
@@ -42,13 +42,13 @@ export const docker: CommandSpec = {
 				},
 			],
 			options: [
-				{ name: ["-t", "--tag"], description: "Name and optionally a tag in the 'name:tag' format" },
-				{ name: ["-f", "--file"], description: "Name of the Dockerfile (default: 'PATH/Dockerfile')" },
-				{ name: ["--build-arg"], description: "Set build-time variables" },
+				{ name: ["-t", "--tag"], description: "Name and optionally a tag in the 'name:tag' format", arguments: [{ name: "tag" }] },
+				{ name: ["-f", "--file"], description: "Name of the Dockerfile (default: 'PATH/Dockerfile')", arguments: [{ name: "dockerfile" }] },
+				{ name: ["--build-arg"], description: "Set build-time variables", arguments: [{ name: "arg" }] },
 				{ name: ["--no-cache"], description: "Do not use cache when building the image" },
 				{ name: ["--pull"], description: "Always attempt to pull a newer version of the image" },
 				{ name: ["-q", "--quiet"], description: "Suppress the build output and print image ID on success" },
-				{ name: ["--target"], description: "Set the target build stage" },
+				{ name: ["--target"], description: "Set the target build stage", arguments: [{ name: "stage" }] },
 			],
 		},
 		{
@@ -57,9 +57,9 @@ export const docker: CommandSpec = {
 			options: [
 				{ name: ["-a", "--all"], description: "Show all containers (default shows just running)" },
 				{ name: ["-q", "--quiet"], description: "Only display container IDs" },
-				{ name: ["--filter", "-f"], description: "Filter output based on conditions provided" },
-				{ name: ["--format"], description: "Pretty-print containers using a Go template" },
-				{ name: ["-n", "--last"], description: "Show n last created containers (includes all states)" },
+				{ name: ["--filter", "-f"], description: "Filter output based on conditions provided", arguments: [{ name: "filter" }] },
+				{ name: ["--format"], description: "Pretty-print containers using a Go template", arguments: [{ name: "template" }] },
+				{ name: ["-n", "--last"], description: "Show n last created containers (includes all states)", arguments: [{ name: "count" }] },
 			],
 		},
 		{
@@ -68,8 +68,8 @@ export const docker: CommandSpec = {
 			options: [
 				{ name: ["-a", "--all"], description: "Show all images (default hides intermediate images)" },
 				{ name: ["-q", "--quiet"], description: "Only show image IDs" },
-				{ name: ["--filter", "-f"], description: "Filter output based on conditions provided" },
-				{ name: ["--format"], description: "Pretty-print images using a Go template" },
+				{ name: ["--filter", "-f"], description: "Filter output based on conditions provided", arguments: [{ name: "filter" }] },
+				{ name: ["--format"], description: "Pretty-print images using a Go template", arguments: [{ name: "template" }] },
 				{ name: ["--digests"], description: "Show digests" },
 			],
 		},
@@ -87,9 +87,9 @@ export const docker: CommandSpec = {
 			options: [
 				{ name: ["-it"], description: "Allocate a pseudo-TTY and keep STDIN open" },
 				{ name: ["-d", "--detach"], description: "Run the command in the background" },
-				{ name: ["-e", "--env"], description: "Set environment variables" },
-				{ name: ["-u", "--user"], description: "Username or UID" },
-				{ name: ["-w", "--workdir"], description: "Working directory inside the container" },
+				{ name: ["-e", "--env"], description: "Set environment variables", arguments: [{ name: "env" }] },
+				{ name: ["-u", "--user"], description: "Username or UID", arguments: [{ name: "user" }] },
+				{ name: ["-w", "--workdir"], description: "Working directory inside the container", arguments: [{ name: "directory" }] },
 			],
 		},
 		{
@@ -100,10 +100,10 @@ export const docker: CommandSpec = {
 			],
 			options: [
 				{ name: ["-f", "--follow"], description: "Follow log output" },
-				{ name: ["--tail"], description: "Number of lines to show from the end of the logs" },
+				{ name: ["--tail"], description: "Number of lines to show from the end of the logs", arguments: [{ name: "lines" }] },
 				{ name: ["-t", "--timestamps"], description: "Show timestamps" },
-				{ name: ["--since"], description: "Show logs since timestamp (e.g. 2013-01-02T13:23:37) or relative (e.g. 42m)" },
-				{ name: ["--until"], description: "Show logs before a timestamp" },
+				{ name: ["--since"], description: "Show logs since timestamp (e.g. 2013-01-02T13:23:37) or relative (e.g. 42m)", arguments: [{ name: "timestamp" }] },
+				{ name: ["--until"], description: "Show logs before a timestamp", arguments: [{ name: "timestamp" }] },
 			],
 		},
 		{
@@ -117,7 +117,7 @@ export const docker: CommandSpec = {
 				},
 			],
 			options: [
-				{ name: ["-t", "--time"], description: "Seconds to wait for stop before killing it" },
+				{ name: ["-t", "--time"], description: "Seconds to wait for stop before killing it", arguments: [{ name: "seconds" }] },
 			],
 		},
 		{
@@ -192,7 +192,7 @@ export const docker: CommandSpec = {
 					options: [
 						{ name: ["-d", "--detach"], description: "Detached mode: run containers in the background" },
 						{ name: ["--build"], description: "Build images before starting containers" },
-						{ name: ["-f", "--file"], description: "Compose configuration file" },
+						{ name: ["-f", "--file"], description: "Compose configuration file", arguments: [{ name: "file" }] },
 					],
 				},
 				{

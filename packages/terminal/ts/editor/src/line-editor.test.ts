@@ -109,6 +109,37 @@ describe("LineEditor ownership", () => {
 		expect(cancelled.length).toBeGreaterThanOrEqual(1);
 	});
 
+	it("re-asks only when the accepted completion descends into a directory", () => {
+		const openWith = (value: string) => {
+			const { editor, core } = mount();
+			core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+			const requested: string[] = [];
+			const original = core.requestCompletions.bind(core);
+			core.requestCompletions = (line, cursor) => {
+				requested.push(line);
+				original(line, cursor);
+			};
+			const internal = editor as unknown as {
+				dropdown: { isOpen(): boolean; setResult(result: unknown): void };
+				dropdownOpen: boolean;
+			};
+			editor.setText("cd ");
+			internal.dropdown.setResult({
+				items: [
+					{ value, displayValue: value, description: null, kind: "path", matchedIndices: [] },
+				],
+				span: { start: 3, end: 3 },
+				query: "",
+			});
+			internal.dropdownOpen = internal.dropdown.isOpen();
+			editor.handleKey(key({ key: "Tab" }));
+			return requested;
+		};
+
+		expect(openWith("src/")).toEqual(["cd src/"]);
+		expect(openWith("README.md")).toEqual([]);
+	});
+
 	it("accepts a Ctrl-R match without submitting it", () => {
 		const { editor, container, core, host } = mount();
 		core.feed(

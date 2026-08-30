@@ -103,6 +103,36 @@ describe("pathCandidates", () => {
 		expect(asked.map((entry) => entry.value)).toContain(".git/");
 	});
 
+	it("does not carry quote characters into the filesystem path", async () => {
+		const asked: string[] = [];
+		const quoting = {
+			...host,
+			listDirectory: async (path: string) => {
+				asked.push(path);
+				return [];
+			},
+		};
+		await pathCandidates({
+			query: '"my dir/',
+			cwd: "/repo",
+			template: "files-and-folders",
+			host: quoting,
+			signal,
+		});
+		expect(asked).toEqual(["/repo/my dir"]);
+	});
+
+	it("keeps the typed quote in the replacement so the line stays valid", async () => {
+		const found = await pathCandidates({
+			query: "'",
+			cwd: "/repo",
+			template: "folders",
+			host,
+			signal,
+		});
+		expect(found.map((entry) => entry.value)).toEqual(["'src/"]);
+	});
+
 	it("returns nothing when the host cannot list directories", async () => {
 		const bare = { ...host, listDirectory: undefined };
 		const found = await pathCandidates({

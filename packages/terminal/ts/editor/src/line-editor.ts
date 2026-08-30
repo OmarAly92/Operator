@@ -280,7 +280,7 @@ export class LineEditor {
 		const cursor = before.length + insertion.length;
 		this.buffer.setText(before + insertion + after, cursor);
 		this.historyPrefix = null;
-		if (insertion.length > 0) {
+		if (insertion.endsWith("/")) {
 			this.core?.requestCompletions(this.buffer.text, this.buffer.cursor);
 		}
 	}

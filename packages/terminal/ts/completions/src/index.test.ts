@@ -63,6 +63,18 @@ describe("createCompletionProvider", () => {
 		expect(await complete("echo $HO")).toBeNull();
 	});
 
+	it("does not let a flag shift the positional argument index", async () => {
+		const bare = await complete("docker build ");
+		const flagged = await complete("docker build -t img ");
+		expect(bare?.items.map((item) => item.value)).toEqual(["src/"]);
+		expect(flagged?.items.map((item) => item.value)).toEqual(["src/"]);
+	});
+
+	it("still offers subcommands after a global flag", async () => {
+		const result = await complete("git -c x ");
+		expect(result?.items.map((item) => item.value)).toContain("commit");
+	});
+
 	it("never calls the host for anything but a directory listing", async () => {
 		const calls: string[] = [];
 		const watched = {

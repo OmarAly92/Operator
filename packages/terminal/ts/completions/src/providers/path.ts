@@ -10,6 +10,10 @@ export type PathInput = Readonly<{
 	signal: AbortSignal;
 }>;
 
+export function unquote(query: string): string {
+	return query.replace(/["']/g, "");
+}
+
 export function splitPathQuery(query: string): { directory: string; leaf: string } {
 	const index = query.lastIndexOf("/");
 	if (index === -1) return { directory: ".", leaf: query };
@@ -22,7 +26,7 @@ export async function pathCandidates(input: PathInput): Promise<Candidate[]> {
 	if (list === undefined) return [];
 	if (input.signal.aborted) return [];
 
-	const { directory, leaf } = splitPathQuery(input.query);
+	const { directory, leaf } = splitPathQuery(unquote(input.query));
 	const absolute = directory.startsWith("/")
 		? directory
 		: directory === "."
