@@ -1,0 +1,33 @@
+{
+	"name": "less-page",
+	"rows": 20,
+	"cols": 60,
+	"command": "less /usr/share/dict/words",
+	"keys": [
+		"Space",
+		"Space"
+	],
+	"inputBase64": "G1s/MTA0OWgbWzIwOzFIG1s/MWgbPQ1BDQphDQphYQ0KYWFsDQphYWxpaQ0KYWFtDQpBYW5pDQphYXJkdmFyaw0KYWFyZHdvbGYNCkFhcm9uDQpBYXJvbmljDQpBYXJvbmljYWwNCkFhcm9uaXRlDQpBYXJvbml0aWMNCkFhcnUNCkFiDQphYmENCkFiYWJkZWgNCkFiYWJ1YQ0KG1s3bS91c3Ivc2hhcmUvZGljdC93b3JkcxtbMjdtG1tLDRtbS2FiYWMNCmFiYWNhDQphYmFjYXRlDQphYmFjYXkNCmFiYWNpbmF0ZQ0KYWJhY2luYXRpb24NCmFiYWNpc2N1cw0KYWJhY2lzdA0KYWJhY2sNCmFiYWN0aW5hbA0KYWJhY3RpbmFsbHkNCmFiYWN0aW9uDQphYmFjdG9yDQphYmFjdWx1cw0KYWJhY3VzDQpBYmFkaXRlDQphYmFmZg0KYWJhZnQNCmFiYWlzYW5jZQ0KOhtbSw0bW0thYmFpc2VyDQphYmFpc3NlZA0KYWJhbGllbmF0ZQ0KYWJhbGllbmF0aW9uDQphYmFsb25lDQpBYmFtYQ0KYWJhbXBlcmUNCmFiYW5kb24NCmFiYW5kb25hYmxlDQphYmFuZG9uZWQNCmFiYW5kb25lZGx5DQphYmFuZG9uZWUNCmFiYW5kb25lcg0KYWJhbmRvbm1lbnQNCkFiYW5pYw0KQWJhbnRlcw0KYWJhcHRpc3Rvbg0KQWJhcmFtYm8NCkFiYXJpcw0KOhtbSw==",
+	"expectedRows": [
+		"abaiser",
+		"abaissed",
+		"abalienate",
+		"abalienation",
+		"abalone",
+		"Abama",
+		"abampere",
+		"abandon",
+		"abandonable",
+		"abandoned",
+		"abandonedly",
+		"abandonee",
+		"abandoner",
+		"abandonment",
+		"Abanic",
+		"Abantes",
+		"abaptiston",
+		"Abarambo",
+		"Abaris",
+		":"
+	]
+}
