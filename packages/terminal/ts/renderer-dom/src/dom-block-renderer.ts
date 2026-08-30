@@ -26,7 +26,8 @@ const HIDDEN_MEASURE_ID = "terminal-m-measure";
 const DEFAULT_HEADER_HEIGHT = 24;
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
-const FRAME_MS = 4;
+const PAINT_INTERVAL_MS = 1000 / 60;
+const FRAME_EPSILON_MS = 0.25;
 
 export const warpDarkTheme: TerminalTheme = {
 	ansi: [
@@ -62,7 +63,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private readonly paintListeners = new Set<() => void>();
 	private knownBlockId: BlockId | null = null;
 	private stickToBottom = true;
-	private lastPaintAt = Number.NEGATIVE_INFINITY;
+	private lastPaintAt: number | null = null;
 	private wasAltActive = false;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
 	private host: HostCapabilities | null = null;
@@ -190,7 +191,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureNode = null;
 		this.knownBlockId = null;
 		this.stickToBottom = true;
-		this.lastPaintAt = Number.NEGATIVE_INFINITY;
+		this.lastPaintAt = null;
 		this.wasAltActive = false;
 		this.host = null;
 		this.latestSnapshot = null;
@@ -221,20 +222,21 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.repaint();
 			return;
 		}
-		if (this.now() - this.lastPaintAt >= FRAME_MS) {
-			this.repaint();
-			return;
-		}
-		this.rafHandle = requestAnimationFrame(() => {
-			this.rafHandle = null;
-			this.repaint();
-		});
+		this.rafHandle = requestAnimationFrame((timestamp) => this.repaintOnFrame(timestamp));
 	}
 
-	private now(): number {
-		return typeof performance === "object" && typeof performance.now === "function"
-			? performance.now()
-			: 0;
+	private repaintOnFrame(timestamp: number): void {
+		if (
+			this.lastPaintAt !== null &&
+			timestamp - this.lastPaintAt + FRAME_EPSILON_MS < PAINT_INTERVAL_MS
+		) {
+			this.rafHandle = requestAnimationFrame((nextTimestamp) =>
+				this.repaintOnFrame(nextTimestamp),
+			);
+			return;
+		}
+		this.rafHandle = null;
+		this.repaint(timestamp);
 	}
 
 	private applyStyleVars(): void {
@@ -280,7 +282,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		node.style.fontVariantLigatures = this.font.ligatures ? "common-ligatures" : "none";
 	}
 
-	private repaint(): void {
+	private repaint(paintedAt?: number): void {
 		const core = this.core;
 		const container = this.container;
 		const list = this.list;
@@ -304,7 +306,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
-			this.lastPaintAt = this.now();
+			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
 			return;
 		}
@@ -385,7 +387,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		} else if (Math.abs(container.scrollTop - anchorScrollTop) > 0.5) {
 			container.scrollTop = anchorScrollTop;
 		}
-		this.lastPaintAt = this.now();
+		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
 	}
 

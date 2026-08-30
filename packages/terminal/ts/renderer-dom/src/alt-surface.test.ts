@@ -10,6 +10,7 @@ function buildAltView(
 	_columns: number,
 	rowTexts: readonly string[],
 	overrides: Partial<Pick<AltScreenView, "cursorRow" | "cursorColumn" | "cursorVisible">> = {},
+	rowStyleCodes: readonly number[] = [],
 ): AltScreenView {
 	const rowRanges: number[] = [];
 	const runRanges: number[] = [];
@@ -23,7 +24,7 @@ function buildAltView(
 		chunks.push(bytes);
 		rowRanges.push(cursor, cursor + bytes.byteLength);
 		runRanges.push(pairIndex, pairIndex + 1);
-		stylePairs.push(bytes.byteLength, DEFAULT_STYLE_CODE);
+		stylePairs.push(bytes.byteLength, rowStyleCodes[i] ?? DEFAULT_STYLE_CODE);
 		pairIndex += 1;
 		cursor += bytes.byteLength;
 	}
@@ -66,14 +67,22 @@ function mountAltReusable(
 	rows: number,
 	columns: number,
 	rowTexts: readonly string[],
-): { host: HTMLElement; render: (rowTexts: readonly string[]) => void } {
+): {
+	host: HTMLElement;
+	render: (rowTexts: readonly string[], rowStyleCodes?: readonly number[]) => void;
+} {
 	const decoder = new TextDecoder("utf-8", { fatal: true });
 	const host = document.createElement("div");
 	renderAltSurface(buildAltView(rows, columns, rowTexts), host, decoder, METRICS);
 	return {
 		host,
-		render: (newRowTexts: readonly string[]): void => {
-			renderAltSurface(buildAltView(rows, columns, newRowTexts), host, decoder, METRICS);
+		render: (newRowTexts: readonly string[], rowStyleCodes: readonly number[] = []): void => {
+			renderAltSurface(
+				buildAltView(rows, columns, newRowTexts, {}, rowStyleCodes),
+				host,
+				decoder,
+				METRICS,
+			);
 		},
 	};
 }
@@ -128,5 +137,35 @@ describe("renderAltSurface", () => {
 		const first = host.querySelector("[data-terminal-row]");
 		render(["a", "b", "d"]);
 		expect(host.querySelector("[data-terminal-row]")).toBe(first);
+	});
+
+	it("keeps the children of unchanged rows and replaces the changed row", () => {
+		const { host, render } = mountAltReusable(3, 10, ["a", "b", "c"]);
+		const rowsBefore = host.querySelectorAll("[data-terminal-row]");
+		const firstRun = rowsBefore[0]!.firstChild;
+		const thirdRun = rowsBefore[2]!.firstChild;
+
+		render(["a", "b", "d"]);
+
+		const rowsAfter = host.querySelectorAll("[data-terminal-row]");
+		expect(rowsAfter[0]!.firstChild).toBe(firstRun);
+		expect(rowsAfter[2]!.firstChild).not.toBe(thirdRun);
+		expect(rowsAfter[2]!.textContent).toBe("d");
+	});
+
+	it("keeps unchanged styles and repaints a style-only row change", () => {
+		const { host, render } = mountAltReusable(2, 10, ["a", "b"]);
+		const rowsBefore = host.querySelectorAll("[data-terminal-row]");
+		const firstRun = rowsBefore[0]!.firstChild;
+		const secondRun = rowsBefore[1]!.firstChild;
+
+		render(["a", "b"], [DEFAULT_STYLE_CODE, 1]);
+
+		const rowsAfter = host.querySelectorAll("[data-terminal-row]");
+		expect(rowsAfter[0]!.firstChild).toBe(firstRun);
+		expect(rowsAfter[1]!.firstChild).not.toBe(secondRun);
+		expect((rowsAfter[1]!.firstChild as HTMLElement).style.color).toBe(
+			"var(--terminal-ansi-1)",
+		);
 	});
 });

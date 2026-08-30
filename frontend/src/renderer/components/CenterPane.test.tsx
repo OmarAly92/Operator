@@ -603,11 +603,11 @@ describe("CenterPane toolbar session label", () => {
 describe("CenterPane blocks toggle", () => {
 	const tuiWorker = { ...worker, mode: "tui" } satisfies WorkspaceSession;
 
-	it("opens a covered tui session in blocks and renders no terminal", () => {
+	it("opens a covered tui session raw, with the blocks toggle offered", () => {
 		renderCenterPane({ session: tuiWorker });
 
-		expect(screen.getByRole("button", { name: "Show raw terminal" })).toBeInTheDocument();
-		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
+		expect(screen.getByText("terminal body")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Show blocks" })).toBeInTheDocument();
 	});
 
 	it("opens an uncovered harness raw", () => {
@@ -616,19 +616,19 @@ describe("CenterPane blocks toggle", () => {
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
 	});
 
-	it("the toggle swaps to raw, which is what joins the terminal channel", async () => {
+	it("the toggle swaps to blocks and back to the raw terminal channel", async () => {
 		renderCenterPane({ session: tuiWorker });
 
-		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
+		await userEvent.click(screen.getByRole("button", { name: "Show blocks" }));
+		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
 
+		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Show raw terminal" })).not.toBeInTheDocument();
 	});
 
-	it("switching back to blocks releases the retained worker terminal", async () => {
+	it("switching to blocks releases the retained worker terminal", async () => {
 		renderCenterPane({ session: tuiWorker });
-
-		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
 		expect(cacheMocks.releaseWorker).not.toHaveBeenCalled();
 
 		await userEvent.click(screen.getByRole("button", { name: "Show blocks" }));

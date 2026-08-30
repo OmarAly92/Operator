@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createTerminalCore,
 	initTerminalCore,
@@ -41,12 +41,16 @@ function feed(core: TerminalCore, text: string): void {
 
 function flushRepaint(): Promise<void> {
 	return new Promise((resolve) => {
-		requestAnimationFrame(() => resolve());
+		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 	});
 }
 
 beforeAll(async () => {
 	await loadedCore();
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
 });
 
 function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
@@ -242,7 +246,7 @@ describe("DomBlockRenderer", () => {
 		renderer.dispose();
 	});
 
-	it("paints an idle surface synchronously instead of waiting out a frame", async () => {
+	it("aligns an idle surface repaint to the next animation frame", async () => {
 		const core = createTerminalCore({ columns: 20, scrollback: 100 });
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 200, configurable: true });
@@ -256,30 +260,58 @@ describe("DomBlockRenderer", () => {
 			paintedSynchronously = true;
 		});
 		feed(core, "x");
-		off();
 
-		// A keystroke echoed into a quiet terminal must not wait for the next
-		// animation frame; that cost the passthrough input-latency gate a full
-		// frame and put it at twice xterm's p95.
+		expect(paintedSynchronously).toBe(false);
+		await flushRepaint();
 		expect(paintedSynchronously).toBe(true);
+		off();
 		renderer.dispose();
 	});
 
-	it("still coalesces a burst rather than painting once per chunk", async () => {
-		const core = createTerminalCore({ columns: 20, scrollback: 1000 });
+	it("coalesces high-refresh callbacks to at most 60 paints per second", () => {
+		let nextHandle = 1;
+		const callbacks = new Map<number, FrameRequestCallback>();
+		vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+			const handle = nextHandle;
+			nextHandle += 1;
+			callbacks.set(handle, callback);
+			return handle;
+		});
+		vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation((handle) => {
+			callbacks.delete(handle);
+		});
+		const runNextFrame = (timestamp: number) => {
+			const entry = callbacks.entries().next().value as
+				| [number, FrameRequestCallback]
+				| undefined;
+			if (!entry) throw new Error("animation frame was not scheduled");
+			callbacks.delete(entry[0]);
+			entry[1](timestamp);
+		};
+
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
 		const container = document.createElement("div");
-		Object.defineProperty(container, "clientHeight", { value: 200, configurable: true });
 		const renderer = new DomBlockRenderer();
 		renderer.mount(container, core);
-
 		let paints = 0;
 		const off = renderer.onPaint(() => {
 			paints += 1;
 		});
-		for (let i = 0; i < 50; i += 1) feed(core, `line ${i}\n`);
-		off();
 
-		expect(paints).toBeLessThan(50);
+		feed(core, "a");
+		feed(core, "b");
+		feed(core, "c");
+		expect(callbacks).toHaveLength(1);
+		expect(paints).toBe(0);
+		runNextFrame(108);
+		expect(paints).toBe(1);
+
+		feed(core, "d");
+		runNextFrame(116);
+		expect(paints).toBe(1);
+		runNextFrame(125);
+		expect(paints).toBe(2);
+		off();
 		renderer.dispose();
 	});
 

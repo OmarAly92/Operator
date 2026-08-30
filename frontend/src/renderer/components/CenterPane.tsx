@@ -694,9 +694,8 @@ function TerminalControl({ children, disabled, isPressed, label, onClick }: Term
 	);
 }
 
-export function defaultSessionViewMode(session: WorkspaceSession | undefined): SessionViewMode {
-	if (session?.mode !== "tui") return "raw";
-	return blocksCoverHarness(session.provider) ? "blocks" : "raw";
+export function defaultSessionViewMode(_session: WorkspaceSession | undefined): SessionViewMode {
+	return "raw";
 }
 
 export function SessionBlocksPane({ session, headerActions }: { session: WorkspaceSession | undefined; headerActions?: ReactNode }) {
