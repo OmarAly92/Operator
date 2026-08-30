@@ -270,6 +270,35 @@ more rows than were requested (a resize race), or the surface is taller than its
 
 Whichever it is, the test is at that seam and asserts the arithmetic, not the pixels.
 
+**Reproduced 2026-08-31, in real Chromium via the smoke harness.** Measured on a 240px-tall
+root with the surface padded 8px vertically:
+
+| Measurement | Value |
+| --- | --- |
+| `.terminal-surface` content box | 224px |
+| `.terminal-host` + `.terminal-editor-host` | 242px |
+| **Overflow** | **18px, exactly the editor host's height** |
+| `surfaceBottom` vs `rootBottom` | 920 = 920 (clipped, not scrolled) |
+
+The cause is the layout: `.terminal-surface` is `height: 100%` with padding, and
+`.terminal-host` inside it is *also* `height: 100%` — so the host consumes the entire
+content box and `.terminal-editor-host` stacks below it, past the bottom edge. That is the
+missing input composer.
+
+**The fix is a flex column, and it is not landed.** Making `.terminal-surface`
+`display: flex; flex-direction: column` with `.terminal-host { flex: 1 1 auto; min-height: 0 }`
+removes the overflow, but it shrinks the host by ~35px and the pane then permanently stops
+following its output: the smoke `follow` fixture ends 35px from the bottom
+(`scrollTop 8216`, max `8251`, `clientHeight 166`) and does not converge after 600ms. A
+`ResizeObserver` on the container that re-asserts stickiness across a shrink did **not** fix
+it, and the cause was not identified — `applyStickiness` computes
+`scrollHeight - clientHeight` at paint time and lands on a value 35px short, which means
+either `stickToBottom` is already false by then or the geometry it reads is stale.
+
+Whoever picks this up starts from those numbers rather than from scratch. Do not land the
+flex change without resolving the follow regression: it trades a clipped composer for a
+pane that stops following output, which is worse.
+
 - [ ] **Step 4: If it does not reproduce, say so and stop**
 
 Record what you tried and close it as not-reproducible. Do not fix a symptom you cannot see.

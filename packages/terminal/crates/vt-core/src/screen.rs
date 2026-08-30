@@ -322,10 +322,28 @@ impl ScreenGrid {
             self.resize_cells(rows, cols);
             return;
         }
+        let before = self.evicted.len();
         for row in 0..self.content_rows() {
             self.record_eviction(row);
         }
-        self.resize_cells(rows, cols);
+        if self.evicted.len() > before {
+            self.reset_cells(rows, cols);
+        } else {
+            self.resize_cells(rows, cols);
+        }
+    }
+
+    fn reset_cells(&mut self, rows: usize, cols: usize) {
+        self.cells = vec![Cell::BLANK; rows * cols];
+        self.rows = rows;
+        self.cols = cols;
+        self.scroll_top = 0;
+        self.scroll_bottom = rows - 1;
+        self.row = 0;
+        self.col = 0;
+        self.max_cursor_row = 0;
+        self.pending_wrap = false;
+        self.saved = None;
     }
 
     pub(crate) fn resize_without_reflow(&mut self, rows: usize, cols: usize) {
