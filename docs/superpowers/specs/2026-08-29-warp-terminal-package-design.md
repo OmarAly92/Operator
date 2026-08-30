@@ -905,7 +905,7 @@ is true only of a plain shell. §2.8.
   `RI`), erase (`ED`, `EL`) and line editing (`IL`, `DL`, `ICH`, `DCH`) apply to **both**
   buffers, since both are `ScreenGrid`; the only difference between the normal and
   alternate buffers is the **eviction policy** — the alternate buffer discards the row
-  it scrolls off the bottom instead of promoting it to scrollback. These are the
+  it scrolls off the top instead of promoting it to scrollback. These are the
   sequences a full-screen TUI actually uses; a raw surface that renders text but
   ignores them draws garbage. Warp models the same distinction as
   `FullGridClearBehavior::{Clear, Scroll}` (`grid_handler.rs:405`): `Clear` resets
