@@ -23,6 +23,7 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	private editor: LineEditor | undefined;
 	private editorRoot: HTMLElement | undefined;
 	private editorPaintPending = false;
+	private editorTextBefore = "";
 	private failure: Error | undefined;
 	private readonly rendererKind: RendererKind = "dom";
 
@@ -70,7 +71,22 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 		this.assertReady();
 		if (this.editorPaintPending) {
 			this.editorPaintPending = false;
-			return new Promise((resolve) => requestAnimationFrame(resolve));
+			const root = this.editorRoot as HTMLElement;
+			const before = this.editorTextBefore;
+			return new Promise((resolve, reject) => {
+				requestAnimationFrame((timestamp) => {
+					if (root.textContent === before) {
+						reject(
+							new Error(
+								"input-latency: the editor painted no glyph for the dispatched key; " +
+									"a bare animation frame would have reported a passing number here",
+							),
+						);
+						return;
+					}
+					resolve(timestamp);
+				});
+			});
 		}
 		const renderer = this.renderer as DomBlockRenderer;
 		return new Promise((resolve, reject) => {
@@ -91,6 +107,7 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	dispatchPrintableKey(data: string): void {
 		this.assertReady();
 		this.editorPaintPending = true;
+		this.editorTextBefore = this.editorRoot?.textContent ?? "";
 		this.editorRoot?.dispatchEvent(new KeyboardEvent("keydown", { key: data, bubbles: true }));
 	}
 
