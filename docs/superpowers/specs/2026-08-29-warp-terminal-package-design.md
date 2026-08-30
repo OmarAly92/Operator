@@ -751,10 +751,29 @@ xterm numbers as the baseline.
 Gate, checked at the end of every phase from 1 onward:
 
 - `large-output` throughput MUST be ≥ the recorded xterm baseline.
-- `input-latency` p95 MUST be ≤ the recorded xterm baseline.
 - `vtebench` MUST be ≥ 0.9× the xterm baseline (parser work moves to WASM; a small
   regression here is acceptable, a large one is not).
+- `input-latency` p95 MUST be ≤ the recorded xterm baseline. **This scenario measures
+  the passthrough path on both renderers** — keystroke leaves as raw bytes, the echo
+  comes back, the parser renders it. In `Released`/`Unknown` our editor does exactly
+  what xterm does, so the work is identical and the baseline is a fair yardstick.
+- `input-latency-owned` p95 MUST be ≤ **16.7 ms**, one frame at 60fps. Once the editor
+  owns the line there is no echo and no round trip, so xterm has no comparable
+  measurement and a comparison would flatter us for doing less work. The question stops
+  being "faster than xterm" and becomes "imperceptible", which is what the budget
+  encodes. This scenario is dom-only and MUST NOT be recorded into an xterm baseline.
 - Scroll through 50,000 blocks MUST hold 60fps on the reference machine.
+
+**The gate is `npm --prefix packages/terminal run bench:gate`**, which loads the recorded
+baseline, applies the rules above, prints each verdict and exits non-zero on any failure.
+It MUST NOT be replaced by reading numbers off a report: for most of phase 2 there was no
+comparison step at all, and every "the gate passes" claim in that period was arithmetic
+done by hand against numbers that turned out to be measuring the wrong thing.
+
+A renderer-specific branch inside a scenario is a defect, not a convenience. If two
+renderers cannot be measured by the same code path, that is a signal they are not doing
+comparable work, and the answer is a second scenario with its own yardstick — as
+`input-latency-owned` is — never an `if` inside the shared one.
 
 If `renderer-dom` misses a gate after honest optimization, that is the trigger for a
 WebGL renderer behind §9.1 — not a redesign of core, blocks or editor.
