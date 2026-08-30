@@ -1,5 +1,5 @@
 import { WasmTerminalCore } from "../wasm/vt_core.js";
-import { BLOCK_RECORD_WORDS } from "./blocks.js";
+import { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 import {
 	getMemory,
 	isInitialized,
@@ -9,20 +9,37 @@ import {
 } from "./wasm-runtime.js";
 import type {
 	ChangeListener,
+	HostCapabilities,
 	LineEditorState,
 	TerminalCoreOptions,
 	TerminalSnapshot,
 } from "./types.js";
+import type {
+	CompletionListener,
+	CompletionProvider,
+} from "./completions.js";
+import { CompletionDispatcher } from "./completions.js";
 
 const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
+
+const NOOP_HOST: HostCapabilities = {
+	writeClipboard: async () => undefined,
+	readClipboard: async () => "",
+	openLink: async () => undefined,
+};
 
 export class TerminalCore {
 	private readonly inner: WasmTerminalCore;
 	private readonly listeners: Set<ChangeListener> = new Set();
+	private readonly completions: CompletionDispatcher;
 	private disposed = false;
 
-	constructor(inner: WasmTerminalCore) {
+	constructor(inner: WasmTerminalCore, host: HostCapabilities) {
 		this.inner = inner;
+		this.completions = new CompletionDispatcher(
+			() => decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "",
+			host,
+		);
 	}
 
 	static create(options: TerminalCoreOptions): TerminalCore {
@@ -30,7 +47,7 @@ export class TerminalCore {
 			throw new Error("terminal core WASM is not initialized");
 		}
 		const inner = new WasmTerminalCore(options.columns, options.scrollback);
-		const core = new TerminalCore(inner);
+		const core = new TerminalCore(inner, options.host ?? NOOP_HOST);
 		if (options.rows !== undefined) {
 			core.resize(options.columns, options.rows);
 		}
@@ -141,11 +158,32 @@ export class TerminalCore {
 		};
 	}
 
+	registerCompletionProvider(provider: CompletionProvider): () => void {
+		return this.completions.register(provider);
+	}
+
+	requestCompletions(line: string, cursor: number): void {
+		this.completions.request(line, cursor);
+	}
+
+	cancelCompletions(): void {
+		this.completions.cancel();
+	}
+
+	onCompletions(listener: CompletionListener): () => void {
+		return this.completions.onResult(listener);
+	}
+
+	currentCwd(): string {
+		return decodeBlocks(this.snapshot()).at(-1)?.cwd ?? "";
+	}
+
 	dispose(): void {
 		if (this.disposed) {
 			return;
 		}
 		this.disposed = true;
+		this.completions.dispose();
 		this.listeners.clear();
 		this.inner.free();
 	}

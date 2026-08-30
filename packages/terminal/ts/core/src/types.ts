@@ -89,6 +89,7 @@ export type TerminalCoreOptions = Readonly<{
 	columns: number;
 	scrollback: number;
 	rows?: number;
+	host?: HostCapabilities;
 }>;
 
 export type ChangeListener = (generation: number) => void;
@@ -162,11 +163,18 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	searchNoMatches: "No matches",
 });
 
+export type DirEntry = Readonly<{
+	name: string;
+	isDirectory: boolean;
+	isHidden: boolean;
+}>;
+
 export type HostCapabilities = Readonly<{
 	writeClipboard(text: string): Promise<void>;
 	readClipboard(): Promise<string>;
 	openLink(url: string): Promise<void>;
 	notify?(title: string, body: string): void;
+	listDirectory?(path: string): Promise<readonly DirEntry[]>;
 }>;
 
 export type HistoryStore = {

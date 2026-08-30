@@ -11,6 +11,7 @@ export type {
 	BlockView,
 	BootstrapOptions,
 	ChangeListener,
+	DirEntry,
 	FontConfig,
 	HostCapabilities,
 	HistoryStore,
@@ -23,6 +24,13 @@ export type {
 	TerminalStrings,
 	TerminalTheme,
 } from "./types.js";
+
+export type {
+	CompletionItem,
+	CompletionProvider,
+	CompletionRequest,
+	CompletionResult,
+} from "./completions.js";
 
 export { defaultStrings, validateRowRange } from "./types.js";
 
