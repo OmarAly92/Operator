@@ -838,9 +838,11 @@ When the stream enters the alternate screen (`1049`), block capture suspends and
 pane hands the full area to a raw grid renderer. On leave, blocks resume and the
 alt-screen session leaves a single collapsed block recording what ran.
 
-Phases 1 and 2 use the existing `XtermTerminal.tsx` as the raw surface, wired as the
-host's `AltScreenSurface`. **This is a bridge, not the destination.** Phase 3 replaces
-it with the package's own alternate-screen grid, and phase 7 deletes it (§13.4).
+Phase 3 lands the package's own alternate-screen grid as the default raw surface
+(`renderer-dom`'s `alt-surface.ts`, painted through the existing `BlockRenderer` seam).
+`XtermTerminal.tsx` stays in the tree as a host-flagged fallback
+(`VITE_ALT_SCREEN_SURFACE=xterm`) so a regression in the package grid is one flag away
+from a working pane; phase 7 deletes it (§13.4).
 
 *Why this is not optional.* An agent session — Claude Code, or any TUI harness — enters
 the alternate screen on the first chunk of output and never leaves it. Measured on a
@@ -1070,7 +1072,7 @@ history; Ctrl-R; edit-and-rerun from a block; `shell/bash.sh` and `shell/fish.fi
   timer-driven path can inject a line into a running program;
 - the §9.4 gate still passes, `input-latency` included.
 
-### Phase 3 — The alternate screen
+### Phase 3 — The alternate screen — **landed 2026-08-30**
 
 **Deliver:** the alternate-screen grid in `vt-core` per §11 — second grid, saved cursor,
 cursor addressing, scroll regions, erase and line editing; the raw surface in
