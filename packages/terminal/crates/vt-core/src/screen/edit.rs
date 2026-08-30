@@ -1,4 +1,4 @@
-use crate::screen::{Cell, ScreenGrid};
+use crate::screen::{Cell, ClearPolicy, ScreenGrid};
 
 impl ScreenGrid {
     pub fn erase_in_display(&mut self, mode: u16) {
@@ -22,6 +22,15 @@ impl ScreenGrid {
                     self.set(row, c, Cell::BLANK);
                 }
             }
+            2 => match self.clear_policy {
+                ClearPolicy::Scroll => self.scroll_up(self.content_rows()),
+                ClearPolicy::ClearInPlace => {
+                    for r in 0..rows {
+                        self.blank_row(r);
+                    }
+                    self.max_cursor_row = 0;
+                }
+            },
             _ => {
                 for r in 0..rows {
                     self.blank_row(r);

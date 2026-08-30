@@ -11,6 +11,12 @@ use crate::style::StyleCode;
 
 pub const MAX_DIMENSION: usize = 1000;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClearPolicy {
+    Scroll,
+    ClearInPlace,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
@@ -37,6 +43,7 @@ pub struct ScreenGrid {
     pub(crate) scroll_top: usize,
     pub(crate) scroll_bottom: usize,
     records_eviction: bool,
+    clear_policy: ClearPolicy,
     evicted: Vec<Vec<Cell>>,
 }
 
@@ -61,12 +68,17 @@ impl ScreenGrid {
             scroll_top: 0,
             scroll_bottom: rows - 1,
             records_eviction: false,
+            clear_policy: ClearPolicy::Scroll,
             evicted: Vec::new(),
         }
     }
 
     pub fn set_records_eviction(&mut self, on: bool) {
         self.records_eviction = on;
+    }
+
+    pub fn set_clear_policy(&mut self, policy: ClearPolicy) {
+        self.clear_policy = policy;
     }
 
     pub fn take_evicted(&mut self) -> Vec<Vec<Cell>> {

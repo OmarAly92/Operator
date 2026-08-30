@@ -6,7 +6,7 @@ use crate::block::BlockSource;
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
-use crate::screen::ScreenGrid;
+use crate::screen::{ClearPolicy, ScreenGrid};
 use crate::style::StyleCode;
 
 pub(crate) struct Parser {
@@ -92,6 +92,7 @@ impl Parser {
         self.commit_evicted();
         let mut alt = ScreenGrid::new(rows, self.width);
         alt.set_records_eviction(false);
+        alt.set_clear_policy(ClearPolicy::ClearInPlace);
         self.alt = Some(alt);
         self.saved_style = self.pending_style;
         self.pending_style = StyleCode::DEFAULT;
