@@ -50,6 +50,8 @@ export function capture({ name, command, rows, cols, keys = [], settleMs = 700 }
 const cases = [
 	{ name: "less-page", command: "less /usr/share/dict/words", rows: 20, cols: 60, keys: ["Space", "Space"] },
 	{ name: "vim-open", command: "vim -u NONE -N /etc/hosts", rows: 20, cols: 60, keys: ["G"] },
+	{ name: "htop-frame", command: "htop -d 600", rows: 24, cols: 80, keys: [], settleMs: 2500 },
+	{ name: "less-back", command: "less /usr/share/dict/words", rows: 20, cols: 60, keys: ["Space", "Space", "b", "y", "y"] },
 ];
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
