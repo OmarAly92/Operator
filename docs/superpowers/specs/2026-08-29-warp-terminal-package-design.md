@@ -302,11 +302,18 @@ export interface PtyTransport {
   dispose(): void;
 }
 
+export interface DirEntry {
+  name: string;
+  isDirectory: boolean;
+  isHidden: boolean;
+}
+
 export interface HostCapabilities {
   writeClipboard(text: string): Promise<void>;
   readClipboard(): Promise<string>;
   openLink(url: string): Promise<void>;
   notify?(title: string, body: string): void;
+  listDirectory?(path: string): Promise<readonly DirEntry[]>;
 }
 
 export interface SpawnRecipe {
@@ -324,6 +331,14 @@ export interface TerminalOptions {
   integration: "auto" | "osc133-only" | "off";
 }
 ```
+
+`listDirectory` was added in phase 4 and is the only filesystem the package ever sees.
+It is **optional** on purpose: path completion is the one provider that cannot be computed
+in-process, and a host without a filesystem — a browser, a remote pane — must keep every
+other provider rather than lose completions entirely. The three fields are Warp's
+`EngineDirEntry` (`completer/engine/path.rs:36-51`). Note what is absent: there is no
+capability that can run a command, which is what makes §3.6 structural here rather than a
+rule someone has to remember.
 
 `integration` selects the tier the host wants (§7.2). `auto` returns a bootstrap and
 consumes both tiers. `osc133-only` returns a bare shell recipe and consumes Tier 1
@@ -847,6 +862,33 @@ full replace rather than trying to diff across a resize.
 Neither rule may be traded away for a §9.4 number. A renderer that wins `large-output` by
 painting more often than the display refreshes has not made anything faster.
 
+**Open, measured 2026-08-30: the frame cap costs `input-latency`, and the two rules are in
+conflict.** The paragraph above was written the same morning the cap landed and before the
+§9.4 gate was re-run against it. It has since been: `input-latency` p95 went from 9.10ms at
+`695223617` to 24.80ms with the cap, and the gate compares against a 9.00ms xterm baseline.
+The evidence and the ruling-out of the other candidates are in §14 Phase 4. The median cost
+is the `requestAnimationFrame` hop that replaced the synchronous paint path; the tail is the
+16.67ms inter-paint deferral.
+
+This is a genuine trade, not a bug to fix quietly, and the resolution is a spec decision
+that has not been made:
+
+- **Reverting the cap** restores sub-frame echo and brings back the ~250 paints/sec that
+  made an agent pane visibly janky — the thing §9.5 exists to prevent.
+- **Amending the `input-latency` contract** is defensible on Warp's own architecture: Warp
+  throttles **PTY event-loop wakeups**, and its own comment says the channel exists "so that
+  we can coalesce successive wakeup events during situations of high throughput (e.g.
+  running `yes`)" (`crates/warp_terminal/src/event_listener.rs:19-21`). Echo in passthrough
+  arrives over the PTY like any other output, so Warp coalesces it too; Warp's answer to
+  input latency is that it *owns* the line editor and never round-trips the PTY. Ours does
+  the same, and `input-latency-owned` passes at 8.50ms against its 16.7ms budget.
+- **Exempting echo from the cap** is the only option that keeps both numbers, and it is not
+  obviously reachable: in passthrough we cannot distinguish an echoed keystroke from any
+  other PTY byte without inventing a heuristic §3.5 would warn about.
+
+Until this is decided, `bench:gate` fails on one scenario by design of the situation, not by
+oversight. Do not silence it by moving the factor.
+
 ---
 
 ## 10. The input editor
@@ -854,10 +896,21 @@ painting more often than the display refreshes has not made anything faster.
 ### 10.1 What it is
 
 A DOM-based editor at the bottom of the pane: multi-line, command syntax highlighting,
-ghost-text history suggestion, Ctrl-R history search, and (phase 4) a completions
-dropdown. It is `ts/editor`, it talks to `ts/core`, and it MUST NOT import
-`ts/completions` directly — completions arrive through a provider interface registered
-on the core.
+ghost-text history suggestion, Ctrl-R history search, and a completions dropdown. It is
+`ts/editor`, it talks to `ts/core`, and it MUST NOT import `ts/completions` directly —
+completions arrive through a provider interface registered on the core.
+
+**The dropdown landed in phase 4.** The editor never names the completion engine: it calls
+`core.requestCompletions(line, cursor)` and renders whatever arrives on
+`core.onCompletions(...)`, and it calls `core.cancelCompletions()` on any edit that would
+strand a stale list. The one-way dependency is what makes the rule above enforceable, and
+it is enforced — `check-boundaries.mjs` reports `editor must not import completions` and
+exits non-zero, verified by sabotage on 2026-08-30.
+
+**Tab changed hands.** Tab was bound to accepting the ghost-text history suggestion; it now
+means completion, matching Warp and readline. Ghost text is accepted with `Ctrl-E`, or with
+`→` when the cursor is at end of line — off the end, `→` falls back to moving the cursor,
+so the key never becomes unavailable for what it normally does.
 
 **Not CodeMirror.** The editor must share cell metrics, theme and font with the block
 renderer so the input row is visually continuous with the blocks above it, and it must
@@ -1308,7 +1361,7 @@ headless `XtermTerminal` (`ac9236563`, §13.3); and the paint-scheduling and row
 rules that fixed the jank (`ac9236563`/`d45009946`, §9.5). The correction above is itself
 corrected in §11: an agent pane *is* in the alternate screen, because tmux puts it there.
 
-### Phase 4 — Completions
+### Phase 4 — Completions — **landed 2026-08-30**
 
 **Deliver:** `ts/completions`; the provider interface on the core; path, flag and git
 subcommand providers; fuzzy ranking; the dropdown UI; a declarative spec format for
@@ -1319,6 +1372,54 @@ per-command completions.
 - completions are cancellable and never block a frame;
 - the spec format has at least three commands defined in it and a documented schema;
 - the §9.4 gate still passes.
+
+**Landed.** All eleven tasks of the 2026-08-30 plan, `f0a215893` through `0426591db`.
+281 tests across five packages, `check:boundaries` clean. The engine is
+`ts/completions`: a signature format and registry, a cursor-location resolver
+(`Command`/`Flag`/`Argument`, after `LocationType` at `completer/engine/mod.rs:35-58`),
+a smart-case matcher, Warp's four-tier ranking, the path/flag/command providers, and
+frame-budgeted ranking. `cd`, `git` and `docker` ship as specs; the schema is
+`ts/completions/SPEC.md`.
+
+**Three deviations from Warp that outlive this phase.**
+
+1. **No generators.** Warp's fourth `ArgumentValue` variant runs a shell script —
+   `GeneratorFn::ShellCommand { script, post_process }`, "a sh command"
+   (`signatures/v2/mod.rs:104-118`). Those are the jobs `zsh_body.sh:254-262` hunts down
+   in `warp_preexec`, and §3.6 forbids them. Our union has three variants and no fourth,
+   so the first accept criterion is structural rather than a rule to remember. The cost is
+   real and should be stated: `git checkout <branch>` cannot offer your actual branches.
+   Restoring that needs a §3.6 decision, not a quiet addition.
+2. **The fuzzy scorer is ours.** Warp calls `SkimMatcherV2`
+   (`crates/fuzzy_match/src/lib.rs:81-83`). It cannot be linked from TypeScript and the
+   crate is not vendored into the Warp checkout, so its constants were not readable and
+   were not invented. `ts/completions/SPEC.md` documents the five constants we do use.
+   What is copied is Warp's observable **smart-case rule**.
+3. **`LocationType::Variable` is deferred.** Warp completes `$VAR`; `locate` returns
+   `null` for a `$`-prefixed token, so the behaviour is defined rather than accidental.
+
+**The §9.4 gate is red, and phase 4 did not make it red.** `input-latency` fails at
+p95 24.80ms against a 9.00ms xterm baseline. Measured on 2026-08-30, same machine, same
+scenario configuration:
+
+| Build | median | p95 |
+| --- | --- | --- |
+| `695223617` (phase 3 merge, before the paint throttle) | 8.20 | 9.10 |
+| pre-phase-4 `ts/editor` + `ts/core`, paint throttle present | 16.40 | 24.50 |
+| phase 4 at `0426591db` | 16.40 | 24.80 |
+
+Checking out the pre-phase-4 editor and core and rebuilding reproduces the failure
+exactly, so the regression entered with the paint throttle in `ac9236563` (§9.5), not with
+completions. System load was ruled out — 16.40 at load 3.6 matches 16.50 at load 6.46.
+Removing only the inter-paint deferral recovers the tail (24.80 → 17.30) but not the
+median: the median frame is the `requestAnimationFrame` hop itself, which is what replaced
+the old synchronous paint path.
+
+Phase 4 is therefore accepted with the gate inherited red, and the regression is carried as
+an open §9.5 item rather than attributed here. Two things a later reader should not do:
+loosen the `input-latency` factor to 1.1 — 24.80 is 2.75× the baseline, so it would not
+pass anyway — or "fix" the editor, whose per-keystroke cost in passthrough is one
+`isOpen()` check and which measures identically when removed entirely.
 
 ### Phase 5 — Navigation
 

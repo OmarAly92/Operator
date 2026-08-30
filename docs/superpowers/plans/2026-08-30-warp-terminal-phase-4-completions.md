@@ -1,5 +1,16 @@
 # Terminal Phase 4 — Completions Implementation Plan
 
+> **Landed 2026-08-30.** All 11 tasks complete, `f0a215893` through `0426591db`, plus the
+> Task 11 record. 281 tests across five packages; `check:boundaries` clean and verified by
+> sabotage.
+>
+> **Task 11 Step 2 did not pass, and that is recorded rather than worked around.**
+> `bench:gate` fails `input-latency` at p95 24.80ms against a 9.00ms baseline. It was
+> already failing before the first Phase 4 commit: checking out the pre-Phase-4 `ts/editor`
+> and `ts/core` and rebuilding measures 16.40/24.50 against Phase 4's 16.40/24.80. The
+> regression entered with the paint throttle in `ac9236563`, and is carried as an open item
+> in spec §9.5. Phase 4 inherited the gate red; it did not make it red.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give `packages/terminal` a completions engine — a declarative per-command
@@ -178,7 +189,7 @@ own. `providers/` is split three ways because each provider is independently rej
   `registry.resolve(tokens: readonly string[]): ResolvedCommand | null` where
   `ResolvedCommand = { command: CommandSpec; consumed: number }`.
 
-- [ ] **Step 1: Create the workspace package**
+- [x] **Step 1: Create the workspace package**
 
 `packages/terminal/ts/completions/package.json`:
 
@@ -248,7 +259,7 @@ In `packages/terminal/package.json`, change the `build:ts` script from
 
 Then run `npm --prefix packages/terminal install` so the workspace link is created.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `packages/terminal/ts/completions/src/signature.test.ts`:
 
@@ -361,7 +372,7 @@ describe("SignatureRegistry", () => {
 });
 ```
 
-- [ ] **Step 3: Run the tests and watch them fail**
+- [x] **Step 3: Run the tests and watch them fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test
@@ -369,7 +380,7 @@ npm --prefix packages/terminal/ts/completions test
 
 Expected: FAIL — `Failed to resolve import "./signature.js"`.
 
-- [ ] **Step 4: Write `signature.ts`**
+- [x] **Step 4: Write `signature.ts`**
 
 ```ts
 export type TemplateType = "files" | "folders" | "files-and-folders";
@@ -436,7 +447,7 @@ export function isVariadic(argument: ArgumentSpec): boolean {
 }
 ```
 
-- [ ] **Step 5: Write `registry.ts`**
+- [x] **Step 5: Write `registry.ts`**
 
 ```ts
 import type { CommandSpec } from "./signature.js";
@@ -494,7 +505,7 @@ function matchSubcommand(command: CommandSpec, token: string): CommandSpec | nul
 }
 ```
 
-- [ ] **Step 6: Run the tests and watch them pass**
+- [x] **Step 6: Run the tests and watch them pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test
@@ -502,7 +513,7 @@ npm --prefix packages/terminal/ts/completions test
 
 Expected: PASS, 15 tests.
 
-- [ ] **Step 7: Write `SPEC.md`**
+- [x] **Step 7: Write `SPEC.md`**
 
 This is a Phase 4 accept criterion ("a documented schema"), so it must be a real reference,
 not a pointer. Write `packages/terminal/ts/completions/SPEC.md` covering:
@@ -518,7 +529,7 @@ not a pointer. Write `packages/terminal/ts/completions/SPEC.md` covering:
   `ArgumentValue` variant runs a shell script (`signatures/v2/mod.rs:104-118`), that §3.6
   forbids it, and that a dynamic-values feature needs a spec decision before it is added.
 
-- [ ] **Step 8: Verify the boundary and line checks pass**
+- [x] **Step 8: Verify the boundary and line checks pass**
 
 ```bash
 npm --prefix packages/terminal run check:boundaries
@@ -527,7 +538,7 @@ npm --prefix packages/terminal run check:boundaries
 Expected: exit 0. The script already knows `@operator/terminal-completions`
 (`check-boundaries.mjs:39, 120-121`), so no change to it is needed here.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/terminal/ts/completions packages/terminal/package.json packages/terminal/package-lock.json
@@ -554,7 +565,7 @@ filesystem. That is what makes it a pure function with cheap tests, and it mirro
 `Flatten` producing a `CompletionLocation` before any engine runs
 (`completer/engine/mod.rs:31, 66-80`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/parse.test.ts`:
 
@@ -675,7 +686,7 @@ The last case is the one that needs the guard in Step 3: at offset 1 of `"  git"
 cursor is in leading whitespace with a token still ahead of it, and completing there would
 insert *before* `git` rather than replacing it.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- parse
@@ -683,7 +694,7 @@ npm --prefix packages/terminal/ts/completions test -- parse
 
 Expected: FAIL — `Failed to resolve import "./parse.js"`.
 
-- [ ] **Step 3: Write `parse.ts`**
+- [x] **Step 3: Write `parse.ts`**
 
 ```ts
 export type Span = Readonly<{ start: number; end: number }>;
@@ -757,7 +768,7 @@ export function locate(line: string, cursor: number): CompletionLocation | null 
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- parse
@@ -765,14 +776,14 @@ npm --prefix packages/terminal/ts/completions test -- parse
 
 Expected: PASS, 14 tests.
 
-- [ ] **Step 5: Sabotage the implementation to prove the tests bite**
+- [x] **Step 5: Sabotage the implementation to prove the tests bite**
 
 Temporarily change `const query = line.slice(token.span.start, clamped);` to
 `const query = token.text;` and re-run. Expected: the "locates the token the cursor sits
 inside" test FAILS with `"commit"` where `"co"` was expected. Revert the sabotage and
 confirm green again. Do not commit the sabotage.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src/parse.ts packages/terminal/ts/completions/src/parse.test.ts
@@ -795,7 +806,7 @@ git commit -m "feat(terminal): resolve a cursor position to a completion locatio
 Read D3 before starting. This scorer is **ours**; do not claim in a commit message or a
 comment that it reproduces SkimMatcherV2. What we copy from Warp is the smart-case rule.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/match.test.ts`:
 
@@ -873,7 +884,7 @@ describe("matchQuery", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- match
@@ -881,7 +892,7 @@ npm --prefix packages/terminal/ts/completions test -- match
 
 Expected: FAIL — `Failed to resolve import "./match.js"`.
 
-- [ ] **Step 3: Write `match.ts`**
+- [x] **Step 3: Write `match.ts`**
 
 ```ts
 export type MatchResult =
@@ -951,7 +962,7 @@ function isWordStart(text: string, index: number): boolean {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- match
@@ -959,14 +970,14 @@ npm --prefix packages/terminal/ts/completions test -- match
 
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Document the constants in SPEC.md**
+- [x] **Step 5: Document the constants in SPEC.md**
 
 Append a **"Fuzzy scoring"** section to `packages/terminal/ts/completions/SPEC.md` listing
 the five exported constants with their values and the rule each encodes, plus one sentence
 recording that Warp uses `SkimMatcherV2` (`crates/fuzzy_match/src/lib.rs:81-83`) and that
 this is a behavioural equivalent, not a port. A future tuning change must update this table.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src/match.ts packages/terminal/ts/completions/src/match.test.ts packages/terminal/ts/completions/SPEC.md
@@ -991,7 +1002,7 @@ git commit -m "feat(terminal): match completions by exact, prefix and smart-case
   `TabAction` (union below),
   `tabAction(ranked: readonly Ranked[], query: string, span: Span): TabAction`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/rank.test.ts`:
 
@@ -1097,7 +1108,7 @@ single-prefix shortcut does not fire; without the case filter the common prefix 
 `Commit-tree` and `commit-message` is empty and Tab would do nothing, when it should
 insert `commit-message`.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- rank
@@ -1105,7 +1116,7 @@ npm --prefix packages/terminal/ts/completions test -- rank
 
 Expected: FAIL — `Failed to resolve import "./rank.js"`.
 
-- [ ] **Step 3: Write `rank.ts`**
+- [x] **Step 3: Write `rank.ts`**
 
 ```ts
 import { matchQuery, type MatchResult } from "./match.js";
@@ -1200,7 +1211,7 @@ function longestCommonPrefix(values: readonly string[]): string | null {
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- rank
@@ -1208,13 +1219,13 @@ npm --prefix packages/terminal/ts/completions test -- rank
 
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Sabotage to prove the case-sensitivity filter is tested**
+- [x] **Step 5: Sabotage to prove the case-sensitivity filter is tested**
 
 Temporarily drop `&& entry.match.caseSensitive` from the `caseSensitive` filter in
 `tabAction` and re-run. Expected: "ignores case-insensitive matches when computing the
 common prefix" FAILS. Revert and confirm green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src/rank.ts packages/terminal/ts/completions/src/rank.test.ts
@@ -1248,7 +1259,7 @@ git commit -m "feat(terminal): rank completions and give Tab Warp's semantics"
   `onCompletions(listener: (result: CompletionResult | null) => void): () => void`,
   `currentCwd(): string`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/core/src/completions.test.ts`:
 
@@ -1384,7 +1395,7 @@ describe("CompletionDispatcher", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/core test -- completions
@@ -1392,7 +1403,7 @@ npm --prefix packages/terminal/ts/core test -- completions
 
 Expected: FAIL — `Failed to resolve import "./completions.js"`.
 
-- [ ] **Step 3: Add the host capability to `types.ts`**
+- [x] **Step 3: Add the host capability to `types.ts`**
 
 Add above `HostCapabilities`:
 
@@ -1412,7 +1423,7 @@ and add one member to `HostCapabilities`:
 
 It is optional on purpose (D2): a host with no filesystem keeps every other provider.
 
-- [ ] **Step 4: Write `completions.ts`**
+- [x] **Step 4: Write `completions.ts`**
 
 ```ts
 import type { HostCapabilities } from "./types.js";
@@ -1514,7 +1525,7 @@ export class CompletionDispatcher {
 }
 ```
 
-- [ ] **Step 5: Wire it into `TerminalCore`**
+- [x] **Step 5: Wire it into `TerminalCore`**
 
 In `terminal-core.ts`, construct one dispatcher in the same place the other per-core state
 is built, passing a `cwd` getter that reads the last block's `cwd` from the decoded blocks
@@ -1526,7 +1537,7 @@ Export from `index.ts`: `CompletionDispatcher` is internal, but the types
 `CompletionItem`, `CompletionProvider`, `CompletionRequest`, `CompletionResult` and
 `DirEntry` are public and must be added to the `export type` block.
 
-- [ ] **Step 6: Run the whole core suite**
+- [x] **Step 6: Run the whole core suite**
 
 ```bash
 npm --prefix packages/terminal/ts/core test
@@ -1536,7 +1547,7 @@ Expected: PASS, including the 8 new tests. The pre-existing core tests must stay
 `HostCapabilities` gained a *required* member you have broken every existing host; it is
 optional for exactly this reason.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/terminal/ts/core/src
@@ -1562,7 +1573,7 @@ git commit -m "feat(terminal): give the core a cancellable completion provider s
 Because the host supplies `listDirectory`, this provider never touches a filesystem itself
 and its tests never need one — the fake host is three lines.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/providers/path.test.ts`:
 
@@ -1699,7 +1710,7 @@ describe("pathCandidates", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- providers/path
@@ -1707,7 +1718,7 @@ npm --prefix packages/terminal/ts/completions test -- providers/path
 
 Expected: FAIL — `Failed to resolve import "./path.js"`.
 
-- [ ] **Step 3: Write `providers/path.ts`**
+- [x] **Step 3: Write `providers/path.ts`**
 
 ```ts
 import type { HostCapabilities } from "@operator/terminal-core";
@@ -1773,7 +1784,7 @@ same split and flags it as a wart to fix later (`suggest/mod.rs:317-319`); we ge
 correct behaviour for free because `rank` matches on `displayValue` (Task 4) while the
 editor inserts `value`.
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- providers/path
@@ -1781,7 +1792,7 @@ npm --prefix packages/terminal/ts/completions test -- providers/path
 
 Expected: PASS, 11 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src/providers
@@ -1800,7 +1811,7 @@ git commit -m "feat(terminal): complete paths through the host, never the shell"
 - Consumes: `CommandSpec`, `OptSpec`, `clampPriority` (Task 1); `Candidate` (Task 4).
 - Produces: `flagCandidates(command: CommandSpec, used: readonly string[]): Candidate[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/providers/flag.test.ts`:
 
@@ -1857,7 +1868,7 @@ describe("flagCandidates", () => {
 The fifth case is the behaviour that makes flag completion feel finished: once you have
 typed `-m`, neither `-m` nor its alias `--message` should be offered again.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- providers/flag
@@ -1865,7 +1876,7 @@ npm --prefix packages/terminal/ts/completions test -- providers/flag
 
 Expected: FAIL — `Failed to resolve import "./flag.js"`.
 
-- [ ] **Step 3: Write `providers/flag.ts`**
+- [x] **Step 3: Write `providers/flag.ts`**
 
 ```ts
 import type { Candidate } from "../rank.js";
@@ -1895,7 +1906,7 @@ export function flagCandidates(
 }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- providers/flag
@@ -1903,7 +1914,7 @@ npm --prefix packages/terminal/ts/completions test -- providers/flag
 
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src/providers/flag.ts packages/terminal/ts/completions/src/providers/flag.test.ts
@@ -1937,7 +1948,7 @@ git commit -m "feat(terminal): complete a command's declared options"
 This is the task that makes the phase visible: it joins the location, the registry, the
 three providers and the ranker into the one function a host registers.
 
-- [ ] **Step 1: Write the three specs**
+- [x] **Step 1: Write the three specs**
 
 `specs/cd.ts`:
 
@@ -1981,7 +1992,7 @@ export const defaultSignatures: readonly CommandSpec[] = [cd, git, docker];
 export { cd, docker, git };
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `packages/terminal/ts/completions/src/providers/command.test.ts`:
 
@@ -2161,7 +2172,7 @@ The last test is the one that pins Phase 4's first accept criterion in code. `Ho
 has no method that can run a command, so the strongest available proof is that the provider
 reaches for nothing but `listDirectory`. Keep it.
 
-- [ ] **Step 3: Run them and watch them fail**
+- [x] **Step 3: Run them and watch them fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test
@@ -2169,7 +2180,7 @@ npm --prefix packages/terminal/ts/completions test
 
 Expected: FAIL — `Failed to resolve import "./command.js"` and `"./index.js"`.
 
-- [ ] **Step 4: Write `providers/command.ts`**
+- [x] **Step 4: Write `providers/command.ts`**
 
 ```ts
 import type { Candidate } from "../rank.js";
@@ -2228,7 +2239,7 @@ export function argumentCandidates(
 }
 ```
 
-- [ ] **Step 5: Write `index.ts`**
+- [x] **Step 5: Write `index.ts`**
 
 ```ts
 import type {
@@ -2316,7 +2327,7 @@ function toItem(entry: Ranked): CompletionItem {
 }
 ```
 
-- [ ] **Step 6: Run the whole package suite and watch it pass**
+- [x] **Step 6: Run the whole package suite and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test
@@ -2326,7 +2337,7 @@ Expected: PASS. If "completes a subcommand by alias, ranked by priority" fails w
 `commit` instead of `checkout`, the `priority: 60` on `checkout` in `specs/git.ts` is
 missing — fix the spec, not the ranker.
 
-- [ ] **Step 7: Verify boundaries and line limits**
+- [x] **Step 7: Verify boundaries and line limits**
 
 ```bash
 npm --prefix packages/terminal run check:boundaries
@@ -2335,7 +2346,7 @@ npm --prefix packages/terminal run check:boundaries
 Expected: exit 0. `ts/completions` importing `@operator/terminal-core` is allowed
 (`check-boundaries.mjs:129-132`).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/terminal/ts/completions
@@ -2371,7 +2382,7 @@ The budget is 8 ms, half of a 60 Hz frame, leaving the other half for the paint 
 `requestAnimationFrame` because `ts/completions` must run in a `node` test environment and
 must not assume a DOM.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/terminal/ts/completions/src/schedule.test.ts`:
 
@@ -2463,7 +2474,7 @@ describe("rankChunked", () => {
 
 The last test is the one that keeps this honest: chunking must not change the answer.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test -- schedule
@@ -2471,7 +2482,7 @@ npm --prefix packages/terminal/ts/completions test -- schedule
 
 Expected: FAIL — `Failed to resolve import "./schedule.js"`.
 
-- [ ] **Step 3: Write `schedule.ts`**
+- [x] **Step 3: Write `schedule.ts`**
 
 ```ts
 import { matchQuery } from "./match.js";
@@ -2527,7 +2538,7 @@ sort currently inlined at the top of `rank`) and
 currently inlined at the bottom). Rewrite `rank` to call both, so the two code paths cannot
 drift — that is what the "same answer as the unchunked ranker" test is guarding.
 
-- [ ] **Step 4: Run the whole package suite**
+- [x] **Step 4: Run the whole package suite**
 
 ```bash
 npm --prefix packages/terminal/ts/completions test
@@ -2536,7 +2547,7 @@ npm --prefix packages/terminal/ts/completions test
 Expected: PASS. Task 4's `rank.test.ts` must still be green after the refactor; if it is
 not, `rank` no longer calls the two extracted helpers in the right order.
 
-- [ ] **Step 5: Route the provider through the scheduler**
+- [x] **Step 5: Route the provider through the scheduler**
 
 In `index.ts`, replace `const ranked = rank(candidates, location.query);` with:
 
@@ -2548,7 +2559,7 @@ In `index.ts`, replace `const ranked = rank(candidates, location.query);` with:
 and import `rankChunked` from `./schedule.js`. Re-run the package suite; `index.test.ts`
 must stay green unchanged.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/ts/completions/src
@@ -2580,7 +2591,7 @@ Read D5 first. `keymap.ts:69-70` currently gives Tab to `accept-suggestion`; thi
 it for completions and gives ghost-text acceptance to `→` (at end of line) and `Ctrl-E`.
 Existing tests assert the old binding — repair them, do not delete them.
 
-- [ ] **Step 1: Write the failing dropdown test**
+- [x] **Step 1: Write the failing dropdown test**
 
 `packages/terminal/ts/editor/src/completions-dropdown.test.ts`:
 
@@ -2704,7 +2715,7 @@ describe("CompletionsDropdown", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```bash
 npm --prefix packages/terminal/ts/editor test -- completions-dropdown
@@ -2712,7 +2723,7 @@ npm --prefix packages/terminal/ts/editor test -- completions-dropdown
 
 Expected: FAIL — `Failed to resolve import "./completions-dropdown.js"`.
 
-- [ ] **Step 3: Write `completions-dropdown.ts`**
+- [x] **Step 3: Write `completions-dropdown.ts`**
 
 Implement `CompletionsDropdown` to satisfy the test exactly: an element carrying
 `data-terminal-completions`, appended to the container on the first non-empty result and
@@ -2722,7 +2733,7 @@ the display text split so that every index in `matchedIndices` is wrapped in a
 `true` only for `ArrowDown`, `ArrowUp`, `Escape`, `Enter` and `Tab` **while open**, and
 `false` otherwise so the editor keeps every other key. Keep the file under 600 lines.
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 ```bash
 npm --prefix packages/terminal/ts/editor test -- completions-dropdown
@@ -2730,7 +2741,7 @@ npm --prefix packages/terminal/ts/editor test -- completions-dropdown
 
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Rebind Tab in `keymap.ts`**
+- [x] **Step 5: Rebind Tab in `keymap.ts`**
 
 Add `| { kind: "complete" }` to `EditorCommand`. Change the `case "Tab":` arm to return
 `{ kind: "complete" }`. Add an `ArrowRight` arm that returns `{ kind: "accept-suggestion" }`
@@ -2745,7 +2756,7 @@ unchanged.
 Repair `keymap.test.ts`: the existing assertion that `Tab` produces `accept-suggestion`
 becomes `complete`, and add assertions for `ArrowRight` and `Ctrl-E`.
 
-- [ ] **Step 6: Wire the dropdown into `line-editor.ts`**
+- [x] **Step 6: Wire the dropdown into `line-editor.ts`**
 
 In `mount`, construct a `CompletionsDropdown`, mount it into the same container, and
 subscribe with `core.onCompletions((result) => dropdown.setResult(result))`, keeping the
@@ -2773,7 +2784,7 @@ Repair `line-editor.test.ts`: tests that press Tab expecting ghost-text acceptan
 cursor, and a test that typing a character while the dropdown is open calls
 `cancelCompletions`.
 
-- [ ] **Step 7: Style the dropdown**
+- [x] **Step 7: Style the dropdown**
 
 Add rules to `packages/terminal/ts/editor/src/styles.css` for
 `.terminal-completions`, `.terminal-completion-row`,
@@ -2782,7 +2793,7 @@ Add rules to `packages/terminal/ts/editor/src/styles.css` for
 only — no literal colours. Mirror them into `styles.ts`. `styles-parity.test.ts` already
 exists in this package and will fail if the two drift; run it.
 
-- [ ] **Step 8: Run the whole editor and core suites**
+- [x] **Step 8: Run the whole editor and core suites**
 
 ```bash
 npm --prefix packages/terminal test
@@ -2790,7 +2801,7 @@ npm --prefix packages/terminal test
 
 Expected: PASS across every workspace package.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/terminal/ts/editor/src
@@ -2806,7 +2817,7 @@ git commit -m "feat(terminal): show completions in the editor, and give Tab back
 - Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` — §14 Phase 4, §4.1, §10.1
 - Test: `packages/terminal/scripts/check-boundaries.test.mjs`
 
-- [ ] **Step 1: Prove the boundary rule is actually enforced**
+- [x] **Step 1: Prove the boundary rule is actually enforced**
 
 Add a case to `packages/terminal/scripts/check-boundaries.test.mjs` asserting that a file
 under `ts/editor` importing `@operator/terminal-completions` is reported as
@@ -2821,7 +2832,7 @@ npm --prefix packages/terminal run check:boundaries
 
 Expected: **non-zero exit**, naming the file and the rule. Revert the sabotage.
 
-- [ ] **Step 2: Run the perf gate**
+- [x] **Step 2: Run the perf gate**
 
 ```bash
 npm --prefix packages/terminal run bench:gate
@@ -2834,7 +2845,7 @@ the cause is the editor doing completion work on the keystroke path — the fix 
 `requestCompletions` is fire-and-forget and the dropdown updates from the listener, never
 awaited inline.
 
-- [ ] **Step 3: Record the phase in the spec**
+- [x] **Step 3: Record the phase in the spec**
 
 Amend `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`:
 
@@ -2852,7 +2863,7 @@ Amend `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`:
   with the constants living in `ts/completions/SPEC.md`). Record `LocationType::Variable` as
   deferred (D4) so a later phase picks it up deliberately rather than discovering it.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/terminal/scripts docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md
