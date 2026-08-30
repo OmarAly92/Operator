@@ -10,7 +10,7 @@ import {
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
-import { DomBlockRenderer } from "@operator/terminal-renderer-dom";
+import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
 import { TerminalSurface, warpDarkTheme } from "./index";
 
 const wasmPath = join(
@@ -274,6 +274,8 @@ describe("TerminalSurface", () => {
 	it("defines the surface padding the way Warp does", () => {
 		const { surface } = renderSurface();
 		expect(surface).toHaveClass("terminal-surface");
+		expect(terminalStyles).toContain("--terminal-padding-x: 16px;");
+		expect(terminalStyles).toContain("--terminal-padding-y: 8px;");
 	});
 
 	it("resizes from the inner grid inside the Warp padding", () => {
