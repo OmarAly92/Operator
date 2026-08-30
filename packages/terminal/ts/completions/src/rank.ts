@@ -23,24 +23,23 @@ export type TabAction =
 
 const display = (candidate: Candidate): string => candidate.displayValue ?? candidate.value;
 
-export function rank(candidates: readonly Candidate[], query: string): Ranked[] {
-	const ordered = [...candidates].sort((left, right) => {
+export function orderByPriority(candidates: readonly Candidate[]): Candidate[] {
+	return [...candidates].sort((left, right) => {
 		const byPriority = clampPriority(right.priority) - clampPriority(left.priority);
 		if (byPriority !== 0) return byPriority;
 		return display(left).localeCompare(display(right));
 	});
+}
 
+export function assemble(matched: readonly Ranked[]): Ranked[] {
 	const exact: Ranked[] = [];
 	const exactInsensitive: Ranked[] = [];
 	const prefix: Ranked[] = [];
 	const fuzzy: Ranked[] = [];
 
-	for (const candidate of ordered) {
-		const match = matchQuery(display(candidate), query);
-		if (match === null) continue;
-		const entry = { candidate, match };
-		if (match.kind === "exact") (match.caseSensitive ? exact : exactInsensitive).push(entry);
-		else if (match.kind === "prefix") prefix.push(entry);
+	for (const entry of matched) {
+		if (entry.match.kind === "exact") (entry.match.caseSensitive ? exact : exactInsensitive).push(entry);
+		else if (entry.match.kind === "prefix") prefix.push(entry);
 		else fuzzy.push(entry);
 	}
 
@@ -51,6 +50,16 @@ export function rank(candidates: readonly Candidate[], query: string): Ranked[] 
 	});
 
 	return [...exact, ...exactInsensitive, ...prefix, ...fuzzy];
+}
+
+export function rank(candidates: readonly Candidate[], query: string): Ranked[] {
+	const ordered = orderByPriority(candidates);
+	const matched: Ranked[] = [];
+	for (const candidate of ordered) {
+		const match = matchQuery(display(candidate), query);
+		if (match !== null) matched.push({ candidate, match });
+	}
+	return assemble(matched);
 }
 
 export function tabAction(ranked: readonly Ranked[], query: string, span: Span): TabAction {

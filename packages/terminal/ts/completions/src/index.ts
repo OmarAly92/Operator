@@ -5,7 +5,8 @@ import type {
 	CompletionResult,
 } from "@operator/terminal-core";
 import { locate } from "./parse.js";
-import { rank, type Candidate, type Ranked } from "./rank.js";
+import type { Candidate, Ranked } from "./rank.js";
+import { rankChunked } from "./schedule.js";
 import { SignatureRegistry } from "./registry.js";
 import { commandCandidates, subcommandCandidates, argumentCandidates } from "./providers/command.js";
 import { flagCandidates } from "./providers/flag.js";
@@ -31,7 +32,8 @@ export function createCompletionProvider(
 		const candidates = await collect(registry, location, request);
 		if (candidates === null) return null;
 
-		const ranked = rank(candidates, location.query);
+		const ranked = await rankChunked(candidates, location.query, request.signal);
+		if (ranked === null) return null;
 		return {
 			items: ranked.map(toItem),
 			span: location.span,
