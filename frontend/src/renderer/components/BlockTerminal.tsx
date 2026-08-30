@@ -50,7 +50,8 @@ export type BlockTerminalProps = {
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_SCROLLBACK = 5000;
-const SOURCE_ID_PATTERN = /\x1b\]7000;v=1;id=([A-Za-z0-9_-]+)/g;
+const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
+const BEL = 0x07;
 
 // Which surface owns the alternate screen. The package's own renderer is the
 // default so the pane is ours end to end; the phase-3 alternate-screen grid
@@ -104,28 +105,72 @@ function encodeHistoryBlock(block: BlockTerminalHistoryBlock): Uint8Array {
 	return new TextEncoder().encode(`${header}${promptStart}${output}${exit}`);
 }
 
+function isSourceIdByte(byte: number): boolean {
+	return (
+		(byte >= 0x30 && byte <= 0x39) ||
+		(byte >= 0x41 && byte <= 0x5a) ||
+		(byte >= 0x61 && byte <= 0x7a) ||
+		byte === 0x5f ||
+		byte === 0x2d
+	);
+}
+
+function matchesAt(bytes: Uint8Array, offset: number, needle: Uint8Array): boolean {
+	if (offset + needle.length > bytes.length) return false;
+	for (let i = 0; i < needle.length; i += 1) {
+		if (bytes[offset + i] !== needle[i]) return false;
+	}
+	return true;
+}
+
+type SourceIdMark = { id: string; start: number; end: number };
+
+function scanSourceIdMarks(bytes: Uint8Array): SourceIdMark[] {
+	const marks: SourceIdMark[] = [];
+	for (let i = 0; i < bytes.length; i += 1) {
+		if (!matchesAt(bytes, i, SOURCE_ID_MARKER)) continue;
+		let cursor = i + SOURCE_ID_MARKER.length;
+		const idStart = cursor;
+		while (cursor < bytes.length && isSourceIdByte(bytes[cursor]!)) cursor += 1;
+		if (cursor === idStart) continue;
+		let terminator = cursor;
+		while (terminator < bytes.length && bytes[terminator] !== BEL) terminator += 1;
+		if (terminator >= bytes.length) break;
+		let id = "";
+		for (let at = idStart; at < cursor; at += 1) id += String.fromCharCode(bytes[at]!);
+		marks.push({ id, start: i, end: terminator + 1 });
+		i = terminator;
+	}
+	return marks;
+}
+
+function withoutRanges(bytes: Uint8Array, ranges: readonly SourceIdMark[]): Uint8Array {
+	const dropped = ranges.reduce((total, range) => total + (range.end - range.start), 0);
+	const out = new Uint8Array(bytes.length - dropped);
+	let write = 0;
+	let read = 0;
+	for (const range of ranges) {
+		out.set(bytes.subarray(read, range.start), write);
+		write += range.start - read;
+		read = range.end;
+	}
+	out.set(bytes.subarray(read), write);
+	return out;
+}
+
 function feedToCore(
 	core: TerminalCore,
 	bytes: Uint8Array,
 	seenLiveIds: Set<string>,
 	historyIds: Set<string>,
 ): void {
-	const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-	SOURCE_ID_PATTERN.lastIndex = 0;
-	let match: RegExpExecArray | null;
-	let filtered = text;
+	const marks = scanSourceIdMarks(bytes);
 	let hasDuplicatedLive = false;
-	while ((match = SOURCE_ID_PATTERN.exec(text)) !== null) {
-		const id = match[1];
-		seenLiveIds.add(id);
-		if (historyIds.has(id)) {
-			hasDuplicatedLive = true;
-		}
+	for (const mark of marks) {
+		seenLiveIds.add(mark.id);
+		if (historyIds.has(mark.id)) hasDuplicatedLive = true;
 	}
-	if (hasDuplicatedLive) {
-		filtered = text.replace(/\x1b\]7000;v=1;id=[A-Za-z0-9_-]+;?[^\x07]*\x07/g, "");
-	}
-	core.feed(new TextEncoder().encode(filtered));
+	core.feed(hasDuplicatedLive ? withoutRanges(bytes, marks) : bytes);
 }
 
 export function BlockTerminal({

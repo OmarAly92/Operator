@@ -245,7 +245,7 @@ vi.mock("./XtermTerminal", () => ({
 	},
 }));
 
-import { BlockTerminal } from "./BlockTerminal";
+import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
 
 function XtermTerminalLite() {
 	return <div data-testid="xterm-surface" />;
@@ -273,7 +273,7 @@ function encode(text: string): Uint8Array {
 function emit(bytes: Uint8Array): void {
 	for (const cb of activeListeners) cb(bytes);
 }
-function renderTerminal() {
+function renderTerminal(options: { historyBlocks?: BlockTerminalHistoryBlock[] } = {}) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
 	activeListeners = localListeners;
 	const transport = {
@@ -285,7 +285,13 @@ function renderTerminal() {
 		resize: vi.fn(),
 		dispose: vi.fn(),
 	};
-	render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+	render(
+		<BlockTerminal
+			transport={transport}
+			sessionId="s1"
+			historyBlocks={options.historyBlocks ?? []}
+		/>,
+	);
 	const proxy = new Proxy({} as MockCore, {
 		get(_target, prop) {
 			const c = mockState.core as MockCore | undefined;
@@ -407,6 +413,42 @@ describe("BlockTerminal", () => {
 		const [cols, rows] = resize.mock.calls.at(-1)!;
 		expect(cols).toBeGreaterThan(0);
 		expect(rows).toBeGreaterThan(0);
+	});
+
+	it("does not corrupt a multi-byte character split across two chunks", async () => {
+		renderTerminal();
+		const bar = new TextEncoder().encode("\u2500");
+		expect(bar.length).toBe(3);
+		emit(bar.subarray(0, 2));
+		emit(bar.subarray(2));
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThanOrEqual(2));
+		const seen = mockState.feeds.flatMap((chunk) => [...chunk]);
+		// U+FFFD encodes as ef bf bd. Decoding each chunk with a non-streaming
+		// TextDecoder and re-encoding turns one split glyph into two of these,
+		// which is the box-question mark that shows up mid-separator.
+		expect(seen).not.toContain(0xef);
+		expect(seen.join(",")).toContain([...bar].join(","));
+	});
+
+	it("still strips a live block that the history already carries", async () => {
+		const duplicate = "\u001b]7000;v=1;id=dup;cmd=ls\u0007body";
+		renderTerminal({
+			historyBlocks: [{ sourceId: "dup", command: "ls", text: "body", exitCode: 0 }],
+		});
+		await waitFor(() => {
+			const seeded = new TextDecoder().decode(
+				Uint8Array.from(mockState.feeds.flatMap((chunk) => [...chunk])),
+			);
+			expect(seeded).toContain("id=dup");
+		});
+		mockState.feeds.length = 0;
+		emit(encode(duplicate));
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThan(0));
+		const text = new TextDecoder().decode(
+			Uint8Array.from(mockState.feeds.flatMap((chunk) => [...chunk])),
+		);
+		expect(text).not.toContain("id=dup");
+		expect(text).toContain("body");
 	});
 
 	it("takes the alternate-screen signal from the core, not from sniffing bytes", async () => {
