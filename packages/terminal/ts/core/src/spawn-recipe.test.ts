@@ -36,4 +36,19 @@ describe("spawnRecipe", () => {
 		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
 		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("0");
 	});
+
+	it("templates the manifest argv so the manifest is the single source of truth", () => {
+		const zsh = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
+		expect(zsh.argv[0]).toBe("zsh");
+		expect(zsh.argv[1]).toBe("-c");
+		expect(zsh.argv[2]).toMatch(/source "[^"]*shell\/zsh\.sh"; exec zsh$/);
+
+		const bash = spawnRecipe("bash", { integration: "auto", suppressPrompt: false });
+		expect(bash.argv[2]).toMatch(/source "[^"]*shell\/bash\.sh"; exec bash$/);
+
+		const fish = spawnRecipe("fish", { integration: "auto", suppressPrompt: false });
+		expect(fish.argv[0]).toBe("fish");
+		expect(fish.argv[1]).toBe("-C");
+		expect(fish.argv[2]).toMatch(/^source "[^"]*shell\/fish\.fish"$/);
+	});
 });
