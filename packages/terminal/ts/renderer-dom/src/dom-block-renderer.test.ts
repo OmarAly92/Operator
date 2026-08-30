@@ -172,6 +172,15 @@ describe("DomBlockRenderer", () => {
 		expect(host.querySelectorAll('[data-terminal-block-id="0:0"]')).toHaveLength(0);
 	});
 
+	it("keeps a redrawing program inside one screen of rows", () => {
+		const core = createTerminalCore({ columns: 80, rows: 24, scrollback: 100 });
+		const encoder = new TextEncoder();
+		for (let frame = 0; frame < 40; frame += 1) {
+			core.feed(encoder.encode("\x1b[Hstatus line\x1b[K"));
+		}
+		expect(core.snapshot().rows.length / 2).toBeLessThanOrEqual(24);
+	});
+
 	it("renders only the visible slice of a tall block", () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "clientHeight", { value: 100, configurable: true });
