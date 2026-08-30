@@ -53,6 +53,35 @@ function flushRepaint(): Promise<void> {
 	});
 }
 
+function renderSurface(
+	overrides: {
+		onGeometry?: (columns: number, rows: number) => void;
+		onSend?: (text: string) => void;
+		onSendRaw?: (data: string) => void;
+	} = {},
+) {
+	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+	const result = render(
+		<TerminalSurface
+			core={core}
+			theme={theme}
+			font={font}
+			altScreenActive={false}
+			onSend={overrides.onSend ?? ignoreSend}
+			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
+			onGeometry={overrides.onGeometry}
+		/>,
+	);
+	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+	return { core, host, ...result };
+}
+
+function setHostSize(host: HTMLElement, width: number, height: number): void {
+	Object.defineProperty(host, "clientWidth", { value: width, configurable: true });
+	Object.defineProperty(host, "clientHeight", { value: height, configurable: true });
+	host.dispatchEvent(new Event("resize"));
+}
+
 describe("TerminalSurface", () => {
 	beforeAll(loadWasm);
 	afterEach(() => {
@@ -228,5 +257,129 @@ describe("TerminalSurface", () => {
 		fireEvent.click(container.querySelector<HTMLButtonElement>("[data-action='rerun']")!);
 		expect(container.querySelector(".terminal-editor-line")?.textContent).toContain("git status");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("resizes the core to the measured geometry", () => {
+		const { core, host } = renderSurface();
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 1000, 500);
+		expect(resize).toHaveBeenCalled();
+		const [columns, rows] = resize.mock.calls.at(-1)!;
+		expect(columns).toBeGreaterThan(0);
+		expect(rows).toBeGreaterThan(0);
+	});
+
+	it("does not resize when the measured geometry has not changed", () => {
+		const { core, host } = renderSurface();
+		setHostSize(host, 1000, 500);
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 1000, 500);
+		expect(resize).not.toHaveBeenCalled();
+	});
+
+	it("hides the editor while the alternate screen is active", () => {
+		const { container, core } = renderSurface();
+		expect(container.querySelector(".terminal-editor-host")?.hasAttribute("hidden")).toBe(false);
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		expect(container.querySelector(".terminal-editor-host")?.hasAttribute("hidden")).toBe(true);
+	});
+
+	it("sends alternate-screen keystrokes raw and never as a submitted line", () => {
+		const onSend = vi.fn();
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSend, onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onSendRaw).toHaveBeenNthCalledWith(1, "a");
+		expect(onSendRaw).toHaveBeenNthCalledWith(2, "\r");
+	});
+
+	it("encodes arrows as CSI while application cursor keys are off", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1b[A");
+	});
+
+	it("encodes arrows as SS3 once the program sets application cursor keys", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1bOA");
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
+	});
+
+	it("sends the whole recorded agent-cli frame's worth of state through correctly", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[22;0;0t\x1b[?1h\x1b=\x1b[H\x1b[2J");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1bOD");
+	});
+
+	it("turns the wheel into arrow keys instead of scrolling nothing", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+		expect(onSendRaw).toHaveBeenCalled();
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
+	});
+
+	it("does not turn the wheel into keys outside the alternate screen", () => {
+		const onSendRaw = vi.fn();
+		const { container } = renderSurface({ onSendRaw });
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+	});
+
+	it("takes focus when the alternate screen opens and gives it back on leave", () => {
+		const { container, core } = renderSurface();
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		expect(document.activeElement).toBe(container.querySelector(".terminal-host"));
+		act(() => {
+			feed(core, "\x1b[?1049l");
+		});
+		expect(container.querySelector(".terminal-editor-host")?.hasAttribute("hidden")).toBe(false);
+	});
+
+	it("returns to the block list when the program leaves the alternate screen", async () => {
+		const { container, core } = renderSurface();
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		await flushRepaint();
+		expect(container.querySelector("[data-terminal-alt-surface]")).not.toBeNull();
+		act(() => {
+			feed(core, "\x1b[?1049l");
+		});
+		await flushRepaint();
+		const surface = container.querySelector("[data-terminal-alt-surface]") as HTMLElement | null;
+		expect(surface === null || surface.hidden).toBe(true);
 	});
 });

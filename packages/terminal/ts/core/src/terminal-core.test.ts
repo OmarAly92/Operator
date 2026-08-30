@@ -94,3 +94,52 @@ describe("createTerminalCore invalid options", () => {
 		expect(() => createTerminalCore({ columns: 16, scrollback: 0 })).toThrow();
 	});
 });
+
+describe("TerminalCore alternate screen", () => {
+	it("exposes the alternate grid with a cursor, and nothing when inactive", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		core.resize(20, 5);
+		expect(core.snapshot().altScreen).toBeNull();
+		core.feed(new TextEncoder().encode("\x1b[?1049h\x1b[2;3Hhi"));
+		const alt = core.snapshot().altScreen;
+		expect(alt).not.toBeNull();
+		expect(alt!.rows).toBe(5);
+		expect(alt!.columns).toBe(20);
+		expect(alt!.cursorRow).toBe(1);
+		expect(alt!.cursorColumn).toBe(4);
+		expect(alt!.cursorVisible).toBe(true);
+		const text = new TextDecoder().decode(
+			alt!.content.subarray(alt!.rowRanges[2], alt!.rowRanges[3]),
+		);
+		expect(text.trimEnd()).toBe("  hi");
+		core.dispose();
+	});
+
+	it("reports no scrollback for the alternate buffer", () => {
+		const core = createTerminalCore({ columns: 10, scrollback: 5000 });
+		core.resize(10, 3);
+		core.feed(new TextEncoder().encode("\x1b[?1049h"));
+		for (let i = 0; i < 50; i += 1) {
+			core.feed(new TextEncoder().encode(`line ${i}\r\n`));
+		}
+		expect(core.snapshot().altScreen!.rowRanges.length / 2).toBe(3);
+		core.dispose();
+	});
+
+	it("reports application cursor keys, and keeps reporting it after the program leaves", () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		expect(core.snapshot().applicationCursorKeys).toBe(false);
+		core.feed(new TextEncoder().encode("\x1b[?1049h\x1b[?1h"));
+		expect(core.snapshot().applicationCursorKeys).toBe(true);
+		core.feed(new TextEncoder().encode("\x1b[?1049l"));
+		expect(core.snapshot().applicationCursorKeys).toBe(true);
+		core.dispose();
+	});
+
+	it("drops the alternate view when the program leaves", () => {
+		const core = createTerminalCore({ columns: 10, scrollback: 100 });
+		core.feed(new TextEncoder().encode("\x1b[?1049hx\x1b[?1049l"));
+		expect(core.snapshot().altScreen).toBeNull();
+		core.dispose();
+	});
+});

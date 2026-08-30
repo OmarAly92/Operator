@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, type ReactElement, type ReactNode } from "react";
-import { LineEditor } from "@operator/terminal-editor";
+import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { LineEditor, mapKey, passthroughFor } from "@operator/terminal-editor";
 import { DomBlockRenderer, RERUN_EVENT } from "@operator/terminal-renderer-dom";
 import {
 	decodeBlocks,
@@ -12,6 +12,9 @@ import {
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
 
+const WHEEL_LINE_HEIGHT_PX = 40;
+const MAX_WHEEL_LINES = 10;
+
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
 	theme: TerminalTheme;
@@ -23,6 +26,7 @@ export interface TerminalSurfaceProps {
 	strings?: TerminalStrings;
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
+	onGeometry?: (columns: number, rows: number) => void;
 }
 
 export function TerminalSurface({
@@ -36,6 +40,7 @@ export function TerminalSurface({
 	strings = defaultStrings,
 	onSend,
 	onSendRaw,
+	onGeometry,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
@@ -96,11 +101,86 @@ export function TerminalSurface({
 		editorRef.current?.setStrings(strings);
 	}, [strings]);
 
+	useLayoutEffect(() => {
+		const blockHost = hostRef.current;
+		const renderer = rendererRef.current;
+		if (!blockHost || !renderer) {
+			return;
+		}
+		let lastColumns = 0;
+		let lastRows = 0;
+		const apply = () => {
+			if (blockHost.clientWidth <= 0 || blockHost.clientHeight <= 0) {
+				return;
+			}
+			const { cellWidth, cellHeight } = renderer.measure();
+			if (cellWidth <= 0 || cellHeight <= 0) {
+				return;
+			}
+			const columns = Math.max(1, Math.floor(blockHost.clientWidth / cellWidth));
+			const rows = Math.max(1, Math.floor(blockHost.clientHeight / cellHeight));
+			if (columns === lastColumns && rows === lastRows) {
+				return;
+			}
+			lastColumns = columns;
+			lastRows = rows;
+			core.resize(columns, rows);
+			onGeometry?.(columns, rows);
+		};
+		apply();
+		if (typeof ResizeObserver !== "function") {
+			return;
+		}
+		const observer = new ResizeObserver(apply);
+		observer.observe(blockHost);
+		return () => observer.disconnect();
+	}, [core, onGeometry]);
+
+	const [altActive, setAltActive] = useState(false);
+	useLayoutEffect(() => {
+		const read = () => setAltActive(core.snapshot().altScreen !== null);
+		read();
+		return core.onChange(read);
+	}, [core]);
+
+	useLayoutEffect(() => {
+		const blockHost = hostRef.current;
+		if (!blockHost || !altActive) {
+			return;
+		}
+		const appCursor = () => core.snapshot().applicationCursorKeys;
+		const onKeyDown = (event: KeyboardEvent) => {
+			const command = mapKey(event);
+			if (!command) {
+				return;
+			}
+			event.preventDefault();
+			onSendRaw(passthroughFor(command, appCursor()));
+		};
+		const onWheel = (event: WheelEvent) => {
+			const lines = Math.trunc(event.deltaY / WHEEL_LINE_HEIGHT_PX);
+			if (lines === 0) {
+				return;
+			}
+			event.preventDefault();
+			const prefix = appCursor() ? "\x1bO" : "\x1b[";
+			const key = lines > 0 ? "B" : "A";
+			onSendRaw(`${prefix}${key}`.repeat(Math.min(Math.abs(lines), MAX_WHEEL_LINES)));
+		};
+		blockHost.addEventListener("keydown", onKeyDown);
+		blockHost.addEventListener("wheel", onWheel, { passive: false });
+		blockHost.focus();
+		return () => {
+			blockHost.removeEventListener("keydown", onKeyDown);
+			blockHost.removeEventListener("wheel", onWheel);
+		};
+	}, [altActive, core, onSendRaw]);
+
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
 		<>
-			<div ref={hostRef} className={hostClassName} />
-			<div ref={editorHostRef} className="terminal-editor-host" />
+			<div ref={hostRef} className={hostClassName} tabIndex={0} />
+			<div ref={editorHostRef} className="terminal-editor-host" hidden={altActive} />
 		</>
 	);
 	return (

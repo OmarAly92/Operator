@@ -1,0 +1,36 @@
+{
+	"name": "less-back",
+	"rows": 20,
+	"cols": 60,
+	"command": "less /usr/share/dict/words",
+	"keys": [
+		"Space",
+		"Space",
+		"b",
+		"y",
+		"y"
+	],
+	"inputBase64": "G1s/MTA0OWgbWzIwOzFIG1s/MWgbPQ1BDQphDQphYQ0KYWFsDQphYWxpaQ0KYWFtDQpBYW5pDQphYXJkdmFyaw0KYWFyZHdvbGYNCkFhcm9uDQpBYXJvbmljDQpBYXJvbmljYWwNCkFhcm9uaXRlDQpBYXJvbml0aWMNCkFhcnUNCkFiDQphYmENCkFiYWJkZWgNCkFiYWJ1YQ0KG1s3bS91c3Ivc2hhcmUvZGljdC93b3JkcxtbMjdtG1tLDRtbS2FiYWMNCmFiYWNhDQphYmFjYXRlDQphYmFjYXkNCmFiYWNpbmF0ZQ0KYWJhY2luYXRpb24NCmFiYWNpc2N1cw0KYWJhY2lzdA0KYWJhY2sNCmFiYWN0aW5hbA0KYWJhY3RpbmFsbHkNCmFiYWN0aW9uDQphYmFjdG9yDQphYmFjdWx1cw0KYWJhY3VzDQpBYmFkaXRlDQphYmFmZg0KYWJhZnQNCmFiYWlzYW5jZQ0KOhtbSw0bW0thYmFpc2VyDQphYmFpc3NlZA0KYWJhbGllbmF0ZQ0KYWJhbGllbmF0aW9uDQphYmFsb25lDQpBYmFtYQ0KYWJhbXBlcmUNCmFiYW5kb24NCmFiYW5kb25hYmxlDQphYmFuZG9uZWQNCmFiYW5kb25lZGx5DQphYmFuZG9uZWUNCmFiYW5kb25lcg0KYWJhbmRvbm1lbnQNCkFiYW5pYw0KQWJhbnRlcw0KYWJhcHRpc3Rvbg0KQWJhcmFtYm8NCkFiYXJpcw0KOhtbSw0bW0sbW0gbTWFiYWlzYW5jZQ0KG1tIG01hYmFmdA0KG1tIG01hYmFmZg0KG1tIG01BYmFkaXRlDQobW0gbTWFiYWN1cw0KG1tIG01hYmFjdWx1cw0KG1tIG01hYmFjdG9yDQobW0gbTWFiYWN0aW9uDQobW0gbTWFiYWN0aW5hbGx5DQobW0gbTWFiYWN0aW5hbA0KG1tIG01hYmFjaw0KG1tIG01hYmFjaXN0DQobW0gbTWFiYWNpc2N1cw0KG1tIG01hYmFjaW5hdGlvbg0KG1tIG01hYmFjaW5hdGUNChtbSBtNYWJhY2F5DQobW0gbTWFiYWNhdGUNChtbSBtNYWJhY2ENChtbSBtNYWJhYw0KG1syMDsxSA0bW0s6G1tLDRtbSxtbSBtNQWJhYnVhDQobWzIwOzFIDRtbSzobW0sNG1tLG1tIG01BYmFiZGVoDQobWzIwOzFIDRtbSzobW0s=",
+	"expectedRows": [
+		"Ababdeh",
+		"Ababua",
+		"abac",
+		"abaca",
+		"abacate",
+		"abacay",
+		"abacinate",
+		"abacination",
+		"abaciscus",
+		"abacist",
+		"aback",
+		"abactinal",
+		"abactinally",
+		"abaction",
+		"abactor",
+		"abaculus",
+		"abacus",
+		"Abadite",
+		"abaff",
+		":"
+	]
+}

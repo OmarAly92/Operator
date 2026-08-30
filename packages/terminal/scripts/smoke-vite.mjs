@@ -66,6 +66,7 @@ async function main() {
 	try {
 		await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load" });
 		await page.waitForSelector(READY_SELECTOR, { timeout: 15000 });
+		await page.evaluate(() => window.scrollTo(0, 0));
 
 		const rootHandle = await page.$("#terminal-smoke-root");
 		if (!rootHandle) {
@@ -281,6 +282,118 @@ async function main() {
 		}
 		if (tierOne.recipe !== "zsh:osc133-only") {
 			fail(`Tier-1 spawn recipe mismatch: ${tierOne.recipe}`);
+		}
+
+		await page.waitForSelector('[data-terminal-alt-shred="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const shred = await page.evaluate(() => {
+			const main = document.getElementById("terminal-alt-root");
+			if (!main) return null;
+			return {
+				before: main.dataset.terminalAltShredBefore ?? "",
+				after: main.dataset.terminalAltShredAfter ?? "",
+				beforeCount: main.dataset.terminalAltShredBeforeCount ?? "",
+				afterCount: main.dataset.terminalAltShredAfterCount ?? "",
+				surfaceHidden: main.dataset.terminalAltShredSurfaceHidden ?? "",
+			};
+		});
+		if (!shred) {
+			fail("alt-screen shred fixture did not mount #terminal-alt-root");
+		}
+		if (shred.beforeCount !== "1") {
+			fail(`expected one block before alt screen, got ${shred.beforeCount}`);
+		}
+		if (shred.afterCount !== "1") {
+			fail(
+				`alt screen shredded the pre-existing block list (was ${shred.beforeCount}, now ${shred.afterCount})`,
+			);
+		}
+		if (shred.before !== shred.after) {
+			fail(
+				`alt screen rewrote the pre-existing block ids: before "${shred.before}", after "${shred.after}"`,
+			);
+		}
+		if (shred.surfaceHidden !== "true") {
+			fail(
+				`alt surface was still visible after the program left: hidden=${shred.surfaceHidden}`,
+			);
+		}
+
+		await page.waitForSelector('[data-terminal-fallback="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const fallback = await page.evaluate(() => {
+			const main = document.getElementById("terminal-fallback-root");
+			const surface = main?.querySelector('[data-testid="terminal-fallback-surface"]');
+			return {
+				visible: main?.dataset.terminalFallbackVisible ?? "",
+				surfacePresent: Boolean(surface),
+				surfaceText: surface ? surface.textContent : "",
+			};
+		});
+		if (fallback.surfacePresent !== true) {
+			fail(
+				"altScreenSurface slot was not rendered; the xterm fallback path has nothing to mount",
+			);
+		}
+		if (fallback.visible !== "true") {
+			fail(
+				`altScreenSurface slot was hidden while altScreenActive=true; xterm fallback unreachable (visible=${fallback.visible})`,
+			);
+		}
+		if (fallback.surfaceText !== "fallback-xterm-slot") {
+			fail(
+				`altScreenSurface slot did not render the host's child (got "${fallback.surfaceText}")`,
+			);
+		}
+
+		await page.waitForSelector('[data-terminal-alt-scroll="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const noScrollback = await page.evaluate(async () => {
+			const main = document.getElementById("terminal-alt-scroll-root");
+			const host = main ? main.querySelector(".terminal-host") : null;
+			if (!host) return { hasHost: false };
+			const before = host.scrollTop;
+			host.scrollTop = 500;
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			const after = host.scrollTop;
+			return {
+				hasHost: true,
+				hostHeight: host.clientHeight,
+				overflow: host.style.overflow,
+				surfaceVisible: main && main.dataset ? main.dataset.terminalAltScrollSurfaceVisible : "",
+				before,
+				after,
+			};
+		});
+		if (!noScrollback.hasHost) {
+			fail("alt-scroll fixture did not mount a .terminal-host");
+		}
+		if (noScrollback.hostHeight <= 0) {
+			fail(`alt-scroll host collapsed to ${noScrollback.hostHeight}px height`);
+		}
+		if (noScrollback.surfaceVisible !== "true") {
+			fail(
+				`alt-scroll fixture was not inside the alt screen when measured (visible=${noScrollback.surfaceVisible}); ` +
+					"the no-scrollback check would be vacuous against the block list",
+			);
+		}
+		if (noScrollback.overflow !== "hidden") {
+			fail(
+				`alt screen host did not set overflow:hidden (got "${noScrollback.overflow}"); ` +
+					"the alt surface is allowed to scroll",
+			);
+		}
+		if (noScrollback.after !== 0) {
+			fail(
+				`alt screen scrolled: scrollTop=${noScrollback.after} after a forced set to 500 (was ${noScrollback.before}); ` +
+					"alternate buffer has scrollback, which §11 forbids",
+			);
 		}
 
 		const resources = await page.evaluate(() => {

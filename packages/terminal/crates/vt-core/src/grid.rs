@@ -1,3 +1,4 @@
+use crate::alt::AltGrid;
 use crate::attribute_map::AttributeMap;
 use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::block_grid::BlockGrid;
@@ -23,6 +24,7 @@ pub struct GridSnapshot {
     pub blocks: Vec<BlockRecord>,
     pub block_text: Vec<u8>,
     pub line_editor_state: u32,
+    pub alt: Option<crate::alt::AltSnapshot>,
 }
 
 impl GridSnapshot {
@@ -65,6 +67,7 @@ pub(crate) fn build_snapshot(
     styles: &AttributeMap<StyleCode>,
     grid: &BlockGrid,
     line_editor_state: LineEditorState,
+    alt: Option<&AltGrid>,
 ) -> Result<GridSnapshot, CoreError> {
     let open_start = rows.open_start();
     let end = content.end_offset();
@@ -140,6 +143,7 @@ pub(crate) fn build_snapshot(
         blocks,
         block_text,
         line_editor_state: line_editor_state.wire(),
+        alt: alt.map(|grid| grid.snapshot()),
     })
 }
 

@@ -1,3 +1,4 @@
+pub mod alt;
 pub mod alt_screen;
 pub mod attribute_map;
 pub mod block;
@@ -13,6 +14,7 @@ pub mod parser;
 pub mod row_index;
 pub mod style;
 
+pub use alt::{AltGrid, Cell};
 pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState, TextSpan};
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
@@ -34,6 +36,8 @@ pub enum CoreError {
     OffsetOverflow,
 }
 
+pub const DEFAULT_ROWS: usize = 24;
+
 pub struct TerminalCore {
     parser: parser::Parser,
     vte: VteParser,
@@ -41,6 +45,7 @@ pub struct TerminalCore {
     alt_screen: alt_screen::AltScreen,
     line_editor: line_editor::LineEditorTracker,
     scrollback_rows: usize,
+    rows: usize,
 }
 
 impl TerminalCore {
@@ -58,6 +63,7 @@ impl TerminalCore {
             alt_screen: alt_screen::AltScreen::new(),
             line_editor: line_editor::LineEditorTracker::default(),
             scrollback_rows,
+            rows: DEFAULT_ROWS,
         })
     }
 
@@ -89,7 +95,13 @@ impl TerminalCore {
                 MarkEvent::AltScreenEnter => self.line_editor.on_alt_screen_enter(),
                 _ => {}
             }
+            let switch = event.clone();
             apply_event(&mut self.parser, &mut self.alt_screen, event);
+            match switch {
+                MarkEvent::AltScreenEnter => self.parser.enter_alt(self.rows),
+                MarkEvent::AltScreenLeave => self.parser.leave_alt(),
+                _ => {}
+            }
         }
         if parsed < bytes.len() {
             self.vte.advance(&mut self.parser, &bytes[parsed..]);
@@ -104,6 +116,7 @@ impl TerminalCore {
             self.parser.styles(),
             self.parser.grid(),
             self.line_editor.state(),
+            self.parser.alt(),
         )
     }
 
@@ -122,6 +135,25 @@ impl TerminalCore {
 
     pub fn line_editor_state(&self) -> LineEditorState {
         self.line_editor.state()
+    }
+
+    pub fn resize(&mut self, columns: usize, rows: usize) {
+        let columns = columns.clamp(1, alt::MAX_DIMENSION);
+        let rows = rows.clamp(1, alt::MAX_DIMENSION);
+        self.rows = rows;
+        self.parser.resize(columns, rows);
+    }
+
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
+
+    pub fn alt_grid(&self) -> Option<&alt::AltGrid> {
+        self.parser.alt()
+    }
+
+    pub fn application_cursor_keys(&self) -> bool {
+        self.parser.app_cursor()
     }
 }
 

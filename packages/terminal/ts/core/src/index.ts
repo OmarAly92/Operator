@@ -3,6 +3,7 @@ import { ensureInitialized, type WasmInput } from "./wasm-runtime.js";
 import type { TerminalCoreOptions } from "./types.js";
 
 export type {
+	AltScreenView,
 	BlockId,
 	BlockRenderer,
 	BlockSource,

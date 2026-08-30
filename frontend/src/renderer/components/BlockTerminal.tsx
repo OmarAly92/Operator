@@ -50,14 +50,13 @@ export type BlockTerminalProps = {
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_SCROLLBACK = 5000;
-const ALT_SCREEN_ENTER = "\x1b[?1049h";
-const ALT_SCREEN_LEAVE = "\x1b[?1049l";
 const SOURCE_ID_PATTERN = /\x1b\]7000;v=1;id=([A-Za-z0-9_-]+)/g;
 
 // Which surface owns the alternate screen. The package's own renderer is the
-// default so the pane is ours end to end; until the phase-3 alternate-screen
-// grid lands it has no cursor addressing, so a full-screen TUI draws wrong
-// here. `VITE_ALT_SCREEN_SURFACE=xterm` hands the alternate screen back.
+// default so the pane is ours end to end; the phase-3 alternate-screen grid
+// now handles full-screen TUIs end to end, so the package surface is the
+// primary one. `VITE_ALT_SCREEN_SURFACE=xterm` is the spec-required escape
+// hatch for any regression we cannot fix in the grid.
 const handsAltScreenToXterm = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
 function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | undefined): TerminalTheme {
@@ -160,6 +159,9 @@ export function BlockTerminal({
 	const onSendRaw = useCallback((data: string) => {
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
+	const onGeometry = useCallback((columns: number, rows: number) => {
+		transportRef.current.resize?.(columns, rows);
+	}, []);
 
 	useEffect(() => {
 		if (!core) return;
@@ -240,13 +242,19 @@ export function BlockTerminal({
 	}, [core, historyBlocks]);
 
 	useEffect(() => {
+		if (!core) return;
+		const read = () => setAltScreenActive(core.snapshot().altScreen !== null);
+		read();
+		return core.onChange(read);
+	}, [core]);
+
+	useEffect(() => {
 		terminalDebug("block-terminal", "subscribing to transport", { sessionId });
 		let chunks = 0;
 		let bytesSeen = 0;
 		const unsubscribe = transport.onData((bytes) => {
 			chunks += 1;
 			bytesSeen += bytes.length;
-			const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 			if (chunks <= 3 || chunks % 50 === 0) {
 				terminalDebug("block-terminal", "bytes", {
 					chunk: chunks,
@@ -255,14 +263,6 @@ export function BlockTerminal({
 					hasCore: Boolean(coreRef.current),
 					head: previewBytes(bytes),
 				});
-			}
-			if (text.includes(ALT_SCREEN_ENTER)) {
-				terminalDebug("block-terminal", "ALT SCREEN ENTER", { chunk: chunks });
-				setAltScreenActive(true);
-			}
-			if (text.includes(ALT_SCREEN_LEAVE)) {
-				terminalDebug("block-terminal", "ALT SCREEN LEAVE", { chunk: chunks });
-				setAltScreenActive(false);
 			}
 			if (coreRef.current) {
 				feedToCore(coreRef.current, bytes, seenLiveIdsRef.current, historyIdsRef.current);
@@ -358,6 +358,7 @@ export function BlockTerminal({
 			<div
 				aria-label={ariaLabel}
 				data-testid="block-terminal"
+				data-alt-screen={String(altScreenActive)}
 				data-block-core={coreError ? "failed" : "loading"}
 				data-block-core-error={coreError ? coreError.message : undefined}
 				className="block-terminal-root h-full w-full"
@@ -377,12 +378,14 @@ export function BlockTerminal({
 		strings,
 		onSend,
 		onSendRaw,
+		onGeometry,
 	};
 
 	return (
 		<div
 			aria-label={ariaLabel}
 			data-testid="block-terminal"
+			data-alt-screen={String(altScreenActive)}
 			className="block-terminal-root h-full w-full"
 			ref={rootRef}
 		>
