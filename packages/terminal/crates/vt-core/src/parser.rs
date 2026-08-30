@@ -90,7 +90,9 @@ impl Parser {
             return;
         }
         self.commit_evicted();
-        self.alt = Some(AltGrid::new(rows, self.width));
+        let mut alt = ScreenGrid::new(rows, self.width);
+        alt.set_records_eviction(false);
+        self.alt = Some(alt);
         self.saved_style = self.pending_style;
         self.pending_style = StyleCode::DEFAULT;
     }

@@ -240,3 +240,38 @@ fn the_alt_flag_and_the_alt_grid_never_disagree() {
         );
     }
 }
+
+#[test]
+fn the_alternate_buffer_never_commits_to_scrollback() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 3);
+    core.feed(b"before\r\n");
+    let before = core.snapshot().unwrap().row_count();
+    core.feed(b"\x1b[?1049h");
+    for _ in 0..20 {
+        core.feed(b"tui\r\n");
+    }
+    core.feed(b"\x1b[?1049l");
+    assert_eq!(core.snapshot().unwrap().row_count(), before);
+}
+
+#[test]
+fn rows_written_before_the_alternate_screen_survive_it_byte_for_byte() {
+    let mut core = TerminalCore::new(20, 1000).unwrap();
+    core.resize(20, 5);
+    core.feed(b"keep me\r\n");
+    let before: Vec<String> = {
+        let s = core.snapshot().unwrap();
+        (0..s.row_count())
+            .map(|i| s.row_text(i).to_string())
+            .collect()
+    };
+    core.feed(b"\x1b[?1049hgarbage\x1b[2J\x1b[?1049l");
+    let after: Vec<String> = {
+        let s = core.snapshot().unwrap();
+        (0..s.row_count())
+            .map(|i| s.row_text(i).to_string())
+            .collect()
+    };
+    assert_eq!(before, after);
+}
