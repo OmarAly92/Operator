@@ -1,3 +1,4 @@
+pub mod alt;
 pub mod alt_screen;
 pub mod attribute_map;
 pub mod block;
