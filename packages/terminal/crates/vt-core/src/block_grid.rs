@@ -31,7 +31,8 @@ impl BlockGrid {
     /// without an OSC 133 finish, so its exit code is unknown and the
     /// renderer should not pretend otherwise.
     pub fn open_block(&mut self, source: BlockSource) {
-        if let Some(prev) = self.open.take() {
+        if let Some(mut prev) = self.open.take() {
+            prev.row_count = self.next_row - prev.first_row;
             let abandoned = Block {
                 state: BlockState::Abandoned,
                 ..prev
@@ -56,20 +57,18 @@ impl BlockGrid {
         let Some(mut block) = self.open.take() else {
             return;
         };
+        block.row_count = self.next_row - block.first_row;
         block.state = BlockState::Finished;
         block.meta.exit_code = exit_code;
         self.closed.push(block);
     }
 
-    /// Record that a row was completed (the parser called
-    /// `rows.complete_row`). The open block is the one that owns the row
-    /// — closed blocks have already been pushed to the tree and the next
-    /// row, if any, will start a new block when `open_block` runs.
     pub fn note_row_completed(&mut self) {
         self.next_row += 1;
-        if let Some(block) = self.open.as_mut() {
-            block.row_count += 1;
-        }
+    }
+
+    pub fn sync_next_row(&mut self, next_row: usize) {
+        self.next_row = next_row;
     }
 
     /// Apply a tier-2 extension field to the open block. Unknown keys are
@@ -140,6 +139,10 @@ impl BlockGrid {
     /// runs once per feed, only past the row cap). The deliberate-O(n)
     /// decision is recorded for the CHANGELOG in Task 11.
     pub fn trim_to_first_row(&mut self, first_row: usize) {
+        let open_row_count_pre_trim = self
+            .open
+            .as_ref()
+            .map(|block| self.next_row.saturating_sub(block.first_row));
         // The row cursor is relative to the oldest retained row, so it
         // rebases with everything else.
         self.next_row = self.next_row.saturating_sub(first_row);
@@ -193,7 +196,9 @@ impl BlockGrid {
         if let Some(block) = self.open.as_mut() {
             let drop_within = first_row.saturating_sub(open_first_row_pre_trim);
             block.first_row = open_first_row_pre_trim.saturating_sub(first_row);
-            block.row_count = block.row_count.saturating_sub(drop_within);
+            block.row_count = open_row_count_pre_trim
+                .unwrap_or_default()
+                .saturating_sub(drop_within);
         }
     }
 

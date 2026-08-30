@@ -4,6 +4,7 @@ use crate::block::{BlockRecord, BlockSource, BlockState, TextSpan};
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
+use crate::screen::ScreenGrid;
 use crate::style::StyleCode;
 use crate::{CoreError, LineEditorState};
 
@@ -66,11 +67,10 @@ pub(crate) fn build_snapshot(
     rows: &RowIndex,
     styles: &AttributeMap<StyleCode>,
     grid: &BlockGrid,
+    screen: &ScreenGrid,
     line_editor_state: LineEditorState,
     alt: Option<&AltGrid>,
 ) -> Result<GridSnapshot, CoreError> {
-    let open_start = rows.open_start();
-    let end = content.end_offset();
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
     let mut style_pairs: Vec<(u32, StyleCode)> = Vec::new();
@@ -86,7 +86,9 @@ pub(crate) fn build_snapshot(
         append_row(&mut ctx, content, styles, row.start, row.end)?;
     }
 
-    append_row(&mut ctx, content, styles, open_start, end)?;
+    for row in 0..screen.content_rows() {
+        append_screen_row(&mut ctx, screen, row)?;
+    }
 
     let mut block_text: Vec<u8> = Vec::new();
     let blocks: Vec<BlockRecord> = if grid.is_empty() {
@@ -112,7 +114,11 @@ pub(crate) fn build_snapshot(
             let cwd = append_block_text(&mut block_text, &block.meta.cwd)?;
             let git_branch = append_block_text(&mut block_text, &block.meta.git_branch)?;
             let first_row = checked_u32(block.first_row)?;
-            let row_count = checked_u32(block.row_count)?;
+            let row_count = if block.state == BlockState::Running {
+                checked_u32(row_ranges.len() - block.first_row)?
+            } else {
+                checked_u32(block.row_count)?
+            };
             let started = block.meta.started_at_ms;
             let finished = block.meta.finished_at_ms;
             let duration_ms = match (started, finished) {
@@ -184,6 +190,45 @@ fn append_row(
         }
     }
     let pair_end = checked_u32(ctx.style_pairs.len())?;
+    ctx.run_ranges.push((pair_start, pair_end));
+    Ok(())
+}
+
+fn append_screen_row(
+    ctx: &mut SnapshotCtx,
+    screen: &ScreenGrid,
+    row: usize,
+) -> Result<(), CoreError> {
+    let width = (0..screen.cols())
+        .rposition(|col| screen.cell(row, col).ch != ' ')
+        .map_or(0, |col| col + 1);
+    let content_base = checked_u32(ctx.all_content.len())?;
+    let pair_start = checked_u32(ctx.style_pairs.len())?;
+    let mut run_style = None;
+    let mut buffer = [0u8; 4];
+
+    for col in 0..width {
+        let cell = screen.cell(row, col);
+        if cell.ch == '\0' {
+            continue;
+        }
+        if run_style != Some(cell.style) {
+            if let Some(previous) = run_style {
+                ctx.style_pairs
+                    .push((checked_u32(ctx.all_content.len())? - content_base, previous));
+            }
+            run_style = Some(cell.style);
+        }
+        ctx.all_content
+            .extend_from_slice(cell.ch.encode_utf8(&mut buffer).as_bytes());
+    }
+
+    let content_end = checked_u32(ctx.all_content.len())?;
+    if let Some(style) = run_style {
+        ctx.style_pairs.push((content_end - content_base, style));
+    }
+    let pair_end = checked_u32(ctx.style_pairs.len())?;
+    ctx.row_ranges.push((content_base, content_end));
     ctx.run_ranges.push((pair_start, pair_end));
     Ok(())
 }

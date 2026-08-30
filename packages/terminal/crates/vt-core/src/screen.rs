@@ -29,6 +29,7 @@ pub struct ScreenGrid {
     cols: usize,
     cells: Vec<Cell>,
     row: usize,
+    max_cursor_row: usize,
     col: usize,
     cursor_visible: bool,
     pending_wrap: bool,
@@ -52,6 +53,7 @@ impl ScreenGrid {
             cols,
             cells: vec![Cell::BLANK; rows * cols],
             row: 0,
+            max_cursor_row: 0,
             col: 0,
             cursor_visible: true,
             pending_wrap: false,
@@ -90,6 +92,10 @@ impl ScreenGrid {
 
     pub fn cursor(&self) -> (usize, usize) {
         (self.row, self.col)
+    }
+
+    pub fn content_rows(&self) -> usize {
+        self.max_cursor_row + 1
     }
 
     pub fn cursor_visible(&self) -> bool {
@@ -137,6 +143,7 @@ impl ScreenGrid {
 
     pub fn move_to(&mut self, row: usize, col: usize) {
         self.row = row.min(self.rows - 1);
+        self.max_cursor_row = self.max_cursor_row.max(self.row);
         self.col = col.min(self.cols - 1);
         self.pending_wrap = false;
     }
@@ -176,6 +183,7 @@ impl ScreenGrid {
             self.carriage_return();
             self.line_feed();
         }
+        self.max_cursor_row = self.max_cursor_row.max(self.row);
         self.set(self.row, self.col, Cell { ch, style });
         for offset in 1..width {
             self.set(self.row, self.col + offset, Cell { ch: '\0', style });
@@ -197,6 +205,7 @@ impl ScreenGrid {
     pub fn reset(&mut self) {
         self.cells.fill(Cell::BLANK);
         self.row = 0;
+        self.max_cursor_row = 0;
         self.col = 0;
         self.scroll_top = 0;
         self.scroll_bottom = self.rows - 1;
@@ -220,6 +229,7 @@ impl ScreenGrid {
         self.scroll_top = 0;
         self.scroll_bottom = rows - 1;
         self.row = self.row.min(rows - 1);
+        self.max_cursor_row = self.max_cursor_row.min(rows - 1);
         self.col = self.col.min(cols - 1);
         self.pending_wrap = false;
         self.saved = None;

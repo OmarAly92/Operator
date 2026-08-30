@@ -1,28 +1,22 @@
-use unicode_width::UnicodeWidthChar;
 use vte::{Params, Perform};
 
 use crate::alt::AltGrid;
 use crate::attribute_map::AttributeMap;
+use crate::block::BlockSource;
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
+use crate::screen::ScreenGrid;
 use crate::style::StyleCode;
-
-/// Zero-width scalars attach to the cell before them. A cell accepts at most
-/// this many, which is well past any real grapheme cluster and is what stops a
-/// stream of combining marks from growing the open row without bound: the open
-/// row is never completed, so scrollback trimming can never reclaim it.
-const MAX_ZERO_WIDTH_PER_CELL: usize = 8;
 
 pub(crate) struct Parser {
     width: usize,
-    column: usize,
     content: Content,
     rows: RowIndex,
     styles: AttributeMap<StyleCode>,
     pending_style: StyleCode,
-    zero_width_in_cell: usize,
     grid: BlockGrid,
+    screen: ScreenGrid,
     alt: Option<AltGrid>,
     saved_style: StyleCode,
     app_cursor: bool,
@@ -30,15 +24,16 @@ pub(crate) struct Parser {
 
 impl Parser {
     pub fn new(width: usize, _scrollback_rows: usize) -> Self {
+        let mut screen = ScreenGrid::new(24, width);
+        screen.set_records_eviction(true);
         Self {
             width,
-            column: 0,
             content: Content::new(),
             rows: RowIndex::new(0),
             styles: AttributeMap::new(StyleCode::DEFAULT),
             pending_style: StyleCode::DEFAULT,
-            zero_width_in_cell: 0,
             grid: BlockGrid::new(),
+            screen,
             alt: None,
             saved_style: StyleCode::DEFAULT,
             app_cursor: false,
@@ -65,6 +60,36 @@ impl Parser {
         &mut self.grid
     }
 
+    pub(crate) fn open_block(&mut self, source: BlockSource) {
+        self.commit_evicted();
+        let first_row = self
+            .rows
+            .completed()
+            .len()
+            .saturating_add(self.screen.content_rows())
+            .saturating_sub(1);
+        self.grid.sync_next_row(first_row);
+        self.grid.open_block(source);
+    }
+
+    pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
+        self.commit_evicted();
+        let next_row = self.rows.completed().len() + self.screen.content_rows();
+        self.grid.sync_next_row(next_row);
+        self.grid.close_block(exit_code);
+    }
+
+    pub fn screen(&self) -> &ScreenGrid {
+        &self.screen
+    }
+
+    fn active_screen_mut(&mut self) -> &mut ScreenGrid {
+        match self.alt.as_mut() {
+            Some(alt) => alt,
+            None => &mut self.screen,
+        }
+    }
+
     pub fn enter_alt(&mut self, rows: usize) {
         if self.alt.is_some() {
             return;
@@ -89,17 +114,25 @@ impl Parser {
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
         self.width = columns;
+        self.screen.resize(rows, columns);
         if let Some(alt) = self.alt.as_mut() {
             alt.resize(rows, columns);
         }
     }
 
-    pub fn open_new_row(&mut self) {
-        let end = self.content.end_offset();
-        self.rows.complete_row(end);
-        self.grid.note_row_completed();
-        self.column = 0;
-        self.zero_width_in_cell = 0;
+    pub(crate) fn commit_evicted(&mut self) {
+        if self.alt.is_some() {
+            return;
+        }
+        for row in self.screen.take_evicted() {
+            crate::scrollback::commit_row(
+                &row,
+                &mut self.content,
+                &mut self.rows,
+                &mut self.styles,
+            );
+            self.grid.note_row_completed();
+        }
     }
 
     pub fn trim_to(&mut self, max_total: usize) {
@@ -112,45 +145,6 @@ impl Parser {
             // indices and the byte release can never disagree.
             let dropped = before - self.rows.completed().len();
             self.grid.trim_to_first_row(dropped);
-        }
-    }
-
-    fn write_char(&mut self, c: char) {
-        let width = UnicodeWidthChar::width(c).unwrap_or(0);
-        if width == 0 {
-            if self.zero_width_in_cell >= MAX_ZERO_WIDTH_PER_CELL {
-                return;
-            }
-            self.zero_width_in_cell += 1;
-        } else {
-            if self.column + width > self.width {
-                self.open_new_row();
-            }
-            self.zero_width_in_cell = 0;
-        }
-        let offset = self.content.end_offset();
-        if self.pending_style != self.styles.tail() {
-            self.styles.set_from(offset, self.pending_style);
-        }
-        let mut buf = [0u8; 4];
-        let s = c.encode_utf8(&mut buf);
-        self.content.push_char(s);
-        self.column += width;
-    }
-
-    fn expand_tab(&mut self) {
-        let target = ((self.column / 8) + 1) * 8;
-        while self.column < target && self.column < self.width {
-            let offset = self.content.end_offset();
-            if self.pending_style != self.styles.tail() {
-                self.styles.set_from(offset, self.pending_style);
-            }
-            self.content.push_char(" ");
-            self.column += 1;
-            self.zero_width_in_cell = 0;
-        }
-        if self.column >= self.width {
-            self.open_new_row();
         }
     }
 
@@ -269,26 +263,16 @@ fn narrow(value: u16) -> u8 {
 impl Perform for Parser {
     fn print(&mut self, c: char) {
         let style = self.pending_style;
-        match self.alt.as_mut() {
-            Some(alt) => alt.print(c, style),
-            None => self.write_char(c),
-        }
+        self.active_screen_mut().print(c, style);
     }
 
     fn execute(&mut self, byte: u8) {
-        if let Some(alt) = self.alt.as_mut() {
-            match byte {
-                0x08 => alt.move_by(0, -1),
-                0x09 => alt.tab(),
-                0x0A..=0x0C => alt.line_feed(),
-                0x0D => alt.carriage_return(),
-                _ => {}
-            }
-            return;
-        }
+        let screen = self.active_screen_mut();
         match byte {
-            0x09 => self.expand_tab(),
-            0x0A..=0x0C => self.open_new_row(),
+            0x08 => screen.move_by(0, -1),
+            0x09 => screen.tab(),
+            0x0A..=0x0C => screen.line_feed(),
+            0x0D => screen.carriage_return(),
             _ => {}
         }
     }
@@ -307,14 +291,10 @@ impl Perform for Parser {
                 _ => {}
             }
         }
-        if let Some(alt) = self.alt.as_mut() {
-            alt.csi(params, intermediates, c);
-        }
+        self.active_screen_mut().csi(params, intermediates, c);
     }
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
-        if let Some(alt) = self.alt.as_mut() {
-            alt.esc(byte);
-        }
+        self.active_screen_mut().esc(byte);
     }
 }

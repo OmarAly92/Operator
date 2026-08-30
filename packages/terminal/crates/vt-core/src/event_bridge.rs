@@ -13,7 +13,7 @@ use terminal_marks::MarkEvent;
 pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkEvent) {
     match event {
         MarkEvent::PromptStart { tier } => {
-            parser.grid_mut().open_block(source_for_tier(tier));
+            parser.open_block(source_for_tier(tier));
         }
         MarkEvent::CommandStart { .. } | MarkEvent::OutputStart { .. } => {
             // The plan's "Step 3" table marks these as "no block change"
@@ -21,7 +21,7 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
             // and the grid does not yet track per-block command text.
         }
         MarkEvent::CommandEnd { exit_code, .. } => {
-            parser.grid_mut().close_block(exit_code);
+            parser.close_block(exit_code);
         }
         MarkEvent::CwdChanged { path } => {
             parser.grid_mut().set_meta_field("cwd", &path);

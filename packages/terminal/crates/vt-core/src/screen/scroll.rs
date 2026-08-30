@@ -16,6 +16,7 @@ impl ScreenGrid {
         if count == 0 {
             return;
         }
+        self.max_cursor_row = self.max_cursor_row.saturating_sub(count);
         let span = self.scroll_bottom - self.scroll_top + 1;
         if count >= span {
             for r in self.scroll_top..=self.scroll_bottom {

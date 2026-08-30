@@ -29,9 +29,9 @@ fn bytes_go_to_the_alt_grid_only_while_it_is_active() {
 #[test]
 fn the_normal_buffer_is_untouched_by_what_the_alt_screen_printed() {
     let mut c = core();
-    c.feed(b"before\n");
+    c.feed(b"before\r\n");
     c.feed(b"\x1b[?1049hinside\x1b[?1049l");
-    c.feed(b"after\n");
+    c.feed(b"after\r\n");
     let snapshot = c.snapshot().expect("snapshot");
     let text: Vec<&str> = (0..snapshot.row_count())
         .map(|i| snapshot.row_text(i))
@@ -72,11 +72,11 @@ fn carriage_return_is_no_longer_a_no_op_inside_the_alt_screen() {
 }
 
 #[test]
-fn carriage_return_is_still_a_no_op_in_the_normal_buffer() {
+fn carriage_return_rewrites_in_place_in_the_normal_buffer() {
     let mut c = core();
     c.feed(b"abcd\rXY\n");
     let snapshot = c.snapshot().expect("snapshot");
-    assert_eq!(snapshot.row_text(0), "abcdXY");
+    assert_eq!(snapshot.row_text(0), "XYcd");
 }
 
 #[test]

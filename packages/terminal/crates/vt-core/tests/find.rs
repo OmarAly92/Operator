@@ -2,9 +2,10 @@ use vt_core::{FindQuery, TerminalCore};
 
 fn core_with_blocks(count: usize) -> TerminalCore {
     let mut core = TerminalCore::new(40, 10_000).unwrap();
+    core.resize(40, 1);
     for index in 0..count {
         core.feed(
-            format!("\x1b]133;A\x07\x1b]133;C\x07line {index} of text\n\x1b]133;D;0\x07")
+            format!("\x1b]133;A\x07\x1b]133;C\x07line {index} of text\x1b]133;D;0\x07\r\n")
                 .as_bytes(),
         );
     }

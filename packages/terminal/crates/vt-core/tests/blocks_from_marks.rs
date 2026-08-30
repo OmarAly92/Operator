@@ -3,7 +3,10 @@ use vt_core::{BlockSource, BlockState, TerminalCore};
 #[test]
 fn osc133_alone_produces_correct_blocks_with_no_bootstrap() {
     let mut core = TerminalCore::new(40, 200).unwrap();
-    core.feed(b"\x1b]133;A\x07$ \x1b]133;B\x07ls\n\x1b]133;C\x07a.txt\nb.txt\n\x1b]133;D;0\x07");
+    core.resize(40, 3);
+    core.feed(
+        b"\x1b]133;A\x07$ \x1b]133;B\x07ls\r\n\x1b]133;C\x07a.txt\r\nb.txt\r\n\x1b]133;D;0\x07",
+    );
     let snapshot = core.snapshot().unwrap();
 
     assert_eq!(snapshot.blocks.len(), 1);
@@ -45,6 +48,21 @@ fn extension_marks_upgrade_the_block_and_carry_the_command() {
 }
 
 #[test]
+fn successive_blocks_on_screen_have_distinct_row_ranges() {
+    let mut core = TerminalCore::new(20, 200).unwrap();
+    core.resize(20, 24);
+    core.feed(b"\x1b]133;A\x07\x1b]133;C\x07one\x1b]133;D;0\x07");
+    core.feed(b"\r\n\x1b]133;A\x07\x1b]133;C\x07two\x1b]133;D;0\x07");
+    let snapshot = core.snapshot().unwrap();
+
+    assert_eq!(snapshot.blocks.len(), 2);
+    assert_eq!(snapshot.blocks[0].first_row, 0);
+    assert_eq!(snapshot.blocks[0].row_count, 1);
+    assert_eq!(snapshot.blocks[1].first_row, 1);
+    assert_eq!(snapshot.blocks[1].row_count, 1);
+}
+
+#[test]
 fn output_with_no_marks_lands_in_one_synthetic_block() {
     let mut core = TerminalCore::new(40, 200).unwrap();
     core.feed(b"no marks here\nat all\n");
@@ -81,6 +99,7 @@ fn marks_inside_the_alt_screen_do_not_change_the_block_list() {
 #[test]
 fn blocks_survive_scrollback_trimming() {
     let mut core = TerminalCore::new(20, 10).unwrap();
+    core.resize(20, 1);
     for index in 0..50 {
         core.feed(
             format!("\x1b]133;A\x07\x1b]133;C\x07row{index:03}\n\x1b]133;D;0\x07").as_bytes(),

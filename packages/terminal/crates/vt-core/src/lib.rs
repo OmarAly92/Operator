@@ -112,6 +112,7 @@ impl TerminalCore {
         if parsed < bytes.len() {
             self.vte.advance(&mut self.parser, &bytes[parsed..]);
         }
+        self.parser.commit_evicted();
         self.parser.trim_to(self.scrollback_rows);
     }
 
@@ -121,6 +122,7 @@ impl TerminalCore {
             self.parser.rows(),
             self.parser.styles(),
             self.parser.grid(),
+            self.parser.screen(),
             self.line_editor.state(),
             self.parser.alt(),
         )

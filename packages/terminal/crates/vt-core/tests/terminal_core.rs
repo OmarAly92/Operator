@@ -17,19 +17,20 @@ fn parses_utf8_crlf_wrap_and_sgr_into_flat_runs() {
 }
 
 #[test]
-fn hard_wraps_wide_and_combining_text_without_splitting_utf8() {
+fn hard_wraps_wide_text_and_drops_zero_width_scalars() {
     let mut core = TerminalCore::new(4, 100).unwrap();
     core.feed("A界e\u{301}B".as_bytes());
     let snapshot = core.snapshot().unwrap();
 
-    assert_eq!(snapshot.row_text(0), "A界e\u{301}");
+    assert_eq!(snapshot.row_text(0), "A界e");
     assert_eq!(snapshot.row_text(1), "B");
 }
 
 #[test]
 fn trims_complete_rows_to_the_scrollback_limit() {
     let mut core = TerminalCore::new(20, 2).unwrap();
-    core.feed(b"one\ntwo\nthree");
+    core.resize(20, 1);
+    core.feed(b"one\r\ntwo\r\nthree");
     let snapshot = core.snapshot().unwrap();
 
     assert_eq!(snapshot.row_count(), 2);
@@ -58,7 +59,8 @@ fn zero_scrollback_is_a_distinct_error() {
 #[test]
 fn surviving_first_row_begins_inside_a_style_run() {
     let mut core = TerminalCore::new(4, 1).unwrap();
-    core.feed(b"\x1b[31mABCD\n");
+    core.resize(4, 1);
+    core.feed(b"\x1b[31mABCD\r\n");
     core.feed(b"EF\x1b[0mG");
     let snapshot = core.snapshot().unwrap();
 
@@ -73,8 +75,9 @@ fn surviving_first_row_begins_inside_a_style_run() {
 #[test]
 fn retained_rows_keep_their_text_after_many_chunks_of_trimming() {
     let mut core = TerminalCore::new(20, 40).unwrap();
+    core.resize(20, 1);
     for index in 0..200u32 {
-        core.feed(format!("row{index:04}-padpadpad\n").as_bytes());
+        core.feed(format!("row{index:04}-padpadpad\r\n").as_bytes());
     }
     let snapshot = core.snapshot().unwrap();
 
@@ -87,7 +90,8 @@ fn retained_rows_keep_their_text_after_many_chunks_of_trimming() {
 #[test]
 fn trailing_newline_does_not_drop_the_retained_scrollback() {
     let mut core = TerminalCore::new(20, 3).unwrap();
-    core.feed(b"alpha\nbravo\ncharlie\n");
+    core.resize(20, 1);
+    core.feed(b"alpha\r\nbravo\r\ncharlie\r\n");
     let snapshot = core.snapshot().unwrap();
 
     assert_eq!(snapshot.row_count(), 3);
