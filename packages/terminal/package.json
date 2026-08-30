@@ -7,7 +7,7 @@
 	],
 	"scripts": {
 		"build:wasm": "node ./scripts/build-wasm.mjs",
-		"build:ts": "tsc -b ts/core ts/renderer-dom ts/editor ts/react",
+		"build:ts": "tsc -b ts/core ts/renderer-dom ts/editor ts/completions ts/react",
 		"build": "npm run build:wasm && npm run build:ts",
 		"test": "npm run build:wasm && npm run test --workspaces --if-present",
 		"check:boundaries": "node ./scripts/check-boundaries.mjs && node ./scripts/check-no-ownership-timer.mjs",

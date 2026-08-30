@@ -1,0 +1,27 @@
+{
+	"name": "@operator/terminal-completions",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Completion engine for @operator/terminal-core.",
+	"files": ["dist"],
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"test": "vitest run --config ./vitest.config.ts --passWithNoTests"
+	},
+	"dependencies": {
+		"@operator/terminal-core": "file:../core"
+	},
+	"devDependencies": {
+		"typescript": "5.9.3",
+		"vitest": "4.1.8"
+	}
+}
