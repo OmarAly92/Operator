@@ -152,6 +152,10 @@ impl TerminalCore {
         self.parser.resize(columns, rows);
     }
 
+    pub fn set_agent_tui_mode(&mut self, on: bool) {
+        self.parser.set_agent_tui_mode(on);
+    }
+
     pub fn rows(&self) -> usize {
         self.rows
     }

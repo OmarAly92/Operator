@@ -111,6 +111,15 @@ impl Parser {
         self.app_cursor
     }
 
+    pub fn set_agent_tui_mode(&mut self, on: bool) {
+        self.screen.set_reflow_on_resize(!on);
+        self.screen.set_clear_policy(if on {
+            ClearPolicy::ClearInPlace
+        } else {
+            ClearPolicy::Scroll
+        });
+    }
+
     pub fn resize(&mut self, columns: usize, rows: usize) {
         self.width = columns;
         self.screen.resize(rows, columns);

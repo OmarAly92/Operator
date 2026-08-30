@@ -43,6 +43,7 @@ pub struct ScreenGrid {
     pub(crate) scroll_top: usize,
     pub(crate) scroll_bottom: usize,
     records_eviction: bool,
+    reflow_on_resize: bool,
     clear_policy: ClearPolicy,
     evicted: Vec<Vec<Cell>>,
 }
@@ -68,6 +69,7 @@ impl ScreenGrid {
             scroll_top: 0,
             scroll_bottom: rows - 1,
             records_eviction: false,
+            reflow_on_resize: true,
             clear_policy: ClearPolicy::Scroll,
             evicted: Vec::new(),
         }
@@ -75,6 +77,10 @@ impl ScreenGrid {
 
     pub fn set_records_eviction(&mut self, on: bool) {
         self.records_eviction = on;
+    }
+
+    pub fn set_reflow_on_resize(&mut self, on: bool) {
+        self.reflow_on_resize = on;
     }
 
     pub fn set_clear_policy(&mut self, policy: ClearPolicy) {
@@ -233,6 +239,14 @@ impl ScreenGrid {
     pub fn resize(&mut self, rows: usize, cols: usize) {
         let rows = clamp_dimension(rows);
         let cols = clamp_dimension(cols);
+        if !self.reflow_on_resize {
+            self.resize_cells(rows, cols);
+            return;
+        }
+        self.resize_cells(rows, cols);
+    }
+
+    fn resize_cells(&mut self, rows: usize, cols: usize) {
         let mut next = vec![Cell::BLANK; rows * cols];
         for row in 0..rows.min(self.rows) {
             for col in 0..cols.min(self.cols) {
