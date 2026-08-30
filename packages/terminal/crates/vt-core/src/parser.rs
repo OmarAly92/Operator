@@ -1,6 +1,7 @@
 use unicode_width::UnicodeWidthChar;
 use vte::{Params, Perform};
 
+use crate::alt::AltGrid;
 use crate::attribute_map::AttributeMap;
 use crate::block_grid::BlockGrid;
 use crate::content::Content;
@@ -22,6 +23,9 @@ pub(crate) struct Parser {
     pending_style: StyleCode,
     zero_width_in_cell: usize,
     grid: BlockGrid,
+    alt: Option<AltGrid>,
+    saved_style: StyleCode,
+    app_cursor: bool,
 }
 
 impl Parser {
@@ -35,6 +39,9 @@ impl Parser {
             pending_style: StyleCode::DEFAULT,
             zero_width_in_cell: 0,
             grid: BlockGrid::new(),
+            alt: None,
+            saved_style: StyleCode::DEFAULT,
+            app_cursor: false,
         }
     }
 
@@ -56,6 +63,35 @@ impl Parser {
 
     pub fn grid_mut(&mut self) -> &mut BlockGrid {
         &mut self.grid
+    }
+
+    pub fn enter_alt(&mut self, rows: usize) {
+        if self.alt.is_some() {
+            return;
+        }
+        self.alt = Some(AltGrid::new(rows, self.width));
+        self.saved_style = self.pending_style;
+        self.pending_style = StyleCode::DEFAULT;
+    }
+
+    pub fn leave_alt(&mut self) {
+        self.alt = None;
+        self.pending_style = self.saved_style;
+    }
+
+    pub fn alt(&self) -> Option<&AltGrid> {
+        self.alt.as_ref()
+    }
+
+    pub fn app_cursor(&self) -> bool {
+        self.app_cursor
+    }
+
+    pub fn resize(&mut self, columns: usize, rows: usize) {
+        self.width = columns;
+        if let Some(alt) = self.alt.as_mut() {
+            alt.resize(rows, columns);
+        }
     }
 
     pub fn open_new_row(&mut self) {
@@ -166,21 +202,53 @@ fn extended_colour_length(groups: &[Vec<u16>], index: usize) -> usize {
 
 impl Perform for Parser {
     fn print(&mut self, c: char) {
-        self.write_char(c);
+        let style = self.pending_style;
+        match self.alt.as_mut() {
+            Some(alt) => alt.print(c, style),
+            None => self.write_char(c),
+        }
     }
 
     fn execute(&mut self, byte: u8) {
+        if let Some(alt) = self.alt.as_mut() {
+            match byte {
+                0x08 => alt.move_by(0, -1),
+                0x09 => alt.tab(),
+                0x0A..=0x0C => alt.line_feed(),
+                0x0D => alt.carriage_return(),
+                _ => {}
+            }
+            return;
+        }
         match byte {
             0x09 => self.expand_tab(),
             0x0A..=0x0C => self.open_new_row(),
-            0x0D => {}
             _ => {}
         }
     }
 
-    fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, c: char) {
+    fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
         if c == 'm' {
             self.apply_sgr(params);
+            return;
+        }
+        if intermediates.first() == Some(&b'?')
+            && params.iter().next().and_then(|g| g.first().copied()) == Some(1)
+        {
+            match c {
+                'h' => self.app_cursor = true,
+                'l' => self.app_cursor = false,
+                _ => {}
+            }
+        }
+        if let Some(alt) = self.alt.as_mut() {
+            alt.csi(params, intermediates, c);
+        }
+    }
+
+    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        if let Some(alt) = self.alt.as_mut() {
+            alt.esc(byte);
         }
     }
 }
