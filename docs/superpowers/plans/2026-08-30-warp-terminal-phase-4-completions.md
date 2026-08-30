@@ -649,7 +649,7 @@ describe("locate", () => {
 	it("locates the token the cursor sits inside, not the last one", () => {
 		expect(locate("git commit -m", 7)).toEqual({
 			kind: "argument",
-			query: "co",
+			query: "com",
 			span: { start: 4, end: 10 },
 			commandTokens: ["git"],
 		});
@@ -665,10 +665,15 @@ describe("locate", () => {
 });
 ```
 
-Note the eighth case: with the cursor at offset 7 the query is `"co"` — the text from the
-token start to the cursor — while the span covers the whole token `commit`. Warp does the
-same: `Span` is what gets replaced, the query is what was typed so far. Getting this
-backwards makes mid-token completion delete the tail silently.
+Note the eighth case: `"git commit -m"` has `commit` spanning offsets 4–10, so with the
+cursor at offset 7 the query is `"com"` — the text from the token start to the cursor —
+while the span still covers the whole token. Warp does the same: `Span` is what gets
+replaced, the query is what was typed so far. Getting this backwards makes mid-token
+completion delete the tail silently.
+
+The last case is the one that needs the guard in Step 3: at offset 1 of `"  git"` the
+cursor is in leading whitespace with a token still ahead of it, and completing there would
+insert *before* `git` rather than replacing it.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -729,6 +734,7 @@ export function locate(line: string, cursor: number): CompletionLocation | null 
 
 	if (index === -1) {
 		if (clamped > 0 && line[clamped - 1] !== " ") return null;
+		if (tokens.some((token) => token.span.start >= clamped)) return null;
 		const commandTokens = tokens
 			.filter((token) => token.span.end < clamped)
 			.map((token) => token.text);
@@ -1015,8 +1021,8 @@ describe("rank", () => {
 	});
 
 	it("puts every prefix match ahead of every fuzzy match", () => {
-		const ranked = rank([candidate("cmt"), candidate("commit")], "cm");
-		expect(values(ranked)).toEqual(["commit", "cmt"]);
+		const ranked = rank([candidate("c-m-x"), candidate("cmt")], "cm");
+		expect(values(ranked)).toEqual(["cmt", "c-m-x"]);
 	});
 
 	it("orders prefix matches by priority descending", () => {
@@ -1076,9 +1082,9 @@ describe("tabAction", () => {
 	});
 
 	it("ignores case-insensitive matches when computing the common prefix", () => {
-		const ranked = rank([candidate("Commit"), candidate("commit-tree")], "commit");
+		const ranked = rank([candidate("Commit-tree"), candidate("commit-message")], "commit");
 		const action = tabAction(ranked, "commit", { start: 4, end: 10 });
-		expect(action).toMatchObject({ kind: "insert-and-open", text: "commit-tree" });
+		expect(action).toMatchObject({ kind: "insert-and-open", text: "commit-message" });
 	});
 });
 ```
@@ -1086,8 +1092,10 @@ describe("tabAction", () => {
 The last case is the subtle one and it is Warp's rule, not an invention:
 `explicit_tab_completion` filters the common-prefix computation to
 `Match::Prefix { is_case_sensitive: true } | Match::Exact { is_case_sensitive: true }`
-(`suggest/mod.rs:481-492`). Folding case-insensitive matches in would make Tab insert a
-shorter prefix than the user already typed.
+(`suggest/mod.rs:481-492`). Both candidates here match `commit` by prefix, so the
+single-prefix shortcut does not fire; without the case filter the common prefix of
+`Commit-tree` and `commit-message` is empty and Tab would do nothing, when it should
+insert `commit-message`.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -1622,7 +1630,7 @@ describe("pathCandidates", () => {
 		expect(found.map((entry) => entry.value)).toEqual(["src/"]);
 	});
 
-	it("lists only files when the template says files", async () => {
+	it("still offers directories when the template says files", async () => {
 		const found = await pathCandidates({
 			query: "",
 			cwd: "/repo",
@@ -1630,7 +1638,7 @@ describe("pathCandidates", () => {
 			host,
 			signal,
 		});
-		expect(found.map((entry) => entry.value)).toEqual(["README.md"]);
+		expect(found.map((entry) => entry.value).sort()).toEqual(["README.md", "src/"]);
 	});
 
 	it("resolves a subdirectory in the query against the cwd", async () => {
@@ -1742,7 +1750,6 @@ export async function pathCandidates(input: PathInput): Promise<Candidate[]> {
 	const candidates: Candidate[] = [];
 	for (const entry of entries) {
 		if (entry.isHidden && !wantsHidden) continue;
-		if (input.template === "files" && entry.isDirectory) continue;
 		if (input.template === "folders" && !entry.isDirectory) continue;
 		const name = entry.isDirectory ? `${entry.name}/` : entry.name;
 		candidates.push({
@@ -1755,6 +1762,11 @@ export async function pathCandidates(input: PathInput): Promise<Candidate[]> {
 	return candidates;
 }
 ```
+
+Only `folders` filters. A `files` template still offers directories, because a directory
+is how you *reach* a file — filtering them out makes `git add src/index.ts` impossible to
+complete past `src`. Warp's `Files` template behaves the same way; the filter belongs on
+what is finally accepted, not on what is offered.
 
 Note `displayValue` is the bare name while `value` carries the typed prefix. Warp has the
 same split and flags it as a wart to fix later (`suggest/mod.rs:317-319`); we get the
@@ -2342,8 +2354,13 @@ git commit -m "feat(terminal): join the completion engine behind one provider"
 **Interfaces:**
 - Consumes: `Candidate`, `Ranked`, `rank` (Task 4).
 - Produces:
-  `FRAME_BUDGET_MS = 8`,
-  `rankChunked(candidates: readonly Candidate[], query: string, signal: AbortSignal, now?: () => number): Promise<Ranked[] | null>`.
+  `FRAME_BUDGET_MS = 8`, `CHUNK_SIZE = 256`,
+  `Scheduler = { now(): number; yield(): Promise<void> }`,
+  `rankChunked(candidates: readonly Candidate[], query: string, signal: AbortSignal, scheduler?: Scheduler): Promise<Ranked[] | null>`.
+
+The scheduler is injected as one object rather than a bare `now` because a test that fakes
+the clock but not the yield can only assert on a counter, and a counter cannot tell you
+whether the loop ever actually yielded.
 
 Phase 4's second accept criterion is "completions are cancellable and never block a frame".
 Cancellation landed in Task 5; this task is the other half. A directory with 20,000 entries
@@ -2384,24 +2401,46 @@ describe("rankChunked", () => {
 
 	it("yields rather than running past the frame budget in one go", async () => {
 		let clock = 0;
-		const now = () => {
-			clock += 1;
-			return clock;
+		let yields = 0;
+		const scheduler = {
+			now: () => {
+				clock += FRAME_BUDGET_MS;
+				return clock;
+			},
+			yield: async () => {
+				yields += 1;
+			},
 		};
-		const ranked = await rankChunked(many(2000), "command", open, now);
+		const ranked = await rankChunked(many(2000), "command", open, scheduler);
 		expect(ranked).not.toBeNull();
-		expect(clock).toBeGreaterThan(FRAME_BUDGET_MS);
+		expect(yields).toBeGreaterThan(0);
+	});
+
+	it("does not yield when the whole set fits in one budget", async () => {
+		let yields = 0;
+		const scheduler = {
+			now: () => 0,
+			yield: async () => {
+				yields += 1;
+			},
+		};
+		await rankChunked(many(2000), "command", open, scheduler);
+		expect(yields).toBe(0);
 	});
 
 	it("returns null when aborted partway", async () => {
 		const controller = new AbortController();
 		let clock = 0;
-		const now = () => {
-			clock += 1;
-			if (clock === 50) controller.abort();
-			return clock;
+		const scheduler = {
+			now: () => {
+				clock += 1000;
+				return clock;
+			},
+			yield: async () => {
+				controller.abort();
+			},
 		};
-		const ranked = await rankChunked(many(20000), "command", controller.signal, now);
+		const ranked = await rankChunked(many(20000), "command", controller.signal, scheduler);
 		expect(ranked).toBeNull();
 	});
 
@@ -2441,22 +2480,27 @@ import { orderByPriority, assemble, type Candidate, type Ranked } from "./rank.j
 export const FRAME_BUDGET_MS = 8;
 export const CHUNK_SIZE = 256;
 
-const yieldToHost = (): Promise<void> =>
-	new Promise((resolve) => {
-		setTimeout(resolve, 0);
-	});
+export type Scheduler = Readonly<{ now(): number; yield(): Promise<void> }>;
+
+export const defaultScheduler: Scheduler = {
+	now: () => Date.now(),
+	yield: () =>
+		new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		}),
+};
 
 export async function rankChunked(
 	candidates: readonly Candidate[],
 	query: string,
 	signal: AbortSignal,
-	now: () => number = () => Date.now(),
+	scheduler: Scheduler = defaultScheduler,
 ): Promise<Ranked[] | null> {
 	if (signal.aborted) return null;
 
 	const ordered = orderByPriority(candidates);
 	const matched: Ranked[] = [];
-	let sliceStart = now();
+	let sliceStart = scheduler.now();
 
 	for (let index = 0; index < ordered.length; index += 1) {
 		const candidate = ordered[index]!;
@@ -2464,10 +2508,10 @@ export async function rankChunked(
 		if (match !== null) matched.push({ candidate, match });
 
 		if ((index + 1) % CHUNK_SIZE === 0) {
-			if (now() - sliceStart >= FRAME_BUDGET_MS) {
-				await yieldToHost();
+			if (scheduler.now() - sliceStart >= FRAME_BUDGET_MS) {
+				await scheduler.yield();
 				if (signal.aborted) return null;
-				sliceStart = now();
+				sliceStart = scheduler.now();
 			}
 		}
 	}
@@ -2818,6 +2862,25 @@ git commit -m "spec: close phase 4 -- completions, with the two deviations from 
 ---
 
 ## Self-Review
+
+**Executed audit, 2026-08-30.** Every algorithm in this plan was run against its own tests
+before the plan was handed off, rather than reviewed by reading. Six defects were found and
+fixed; they are listed here because each one would have cost an implementer a red suite with
+no obvious cause.
+
+| # | Where | Defect | Resolution |
+| --- | --- | --- | --- |
+| 1 | Task 2 `locate` | With the cursor in leading whitespace (`"  git"`, offset 1) it returned a `command` location instead of `null`, so Tab would insert *before* the existing token. | Added the `tokens.some((token) => token.span.start >= clamped)` guard. |
+| 2 | Task 2 test | Asserted `query === "co"` at offset 7 of `"git commit -m"`; `commit` spans 4–10 so the query is `"com"`. | Test corrected. |
+| 3 | Task 4 test | "prefix ahead of fuzzy" used `cmt`/`commit` against `"cm"` — but `cmt` *is* a prefix match, so the expected order was inverted. | Candidates changed to `c-m-x`/`cmt`. |
+| 4 | Task 4 test | The case-sensitivity test had only one prefix match, so `tabAction` returned `insert` via the single-prefix shortcut and never reached the common-prefix filter it was meant to exercise. | Rewritten with two prefix matches (`Commit-tree`/`commit-message`). |
+| 5 | Task 6 `pathCandidates` | A `files` template filtered directories out, making any nested file — `git add src/index.ts` — impossible to complete past `src`. | Only `folders` filters now. |
+| 6 | Task 9 test | The fake clock advanced 1 ms per call, so with `CHUNK_SIZE = 256` the budget was never reached: zero yields, and `clock > 8` was false. The test asserted yielding while proving the opposite. | `Scheduler` is injected as `{ now, yield }` so a test can observe yields directly. |
+
+Defects 3, 4 and 6 share a shape worth naming: each was a test whose *expectation* was
+wrong, and each would have looked like an implementation bug to whoever hit it. Defects 1
+and 5 were real implementation bugs, and 5 was user-visible.
+
 
 **Spec coverage.** §14 Phase 4's deliverables map one-to-one: `ts/completions` is Task 1's
 package; "the provider interface on the core" is Task 5; "path, flag and git subcommand
