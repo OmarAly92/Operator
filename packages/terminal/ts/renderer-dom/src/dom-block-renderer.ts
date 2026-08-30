@@ -242,6 +242,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		for (const element of this.blockElements.values()) {
 			element.setAttribute("style", style);
 		}
+		if (this.altRoot) {
+			this.altRoot.setAttribute("style", style);
+		}
 	}
 
 	private styleVarsString(): string {
@@ -296,7 +299,9 @@ export class DomBlockRenderer implements BlockRenderer {
 			}
 			container.style.overflow = "hidden";
 			container.scrollTop = 0;
-			this.ensureAltRoot(container).hidden = false;
+			const altRoot = this.ensureAltRoot(container);
+			altRoot.setAttribute("style", this.styleVarsString());
+			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
 			this.lastPaintAt = this.now();

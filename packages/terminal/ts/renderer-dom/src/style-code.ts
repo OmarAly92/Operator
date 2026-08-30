@@ -2,7 +2,10 @@ export const DEFAULT_FOREGROUND_CODE = 255;
 
 const TAG_INDEXED = 0x0100_0000;
 const TAG_RGB = 0x0200_0000;
-const TAG_MASK = 0xff00_0000;
+const TAG_MASK = 0x0300_0000;
+const FLAG_BOLD = 0x0400_0000;
+const FLAG_DIM = 0x0800_0000;
+const COLOUR_MASK = 0x00ff_ffff;
 
 const CUBE_LEVELS = [0, 95, 135, 175, 215, 255];
 
@@ -17,10 +20,11 @@ export function styleCodeToCssVar(code: number): string {
 	if (tag === TAG_INDEXED) {
 		return indexedToCss(code & 0xff);
 	}
-	if (code >= 0 && code <= 15) {
-		return `var(--terminal-ansi-${code})`;
+	const plain = code & COLOUR_MASK;
+	if (plain >= 0 && plain <= 15) {
+		return `var(--terminal-ansi-${plain})`;
 	}
-	if (code === DEFAULT_FOREGROUND_CODE) {
+	if (plain === DEFAULT_FOREGROUND_CODE) {
 		return "var(--terminal-foreground)";
 	}
 	throw new Error(`unsupported style code ${code}`);
@@ -39,4 +43,12 @@ function indexedToCss(index: number): string {
 	}
 	const level = 8 + (index - 232) * 10;
 	return `rgb(${level} ${level} ${level})`;
+}
+
+export function styleCodeIsBold(code: number): boolean {
+	return (code & FLAG_BOLD) !== 0;
+}
+
+export function styleCodeIsDim(code: number): boolean {
+	return (code & FLAG_DIM) !== 0;
 }

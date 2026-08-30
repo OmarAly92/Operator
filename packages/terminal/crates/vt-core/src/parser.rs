@@ -173,7 +173,7 @@ impl Parser {
                 let (colour, consumed) = read_extended_colour(&groups, index);
                 if code == 38 {
                     if let Some(style) = colour {
-                        self.pending_style = style;
+                        self.pending_style = self.pending_style.with_colour(style);
                     }
                 }
                 index += consumed;
@@ -181,9 +181,22 @@ impl Parser {
             }
             match code {
                 0 => self.pending_style = StyleCode::DEFAULT,
-                30..=37 => self.pending_style = StyleCode::ansi((code - 30) as u8),
-                39 => self.pending_style = StyleCode::DEFAULT,
-                90..=97 => self.pending_style = StyleCode::ansi((code - 90 + 8) as u8),
+                1 => self.pending_style = self.pending_style.with_bold(true),
+                2 => self.pending_style = self.pending_style.with_dim(true),
+                22 => {
+                    self.pending_style = self.pending_style.with_bold(false).with_dim(false);
+                }
+                30..=37 => {
+                    self.pending_style = self
+                        .pending_style
+                        .with_colour(StyleCode::ansi((code - 30) as u8));
+                }
+                39 => self.pending_style = self.pending_style.with_colour(StyleCode::DEFAULT),
+                90..=97 => {
+                    self.pending_style = self
+                        .pending_style
+                        .with_colour(StyleCode::ansi((code - 90 + 8) as u8));
+                }
                 _ => {}
             }
             index += 1;

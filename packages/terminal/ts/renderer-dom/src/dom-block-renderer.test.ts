@@ -313,6 +313,50 @@ describe("extended colour", () => {
 	});
 });
 
+describe("alternate surface styling", () => {
+	const APP_FONT = {
+		family: "ui-monospace, monospace",
+		sizePx: 12,
+		lineHeight: 1.35,
+		weight: 400,
+		letterSpacingPx: 0,
+		ligatures: false,
+	};
+
+	it("draws with the current font, not the default captured when it was created", async () => {
+		// The host feeds buffered bytes before mounting, so the first repaint is
+		// already an alt-screen paint and creates the surface before setFont ever
+		// runs. Snapshotting the vars there pinned the surface to the 14px
+		// default while geometry was measured at the app's 12px, so every row
+		// rendered wider than the box that sized it.
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		feed(core, "\u001b[?1049hhello");
+		const host = document.createElement("div");
+		document.body.append(host);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setFont(APP_FONT);
+		await flushRepaint();
+		const surface = host.querySelector("[data-terminal-alt-surface]") as HTMLElement;
+		expect(surface.getAttribute("style")).toContain("--terminal-font-size: 12px");
+		expect(surface.getAttribute("style")).not.toContain("--terminal-font-size: 14px");
+		renderer.dispose();
+		host.remove();
+	});
+
+	it("renders bold and dim runs", async () => {
+		const { host, renderer } = mountWith("\u001b[1mB\u001b[22m\u001b[2mD");
+		await flushRepaint();
+		const runs = [...host.querySelectorAll("[data-terminal-run]")] as HTMLElement[];
+		const bold = runs.find((run) => run.textContent === "B");
+		const dim = runs.find((run) => run.textContent === "D");
+		expect(bold?.style.fontWeight).toBe("700");
+		expect(dim?.style.opacity).toBe("0.55");
+		expect(dim?.style.fontWeight).not.toBe("700");
+		renderer.dispose();
+	});
+});
+
 describe("measure", () => {
 	it("measures the row box the css renders, not the glyph em box", () => {
 		const { renderer } = mountWith("hello");

@@ -1,4 +1,4 @@
-import { styleCodeToCssVar } from "./style-code.js";
+import { styleCodeIsBold, styleCodeIsDim, styleCodeToCssVar } from "./style-code.js";
 
 export const CLASS_ROW = "terminal-row";
 export const CLASS_RUN = "terminal-run";
@@ -36,6 +36,12 @@ export function buildRowNode(
 		run.dataset.terminalRun = String(pairIndex);
 		run.className = CLASS_RUN;
 		run.style.color = styleCodeToCssVar(styleCode);
+		if (styleCodeIsBold(styleCode)) {
+			run.style.fontWeight = "700";
+		}
+		if (styleCodeIsDim(styleCode)) {
+			run.style.opacity = "0.55";
+		}
 		run.textContent = decoder.decode(slice);
 		rowNode.append(run);
 		rowCursor = pairRunEnd;
