@@ -842,7 +842,8 @@ Phase 3 lands the package's own alternate-screen grid as the default raw surface
 (`renderer-dom`'s `alt-surface.ts`, painted through the existing `BlockRenderer` seam).
 `XtermTerminal.tsx` stays in the tree as a host-flagged fallback
 (`VITE_ALT_SCREEN_SURFACE=xterm`) so a regression in the package grid is one flag away
-from a working pane; phase 7 deletes it (§13.4).
+from a working pane. Phase 7 deletes it outright — component, dependencies, theme bridge
+and flag — per §13.4.2, which also lists the input work that must land before it can go.
 
 *Why this is not optional.* An agent session — Claude Code, or any TUI harness — enters
 the alternate screen on the first chunk of output and never leaves it. Measured on a
@@ -951,11 +952,65 @@ must converge on the same `BlockId` — that is why block id continuity is a Tie
 
 ### 13.4 Retirement (phase 7)
 
-Per plan 7's settled decision 3, one session has exactly one terminal surface. These go:
-`ShellTerminalsView.tsx` (180 lines), `ShellTerminalTab.tsx` (194),
-`useShellTerminals.ts`, the `CenterPane` tab strip, the `/terminals` route
-(`frontend/src/renderer/routes/_shell.terminals.tsx`) and
+Per plan 7's settled decision 3, one session has exactly one terminal surface. Two
+separate removals land in this phase.
+
+**13.4.1 The shell-terminal tabs.** These go: `ShellTerminalsView.tsx` (180 lines),
+`ShellTerminalTab.tsx` (194), `useShellTerminals.ts`, the `CenterPane` tab strip, the
+`/terminals` route (`frontend/src/renderer/routes/_shell.terminals.tsx`) and
 `frontend/e2e/shell-terminal-tabs.spec.ts`.
+
+**13.4.2 xterm itself.** Phases 1–3 keep `XtermTerminal.tsx` as the alt-screen bridge and
+then as a flagged fallback (§11). Phase 7 deletes it. What goes:
+
+| Artefact | Note |
+| --- | --- |
+| `frontend/src/renderer/components/XtermTerminal.tsx` (1058 lines) and its test | the component |
+| `frontend/src/renderer/theme/bridge/xterm-theme.ts` | `skinToTerminalTheme` maps through it today and must map directly instead |
+| `import "@xterm/xterm/css/xterm.css"` in `main.tsx`, and the `.xterm*` rules in `styles.css` | |
+| the seven `@xterm/*` entries in `frontend/package.json` | |
+| `VITE_ALT_SCREEN_SURFACE` and `handsAltScreenToXterm` in `BlockTerminal.tsx` | the escape hatch has nothing left to escape to |
+| the `surface` prop on `AltScreenSlot` | the slot collapses to the block list |
+
+**`packages/terminal/bench/adapters/xterm.ts` is NOT deleted, in this phase or any
+other.** The §9.4 gate is defined against xterm baselines; deleting the adapter deletes
+the only external reference point the renderer is measured against. It is a benchmark
+dependency, not a product one.
+
+**Prerequisites. xterm cannot be removed until the package supplies what it currently
+supplies.** `XtermTerminal` is not just a renderer — it owns the mux attachment and the
+whole input path through the `AttachableTerminal` contract
+(`frontend/src/renderer/hooks/useTerminalSession.ts:30`). Measured against that contract
+on 2026-08-30, most of it is cheap and one part is not:
+
+- `cols`/`rows` and `onResize` — **already ours.** The measured pane box is the single
+  publisher of pty geometry; see §13.4.3.
+- `write(data, done)`, `writeln`, `showLatestOutput`, `prepareForActivation` — cheap.
+  `core.feed` is synchronous so `done` fires immediately, and the DOM renderer already
+  has stick-to-bottom.
+- **`onUserInput` is the blocker.** It emits five sources — `keyboard`, `paste`,
+  `composition`, `shortcut`, `wheel` — and behind them sit xterm's full key encoder
+  (modifiers, function keys, Alt/Meta, ctrl, keypad), bracketed paste, SGR mouse reports,
+  IME composition, and the copy/paste/word-nav handler. The package's `mapKey` +
+  `passthroughFor` is the *editor's* command set, roughly a dozen keys.
+
+So phase 7 MUST first deliver, in the package: a complete key→bytes encoder honouring
+`DECCKM` (phase 3 has this) and `DECKPAM`; **bracketed paste (`?2004`)**; **mouse
+reporting (`?1000`/`?1002`/`?1003`/`?1006`)**; and IME composition. The first three are
+`vt-core` mode tracking that phase 3 deliberately scoped out (§2.5 of the phase 3 plan).
+A phase 7 that deletes `XtermTerminal.tsx` without them ships a pane that cannot paste,
+cannot be clicked in, and mis-encodes half the keyboard.
+
+**13.4.3 One geometry publisher.** Settled 2026-08-30 while xterm was still mounted, and
+it stays true after removal: the measured pane box is the only thing that sizes the pty.
+The failure it fixes is worth recording, because it is easy to reintroduce — a mounted
+xterm inside a `hidden` slot reads its container through `getComputedStyle`, which under
+`display: none` returns the *specified* `100%` rather than a resolved box; `FitAddon`
+parses that as 100px and proposes **12 columns**, which it then published to the real pty.
+Every full-screen TUI drew into a 12-column sliver. Warp resolves the same problem the
+same way: one `SizeInfo` built from the pane size and pushed to grid and pty from a single
+place, with `crates/warp_terminal/src/runtime.rs:36-44` explaining that rows must come
+from the pane and never from whichever element happens to be measuring.
 
 **`XtermTerminal.tsx` goes here too, along with the `@xterm/*` dependencies** — but only
 once phase 3's alternate-screen grid has shipped and been used (§2.8, §11). Removing it
@@ -1123,10 +1178,20 @@ its prior blocks with correct metadata; the §9.4 gate still passes.
 
 ### Phase 7 — Retirement
 
-**Deliver:** §13.4.
+**Deliver:** §13.4 — both the shell-terminal tabs (§13.4.1) and xterm itself (§13.4.2),
+including the input prerequisites §13.4.2 names.
 
-**Accept when:** the files listed in §13.4 are gone, no route references `/terminals`,
-and the full e2e suite passes.
+**Accept when:**
+- the files listed in §13.4.1 and §13.4.2 are gone and no route references `/terminals`;
+- `grep -rn "@xterm" frontend/src frontend/package.json` returns nothing, while
+  `packages/terminal/bench/adapters/xterm.ts` is untouched and `npm run bench:gate` still
+  runs against the xterm baseline;
+- typing, pasting, mouse clicks and IME composition all work in `vim`, `htop`, `less` and
+  an agent CLI with no xterm in the tree — verified by running them, not by unit tests
+  alone;
+- bracketed paste and mouse reporting are covered by `vt-core` tests and by at least one
+  recorded tmux vector each;
+- the full e2e suite passes.
 
 ### Phase 8 — Mobile
 
