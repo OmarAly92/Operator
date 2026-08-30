@@ -298,3 +298,40 @@ describe("DomBlockRenderer", () => {
 		renderer.dispose();
 	});
 });
+
+describe("extended colour", () => {
+	it("paints truecolour and 256-colour runs instead of falling back to the foreground", async () => {
+		const { host, renderer } = mountWith("\u001b[38;2;205;214;244mA\u001b[38;5;196mB");
+		await flushRepaint();
+		const colours = [...host.querySelectorAll("[data-terminal-run]")].map(
+			(run) => (run as HTMLElement).style.color,
+		);
+		expect(colours).toContain("rgb(205, 214, 244)");
+		expect(colours).toContain("rgb(255, 0, 0)");
+		expect(colours).not.toContain("var(--terminal-foreground)");
+		renderer.dispose();
+	});
+});
+
+describe("measure", () => {
+	it("measures the row box the css renders, not the glyph em box", () => {
+		const { renderer } = mountWith("hello");
+		const font = {
+			family: "ui-monospace, monospace",
+			sizePx: 12,
+			lineHeight: 1.35,
+			weight: 400,
+			letterSpacingPx: 0,
+			ligatures: false,
+		};
+		renderer.setFont(font);
+		renderer.measure();
+		const node = document.getElementById("terminal-m-measure") as HTMLElement;
+		// An inline span's bounding box is the font's em box and ignores
+		// line-height, so measuring one reports a shorter row than the css
+		// actually paints and the pty is told it has more rows than fit.
+		expect(node.style.display).toBe("inline-block");
+		expect(node.style.lineHeight).toBe(`${font.lineHeight * font.sizePx}px`);
+		renderer.dispose();
+	});
+});

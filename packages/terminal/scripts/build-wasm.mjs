@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,24 +79,35 @@ function oldestOutputMtime() {
 }
 
 function rustSourceMtime() {
-	const candidates = [
-		join(packageRoot, "crates", "vt-wasm", "src", "lib.rs"),
-		join(packageRoot, "crates", "vt-wasm", "Cargo.toml"),
-		join(packageRoot, "crates", "vt-core", "src", "lib.rs"),
-		join(packageRoot, "crates", "vt-core", "Cargo.toml"),
-		join(packageRoot, "Cargo.toml"),
-		join(packageRoot, "Cargo.lock"),
-	];
 	let newest = 0;
-	for (const path of candidates) {
+	const consider = (path) => {
 		if (!existsSync(path)) {
-			continue;
+			return;
 		}
 		const mtime = statSync(path).mtimeMs;
 		if (mtime > newest) {
 			newest = mtime;
 		}
-	}
+	};
+	const walk = (dir) => {
+		if (!existsSync(dir)) {
+			return;
+		}
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			if (entry.name === "target" || entry.name === "node_modules") {
+				continue;
+			}
+			const path = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(path);
+			} else if (entry.name.endsWith(".rs") || entry.name === "Cargo.toml") {
+				consider(path);
+			}
+		}
+	};
+	walk(join(packageRoot, "crates"));
+	consider(join(packageRoot, "Cargo.toml"));
+	consider(join(packageRoot, "Cargo.lock"));
 	return newest;
 }
 

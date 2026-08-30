@@ -268,6 +268,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private applyFontToMeasureNode(node: HTMLElement): void {
+		node.style.display = "inline-block";
 		node.style.fontFamily = this.font.family;
 		node.style.fontSize = `${this.font.sizePx}px`;
 		node.style.fontWeight = String(this.font.weight);

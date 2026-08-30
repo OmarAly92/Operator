@@ -122,7 +122,10 @@ fn extended_colour_parameters_never_leak_into_the_foreground() {
     let mut truecolour = TerminalCore::new(40, 10).unwrap();
     truecolour.feed(b"\x1b[31m\x1b[38;2;10;0;0mX");
     let snapshot = truecolour.snapshot().unwrap();
-    assert_eq!(snapshot.row_style_pairs(0), &[(1, StyleCode::ansi(1))]);
+    assert_eq!(
+        snapshot.row_style_pairs(0),
+        &[(1, StyleCode::rgb(10, 0, 0))]
+    );
 }
 
 #[test]
