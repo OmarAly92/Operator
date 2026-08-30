@@ -25,6 +25,15 @@ fn a_scroll_region_evicts_nothing() {
 }
 
 #[test]
+fn a_partial_region_starting_at_top_evicts_nothing() {
+    let mut screen = ScreenGrid::new(5, 10);
+    screen.set_records_eviction(true);
+    screen.set_scroll_region(0, 3);
+    screen.scroll_up(1);
+    assert!(screen.take_evicted().is_empty());
+}
+
+#[test]
 fn eviction_is_off_by_default() {
     let mut screen = ScreenGrid::new(3, 10);
     screen.scroll_up(1);

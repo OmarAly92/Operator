@@ -72,7 +72,7 @@ impl ScreenGrid {
     }
 
     pub(crate) fn record_eviction(&mut self, row: usize) {
-        if !self.records_eviction || self.scroll_top != 0 {
+        if !self.records_eviction || self.scroll_top != 0 || self.scroll_bottom + 1 != self.rows {
             return;
         }
         let start = row * self.cols;
