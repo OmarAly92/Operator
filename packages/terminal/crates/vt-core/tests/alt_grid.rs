@@ -161,3 +161,144 @@ fn reset_blanks_everything_and_homes_the_cursor() {
     assert_eq!(g.cursor(), (0, 0));
     assert_eq!(g.row_text(0), "        ");
 }
+
+fn filled() -> AltGrid {
+    let mut g = AltGrid::new(3, 4);
+    for row in 0..3 {
+        g.move_to(row, 0);
+        print(&mut g, "abcd");
+    }
+    g
+}
+
+fn labelled(rows: usize) -> AltGrid {
+    let mut g = AltGrid::new(rows, 4);
+    for (row, text) in ["one", "two", "six"].iter().enumerate().take(rows) {
+        g.move_to(row, 0);
+        print(&mut g, text);
+    }
+    g
+}
+
+#[test]
+fn erase_in_line_right_clears_from_the_cursor_to_the_end() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_line(0);
+    assert_eq!(g.row_text(1), "ab  ");
+    assert_eq!(g.row_text(0), "abcd");
+}
+
+#[test]
+fn erase_in_line_left_clears_through_the_cursor_cell() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_line(1);
+    assert_eq!(g.row_text(1), "   d");
+}
+
+#[test]
+fn erase_in_line_all_clears_the_row_and_leaves_the_cursor_put() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_line(2);
+    assert_eq!(g.row_text(1), "    ");
+    assert_eq!(g.cursor(), (1, 2));
+}
+
+#[test]
+fn erase_in_display_below_clears_the_rest_of_the_screen() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_display(0);
+    assert_eq!(g.row_text(0), "abcd");
+    assert_eq!(g.row_text(1), "ab  ");
+    assert_eq!(g.row_text(2), "    ");
+}
+
+#[test]
+fn erase_in_display_above_clears_everything_before_the_cursor() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_display(1);
+    assert_eq!(g.row_text(0), "    ");
+    assert_eq!(g.row_text(1), "   d");
+    assert_eq!(g.row_text(2), "abcd");
+}
+
+#[test]
+fn erase_in_display_all_clears_everything_and_leaves_the_cursor_put() {
+    let mut g = filled();
+    g.move_to(1, 2);
+    g.erase_in_display(2);
+    assert_eq!(g.row_text(0), "    ");
+    assert_eq!(g.row_text(2), "    ");
+    assert_eq!(g.cursor(), (1, 2));
+}
+
+#[test]
+fn insert_lines_pushes_rows_down_and_drops_the_bottom() {
+    let mut g = labelled(3);
+    g.move_to(1, 0);
+    g.insert_lines(1);
+    assert_eq!(g.row_text(0), "one ");
+    assert_eq!(g.row_text(1), "    ");
+    assert_eq!(g.row_text(2), "two ");
+}
+
+#[test]
+fn delete_lines_pulls_rows_up_and_blanks_the_bottom() {
+    let mut g = labelled(3);
+    g.move_to(0, 0);
+    g.delete_lines(1);
+    assert_eq!(g.row_text(0), "two ");
+    assert_eq!(g.row_text(1), "six ");
+    assert_eq!(g.row_text(2), "    ");
+}
+
+#[test]
+fn insert_chars_shifts_right_within_the_row_only() {
+    let mut g = filled();
+    g.move_to(1, 1);
+    g.insert_chars(2);
+    assert_eq!(g.row_text(1), "a  b");
+    assert_eq!(g.row_text(2), "abcd");
+}
+
+#[test]
+fn delete_chars_shifts_left_and_blanks_the_tail() {
+    let mut g = filled();
+    g.move_to(1, 1);
+    g.delete_chars(2);
+    assert_eq!(g.row_text(1), "ad  ");
+}
+
+#[test]
+fn erase_chars_blanks_in_place_without_shifting() {
+    let mut g = filled();
+    g.move_to(1, 1);
+    g.erase_chars(2);
+    assert_eq!(g.row_text(1), "a  d");
+}
+
+#[test]
+fn an_absurd_count_saturates_instead_of_panicking() {
+    let mut g = filled();
+    g.move_to(1, 1);
+    g.delete_chars(usize::MAX);
+    g.insert_chars(usize::MAX);
+    g.erase_chars(usize::MAX);
+    g.insert_lines(usize::MAX);
+    g.delete_lines(usize::MAX);
+    assert_eq!(g.rows(), 3);
+    assert_eq!(g.cursor(), (1, 1));
+}
+
+#[test]
+fn deleting_every_line_from_the_top_blanks_the_screen_without_underflow() {
+    let mut g = labelled(3);
+    g.move_to(0, 0);
+    g.delete_lines(3);
+    assert_eq!(g.row_text(0), "    ");
+    assert_eq!(g.row_text(2), "    ");
+}
