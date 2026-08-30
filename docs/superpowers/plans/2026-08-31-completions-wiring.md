@@ -6,8 +6,9 @@
 identical to Warp's, so a shell pane completes as you type instead of doing nothing.
 
 **Architecture:** Phase 4 built `ts/completions` and the core's provider seam, and nothing
-calls either. Three connections are missing: a host that can list a directory, a
-registration at the site where the core is created, and Warp's **as-you-type** trigger. The
+calls either. Four things are missing: the guarantee that an agent pane never completes, a
+host that can list a directory, a registration at the site where the core is created, and
+Warp's **as-you-type** trigger. The
 package boundary does not move — `frontend/` gains a dependency on
 `@operator/terminal-completions`, which §4.3 permits (only `ts/editor` and
 `ts/renderer-dom` are forbidden from importing it).
@@ -48,7 +49,7 @@ Read in `/Users/omaraly/development/AI/warp` on 2026-08-31.
    calling it more often, not adding a filter path.
 3. **Warp closes a stale menu rather than showing it.** Same call site: because completions
    are async, Warp closes the menu if it has not updated after a delay, "otherwise the user
-   will see an old completions menu". Our dispatcher already drops stale generations; Task 3
+   will see an old completions menu". Our dispatcher already drops stale generations; Task 4
    must not undo that.
 4. **Explicit open keeps its own keybinding.** `OPEN_COMPLETIONS_KEYBINDING_NAME =
    "input:open_completion_suggestions"` (`input.rs:434`). Tab stays what it is.
