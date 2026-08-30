@@ -174,6 +174,12 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// separate from xterm's local grid: hidden fits must not resize the PTY, and
 		// repeated identical visible fits must not manufacture another SIGWINCH.
 		lastPublishedGrid: null as { cols: number; rows: number } | null,
+		// Set once the package surface reports a measured pane box. From then on
+		// it is the only publisher of pty geometry: XtermTerminal stays mounted
+		// because it owns the attachment, but it lives in a hidden slot whose
+		// computed height and width are the literal "100%", which FitAddon parses
+		// as 100px and turns into a 12-column proposal of nothing.
+		surfaceGeometry: null as { cols: number; rows: number } | null,
 		attempts: 0,
 		generation: 0,
 		inputReady: false,
@@ -605,6 +611,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		const resize = terminal.onResize(({ cols, rows }) => {
 			if (!isCurrentAttachment(generation, handle, mux)) return;
 			if (optionsRef.current.isVisible === false) return;
+			if (r.surfaceGeometry) return;
 			if (r.resizeTimer) clearTimeout(r.resizeTimer);
 			r.resizeTimer = setTimeout(() => {
 				r.resizeTimer = null;
@@ -733,6 +740,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			!r.mux ||
 			!r.handle ||
 			!r.needsVisibleSizeSync ||
+			r.surfaceGeometry !== null ||
 			cols <= 0 ||
 			rows <= 0
 		) {
@@ -839,7 +847,13 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			},
 			resize: (cols: number, rows: number) => {
 				const r = runtime.current;
+				if (cols <= 0 || rows <= 0) return;
+				r.surfaceGeometry = { cols, rows };
 				if (!r.mux || !r.handle) return;
+				const published = r.lastPublishedGrid;
+				if (published?.cols === cols && published.rows === rows) return;
+				r.lastPublishedGrid = { cols, rows };
+				terminalDebug("mux", "resize from surface", { cols, rows });
 				r.mux.resize(r.handle, cols, rows);
 			},
 			dispose: () => {

@@ -273,6 +273,30 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].resizes).toContainEqual(["handle-1", 120, 40]);
 	});
 
+	it("lets the measured surface geometry win over the hidden xterm's fit", () => {
+		const { view, terminal, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(109, 52));
+		expect(muxes[0].resizes).toContainEqual(["handle-1", 109, 52]);
+		// XtermTerminal stays mounted because it owns the attachment, but since
+		// the package renderer became the default surface it lives in a hidden
+		// slot. FitAddon reads that slot's computed height/width as the literal
+		// "100%", parses it as 100px and proposes 12 columns. That measurement is
+		// of nothing and must never reach the pty.
+		act(() => terminal.emitResize(12, 6));
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes).not.toContainEqual(["handle-1", 12, 6]);
+		expect(muxes[0].resizes).toEqual([["handle-1", 109, 52]]);
+	});
+
+	it("still lets xterm size the pty when no surface geometry ever arrives", () => {
+		const { terminal, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => terminal.emitResize(100, 30));
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes).toContainEqual(["handle-1", 100, 30]);
+	});
+
 	it("forwards every explicit input source after the attachment opens", () => {
 		const { terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));
