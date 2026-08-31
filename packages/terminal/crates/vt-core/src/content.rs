@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 const CHUNK_SIZE: usize = 4096;
 
+#[derive(Clone)]
 pub(crate) struct Chunk {
     pub start: u64,
     pub bytes: Vec<u8>,
@@ -10,6 +11,15 @@ pub(crate) struct Chunk {
 pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
+}
+
+impl Clone for Content {
+    fn clone(&self) -> Self {
+        Self {
+            chunks: self.chunks.clone(),
+            next_offset: self.next_offset,
+        }
+    }
 }
 
 impl Content {

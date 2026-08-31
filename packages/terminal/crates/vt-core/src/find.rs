@@ -10,6 +10,7 @@ use crate::row_index::RowIndex;
 /// What the caller is searching for. Construction goes through the
 /// associated `literal`/`regex` constructors so the variants stay the only
 /// legal way to form a query; matching them is an internal detail.
+#[derive(Clone)]
 pub enum FindQuery {
     Literal(String),
     Regex(Regex),
@@ -34,6 +35,7 @@ impl FindQuery {
 /// A single hit inside a block. `byte_range` is relative to the block's own
 /// bytes (the concatenation of its rows), so the renderer can re-anchor it
 /// to the block's first byte without knowing the content offset.
+#[derive(Clone)]
 pub struct FindMatch {
     pub block: BlockId,
     pub row: usize,
@@ -52,6 +54,102 @@ pub struct FindCursor<'a> {
     next_block: usize,
     results: Vec<FindMatch>,
     complete: bool,
+}
+
+/// An owned find walker. Clones the grid, row index, and content at
+/// construction so the walker can outlive the borrowed `&self` view the
+/// `FindCursor` is tied to. Used by `vt-wasm` to hand a search across the
+/// wasm boundary without exposing a borrowing type to JavaScript.
+pub struct OwnedFindCursor {
+    blocks: Vec<Block>,
+    rows: RowIndex,
+    content: Content,
+    query: FindQuery,
+    next_block: usize,
+    results: Vec<FindMatch>,
+    complete: bool,
+}
+
+impl OwnedFindCursor {
+    pub(crate) fn new(grid: &BlockGrid, rows: &RowIndex, content: &Content, query: FindQuery) -> Self {
+        let blocks = grid.blocks().cloned().collect();
+        Self {
+            blocks,
+            rows: rows.clone(),
+            content: content.clone(),
+            query,
+            next_block: 0,
+            results: Vec::new(),
+            complete: false,
+        }
+    }
+
+    pub fn step(&mut self, budget_blocks: usize) {
+        if self.complete {
+            return;
+        }
+        for _ in 0..budget_blocks {
+            if self.next_block >= self.blocks.len() {
+                self.complete = true;
+                return;
+            }
+            let block = self.blocks[self.next_block].clone();
+            self.search_block(&block);
+            self.next_block += 1;
+        }
+        if self.next_block >= self.blocks.len() {
+            self.complete = true;
+        }
+    }
+
+    pub fn results(&self) -> &[FindMatch] {
+        &self.results
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.complete
+    }
+
+    pub fn cancel(&mut self) {
+        self.complete = true;
+    }
+
+    pub fn query(&self) -> &FindQuery {
+        &self.query
+    }
+
+    pub fn next_block(&self) -> usize {
+        self.next_block
+    }
+
+    fn search_block(&mut self, block: &Block) {
+        let byte_range = match block_byte_range(&self.rows, block) {
+            Some(range) => range,
+            None => return,
+        };
+        let bytes = self.content.copy_range(byte_range.start, byte_range.end);
+        if bytes.is_empty() {
+            return;
+        }
+        match &self.query {
+            FindQuery::Literal(needle) => search_literal(
+                &bytes,
+                needle,
+                block,
+                byte_range.start,
+                &self.rows,
+                &mut self.results,
+            ),
+            FindQuery::Regex(re) => search_regex(
+                re,
+                &bytes,
+                block,
+                byte_range.start,
+                &self.rows,
+                &mut self.results,
+            ),
+        }
+    }
 }
 
 impl<'a> FindCursor<'a> {

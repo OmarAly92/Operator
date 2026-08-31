@@ -12,6 +12,7 @@ export type {
 	BootstrapOptions,
 	ChangeListener,
 	DirEntry,
+	FindMatch,
 	FontConfig,
 	HostCapabilities,
 	HistoryStore,
@@ -35,6 +36,8 @@ export type {
 export { defaultStrings, validateRowRange } from "./types.js";
 
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+
+export { FIND_STEP_BUDGET } from "./terminal-core.js";
 
 export { spawnRecipe } from "./spawn-recipe.js";
 

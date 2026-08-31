@@ -25,7 +25,7 @@ pub use block::{Block, BlockId, BlockMeta, BlockRecord, BlockSource, BlockState,
 pub use block_grid::BlockGrid;
 pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
-pub use find::{FindCursor, FindMatch, FindQuery};
+pub use find::{FindCursor, FindMatch, FindQuery, OwnedFindCursor};
 pub use line_editor::LineEditorState;
 pub use style::StyleCode;
 
@@ -130,6 +130,15 @@ impl TerminalCore {
 
     pub fn find(&self, query: find::FindQuery) -> find::FindCursor<'_> {
         find::FindCursor::new(
+            self.parser.grid(),
+            self.parser.rows(),
+            self.parser.content(),
+            query,
+        )
+    }
+
+    pub fn find_owned(&self, query: find::FindQuery) -> find::OwnedFindCursor {
+        find::OwnedFindCursor::new(
             self.parser.grid(),
             self.parser.rows(),
             self.parser.content(),

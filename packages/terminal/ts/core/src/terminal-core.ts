@@ -9,6 +9,7 @@ import {
 } from "./wasm-runtime.js";
 import type {
 	ChangeListener,
+	FindMatch,
 	HostCapabilities,
 	LineEditorState,
 	TerminalCoreOptions,
@@ -21,6 +22,10 @@ import type {
 import { CompletionDispatcher } from "./completions.js";
 
 const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
+
+export const FIND_MATCH_WORDS = 5;
+
+export const FIND_STEP_BUDGET = 1000;
 
 const NOOP_HOST: HostCapabilities = {
 	writeClipboard: async () => undefined,
@@ -138,6 +143,62 @@ export class TerminalCore {
 		for (const listener of this.listeners) {
 			listener(this.inner.generation());
 		}
+	}
+
+	findOpen(query: string, isRegex: boolean): number {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.find_open(query, isRegex);
+	}
+
+	findStep(id: number, budget: number = FIND_STEP_BUDGET): void {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		this.inner.find_step(id, budget);
+	}
+
+	findResults(id?: number): FindMatch[] {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		const memory = getMemory();
+		const ptr = this.inner.find_results_ptr();
+		const len = this.inner.find_results_len();
+		if (len % FIND_MATCH_WORDS !== 0) {
+			throw new Error(
+				`find results length ${len} is not a multiple of ${FIND_MATCH_WORDS}`,
+			);
+		}
+		const view = u32View(memory, ptr, len);
+		const count = len / FIND_MATCH_WORDS;
+		const matches: FindMatch[] = [];
+		for (let index = 0; index < count; index += 1) {
+			const base = index * FIND_MATCH_WORDS;
+			matches.push({
+				blockId: `${view[base + 1]!}:${view[base]!}`,
+				row: view[base + 2]!,
+				byteRangeStart: view[base + 3]!,
+				byteRangeEnd: view[base + 4]!,
+			});
+		}
+		void id;
+		return matches;
+	}
+
+	findIsComplete(id: number): boolean {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.find_is_complete(id);
+	}
+
+	findCancel(id: number): void {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		this.inner.find_cancel(id);
 	}
 
 	setAgentTuiMode(on: boolean): void {

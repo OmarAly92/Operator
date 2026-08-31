@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub(crate) struct RowRange {
     pub start: u64,
     pub end: u64,
@@ -8,6 +9,15 @@ pub(crate) struct RowRange {
 pub(crate) struct RowIndex {
     completed: VecDeque<RowRange>,
     open_start: u64,
+}
+
+impl Clone for RowIndex {
+    fn clone(&self) -> Self {
+        Self {
+            completed: self.completed.clone(),
+            open_start: self.open_start,
+        }
+    }
 }
 
 impl RowIndex {

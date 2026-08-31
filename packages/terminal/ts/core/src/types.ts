@@ -21,6 +21,13 @@ export type BlockView = Readonly<{
 
 export type RowRange = Readonly<{ start: number; end: number }>;
 
+export type FindMatch = Readonly<{
+	blockId: BlockId;
+	row: number;
+	byteRangeStart: number;
+	byteRangeEnd: number;
+}>;
+
 export type FontConfig = Readonly<{
 	family: string;
 	sizePx: number;
