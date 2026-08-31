@@ -40,14 +40,14 @@ export async function populateScrollback(renderer: BenchmarkRenderer, bytes: Uin
 	await renderer.waitForPaint();
 }
 
-export function measureFindFirstResult(renderer: BenchmarkRenderer): number {
+export function measureFindFirstResult(renderer: BenchmarkRenderer, budget: number = FIND_STEP_BUDGET): number {
 	const core = domCoreOf(renderer);
 	const session = core.findOpen(FIND_QUERY, false);
 	const startedAt = performance.now();
 	let guard = 0;
 	while (guard < 1_000_000) {
-		core.findStep(session, FIND_STEP_BUDGET);
-		const results = core.findResults(session);
+		core.findStep(session, budget);
+		const results = core.findResults();
 		if (results.length > 0) {
 			core.findCancel(session);
 			return performance.now() - startedAt;

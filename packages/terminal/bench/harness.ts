@@ -48,6 +48,8 @@ type ScenarioResult = {
 	workload: string;
 	seed?: number;
 	workloadDigest: string;
+	sensitivityRatio?: number;
+	sensitivityP95?: number;
 };
 
 const clearBytes = new TextEncoder().encode("\x1bc");
@@ -156,8 +158,17 @@ async function runScenario(
 			for (let index = 0; index < configuration.samples; index += 1) {
 				samples.push(measureFindFirstResult(renderer));
 			}
+			const sensitivitySamples: number[] = [];
+			for (let index = 0; index < configuration.warmups; index += 1) {
+				measureFindFirstResult(renderer, Number.MAX_SAFE_INTEGER);
+			}
+			for (let index = 0; index < configuration.samples; index += 1) {
+				sensitivitySamples.push(measureFindFirstResult(renderer, Number.MAX_SAFE_INTEGER));
+			}
 			invocationKinds.add(renderer.kind);
 			const { median, p95 } = summary(samples);
+			const sensitivitySummary = summary(sensitivitySamples);
+			const sensitivityRatio = p95 > 0 ? sensitivitySummary.p95 / p95 : 0;
 			return {
 				result: {
 					configuration,
@@ -165,6 +176,8 @@ async function runScenario(
 					median,
 					p95,
 					unit: configuration.unit,
+					sensitivityRatio,
+					sensitivityP95: sensitivitySummary.p95,
 					...metadata,
 				},
 				rendererVersion: renderer.version,

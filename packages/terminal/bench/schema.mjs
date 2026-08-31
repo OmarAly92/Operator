@@ -39,7 +39,7 @@ const scenarioFields = {
 	"large-output": new Set(commonScenarioFields),
 	"input-latency": new Set(commonScenarioFields),
 	"input-latency-owned": new Set([...commonScenarioFields, "maxP95Milliseconds"]),
-	"find-500k": new Set([...commonScenarioFields, "maxP95Milliseconds"]),
+	"find-500k": new Set([...commonScenarioFields, "maxP95Milliseconds", "sensitivityRatio", "sensitivityP95"]),
 };
 
 function requireString(value, field) {
@@ -201,6 +201,14 @@ export function validateBenchmark(result) {
 		}
 		if (name === "vtebench" && scenario.seed !== scenarios[name].seed) {
 			throw new Error("vtebench.seed does not match configuration");
+		}
+		if (name === "find-500k") {
+			if (!Number.isFinite(scenario.sensitivityRatio) || scenario.sensitivityRatio <= 0) {
+				throw new Error("find-500k.sensitivityRatio must be finite and positive");
+			}
+			if (!Number.isFinite(scenario.sensitivityP95) || scenario.sensitivityP95 <= 0) {
+				throw new Error("find-500k.sensitivityP95 must be finite and positive");
+			}
 		}
 	}
 	return result;
