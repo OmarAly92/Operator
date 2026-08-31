@@ -194,6 +194,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.AddCommand(newAgentProcessCommand(ctx))
 	root.AddCommand(newLaunchCommand(ctx))
 	root.AddCommand(newPtyHostCommand())
+	root.AddCommand(newPaneCaptureCommand(deps))
 	root.AddCommand(newImportCommand(ctx))
 	root.AddCommand(newDevCommand(ctx))
 	root.AddCommand(newProjectCommand(ctx))
@@ -221,7 +222,7 @@ func shouldEmitCLIInvocation(cmd *cobra.Command) bool {
 	// "opr completion"/"opr help" are shell setup and self-documentation.
 	// "opr pty-host" and "opr agent-process" are internal runtime processes.
 	// None reflect user activity.
-	case "opr daemon", "opr start", "opr completion", "opr help", "opr pty-host", "opr agent-process", "opr agent-process supervise":
+	case "opr daemon", "opr start", "opr completion", "opr help", "opr pty-host", "opr pane-capture", "opr agent-process", "opr agent-process supervise":
 		return false
 	default:
 		return true
