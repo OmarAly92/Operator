@@ -103,6 +103,7 @@ func (s *scanner) step(b byte, segs *[]segment) {
 			s.raw = append(s.raw, b)
 			s.completeEscape(segs, s.oscEvents())
 		case b == esc:
+			s.raw = append(s.raw, b)
 			s.state = stateOscSawEsc
 		default:
 			s.raw = append(s.raw, b)
@@ -110,9 +111,10 @@ func (s *scanner) step(b byte, segs *[]segment) {
 		}
 	case stateOscSawEsc:
 		if b == backslash {
-			s.raw = append(s.raw, esc, b)
+			s.raw = append(s.raw, b)
 			s.completeEscape(segs, s.oscEvents())
 		} else {
+			s.raw = s.raw[:len(s.raw)-1]
 			s.completeEscape(segs, nil)
 			s.raw = append(s.raw[:0], esc)
 			s.pending = s.pending[:0]

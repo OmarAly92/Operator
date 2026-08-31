@@ -195,9 +195,77 @@ func TestStreamDecoderRoundTripsMalformedOSC(t *testing.T) {
 	}
 }
 
-func TestStreamDecoderRoundTripsSGR(t *testing.T) {
+func TestStreamDecoderRoundTripsUnmodeledCSISequence(t *testing.T) {
 	in := []byte("plain\x1b[1;31mred\x1b[0mplain again")
-	assertRoundTrip(t, in, in)
+	tokens := assertRoundTrip(t, in, in)
+
+	type kr struct {
+		kind TokenKind
+		raw  string
+	}
+	var got []kr
+	for _, tok := range tokens {
+		got = append(got, kr{tok.Kind, string(tok.Raw)})
+	}
+	want := []kr{
+		{TokenText, "plain"},
+		{TokenControl, "\x1b[1"},
+		{TokenText, ";31mred"},
+		{TokenControl, "\x1b[0"},
+		{TokenText, "mplain again"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("token sequence = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("token %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestStreamDecoderFlushEndsOnEscInsideOSC(t *testing.T) {
+	d := NewStreamDecoder()
+	var all []Token
+	all = append(all, d.Feed([]byte("hi\x1b]133;A\x1b"))...)
+	all = append(all, d.Flush()...)
+
+	want := []byte("hi\x1b]133;A\x1b")
+	if got := joinRaw(all); !bytes.Equal(got, want) {
+		t.Fatalf("round-trip mismatch:\n got %q\nwant %q", got, want)
+	}
+	last := all[len(all)-1]
+	if last.Kind != TokenIncomplete || !bytes.Equal(last.Raw, []byte("\x1b]133;A\x1b")) {
+		t.Fatalf("incomplete token = %+v", last)
+	}
+}
+
+func TestStreamDecoderMultiEventOSCFansOut(t *testing.T) {
+	in := []byte("\x1b]7000;v=1;cmd=ls;input-ready=1\x07")
+	d := NewStreamDecoder()
+	tokens := append(d.Feed(in), d.Flush()...)
+
+	if got := joinRaw(tokens); !bytes.Equal(got, in) {
+		t.Fatalf("round-trip mismatch: got %q want %q", got, in)
+	}
+
+	var marks []Token
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			marks = append(marks, tok)
+		}
+	}
+	if len(marks) < 2 {
+		t.Fatalf("want more than one mark token from fan-out, got %d (%+v)", len(marks), marks)
+	}
+	if !bytes.Equal(marks[0].Raw, in) {
+		t.Fatalf("first fan-out token must carry the full raw, got %q", marks[0].Raw)
+	}
+	for _, extra := range marks[1:] {
+		if extra.Raw != nil || extra.Start != extra.End {
+			t.Fatalf("trailing fan-out token must be zero-width with nil raw: %+v", extra)
+		}
+	}
 }
 
 func TestStreamDecoderRoundTripsAltScreen(t *testing.T) {
