@@ -155,6 +155,9 @@ export type TerminalStrings = Readonly<{
 	shellBlocksUnavailable: string;
 	searchHistory: string;
 	searchNoMatches: string;
+	findPlaceholder: string;
+	findLabel: string;
+	findMatchCount: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -168,6 +171,9 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
 	searchHistory: "Search history",
 	searchNoMatches: "No matches",
+	findPlaceholder: "Find in terminal",
+	findLabel: "Find",
+	findMatchCount: "%1 of %2",
 });
 
 export type DirEntry = Readonly<{

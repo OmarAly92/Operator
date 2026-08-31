@@ -188,6 +188,61 @@ export const terminalStyles = `@font-face {
 	height: var(--terminal-line-height);
 	background: var(--terminal-cursor);
 	opacity: 0.8;
+}
+
+.terminal-find-bar {
+	position: absolute;
+	top: 8px;
+	right: 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	background: var(--terminal-block-background);
+	border: 1px solid var(--terminal-block-border);
+	border-radius: 4px;
+	color: var(--terminal-block-header-foreground);
+	font-family: var(--terminal-font-family);
+	font-size: 12px;
+	z-index: 4;
+}
+
+.terminal-find-label {
+	display: inline-flex;
+	align-items: center;
+}
+
+.terminal-find-input {
+	font: inherit;
+	font-size: 12px;
+	color: var(--terminal-block-header-foreground);
+	background: var(--terminal-background);
+	border: 1px solid var(--terminal-block-border);
+	border-radius: 3px;
+	padding: 2px 6px;
+	min-width: 180px;
+	outline: none;
+}
+
+.terminal-find-input:focus-visible {
+	border-color: var(--terminal-block-header-foreground);
+}
+
+.terminal-find-count {
+	font-size: 11px;
+	color: var(--terminal-block-header-foreground);
+	opacity: 0.85;
+	min-width: 64px;
+	text-align: right;
+}
+
+.terminal-find-row-match {
+	background: var(--terminal-selection);
+}
+
+.terminal-find-row-active {
+	outline: 1px solid var(--terminal-cursor);
+	outline-offset: -1px;
 }`;
 
 const terminalFontUrls: Record<string, string> = {

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { LineEditor, mapKey, passthroughFor } from "@operator/terminal-editor";
-import { DomBlockRenderer, RERUN_EVENT } from "@operator/terminal-renderer-dom";
+import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
 	decodeBlocks,
 	defaultStrings,
@@ -43,6 +43,7 @@ export function TerminalSurface({
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
+	const findBarRef = useRef<FindBar | null>(null);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -60,6 +61,17 @@ export function TerminalSurface({
 		editor.setTheme(theme);
 		editor.setFont(font);
 		editor.setStrings(strings);
+		const findBar = createFindBar({
+			core,
+			renderer,
+			host: {
+				scrollToBlock: (id, align) => renderer.scrollToBlock(id, align),
+				invalidate: (range) => renderer.invalidate(range),
+				afterRepaint: (listener) => renderer.onPaint(listener),
+			},
+			strings,
+		});
+		findBar.mount(blockHost);
 		const onRerun = (event: Event) => {
 			const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
 			if (!blockId) return;
@@ -71,12 +83,15 @@ export function TerminalSurface({
 		blockHost.addEventListener(RERUN_EVENT, onRerun);
 		rendererRef.current = renderer;
 		editorRef.current = editor;
+		findBarRef.current = findBar;
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
+			findBar.dispose();
 			editor.dispose();
 			renderer.dispose();
 			editorRef.current = null;
 			rendererRef.current = null;
+			findBarRef.current = null;
 		};
 	}, [core, onSend, onSendRaw]);
 
@@ -191,6 +206,19 @@ export function TerminalSurface({
 			blockHost.removeEventListener("wheel", onWheel);
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useLayoutEffect(() => {
+		const findBar = findBarRef.current;
+		if (!findBar) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if ((event.metaKey || event.ctrlKey) && (event.key === "f" || event.key === "F")) {
+				event.preventDefault();
+				findBar.open();
+			}
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, []);
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
