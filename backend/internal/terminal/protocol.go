@@ -62,10 +62,7 @@ const (
 	roleSecondary = "secondary"
 )
 
-const (
-	blockTypeAgentEvent    = "agent_event"
-	blockTypeTerminalBlock = "terminal_block"
-)
+const blockTypeTerminalBlock = "terminal_block"
 
 // clientMsg is one inbound frame. Fields are shared across channels; which are
 // populated depends on Ch/Type.

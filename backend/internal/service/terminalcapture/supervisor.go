@@ -92,7 +92,7 @@ func (r publishingRecorder) Record(ctx context.Context, b domain.Block) error {
 	if err := r.inner.Record(ctx, b); err != nil {
 		return err
 	}
-	r.publisher.PublishTerminalBlock(b.TerminalID, b)
+	r.publisher.PublishTerminalBlock(b.TerminalID, terminalblock.CapBlock(b))
 	return nil
 }
 

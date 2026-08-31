@@ -1109,8 +1109,6 @@ type ListShellTerminalsResponse struct {
 	ShellTerminals []ShellTerminalResponse `json:"shellTerminals"`
 }
 
-// TerminalBlockView is one committed terminal block as served by GET
-// /api/v1/shell-terminals/{handleId}/blocks.
 type TerminalBlockView struct {
 	TerminalID     string    `json:"terminalId"`
 	SourceID       string    `json:"sourceId"`

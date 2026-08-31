@@ -559,9 +559,10 @@ func (c *connState) handleBlockSubscribe(msg clientMsg) {
 		c.mu.Unlock()
 	case msgUnsubscribe:
 		c.mu.Lock()
-		if terminalStream {
+		if terminalStream || msg.BlockType == "" {
 			delete(c.termBlockSubs, msg.ID)
-		} else {
+		}
+		if !terminalStream {
 			delete(c.blockSubs, msg.ID)
 		}
 		c.mu.Unlock()

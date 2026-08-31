@@ -173,7 +173,6 @@ func TestShellTerminalsAPI_BlocksReturnsHistoryOldestToNewest(t *testing.T) {
 	if got[0].ExitCode == nil || *got[0].ExitCode != 0 {
 		t.Errorf("older exitCode = %v, want 0", got[0].ExitCode)
 	}
-	// exitCode must serialize as an explicit JSON null, never 0, for a running block.
 	if !bytes.Contains(body, []byte(`"exitCode":null`)) {
 		t.Errorf("nullable exitCode did not serialize as null; body=%s", body)
 	}
@@ -270,20 +269,14 @@ func TestShellTerminalsAPI_BlocksHonorsExplicitLimit(t *testing.T) {
 	}
 }
 
-// The blocks route must sit on the same router/middleware chain as the other
-// shell-terminals routes: same test server helper, same /api/v1 mount, JSON
-// envelopes for errors.
 func TestShellTerminalsAPI_BlocksReachableThroughSameMiddlewareChain(t *testing.T) {
 	svc := &fakeShellTerminalService{listed: []shelltermsvc.ShellTerminal{sampleShellTerminal()}}
 	hist := &fakeShellTerminalBlockHistory{blocks: nil}
 	srv := newShellTerminalBlocksTestServer(t, svc, hist)
 
-	// A sibling shell-terminals route resolves on this server...
 	if _, status, _ := doRequest(t, srv, "GET", "/api/v1/shell-terminals", ""); status != http.StatusOK {
 		t.Fatalf("sibling list route status = %d, want 200", status)
 	}
-	// ...and so does the blocks route, returning an empty array (not 404) for a
-	// known handle with no history yet.
 	body, status, hdr := doRequest(t, srv, "GET", "/api/v1/shell-terminals/shellterm-abc123/blocks", "")
 	if status != http.StatusOK {
 		t.Fatalf("blocks route status = %d, want 200; body=%s", status, body)

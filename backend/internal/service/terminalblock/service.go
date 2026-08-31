@@ -24,15 +24,19 @@ func NewService(store Store) *Service {
 }
 
 func (s *Service) Record(ctx context.Context, b domain.Block) error {
-	trimmed, omittedLines, omittedBytes := capOutput(b.RawOutput)
-	b.RawOutput = trimmed
-	b.TruncatedLines += omittedLines
-	b.TruncatedBytes += omittedBytes
-
+	b = CapBlock(b)
 	if err := s.store.UpsertTerminalBlock(ctx, b); err != nil {
 		return err
 	}
 	return s.store.TrimTerminalBlocks(ctx, b.TerminalID, retainPerTerminal)
+}
+
+func CapBlock(b domain.Block) domain.Block {
+	trimmed, omittedLines, omittedBytes := capOutput(b.RawOutput)
+	b.RawOutput = trimmed
+	b.TruncatedLines += omittedLines
+	b.TruncatedBytes += omittedBytes
+	return b
 }
 
 func (s *Service) History(ctx context.Context, terminalID string, limit int) ([]domain.Block, error) {

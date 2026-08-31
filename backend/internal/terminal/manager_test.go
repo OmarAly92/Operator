@@ -831,6 +831,39 @@ func TestPublishBlockEventAgentFrameStaysWireCompatible(t *testing.T) {
 	}
 }
 
+func TestTerminalBlockUnsubscribeWithMatchingBlockTypeStopsDelivery(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	m := NewManager(src, nil, nil)
+	t.Cleanup(m.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	conn := newFakeConn()
+	go m.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chBlocks, Type: msgSubscribe, ID: "shellterm-1", BlockType: blockTypeTerminalBlock}
+	waitForTermBlockSubscriber(t, m, "shellterm-1")
+
+	conn.in <- clientMsg{Ch: chBlocks, Type: msgUnsubscribe, ID: "shellterm-1", BlockType: blockTypeTerminalBlock}
+	deadline := time.After(2 * time.Second)
+	for m.termBlockSubscriberCount("shellterm-1") != 0 {
+		select {
+		case <-deadline:
+			t.Fatal("terminal-block subscription was not cleared by a matching unsubscribe")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	m.PublishTerminalBlock("shellterm-1", domain.Block{TerminalID: "shellterm-1", SourceID: "src-1"})
+	select {
+	case got := <-conn.out:
+		if got.Ch == chBlocks {
+			t.Fatalf("received %+v after unsubscribe, want nothing", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 // A desktop that is attached but has not reported a size yet must not win the
 // arbitration by virtue of being primary; largestGrid requires a usable size.
 func TestGridIgnoresAPrimaryThatHasReportedNoSize(t *testing.T) {
