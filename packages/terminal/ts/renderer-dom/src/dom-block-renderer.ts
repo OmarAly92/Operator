@@ -14,6 +14,7 @@ import {
 import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
+import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
 import { terminalStylesForDocument } from "./styles.js";
@@ -74,6 +75,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		stylePairs: Uint32Array;
 	} | null = null;
 	private latestBlocks: readonly BlockView[] = [];
+	private pinnedHeader: HTMLElement | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -96,6 +98,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.list = list;
 		this.leadingSpacer = leading;
 		this.trailingSpacer = trailing;
+		const pinned = createPinnedHeaderElement();
+		container.insertBefore(pinned, list);
+		this.pinnedHeader = pinned;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => {
@@ -187,6 +192,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.altRoot = null;
 		this.leadingSpacer = null;
 		this.trailingSpacer = null;
+		this.pinnedHeader = null;
 		this.blockElements.clear();
 		this.measureNode = null;
 		this.knownBlockId = null;
@@ -305,6 +311,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.setAttribute("style", this.styleVarsString());
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
+			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
 			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
@@ -344,6 +351,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
+		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, blocks, windowResult.pinnedBlockIndex, defaultStrings);
 
 		const textSource: BlockTextSource = this.buildTextSource();
 		const visibleIds = new Set<BlockId>();

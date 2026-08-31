@@ -419,6 +419,61 @@ async function main() {
 			);
 		}
 
+		await page.waitForSelector('[data-terminal-pinned="ready"]', {
+			timeout: 15000,
+			state: "attached",
+		});
+		const pinnedHeader = await page.evaluate(() => {
+			const main = document.getElementById("terminal-pinned-root");
+			const host = main ? main.querySelector(".terminal-host") : null;
+			const pinned = main ? main.querySelector('[data-testid="terminal-pinned-header"]') : null;
+			if (!main || !host || !pinned) return null;
+			const hostRect = host.getBoundingClientRect();
+			const pinnedRect = pinned.getBoundingClientRect();
+			return {
+				hidden: pinned.hidden,
+				text: pinned.textContent ?? "",
+				status: pinned.dataset.blockStatus ?? "",
+				hostTop: Math.round(hostRect.top),
+				hostLeft: Math.round(hostRect.left),
+				hostWidth: Math.round(hostRect.width),
+				headerTop: Math.round(pinnedRect.top),
+				headerHeight: Math.round(pinnedRect.height),
+				headerWidth: Math.round(pinnedRect.width),
+				headerVisible:
+					pinnedRect.height > 0 &&
+					pinnedRect.width > 0 &&
+					pinnedRect.top < hostRect.bottom &&
+					pinnedRect.bottom > hostRect.top,
+			};
+		});
+		if (!pinnedHeader) {
+			fail("pinned-header fixture did not mount");
+		}
+		if (pinnedHeader.hidden) {
+			fail("pinned header is hidden while the viewport is scrolled into a tall block");
+		}
+		if (!pinnedHeader.text.includes("tall-cmd")) {
+			fail(`pinned header did not name the tall block: "${pinnedHeader.text}"`);
+		}
+		if (!pinnedHeader.headerVisible) {
+			fail(
+				`pinned header is not visible in the host (top=${pinnedHeader.headerTop}, ` +
+					`height=${pinnedHeader.headerHeight}, width=${pinnedHeader.headerWidth})`,
+			);
+		}
+		if (pinnedHeader.headerTop < pinnedHeader.hostTop - 1) {
+			fail(
+				`pinned header floats above the host: headerTop=${pinnedHeader.headerTop}, ` +
+					`hostTop=${pinnedHeader.hostTop}; the host clips it`,
+			);
+		}
+		if (pinnedHeader.headerWidth !== pinnedHeader.hostWidth) {
+			fail(
+				`pinned header does not span the full host width: ${pinnedHeader.headerWidth} vs ${pinnedHeader.hostWidth}`,
+			);
+		}
+
 		const resources = await page.evaluate(() => {
 			const seen = new Set();
 			performance.getEntriesByType("resource").forEach((entry) => {

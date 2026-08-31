@@ -17,6 +17,7 @@ export type WindowResult = Readonly<{
 	leadingSpacer: number;
 	trailingSpacer: number;
 	rowWindows: ReadonlyMap<number, RowWindow>;
+	pinnedBlockIndex: number;
 }>;
 
 const EMPTY_WINDOW: WindowResult = Object.freeze({
@@ -25,6 +26,7 @@ const EMPTY_WINDOW: WindowResult = Object.freeze({
 	leadingSpacer: 0,
 	trailingSpacer: 0,
 	rowWindows: new Map(),
+	pinnedBlockIndex: -1,
 });
 
 function headerHeightFor(block: BlockView, headerHeight: number): number {
@@ -97,15 +99,38 @@ export function computeWindow(input: WindowInput): WindowResult {
 			leadingSpacer: total - tail,
 			trailingSpacer: 0,
 			rowWindows: new Map(),
+			pinnedBlockIndex: last,
 		});
 	}
 
 	const trailing = total - accumulated;
+	const pinnedBlockIndex = computePinnedBlockIndex(blocks, rowHeight, headerHeight, scrollTop, viewportHeight);
 	return Object.freeze({
 		firstBlock,
 		lastBlock,
 		leadingSpacer,
 		trailingSpacer: trailing,
 		rowWindows,
+		pinnedBlockIndex,
 	});
+}
+
+function computePinnedBlockIndex(
+	blocks: readonly BlockView[],
+	rowHeight: number,
+	headerHeight: number,
+	scrollTop: number,
+	viewportHeight: number,
+): number {
+	const center = scrollTop + viewportHeight / 2;
+	let accumulated = 0;
+	for (let i = 0; i < blocks.length; i += 1) {
+		const block = blocks[i];
+		const blockEnd = accumulated + blockHeight(block, rowHeight, headerHeight);
+		if (center < blockEnd) {
+			return i;
+		}
+		accumulated = blockEnd;
+	}
+	return blocks.length - 1;
 }

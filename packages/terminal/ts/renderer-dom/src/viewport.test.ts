@@ -70,4 +70,41 @@ describe("computeWindow", () => {
 		expect(result.firstBlock).toBeLessThanOrEqual(result.lastBlock);
 		expect(result.trailingSpacer).toBeGreaterThanOrEqual(0);
 	});
+
+	describe("pinned block", () => {
+		const pinnedBase = { rowHeight: 20, headerHeight: 24, overscanRows: 2, viewportHeight: 100 };
+
+		it("names the block that owns the center of the viewport", () => {
+			const list = blocks([2, 100, 2]);
+			const block1Start = 2 * 20 + 24;
+			const insideBlock1 = block1Start + 50 * 20;
+			const result = computeWindow({ ...pinnedBase, blocks: list, scrollTop: insideBlock1 });
+			expect(result.pinnedBlockIndex).toBe(1);
+		});
+
+		it("hands over to the next block once the viewport's center passes into it", () => {
+			const list = blocks([2, 100, 2]);
+			const block1Start = 2 * 20 + 24;
+			const block1End = block1Start + 100 * 20 + 24;
+			const justPast = block1End + 1;
+			const result = computeWindow({ ...pinnedBase, blocks: list, scrollTop: justPast });
+			expect(result.pinnedBlockIndex).toBe(2);
+		});
+
+		it("keeps the first block pinned at the very top of the document", () => {
+			const result = computeWindow({ ...pinnedBase, blocks: blocks([2, 2, 2]), scrollTop: 0 });
+			expect(result.pinnedBlockIndex).toBe(0);
+		});
+
+		it("returns the last block when scrollTop is clamped past the document end", () => {
+			const list = blocks([2, 2]);
+			const result = computeWindow({ ...pinnedBase, blocks: list, scrollTop: 999_999 });
+			expect(result.pinnedBlockIndex).toBe(list.length - 1);
+		});
+
+		it("returns -1 when there are no blocks", () => {
+			const result = computeWindow({ ...pinnedBase, blocks: [], scrollTop: 0 });
+			expect(result.pinnedBlockIndex).toBe(-1);
+		});
+	});
 });

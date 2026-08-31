@@ -420,3 +420,74 @@ describe("measure", () => {
 		renderer.dispose();
 	});
 });
+
+function feedOsc133Block(core: TerminalCore, command: string, lines: number, exitCode = 0): void {
+	const start = `\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1; cmd=${command}\x07\x1b]133;C\x07`;
+	const body = Array.from({ length: lines }, (_unused, index) => `line-${index + 1}`).join("\n");
+	const end = `\x1b]133;D;${exitCode}\x07`;
+	core.feed(new TextEncoder().encode(`${start}${body}${end}`));
+}
+
+describe("pinned command header", () => {
+	const APP_FONT = {
+		family: "ui-monospace, monospace",
+		sizePx: 14,
+		lineHeight: 1.2,
+		weight: 400,
+		letterSpacingPx: 0,
+		ligatures: false,
+	};
+
+	function mountTall(): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
+		const core = createTerminalCore({ columns: 20, scrollback: 1000 });
+		feedOsc133Block(core, "tall-cmd", 200);
+		const host = document.createElement("div");
+		Object.defineProperty(host, "clientHeight", { value: 100, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setTheme(theme);
+		renderer.setFont(APP_FONT);
+		return { core, host, renderer };
+	}
+
+	it("hides when the block list is synthetic (no osc133 markers)", async () => {
+		const { host, renderer } = mountWith("plain text");
+		await flushRepaint();
+		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
+		expect(pinned).not.toBeNull();
+		expect(pinned.hidden).toBe(true);
+		renderer.dispose();
+	});
+
+	it("names the tall block when the viewport center is inside it", async () => {
+		const { host, renderer } = mountTall();
+		await flushRepaint();
+		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
+		expect(pinned).not.toBeNull();
+		expect(pinned.hidden).toBe(false);
+		expect(pinned.textContent).toContain("tall-cmd");
+		const block = host.querySelector('[data-terminal-block-id="0:0"]');
+		const perBlockHeader = block?.querySelector(".terminal-block-header");
+		expect(perBlockHeader).not.toBeNull();
+		expect(pinned).not.toBe(perBlockHeader);
+		renderer.dispose();
+	});
+
+	it("hides while the alternate screen is active", async () => {
+		const core = createTerminalCore({ columns: 20, scrollback: 100 });
+		feedOsc133Block(core, "pre-alt", 2);
+		const host = document.createElement("div");
+		Object.defineProperty(host, "clientHeight", { value: 100, configurable: true });
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setTheme(theme);
+		renderer.setFont(APP_FONT);
+		await flushRepaint();
+		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
+		expect(pinned.hidden).toBe(false);
+		core.feed(new TextEncoder().encode("\x1b[?1049h"));
+		await flushRepaint();
+		expect(pinned.hidden).toBe(true);
+		renderer.dispose();
+	});
+});

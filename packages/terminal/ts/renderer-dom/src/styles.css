@@ -244,3 +244,34 @@
 	outline: 1px solid var(--terminal-cursor);
 	outline-offset: -1px;
 }
+
+.terminal-pinned-header {
+	position: sticky;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 2;
+	pointer-events: none;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 24px;
+	padding: 0 8px;
+	border-bottom: 1px solid var(--terminal-block-border);
+	background: var(--terminal-block-background);
+	color: var(--terminal-block-header-foreground);
+	font-family: var(--terminal-font-family);
+	font-size: 12px;
+	line-height: var(--terminal-line-height);
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.terminal-pinned-header[data-block-status="plain"] {
+	display: none;
+}
+
+.terminal-pinned-header[hidden] {
+	display: none;
+}
