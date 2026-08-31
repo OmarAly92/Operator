@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func testLogger() *slog.Logger {
 type fakeShellRuntime struct {
 	created   []ports.RuntimeConfig
 	destroyed []string
+	log       *callLog
 
 	createErr  error
 	destroyErr error
@@ -48,6 +50,7 @@ func (f *fakeShellRuntime) Create(_ context.Context, cfg ports.RuntimeConfig) (p
 
 func (f *fakeShellRuntime) Destroy(_ context.Context, handle ports.RuntimeHandle) error {
 	f.destroyed = append(f.destroyed, handle.ID)
+	f.log.add("destroy:" + handle.ID)
 	// Only a successful destroy is modeled as actually killing the runtime — a
 	// failed one leaves aliveByHandle as the caller set it up, so tests can
 	// distinguish "destroy errored but it was already dead" (aliveByHandle has
@@ -188,10 +191,50 @@ func (f *fakeSessionWorkspaceLocator) SessionWorkspace(_ context.Context, id dom
 	return ws.workspacePath, ws.projectID, nil
 }
 
-// newTestService wires a service with deterministic ids so assertions can name
-// exact handles instead of matching on a prefix. Session resolution is not
-// under test here, so it is wired with an empty locator; tests that need it
-// use newTestServiceWithSessions.
+type callLog struct {
+	mu sync.Mutex
+	ev []string
+}
+
+func (c *callLog) add(s string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.ev = append(c.ev, s)
+	c.mu.Unlock()
+}
+
+func (c *callLog) snapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.ev...)
+}
+
+type fakeCaptureLifecycle struct {
+	log         *callLog
+	started     []string
+	stopped     []string
+	startErr    error
+	stopErr     error
+	unsupported bool
+}
+
+func (f *fakeCaptureLifecycle) Start(_ context.Context, rec ShellTerminalRecord) error {
+	f.started = append(f.started, rec.HandleID)
+	f.log.add("start:" + rec.HandleID)
+	if f.unsupported {
+		return ports.ErrCaptureUnsupported
+	}
+	return f.startErr
+}
+
+func (f *fakeCaptureLifecycle) StopAndDrain(_ context.Context, handleID string) error {
+	f.stopped = append(f.stopped, handleID)
+	f.log.add("stopdrain:" + handleID)
+	return f.stopErr
+}
+
 func newTestService(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator) *Service {
 	t.Helper()
 	return newTestServiceWithSessions(t, rt, st, projects, &fakeSessionWorkspaceLocator{})
@@ -199,7 +242,12 @@ func newTestService(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalSto
 
 func newTestServiceWithSessions(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator) *Service {
 	t.Helper()
-	svc := NewService(rt, st, projects, sessions, t.TempDir(), testAppRunID, testLogger())
+	return newTestServiceWithCapture(t, rt, st, projects, sessions, nil)
+}
+
+func newTestServiceWithCapture(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator, capture BlockCaptureLifecycle) *Service {
+	t.Helper()
+	svc := NewService(rt, st, projects, sessions, capture, t.TempDir(), testAppRunID, testLogger())
 	var n int
 	svc.newHandleID = func() (string, error) {
 		n++
@@ -1026,7 +1074,7 @@ func TestListShellTerminalsForCurrentAppRunReturnsSurvivingTerminals(t *testing.
 
 	// A fresh Service over the SAME store and runtime stands in for the daemon
 	// coming back up within one app run.
-	restarted := NewService(rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, svc.dataDir, testAppRunID, testLogger())
+	restarted := NewService(rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, nil, svc.dataDir, testAppRunID, testLogger())
 	got, err := restarted.ListShellTerminalsForCurrentAppRun(context.Background())
 	if err != nil {
 		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)
@@ -1177,5 +1225,167 @@ func TestShellTerminalTitleFallsBackForRootlessPaths(t *testing.T) {
 	}
 	if got := shellTerminalTitle("/repos/portfolio"); got != "portfolio" {
 		t.Errorf("title = %q, want %q", got, "portfolio")
+	}
+}
+
+func indexOf(ss []string, want string) int {
+	for i, s := range ss {
+		if s == want {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestOpenShellTerminalStartsCapture(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	cap := &fakeCaptureLifecycle{log: &callLog{}}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if len(cap.started) != 1 || cap.started[0] != term.HandleID {
+		t.Fatalf("capture Start calls = %v, want [%s]", cap.started, term.HandleID)
+	}
+	if !term.DurableBlocks {
+		t.Fatal("DurableBlocks = false, want true on a supported runtime")
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row kept", st.records)
+	}
+}
+
+func TestOpenShellTerminalUnsupportedCaptureStillOpens(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	cap := &fakeCaptureLifecycle{log: &callLog{}, unsupported: true}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if term.DurableBlocks {
+		t.Fatal("DurableBlocks = true, want false when the runtime cannot capture")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want no rollback for an unsupported runtime", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row kept", st.records)
+	}
+}
+
+func TestOpenShellTerminalRollsBackWhenCaptureStartFails(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	cap := &fakeCaptureLifecycle{log: &callLog{}, startErr: errors.New("pipe-pane: server not found")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err == nil {
+		t.Fatal("OpenShellTerminal succeeded despite a capture start failure on a supported runtime")
+	}
+	if len(rt.destroyed) != 1 {
+		t.Fatalf("destroyed = %v, want the spawned PTY rolled back", rt.destroyed)
+	}
+	if len(st.records) != 0 {
+		t.Fatalf("records = %+v, want the row deleted", st.records)
+	}
+}
+
+func TestCloseShellTerminalStopsCaptureBeforeDestroy(t *testing.T) {
+	rt := newFakeShellRuntime()
+	log := &callLog{}
+	rt.log = log
+	st := &fakeShellTerminalStore{}
+	cap := &fakeCaptureLifecycle{log: log}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if err := svc.CloseShellTerminal(context.Background(), term.HandleID); err != nil {
+		t.Fatalf("CloseShellTerminal: %v", err)
+	}
+
+	ev := log.snapshot()
+	sd := indexOf(ev, "stopdrain:"+term.HandleID)
+	de := indexOf(ev, "destroy:"+term.HandleID)
+	if sd < 0 || de < 0 || sd > de {
+		t.Fatalf("event order = %v, want stopdrain before destroy", ev)
+	}
+}
+
+func TestCloseShellTerminalFailedDrainPreservesRow(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	cap := &fakeCaptureLifecycle{log: &callLog{}, stopErr: errors.New("final drain: disk full")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if err := svc.CloseShellTerminal(context.Background(), term.HandleID); err == nil {
+		t.Fatal("CloseShellTerminal succeeded despite a capture drain failure")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want the PTY left running after a drain failure", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row preserved", st.records)
+	}
+}
+
+func TestBeginSessionTeardownStopsCaptureBeforeDestroy(t *testing.T) {
+	rt := newFakeShellRuntime()
+	log := &callLog{}
+	rt.log = log
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
+	}}
+	rt.aliveByHandle["shellterm-1"] = true
+	cap := &fakeCaptureLifecycle{log: log}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
+	if err != nil {
+		t.Fatalf("BeginSessionTeardown: %v", err)
+	}
+	release()
+
+	ev := log.snapshot()
+	sd := indexOf(ev, "stopdrain:shellterm-1")
+	de := indexOf(ev, "destroy:shellterm-1")
+	if sd < 0 || de < 0 || sd > de {
+		t.Fatalf("event order = %v, want stopdrain before destroy", ev)
+	}
+}
+
+func TestBeginSessionTeardownFailedDrainPreservesRowAndBlocksWorktree(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
+	}}
+	rt.aliveByHandle["shellterm-1"] = true
+	cap := &fakeCaptureLifecycle{log: &callLog{}, stopErr: errors.New("seal never observed")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
+	if err == nil {
+		t.Fatal("BeginSessionTeardown: want an error when a scoped shell's capture drain fails")
+	}
+	if release != nil {
+		t.Error("release should be nil on a failed Begin")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want the PTY left alone after a drain failure", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row preserved", st.records)
 	}
 }

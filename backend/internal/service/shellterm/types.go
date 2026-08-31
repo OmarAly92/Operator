@@ -31,6 +31,8 @@ type ShellTerminal struct {
 	WorkingDir string           `json:"workingDir"`
 	Title      string           `json:"title"`
 	CreatedAt  time.Time        `json:"createdAt"`
+
+	DurableBlocks bool `json:"durableBlocks"`
 }
 
 // OpenShellTerminalInput is the request to open a new shell pane. An empty

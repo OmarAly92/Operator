@@ -10,6 +10,7 @@ import (
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	shelltermsvc "github.com/OmarAly92/operator/backend/internal/service/shellterm"
+	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
 
@@ -18,7 +19,8 @@ import (
 //
 // The sweep runs at boot, before the server serves, for the same reason session
 // reconciliation does: a client that connects first would otherwise see — and
-// try to attach to — shells belonging to an app that is already gone.
+// try to attach to — shells belonging to an app that is already gone. It then
+// hands the current run's surviving shells to the capture supervisor to adopt.
 func startShellTerminals(
 	ctx context.Context,
 	cfg config.Config,
@@ -26,13 +28,19 @@ func startShellTerminals(
 	store *sqlite.Store,
 	projects projectsvc.Manager,
 	sessions *sessionsvc.Service,
+	captureSup *capturesvc.Supervisor,
 	log *slog.Logger,
 ) *shelltermsvc.Service {
+	var capture shelltermsvc.BlockCaptureLifecycle
+	if captureSup != nil {
+		capture = captureSup
+	}
 	svc := shelltermsvc.NewService(
 		runtime,
 		store,
 		&projectRootLocator{projects: projects},
 		&sessionWorkspaceLocator{sessions: sessions},
+		capture,
 		cfg.DataDir,
 		cfg.AppRunID,
 		log,
@@ -41,6 +49,15 @@ func startShellTerminals(
 	// the next boot retries.
 	if _, err := svc.ReapShellTerminalsFromPreviousAppRuns(ctx); err != nil {
 		log.Warn("reaping shell terminals from previous app runs failed", "err", err)
+	}
+
+	if captureSup != nil {
+		live, err := svc.LiveShellTerminalRecordsForCurrentAppRun(ctx)
+		if err != nil {
+			log.Warn("listing shell terminals for capture adoption failed", "err", err)
+		} else if err := captureSup.Adopt(ctx, live); err != nil {
+			log.Warn("adopting shell block capture failed", "err", err)
+		}
 	}
 	return svc
 }
