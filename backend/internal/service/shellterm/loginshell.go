@@ -3,6 +3,7 @@ package shellterm
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 )
 
@@ -47,4 +48,12 @@ func resolveWindowsShell() []string {
 		return []string{path}
 	}
 	return nil
+}
+
+func shellKindFor(path string) (string, bool) {
+	switch filepath.Base(path) {
+	case "zsh", "bash", "fish":
+		return filepath.Base(path), true
+	}
+	return "", false
 }

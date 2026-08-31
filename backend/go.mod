@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/OmarAly92/operator/packages/terminal/go/bootstrap v0.0.0-00010101000000-000000000000
 	github.com/aymanbagabas/go-pty v0.2.3
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/coder/websocket v1.8.14
@@ -41,3 +42,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/OmarAly92/operator/packages/terminal/go/bootstrap => ../packages/terminal/go/bootstrap

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/packages/terminal/go/bootstrap"
 )
 
 // ShellRuntime is the slice of the runtime adapter a shell terminal needs:
@@ -223,10 +225,14 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	if err != nil {
 		return ShellTerminal{}, err
 	}
-	argv := resolveUserLoginShell()
-	if len(argv) == 0 {
+	resolved := resolveUserLoginShell()
+	if len(resolved) == 0 {
 		return ShellTerminal{}, apierr.Internal("SHELL_TERMINAL_NO_SHELL",
 			"Could not determine a shell to launch. Set SHELL (macOS/Linux) or ComSpec (Windows).")
+	}
+	argv, env, err := s.shellBootstrapArgvEnv(resolved[0])
+	if err != nil {
+		return ShellTerminal{}, fmt.Errorf("open shell terminal: shell recipe: %w", err)
 	}
 	handleID, err := s.newHandleID()
 	if err != nil {
@@ -240,6 +246,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		SessionID:     domain.SessionID(handleID),
 		WorkspacePath: workingDir,
 		Argv:          argv,
+		Env:           env,
 	})
 	if err != nil {
 		return ShellTerminal{}, fmt.Errorf("open shell terminal %s: runtime: %w", handleID, err)
@@ -544,6 +551,23 @@ func (s *Service) resolveProjectRootOrDataDir(ctx context.Context, projectID dom
 			"No such project: "+string(projectID))
 	}
 	return root, nil
+}
+
+func (s *Service) shellBootstrapArgvEnv(shellPath string) ([]string, map[string]string, error) {
+	scriptDir := filepath.Join(s.dataDir, "shell")
+	if kind, ok := shellKindFor(shellPath); ok {
+		argv, env, err := bootstrap.Recipe(kind, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationAuto})
+		if err != nil {
+			return nil, nil, err
+		}
+		argv[0] = shellPath
+		return argv, env, nil
+	}
+	argv, env, err := bootstrap.Recipe(shellPath, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationOSC133Only})
+	if err != nil {
+		return nil, nil, err
+	}
+	return argv, env, nil
 }
 
 // newShellTerminalHandleID mints a runtime handle id for a shell pane.
