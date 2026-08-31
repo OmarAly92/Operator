@@ -169,4 +169,31 @@ describe("TerminalCore.find mutation safety", () => {
 		core.findCancel(session);
 		core.dispose();
 	});
+
+	it("sees content added after findOpen when stepping the cursor", () => {
+		const core = makeCore();
+		feedBlocks(core, 3);
+		const session = core.findOpen("UNIQUE_NEEDLE", false);
+		core.findStep(session, 1);
+		expect(core.findIsComplete(session)).toBe(false);
+		expect(core.findResults(session)).toEqual([]);
+
+		core.feed(
+			new TextEncoder().encode(
+				"\x1b]133;A\x07\x1b]133;C\x07UNIQUE_NEEDLE appears here\x1b]133;D;0\x07\r\n",
+			),
+		);
+		let guard = 0;
+		while (!core.findIsComplete(session) && guard < 1000) {
+			core.findStep(session, 10);
+			guard += 1;
+		}
+		const matches = core.findResults(session);
+		expect(matches.length).toBe(1);
+		expect(matches[0]?.blockId).toBeTruthy();
+		expect(matches[0]?.row).toBeTypeOf("number");
+		expect(matches[0]?.byteRangeEnd).toBeGreaterThan(matches[0]?.byteRangeStart ?? 0);
+		core.findCancel(session);
+		core.dispose();
+	});
 });
