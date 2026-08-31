@@ -83,6 +83,16 @@ test("emits fish lifecycle records for success, failure, syntax errors, and an e
 	]);
 	const ends = records.filter((record) => record.payload.startsWith("133;D;")).map((record) => record.payload);
 	assert.deepEqual(ends, ["133;D;0", "133;D;1", "133;D;2"]);
+	const exitRecords = records.filter((record) => field(record.payload, "exit") !== undefined);
+	assert.ok(exitRecords.length >= 2, "expected an OSC 7000 exit= for each executed command");
+	for (const exitRecord of exitRecords) {
+		const exitIndex = records.indexOf(exitRecord);
+		const code = field(exitRecord.payload, "exit");
+		const endIndex = records.findIndex(
+			(record, index) => index > exitIndex && record.payload === `133;D;${code}`,
+		);
+		assert.ok(endIndex > exitIndex, `OSC 7000 exit=${code} must precede its OSC 133 D`);
+	}
 	const emptyPrompt = records.slice(-3).map((record) => record.payload);
 	assert.deepEqual(emptyPrompt, ["133;A", "133;B", "7000;v=1;input-ready=1"]);
 });

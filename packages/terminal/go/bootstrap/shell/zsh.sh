@@ -3,7 +3,7 @@ __operator_terminal_guard() {
 	[[ -n ${__OPERATOR_TERMINAL_LOADED:-} ]] && return 0
 	__OPERATOR_TERMINAL_LOADED=1
 
-	typeset -gr __operator_terminal_SAFE='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~/:@!$&'\'"'"'()*+,-'
+	typeset -gr __operator_terminal_SAFE='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~/:@!$&()*+,-'
 
 	typeset -gi __operator_terminal_COUNTER=0
 

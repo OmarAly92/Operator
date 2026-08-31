@@ -4,7 +4,6 @@ fi
 __OPERATOR_TERMINAL_LOADED=1
 __operator_terminal_BOOTSTRAP_SOURCE=${BASH_SOURCE[0]}
 __operator_terminal_COUNTER=0
-__operator_terminal_PROMPT_PHASE=1
 __operator_terminal_INITIAL_PROMPT=1
 
 __operator_terminal_pct_encode() {
@@ -66,9 +65,9 @@ __operator_terminal_precmd() {
 }
 
 __operator_terminal_prompt_command() {
-	local code=$?
+	local code=${__operator_terminal_LAST_STATUS:-$?}
+	unset __operator_terminal_LAST_STATUS
 	__operator_terminal_IN_HOOK=1
-	__operator_terminal_PROMPT_PHASE=1
 	if [ -n "${__operator_terminal_existing_prompt_command:-}" ]; then
 		eval "$__operator_terminal_existing_prompt_command"
 	fi
@@ -90,7 +89,6 @@ __operator_terminal_history_command() {
 __operator_terminal_debug() {
 	local command=$BASH_COMMAND
 	[ "${__operator_terminal_IN_HOOK:-0}" = 1 ] && return
-	[ "${__operator_terminal_INITIALIZING:-0}" = 1 ] && return
 	case ${FUNCNAME[1]:-} in
 		__operator_terminal_*) return ;;
 	esac
@@ -98,9 +96,6 @@ __operator_terminal_debug() {
 		__operator_terminal_*) return ;;
 		*"$__operator_terminal_BOOTSTRAP_SOURCE"*) return ;;
 	esac
-	if [ "${__operator_terminal_PROMPT_PHASE:-0}" = 1 ]; then
-		__operator_terminal_PROMPT_PHASE=0
-	fi
 	[ "${__operator_terminal_COMMAND_RUNNING:-0}" = 1 ] && return
 	local submitted_command
 	submitted_command=$(__operator_terminal_history_command)
@@ -113,18 +108,27 @@ __operator_terminal_debug() {
 }
 
 __operator_terminal_existing_prompt_command=${PROMPT_COMMAND:-}
-__operator_terminal_existing_debug_spec=$(trap -p DEBUG)
-__operator_terminal_INITIALIZING=1
-if [ -n "$__operator_terminal_existing_debug_spec" ]; then
-	__operator_terminal_existing_debug_spec=${__operator_terminal_existing_debug_spec#trap -- }
-	__operator_terminal_existing_debug_spec=${__operator_terminal_existing_debug_spec% DEBUG}
-	trap "$__operator_terminal_existing_debug_spec; __operator_terminal_debug" DEBUG
-else
-	trap '__operator_terminal_debug' DEBUG
-fi
+__operator_terminal_sq=\'
+__operator_terminal_prior_shopt=$(shopt -p cmdhist lithist)
 shopt -s cmdhist lithist
-PROMPT_COMMAND=__operator_terminal_prompt_command
-unset __operator_terminal_INITIALIZING
-if [ -n "$__operator_terminal_existing_debug_spec" ]; then
-	__operator_terminal_preexec "$BASH_COMMAND"
+__operator_terminal_existing_exit_spec=$(trap -p EXIT)
+if [ -n "$__operator_terminal_existing_exit_spec" ]; then
+	__operator_terminal_existing_exit_spec=${__operator_terminal_existing_exit_spec#trap -- $__operator_terminal_sq}
+	__operator_terminal_existing_exit_spec=${__operator_terminal_existing_exit_spec%$__operator_terminal_sq EXIT}
+	trap "$__operator_terminal_existing_exit_spec"'; eval "$__operator_terminal_prior_shopt"' EXIT
+else
+	trap 'eval "$__operator_terminal_prior_shopt"' EXIT
 fi
+__operator_terminal_debug_boot='case "$(trap -p DEBUG)" in
+	*__operator_terminal_debug*) ;;
+	"") trap "__operator_terminal_debug" DEBUG ;;
+	*)
+		__operator_terminal_existing_debug_spec=$(trap -p DEBUG)
+		__operator_terminal_existing_debug_spec=${__operator_terminal_existing_debug_spec#trap -- $__operator_terminal_sq}
+		__operator_terminal_existing_debug_spec=${__operator_terminal_existing_debug_spec%$__operator_terminal_sq DEBUG}
+		trap "$__operator_terminal_existing_debug_spec; __operator_terminal_debug" DEBUG
+		;;
+esac
+__operator_terminal_debug_boot='
+PROMPT_COMMAND='__operator_terminal_LAST_STATUS=$?; __operator_terminal_IN_HOOK=1; eval "$__operator_terminal_debug_boot"; unset __operator_terminal_IN_HOOK; __operator_terminal_prompt_command'
+trap '__operator_terminal_debug' DEBUG

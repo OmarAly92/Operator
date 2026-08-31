@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
@@ -20,12 +23,79 @@ test("emits command and line-editor ownership marks", () => {
 	assert.match(out, /input-ready=1/);
 });
 
-test("preserves a pre-existing DEBUG trap", () => {
-	const out = runBash(
-		`trap 'printf user-debug-ran' DEBUG; source ${JSON.stringify(bootstrap)}; :`,
-	);
-	assert.match(out, /user-debug-ran/);
-	assert.match(out, /input-released=1/);
+function fieldOf(payload, name) {
+	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
+}
+
+test("chains a pre-existing DEBUG trap and PROMPT_COMMAND through the full lifecycle", { skip: ptySkip }, () => {
+	const dir = mkdtempSync(join(tmpdir(), "opr-hooks-"));
+	const debugMark = join(dir, "debug");
+	const promptMark = join(dir, "prompt");
+	try {
+		const raw = runInPty(
+			"bash --noprofile --norc -i",
+			[
+				`trap 'printf d >> ${JSON.stringify(debugMark)}' DEBUG`,
+				`PROMPT_COMMAND='printf p >> ${JSON.stringify(promptMark)}'`,
+				`source ${bootstrap}`,
+				"true",
+				"false",
+				"echo chained",
+			],
+			{ settleMs: 150, env: { OPERATOR_TERMINAL_ID: "terminal-1" } },
+		);
+		const records = parseOscRecords(raw);
+		assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
+
+		const commands = records
+			.filter((record) => fieldOf(record.payload, "cmd") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), cmd: fieldOf(record.payload, "cmd") }));
+		assert.deepEqual(commands, [
+			{ id: "terminal-1-1", cmd: "true" },
+			{ id: "terminal-1-2", cmd: "false" },
+			{ id: "terminal-1-3", cmd: "echo%20chained" },
+		]);
+
+		const exits = records
+			.filter((record) => fieldOf(record.payload, "exit") !== undefined && fieldOf(record.payload, "id") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), exit: fieldOf(record.payload, "exit") }));
+		assert.deepEqual(exits, [
+			{ id: "terminal-1-1", exit: "0" },
+			{ id: "terminal-1-2", exit: "1" },
+			{ id: "terminal-1-3", exit: "0" },
+		]);
+
+		assert.ok(records.every((record) => !record.payload.includes("__operator_terminal_")));
+
+		for (const { id } of commands) {
+			const commandIndex = records.findIndex(
+				(record) => fieldOf(record.payload, "id") === id && fieldOf(record.payload, "cmd") !== undefined,
+			);
+			const releasedIndex = records.findIndex(
+				(record, index) => index > commandIndex && record.payload === "7000;v=1;input-released=1",
+			);
+			const outputIndex = records.findIndex(
+				(record, index) => index > releasedIndex && record.payload === "133;C",
+			);
+			const exitIndex = records.findIndex(
+				(record, index) => index > outputIndex && fieldOf(record.payload, "id") === id && fieldOf(record.payload, "exit") !== undefined,
+			);
+			const endIndex = records.findIndex(
+				(record, index) => index > exitIndex && record.payload === `133;D;${fieldOf(records[exitIndex].payload, "exit")}`,
+			);
+			assert.ok(
+				commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex,
+				`ordering broken for ${id}`,
+			);
+		}
+
+		assert.match(readFileSync(debugMark, "latin1"), /d/, "the pre-existing DEBUG trap body must still run");
+		assert.match(readFileSync(promptMark, "latin1"), /p/, "the pre-existing PROMPT_COMMAND must still run");
+	} finally {
+		try {
+			rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+		} catch {}
+	}
 });
 
 test("preserves a pre-existing PROMPT_COMMAND", () => {
