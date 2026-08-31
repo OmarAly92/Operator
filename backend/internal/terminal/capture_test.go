@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -197,7 +198,8 @@ func TestCaptureIgnoresUnmatchedAltScreenLeave(t *testing.T) {
 func TestCaptureRotatesSinkFromHeadOnBlockBoundary(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "capture.log")
-	if err := os.WriteFile(path, []byte("stale data from a previous run\n"), 0o644); err != nil {
+	seed := []byte("stale data from a previous run\n")
+	if err := os.WriteFile(path, seed, 0o644); err != nil {
 		t.Fatalf("seed sink: %v", err)
 	}
 
@@ -220,6 +222,17 @@ func TestCaptureRotatesSinkFromHeadOnBlockBoundary(t *testing.T) {
 	}
 	if info.Size() > cap.MaxBytes {
 		t.Fatalf("sink size = %d, want <= %d", info.Size(), cap.MaxBytes)
+	}
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read sink: %v", err)
+	}
+	if !bytes.Contains(contents, []byte("\n")) {
+		t.Fatalf("sink %q missing the newline from offset 16 of the seed; rotation dropped the wrong end", contents)
+	}
+	if bytes.Contains(contents, seed[:16]) {
+		t.Fatalf("sink %q still contains the first 16 bytes of the seed; rotation dropped the wrong end", contents)
 	}
 }
 

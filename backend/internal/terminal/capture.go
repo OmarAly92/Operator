@@ -17,6 +17,9 @@ const (
 	defaultMaxCaptureBytes int64 = 1 << 20
 
 	defaultPollInterval = 50 * time.Millisecond
+
+	rotationTriggerRatio = 4
+	rotationTriggerDiv   = 5
 )
 
 type BlockEventRecorder interface {
@@ -170,10 +173,14 @@ func (c *Capture) boundSink(path string) error {
 	if err != nil {
 		return fmt.Errorf("capture: stat sink: %w", err)
 	}
-	if info.Size() <= c.MaxBytes {
+	trigger := c.MaxBytes * rotationTriggerRatio / rotationTriggerDiv
+	if info.Size() <= trigger {
 		return nil
 	}
 	drop := info.Size() - c.MaxBytes
+	if drop < 0 {
+		drop = 0
+	}
 	if err := rotateHead(path, drop); err != nil {
 		return err
 	}
