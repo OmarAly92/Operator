@@ -10,6 +10,8 @@ pub struct BlockGrid {
     closed: BlockTree,
     open: Option<Block>,
     next_id: BlockId,
+    pending_meta: BlockMeta,
+    pending_extension: bool,
     /// Index of the next row to be completed, relative to the oldest
     /// retained row. It is where the next opened block starts, and it is
     /// what stops every block from claiming row 0.
@@ -22,6 +24,8 @@ impl BlockGrid {
             closed: BlockTree::new(),
             open: None,
             next_id: 0,
+            pending_meta: BlockMeta::default(),
+            pending_extension: false,
             next_row: 0,
         }
     }
@@ -39,13 +43,19 @@ impl BlockGrid {
             };
             self.closed.push(abandoned);
         }
+        let source = if self.pending_extension && source == BlockSource::Osc133 {
+            BlockSource::Extension
+        } else {
+            source
+        };
+        self.pending_extension = false;
         self.open = Some(Block {
             id: self.next_id,
             first_row: self.next_row,
             row_count: 0,
             state: BlockState::Running,
             source,
-            meta: BlockMeta::default(),
+            meta: std::mem::take(&mut self.pending_meta),
         });
         self.next_id += 1;
     }
@@ -94,25 +104,40 @@ impl BlockGrid {
     /// from `Osc133` to `Extension`, so the renderer can tell a
     /// bootstrapped block apart from a raw OSC 133 one.
     pub fn set_meta_field(&mut self, key: &str, value: &str) {
+        if self.open.is_none() {
+            match key {
+                "cwd" => self.pending_meta.cwd = value.to_string(),
+                "branch" => self.pending_meta.git_branch = value.to_string(),
+                "start_ms" => {
+                    if let Ok(ts) = value.parse::<u64>() {
+                        self.pending_meta.started_at_ms = Some(ts);
+                    }
+                }
+                _ => return,
+            }
+            self.pending_extension = true;
+            return;
+        }
         let Some(block) = self.open.as_mut() else {
             return;
         };
+        let meta = &mut block.meta;
         let recognised = match key {
             "cmd" => {
-                block.meta.command = value.to_string();
+                meta.command = value.to_string();
                 true
             }
             "cwd" => {
-                block.meta.cwd = value.to_string();
+                meta.cwd = value.to_string();
                 true
             }
             "branch" => {
-                block.meta.git_branch = value.to_string();
+                meta.git_branch = value.to_string();
                 true
             }
             "exit" => {
                 if let Ok(code) = value.parse::<i32>() {
-                    block.meta.exit_code = Some(code);
+                    meta.exit_code = Some(code);
                 }
                 // A recognised key with an unparseable value still
                 // upgrades the source: the producer meant to extend the
@@ -124,7 +149,7 @@ impl BlockGrid {
             }
             "start_ms" => {
                 if let Ok(ts) = value.parse::<u64>() {
-                    block.meta.started_at_ms = Some(ts);
+                    meta.started_at_ms = Some(ts);
                 }
                 // See "exit" above for why a recognised key still
                 // upgrades on a parse failure.
@@ -132,7 +157,7 @@ impl BlockGrid {
             }
             "end_ms" => {
                 if let Ok(ts) = value.parse::<u64>() {
-                    block.meta.finished_at_ms = Some(ts);
+                    meta.finished_at_ms = Some(ts);
                 }
                 // See "exit" above for why a recognised key still
                 // upgrades on a parse failure.
@@ -141,10 +166,6 @@ impl BlockGrid {
             _ => false,
         };
         if recognised && block.source == BlockSource::Osc133 {
-            // Only `Osc133` upgrades: a `Synthetic` block is already
-            // tagged as not-from-the-shell, and rewriting the source would
-            // hide that distinction from the renderer. `Extension` is
-            // already the richer tag, so there is nothing to upgrade to.
             block.source = BlockSource::Extension;
         }
     }

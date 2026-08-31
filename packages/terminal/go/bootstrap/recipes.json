@@ -1,7 +1,7 @@
 {
   "version": 1,
   "shells": {
-    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; exec zsh"] },
+    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR={{script}}.d exec zsh"] },
     "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "source {{script}}; exec bash"] },
     "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
   },

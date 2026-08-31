@@ -17,9 +17,11 @@ type BlockAssembler struct {
 	SessionID   string
 	AlternateOn bool
 
-	epoch   string
-	now     func() time.Time
-	pending *pendingBlock
+	epoch                    string
+	now                      func() time.Time
+	pending                  *pendingBlock
+	suppressAlternateCommand bool
+	recoveringGap            bool
 }
 
 type pendingBlock struct {
@@ -64,6 +66,8 @@ func (a *BlockAssembler) Consume(tokens []marks.Token) []domain.Block {
 
 func (a *BlockAssembler) Gap() {
 	a.pending = nil
+	a.suppressAlternateCommand = false
+	a.recoveringGap = true
 }
 
 func (a *BlockAssembler) Finish(final bool) []domain.Block {
@@ -96,7 +100,9 @@ func (a *BlockAssembler) Finish(final bool) []domain.Block {
 
 func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 	if tok.Kind != marks.TokenMark {
-		a.record(tok)
+		if !a.suppressAlternateCommand && !a.recoveringGap {
+			a.record(tok)
+		}
 		return domain.Block{}, false
 	}
 	m := tok.Mark
@@ -105,7 +111,30 @@ func (a *BlockAssembler) step(tok marks.Token) (domain.Block, bool) {
 		a.AlternateOn = true
 		return domain.Block{}, false
 	case "alt_screen_leave":
+		if a.AlternateOn && a.pending == nil {
+			a.suppressAlternateCommand = true
+		}
 		a.AlternateOn = false
+		return domain.Block{}, false
+	}
+	if a.recoveringGap {
+		if m.Kind == "prompt_start" && !a.AlternateOn {
+			a.recoveringGap = false
+			a.startBlockAtA(tok)
+		}
+		return domain.Block{}, false
+	}
+	if a.suppressAlternateCommand {
+		if m.Kind == "command_end" {
+			a.suppressAlternateCommand = false
+			a.pending = nil
+			return domain.Block{}, false
+		}
+		if m.Kind == "prompt_start" {
+			a.suppressAlternateCommand = false
+			a.pending = nil
+			a.startBlockAtA(tok)
+		}
 		return domain.Block{}, false
 	}
 

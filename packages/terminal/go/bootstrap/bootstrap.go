@@ -35,8 +35,8 @@ type shellSpec struct {
 }
 
 type manifest struct {
-	Version int                    `json:"version"`
-	Shells  map[string]shellSpec   `json:"shells"`
+	Version int                          `json:"version"`
+	Shells  map[string]shellSpec         `json:"shells"`
 	Env     map[string]map[string]string `json:"env"`
 }
 
@@ -156,6 +156,65 @@ func materializeScript(dir, name string, body []byte) (string, error) {
 	return target, nil
 }
 
+func materializeZshStartup(scriptPath string) error {
+	dir := scriptPath + ".d"
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	quoted, err := jsonQuote(scriptPath)
+	if err != nil {
+		return err
+	}
+	body := []byte("typeset __operator_terminal_saved_zdotdir=${OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR:-$HOME}\n" +
+		"ZDOTDIR=$__operator_terminal_saved_zdotdir\n" +
+		"unset OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR\n" +
+		"if [[ -r $ZDOTDIR/.zshrc ]]; then\n" +
+		"\tsource \"$ZDOTDIR/.zshrc\"\n" +
+		"fi\n" +
+		"source " + quoted + "\n" +
+		"unset __operator_terminal_saved_zdotdir\n")
+	target := filepath.Join(dir, ".zshrc")
+	if existing, err := os.ReadFile(target); err == nil {
+		if string(existing) == string(body) {
+			return nil
+		}
+		return fmt.Errorf("startup file %s already exists with different content", target)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".zshrc-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(body); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o700); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, target); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
+}
+
 func Recipe(shell string, scriptDir string, opts Options) ([]string, map[string]string, error) {
 	if scriptDir == "" {
 		return nil, nil, fmt.Errorf("scriptDir must not be empty")
@@ -197,6 +256,11 @@ func Recipe(shell string, scriptDir string, opts Options) ([]string, map[string]
 	written, err := materializeScript(scriptDir, spec.Script, body)
 	if err != nil {
 		return nil, nil, err
+	}
+	if shell == "zsh" {
+		if err := materializeZshStartup(written); err != nil {
+			return nil, nil, err
+		}
 	}
 	argv, err := renderArgv(spec.Argv, written)
 	if err != nil {

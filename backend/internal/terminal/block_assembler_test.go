@@ -206,6 +206,29 @@ func TestAssemblerInitialAlternateOnDropsRepaintBeforeFirstPrompt(t *testing.T) 
 	}
 }
 
+func TestAssemblerInitialAlternateOnDropsLeavingCommandCompletion(t *testing.T) {
+	a, dec := newAssembler(true)
+	leaveCompletion := "repaint\x1b[?1049l" +
+		"\x1b]7000;v=1;id=terminal-1-1;exit=0\x1b\\" +
+		"\x1b]133;D;0\x07"
+	visible := "\x1b]7000;v=1;id=terminal-1-2;cwd=%2Ftmp;branch=main\x1b\\" +
+		"\x1b]133;A\x07$ \x1b]133;B\x07printf%20visible" +
+		"\x1b]7000;v=1;id=terminal-1-2;cmd=printf%20visible\x1b\\" +
+		"\x1b]133;C\x07visible\n" +
+		"\x1b]7000;v=1;id=terminal-1-2;exit=0\x1b\\" +
+		"\x1b]133;D;0\x07"
+	blocks := assembleChunks(a, dec, leaveCompletion+visible)
+	if len(blocks) != 1 {
+		t.Fatalf("blocks = %d, want only the command after alternate leave", len(blocks))
+	}
+	if blocks[0].SourceID != "terminal-1-2" || blocks[0].Command != "printf visible" || blocks[0].Cwd != "/tmp" {
+		t.Fatalf("post-alternate block = %+v", blocks[0])
+	}
+	if bytes.Contains(blocks[0].RawOutput, []byte("repaint")) {
+		t.Fatalf("repaint leaked into post-alternate block: %q", blocks[0].RawOutput)
+	}
+}
+
 func TestAssemblerAltEnterLeaveSplitAcrossChunks(t *testing.T) {
 	in := readVector(t, "extension-full-block.json")
 	a, dec := newAssembler(false)
@@ -261,7 +284,10 @@ func TestAssemblerGapDiscardsPartialAndRecovers(t *testing.T) {
 	retained := int64(4096)
 	dec.ResetAt(retained)
 
-	clean := "noise\xff after the gap" + readVector(t, "osc133-happy-path.json")
+	tornTail := "noise\xff after the gap" +
+		"\x1b]7000;v=1;id=torn-block;exit=0\x1b\\" +
+		"\x1b]133;D;0\x07"
+	clean := tornTail + readVector(t, "osc133-happy-path.json")
 	blocks := assembleChunks(a, dec, clean)
 	if len(blocks) != 1 {
 		t.Fatalf("post-gap: got %d blocks, want 1", len(blocks))
@@ -275,7 +301,7 @@ func TestAssemblerGapDiscardsPartialAndRecovers(t *testing.T) {
 	if blocks[0].StartOffset < retained {
 		t.Fatalf("post-gap block start offset %d is before the retained cursor %d", blocks[0].StartOffset, retained)
 	}
-	wantID := "osc133-epoch-1-" + strconv.Itoa(int(retained)+len("noise\xff after the gap"))
+	wantID := "osc133-epoch-1-" + strconv.Itoa(int(retained)+len(tornTail))
 	if blocks[0].SourceID != wantID {
 		t.Fatalf("post-gap source id = %q, want %q", blocks[0].SourceID, wantID)
 	}

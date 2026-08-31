@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { spawnRecipe } from "./index";
 
@@ -41,7 +42,12 @@ describe("spawnRecipe", () => {
 		const zsh = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
 		expect(zsh.argv[0]).toBe("zsh");
 		expect(zsh.argv[1]).toBe("-c");
-		expect(zsh.argv[2]).toMatch(/source "[^"]*shell\/zsh\.sh"; exec zsh$/);
+		expect(zsh.argv[2]).toMatch(
+			/source "[^"]*shell\/zsh\.sh"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR="\$\{ZDOTDIR:-\$HOME\}" ZDOTDIR="[^"]*shell\/zsh\.sh"\.d exec zsh$/,
+		);
+		const zshScript = zsh.argv[2].match(/^source "([^"]+)";/)?.[1];
+		expect(zshScript).toBeDefined();
+		expect(existsSync(`${zshScript}.d/.zshrc`)).toBe(true);
 
 		const bash = spawnRecipe("bash", { integration: "auto", suppressPrompt: false });
 		expect(bash.argv[2]).toMatch(/source "[^"]*shell\/bash\.sh"; exec bash$/);

@@ -10,10 +10,10 @@ import (
 )
 
 type vector struct {
-	Shell       string `json:"shell"`
-	Integration string `json:"integration"`
-	Suppress    bool   `json:"suppressPrompt"`
-	WantArgv    []string `json:"argv"`
+	Shell       string            `json:"shell"`
+	Integration string            `json:"integration"`
+	Suppress    bool              `json:"suppressPrompt"`
+	WantArgv    []string          `json:"argv"`
 	WantEnv     map[string]string `json:"env"`
 }
 
@@ -166,10 +166,11 @@ func TestRecipeMaterializesScript(t *testing.T) {
 	if len(argv) != 3 {
 		t.Fatalf("argv length = %d, want 3", len(argv))
 	}
-	if !strings.HasPrefix(argv[2], `source "`) || !strings.HasSuffix(argv[2], `"; exec zsh`) {
-		t.Fatalf("argv[2] = %q; want source \"...\"; exec zsh", argv[2])
+	const suffix = `"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR="${ZDOTDIR:-$HOME}" ZDOTDIR=`
+	if !strings.HasPrefix(argv[2], `source "`) || !strings.Contains(argv[2], suffix) || !strings.HasSuffix(argv[2], `.d exec zsh`) {
+		t.Fatalf("argv[2] = %q; want source plus exec zsh through the generated ZDOTDIR", argv[2])
 	}
-	scriptPath := strings.TrimSuffix(strings.TrimPrefix(argv[2], `source "`), `"; exec zsh`)
+	scriptPath := strings.SplitN(strings.TrimPrefix(argv[2], `source "`), suffix, 2)[0]
 	if !filepath.IsAbs(scriptPath) {
 		t.Fatalf("script path not absolute: %q", scriptPath)
 	}
@@ -189,6 +190,14 @@ func TestRecipeMaterializesScript(t *testing.T) {
 	mode := info.Mode().Perm()
 	if mode != 0o700 {
 		t.Errorf("script perm = %o, want 0o700", mode)
+	}
+	startupPath := filepath.Join(scriptPath+".d", ".zshrc")
+	startup, err := os.ReadFile(startupPath)
+	if err != nil {
+		t.Fatalf("read generated zsh startup: %v", err)
+	}
+	if !strings.Contains(string(startup), `source "`+scriptPath+`"`) {
+		t.Fatalf("generated zsh startup does not source %q: %q", scriptPath, startup)
 	}
 	if env["OPERATOR_TERMINAL_INTEGRATION"] != "auto" {
 		t.Errorf("env integration = %q, want auto", env["OPERATOR_TERMINAL_INTEGRATION"])

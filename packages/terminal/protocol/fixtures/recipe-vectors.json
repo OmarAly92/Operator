@@ -1,6 +1,6 @@
 {
   "shells": {
-    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; exec zsh"] },
+    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR={{script}}.d exec zsh"] },
     "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "source {{script}}; exec bash"] },
     "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
   },
@@ -9,7 +9,7 @@
       "shell": "zsh",
       "integration": "auto",
       "suppressPrompt": false,
-      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; exec zsh"],
+      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR=\"__SCRIPT__\".d exec zsh"],
       "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "0" }
     },
     {
@@ -30,7 +30,7 @@
       "shell": "zsh",
       "integration": "auto",
       "suppressPrompt": true,
-      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; exec zsh"],
+      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR=\"__SCRIPT__\".d exec zsh"],
       "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "1" }
     },
     {

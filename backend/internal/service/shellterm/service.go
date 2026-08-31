@@ -246,6 +246,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	if err != nil {
 		return ShellTerminal{}, fmt.Errorf("open shell terminal: handle id: %w", err)
 	}
+	env["OPERATOR_TERMINAL_ID"] = handleID
 
 	// SessionID is the runtime adapters' name for "what to call this PTY"; it
 	// is not a session row and no sessions record is ever created. The
