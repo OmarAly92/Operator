@@ -80,6 +80,14 @@ function lifecycleRecords() {
 	return { raw, records: parseOscRecords(raw) };
 }
 
+test("reports bash failure and Ctrl-C exit statuses", { skip: ptySkip }, () => {
+	const { records } = lifecycleRecords();
+	const exits = records
+		.filter((record) => field(record.payload, "exit") !== undefined)
+		.map((record) => field(record.payload, "exit"));
+	assert.deepEqual(exits, ["0", "0", "1", "0", "0", "130", "0", "0", "1"]);
+});
+
 test("emits one ordered bash lifecycle without DEBUG hook commands", { skip: ptySkip }, () => {
 	const { raw, records } = lifecycleRecords();
 	assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
