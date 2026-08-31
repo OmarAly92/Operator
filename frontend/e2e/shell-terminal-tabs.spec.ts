@@ -41,8 +41,8 @@ test("opens, selects, and closes standalone shell terminals from the tab strip",
 	await expect(closeButtons).toHaveCount(initialCount);
 });
 
-test("opens a terminal from the standalone view, where no session view is mounted", async ({ page }) => {
-	await page.goto(rendererURL("/#/terminals"));
+test("opens a terminal from the board, where no session view is mounted", async ({ page }) => {
+	await page.goto(rendererURL("/#/projects/opr-demo"));
 	await expect(page.getByRole("button", { name: "New terminal" })).toBeVisible();
 
 	await page.getByRole("button", { name: "New terminal" }).click();
@@ -217,7 +217,8 @@ test("restores durable shell blocks with live text, styling, metadata, and exits
 	expect(beforeReload.map((block) => block.cwd)).toEqual(["/workspace/repo", "/workspace/repo", "/workspace/repo", "/tmp"]);
 	expect(beforeReload.map((block) => block.branch)).toEqual(["main", "main", "main", null]);
 	expect(beforeReload.map((block) => block.exit)).toEqual([null, "exit 7", null, null]);
-	expect(beforeReload[3]!.runs.some((run) => run.text.includes("styled-output") && run.color !== "rgb(255, 255, 255)")).toBe(true);
+	const styledOutput = beforeReload[3]!.runs.find((run) => run.text.includes("styled-output"));
+	expect(styledOutput?.color).toBe("rgb(161, 60, 55)");
 
 	history = fixtures;
 	await page.reload();
