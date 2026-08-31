@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { haveTmux, runInPty } from "./pty.mjs";
+import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./zsh.sh", import.meta.url));
 const haveZsh = (() => {
@@ -104,4 +104,95 @@ test("leaves the user's own zle-line-init widget installed and callable", { skip
 	);
 	assert.match(out, /user-widget-ran/);
 	assert.match(out, /zle -N zle-line-init/);
+});
+
+function field(payload, name) {
+	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
+}
+
+function lifecycleRecords() {
+	const raw = runInPty(
+		"zsh -f -i",
+		[
+			`source ${bootstrap}`,
+			"true",
+			"false",
+			"printf x | grep x",
+			"for value in one two; do",
+			"print $value",
+			"done",
+			{ keys: "sleep 5" },
+			{ keys: "C-c", enter: false, waitMs: 300 },
+			"cd /tmp",
+			"true",
+			"false",
+		],
+		{ settleMs: 120, env: { OPERATOR_TERMINAL_ID: "terminal-1" } },
+	);
+	return { raw, records: parseOscRecords(raw) };
+}
+
+test("preserves ordered raw OSC records when every byte is a PTY boundary", () => {
+	const raw = "\x1b]133;A\x07\x1b]7000;v=1;id=terminal-1-1\x1b\\\x1b]133;C\x07";
+	assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), [
+		{ raw: "\x1b]133;A\x07", payload: "133;A", terminator: "BEL" },
+		{
+			raw: "\x1b]7000;v=1;id=terminal-1-1\x1b\\",
+			payload: "7000;v=1;id=terminal-1-1",
+			terminator: "ST",
+		},
+		{ raw: "\x1b]133;C\x07", payload: "133;C", terminator: "BEL" },
+	]);
+});
+
+test("emits the real zsh lifecycle for successful, failed, multiline, interrupted, and directory commands", { skip: ptySkip }, () => {
+	const { raw, records } = lifecycleRecords();
+	assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
+	const commands = records
+		.filter((record) => field(record.payload, "cmd") !== undefined)
+		.map((record) => ({ id: field(record.payload, "id"), cmd: field(record.payload, "cmd") }));
+	assert.deepEqual(commands, [
+		{ id: "terminal-1-1", cmd: "true" },
+		{ id: "terminal-1-2", cmd: "false" },
+		{ id: "terminal-1-3", cmd: "printf%20x%20%7c%20grep%20x" },
+		{
+			id: "terminal-1-4",
+			cmd: "for%20value%20in%20one%20two%3b%20do%0aprint%20$value%0adone",
+		},
+		{ id: "terminal-1-5", cmd: "sleep%205" },
+		{ id: "terminal-1-6", cmd: "cd%20/tmp" },
+		{ id: "terminal-1-7", cmd: "true" },
+		{ id: "terminal-1-8", cmd: "false" },
+	]);
+	const exits = records
+		.filter((record) => field(record.payload, "exit") !== undefined)
+		.map((record) => ({ id: field(record.payload, "id"), exit: field(record.payload, "exit") }));
+	assert.deepEqual(exits, [
+		{ id: "terminal-1-1", exit: "0" },
+		{ id: "terminal-1-2", exit: "1" },
+		{ id: "terminal-1-3", exit: "0" },
+		{ id: "terminal-1-4", exit: "0" },
+		{ id: "terminal-1-5", exit: "130" },
+		{ id: "terminal-1-6", exit: "0" },
+		{ id: "terminal-1-7", exit: "0" },
+		{ id: "terminal-1-8", exit: "1" },
+	]);
+	for (const { id } of commands) {
+		const commandIndex = records.findIndex(
+			(record) => field(record.payload, "id") === id && field(record.payload, "cmd") !== undefined,
+		);
+		const releasedIndex = records.findIndex(
+			(record, index) => index > commandIndex && record.payload === "7000;v=1;input-released=1",
+		);
+		const outputIndex = records.findIndex(
+			(record, index) => index > releasedIndex && record.payload === "133;C",
+		);
+		const exitIndex = records.findIndex(
+			(record, index) => index > outputIndex && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
+		);
+		const endIndex = records.findIndex(
+			(record, index) => index > exitIndex && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
+		);
+		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
+	}
 });
