@@ -144,6 +144,35 @@ impl BlockTree {
         }
     }
 
+    pub fn get(&self, index: usize) -> Option<&Block> {
+        let root = self.root?;
+        let total = self.nodes[root].summary().blocks;
+        if index >= total {
+            return None;
+        }
+        let mut idx = root;
+        let mut remaining = index;
+        loop {
+            match &self.nodes[idx] {
+                Node::Internal { children, .. } => {
+                    let mut next = None;
+                    for &child_idx in children {
+                        let child_blocks = self.nodes[child_idx].summary().blocks;
+                        if remaining < child_blocks {
+                            next = Some(child_idx);
+                            break;
+                        }
+                        remaining -= child_blocks;
+                    }
+                    idx = next?;
+                }
+                Node::Leaf { blocks, .. } => {
+                    return blocks.get(remaining);
+                }
+            }
+        }
+    }
+
     pub fn iter(&self) -> BlockIter<'_> {
         BlockIter {
             nodes: &self.nodes,

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use vt_core::{FindQuery, GridSnapshot, OwnedFindCursor, TerminalCore};
+use vt_core::{FindCursor, FindMatch, FindQuery, GridSnapshot, TerminalCore};
 use wasm_bindgen::prelude::*;
 
 pub fn version() -> &'static str {
@@ -407,7 +407,6 @@ impl WasmTerminalCore {
         } else {
             FindQuery::literal(query)
         };
-        let cursor = self.core.find_owned(parsed);
         let id = if let Some(reused) = self.find_free_ids.pop() {
             reused
         } else {
@@ -415,21 +414,43 @@ impl WasmTerminalCore {
             self.find_next_id = self.find_next_id.wrapping_add(1).max(1);
             id
         };
-        self.find_sessions.insert(id, FindSession::open(cursor));
+        self.find_sessions
+            .insert(id, FindSession::open(parsed));
         self.find_results.clear();
         Ok(id)
     }
 
     pub fn find_step(&mut self, id: u32, budget: usize) -> Result<(), JsError> {
+        let budget = budget.max(1);
+        let (query, next_block, results, complete) = {
+            let session = self
+                .find_sessions
+                .get_mut(&id)
+                .ok_or_else(|| JsError::new("unknown find session"))?;
+            if session.cancelled || session.complete {
+                return Ok(());
+            }
+            (
+                session.query.clone(),
+                session.next_block,
+                std::mem::take(&mut session.results),
+                session.complete,
+            )
+        };
+        let mut cursor: FindCursor<'_> =
+            self.core
+                .find_with_state(query, next_block, results, complete);
+        cursor.step(budget);
+        let (next_block, results, complete) = cursor.into_parts();
         let session = self
             .find_sessions
             .get_mut(&id)
             .ok_or_else(|| JsError::new("unknown find session"))?;
-        let budget = budget.max(1);
-        session.cursor.step(budget);
-        let new_results = session.cursor.results();
-        let mut flattened = Vec::with_capacity(new_results.len() * FIND_MATCH_WORDS);
-        for hit in new_results {
+        session.next_block = next_block;
+        session.complete = complete;
+        session.results = results;
+        let mut flattened = Vec::with_capacity(session.results.len() * FIND_MATCH_WORDS);
+        for hit in &session.results {
             checked_u32_from_u64(hit.byte_range.start as u64)
                 .map_err(|_| ExportError::FindOffsetOverflow)?;
             checked_u32_from_u64(hit.byte_range.end as u64)
@@ -457,7 +478,7 @@ impl WasmTerminalCore {
             .find_sessions
             .get(&id)
             .ok_or_else(|| JsError::new("unknown find session"))?;
-        Ok(session.cursor.is_complete())
+        Ok(session.complete)
     }
 
     pub fn find_cancel(&mut self, id: u32) -> Result<(), JsError> {
@@ -465,7 +486,8 @@ impl WasmTerminalCore {
             .find_sessions
             .get_mut(&id)
             .ok_or_else(|| JsError::new("unknown find session"))?;
-        session.cursor.cancel();
+        session.cancelled = true;
+        session.complete = true;
         self.find_free_ids.push(id);
         Ok(())
     }
@@ -491,11 +513,21 @@ impl From<ExportError> for JsError {
 }
 
 struct FindSession {
-    cursor: OwnedFindCursor,
+    query: FindQuery,
+    next_block: usize,
+    complete: bool,
+    cancelled: bool,
+    results: Vec<FindMatch>,
 }
 
 impl FindSession {
-    fn open(cursor: OwnedFindCursor) -> Self {
-        Self { cursor }
+    fn open(query: FindQuery) -> Self {
+        Self {
+            query,
+            next_block: 0,
+            complete: false,
+            cancelled: false,
+            results: Vec::new(),
+        }
     }
 }

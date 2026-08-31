@@ -45,111 +45,19 @@ pub struct FindMatch {
 /// The walker that hands the search back to the caller a budget at a time.
 /// The budget is in blocks, not rows, because the block grid is the cursor's
 /// unit of progress; a block is the renderer's primary object and the find
-/// results are bucketed by block anyway.
+/// results are bucketed by block anyway. The cursor borrows the grid, the
+/// row index, and the content; the caller is expected to drop it before
+/// the borrow's lifetime ends, which is what lets `vt-wasm` reconstruct it
+/// per call from a `&self.core` reference and stay in step with a growing
+/// scrollback.
 pub struct FindCursor<'a> {
-    blocks: Vec<Block>,
+    grid: &'a BlockGrid,
     rows: &'a RowIndex,
     content: &'a Content,
     query: FindQuery,
     next_block: usize,
     results: Vec<FindMatch>,
     complete: bool,
-}
-
-/// An owned find walker. Clones the grid, row index, and content at
-/// construction so the walker can outlive the borrowed `&self` view the
-/// `FindCursor` is tied to. Used by `vt-wasm` to hand a search across the
-/// wasm boundary without exposing a borrowing type to JavaScript.
-pub struct OwnedFindCursor {
-    blocks: Vec<Block>,
-    rows: RowIndex,
-    content: Content,
-    query: FindQuery,
-    next_block: usize,
-    results: Vec<FindMatch>,
-    complete: bool,
-}
-
-impl OwnedFindCursor {
-    pub(crate) fn new(grid: &BlockGrid, rows: &RowIndex, content: &Content, query: FindQuery) -> Self {
-        let blocks = grid.blocks().cloned().collect();
-        Self {
-            blocks,
-            rows: rows.clone(),
-            content: content.clone(),
-            query,
-            next_block: 0,
-            results: Vec::new(),
-            complete: false,
-        }
-    }
-
-    pub fn step(&mut self, budget_blocks: usize) {
-        if self.complete {
-            return;
-        }
-        for _ in 0..budget_blocks {
-            if self.next_block >= self.blocks.len() {
-                self.complete = true;
-                return;
-            }
-            let block = self.blocks[self.next_block].clone();
-            self.search_block(&block);
-            self.next_block += 1;
-        }
-        if self.next_block >= self.blocks.len() {
-            self.complete = true;
-        }
-    }
-
-    pub fn results(&self) -> &[FindMatch] {
-        &self.results
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.complete
-    }
-
-    pub fn cancel(&mut self) {
-        self.complete = true;
-    }
-
-    pub fn query(&self) -> &FindQuery {
-        &self.query
-    }
-
-    pub fn next_block(&self) -> usize {
-        self.next_block
-    }
-
-    fn search_block(&mut self, block: &Block) {
-        let byte_range = match block_byte_range(&self.rows, block) {
-            Some(range) => range,
-            None => return,
-        };
-        let bytes = self.content.copy_range(byte_range.start, byte_range.end);
-        if bytes.is_empty() {
-            return;
-        }
-        match &self.query {
-            FindQuery::Literal(needle) => search_literal(
-                &bytes,
-                needle,
-                block,
-                byte_range.start,
-                &self.rows,
-                &mut self.results,
-            ),
-            FindQuery::Regex(re) => search_regex(
-                re,
-                &bytes,
-                block,
-                byte_range.start,
-                &self.rows,
-                &mut self.results,
-            ),
-        }
-    }
 }
 
 impl<'a> FindCursor<'a> {
@@ -159,15 +67,26 @@ impl<'a> FindCursor<'a> {
         content: &'a Content,
         query: FindQuery,
     ) -> Self {
-        let blocks = grid.blocks().cloned().collect();
+        Self::with_state(grid, rows, content, query, 0, Vec::new(), false)
+    }
+
+    pub(crate) fn with_state(
+        grid: &'a BlockGrid,
+        rows: &'a RowIndex,
+        content: &'a Content,
+        query: FindQuery,
+        next_block: usize,
+        results: Vec<FindMatch>,
+        complete: bool,
+    ) -> Self {
         Self {
-            blocks,
+            grid,
             rows,
             content,
             query,
-            next_block: 0,
-            results: Vec::new(),
-            complete: false,
+            next_block,
+            results,
+            complete,
         }
     }
 
@@ -179,19 +98,14 @@ impl<'a> FindCursor<'a> {
             return;
         }
         for _ in 0..budget_blocks {
-            if self.next_block >= self.blocks.len() {
+            let Some(block) = self.grid.get(self.next_block) else {
                 self.complete = true;
                 return;
-            }
-            // Clone to release the borrow on `self.blocks` before the
-            // `search_block` call, which needs `&mut self` to push into
-            // `results`. The block is small enough that the allocation is
-            // not worth restructuring around.
-            let block = self.blocks[self.next_block].clone();
-            self.search_block(&block);
+            };
+            self.search_block(block);
             self.next_block += 1;
         }
-        if self.next_block >= self.blocks.len() {
+        if self.grid.get(self.next_block).is_none() {
             self.complete = true;
         }
     }
@@ -208,6 +122,14 @@ impl<'a> FindCursor<'a> {
     /// set of matches already collected, in walk order.
     pub fn cancel(&mut self) {
         self.complete = true;
+    }
+
+    pub fn next_block(&self) -> usize {
+        self.next_block
+    }
+
+    pub fn into_parts(self) -> (usize, Vec<FindMatch>, bool) {
+        (self.next_block, self.results, self.complete)
     }
 
     fn search_block(&mut self, block: &Block) {
@@ -321,4 +243,79 @@ fn row_for_offset(absolute: u64, rows: &RowIndex) -> usize {
         }
     }
     rows.completed().len().saturating_sub(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grid_with_blocks() -> (BlockGrid, RowIndex, Content) {
+        (BlockGrid::new(), RowIndex::new(0), Content::new())
+    }
+
+    #[test]
+    fn cursor_starts_empty_and_incomplete() {
+        let (grid, rows, content) = grid_with_blocks();
+        let cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal("anything"));
+        assert!(cursor.results().is_empty());
+        assert!(!cursor.is_complete());
+        assert_eq!(cursor.next_block(), 0);
+    }
+
+    #[test]
+    fn empty_needle_is_a_noop() {
+        let (grid, rows, content) = grid_with_blocks();
+        let mut cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal(""));
+        cursor.step(1);
+        assert!(cursor.results().is_empty());
+    }
+
+    #[test]
+    fn cancelled_cursor_is_a_noop() {
+        let (grid, rows, content) = grid_with_blocks();
+        let mut cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal("a"));
+        cursor.cancel();
+        cursor.step(1000);
+        assert!(cursor.is_complete());
+        assert!(cursor.results().is_empty());
+    }
+
+    #[test]
+    fn with_state_resumes_at_saved_offset() {
+        let (grid, rows, content) = grid_with_blocks();
+        let prior = vec![FindMatch { block: 7, row: 0, byte_range: 0..1 }];
+        let cursor = FindCursor::with_state(
+            &grid,
+            &rows,
+            &content,
+            FindQuery::literal("a"),
+            42,
+            prior.clone(),
+            false,
+        );
+        assert_eq!(cursor.next_block(), 42);
+        let results = cursor.results();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].block, 7);
+        assert_eq!(results[0].row, 0);
+        assert_eq!(results[0].byte_range, 0..1);
+    }
+
+    #[test]
+    fn into_parts_returns_state() {
+        let (grid, rows, content) = grid_with_blocks();
+        let cursor = FindCursor::with_state(
+            &grid,
+            &rows,
+            &content,
+            FindQuery::literal("a"),
+            3,
+            Vec::new(),
+            true,
+        );
+        let (next, results, complete) = cursor.into_parts();
+        assert_eq!(next, 3);
+        assert!(results.is_empty());
+        assert!(complete);
+    }
 }
