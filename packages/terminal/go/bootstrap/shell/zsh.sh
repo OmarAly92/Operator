@@ -5,12 +5,13 @@ __operator_terminal_guard() {
 
 	typeset -gr __operator_terminal_SAFE='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~/:@!$&'\'"'"'()*+,-'
 
-	typeset -gi __operator_terminal_NEXT_ID=0
+	typeset -gi __operator_terminal_COUNTER=0
 
 	autoload -Uz add-zsh-hook 2>/dev/null
 
 	__operator_terminal_input_ready() {
 		emulate -L zsh
+		print -nr -- $'\e]133;B\a'
 		print -nr -- $'\e]7000;v=1;input-ready=1\a'
 	}
 
@@ -57,25 +58,11 @@ __operator_terminal_guard() {
 
 	__operator_terminal_next_id() {
 		emulate -L zsh
-		__operator_terminal_NEXT_ID=$(( __OPERATOR_TERMINAL_LAST_ID + 1 ))
-		__OPERATOR_TERMINAL_LAST_ID=$__operator_terminal_NEXT_ID
-		local n=$__operator_terminal_NEXT_ID
-		local hex='' d
-		if (( n == 0 )); then
-			hex='0'
-		else
-			while (( n > 0 )); do
-				d=$(( n & 0x0f ))
-				case $d in
-					0) hex='0'$hex ;; 1) hex='1'$hex ;; 2) hex='2'$hex ;; 3) hex='3'$hex ;;
-					4) hex='4'$hex ;; 5) hex='5'$hex ;; 6) hex='6'$hex ;; 7) hex='7'$hex ;;
-					8) hex='8'$hex ;; 9) hex='9'$hex ;; 10) hex+='a' ;; 11) hex='b'$hex ;;
-					12) hex='c'$hex ;; 13) hex='d'$hex ;; 14) hex='e'$hex ;; 15) hex='f'$hex ;;
-				esac
-				n=$(( n >> 4 ))
-			done
-		fi
-		print -nr -- $hex
+		local handle=${OPERATOR_TERMINAL_ID:-terminal}
+		handle=${handle//[^A-Za-z0-9_-]/_}
+		[[ -n $handle ]] || handle=terminal
+		__operator_terminal_COUNTER=$(( __operator_terminal_COUNTER + 1 ))
+		__operator_terminal_CURRENT_ID="${handle}-${__operator_terminal_COUNTER}"
 	}
 
 	__operator_terminal_branch() {
@@ -89,28 +76,31 @@ __operator_terminal_guard() {
 
 	__operator_terminal_preexec() {
 		emulate -L zsh
-		__OPERATOR_TERMINAL_LAST_CMD=$1
-		print -n '\e]133;C\a'
+		local cmd=$(__operator_terminal_pct_encode "$1")
+		print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';cmd='${cmd}$'\e\\'
+		print -nr -- $'\e]7000;v=1;input-released=1\a'
+		print -nr -- $'\e]133;C\a'
+		__operator_terminal_COMMAND_RUNNING=1
 	}
 
 	__operator_terminal_precmd() {
-		emulate -L zsh
 		local __operator_terminal_status=$?
+		emulate -L zsh
 		if [[ ${OPERATOR_TERMINAL_SUPPRESS_PROMPT:-0} == 1 ]]; then
 			PROMPT=''
 			RPROMPT=''
 		fi
-		if [[ -n ${__OPERATOR_TERMINAL_LAST_CMD+x} ]]; then
-			local id cmd cwd branch
-			id=$(__operator_terminal_next_id)
-			cmd=$(__operator_terminal_pct_encode "$__OPERATOR_TERMINAL_LAST_CMD")
-			cwd=$(__operator_terminal_pct_encode "$PWD")
-			branch=$(__operator_terminal_pct_encode "$(__operator_terminal_branch)")
-			print -n -- $'\e]133;D;'${__operator_terminal_status}$'\a'
-			print -n -- $'\e]7000;v=1;id='${id}$';cmd='${cmd}$';cwd='${cwd}$';branch='${branch}$';exit='${__operator_terminal_status}$'\e\\'
-			unset __OPERATOR_TERMINAL_LAST_CMD
+		if [[ ${__operator_terminal_COMMAND_RUNNING:-0} == 1 ]]; then
+			print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';exit='${__operator_terminal_status}$'\e\\'
+			print -nr -- $'\e]133;D;'${__operator_terminal_status}$'\a'
+			unset __operator_terminal_COMMAND_RUNNING
 		fi
-		print -n $'\e]133;A\a'
+		__operator_terminal_next_id
+		local cwd branch
+		cwd=$(__operator_terminal_pct_encode "$PWD")
+		branch=$(__operator_terminal_pct_encode "$(__operator_terminal_branch)")
+		print -nr -- $'\e]7000;v=1;id='${__operator_terminal_CURRENT_ID}$';cwd='${cwd}$';branch='${branch}$'\e\\'
+		print -nr -- $'\e]133;A\a'
 	}
 
 	add-zsh-hook precmd __operator_terminal_precmd
