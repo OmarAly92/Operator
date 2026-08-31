@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	"github.com/OmarAly92/operator/backend/internal/service/shellterm"
 	"github.com/OmarAly92/operator/backend/internal/service/terminalblock"
@@ -23,9 +24,14 @@ import (
 
 const sealPollInterval = 10 * time.Millisecond
 
+type TerminalBlockPublisher interface {
+	PublishTerminalBlock(handleID string, block domain.Block)
+}
+
 type Supervisor struct {
 	capturer        ports.PaneCapturer
 	blocks          *terminalblock.Service
+	publisher       TerminalBlockPublisher
 	dataDir         string
 	shutdownTimeout time.Duration
 	log             *slog.Logger
@@ -64,6 +70,30 @@ func NewSupervisor(capturer ports.PaneCapturer, blocks *terminalblock.Service, d
 		workers:         map[string]*captureHandle{},
 		hlocks:          map[string]*sync.Mutex{},
 	}
+}
+
+func (s *Supervisor) SetBlockPublisher(p TerminalBlockPublisher) {
+	s.publisher = p
+}
+
+func (s *Supervisor) blockRecorder() terminal.BlockRecorder {
+	if s.publisher == nil {
+		return s.blocks
+	}
+	return publishingRecorder{inner: s.blocks, publisher: s.publisher}
+}
+
+type publishingRecorder struct {
+	inner     terminal.BlockRecorder
+	publisher TerminalBlockPublisher
+}
+
+func (r publishingRecorder) Record(ctx context.Context, b domain.Block) error {
+	if err := r.inner.Record(ctx, b); err != nil {
+		return err
+	}
+	r.publisher.PublishTerminalBlock(b.TerminalID, b)
+	return nil
 }
 
 func (s *Supervisor) Start(ctx context.Context, rec shellterm.ShellTerminalRecord) error {
@@ -219,7 +249,7 @@ func (s *Supervisor) spawnWorker(parent context.Context, rec shellterm.ShellTerm
 		CaptureDir:   captureDir,
 		Epoch:        epoch,
 		AlternateOn:  alternateOn,
-		Recorder:     s.blocks,
+		Recorder:     s.blockRecorder(),
 		Now:          s.now,
 		PollInterval: s.pollInterval,
 	})
@@ -246,7 +276,7 @@ func (s *Supervisor) reconcileWorker(handleID string) *terminal.CaptureWorker {
 		TerminalID:   handleID,
 		CaptureDir:   captureDir,
 		Epoch:        epoch,
-		Recorder:     s.blocks,
+		Recorder:     s.blockRecorder(),
 		Now:          s.now,
 		PollInterval: s.pollInterval,
 	})

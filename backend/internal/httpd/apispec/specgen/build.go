@@ -310,6 +310,7 @@ var schemaNames = map[string]string{
 	"ControllersShellTerminalResponse":      "ShellTerminalResponse",
 	"ControllersListShellTerminalsResponse": "ListShellTerminalsResponse",
 	"ControllersShellTerminalEnvelope":      "ShellTerminalEnvelope",
+	"ControllersTerminalBlockView":          "TerminalBlockView",
 	// httpd/controllers — PR wire envelopes
 	"ControllersMergePRRequest":          "MergePRRequest",
 	"ControllersMergePRResponse":         "MergePRResponse",
@@ -495,6 +496,10 @@ func browserOperations() []operation {
 type conversationSnapshotQuery struct {
 	BeforeSequence *int64 `query:"beforeSequence,omitempty" minimum:"1" description:"Read items older than this conversation sequence. Omit for the newest page."`
 	Limit          *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum combined messages and activities to return. Defaults to 200."`
+}
+
+type shellTerminalBlocksQuery struct {
+	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum blocks to return, oldest first. Defaults to 100."`
 }
 
 type sessionBlocksQuery struct {
@@ -857,6 +862,18 @@ func shellTerminalOperations() []operation {
 			pathParams: []any{controllers.ShellTerminalHandleIDParam{}},
 			resps: []respUnit{
 				{http.StatusNoContent, nil},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/shell-terminals/{handleId}/blocks", id: "listShellTerminalBlocks", tag: "shellTerminals",
+			summary:    "Read a shell terminal's retained raw block history, oldest first",
+			pathParams: []any{controllers.ShellTerminalHandleIDParam{}, shellTerminalBlocksQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, []controllers.TerminalBlockView{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},

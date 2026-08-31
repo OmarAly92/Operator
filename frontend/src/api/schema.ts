@@ -1584,6 +1584,23 @@ export interface paths {
         patch: operations["renameShellTerminal"];
         trace?: never;
     };
+    "/api/v1/shell-terminals/{handleId}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a shell terminal's retained raw block history, oldest first */
+        get: operations["listShellTerminalBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/sessions": {
         parameters: {
             query?: never;
@@ -2908,6 +2925,31 @@ export interface components {
              * @enum {string}
              */
             targetHarness: "claude-code" | "codex";
+        };
+        TerminalBlockView: {
+            captureEpoch: string;
+            command: string;
+            /** Format: date-time */
+            createdAt: string;
+            cwd: string;
+            /** Format: int64 */
+            endOffset: number;
+            exitCode: null | number;
+            /** Format: date-time */
+            finishedAt: string;
+            gitBranch: string;
+            rawOutput: string;
+            sessionId?: string;
+            shellKind: string;
+            shellVersion: string;
+            sourceId: string;
+            /** Format: int64 */
+            startOffset: number;
+            /** Format: date-time */
+            startedAt: string;
+            terminalId: string;
+            truncatedBytes: number;
+            truncatedLines: number;
         };
         TrackerIntakeConfig: {
             assignee?: string;
@@ -9036,6 +9078,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShellTerminalEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listShellTerminalBlocks: {
+        parameters: {
+            query?: {
+                /** @description Maximum blocks to return, oldest first. Defaults to 100. */
+                limit?: null | number;
+            };
+            header?: never;
+            path: {
+                /** @description Shell terminal runtime handle identifier. */
+                handleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalBlockView"][];
                 };
             };
             /** @description Bad Request */

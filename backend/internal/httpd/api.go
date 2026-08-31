@@ -36,16 +36,17 @@ type APIDeps struct {
 	// BlockHistory serves the persisted block-event log. Nil answers 501 rather
 	// than an empty list, so a client can tell "no blocks yet" from "this daemon
 	// cannot serve them".
-	BlockHistory       controllers.BlockEventHistory
-	UsageHooks         controllers.UsageHookRecorder
-	UsageSummary       controllers.UsageSummaryService
-	PRs                prsvc.ActionManager
-	Reviews            reviewsvc.Manager
-	Notifications      controllers.NotificationService
-	NotificationStream controllers.NotificationStream
-	Push               controllers.PushRegistry
-	Import             controllers.ImportService
-	ShellTerminals     controllers.ShellTerminalService
+	BlockHistory        controllers.BlockEventHistory
+	UsageHooks          controllers.UsageHookRecorder
+	UsageSummary        controllers.UsageSummaryService
+	PRs                 prsvc.ActionManager
+	Reviews             reviewsvc.Manager
+	Notifications       controllers.NotificationService
+	NotificationStream  controllers.NotificationStream
+	Push                controllers.PushRegistry
+	Import              controllers.ImportService
+	ShellTerminals      controllers.ShellTerminalService
+	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
 	// Conversations is nil until a Chat driver is wired; the controller then
 	// answers 501 rather than panicking, matching the other optional surfaces.
 	Conversations controllers.ConversationService
@@ -114,7 +115,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
 		push:          &controllers.PushController{Registry: deps.Push},
 		imports:       &controllers.ImportController{Svc: deps.Import},
-		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
+		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
 		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},

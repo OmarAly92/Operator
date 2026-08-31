@@ -152,6 +152,7 @@ func Run() error {
 
 	terminalBlocks := terminalblocksvc.NewService(store)
 	captureSup := capturesvc.NewSupervisor(runtimeAdapter, terminalBlocks, cfg.DataDir, cfg.ShutdownTimeout, log)
+	captureSup.SetBlockPublisher(termMgr)
 
 	// The agent messenger sends validated user input to the session's live
 	// runtime pane. Keep this path small until durable inbox semantics are needed.
@@ -403,29 +404,30 @@ func Run() error {
 	}
 
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:           projectSvc,
-		Agents:             agentSvc,
-		Sessions:           sessionSvc,
-		PRs:                prActions,
-		Reviews:            reviewSvc,
-		Notifications:      notifier,
-		NotificationStream: notificationHub,
-		Push:               pushRegistry,
-		Import:             importsvc.New(importsvc.Deps{Store: store}),
-		ShellTerminals:     shellTermSvc,
-		Conversations:      chatSvc,
-		Settings:           settingsSvc,
-		DevScan:            folderScanner,
-		DevBlockReplay:     blockevent.NewReplay(blockEvents),
-		CDC:                store,
-		Events:             cdcPipe.Broadcaster,
-		Activity:           lcStack.LCM,
-		BlockEvents:        blockEvents,
-		BlockHistory:       blockEvents,
-		UsageHooks:         usageCollector,
-		UsageSummary:       usagesvc.NewSummaryReader(store),
-		Telemetry:          telemetrySink,
-		Mobile:             mc,
+		Projects:            projectSvc,
+		Agents:              agentSvc,
+		Sessions:            sessionSvc,
+		PRs:                 prActions,
+		Reviews:             reviewSvc,
+		Notifications:       notifier,
+		NotificationStream:  notificationHub,
+		Push:                pushRegistry,
+		Import:              importsvc.New(importsvc.Deps{Store: store}),
+		ShellTerminals:      shellTermSvc,
+		ShellTerminalBlocks: terminalBlocks,
+		Conversations:       chatSvc,
+		Settings:            settingsSvc,
+		DevScan:             folderScanner,
+		DevBlockReplay:      blockevent.NewReplay(blockEvents),
+		CDC:                 store,
+		Events:              cdcPipe.Broadcaster,
+		Activity:            lcStack.LCM,
+		BlockEvents:         blockEvents,
+		BlockHistory:        blockEvents,
+		UsageHooks:          usageCollector,
+		UsageSummary:        usagesvc.NewSummaryReader(store),
+		Telemetry:           telemetrySink,
+		Mobile:              mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,

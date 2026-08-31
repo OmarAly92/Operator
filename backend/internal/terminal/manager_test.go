@@ -3,6 +3,8 @@ package terminal
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/cdc"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 )
 
 // fakeConn is an in-memory wsConn driven by channels.
@@ -697,6 +700,134 @@ func TestGridFollowsTheSoleSecondaryWhenNoPrimaryIsAttached(t *testing.T) {
 	onlyPhone := map[*connState]*termMember{phone: {cols: 100, rows: 40}}
 	if cols, rows := largestGrid(onlyPhone); cols != 100 || rows != 40 {
 		t.Fatalf("grid = %dx%d, want 100x40 — the only client rendering a grid must choose it", cols, rows)
+	}
+}
+
+func waitForTermBlockSubscriber(t *testing.T, m *Manager, handleID string) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		if m.termBlockSubscriberCount(handleID) > 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("no terminal-block subscriber for %q appeared", handleID)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+func TestPublishTerminalBlockReachesHandleSubscriberNotAgentSubscriber(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	m := NewManager(src, nil, nil)
+	t.Cleanup(m.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	termConn := newFakeConn()
+	agentConn := newFakeConn()
+	go m.Serve(ctx, termConn)
+	go m.Serve(ctx, agentConn)
+
+	termConn.in <- clientMsg{Ch: chBlocks, Type: msgSubscribe, ID: "shellterm-1", BlockType: blockTypeTerminalBlock}
+	agentConn.in <- clientMsg{Ch: chBlocks, Type: msgSubscribe, ID: "s-1"}
+	waitForTermBlockSubscriber(t, m, "shellterm-1")
+	waitForBlockSubscriber(t, m, "s-1")
+
+	exit := 2
+	m.PublishTerminalBlock("shellterm-1", domain.Block{
+		TerminalID: "shellterm-1",
+		SourceID:   "src-9",
+		Command:    "make",
+		ExitCode:   &exit,
+		RawOutput:  []byte{0x00, 0xff},
+	})
+
+	msg := recv(t, termConn, chBlocks, msgBlock, 2*time.Second)
+	if msg.ID != "shellterm-1" {
+		t.Fatalf("frame id = %q, want the runtime handle", msg.ID)
+	}
+	if msg.BlockType != blockTypeTerminalBlock {
+		t.Fatalf("blockType = %q, want %q", msg.BlockType, blockTypeTerminalBlock)
+	}
+	if msg.TerminalBlock == nil || msg.TerminalBlock.SourceID != "src-9" {
+		t.Fatalf("terminal block payload = %+v", msg.TerminalBlock)
+	}
+	if msg.TerminalBlock.RawOutput != base64.StdEncoding.EncodeToString([]byte{0x00, 0xff}) {
+		t.Fatalf("rawOutput = %q, want base64 of arbitrary bytes", msg.TerminalBlock.RawOutput)
+	}
+	if msg.Block != nil {
+		t.Fatalf("terminal-block frame must not carry the agent-event payload: %+v", msg.Block)
+	}
+
+	select {
+	case got := <-agentConn.out:
+		if got.Ch == chBlocks {
+			t.Fatalf("agent-event subscriber received a terminal-block frame: %+v", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestPublishTerminalBlockDeliversToStandaloneShellWithNoSession(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	m := NewManager(src, nil, nil)
+	t.Cleanup(m.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	conn := newFakeConn()
+	go m.Serve(ctx, conn)
+
+	conn.in <- clientMsg{Ch: chBlocks, Type: msgSubscribe, ID: "shellterm-standalone", BlockType: blockTypeTerminalBlock}
+	waitForTermBlockSubscriber(t, m, "shellterm-standalone")
+
+	m.PublishTerminalBlock("shellterm-standalone", domain.Block{
+		TerminalID: "shellterm-standalone",
+		SourceID:   "src-1",
+		SessionID:  "",
+		Command:    "ls",
+	})
+
+	msg := recv(t, conn, chBlocks, msgBlock, 2*time.Second)
+	if msg.TerminalBlock == nil || msg.TerminalBlock.SessionID != "" {
+		t.Fatalf("standalone shell block not delivered as expected: %+v", msg.TerminalBlock)
+	}
+}
+
+func TestPublishBlockEventAgentFrameStaysWireCompatible(t *testing.T) {
+	src := &fakeSource{alive: true, spawner: &fakeSpawner{}}
+	m := NewManager(src, nil, nil)
+	t.Cleanup(m.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	conn := newFakeConn()
+	go m.Serve(ctx, conn)
+	conn.in <- clientMsg{Ch: chBlocks, Type: msgSubscribe, ID: "s-1"}
+	waitForBlockSubscriber(t, m, "s-1")
+
+	rec := blockeventsvc.Record{Seq: 7, SessionID: "s-1", Kind: domain.BlockEventToolComplete, ToolName: "Bash", CreatedAt: time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)}
+	m.PublishBlockEvent("s-1", rec)
+	got := recv(t, conn, chBlocks, msgBlock, 2*time.Second)
+
+	gotJSON, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal received frame: %v", err)
+	}
+	wantJSON, err := json.Marshal(serverMsg{Ch: chBlocks, ID: "s-1", Type: msgBlock, Block: &rec})
+	if err != nil {
+		t.Fatalf("marshal golden frame: %v", err)
+	}
+	if string(gotJSON) != string(wantJSON) {
+		t.Fatalf("agent block frame changed shape:\n got %s\nwant %s", gotJSON, wantJSON)
+	}
+	if strings.Contains(string(gotJSON), `"blockType"`) {
+		t.Fatalf("agent block frame must not carry blockType: %s", gotJSON)
+	}
+	if strings.Contains(string(gotJSON), `"terminalBlock"`) {
+		t.Fatalf("agent block frame must not carry terminalBlock: %s", gotJSON)
 	}
 }
 
