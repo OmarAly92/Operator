@@ -279,6 +279,17 @@ function encode(text: string): Uint8Array {
 function emit(bytes: Uint8Array): void {
 	for (const cb of activeListeners) cb(bytes);
 }
+function historyBlock(sourceId: string, command: string, body: string, exitCode = 0): BlockTerminalHistoryBlock {
+	return {
+		sourceId,
+		rawOutput: encode(
+			`\x1b]7000;v=1;id=${sourceId};cmd=${encodeURIComponent(command)}\x07\x1b]133;C\x07${body}\n\x1b]133;D;${exitCode}\x07`,
+		),
+	};
+}
+function concatFeeds(feeds: Uint8Array[]): number[] {
+	return feeds.flatMap((chunk) => [...chunk]);
+}
 function renderTerminal(
 	options: {
 		historyBlocks?: BlockTerminalHistoryBlock[];
@@ -427,10 +438,38 @@ describe("BlockTerminal", () => {
 			<BlockTerminal
 				transport={transport}
 				sessionId="s1"
-				historyBlocks={[{ sourceId: "block-1", command: "git log", text: "commit abc", exitCode: 0 }]}
+				historyBlocks={[historyBlock("block-1", "git log", "commit abc")]}
 			/>,
 		);
 		expect(await screen.findByText(/git log/)).toBeInTheDocument();
+	});
+
+	it("feeds the exact history bytes in chronological order, then the live block", async () => {
+		const h1 = historyBlock("h1", "one", "out-1").rawOutput;
+		const h2 = encode("\x1b]7000;v=1;id=h2;cmd=two\x07\x1b]133;C\x07\x1b[31mout-2\x1b[0m\n\x1b]133;D;0\x07");
+		const h3 = Uint8Array.from([
+			0x1b, 0x5d, 0x37, 0x30, 0x30, 0x30, 0x3b, 0x76, 0x3d, 0x31, 0x3b, 0x69, 0x64, 0x3d, 0x68, 0x33,
+			0x3b, 0x63, 0x6d, 0x64, 0x3d, 0x74, 0x68, 0x72, 0x65, 0x65, 0x07, 0x00, 0x01, 0x80, 0xfe, 0xff,
+			0x1b, 0x5b, 0x33, 0x32, 0x6d, 0x0a,
+		]);
+		renderTerminal({
+			historyBlocks: [
+				{ sourceId: "h1", rawOutput: h1 },
+				{ sourceId: "h2", rawOutput: h2 },
+				{ sourceId: "h3", rawOutput: h3 },
+			],
+		});
+
+		const earlyLive = encode("\x1b]7000;v=1;id=live-a;cmd=four\x07\x1b]133;C\x07out-4\n\x1b]133;D;0\x07");
+		emit(earlyLive);
+
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThanOrEqual(4));
+		expect(concatFeeds(mockState.feeds.slice(0, 4))).toEqual([...h1, ...h2, ...h3, ...earlyLive]);
+
+		const laterLive = encode("\x1b]7000;v=1;id=live-b;cmd=five\x07\x1b]133;C\x07out-5\n\x1b]133;D;0\x07");
+		emit(laterLive);
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThanOrEqual(5));
+		expect(Array.from(mockState.feeds[4])).toEqual([...laterLive]);
 	});
 
 	it("does not duplicate a block present in both history and the live stream", async () => {
@@ -439,7 +478,7 @@ describe("BlockTerminal", () => {
 			<BlockTerminal
 				transport={transport}
 				sessionId="s1"
-				historyBlocks={[{ sourceId: "block-1", command: "git log", text: "commit abc", exitCode: 0 }]}
+				historyBlocks={[historyBlock("block-1", "git log", "commit abc")]}
 			/>,
 		);
 		emit("\x1b]133;A\x07\x1b]7000;v=1;id=block-1;cmd=git%20log\x07\x1b]133;C\x07commit abc\n\x1b]133;D;0\x07");
@@ -472,10 +511,10 @@ describe("BlockTerminal", () => {
 		expect(seen.join(",")).toContain([...bar].join(","));
 	});
 
-	it("still strips a live block that the history already carries", async () => {
+	it("upserts a reconnecting in-flight block whose sourceId was already in history", async () => {
 		const duplicate = "\u001b]7000;v=1;id=dup;cmd=ls\u0007body";
 		renderTerminal({
-			historyBlocks: [{ sourceId: "dup", command: "ls", text: "body", exitCode: 0 }],
+			historyBlocks: [historyBlock("dup", "ls", "body")],
 		});
 		await waitFor(() => {
 			const seeded = new TextDecoder().decode(

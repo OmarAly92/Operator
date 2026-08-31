@@ -25,9 +25,7 @@ export type BlockTerminalClipboard = {
 
 export type BlockTerminalHistoryBlock = {
 	sourceId: string;
-	command: string;
-	text: string;
-	exitCode: number | null;
+	rawOutput: Uint8Array;
 };
 
 export type BlockTerminalTransport = {
@@ -98,14 +96,6 @@ function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | un
 	};
 }
 
-function encodeHistoryBlock(block: BlockTerminalHistoryBlock): Uint8Array {
-	const header = `\x1b]7000;v=1;id=${block.sourceId};cmd=${encodeURIComponent(block.command)}\x07`;
-	const promptStart = "\x1b]133;A\x07";
-	const output = block.text.endsWith("\n") ? block.text : `${block.text}\n`;
-	const exit = `\x1b]133;D;${block.exitCode ?? 0}\x07`;
-	return new TextEncoder().encode(`${header}${promptStart}${output}${exit}`);
-}
-
 function isSourceIdByte(byte: number): boolean {
 	return (
 		(byte >= 0x30 && byte <= 0x39) ||
@@ -159,19 +149,22 @@ function withoutRanges(bytes: Uint8Array, ranges: readonly SourceIdMark[]): Uint
 	return out;
 }
 
-function feedToCore(
+function feedToCore(core: TerminalCore, bytes: Uint8Array, historyIds: Set<string>): void {
+	const marks = scanSourceIdMarks(bytes);
+	const reconnectsHistoryBlock = marks.some((mark) => historyIds.has(mark.id));
+	core.feed(reconnectsHistoryBlock ? withoutRanges(bytes, marks) : bytes);
+}
+
+function feedHistory(
 	core: TerminalCore,
-	bytes: Uint8Array,
-	seenLiveIds: Set<string>,
+	blocks: readonly BlockTerminalHistoryBlock[],
 	historyIds: Set<string>,
 ): void {
-	const marks = scanSourceIdMarks(bytes);
-	let hasDuplicatedLive = false;
-	for (const mark of marks) {
-		seenLiveIds.add(mark.id);
-		if (historyIds.has(mark.id)) hasDuplicatedLive = true;
+	for (const block of blocks) {
+		if (historyIds.has(block.sourceId)) continue;
+		historyIds.add(block.sourceId);
+		core.feed(block.rawOutput);
 	}
-	core.feed(hasDuplicatedLive ? withoutRanges(bytes, marks) : bytes);
 }
 
 export function BlockTerminal({
@@ -192,7 +185,8 @@ export function BlockTerminal({
 	const [altScreenActive, setAltScreenActive] = useState(false);
 	const [coreError, setCoreError] = useState<Error | null>(null);
 	const historyIdsRef = useRef<Set<string>>(new Set());
-	const seenLiveIdsRef = useRef<Set<string>>(new Set());
+	const historyBlocksRef = useRef(historyBlocks);
+	historyBlocksRef.current = historyBlocks;
 	// The WASM module loads asynchronously while the transport is already
 	// streaming. Bytes that arrive first are held here and replayed in order
 	// once the core exists, so early output is never dropped.
@@ -259,11 +253,12 @@ export function BlockTerminal({
 				});
 				created.setAgentTuiMode(agentTuiRef.current);
 				coreRef.current = created;
+				feedHistory(created, historyBlocksRef.current, historyIdsRef.current);
 				const pending = pendingBytesRef.current;
 				pendingBytesRef.current = [];
 				terminalDebug("block-terminal", "core created", { buffered: pending.length });
 				for (const bytes of pending) {
-					feedToCore(created, bytes, seenLiveIdsRef.current, historyIdsRef.current);
+					feedToCore(created, bytes, historyIdsRef.current);
 				}
 				setCore(created);
 			} catch (error) {
@@ -278,6 +273,7 @@ export function BlockTerminal({
 			created?.dispose();
 			coreRef.current = null;
 			pendingBytesRef.current = [];
+			historyIdsRef.current = new Set();
 			setCore(null);
 		};
 	}, [sessionId]);
@@ -288,11 +284,7 @@ export function BlockTerminal({
 
 	useEffect(() => {
 		if (!core) return;
-		for (const block of historyBlocks) {
-			if (historyIdsRef.current.has(block.sourceId)) continue;
-			historyIdsRef.current.add(block.sourceId);
-			core.feed(encodeHistoryBlock(block));
-		}
+		feedHistory(core, historyBlocks, historyIdsRef.current);
 	}, [core, historyBlocks]);
 
 	useEffect(() => {
@@ -319,7 +311,7 @@ export function BlockTerminal({
 				});
 			}
 			if (coreRef.current) {
-				feedToCore(coreRef.current, bytes, seenLiveIdsRef.current, historyIdsRef.current);
+				feedToCore(coreRef.current, bytes, historyIdsRef.current);
 			} else {
 				pendingBytesRef.current.push(bytes);
 			}

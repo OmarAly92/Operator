@@ -153,6 +153,7 @@ function setup({
 	attachedSession = session as WorkspaceSession | undefined,
 	isVisible = true,
 	inputDisabled = false,
+	enabled = undefined as boolean | undefined,
 } = {}) {
 	const muxes: FakeMux[] = [];
 	const createMux = () => {
@@ -165,19 +166,21 @@ function setup({
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
-	const initialProps: { daemonReady: boolean; isVisible?: boolean; inputDisabled?: boolean } = {
+	const initialProps: { daemonReady: boolean; isVisible?: boolean; inputDisabled?: boolean; enabled?: boolean } = {
 		daemonReady,
 		isVisible,
 		inputDisabled,
+		enabled,
 	};
 	const view = renderHook(
-		({ daemonReady: ready, isVisible: visible = true, inputDisabled: blocked = false }: { daemonReady: boolean; isVisible?: boolean; inputDisabled?: boolean }) =>
+		({ daemonReady: ready, isVisible: visible = true, inputDisabled: blocked = false, enabled: gate }: { daemonReady: boolean; isVisible?: boolean; inputDisabled?: boolean; enabled?: boolean }) =>
 			useTerminalSession(attachedSession, {
 				coverInitialReplay,
 				daemonReady: ready,
 				createMux,
 				inputDisabled: blocked,
 				isVisible: visible,
+				enabled: gate,
 			}),
 		{ initialProps, wrapper },
 	);
@@ -835,6 +838,38 @@ describe("useTerminalSession", () => {
 
 			expect(transportBytes.join("")).toBe("fresh");
 			expect(view.result.current.replaySettled).toBe(true);
+		});
+	});
+
+	describe("history-before-live barrier", () => {
+		it("never opens the mux while disabled", () => {
+			const { view, muxes } = setup({ enabled: false });
+			expect(view.result.current.state).toBe("connecting");
+			expect(muxes).toHaveLength(0);
+			act(() => void vi.advanceTimersByTime(10_000));
+			expect(muxes).toHaveLength(0);
+		});
+
+		it("opens the mux exactly once when the barrier is lifted", () => {
+			const { view, muxes } = setup({ enabled: false });
+			expect(muxes).toHaveLength(0);
+
+			view.rerender({ daemonReady: true, isVisible: true, inputDisabled: false, enabled: true });
+			expect(muxes).toHaveLength(1);
+			expect(muxes[0].opens).toEqual([["handle-1", 80, 24]]);
+
+			view.rerender({ daemonReady: true, isVisible: true, inputDisabled: false, enabled: true });
+			act(() => muxes[0].emitOpened("handle-1"));
+			expect(muxes).toHaveLength(1);
+			expect(view.result.current.state).toBe("attached");
+		});
+
+		it("does not attach a stale generation detached before the barrier lifted", () => {
+			const { view, muxes, detach } = setup({ enabled: false });
+			act(() => detach());
+			view.rerender({ daemonReady: true, isVisible: true, inputDisabled: false, enabled: true });
+			expect(muxes).toHaveLength(0);
+			expect(view.result.current.state).toBe("idle");
 		});
 	});
 

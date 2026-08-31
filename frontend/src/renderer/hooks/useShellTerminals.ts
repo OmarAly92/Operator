@@ -17,6 +17,7 @@ export type ShellTerminal = {
 	workingDir: string;
 	title: string;
 	createdAt: string;
+	durableBlocks?: boolean;
 };
 
 export const shellTerminalsQueryKey = ["shell-terminals"] as const;

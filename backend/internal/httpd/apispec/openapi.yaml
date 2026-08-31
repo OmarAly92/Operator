@@ -8024,6 +8024,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        durableBlocks:
+          description: True when this shell's runtime is capturing durable block history;
+            false when the platform or runtime cannot.
+          type: boolean
         handleId:
           type: string
         projectId:
@@ -8039,6 +8043,7 @@ components:
       - workingDir
       - title
       - createdAt
+      - durableBlocks
       type: object
     ShortcutBinding:
       properties:

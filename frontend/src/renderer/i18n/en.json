@@ -891,6 +891,7 @@
 	"terminal.sessionEndedNotTerminated": "This terminal process ended, but the session is not marked terminated yet.",
 	"terminal.sessionAria": "Session terminal",
 	"terminal.shellExited": "This shell exited. Close the tab, or open a new terminal.",
+	"terminal.shellHistoryUnavailable": "Couldn't load this shell's history. Live output is still connected.",
 	"terminal.shellAria": "Shell terminal",
 	"terminal.startingSession": "Starting session",
 	"terminal.tabsAria": "Open terminals",

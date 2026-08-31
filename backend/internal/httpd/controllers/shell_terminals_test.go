@@ -398,6 +398,56 @@ func TestShellTerminalsAPI_List(t *testing.T) {
 	}
 }
 
+func TestShellTerminalsAPI_ResponseCarriesDurableBlocksCapability(t *testing.T) {
+	captured := sampleShellTerminal()
+	captured.DurableBlocks = true
+	uncaptured := sampleShellTerminal()
+	uncaptured.HandleID = "shellterm-nocapture"
+	uncaptured.DurableBlocks = false
+
+	svc := &fakeShellTerminalService{
+		opened: captured,
+		listed: []shelltermsvc.ShellTerminal{captured, uncaptured},
+	}
+	srv := newShellTerminalTestServer(t, svc)
+
+	openBody, openStatus, _ := doRequest(t, srv, "POST", "/api/v1/shell-terminals", `{"projectId":"portfolio"}`)
+	if openStatus != http.StatusCreated {
+		t.Fatalf("open status = %d, want 201; body=%s", openStatus, openBody)
+	}
+	var openResp struct {
+		ShellTerminal struct {
+			DurableBlocks bool `json:"durableBlocks"`
+		} `json:"shellTerminal"`
+	}
+	mustJSON(t, openBody, &openResp)
+	if !openResp.ShellTerminal.DurableBlocks {
+		t.Errorf("open durableBlocks = false, want true when the runtime is capturing")
+	}
+
+	listBody, listStatus, _ := doRequest(t, srv, "GET", "/api/v1/shell-terminals", "")
+	if listStatus != http.StatusOK {
+		t.Fatalf("list status = %d, want 200; body=%s", listStatus, listBody)
+	}
+	var listResp struct {
+		ShellTerminals []struct {
+			HandleID      string `json:"handleId"`
+			DurableBlocks bool   `json:"durableBlocks"`
+		} `json:"shellTerminals"`
+	}
+	mustJSON(t, listBody, &listResp)
+	got := map[string]bool{}
+	for _, term := range listResp.ShellTerminals {
+		got[term.HandleID] = term.DurableBlocks
+	}
+	if !got["shellterm-abc123"] {
+		t.Errorf("list: captured handle reported durableBlocks=false")
+	}
+	if got["shellterm-nocapture"] {
+		t.Errorf("list: uncaptured handle reported durableBlocks=true")
+	}
+}
+
 func TestShellTerminalsAPI_CloseReturnsNoContent(t *testing.T) {
 	svc := &fakeShellTerminalService{}
 	srv := newShellTerminalTestServer(t, svc)

@@ -2815,6 +2815,8 @@ export interface components {
         ShellTerminalResponse: {
             /** Format: date-time */
             createdAt: string;
+            /** @description True when this shell's runtime is capturing durable block history; false when the platform or runtime cannot. */
+            durableBlocks: boolean;
             handleId: string;
             projectId?: string;
             sessionId?: string;

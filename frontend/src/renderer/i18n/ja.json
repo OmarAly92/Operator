@@ -900,6 +900,7 @@
 	"terminal.sessionEndedNotTerminated": "このターミナルプロセスは終了しましたが、セッションはまだ終了済みとマークされていません。",
 	"terminal.sessionAria": "セッションターミナル",
 	"terminal.shellExited": "このシェルは終了しました。タブを閉じるか、新しいターミナルを開いてください。",
+	"terminal.shellHistoryUnavailable": "このシェルの履歴を読み込めませんでした。ライブ出力は接続されたままです。",
 	"terminal.shellAria": "シェルターミナル",
 	"terminal.startingSession": "セッションを開始中",
 	"terminal.tabsAria": "開いているターミナル",
