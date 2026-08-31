@@ -297,3 +297,24 @@ func TestRunTailsSinkUntilCancel(t *testing.T) {
 		t.Fatal("Run did not return after cancel")
 	}
 }
+
+func TestCaptureRecordsInFlightBlockWhenAltScreenEnteredBeforeCommandEnd(t *testing.T) {
+	rec := &fakeRecorder{}
+	cap := NewCapture("", "sess-1", rec)
+	fix := loadVector(t, "extension-full-block.json")
+
+	commandEnd := "\x1b]133;D;0\x07"
+	prefix := strings.TrimSuffix(fix.Input, commandEnd)
+	altEnter := "\x1b[?1049h"
+
+	if err := cap.Drain(context.Background(), strings.NewReader(prefix+altEnter+commandEnd)); err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks, want 1 (in-flight block must complete on command_end even after alt-screen enter): %+v", len(got), got)
+	}
+	if got[0].Block.Command != "ls -la" {
+		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
+	}
+}

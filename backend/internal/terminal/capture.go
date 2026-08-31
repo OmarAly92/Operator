@@ -248,8 +248,6 @@ func (s *blockState) apply(ctx context.Context, sessionID string, rec BlockEvent
 	if ev.Kind == "alt_screen_enter" {
 		if !s.altScreen {
 			s.altScreen = true
-			s.promptOpen = false
-			s.commandOpen = false
 		}
 		return false, nil
 	}
@@ -257,7 +255,7 @@ func (s *blockState) apply(ctx context.Context, sessionID string, rec BlockEvent
 		s.altScreen = false
 		return true, nil
 	}
-	if s.altScreen {
+	if s.altScreen && ev.Kind != "command_end" {
 		return false, nil
 	}
 	switch ev.Kind {
