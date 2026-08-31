@@ -95,6 +95,7 @@ var shippedMigrations = map[int64]string{
 	89: "0089_preview_open_ack.sql",
 	90: "0090_block_events.sql",
 	91: "0091_block_event_tool_input.sql",
+	92: "0092_terminal_blocks.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

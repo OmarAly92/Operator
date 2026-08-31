@@ -483,6 +483,27 @@ type TelemetryEvent struct {
 	PayloadJson string
 }
 
+type TerminalBlock struct {
+	TerminalID     string
+	SourceID       string
+	SessionID      string
+	Command        string
+	Cwd            string
+	GitBranch      string
+	ExitCode       sql.NullInt64
+	RawOutput      []byte
+	StartedAt      sql.NullTime
+	FinishedAt     time.Time
+	ShellKind      string
+	ShellVersion   string
+	TruncatedLines int64
+	TruncatedBytes int64
+	CaptureEpoch   string
+	StartOffset    int64
+	EndOffset      int64
+	CreatedAt      time.Time
+}
+
 type UsageBinding struct {
 	ID             int64
 	SessionID      domain.SessionID
