@@ -36,24 +36,26 @@ type ShellBlock struct {
 }
 
 type Capture struct {
-	Path         string
-	MaxBytes     int64
-	PollInterval time.Duration
-	SessionID    string
-	Recorder     BlockEventRecorder
-	decoder      *marks.Decoder
-	state        *blockState
+	Path              string
+	MaxBytes          int64
+	PollInterval      time.Duration
+	SessionID         string
+	Recorder          BlockEventRecorder
+	StartedInAltScreen bool
+	decoder           *marks.Decoder
+	state             *blockState
 }
 
 func NewCapture(path, sessionID string, rec BlockEventRecorder) *Capture {
 	return &Capture{
-		Path:         path,
-		MaxBytes:     defaultMaxCaptureBytes,
-		PollInterval: defaultPollInterval,
-		SessionID:    sessionID,
-		Recorder:     rec,
-		decoder:      marks.NewDecoder(),
-		state:        newBlockState(),
+		Path:              path,
+		MaxBytes:          defaultMaxCaptureBytes,
+		PollInterval:      defaultPollInterval,
+		SessionID:         sessionID,
+		Recorder:          rec,
+		StartedInAltScreen: false,
+		decoder:           marks.NewDecoder(),
+		state:             newBlockState(false),
 	}
 }
 
@@ -69,6 +71,10 @@ func OpenSink(path string) (*os.File, error) {
 }
 
 func (c *Capture) Drain(ctx context.Context, r io.Reader) error {
+	if !c.state.bound {
+		*c.state = blockState{altScreen: c.StartedInAltScreen}
+		c.state.bound = true
+	}
 	buf := make([]byte, 16*1024)
 	br := bufio.NewReader(r)
 	for {
@@ -223,11 +229,30 @@ type blockState struct {
 	currentID     string
 	startedAt     time.Time
 	tier1Only     bool
+	altScreen     bool
+	bound         bool
 }
 
-func newBlockState() *blockState { return &blockState{} }
+func newBlockState(startedInAltScreen bool) *blockState {
+	return &blockState{altScreen: startedInAltScreen}
+}
 
 func (s *blockState) apply(ctx context.Context, sessionID string, rec BlockEventRecorder, ev marks.Event) (emitted bool, err error) {
+	if ev.Kind == "alt_screen_enter" {
+		if !s.altScreen {
+			s.altScreen = true
+			s.promptOpen = false
+			s.commandOpen = false
+		}
+		return false, nil
+	}
+	if ev.Kind == "alt_screen_leave" {
+		s.altScreen = false
+		return true, nil
+	}
+	if s.altScreen {
+		return false, nil
+	}
 	switch ev.Kind {
 	case "prompt_start":
 		s.promptOpen = true

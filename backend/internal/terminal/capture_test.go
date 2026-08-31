@@ -125,6 +125,75 @@ func TestCaptureHandlesMarkSplitAcrossFeeds(t *testing.T) {
 	}
 }
 
+func TestCaptureSuspendsBlocksWhenAltScreenEnteredAfterStart(t *testing.T) {
+	rec := &fakeRecorder{}
+	cap := NewCapture("", "sess-1", rec)
+	fix := loadVector(t, "extension-full-block.json")
+
+	altEnter := "\x1b[?1049h"
+	altLeave := "\x1b[?1049l"
+	inside := altEnter + fix.Input + altLeave
+
+	if err := cap.Drain(context.Background(), strings.NewReader(inside)); err != nil {
+		t.Fatalf("Drain (inside): %v", err)
+	}
+	if got := rec.snapshot(); len(got) != 0 {
+		t.Fatalf("recorded %d blocks during alt-screen, want 0: %+v", len(got), got)
+	}
+
+	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
+		t.Fatalf("Drain (after leave): %v", err)
+	}
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks after alt-screen leave, want 1: %+v", len(got), got)
+	}
+	if got[0].Block.Command != "ls -la" {
+		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
+	}
+}
+
+func TestCaptureSuspendsBlocksWhenAltScreenEnteredBeforeStart(t *testing.T) {
+	rec := &fakeRecorder{}
+	cap := NewCapture("", "sess-1", rec)
+	cap.StartedInAltScreen = true
+	fix := loadVector(t, "extension-full-block.json")
+
+	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
+		t.Fatalf("Drain (inside): %v", err)
+	}
+	if got := rec.snapshot(); len(got) != 0 {
+		t.Fatalf("recorded %d blocks during alt-screen, want 0: %+v", len(got), got)
+	}
+
+	altLeave := "\x1b[?1049l"
+	if err := cap.Drain(context.Background(), strings.NewReader(altLeave+fix.Input)); err != nil {
+		t.Fatalf("Drain (after leave): %v", err)
+	}
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks after alt-screen leave, want 1: %+v", len(got), got)
+	}
+	if got[0].Block.Command != "ls -la" {
+		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
+	}
+}
+
+func TestCaptureIgnoresUnmatchedAltScreenLeave(t *testing.T) {
+	rec := &fakeRecorder{}
+	cap := NewCapture("", "sess-1", rec)
+	fix := loadVector(t, "extension-full-block.json")
+
+	altLeave := "\x1b[?1049l"
+	if err := cap.Drain(context.Background(), strings.NewReader(altLeave+fix.Input)); err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks, want 1 (unmatched leave must not enter alt-screen): %+v", len(got), got)
+	}
+}
+
 func TestCaptureRotatesSinkFromHeadOnBlockBoundary(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "capture.log")
