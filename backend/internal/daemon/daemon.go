@@ -151,12 +151,7 @@ func Run() error {
 	blockEvents := blockevent.NewService(store, termMgr, 500)
 
 	terminalBlocks := terminalblocksvc.NewService(store)
-	var captureSup *capturesvc.Supervisor
-	if paneCapturer, ok := runtimeAdapter.(ports.PaneCapturer); ok {
-		captureSup = capturesvc.NewSupervisor(paneCapturer, terminalBlocks, cfg.DataDir, cfg.ShutdownTimeout, log)
-	} else {
-		log.Warn("shell block capture disabled: selected runtime is not a PaneCapturer")
-	}
+	captureSup := capturesvc.NewSupervisor(runtimeAdapter, terminalBlocks, cfg.DataDir, cfg.ShutdownTimeout, log)
 
 	// The agent messenger sends validated user input to the session's live
 	// runtime pane. Keep this path small until durable inbox semantics are needed.
@@ -512,13 +507,11 @@ func Run() error {
 		<-usageDone
 	}
 	lcStack.Stop()
-	if captureSup != nil {
-		captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
-		if err := captureSup.DrainAndDetach(captureStopCtx); err != nil {
-			log.Error("shell block capture drain-and-detach", "err", err)
-		}
-		captureCancel()
+	captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	if err := captureSup.DrainAndDetach(captureStopCtx); err != nil {
+		log.Error("shell block capture drain-and-detach", "err", err)
 	}
+	captureCancel()
 	lanStopCtx, lanCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer lanCancel()
 	if err := lan.Stop(lanStopCtx); err != nil {

@@ -713,6 +713,16 @@ func (r *selectableRuntime) SendMessage(context.Context, ports.RuntimeHandle, st
 	return nil
 }
 
+func (r *selectableRuntime) CaptureState(context.Context, ports.RuntimeHandle) (ports.PaneCaptureState, error) {
+	return ports.PaneCaptureState{}, nil
+}
+
+func (r *selectableRuntime) StartCapture(context.Context, ports.RuntimeHandle, []string) error {
+	return nil
+}
+
+func (r *selectableRuntime) StopCapture(context.Context, ports.RuntimeHandle) error { return nil }
+
 func writeFakeExecutable(t *testing.T, path string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {

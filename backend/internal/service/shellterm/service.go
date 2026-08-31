@@ -38,6 +38,7 @@ type ProjectRootLocator interface {
 type BlockCaptureLifecycle interface {
 	Start(context.Context, ShellTerminalRecord) error
 	StopAndDrain(context.Context, string) error
+	Capturing(handleID string) bool
 }
 
 // SessionWorkspaceLocator resolves a session id to the workspace it is
@@ -282,20 +283,16 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	}
 
 	out := shellTerminalFromRecord(rec)
-	out.DurableBlocks = true
 	if s.capture != nil {
-		if startErr := s.capture.Start(ctx, rec); startErr != nil {
-			if errors.Is(startErr, ports.ErrCaptureUnsupported) {
-				out.DurableBlocks = false
-			} else {
-				if stillAlive, _ := s.destroyConfirmed(context.WithoutCancel(ctx), handle.ID); stillAlive {
-					s.log.Warn("shell terminal: capture start failed and runtime would not die",
-						"handleId", handle.ID)
-				}
-				return ShellTerminal{}, fmt.Errorf("open shell terminal %s: start capture: %w", handle.ID, startErr)
+		if startErr := s.capture.Start(ctx, rec); startErr != nil && !errors.Is(startErr, ports.ErrCaptureUnsupported) {
+			if stillAlive, _ := s.destroyConfirmed(context.WithoutCancel(ctx), handle.ID); stillAlive {
+				s.log.Warn("shell terminal: capture start failed and runtime would not die",
+					"handleId", handle.ID)
 			}
+			return ShellTerminal{}, fmt.Errorf("open shell terminal %s: start capture: %w", handle.ID, startErr)
 		}
 	}
+	out.DurableBlocks = s.capturing(handle.ID)
 
 	s.log.Info("shell terminal opened", "handleId", handle.ID, "workingDir", workingDir, "durableBlocks", out.DurableBlocks)
 	return out, nil
@@ -327,7 +324,9 @@ func (s *Service) RenameShellTerminal(ctx context.Context, handleID, title strin
 		return ShellTerminal{}, apierr.NotFound("SHELL_TERMINAL_NOT_FOUND", "No such shell terminal: "+handleID)
 	}
 	s.log.Info("shell terminal renamed", "handleId", handleID)
-	return shellTerminalFromRecord(rec), nil
+	out := shellTerminalFromRecord(rec)
+	out.DurableBlocks = s.capturing(handleID)
+	return out, nil
 }
 
 // CloseShellTerminal destroys a shell's PTY and forgets it — but only once
@@ -394,9 +393,15 @@ func (s *Service) ListShellTerminalsForCurrentAppRun(ctx context.Context) ([]She
 	}
 	out := make([]ShellTerminal, 0, len(recs))
 	for _, rec := range recs {
-		out = append(out, shellTerminalFromRecord(rec))
+		dto := shellTerminalFromRecord(rec)
+		dto.DurableBlocks = s.capturing(rec.HandleID)
+		out = append(out, dto)
 	}
 	return out, nil
+}
+
+func (s *Service) capturing(handleID string) bool {
+	return s.capture != nil && s.capture.Capturing(handleID)
 }
 
 func (s *Service) LiveShellTerminalRecordsForCurrentAppRun(ctx context.Context) ([]ShellTerminalRecord, error) {

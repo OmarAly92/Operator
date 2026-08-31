@@ -92,11 +92,15 @@ func (s *Supervisor) Start(ctx context.Context, rec shellterm.ShellTerminalRecor
 func (s *Supervisor) Adopt(ctx context.Context, recs []shellterm.ShellTerminalRecord) error {
 	var errs []error
 	for _, rec := range recs {
-		if err := s.adoptOne(ctx, rec); err != nil {
+		if err := s.adoptOne(ctx, rec); err != nil && !errors.Is(err, ports.ErrCaptureUnsupported) {
 			errs = append(errs, fmt.Errorf("%s: %w", rec.HandleID, err))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (s *Supervisor) Capturing(handleID string) bool {
+	return s.hasWorker(handleID)
 }
 
 func (s *Supervisor) adoptOne(ctx context.Context, rec shellterm.ShellTerminalRecord) error {
@@ -110,9 +114,6 @@ func (s *Supervisor) adoptOne(ctx context.Context, rec shellterm.ShellTerminalRe
 	handle := ports.RuntimeHandle{ID: rec.HandleID}
 	state, err := s.capturer.CaptureState(ctx, handle)
 	if err != nil {
-		if errors.Is(err, ports.ErrCaptureUnsupported) {
-			return nil
-		}
 		return fmt.Errorf("capture state: %w", err)
 	}
 
@@ -180,23 +181,30 @@ func (s *Supervisor) DrainAndDetach(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
 	defer cancel()
 
+	type entry struct {
+		id string
+		h  *captureHandle
+	}
 	s.mu.Lock()
-	handles := make([]*captureHandle, 0, len(s.workers))
-	for _, h := range s.workers {
-		handles = append(handles, h)
+	entries := make([]entry, 0, len(s.workers))
+	for id, h := range s.workers {
+		entries = append(entries, entry{id: id, h: h})
 	}
 	s.mu.Unlock()
 
 	var errs []error
-	for _, h := range handles {
-		if err := h.worker.Drain(ctx, false); err != nil {
+	for _, e := range entries {
+		if err := e.h.worker.Drain(ctx, false); err != nil {
 			errs = append(errs, err)
 		}
-		h.cancel()
+		e.h.cancel()
 	}
-	for _, h := range handles {
+	for _, e := range entries {
 		select {
-		case <-h.done:
+		case <-e.h.done:
+			s.mu.Lock()
+			delete(s.workers, e.id)
+			s.mu.Unlock()
 		case <-ctx.Done():
 			errs = append(errs, ctx.Err())
 		}

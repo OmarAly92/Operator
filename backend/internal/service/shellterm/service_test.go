@@ -215,6 +215,7 @@ type fakeCaptureLifecycle struct {
 	log         *callLog
 	started     []string
 	stopped     []string
+	live        map[string]bool
 	startErr    error
 	stopErr     error
 	unsupported bool
@@ -226,13 +227,28 @@ func (f *fakeCaptureLifecycle) Start(_ context.Context, rec ShellTerminalRecord)
 	if f.unsupported {
 		return ports.ErrCaptureUnsupported
 	}
-	return f.startErr
+	if f.startErr != nil {
+		return f.startErr
+	}
+	if f.live == nil {
+		f.live = map[string]bool{}
+	}
+	f.live[rec.HandleID] = true
+	return nil
 }
 
 func (f *fakeCaptureLifecycle) StopAndDrain(_ context.Context, handleID string) error {
 	f.stopped = append(f.stopped, handleID)
 	f.log.add("stopdrain:" + handleID)
-	return f.stopErr
+	if f.stopErr != nil {
+		return f.stopErr
+	}
+	delete(f.live, handleID)
+	return nil
+}
+
+func (f *fakeCaptureLifecycle) Capturing(handleID string) bool {
+	return f.live[handleID]
 }
 
 func newTestService(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator) *Service {
@@ -1387,5 +1403,54 @@ func TestBeginSessionTeardownFailedDrainPreservesRowAndBlocksWorktree(t *testing
 	}
 	if len(st.records) != 1 {
 		t.Fatalf("records = %+v, want the row preserved", st.records)
+	}
+}
+
+func TestOpenShellTerminalNilCaptureReportsNoDurableBlocks(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, nil)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if term.DurableBlocks {
+		t.Fatal("DurableBlocks = true with no capture lifecycle wired; want false")
+	}
+}
+
+func TestListAndRenameReflectLiveCaptureState(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-captured", AppRunID: testAppRunID, WorkingDir: "/a", Title: "a"},
+		{HandleID: "shellterm-uncaptured", AppRunID: testAppRunID, WorkingDir: "/b", Title: "b"},
+	}}
+	rt.aliveByHandle["shellterm-captured"] = true
+	rt.aliveByHandle["shellterm-uncaptured"] = true
+	cap := &fakeCaptureLifecycle{log: &callLog{}, live: map[string]bool{"shellterm-captured": true}}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, cap)
+
+	list, err := svc.ListShellTerminalsForCurrentAppRun(context.Background())
+	if err != nil {
+		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)
+	}
+	got := map[string]bool{}
+	for _, term := range list {
+		got[term.HandleID] = term.DurableBlocks
+	}
+	if !got["shellterm-captured"] {
+		t.Error("list: captured handle reported DurableBlocks=false")
+	}
+	if got["shellterm-uncaptured"] {
+		t.Error("list: uncaptured handle reported DurableBlocks=true")
+	}
+
+	renamed, err := svc.RenameShellTerminal(context.Background(), "shellterm-captured", "logs")
+	if err != nil {
+		t.Fatalf("RenameShellTerminal: %v", err)
+	}
+	if !renamed.DurableBlocks {
+		t.Error("rename: captured handle reported DurableBlocks=false")
 	}
 }

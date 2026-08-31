@@ -19,8 +19,7 @@ import (
 //
 // The sweep runs at boot, before the server serves, for the same reason session
 // reconciliation does: a client that connects first would otherwise see — and
-// try to attach to — shells belonging to an app that is already gone. It then
-// hands the current run's surviving shells to the capture supervisor to adopt.
+// try to attach to — shells belonging to an app that is already gone.
 func startShellTerminals(
 	ctx context.Context,
 	cfg config.Config,

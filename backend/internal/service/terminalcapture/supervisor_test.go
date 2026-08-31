@@ -559,3 +559,52 @@ func TestStopAndDrainMidDrainRecordFailure(t *testing.T) {
 		t.Fatalf("cursor advanced to %d, past the 1st block's end %d", off, len(b1))
 	}
 }
+
+func TestCapturingReflectsWorkerMembership(t *testing.T) {
+	cap := newFakeCapturer(nil)
+	cap.sealOnStop = true
+	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+
+	if sup.Capturing("shellterm-h1") {
+		t.Fatal("Capturing = true before any Start")
+	}
+	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !sup.Capturing("shellterm-h1") {
+		t.Fatal("Capturing = false after Start registered a worker")
+	}
+	if sup.Capturing("shellterm-other") {
+		t.Fatal("Capturing = true for a handle with no worker")
+	}
+
+	captureDir := sup.captureDir("shellterm-h1")
+	writeJournalAt(t, filepath.Join(captureDir, testEpoch), true, []byte(block("cmd", "out", 0)))
+	if err := sup.StopAndDrain(context.Background(), "shellterm-h1"); err != nil {
+		t.Fatalf("StopAndDrain: %v", err)
+	}
+	if sup.Capturing("shellterm-h1") {
+		t.Fatal("Capturing = true after StopAndDrain removed the worker")
+	}
+}
+
+func TestDrainAndDetachIsIdempotentAndPrompt(t *testing.T) {
+	cap := newFakeCapturer(nil)
+	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+
+	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	writeJournalAt(t, filepath.Join(sup.captureDir("shellterm-h1"), testEpoch), true, []byte(block("cmd", "out", 0)))
+
+	if err := sup.DrainAndDetach(context.Background()); err != nil {
+		t.Fatalf("first DrainAndDetach: %v", err)
+	}
+	start := time.Now()
+	if err := sup.DrainAndDetach(context.Background()); err != nil {
+		t.Fatalf("second DrainAndDetach: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("second DrainAndDetach took %s; a repeat call must not re-wait workers", elapsed)
+	}
+}
