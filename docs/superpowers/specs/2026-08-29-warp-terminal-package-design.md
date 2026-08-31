@@ -698,11 +698,20 @@ vectors MUST cover every row.
 
 ### 7.5 The Go decoder's narrow job
 
-`go/marks` finds boundaries and extracts fields from a byte stream. It does not
-maintain a grid, does not render, does not track alt-screen cell state beyond the
-enter/leave signal, and does not own block layout. The daemon uses it to record which
-bytes belong to which block so a session with no client attached still has scrollback.
-Full parsing happens only where pixels happen.
+`packages/terminal/go/marks` turns the stream into lossless raw spans with absolute byte
+offsets as well as decoded mark fields. `StreamDecoder.Feed`, `Flush`, and `ResetAt`
+preserve every byte in a contiguous journal run, including ordinary terminal controls
+and incomplete sequences at a sealed end. The daemon records the resulting
+`CaptureCursor` (`epoch`, segment, offset) only after a completed block commits, so it
+can replay an earlier cursor idempotently after a restart.
+
+The decoder does not maintain a grid, render, or own block layout. The capture worker
+feeds its raw spans to the block assembler; that worker uses journal gaps to abandon the
+partial block, resets the decoder at the retained cursor, and resumes at the next valid
+prompt. A gap deliberately does not reset the assembler's alternate-screen state: if an
+unobserved leave sequence was lost, capture stays suppressed until a later leave rather
+than risk storing TUI repaint bytes. Full terminal rendering still happens where pixels
+happen.
 
 ### 7.6 Conformance and fuzzing
 
@@ -1073,53 +1082,64 @@ key-matched. That is Operator's task in the integration phase, not the package's
 
 ### 13.1 Relationship to plan 7
 
-`docs/superpowers/plans/2026-08-28-shell-blocks.md` stands for its backend half and is
-superseded for its frontend half.
+`docs/superpowers/plans/2026-08-28-shell-blocks.md` is historical. Its backend tasks are
+superseded by the shipped lifecycle plan
+[`2026-08-31-shell-blocks-daemon.md`](../plans/2026-08-31-shell-blocks-daemon.md).
 
-**Survives, and this spec depends on it:**
-- `tmux pipe-pane` as the server-side capture path. Plan 7's analysis is correct and is
-  not reopened: `newAttachment` is per-client
-  (`backend/internal/terminal/manager.go:448`, `backend/internal/terminal/doc.go:11`),
-  so parsing at `attachment.onData` duplicates blocks with two clients attached and
-  produces none with zero attached.
-- A second entry point on `blockevent`, not an overload of
-  `ports.ActivitySignal`. `backend/internal/service/blockevent/types.go:11-17` already
-  documents that `SourceID` will be "a shell mark's counter later"; that is this. Do
-  not bend `ActivitySignal` — `backend/internal/ports/runtime_observations.go:41+` is
-  hook-shaped and a `ToolUseID` holding a command counter is a lie that costs a week.
-- Alt-screen tracking in the daemon's parse pass.
-- Windows gets no shell blocks and says so.
+**The production boundary this spec depends on:**
+- `tmux pipe-pane` is the server-side capture path. Capture must not read a client
+  attachment: attachment delivery is per client, while durable capture must exist with
+  zero clients and must not duplicate work with two.
+- The stream is captured once, outside client attachments.
+- Windows gets a working raw ConPTY terminal with `durableBlocks: false`; it does not
+  pretend that shell-block history exists.
 
-**Superseded:** plan 7's block rendering, block viewport, composer and find tasks in the
-renderer. Those are this package's phases 1–4.
-
-**Action:** when planning phase 1, rewrite plan 7 as the backend-only plan it should
-have been rather than executing it and then undoing its frontend half.
+**Superseded:** the execution steps in the 2026-08-28 plan. Use the amended lifecycle
+plan above for the current implementation boundary.
 
 ### 13.2 The daemon's job
 
-1. Ask the package for a `SpawnRecipe` (via a small Go-side accessor over
-   `packages/terminal/shell/`) and spawn the session's shell with it.
-2. `tmux pipe-pane` the session's output into a reader using `go/marks`.
-3. Record block boundaries and their bytes through `blockevent.Service`, with
-   `SourceID` = the mark's block id.
-4. Suspend capture between alt-screen enter and leave.
-5. Publish on the existing `blocks` mux channel — `frontend/src/renderer/lib/terminal-mux.ts:12`
-   documents it and `:75-80` are the subscribe/unsubscribe frames. No new channel.
+1. The shell runtime starts `opr pane-capture --dir <daemon-resolved journal directory>
+   --epoch <uuid>` through tmux `pipe-pane`. The helper owns rotation: one active 1 MiB
+   `.open` segment, at most eight sealed `.ready` segments, `gap.json` before pruning,
+   and a manifest when it seals. It remains running while the daemon is down.
+2. The tmux adapter reads `#{pane_pipe}` and `#{alternate_on}` together before capture.
+   `pipe-pane -o` is a toggle, not an atomic start-if-absent operation: the
+   `#{pane_pipe}` guard supplies idempotency, while the supervisor serializes start and
+   stop per handle. Adoption does not start a second helper when a live pane already
+   has a pipe.
+3. `terminalcapture.Supervisor` owns worker lifecycle. On boot it reaps prior-run
+   terminals, checks current-run liveness, and adopts each live capture; an existing
+   pipe resumes its epoch, otherwise a fresh epoch starts. It seeds alternate-screen
+   state before consuming bytes and excludes repaint payload while alternate mode is on.
+4. `terminal_blocks` stores the assembled raw replay and lifecycle metadata. Cursor
+   checkpoints advance only after the corresponding record commits; replaying an older
+   cursor upserts rather than duplicates. The service retains the newest 100 blocks per
+   terminal and the newest 5,000 output lines per block, with an additional 8 MiB raw
+   byte safety cap and recorded omission counts.
+5. `GET /api/v1/shell-terminals/{handleId}/blocks?limit=100` returns chronological,
+   terminal-handle-keyed raw history. Committed blocks can also be published on the
+   existing `blocks` mux channel with `blockType: "terminal_block"`, keyed by handle.
+6. Explicit close stops the pipe, waits for the helper to seal, drains the journal,
+   persists completed/final blocks and the cursor, then destroys the runtime. Graceful
+   daemon shutdown drains and detaches without stopping live pipes; adoption on the next
+   boot consumes the remaining journal bytes.
 
 ### 13.3 The renderer's job
 
-`TerminalPane.tsx` mounts `@operator/terminal-react` instead of `XtermTerminal`
-directly, passing a `PtyTransport` backed by the existing mux terminal channel, the
-skin-derived theme, the host capabilities Operator already has (clipboard, external
-link policy at `frontend/src/renderer/lib/external-link-policy.ts`), and
-`XtermTerminal` as the alt-screen surface.
+`TerminalPane.tsx` uses `BlockTerminal` for the block surface and retains the existing
+mux terminal attachment for live terminal bytes. `useTerminalSession` accepts an
+`enabled` gate so a shell terminal can finish restoring durable history before it opens
+that attachment.
 
-Live blocks come from the package's own parse of the stream it is already receiving.
-History (blocks from before this client attached) comes from
-`GET /sessions/{id}/blocks` and is fed into the core as pre-parsed blocks. Both paths
-must converge on the same `BlockId` — that is why block id continuity is a Tier-2 field
-(§7.2).
+For a shell terminal, the frontend loads
+`GET /api/v1/shell-terminals/{handleId}/blocks?limit=100` first and feeds each decoded
+`rawOutput` replay into a fresh core in chronological order. Only after that history
+barrier does it attach the live mux stream, so live bytes are newer than the restored
+snapshot. The history endpoint is terminal-handle keyed; the existing session
+block-event endpoint is not shell-block history and does not return pre-parsed shell
+blocks. Tier-2 IDs remain an in-flight reconnect upsert aid, not a cross-barrier replay
+deduplication mechanism.
 
 **What landed 2026-08-30, and the three host-side rules it settled.**
 
@@ -1150,10 +1170,11 @@ the first frames, which is what "the terminal not showing full" was.
 Per plan 7's settled decision 3, one session has exactly one terminal surface. Two
 separate removals land in this phase.
 
-**13.4.1 The shell-terminal tabs.** These go: `ShellTerminalsView.tsx` (180 lines),
-`ShellTerminalTab.tsx` (194), `useShellTerminals.ts`, the `CenterPane` tab strip, the
-`/terminals` route (`frontend/src/renderer/routes/_shell.terminals.tsx`) and
-`frontend/e2e/shell-terminal-tabs.spec.ts`.
+**13.4.1 The shell-terminal tabs.** These may go in phase 7, but their current
+handle-keyed capture and history ownership does not. The one-session/one-terminal
+replacement must migrate the journal directory, supervisor lifecycle, `terminal_blocks`
+ownership, history endpoint contract, and `durableBlocks` capability to its replacement
+handle; deleting the tabs alone must not delete or session-key that bridge.
 
 **13.4.2 xterm itself.** Phases 1–3 keep `XtermTerminal.tsx` as the alt-screen bridge and
 then as a flagged fallback (§11). Phase 7 deletes it. What goes:

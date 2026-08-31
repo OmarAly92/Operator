@@ -908,6 +908,26 @@ tmux. They may still open session-scoped shell terminals as a worktree escape
 hatch; those shells are separate resources and do not become the agent
 controller.
 
+### Durable shell-block capture
+
+On Darwin/Linux, each eligible standalone shell has one tmux `pipe-pane` writer. It runs
+the internal `opr pane-capture` helper, which writes an epoch-scoped journal below the
+Operator data root: one active 1 MiB segment and at most eight sealed segments. Before
+pruning unread data it records a gap. The reader never rotates or truncates the journal;
+after a gap it abandons the partial block and resumes at the next valid prompt. The
+alternate-screen flag intentionally remains unchanged across a gap, favoring suppression
+of possible TUI repaint bytes over an unsafe reset.
+
+The capture supervisor serializes start/stop per terminal handle, queries tmux pipe and
+alternate-screen state, and adopts live writers after daemon restart. On an explicit
+close it stops and seals the writer, drains and persists final data, then lets runtime
+destruction proceed. On graceful daemon shutdown it drains and detaches but leaves live
+writers running for restart adoption. Raw replay blocks and their cursor metadata live in
+`terminal_blocks`, keyed by terminal handle; `GET /api/v1/shell-terminals/{handleId}/blocks`
+returns chronological history. The store retains the newest 100 blocks per terminal and
+5,000 output lines per block, with an additional 8 MiB raw-byte safety cap. Windows has
+no ConPTY capture path, so its raw terminal advertises `durableBlocks: false`.
+
 ### Terminal Architecture
 
 ```mermaid
