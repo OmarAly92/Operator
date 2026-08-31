@@ -1,375 +1,254 @@
 package terminal
 
 import (
-	"bufio"
 	"context"
-	"errors"
-	"fmt"
-	"io"
-	"log/slog"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/terminalcapture"
 	"github.com/OmarAly92/operator/packages/terminal/go/marks"
 )
 
-const (
-	defaultMaxCaptureBytes int64 = 1 << 20
+const defaultCapturePollInterval = 25 * time.Millisecond
 
-	defaultPollInterval = 50 * time.Millisecond
-
-	rotationTriggerRatio = 4
-	rotationTriggerDiv   = 5
-
-	stallWarnCycles = 10
-)
-
-type BlockEventRecorder interface {
-	RecordShellBlock(ctx context.Context, sessionID string, block ShellBlock) error
+type BlockRecorder interface {
+	Record(ctx context.Context, b domain.Block) error
 }
 
-type ShellBlock struct {
-	SourceID   string
-	Command    string
-	Workdir    string
-	ExitCode   *int
-	StartedAt  time.Time
-	FinishedAt time.Time
-	Tier1Only  bool
-	Branch     string
-	BlockID    string
+type persistedCursor struct {
+	Epoch   string `json:"epoch"`
+	Segment uint64 `json:"segment"`
+	Offset  int64  `json:"offset"`
 }
 
-type Capture struct {
-	Path               string
-	MaxBytes           int64
-	PollInterval       time.Duration
-	SessionID          string
-	Recorder           BlockEventRecorder
-	StartedInAltScreen bool
-	log                *slog.Logger
-	decoder            *marks.Decoder
-	state              *blockState
+type CaptureWorkerConfig struct {
+	TerminalID   string
+	SessionID    string
+	CaptureDir   string
+	Epoch        string
+	AlternateOn  bool
+	Recorder     BlockRecorder
+	Now          func() time.Time
+	PollInterval time.Duration
 }
 
-func NewCapture(path, sessionID string, rec BlockEventRecorder) *Capture {
-	return &Capture{
-		Path:               path,
-		MaxBytes:           defaultMaxCaptureBytes,
-		PollInterval:       defaultPollInterval,
-		SessionID:          sessionID,
-		Recorder:           rec,
-		StartedInAltScreen: false,
-		decoder:            marks.NewDecoder(),
-		state:              newBlockState(false),
+type CaptureWorker struct {
+	terminalID string
+	sessionID  string
+	epoch      string
+	cursorPath string
+	poll       time.Duration
+
+	reader    *terminalcapture.Reader
+	decoder   *marks.StreamDecoder
+	assembler *BlockAssembler
+	recorder  BlockRecorder
+	now       func() time.Time
+
+	mu         sync.Mutex
+	started    bool
+	cursor     terminalcapture.CaptureCursor
+	checkpoint terminalcapture.CaptureCursor
+}
+
+func NewCaptureWorker(cfg CaptureWorkerConfig) *CaptureWorker {
+	now := cfg.Now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	poll := cfg.PollInterval
+	if poll <= 0 {
+		poll = defaultCapturePollInterval
+	}
+	epochDir := filepath.Join(cfg.CaptureDir, cfg.Epoch)
+	return &CaptureWorker{
+		terminalID: cfg.TerminalID,
+		sessionID:  cfg.SessionID,
+		epoch:      cfg.Epoch,
+		cursorPath: filepath.Join(cfg.CaptureDir, "cursor.json"),
+		poll:       poll,
+		reader:     terminalcapture.NewReader(epochDir),
+		decoder:    marks.NewStreamDecoder(),
+		assembler:  NewBlockAssembler(cfg.TerminalID, cfg.SessionID, cfg.Epoch, cfg.AlternateOn, now),
+		recorder:   cfg.Recorder,
+		now:        now,
 	}
 }
 
-func OpenSink(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("capture: ensure sink dir: %w", err)
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("capture: open sink %s: %w", path, err)
-	}
-	return f, nil
-}
-
-func (c *Capture) Drain(ctx context.Context, r io.Reader) error {
-	if !c.state.bound {
-		*c.state = blockState{altScreen: c.StartedInAltScreen}
-		c.state.bound = true
-	}
-	buf := make([]byte, 16*1024)
-	br := bufio.NewReader(r)
+func (w *CaptureWorker) Run(ctx context.Context) error {
 	for {
-		if err := ctx.Err(); err != nil {
-			return nil
+		select {
+		case <-ctx.Done():
+			return w.drain(context.WithoutCancel(ctx), false)
+		default:
 		}
-		n, err := br.Read(buf)
-		if n > 0 {
-			events := c.decoder.Feed(buf[:n])
-			for _, ev := range events {
-				emitted, e := c.state.apply(ctx, c.SessionID, c.Recorder, ev)
-				if e != nil {
-					return e
-				}
-				if emitted && c.Path != "" {
-					if _, err := c.boundSink(c.Path); err != nil {
-						return err
-					}
-				}
-			}
-		}
+		progressed, err := w.pump(ctx)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
+			return err
+		}
+		if progressed {
+			continue
+		}
+		timer := time.NewTimer(w.poll)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return w.drain(context.WithoutCancel(ctx), false)
+		case <-timer.C:
+		}
+	}
+}
+
+func (w *CaptureWorker) Drain(ctx context.Context, final bool) error {
+	return w.drain(ctx, final)
+}
+
+func (w *CaptureWorker) Cursor() terminalcapture.CaptureCursor {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.checkpoint
+}
+
+func (w *CaptureWorker) pump(ctx context.Context) (bool, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.pumpLocked(ctx, false)
+}
+
+func (w *CaptureWorker) drain(ctx context.Context, final bool) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.ensureStartedLocked()
+	if _, err := w.pumpLocked(ctx, true); err != nil {
+		return err
+	}
+	if final {
+		if err := w.consumeLocked(ctx, w.assembler.Finish(true)); err != nil {
 			return err
 		}
 	}
+	return w.persistCheckpointLocked()
 }
 
-func (c *Capture) Run(ctx context.Context) error {
-	if c.Path == "" {
-		return errors.New("capture: sink path is empty")
-	}
-	if c.MaxBytes <= 0 {
-		c.MaxBytes = defaultMaxCaptureBytes
-	}
-	if c.PollInterval <= 0 {
-		c.PollInterval = defaultPollInterval
-	}
-	if c.log == nil {
-		c.log = slog.Default()
-	}
-
-	offset := int64(0)
-	var (
-		watchingStall bool
-		lastObserved  int64
-		staleCount    int
-		warned        bool
-	)
+func (w *CaptureWorker) pumpLocked(ctx context.Context, drainAll bool) (bool, error) {
+	w.ensureStartedLocked()
+	progressed := false
 	for {
-		if err := ctx.Err(); err != nil {
-			return nil
-		}
-		info, err := os.Stat(c.Path)
+		res, err := w.reader.Read(w.cursor)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				if !sleep(ctx, c.PollInterval) {
-					return nil
-				}
-				continue
+			return progressed, err
+		}
+		if res.Gap != nil {
+			w.assembler.Gap()
+			w.cursor = *res.Gap
+			if res.Gap.ByteOffset() > w.checkpoint.ByteOffset() {
+				w.checkpoint = *res.Gap
 			}
-			return fmt.Errorf("capture: stat sink: %w", err)
+			w.decoder.ResetAt(w.cursor.ByteOffset())
+			progressed = true
+			continue
 		}
-		size := info.Size()
-		if size < offset {
-			offset = 0
+		if len(res.Data) > 0 {
+			w.cursor = res.Cursor
+			if err := w.consumeLocked(ctx, w.assembler.Consume(w.decoder.Feed(res.Data))); err != nil {
+				return progressed, err
+			}
+			progressed = true
 		}
-
-		if watchingStall {
-			if size > lastObserved {
-				staleCount = 0
-				warned = false
-			} else {
-				staleCount++
-				if staleCount >= stallWarnCycles && !warned {
-					c.log.Warn("capture sink did not grow after rotation; tmux pipe-pane cat may be holding the old inode",
-						"path", c.Path,
-						"size", size,
-						"stallCycles", staleCount)
-					warned = true
+		if drainAll && res.Sealed {
+			if flushed := w.decoder.Flush(); len(flushed) > 0 {
+				if err := w.consumeLocked(ctx, w.assembler.Consume(flushed)); err != nil {
+					return progressed, err
 				}
 			}
-			lastObserved = size
 		}
-
-		if size > offset {
-			f, err := os.Open(c.Path)
-			if err != nil {
-				return fmt.Errorf("capture: open sink: %w", err)
-			}
-			_, serr := f.Seek(offset, io.SeekStart)
-			if serr != nil {
-				f.Close()
-				return fmt.Errorf("capture: seek sink: %w", serr)
-			}
-			if err := c.Drain(ctx, f); err != nil {
-				f.Close()
-				return err
-			}
-			if err := f.Close(); err != nil {
-				return fmt.Errorf("capture: close sink: %w", err)
-			}
-			next, statErr := os.Stat(c.Path)
-			var newSize int64
-			if statErr == nil {
-				newSize = next.Size()
-			} else {
-				newSize = size
-			}
-			if newSize < size {
-				watchingStall = true
-				lastObserved = newSize
-				staleCount = 0
-				warned = false
-			}
-			offset = newSize
-		}
-		if !sleep(ctx, c.PollInterval) {
-			return nil
+		if len(res.Data) == 0 || !drainAll {
+			return progressed, nil
 		}
 	}
 }
 
-func (c *Capture) boundSink(path string) (rotated bool, err error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false, fmt.Errorf("capture: stat sink: %w", err)
-	}
-	trigger := c.MaxBytes * rotationTriggerRatio / rotationTriggerDiv
-	if info.Size() <= trigger {
-		return false, nil
-	}
-	drop := info.Size() - c.MaxBytes
-	if drop < 0 {
-		drop = 0
-	}
-	if err := rotateHead(path, drop); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func rotateHead(path string, drop int64) error {
-	if err := os.Rename(path, path+".tmp"); err != nil {
-		return fmt.Errorf("capture: rotate sink: %w", err)
-	}
-	old, err := os.Open(path + ".tmp")
-	if err != nil {
-		return fmt.Errorf("capture: open rotated sink: %w", err)
-	}
-	defer old.Close()
-	if _, err := old.Seek(drop, io.SeekStart); err != nil {
-		return fmt.Errorf("capture: seek rotated sink: %w", err)
-	}
-	newF, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("capture: reopen sink: %w", err)
-	}
-	if _, err := io.Copy(newF, old); err != nil {
-		newF.Close()
-		return fmt.Errorf("capture: copy rotated sink: %w", err)
-	}
-	if err := newF.Close(); err != nil {
-		return fmt.Errorf("capture: close rotated sink: %w", err)
-	}
-	if err := os.Remove(path + ".tmp"); err != nil {
-		return fmt.Errorf("capture: remove rotated sink: %w", err)
+func (w *CaptureWorker) consumeLocked(ctx context.Context, blocks []domain.Block) error {
+	for _, b := range blocks {
+		if err := w.recorder.Record(ctx, b); err != nil {
+			return err
+		}
+		w.advanceCheckpointLocked(b.EndOffset)
 	}
 	return nil
 }
 
-func sleep(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-t.C:
-		return true
+func (w *CaptureWorker) advanceCheckpointLocked(endOffset int64) {
+	c := terminalcapture.CursorAtOffset(w.epoch, endOffset)
+	if c.ByteOffset() > w.checkpoint.ByteOffset() {
+		w.checkpoint = c
 	}
 }
 
-type blockState struct {
-	promptOpen    bool
-	commandOpen   bool
-	current       ShellBlock
-	currentCwd    string
-	currentBranch string
-	currentID     string
-	startedAt     time.Time
-	tier1Only     bool
-	altScreen     bool
-	bound         bool
+func (w *CaptureWorker) ensureStartedLocked() {
+	if w.started {
+		return
+	}
+	w.started = true
+	start := terminalcapture.CaptureCursor{Epoch: w.epoch, Segment: terminalcapture.FirstSequence}
+	if pc, ok := w.loadCheckpoint(); ok && pc.Epoch == w.epoch && pc.Segment >= terminalcapture.FirstSequence {
+		start = pc
+	}
+	w.cursor = start
+	w.checkpoint = start
+	w.decoder.ResetAt(start.ByteOffset())
 }
 
-func newBlockState(startedInAltScreen bool) *blockState {
-	return &blockState{altScreen: startedInAltScreen}
+func (w *CaptureWorker) loadCheckpoint() (terminalcapture.CaptureCursor, bool) {
+	raw, err := os.ReadFile(w.cursorPath)
+	if err != nil {
+		return terminalcapture.CaptureCursor{}, false
+	}
+	var pc persistedCursor
+	if err := json.Unmarshal(raw, &pc); err != nil {
+		return terminalcapture.CaptureCursor{}, false
+	}
+	return terminalcapture.CaptureCursor{Epoch: pc.Epoch, Segment: pc.Segment, Offset: pc.Offset}, true
 }
 
-func (s *blockState) apply(ctx context.Context, sessionID string, rec BlockEventRecorder, ev marks.Event) (emitted bool, err error) {
-	if ev.Kind == "alt_screen_enter" {
-		if !s.altScreen {
-			s.altScreen = true
-		}
-		return false, nil
+func (w *CaptureWorker) persistCheckpointLocked() error {
+	c := w.checkpoint
+	if c.Epoch == "" {
+		c.Epoch = w.epoch
 	}
-	if ev.Kind == "alt_screen_leave" {
-		s.altScreen = false
-		return true, nil
+	if c.Segment < terminalcapture.FirstSequence {
+		c.Segment = terminalcapture.FirstSequence
 	}
-	if s.altScreen && ev.Kind != "command_end" {
-		return false, nil
+	data, err := json.Marshal(persistedCursor{Epoch: c.Epoch, Segment: c.Segment, Offset: c.Offset})
+	if err != nil {
+		return err
 	}
-	switch ev.Kind {
-	case "prompt_start":
-		s.promptOpen = true
-		s.commandOpen = false
-		s.current = ShellBlock{}
-		s.currentCwd = ""
-		s.currentBranch = ""
-		s.currentID = ""
-		s.startedAt = time.Time{}
-		s.tier1Only = true
-	case "command_start":
-		s.commandOpen = true
-	case "output_start":
-		s.commandOpen = true
-	case "cwd_changed":
-		if s.promptOpen {
-			s.currentCwd = ev.Path
-		}
-	case "extension":
-		s.tier1Only = false
-		if s.promptOpen {
-			if v, ok := ev.Fields["cwd"]; ok && v != "" {
-				s.currentCwd = v
-			}
-			if v, ok := ev.Fields["branch"]; ok && v != "" {
-				s.currentBranch = v
-			}
-			if v, ok := ev.Fields["id"]; ok && v != "" {
-				s.currentID = v
-			}
-			if v, ok := ev.Fields["start_ms"]; ok && v != "" {
-				if t, ok := parseMillis(v); ok {
-					s.startedAt = t
-				}
-			}
-			if v, ok := ev.Fields["cmd"]; ok && v != "" {
-				s.current.Command = v
-			}
-		}
-	case "command_end":
-		if !s.promptOpen {
-			return false, nil
-		}
-		s.current.ExitCode = ev.ExitCode
-		s.current.Workdir = s.currentCwd
-		s.current.Branch = s.currentBranch
-		s.current.SourceID = s.currentID
-		s.current.Tier1Only = s.tier1Only
-		s.current.BlockID = s.currentID
-		if !s.startedAt.IsZero() {
-			s.current.StartedAt = s.startedAt
-		}
-		s.current.FinishedAt = time.Now().UTC()
-		if rec != nil {
-			if err := rec.RecordShellBlock(ctx, sessionID, s.current); err != nil {
-				return false, err
-			}
-		}
-		s.promptOpen = false
-		s.commandOpen = false
-		return true, nil
+	dir := filepath.Dir(w.cursorPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
 	}
-	return false, nil
-}
-
-func parseMillis(s string) (time.Time, bool) {
-	var n int64
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return time.Time{}, false
-		}
-		n = n*10 + int64(c-'0')
+	tmp, err := os.CreateTemp(dir, "cursor-*.json.tmp")
+	if err != nil {
+		return err
 	}
-	return time.UnixMilli(n).UTC(), true
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	return os.Rename(tmpName, w.cursorPath)
 }

@@ -4,366 +4,351 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/terminalcapture"
 )
 
-type fakeRecorder struct {
-	mu     sync.Mutex
-	blocks []recordedBlock
-	err    error
+const testEpoch = "11111111-1111-1111-1111-111111111111"
+
+type fakeBlockStore struct {
+	mu    sync.Mutex
+	calls []domain.Block
+	byKey map[string]domain.Block
+	err   error
 }
 
-type recordedBlock struct {
-	SessionID string
-	Block     ShellBlock
-}
-
-func (f *fakeRecorder) RecordShellBlock(_ context.Context, sessionID string, b ShellBlock) error {
+func (f *fakeBlockStore) Record(_ context.Context, b domain.Block) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
 		return f.err
 	}
-	f.blocks = append(f.blocks, recordedBlock{SessionID: sessionID, Block: b})
+	if f.byKey == nil {
+		f.byKey = map[string]domain.Block{}
+	}
+	f.calls = append(f.calls, b)
+	f.byKey[b.TerminalID+"\x00"+b.SourceID] = b
 	return nil
 }
 
-func (f *fakeRecorder) snapshot() []recordedBlock {
+func (f *fakeBlockStore) snapshot() []domain.Block {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	out := make([]recordedBlock, len(f.blocks))
-	copy(out, f.blocks)
+	out := make([]domain.Block, len(f.calls))
+	copy(out, f.calls)
 	return out
 }
 
-type vectorFixture struct {
-	Name  string `json:"name"`
-	Input string `json:"input"`
+func (f *fakeBlockStore) distinct() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.byKey)
 }
 
-func loadVector(t *testing.T, name string) vectorFixture {
+func writeJournal(t *testing.T, captureDir, epoch string, seal bool, payload []byte) {
 	t.Helper()
-	paths := []string{
-		filepath.Join("..", "..", "..", "packages", "terminal", "protocol", "vectors", name),
-		filepath.Join("..", "..", "packages", "terminal", "protocol", "vectors", name),
-	}
-	for _, p := range paths {
-		raw, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		var v vectorFixture
-		if err := json.Unmarshal(raw, &v); err != nil {
-			t.Fatalf("parse %s: %v", p, err)
-		}
-		return v
-	}
-	t.Fatalf("vector %s not found under any of %v", name, paths)
-	return vectorFixture{}
-}
-
-func TestCaptureDrainsExtensionFullBlock(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
-
-	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks, want 1: %+v", len(got), got)
-	}
-	if got[0].SessionID != "sess-1" {
-		t.Fatalf("session id = %q, want sess-1", got[0].SessionID)
-	}
-	if got[0].Block.Command != "ls -la" {
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
-	}
-	if got[0].Block.Workdir != "/home/user" {
-		t.Fatalf("workdir = %q, want /home/user", got[0].Block.Workdir)
-	}
-	if got[0].Block.Branch != "main" {
-		t.Fatalf("branch = %q, want main", got[0].Block.Branch)
-	}
-	if got[0].Block.BlockID != "block-001" {
-		t.Fatalf("block id = %q, want block-001", got[0].Block.BlockID)
-	}
-	if got[0].Block.ExitCode == nil || *got[0].Block.ExitCode != 0 {
-		t.Fatalf("exit code = %v, want 0", got[0].Block.ExitCode)
-	}
-	if got[0].Block.Tier1Only {
-		t.Fatalf("tier1-only = true, want false (extension mark was present)")
-	}
-}
-
-func TestCaptureHandlesMarkSplitAcrossFeeds(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
-
-	feed := func(s string) {
-		if err := cap.Drain(context.Background(), strings.NewReader(s)); err != nil {
-			t.Fatalf("Drain: %v", err)
-		}
-	}
-	mid := len(fix.Input) / 2
-	feed(fix.Input[:mid])
-	feed(fix.Input[mid:])
-
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks, want 1", len(got))
-	}
-	if got[0].Block.Command != "ls -la" {
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
-	}
-}
-
-func TestCaptureSuspendsBlocksWhenAltScreenEnteredAfterStart(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
-
-	altEnter := "\x1b[?1049h"
-	altLeave := "\x1b[?1049l"
-	inside := altEnter + fix.Input + altLeave
-
-	if err := cap.Drain(context.Background(), strings.NewReader(inside)); err != nil {
-		t.Fatalf("Drain (inside): %v", err)
-	}
-	if got := rec.snapshot(); len(got) != 0 {
-		t.Fatalf("recorded %d blocks during alt-screen, want 0: %+v", len(got), got)
-	}
-
-	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
-		t.Fatalf("Drain (after leave): %v", err)
-	}
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks after alt-screen leave, want 1: %+v", len(got), got)
-	}
-	if got[0].Block.Command != "ls -la" {
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
-	}
-}
-
-func TestCaptureSuspendsBlocksWhenAltScreenEnteredBeforeStart(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	cap.StartedInAltScreen = true
-	fix := loadVector(t, "extension-full-block.json")
-
-	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
-		t.Fatalf("Drain (inside): %v", err)
-	}
-	if got := rec.snapshot(); len(got) != 0 {
-		t.Fatalf("recorded %d blocks during alt-screen, want 0: %+v", len(got), got)
-	}
-
-	altLeave := "\x1b[?1049l"
-	if err := cap.Drain(context.Background(), strings.NewReader(altLeave+fix.Input)); err != nil {
-		t.Fatalf("Drain (after leave): %v", err)
-	}
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks after alt-screen leave, want 1: %+v", len(got), got)
-	}
-	if got[0].Block.Command != "ls -la" {
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
-	}
-}
-
-func TestCaptureIgnoresUnmatchedAltScreenLeave(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
-
-	altLeave := "\x1b[?1049l"
-	if err := cap.Drain(context.Background(), strings.NewReader(altLeave+fix.Input)); err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks, want 1 (unmatched leave must not enter alt-screen): %+v", len(got), got)
-	}
-}
-
-func TestCaptureRotatesSinkFromHeadOnBlockBoundary(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "capture.log")
-	seed := []byte("stale data from a previous run\n")
-	if err := os.WriteFile(path, seed, 0o644); err != nil {
-		t.Fatalf("seed sink: %v", err)
-	}
-
-	rec := &fakeRecorder{}
-	cap := NewCapture(path, "sess-1", rec)
-	cap.MaxBytes = 16
-	fix := loadVector(t, "extension-full-block.json")
-
-	if err := cap.Drain(context.Background(), strings.NewReader(fix.Input)); err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks, want 1", len(got))
-	}
-	info, err := os.Stat(path)
+	j, err := terminalcapture.Open(filepath.Join(captureDir, epoch))
 	if err != nil {
-		t.Fatalf("stat sink: %v", err)
+		t.Fatalf("open journal: %v", err)
 	}
-	if info.Size() > cap.MaxBytes {
-		t.Fatalf("sink size = %d, want <= %d", info.Size(), cap.MaxBytes)
+	if _, err := j.Write(payload); err != nil {
+		t.Fatalf("write journal: %v", err)
 	}
+	if seal {
+		if err := j.Close(); err != nil {
+			t.Fatalf("close journal: %v", err)
+		}
+	}
+}
 
-	contents, err := os.ReadFile(path)
+func newWorker(t *testing.T, captureDir string, store *fakeBlockStore, alt bool) *CaptureWorker {
+	t.Helper()
+	return NewCaptureWorker(CaptureWorkerConfig{
+		TerminalID:   "term-1",
+		SessionID:    "sess-1",
+		CaptureDir:   captureDir,
+		Epoch:        testEpoch,
+		AlternateOn:  alt,
+		Recorder:     store,
+		Now:          fixedClock(),
+		PollInterval: 5 * time.Millisecond,
+	})
+}
+
+func readCursorFile(t *testing.T, captureDir string) persistedCursor {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(captureDir, "cursor.json"))
 	if err != nil {
-		t.Fatalf("read sink: %v", err)
+		t.Fatalf("read cursor.json: %v", err)
 	}
-	if !bytes.Contains(contents, []byte("\n")) {
-		t.Fatalf("sink %q missing the newline from offset 16 of the seed; rotation dropped the wrong end", contents)
+	var pc persistedCursor
+	if err := json.Unmarshal(raw, &pc); err != nil {
+		t.Fatalf("parse cursor.json: %v", err)
 	}
-	if bytes.Contains(contents, seed[:16]) {
-		t.Fatalf("sink %q still contains the first 16 bytes of the seed; rotation dropped the wrong end", contents)
-	}
+	return pc
 }
 
-type sentinelErr string
-
-func (e sentinelErr) Error() string { return string(e) }
-
-var errSentinel = sentinelErr("sentinel")
-
-func TestCaptureRecorderErrorIsReturned(t *testing.T) {
-	rec := &fakeRecorder{err: errSentinel}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
-	err := cap.Drain(context.Background(), strings.NewReader(fix.Input))
-	if err == nil || !strings.Contains(err.Error(), "sentinel") {
-		t.Fatalf("Drain err = %v, want sentinel-wrapped", err)
-	}
+func twoTier1Blocks() ([]byte, string, string) {
+	first := "\x1b]133;A\x07guest$ echo one\x1b]133;C\x07one\n\x1b]133;D;0\x07"
+	second := "\x1b]133;A\x07guest$ echo two\x1b]133;C\x07two\n\x1b]133;D;1\x07"
+	id1 := "osc133-" + testEpoch + "-0"
+	id2 := "osc133-" + testEpoch + "-" + itoa(len(first))
+	return []byte(first + second), id1, id2
 }
 
-func TestRunTailsSinkUntilCancel(t *testing.T) {
+func itoa(n int) string {
+	return string(jsonNumber(n))
+}
+
+func jsonNumber(n int) []byte {
+	b, _ := json.Marshal(n)
+	return b
+}
+
+func TestCaptureWorkerTailsSealedJournalInOrder(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "capture.log")
-	if _, err := OpenSink(path); err != nil {
-		t.Fatalf("OpenSink: %v", err)
+	payload, id1, id2 := twoTier1Blocks()
+	writeJournal(t, dir, testEpoch, true, payload)
+
+	store := &fakeBlockStore{}
+	w := newWorker(t, dir, store, false)
+	if err := w.Drain(context.Background(), false); err != nil {
+		t.Fatalf("drain: %v", err)
 	}
 
-	rec := &fakeRecorder{}
-	cap := NewCapture(path, "sess-1", rec)
-	cap.PollInterval = 5 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- cap.Run(ctx) }()
-
-	fix := loadVector(t, "extension-full-block.json")
-	if err := os.WriteFile(path, []byte(fix.Input), 0o644); err != nil {
-		t.Fatalf("seed sink: %v", err)
+	got := store.snapshot()
+	if len(got) != 2 {
+		t.Fatalf("recorded %d blocks, want 2", len(got))
 	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if len(rec.snapshot()) >= 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if got[0].SourceID != id1 || got[1].SourceID != id2 {
+		t.Fatalf("source ids = %q, %q; want %q, %q", got[0].SourceID, got[1].SourceID, id1, id2)
 	}
-	got := rec.snapshot()
-	if len(got) != 1 {
-		cancel()
-		t.Fatalf("recorded %d blocks, want 1", len(got))
+	if got[0].ExitCode == nil || *got[0].ExitCode != 0 || got[1].ExitCode == nil || *got[1].ExitCode != 1 {
+		t.Fatalf("exit codes = %v, %v", got[0].ExitCode, got[1].ExitCode)
 	}
-	if got[0].Block.Command != "ls -la" {
-		cancel()
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
+	pc := readCursorFile(t, dir)
+	if pc.Epoch != testEpoch {
+		t.Fatalf("cursor epoch = %q", pc.Epoch)
 	}
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run returned: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not return after cancel")
+	if got := (terminalcapture.CaptureCursor{Epoch: pc.Epoch, Segment: pc.Segment, Offset: pc.Offset}).ByteOffset(); got != int64(len(payload)) {
+		t.Fatalf("cursor byte offset = %d, want %d", got, len(payload))
 	}
 }
 
-func TestCaptureRecordsInFlightBlockWhenAltScreenEnteredBeforeCommandEnd(t *testing.T) {
-	rec := &fakeRecorder{}
-	cap := NewCapture("", "sess-1", rec)
-	fix := loadVector(t, "extension-full-block.json")
+func TestCaptureWorkerFlushOnlyWhenSealed(t *testing.T) {
+	trailing := "\x1b]133;A\x07host$ run\x1b]133;C\x07partial output\x1b]133;"
 
-	commandEnd := "\x1b]133;D;0\x07"
-	prefix := strings.TrimSuffix(fix.Input, commandEnd)
-	altEnter := "\x1b[?1049h"
+	t.Run("unsealed writer keeps the incomplete tail out of raw_output", func(t *testing.T) {
+		dir := t.TempDir()
+		writeJournal(t, dir, testEpoch, false, []byte(trailing))
+		store := &fakeBlockStore{}
+		w := newWorker(t, dir, store, false)
+		if err := w.Drain(context.Background(), true); err != nil {
+			t.Fatalf("drain: %v", err)
+		}
+		got := store.snapshot()
+		if len(got) != 1 {
+			t.Fatalf("recorded %d blocks, want 1", len(got))
+		}
+		if bytes.HasSuffix(got[0].RawOutput, []byte("\x1b]133;")) {
+			t.Fatalf("unsealed drain must not Flush the pending mark into raw_output: %q", got[0].RawOutput)
+		}
+	})
 
-	if err := cap.Drain(context.Background(), strings.NewReader(prefix+altEnter+commandEnd)); err != nil {
-		t.Fatalf("Drain: %v", err)
-	}
-	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("recorded %d blocks, want 1 (in-flight block must complete on command_end even after alt-screen enter): %+v", len(got), got)
-	}
-	if got[0].Block.Command != "ls -la" {
-		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
-	}
+	t.Run("sealed writer flushes the incomplete tail into raw_output", func(t *testing.T) {
+		dir := t.TempDir()
+		writeJournal(t, dir, testEpoch, true, []byte(trailing))
+		store := &fakeBlockStore{}
+		w := newWorker(t, dir, store, false)
+		if err := w.Drain(context.Background(), true); err != nil {
+			t.Fatalf("drain: %v", err)
+		}
+		got := store.snapshot()
+		if len(got) != 1 {
+			t.Fatalf("recorded %d blocks, want 1", len(got))
+		}
+		if !bytes.HasSuffix(got[0].RawOutput, []byte("\x1b]133;")) {
+			t.Fatalf("sealed drain must Flush the pending mark into raw_output: %q", got[0].RawOutput)
+		}
+	})
 }
 
-func TestRunWarnsWhenSinkStallsAfterRotation(t *testing.T) {
+func TestCaptureWorkerDrainWithoutFinalLeavesInFlightRecoverable(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "capture.log")
-	if _, err := OpenSink(path); err != nil {
-		t.Fatalf("OpenSink: %v", err)
+	complete := "\x1b]133;A\x07u$ done\x1b]133;C\x07ok\n\x1b]133;D;0\x07"
+	inflight := "\x1b]133;A\x07u$ sleeping\x1b]133;C\x07still running"
+	writeJournal(t, dir, testEpoch, false, []byte(complete+inflight))
+
+	store := &fakeBlockStore{}
+	w := newWorker(t, dir, store, false)
+	if err := w.Drain(context.Background(), false); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	got := store.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks, want 1 (the in-flight command stays recoverable)", len(got))
+	}
+	if !bytes.Contains(got[0].RawOutput, []byte("ok\n")) {
+		t.Fatalf("wrong block persisted: %q", got[0].RawOutput)
+	}
+}
+
+func TestCaptureWorkerCancellationThenFinalDrainPersistsLastBlock(t *testing.T) {
+	dir := t.TempDir()
+	j, err := terminalcapture.Open(filepath.Join(dir, testEpoch))
+	if err != nil {
+		t.Fatalf("open journal: %v", err)
 	}
 
-	var logBuf bytes.Buffer
-	log := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	rec := &fakeRecorder{}
-	cap := NewCapture(path, "sess-1", rec)
-	cap.PollInterval = 5 * time.Millisecond
-	cap.MaxBytes = 16
-	cap.log = log
+	store := &fakeBlockStore{}
+	w := NewCaptureWorker(CaptureWorkerConfig{
+		TerminalID:   "term-1",
+		SessionID:    "sess-1",
+		CaptureDir:   dir,
+		Epoch:        testEpoch,
+		Recorder:     store,
+		Now:          fixedClock(),
+		PollInterval: time.Hour,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- cap.Run(ctx) }()
+	go func() { done <- w.Run(ctx) }()
 
-	fix := loadVector(t, "extension-full-block.json")
-	if err := os.WriteFile(path, []byte(fix.Input), 0o644); err != nil {
-		t.Fatalf("seed sink: %v", err)
-	}
+	time.Sleep(50 * time.Millisecond)
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(logBuf.String(), "did not grow after rotation") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	complete := "\x1b]133;A\x07me$ ship\x1b]133;C\x07shipped\n\x1b]133;D;0\x07"
+	if _, err := j.Write([]byte(complete)); err != nil {
+		t.Fatalf("write: %v", err)
 	}
-	if !strings.Contains(logBuf.String(), "did not grow after rotation") {
-		cancel()
-		t.Fatalf("expected stall warning, got log:\n%s", logBuf.String())
+	if err := j.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 
 	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run returned: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not return after cancel")
+	if err := <-done; err != nil && err != context.Canceled {
+		t.Fatalf("Run returned %v", err)
+	}
+
+	got := store.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("after cancel the shutdown drain must persist the last complete block, got %d", len(got))
+	}
+	if !bytes.Contains(got[0].RawOutput, []byte("shipped\n")) {
+		t.Fatalf("persisted block = %q", got[0].RawOutput)
+	}
+	pc := readCursorFile(t, dir)
+	if (terminalcapture.CaptureCursor{Epoch: pc.Epoch, Segment: pc.Segment, Offset: pc.Offset}).ByteOffset() != int64(len(complete)) {
+		t.Fatalf("cursor not advanced past the drained block: %+v", pc)
+	}
+
+	if err := w.Drain(context.Background(), true); err != nil {
+		t.Fatalf("explicit final drain: %v", err)
+	}
+	if store.distinct() != 1 || len(store.snapshot()) != 1 {
+		t.Fatalf("final drain must be idempotent: calls=%d distinct=%d", len(store.snapshot()), store.distinct())
+	}
+}
+
+func TestCaptureWorkerReplayFromOldCursorUpsertsNotDuplicates(t *testing.T) {
+	dir := t.TempDir()
+	payload, id1, id2 := twoTier1Blocks()
+	writeJournal(t, dir, testEpoch, true, payload)
+
+	store := &fakeBlockStore{}
+	w1 := newWorker(t, dir, store, false)
+	if err := w1.Drain(context.Background(), false); err != nil {
+		t.Fatalf("first drain: %v", err)
+	}
+	if len(store.snapshot()) != 2 {
+		t.Fatalf("first run recorded %d, want 2", len(store.snapshot()))
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "cursor.json"),
+		mustJSON(t, persistedCursor{Epoch: testEpoch, Segment: terminalcapture.FirstSequence, Offset: 0}), 0o600); err != nil {
+		t.Fatalf("rewind cursor: %v", err)
+	}
+
+	w2 := newWorker(t, dir, store, false)
+	if err := w2.Drain(context.Background(), false); err != nil {
+		t.Fatalf("replay drain: %v", err)
+	}
+
+	calls := store.snapshot()
+	if len(calls) != 4 {
+		t.Fatalf("replay should re-Record both blocks, got %d calls", len(calls))
+	}
+	if store.distinct() != 2 {
+		t.Fatalf("replay must upsert the same (terminal, source) keys, distinct=%d want 2", store.distinct())
+	}
+	if calls[2].SourceID != id1 || calls[3].SourceID != id2 {
+		t.Fatalf("replayed source ids = %q, %q; want %q, %q", calls[2].SourceID, calls[3].SourceID, id1, id2)
+	}
+	if calls[2].StartOffset != calls[0].StartOffset || calls[3].StartOffset != calls[1].StartOffset {
+		t.Fatalf("replayed start offsets diverged from the first run")
+	}
+}
+
+func TestCaptureWorkerRecoversAcrossJournalGap(t *testing.T) {
+	dir := t.TempDir()
+	epochPath := filepath.Join(dir, testEpoch)
+	if err := os.MkdirAll(epochPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	clean := "\x1b]133;A\x07x$ after gap\x1b]133;C\x07recovered\n\x1b]133;D;0\x07"
+	seg4 := append([]byte("orphaned tail of a block that lost its prompt\n"), clean...)
+	if err := os.WriteFile(filepath.Join(epochPath, terminalcapture.SegmentName(4, terminalcapture.ReadySuffix)), seg4, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeGapJSON(t, epochPath, 4)
+	writeManifestJSON(t, epochPath, 4)
+
+	store := &fakeBlockStore{}
+	w := newWorker(t, dir, store, false)
+	if err := w.Drain(context.Background(), false); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	got := store.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d blocks, want 1", len(got))
+	}
+	if bytes.Contains(got[0].RawOutput, []byte("orphaned tail")) {
+		t.Fatalf("pre-gap bytes spliced into the recovered block: %q", got[0].RawOutput)
+	}
+	wantStart := int64(3)*terminalcapture.SegmentSize + int64(len("orphaned tail of a block that lost its prompt\n"))
+	if got[0].StartOffset != wantStart {
+		t.Fatalf("recovered block start offset = %d, want %d", got[0].StartOffset, wantStart)
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
+func writeGapJSON(t *testing.T, dir string, firstRetained uint64) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, terminalcapture.GapFileName),
+		mustJSON(t, terminalcapture.Gap{Epoch: filepath.Base(dir), FirstRetainedSequence: firstRetained}), 0o600); err != nil {
+		t.Fatalf("write gap.json: %v", err)
+	}
+}
+
+func writeManifestJSON(t *testing.T, dir string, finalSeq uint64) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, terminalcapture.ManifestFileName),
+		mustJSON(t, terminalcapture.Manifest{Epoch: filepath.Base(dir), FinalSequence: finalSeq, FirstRetainedSequence: finalSeq}), 0o600); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
 	}
 }
