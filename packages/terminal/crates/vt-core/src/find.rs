@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use memchr::memmem::Finder;
 use regex_automata::meta::Regex;
 
 use crate::block::{Block, BlockId};
@@ -54,10 +55,16 @@ pub struct FindCursor<'a> {
     grid: &'a BlockGrid,
     rows: &'a RowIndex,
     content: &'a Content,
-    query: FindQuery,
+    regex: Option<Regex>,
+    prepared: PreparedSearch,
     next_block: usize,
     results: Vec<FindMatch>,
     complete: bool,
+}
+
+enum PreparedSearch {
+    Literal(Finder<'static>),
+    Regex,
 }
 
 impl<'a> FindCursor<'a> {
@@ -79,11 +86,19 @@ impl<'a> FindCursor<'a> {
         results: Vec<FindMatch>,
         complete: bool,
     ) -> Self {
+        let (regex, prepared) = match query {
+            FindQuery::Literal(needle) => {
+                let finder = Finder::new(needle.as_bytes()).into_owned();
+                (None, PreparedSearch::Literal(finder))
+            }
+            FindQuery::Regex(re) => (Some(re), PreparedSearch::Regex),
+        };
         Self {
             grid,
             rows,
             content,
-            query,
+            regex,
+            prepared,
             next_block,
             results,
             complete,
@@ -141,23 +156,36 @@ impl<'a> FindCursor<'a> {
         if bytes.is_empty() {
             return;
         }
-        match &self.query {
-            FindQuery::Literal(needle) => search_literal(
-                &bytes,
-                needle,
-                block,
-                byte_range.start,
-                self.rows,
-                &mut self.results,
-            ),
-            FindQuery::Regex(re) => search_regex(
-                re,
-                &bytes,
-                block,
-                byte_range.start,
-                self.rows,
-                &mut self.results,
-            ),
+        match &self.prepared {
+            PreparedSearch::Literal(finder) => {
+                let mut cursor = 0;
+                while let Some(offset) = finder.find(&bytes[cursor..]) {
+                    let block_offset = cursor + offset;
+                    let absolute = byte_range.start + block_offset as u64;
+                    let needle_len = finder.needle().len();
+                    self.results.push(FindMatch {
+                        block: block.id,
+                        row: row_for_offset(absolute, self.rows),
+                        byte_range: block_offset..block_offset + needle_len,
+                    });
+                    cursor = block_offset + needle_len;
+                }
+            }
+            PreparedSearch::Regex => {
+                let re = self
+                    .regex
+                    .as_ref()
+                    .expect("regex variant implies regex is Some");
+                for m in re.find_iter(&bytes) {
+                    let range = m.range();
+                    let absolute = byte_range.start + range.start as u64;
+                    self.results.push(FindMatch {
+                        block: block.id,
+                        row: row_for_offset(absolute, self.rows),
+                        byte_range: range,
+                    });
+                }
+            }
         }
     }
 }
@@ -177,60 +205,6 @@ fn block_byte_range(rows: &RowIndex, block: &Block) -> Option<Range<u64>> {
     let first_row = completed.get(first)?;
     let last_row = completed.get(last)?;
     Some(first_row.start..last_row.end)
-}
-
-fn search_literal(
-    bytes: &[u8],
-    needle: &str,
-    block: &Block,
-    content_byte_start: u64,
-    rows: &RowIndex,
-    out: &mut Vec<FindMatch>,
-) {
-    let needle_bytes = needle.as_bytes();
-    if needle_bytes.is_empty() {
-        return;
-    }
-    let mut cursor = 0;
-    while let Some(offset) = find_subslice(&bytes[cursor..], needle_bytes) {
-        let block_offset = cursor + offset;
-        let absolute = content_byte_start + block_offset as u64;
-        out.push(FindMatch {
-            block: block.id,
-            row: row_for_offset(absolute, rows),
-            byte_range: block_offset..block_offset + needle_bytes.len(),
-        });
-        cursor = block_offset + needle_bytes.len();
-    }
-}
-
-fn search_regex(
-    re: &Regex,
-    bytes: &[u8],
-    block: &Block,
-    content_byte_start: u64,
-    rows: &RowIndex,
-    out: &mut Vec<FindMatch>,
-) {
-    for m in re.find_iter(bytes) {
-        let range = m.range();
-        let absolute = content_byte_start + range.start as u64;
-        out.push(FindMatch {
-            block: block.id,
-            row: row_for_offset(absolute, rows),
-            byte_range: range,
-        });
-    }
-}
-
-/// `memchr::memmem::Finder` would do this faster, but pulling in `memchr`
-/// for a single substring search is not worth the dependency. The naive
-/// scan is plenty fast for a find box sized in kilobytes.
-fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.len() > haystack.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 /// The row index that contains `absolute` (a content-space offset). Used

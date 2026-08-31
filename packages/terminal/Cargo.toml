@@ -11,6 +11,7 @@ license = "MIT"
 repository = "https://github.com/OmarAly92/operator"
 
 [workspace.dependencies]
+memchr = "2"
 regex-automata = "0.4.6"
 unicode-width = "=0.2.2"
 vte = { version = "=0.15.0", default-features = false }
