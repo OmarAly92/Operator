@@ -34,7 +34,7 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 			core.findStep(session, 1);
 			guard += 1;
 		}
-		const matches = core.findResults(session);
+		const matches = core.findResults();
 		expect(matches).toHaveLength(1);
 		expect(matches[0]?.blockId).toBeTruthy();
 		expect(matches[0]?.row).toBeTypeOf("number");
@@ -54,7 +54,7 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 			core.findStep(session, 1);
 			guard += 1;
 		}
-		expect(core.findResults(session)).toEqual([]);
+		expect(core.findResults()).toEqual([]);
 		core.findCancel(session);
 		core.dispose();
 	});
@@ -77,7 +77,7 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 			core.findStep(session, 1);
 			guard += 1;
 		}
-		const matches = core.findResults(session);
+		const matches = core.findResults();
 		expect(matches).toHaveLength(5);
 		core.findCancel(session);
 		core.dispose();
@@ -92,7 +92,7 @@ describe("TerminalCore.findOpen / findStep / findResults", () => {
 			core.findStep(session, 2);
 			guard += 1;
 		}
-		expect(core.findResults(session)).toHaveLength(5);
+		expect(core.findResults()).toHaveLength(5);
 		core.findCancel(session);
 		core.dispose();
 	});
@@ -104,12 +104,12 @@ describe("TerminalCore.findCancel", () => {
 		feedBlocks(core, 10);
 		const session = core.findOpen("line", false);
 		core.findStep(session, 3);
-		const atCancel = core.findResults(session).length;
+		const atCancel = core.findResults().length;
 		expect(atCancel).toBeGreaterThan(0);
 		core.findCancel(session);
 		core.findStep(session, 1000);
 		expect(core.findIsComplete(session)).toBe(true);
-		expect(core.findResults(session).length).toBe(atCancel);
+		expect(core.findResults().length).toBe(atCancel);
 		core.dispose();
 	});
 
@@ -118,10 +118,10 @@ describe("TerminalCore.findCancel", () => {
 		feedBlocks(core, 3);
 		const session = core.findOpen("line", false);
 		core.findStep(session, 1);
-		const before = core.findResults(session).length;
+		const before = core.findResults().length;
 		core.findCancel(session);
 		expect(() => core.findStep(session, 1)).not.toThrow();
-		expect(core.findResults(session).length).toBe(before);
+		expect(core.findResults().length).toBe(before);
 		core.dispose();
 	});
 
@@ -154,14 +154,14 @@ describe("TerminalCore.find mutation safety", () => {
 		feedBlocks(core, 50);
 		const session = core.findOpen("line", false);
 		core.findStep(session, 3);
-		const before = core.findResults(session);
+		const before = core.findResults();
 		expect(before.length).toBeGreaterThan(0);
 		feedBlocks(core, 50);
 		expect(() => {
 			core.findStep(session, 3);
 			core.findStep(session, 3);
 		}).not.toThrow();
-		const after = core.findResults(session);
+		const after = core.findResults();
 		for (const match of after) {
 			expect(match.blockId).toBeTruthy();
 			expect(match.byteRangeEnd).toBeGreaterThan(match.byteRangeStart);
@@ -176,7 +176,7 @@ describe("TerminalCore.find mutation safety", () => {
 		const session = core.findOpen("UNIQUE_NEEDLE", false);
 		core.findStep(session, 1);
 		expect(core.findIsComplete(session)).toBe(false);
-		expect(core.findResults(session)).toEqual([]);
+		expect(core.findResults()).toEqual([]);
 
 		core.feed(
 			new TextEncoder().encode(
@@ -188,7 +188,7 @@ describe("TerminalCore.find mutation safety", () => {
 			core.findStep(session, 10);
 			guard += 1;
 		}
-		const matches = core.findResults(session);
+		const matches = core.findResults();
 		expect(matches.length).toBe(1);
 		expect(matches[0]?.blockId).toBeTruthy();
 		expect(matches[0]?.row).toBeTypeOf("number");

@@ -13,12 +13,6 @@ pub fn version() -> &'static str {
 /// it, so the two must never drift apart.
 pub const BLOCK_RECORD_WORDS: usize = 14;
 
-/// Words each `FindMatch` flattens to in the find results buffer.
-///
-/// The stride is `block_id_lo, block_id_hi, row, byte_range_start, byte_range_end`:
-/// five `u32` words. `block_id` mirrors the same lo/hi split used for blocks,
-/// and the byte range is a pair because a single word cannot hold both ends
-/// of an offset span that may stretch past `u32::MAX` in pathological inputs.
 pub const FIND_MATCH_WORDS: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

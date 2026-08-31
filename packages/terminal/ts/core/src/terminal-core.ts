@@ -159,7 +159,7 @@ export class TerminalCore {
 		this.inner.find_step(id, budget);
 	}
 
-	findResults(id?: number): FindMatch[] {
+	findResults(): FindMatch[] {
 		if (this.disposed) {
 			throw new Error("terminal core is disposed");
 		}
@@ -183,7 +183,6 @@ export class TerminalCore {
 				byteRangeEnd: view[base + 4]!,
 			});
 		}
-		void id;
 		return matches;
 	}
 

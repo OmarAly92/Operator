@@ -46,11 +46,7 @@ pub struct FindMatch {
 /// The walker that hands the search back to the caller a budget at a time.
 /// The budget is in blocks, not rows, because the block grid is the cursor's
 /// unit of progress; a block is the renderer's primary object and the find
-/// results are bucketed by block anyway. The cursor borrows the grid, the
-/// row index, and the content; the caller is expected to drop it before
-/// the borrow's lifetime ends, which is what lets `vt-wasm` reconstruct it
-/// per call from a `&self.core` reference and stay in step with a growing
-/// scrollback.
+/// results are bucketed by block anyway.
 pub struct FindCursor<'a> {
     grid: &'a BlockGrid,
     rows: &'a RowIndex,

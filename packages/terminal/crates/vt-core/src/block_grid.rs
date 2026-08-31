@@ -218,17 +218,10 @@ impl BlockGrid {
         self.closed.iter().chain(self.open.as_ref())
     }
 
-    /// Block count without materialising the iterator. The closed count
-    /// comes from the tree's stored summary; the open block is counted
-    /// separately.
     pub fn len(&self) -> usize {
         self.closed.len() + usize::from(self.open.is_some())
     }
 
-    /// Random access to the block at `index` in insertion order. Walks
-    /// the tree using stored block counts so the cost is `O(log n)` in
-    /// the number of blocks, which is what makes a per-step cursor that
-    /// borrows the grid cheap to keep in step with a growing scrollback.
     pub fn get(&self, index: usize) -> Option<&Block> {
         let closed_len = self.closed.len();
         if index < closed_len {
