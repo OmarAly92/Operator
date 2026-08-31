@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -316,5 +317,53 @@ func TestCaptureRecordsInFlightBlockWhenAltScreenEnteredBeforeCommandEnd(t *test
 	}
 	if got[0].Block.Command != "ls -la" {
 		t.Fatalf("command = %q, want ls -la", got[0].Block.Command)
+	}
+}
+
+func TestRunWarnsWhenSinkStallsAfterRotation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "capture.log")
+	if _, err := OpenSink(path); err != nil {
+		t.Fatalf("OpenSink: %v", err)
+	}
+
+	var logBuf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	rec := &fakeRecorder{}
+	cap := NewCapture(path, "sess-1", rec)
+	cap.PollInterval = 5 * time.Millisecond
+	cap.MaxBytes = 16
+	cap.log = log
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- cap.Run(ctx) }()
+
+	fix := loadVector(t, "extension-full-block.json")
+	if err := os.WriteFile(path, []byte(fix.Input), 0o644); err != nil {
+		t.Fatalf("seed sink: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logBuf.String(), "did not grow after rotation") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(logBuf.String(), "did not grow after rotation") {
+		cancel()
+		t.Fatalf("expected stall warning, got log:\n%s", logBuf.String())
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run returned: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after cancel")
 	}
 }

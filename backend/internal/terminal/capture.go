@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,6 +21,8 @@ const (
 
 	rotationTriggerRatio = 4
 	rotationTriggerDiv   = 5
+
+	stallWarnCycles = 10
 )
 
 type BlockEventRecorder interface {
@@ -39,26 +42,27 @@ type ShellBlock struct {
 }
 
 type Capture struct {
-	Path              string
-	MaxBytes          int64
-	PollInterval      time.Duration
-	SessionID         string
-	Recorder          BlockEventRecorder
+	Path               string
+	MaxBytes           int64
+	PollInterval       time.Duration
+	SessionID          string
+	Recorder           BlockEventRecorder
 	StartedInAltScreen bool
-	decoder           *marks.Decoder
-	state             *blockState
+	log                *slog.Logger
+	decoder            *marks.Decoder
+	state              *blockState
 }
 
 func NewCapture(path, sessionID string, rec BlockEventRecorder) *Capture {
 	return &Capture{
-		Path:              path,
-		MaxBytes:          defaultMaxCaptureBytes,
-		PollInterval:      defaultPollInterval,
-		SessionID:         sessionID,
-		Recorder:          rec,
+		Path:               path,
+		MaxBytes:           defaultMaxCaptureBytes,
+		PollInterval:       defaultPollInterval,
+		SessionID:          sessionID,
+		Recorder:           rec,
 		StartedInAltScreen: false,
-		decoder:           marks.NewDecoder(),
-		state:             newBlockState(false),
+		decoder:            marks.NewDecoder(),
+		state:              newBlockState(false),
 	}
 }
 
@@ -93,7 +97,7 @@ func (c *Capture) Drain(ctx context.Context, r io.Reader) error {
 					return e
 				}
 				if emitted && c.Path != "" {
-					if err := c.boundSink(c.Path); err != nil {
+					if _, err := c.boundSink(c.Path); err != nil {
 						return err
 					}
 				}
@@ -118,8 +122,17 @@ func (c *Capture) Run(ctx context.Context) error {
 	if c.PollInterval <= 0 {
 		c.PollInterval = defaultPollInterval
 	}
+	if c.log == nil {
+		c.log = slog.Default()
+	}
 
 	offset := int64(0)
+	var (
+		watchingStall bool
+		lastObserved  int64
+		staleCount    int
+		warned        bool
+	)
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil
@@ -138,6 +151,24 @@ func (c *Capture) Run(ctx context.Context) error {
 		if size < offset {
 			offset = 0
 		}
+
+		if watchingStall {
+			if size > lastObserved {
+				staleCount = 0
+				warned = false
+			} else {
+				staleCount++
+				if staleCount >= stallWarnCycles && !warned {
+					c.log.Warn("capture sink did not grow after rotation; tmux pipe-pane cat may be holding the old inode",
+						"path", c.Path,
+						"size", size,
+						"stallCycles", staleCount)
+					warned = true
+				}
+			}
+			lastObserved = size
+		}
+
 		if size > offset {
 			f, err := os.Open(c.Path)
 			if err != nil {
@@ -156,11 +187,19 @@ func (c *Capture) Run(ctx context.Context) error {
 				return fmt.Errorf("capture: close sink: %w", err)
 			}
 			next, statErr := os.Stat(c.Path)
+			var newSize int64
 			if statErr == nil {
-				offset = next.Size()
+				newSize = next.Size()
 			} else {
-				offset = size
+				newSize = size
 			}
+			if newSize < size {
+				watchingStall = true
+				lastObserved = newSize
+				staleCount = 0
+				warned = false
+			}
+			offset = newSize
 		}
 		if !sleep(ctx, c.PollInterval) {
 			return nil
@@ -168,23 +207,23 @@ func (c *Capture) Run(ctx context.Context) error {
 	}
 }
 
-func (c *Capture) boundSink(path string) error {
+func (c *Capture) boundSink(path string) (rotated bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("capture: stat sink: %w", err)
+		return false, fmt.Errorf("capture: stat sink: %w", err)
 	}
 	trigger := c.MaxBytes * rotationTriggerRatio / rotationTriggerDiv
 	if info.Size() <= trigger {
-		return nil
+		return false, nil
 	}
 	drop := info.Size() - c.MaxBytes
 	if drop < 0 {
 		drop = 0
 	}
 	if err := rotateHead(path, drop); err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func rotateHead(path string, drop int64) error {
