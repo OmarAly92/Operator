@@ -178,15 +178,31 @@ type Stream interface {
 	Resize(rows, cols uint16) error
 }
 
+// ErrCaptureUnsupported is returned by a PaneCapturer whose runtime cannot pipe
+// its pane output. Callers match it with errors.Is and skip capture wiring
+// rather than treating it as a hard failure.
+var ErrCaptureUnsupported = errors.New("runtime: pane capture unsupported")
+
+// PaneCaptureState is a snapshot of a pane's capture-relevant runtime flags:
+// whether a pipe-pane capture is currently running, and whether the pane is in
+// the alternate screen.
+type PaneCaptureState struct {
+	PipeOpen    bool
+	AlternateOn bool
+}
+
 // PaneCapturer is an optional runtime capability for piping every byte the
-// pane renders into an arbitrary on-disk sink. The capture is server-side —
-// independent of who (or how many) clients are attached — so the decoder
-// sees a single, ordered stream of pane output and produces one block per
-// command. A runtime that cannot pipe its pane output (conpty) does not
-// implement this; the capture layer then refuses to start.
+// pane renders into an arbitrary sink command. The capture is server-side —
+// independent of who (or how many) clients are attached — so the decoder sees a
+// single, ordered stream of pane output and produces one block per command.
+// CaptureState lets a supervisor adopt an existing capture after a restart;
+// StartCapture and StopCapture start and stop exactly one pipe per pane
+// idempotently. A runtime that cannot pipe its pane output returns
+// ErrCaptureUnsupported from every method.
 type PaneCapturer interface {
-	StartCapture(ctx context.Context, handle RuntimeHandle, sinkPath string) error
-	StopCapture(ctx context.Context, handle RuntimeHandle) error
+	CaptureState(context.Context, RuntimeHandle) (PaneCaptureState, error)
+	StartCapture(context.Context, RuntimeHandle, []string) error
+	StopCapture(context.Context, RuntimeHandle) error
 }
 
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from

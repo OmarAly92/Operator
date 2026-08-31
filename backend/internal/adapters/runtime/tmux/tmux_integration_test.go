@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -226,6 +227,124 @@ func TestSupervisorProcessHelper(t *testing.T) {
 		return
 	}
 	time.Sleep(2 * time.Second)
+}
+
+func TestRuntimeIntegrationCaptureState(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux unavailable")
+	}
+
+	ctx := context.Background()
+	id := strings.ReplaceAll(t.Name(), "/", "_")
+	r := New(Options{Timeout: 5 * time.Second})
+
+	sinkDir := t.TempDir()
+	helper := filepath.Join(sinkDir, "pane-capture")
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\ncat >> \"$3/capture.out\"\n"), 0o755); err != nil {
+		t.Fatalf("write helper: %v", err)
+	}
+	prev := executablePath
+	executablePath = func() (string, error) { return helper, nil }
+	t.Cleanup(func() { executablePath = prev })
+
+	_ = r.Destroy(ctx, ports.RuntimeHandle{ID: id})
+	t.Cleanup(func() { _ = r.Destroy(context.Background(), ports.RuntimeHandle{ID: id}) })
+
+	h, err := r.Create(ctx, ports.RuntimeConfig{
+		SessionID:     domain.SessionID(id),
+		WorkspacePath: t.TempDir(),
+		Argv:          []string{"sh", "-c", "echo ready"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	waitForOutput(t, r, h, "ready", 5*time.Second)
+
+	st, err := r.CaptureState(ctx, h)
+	if err != nil {
+		t.Fatalf("CaptureState: %v", err)
+	}
+	if st.PipeOpen || st.AlternateOn {
+		t.Fatalf("fresh pane state = %+v, want both false", st)
+	}
+
+	argv := []string{"pane-capture", "--dir", sinkDir, "--epoch", "epoch-1"}
+	if err := r.StartCapture(ctx, h, argv); err != nil {
+		t.Fatalf("StartCapture #1: %v", err)
+	}
+	if err := r.StartCapture(ctx, h, argv); err != nil {
+		t.Fatalf("StartCapture #2: %v", err)
+	}
+
+	st = waitForCaptureState(t, r, h, func(s ports.PaneCaptureState) bool { return s.PipeOpen }, 5*time.Second)
+	if !st.PipeOpen {
+		t.Fatalf("after StartCapture x2, state = %+v, want PipeOpen", st)
+	}
+
+	if n := countPipeProcesses(t, helper); n != 1 {
+		t.Fatalf("pipe processes matching %q = %d, want exactly 1 (the -o toggle must make the second StartCapture a no-op)", helper, n)
+	}
+
+	if err := r.SendMessage(ctx, h, "printf '\\033[?1049h'"); err != nil {
+		t.Fatalf("enter alternate screen: %v", err)
+	}
+	st = waitForCaptureState(t, r, h, func(s ports.PaneCaptureState) bool { return s.AlternateOn }, 5*time.Second)
+	if !st.AlternateOn {
+		t.Fatalf("after alt-screen enter, state = %+v, want AlternateOn", st)
+	}
+
+	if err := r.SendMessage(ctx, h, "printf '\\033[?1049l'"); err != nil {
+		t.Fatalf("leave alternate screen: %v", err)
+	}
+	st = waitForCaptureState(t, r, h, func(s ports.PaneCaptureState) bool { return !s.AlternateOn }, 5*time.Second)
+	if st.AlternateOn {
+		t.Fatalf("after alt-screen leave, state = %+v, want AlternateOn false", st)
+	}
+
+	if err := r.StopCapture(ctx, h); err != nil {
+		t.Fatalf("StopCapture: %v", err)
+	}
+	st = waitForCaptureState(t, r, h, func(s ports.PaneCaptureState) bool { return !s.PipeOpen }, 5*time.Second)
+	if st.PipeOpen {
+		t.Fatalf("after StopCapture, state = %+v, want PipeOpen false", st)
+	}
+}
+
+func waitForCaptureState(t *testing.T, r *Runtime, h ports.RuntimeHandle, ok func(ports.PaneCaptureState) bool, deadline time.Duration) ports.PaneCaptureState {
+	t.Helper()
+	end := time.Now().Add(deadline)
+	var st ports.PaneCaptureState
+	for time.Now().Before(end) {
+		var err error
+		st, err = r.CaptureState(context.Background(), h)
+		if err != nil {
+			t.Fatalf("CaptureState: %v", err)
+		}
+		if ok(st) {
+			return st
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return st
+}
+
+func countPipeProcesses(t *testing.T, marker string) int {
+	t.Helper()
+	out, err := exec.Command("pgrep", "-f", marker).Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return 0
+		}
+		t.Fatalf("pgrep: %v", err)
+	}
+	n := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // waitForOutput polls GetOutput until out contains want or the deadline passes.

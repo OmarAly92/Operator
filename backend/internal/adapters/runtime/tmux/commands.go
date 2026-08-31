@@ -128,8 +128,12 @@ func capturePaneStyledArgs(id string, lines int) []string {
 	return []string{"capture-pane", "-e", "-t", id, "-p", "-S", fmt.Sprintf("-%d", lines)}
 }
 
-func pipePaneArgs(id, shell string) []string {
-	return []string{"pipe-pane", "-t", id, "-o", shell}
+func captureStateArgs(id string) []string {
+	return []string{"display-message", "-p", "-t", id + ":0.0", "#{pane_pipe},#{alternate_on}"}
+}
+
+func pipePaneArgs(id, command string) []string {
+	return []string{"pipe-pane", "-o", "-t", id, command}
 }
 
 func pipePaneOffArgs(id string) []string {
