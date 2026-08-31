@@ -38,6 +38,7 @@ const RULES = [
 	{ scenario: "large-output", compare: "at-least", factor: 1 },
 	{ scenario: "input-latency", compare: "at-most", factor: 1 },
 	{ scenario: "input-latency-owned", compare: "budget" },
+	{ scenario: "find-500k", compare: "budget" },
 ];
 
 const rows = [];

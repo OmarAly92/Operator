@@ -39,7 +39,7 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 			this.failure = error instanceof Error ? error : new Error(String(error));
 			throw this.failure;
 		}
-		const core = createTerminalCore({ columns: geometry.columns, scrollback: geometry.scrollback });
+		const core = createTerminalCore({ columns: geometry.columns, scrollback: geometry.scrollback, rows: geometry.rows });
 		this.core = core;
 		const renderer = new DomBlockRenderer();
 		renderer.mount(host, core);
@@ -177,6 +177,10 @@ export class DomBenchmarkRenderer implements BenchmarkRenderer {
 	get kind(): RendererKind {
 		this.assertReady();
 		return this.rendererKind;
+	}
+
+	getCoreForBench(): TerminalCore | undefined {
+		return this.core;
 	}
 
 	private assertReady(): void {

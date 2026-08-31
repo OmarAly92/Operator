@@ -8,6 +8,12 @@ import {
 } from "./workloads.mjs";
 import { XtermBenchmarkRenderer } from "./adapters/xterm";
 import { DomBenchmarkRenderer } from "./adapters/dom";
+import {
+	FIND_SCENARIO_NAME,
+	buildFindScrollbackBytes,
+	measureFindFirstResult,
+	populateScrollback,
+} from "./find.bench.js";
 
 export interface Geometry {
 	columns: number;
@@ -29,6 +35,7 @@ export interface BenchmarkRenderer {
 	waitForPaint(): Promise<number>;
 	dispatchPrintableKey(data: string): void;
 	setOwnedInput?(owned: boolean): void;
+	getCoreForBench?(): unknown;
 	dispose(): void;
 }
 
@@ -138,6 +145,36 @@ async function runScenario(
 			: INPUT_BYTE;
 	const isInputScenario = name === "input-latency" || name === "input-latency-owned";
 	const metadata = WORKLOAD_METADATA[name];
+	if (name === FIND_SCENARIO_NAME) {
+		try {
+			const scrollback = buildFindScrollbackBytes();
+			await populateScrollback(renderer, scrollback);
+			const samples: number[] = [];
+			for (let index = 0; index < configuration.warmups; index += 1) {
+				measureFindFirstResult(renderer);
+			}
+			for (let index = 0; index < configuration.samples; index += 1) {
+				samples.push(measureFindFirstResult(renderer));
+			}
+			invocationKinds.add(renderer.kind);
+			const { median, p95 } = summary(samples);
+			return {
+				result: {
+					configuration,
+					samples,
+					median,
+					p95,
+					unit: configuration.unit,
+					...metadata,
+				},
+				rendererVersion: renderer.version,
+				rendererKind: renderer.kind,
+			};
+		} finally {
+			renderer.dispose();
+			host.replaceChildren();
+		}
+	}
 	if (await digest(workload) !== metadata.workloadDigest) {
 		renderer.dispose();
 		throw new Error(`${name} workload digest does not match its generator`);

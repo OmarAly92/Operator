@@ -39,6 +39,7 @@ const scenarioFields = {
 	"large-output": new Set(commonScenarioFields),
 	"input-latency": new Set(commonScenarioFields),
 	"input-latency-owned": new Set([...commonScenarioFields, "maxP95Milliseconds"]),
+	"find-500k": new Set([...commonScenarioFields, "maxP95Milliseconds"]),
 };
 
 function requireString(value, field) {

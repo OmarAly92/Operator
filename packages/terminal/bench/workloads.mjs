@@ -22,6 +22,10 @@ export const WORKLOAD_METADATA = {
 		workload: "input-loopback-x-v1",
 		workloadDigest: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
 	},
+	"find-500k": {
+		workload: "find-scrollback-500k-v1",
+		workloadDigest: "4c8691b5d90ce7de06092e218e9bee64e991cdebe9e52375deaaf90906e60d38",
+	},
 };
 
 export function createLargeOutput() {
