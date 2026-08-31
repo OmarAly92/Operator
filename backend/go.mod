@@ -5,6 +5,7 @@ go 1.25.7
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/OmarAly92/operator/packages/terminal/go/bootstrap v0.0.0-00010101000000-000000000000
+	github.com/OmarAly92/operator/packages/terminal/go/marks v0.0.0-20260830224913-37738ae237a0
 	github.com/aymanbagabas/go-pty v0.2.3
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/coder/websocket v1.8.14
@@ -44,3 +45,5 @@ require (
 )
 
 replace github.com/OmarAly92/operator/packages/terminal/go/bootstrap => ../packages/terminal/go/bootstrap
+
+replace github.com/OmarAly92/operator/packages/terminal/go/marks => ../packages/terminal/go/marks

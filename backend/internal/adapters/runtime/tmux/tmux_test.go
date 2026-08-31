@@ -213,6 +213,12 @@ func TestCommandBuilders(t *testing.T) {
 	if got, want := capturePaneStyledArgs("sess-1", 10), []string{"capture-pane", "-e", "-t", "sess-1", "-p", "-S", "-10"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("capturePaneStyledArgs = %#v, want %#v", got, want)
 	}
+	if got, want := pipePaneArgs("sess-1", "cat >> /tmp/cap.log"), []string{"pipe-pane", "-t", "sess-1", "-o", "cat >> /tmp/cap.log"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pipePaneArgs = %#v, want %#v", got, want)
+	}
+	if got, want := pipePaneOffArgs("sess-1"), []string{"pipe-pane", "-t", "sess-1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pipePaneOffArgs = %#v, want %#v", got, want)
+	}
 }
 
 // -- session name sanitization --
@@ -1445,5 +1451,43 @@ func TestIsSessionIDClaimedSurfacesUnexpectedProbeFailure(t *testing.T) {
 
 	if _, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1")); err == nil {
 		t.Fatal("err = nil, want an error for an unrecognised probe failure")
+	}
+}
+
+func TestStartCaptureQuotesSinkPath(t *testing.T) {
+	r, fr := newTestRuntime(0)
+
+	if err := r.StartCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, "/tmp/o'malley/cap.log"); err != nil {
+		t.Fatalf("StartCapture: %v", err)
+	}
+	if len(fr.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fr.calls))
+	}
+	got := strings.Join(fr.calls[0].args, " ")
+	if !strings.HasPrefix(got, "pipe-pane -t sess-1 -o cat >> ") {
+		t.Fatalf("call args = %q, want pipe-pane -t sess-1 -o cat >> ...", got)
+	}
+	if !strings.Contains(got, "'/tmp/o'\\''malley/cap.log'") {
+		t.Fatalf("sink path not shell-quoted: %q", got)
+	}
+}
+
+func TestStartCaptureRejectsEmptySinkPath(t *testing.T) {
+	r, _ := newTestRuntime(0)
+	if err := r.StartCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, ""); err == nil {
+		t.Fatal("err = nil, want error for empty sink")
+	}
+}
+
+func TestStopCaptureCallsPipePaneOff(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	if err := r.StopCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}); err != nil {
+		t.Fatalf("StopCapture: %v", err)
+	}
+	if len(fr.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fr.calls))
+	}
+	if got, want := fr.calls[0].args, pipePaneOffArgs("sess-1"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("call = %#v, want %#v", got, want)
 	}
 }

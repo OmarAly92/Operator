@@ -178,6 +178,17 @@ type Stream interface {
 	Resize(rows, cols uint16) error
 }
 
+// PaneCapturer is an optional runtime capability for piping every byte the
+// pane renders into an arbitrary on-disk sink. The capture is server-side —
+// independent of who (or how many) clients are attached — so the decoder
+// sees a single, ordered stream of pane output and produces one block per
+// command. A runtime that cannot pipe its pane output (conpty) does not
+// implement this; the capture layer then refuses to start.
+type PaneCapturer interface {
+	StartCapture(ctx context.Context, handle RuntimeHandle, sinkPath string) error
+	StopCapture(ctx context.Context, handle RuntimeHandle) error
+}
+
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from
 // birth (0 means size not yet known). ctx cancellation must terminate the stream.
 type Attacher interface {

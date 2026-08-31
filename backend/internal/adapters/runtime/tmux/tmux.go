@@ -73,6 +73,7 @@ type Runtime struct {
 var _ ports.Runtime = (*Runtime)(nil)
 var _ ports.Attacher = (*Runtime)(nil)
 var _ ports.SessionIDClaimChecker = (*Runtime)(nil)
+var _ ports.PaneCapturer = (*Runtime)(nil)
 
 type runner interface {
 	Run(ctx context.Context, env []string, name string, args ...string) ([]byte, error)
@@ -735,6 +736,32 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 		return nil, err
 	}
 	return ptyexec.Spawn(ctx, argv, attachEnv(os.Environ()), rows, cols)
+}
+
+func (r *Runtime) StartCapture(ctx context.Context, handle ports.RuntimeHandle, sinkPath string) error {
+	id, err := handleID(handle)
+	if err != nil {
+		return err
+	}
+	if sinkPath == "" {
+		return errors.New("tmux runtime: capture sink path is required")
+	}
+	shell := fmt.Sprintf("cat >> %s", shellQuote(sinkPath))
+	if _, err := r.run(ctx, pipePaneArgs(id, shell)...); err != nil {
+		return fmt.Errorf("tmux runtime: start capture %s: %w", id, err)
+	}
+	return nil
+}
+
+func (r *Runtime) StopCapture(ctx context.Context, handle ports.RuntimeHandle) error {
+	id, err := handleID(handle)
+	if err != nil {
+		return err
+	}
+	if _, err := r.run(ctx, pipePaneOffArgs(id)...); err != nil {
+		return fmt.Errorf("tmux runtime: stop capture %s: %w", id, err)
+	}
+	return nil
 }
 
 // attachCommand returns the argv to attach a terminal to the session.
