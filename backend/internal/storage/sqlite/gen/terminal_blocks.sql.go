@@ -126,8 +126,7 @@ ON CONFLICT (terminal_id, source_id) DO UPDATE SET
     truncated_bytes = excluded.truncated_bytes,
     capture_epoch = excluded.capture_epoch,
     start_offset = excluded.start_offset,
-    end_offset = excluded.end_offset,
-    created_at = excluded.created_at
+    end_offset = excluded.end_offset
 `
 
 type UpsertTerminalBlockParams struct {

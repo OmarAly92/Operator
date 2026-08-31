@@ -349,3 +349,182 @@ func TestRecordTruncatesTo8MiBOnRuneBoundary(t *testing.T) {
 		t.Fatalf("truncated_bytes = %d, want 102 (cut at index 100 advanced to the rune boundary at 102)", b.TruncatedBytes)
 	}
 }
+
+func TestRecordCountsOmittedLinesFromBothCaps(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newService(t)
+
+	const lineLen = 2000
+	const lines = 6000
+	original := make([]byte, 0, lineLen*lines)
+	for i := 0; i < lines; i++ {
+		for j := 0; j < lineLen-1; j++ {
+			original = append(original, 'x')
+		}
+		original = append(original, '\n')
+	}
+	if len(original) <= 8<<20 {
+		t.Fatalf("fixture must exceed 8 MiB, got %d", len(original))
+	}
+
+	in := sampleBlock("term-1", "1", time.Unix(1000, 0).UTC())
+	in.RawOutput = append([]byte(nil), original...)
+	if err := svc.Record(ctx, in); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	got, err := svc.History(ctx, "term-1", 100)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	b := got[0]
+	if len(b.RawOutput) > 8<<20 {
+		t.Fatalf("stored %d bytes, want <= %d", len(b.RawOutput), 8<<20)
+	}
+	if !bytes.HasSuffix(original, b.RawOutput) {
+		t.Fatalf("stored output must be a suffix of the original")
+	}
+	droppedLen := len(original) - len(b.RawOutput)
+	wantLines := bytes.Count(original[:droppedLen], []byte{'\n'})
+	if b.TruncatedBytes != droppedLen {
+		t.Fatalf("truncated_bytes = %d, want %d", b.TruncatedBytes, droppedLen)
+	}
+	if b.TruncatedLines != wantLines {
+		t.Fatalf("truncated_lines = %d, want %d (must count newlines in every dropped byte, not just the line cap)", b.TruncatedLines, wantLines)
+	}
+	lineCapOnlyDrop := lines + 1 - 5000
+	if b.TruncatedLines <= lineCapOnlyDrop {
+		t.Fatalf("truncated_lines = %d, want > %d — the byte cap dropped extra newline-bearing lines", b.TruncatedLines, lineCapOnlyDrop)
+	}
+}
+
+func TestRecordCountsOmittedLinesWhenOnlyByteCapFires(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newService(t)
+
+	const lineLen = 10000
+	const lines = 1000
+	original := make([]byte, 0, lineLen*lines)
+	for i := 0; i < lines; i++ {
+		for j := 0; j < lineLen-1; j++ {
+			original = append(original, 'y')
+		}
+		original = append(original, '\n')
+	}
+	if c := bytes.Count(original, []byte{'\n'}); c >= 5000 {
+		t.Fatalf("fixture must stay under the line cap, got %d newlines", c)
+	}
+	if len(original) <= 8<<20 {
+		t.Fatalf("fixture must exceed 8 MiB, got %d", len(original))
+	}
+
+	in := sampleBlock("term-1", "1", time.Unix(1000, 0).UTC())
+	in.RawOutput = append([]byte(nil), original...)
+	if err := svc.Record(ctx, in); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	got, err := svc.History(ctx, "term-1", 100)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	b := got[0]
+	droppedLen := len(original) - len(b.RawOutput)
+	wantLines := bytes.Count(original[:droppedLen], []byte{'\n'})
+	if wantLines == 0 {
+		t.Fatalf("fixture bug: dropped prefix has no newline")
+	}
+	if b.TruncatedLines != wantLines {
+		t.Fatalf("truncated_lines = %d, want %d — byte-cap drops must still be counted as omitted lines", b.TruncatedLines, wantLines)
+	}
+	if b.TruncatedBytes != droppedLen {
+		t.Fatalf("truncated_bytes = %d, want %d", b.TruncatedBytes, droppedLen)
+	}
+}
+
+func TestRecordExactlyAtLineCapIsNotTrimmed(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newService(t)
+
+	var buf bytes.Buffer
+	for i := 0; i < 5000; i++ {
+		fmt.Fprintf(&buf, "line-%04d\n", i)
+	}
+	original := append([]byte(nil), buf.Bytes()...)
+	if c := bytes.Count(original, []byte{'\n'}); c != 5000 {
+		t.Fatalf("fixture has %d newlines, want exactly 5000", c)
+	}
+
+	in := sampleBlock("term-1", "1", time.Unix(1000, 0).UTC())
+	in.RawOutput = append([]byte(nil), original...)
+	if err := svc.Record(ctx, in); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	got, err := svc.History(ctx, "term-1", 100)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	b := got[0]
+	if b.TruncatedLines != 0 || b.TruncatedBytes != 0 {
+		t.Fatalf("truncated = (%d lines, %d bytes), want (0, 0) at exactly the line cap", b.TruncatedLines, b.TruncatedBytes)
+	}
+	if !bytes.Equal(b.RawOutput, original) {
+		t.Fatalf("output at exactly the line cap must be stored verbatim")
+	}
+}
+
+func TestRecordKeepsFirstSeenCreatedAtAcrossReplay(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newService(t)
+
+	first := sampleBlock("term-1", "9", time.Unix(1000, 0).UTC())
+	first.CreatedAt = time.Unix(1000, 0).UTC()
+	if err := svc.Record(ctx, first); err != nil {
+		t.Fatalf("record first: %v", err)
+	}
+
+	second := sampleBlock("term-1", "9", time.Unix(2000, 0).UTC())
+	second.CreatedAt = time.Unix(9999, 0).UTC()
+	second.Command = "changed"
+	if err := svc.Record(ctx, second); err != nil {
+		t.Fatalf("record replay: %v", err)
+	}
+
+	got, err := svc.History(ctx, "term-1", 100)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("rows = %d, want 1", len(got))
+	}
+	b := got[0]
+	if !b.CreatedAt.Equal(time.Unix(1000, 0).UTC()) {
+		t.Fatalf("created_at = %v, want the first-seen 1000 (idempotent replay must not mutate it)", b.CreatedAt)
+	}
+	if b.Command != "changed" || !b.FinishedAt.Equal(time.Unix(2000, 0).UTC()) {
+		t.Fatalf("row = %+v, want the replay's other fields applied", b)
+	}
+}
+
+func TestHistoryClampsNonPositiveLimit(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newService(t)
+
+	for i := 0; i < 3; i++ {
+		in := sampleBlock("term-1", fmt.Sprintf("s-%d", i), time.Unix(int64(1000+i), 0).UTC())
+		if err := svc.Record(ctx, in); err != nil {
+			t.Fatalf("record %d: %v", i, err)
+		}
+	}
+
+	for _, limit := range []int{0, -1} {
+		got, err := svc.History(ctx, "term-1", limit)
+		if err != nil {
+			t.Fatalf("history limit=%d: %v", limit, err)
+		}
+		if len(got) != 3 {
+			t.Fatalf("history limit=%d returned %d rows, want 3 (non-positive limit must fall back to the default)", limit, len(got))
+		}
+	}
+}

@@ -12,6 +12,7 @@ const (
 	retainPerTerminal = 100
 	maxOutputLines    = 5000
 	maxOutputBytes    = 8 << 20
+	defaultHistory    = 100
 )
 
 type Service struct {
@@ -35,20 +36,25 @@ func (s *Service) Record(ctx context.Context, b domain.Block) error {
 }
 
 func (s *Service) History(ctx context.Context, terminalID string, limit int) ([]domain.Block, error) {
+	if limit <= 0 {
+		limit = defaultHistory
+	}
 	return s.store.ListTerminalBlocks(ctx, terminalID, limit)
 }
 
 func capOutput(raw []byte) (out []byte, omittedLines, omittedBytes int) {
 	out = raw
 
-	if lines := bytes.Count(out, []byte{'\n'}) + 1; lines > maxOutputLines {
-		drop := lines - maxOutputLines
+	if bytes.Count(out, []byte{'\n'}) > maxOutputLines {
+		drop := bytes.Count(out, []byte{'\n'}) + 1 - maxOutputLines
 		idx := 0
 		for i := 0; i < drop; i++ {
 			p := bytes.IndexByte(out[idx:], '\n')
+			if p < 0 {
+				break
+			}
 			idx += p + 1
 		}
-		omittedLines = drop
 		out = out[idx:]
 	}
 
@@ -60,6 +66,8 @@ func capOutput(raw []byte) (out []byte, omittedLines, omittedBytes int) {
 		out = out[cut:]
 	}
 
-	omittedBytes = len(raw) - len(out)
+	dropped := raw[:len(raw)-len(out)]
+	omittedBytes = len(dropped)
+	omittedLines = bytes.Count(dropped, []byte{'\n'})
 	return out, omittedLines, omittedBytes
 }

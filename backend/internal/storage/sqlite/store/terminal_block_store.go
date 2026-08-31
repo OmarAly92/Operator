@@ -43,6 +43,9 @@ func (s *Store) UpsertTerminalBlock(ctx context.Context, b domain.Block) error {
 }
 
 func (s *Store) ListTerminalBlocks(ctx context.Context, terminalID string, limit int) ([]domain.Block, error) {
+	if limit <= 0 {
+		limit = 100
+	}
 	rows, err := s.qr.ListTerminalBlocks(ctx, gen.ListTerminalBlocksParams{
 		TerminalID: terminalID,
 		Limit:      int64(limit),
