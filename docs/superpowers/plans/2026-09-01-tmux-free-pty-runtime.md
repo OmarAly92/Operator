@@ -382,7 +382,7 @@ git commit -m "refactor(runtime): rename conpty package to ptyhost"
 - Consumes: `ptyConn` interface (`host.go:21`) — `io.Reader`, `io.Writer`, `Resize(cols, rows int) error`, `Close() error`, `Done() <-chan struct{}`, `ExitCode() (int, bool)`, `PID() int`
 - Produces: `newPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error)` on unix, satisfying the same seam `newConPTY` satisfies on Windows
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `host_pty_unix_test.go`:
 
@@ -439,12 +439,12 @@ func TestNewPTYResize(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestNewPTY -v`
 Expected: FAIL — `undefined: newPTY`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `host_pty_unix.go`:
 
@@ -533,18 +533,18 @@ func newPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
 
 and in `host_main.go` replace `newConPTY(cwd, shellCmd, shellArgs)` with `newPTY(cwd, shellCmd, shellArgs)`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -v`
 Expected: PASS, including the two new tests.
 
-- [ ] **Step 5: Verify all platforms still build**
+- [x] **Step 5: Verify all platforms still build**
 
 ```bash
 cd backend && for os in darwin linux windows; do GOOS=$os go build ./... || echo "FAILED $os"; done
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** (commit `6b672e730`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
