@@ -1,7 +1,7 @@
 // host_main.go is the RunHost entrypoint for the "opr pty-host" subcommand.
 // It is cross-platform: the loopback TCP bind and signal wiring work on all
 // OSes; only the ConPTY creation (newConPTY) is OS-gated via build tags.
-package conpty
+package ptyhost
 
 import (
 	"context"

@@ -3,7 +3,7 @@
 // named-pipe protocol between pty-host.js and this Go client.
 //
 // Frame layout: [1-byte type][4-byte big-endian length][payload]
-package conpty
+package ptyhost
 
 import (
 	"encoding/binary"
@@ -49,7 +49,7 @@ type GetOutputReq struct {
 func EncodeMessage(msgType byte, payload []byte) ([]byte, error) {
 	n := len(payload)
 	if n > math.MaxUint32 {
-		return nil, fmt.Errorf("conpty: payload too large (%d bytes, max %d)", n, math.MaxUint32)
+		return nil, fmt.Errorf("ptyhost: payload too large (%d bytes, max %d)", n, math.MaxUint32)
 	}
 	payloadLen := uint32(n) // safe: n <= math.MaxUint32 checked above
 	frame := make([]byte, 5+n)

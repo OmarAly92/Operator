@@ -1,7 +1,7 @@
 // runtime.go - conpty Runtime adapter. Implements ports.Runtime and
 // ports.Attacher (see attach.go). Drives sessions via the B3 pty-host over
 // loopback TCP, using the B1 protocol and the B2 registry for restart recovery.
-package conpty
+package ptyhost
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty/ptyregistry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/ptyregistry"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -74,19 +74,19 @@ func New(opts Options) *Runtime {
 func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error) {
 	id := string(cfg.SessionID)
 	if !validSessionID.MatchString(id) {
-		return ports.RuntimeHandle{}, fmt.Errorf("conpty: invalid session id %q: must match ^[a-zA-Z0-9_-]+$", id)
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: invalid session id %q: must match ^[a-zA-Z0-9_-]+$", id)
 	}
 	if cfg.WorkspacePath == "" {
-		return ports.RuntimeHandle{}, fmt.Errorf("conpty: workspace path required")
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: workspace path required")
 	}
 	if len(cfg.Argv) == 0 {
-		return ports.RuntimeHandle{}, fmt.Errorf("conpty: argv required")
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: argv required")
 	}
 
 	r.mu.Lock()
 	if _, dup := r.sessions[id]; dup {
 		r.mu.Unlock()
-		return ports.RuntimeHandle{}, fmt.Errorf("conpty: session %q already exists; destroy before re-creating", id)
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q already exists; destroy before re-creating", id)
 	}
 	// Reserve the slot before the async spawn so a concurrent Create for the
 	// same id fails immediately (no gap between check and set).
@@ -98,7 +98,7 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 		r.mu.Lock()
 		delete(r.sessions, id)
 		r.mu.Unlock()
-		return ports.RuntimeHandle{}, fmt.Errorf("conpty: spawn pty-host for %q: %w", id, err)
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: spawn pty-host for %q: %w", id, err)
 	}
 
 	sess := &hostSession{addr: addr, pid: pid, launchID: cfg.Env[runtimeLaunchIDEnv]}
@@ -150,7 +150,7 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 		}
 	}
 	if !exited {
-		return errors.Join(gracefulErr, forceErr, fmt.Errorf("conpty: pty-host pid %d is still alive after teardown", sess.pid))
+		return errors.Join(gracefulErr, forceErr, fmt.Errorf("ptyhost: pty-host pid %d is still alive after teardown", sess.pid))
 	}
 
 	r.mu.Lock()
@@ -158,7 +158,7 @@ func (r *Runtime) Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	r.mu.Unlock()
 
 	if err := ptyregistry.Unregister(handle.ID); err != nil {
-		return fmt.Errorf("conpty: unregister destroyed session %q: %w", handle.ID, err)
+		return fmt.Errorf("ptyhost: unregister destroyed session %q: %w", handle.ID, err)
 	}
 	return nil
 }
@@ -243,7 +243,7 @@ func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.Run
 // the pty-host registry already fences its one child by the exact launch id.
 func (r *Runtime) IsExactSupervisedProcessAlive(ctx context.Context, handle ports.RuntimeHandle, ref ports.SupervisedProcessRef) (bool, error) {
 	if ref.SessionID == "" || ref.LaunchID == "" {
-		return false, errors.New("conpty: exact supervisor session and launch are required")
+		return false, errors.New("ptyhost: exact supervisor session and launch are required")
 	}
 	return r.IsSupervisedProcessAlive(ctx, handle, ref)
 }
@@ -252,7 +252,7 @@ func (r *Runtime) IsExactSupervisedProcessAlive(ctx context.Context, handle port
 func (r *Runtime) SendMessage(ctx context.Context, handle ports.RuntimeHandle, message string) error {
 	sess := r.resolve(handle.ID)
 	if sess == nil {
-		return fmt.Errorf("conpty: session %q not found", handle.ID)
+		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	return clientSendMessage(sess.addr, message)
 }
@@ -261,7 +261,7 @@ func (r *Runtime) SendMessage(ctx context.Context, handle ports.RuntimeHandle, m
 func (r *Runtime) Interrupt(ctx context.Context, handle ports.RuntimeHandle) error {
 	sess := r.resolve(handle.ID)
 	if sess == nil {
-		return fmt.Errorf("conpty: session %q not found", handle.ID)
+		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	return clientSendInput(sess.addr, "\x03")
 }
@@ -271,7 +271,7 @@ func (r *Runtime) Interrupt(ctx context.Context, handle ports.RuntimeHandle) err
 func (r *Runtime) SendInput(ctx context.Context, handle ports.RuntimeHandle, input string) error {
 	sess := r.resolve(handle.ID)
 	if sess == nil {
-		return fmt.Errorf("conpty: session %q not found", handle.ID)
+		return fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	return clientSendInput(sess.addr, input)
 }
@@ -279,11 +279,11 @@ func (r *Runtime) SendInput(ctx context.Context, handle ports.RuntimeHandle, inp
 // GetOutput returns the last lines lines from the pty-host ring buffer.
 func (r *Runtime) GetOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error) {
 	if lines <= 0 {
-		return "", fmt.Errorf("conpty: lines must be > 0")
+		return "", fmt.Errorf("ptyhost: lines must be > 0")
 	}
 	sess := r.resolve(handle.ID)
 	if sess == nil {
-		return "", fmt.Errorf("conpty: session %q not found", handle.ID)
+		return "", fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	return clientGetOutput(sess.addr, lines)
 }

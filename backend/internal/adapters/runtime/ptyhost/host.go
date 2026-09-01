@@ -5,7 +5,7 @@
 // down gracefully (ConPTY dispose first, then clients, then listener).
 //
 // This file is cross-platform; only the real conptyConn impl is Windows-tagged.
-package conpty
+package ptyhost
 
 import (
 	"context"

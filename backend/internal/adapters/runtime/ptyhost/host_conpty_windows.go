@@ -1,6 +1,6 @@
 //go:build windows
 
-package conpty
+package ptyhost
 
 import (
 	"fmt"
@@ -29,18 +29,18 @@ func newConPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
 	// go-pty's New() returns a ConPty on Windows.
 	p, err := gopty.New()
 	if err != nil {
-		return nil, fmt.Errorf("conpty: create pty: %w", err)
+		return nil, fmt.Errorf("ptyhost: create pty: %w", err)
 	}
 	cp, ok := p.(gopty.ConPty)
 	if !ok {
 		_ = p.Close()
-		return nil, fmt.Errorf("conpty: expected ConPty on windows, got %T", p)
+		return nil, fmt.Errorf("ptyhost: expected ConPty on windows, got %T", p)
 	}
 
 	// Set an initial size matching node-pty defaults from pty-host.ts.
 	if err := cp.Resize(220, 50); err != nil {
 		_ = cp.Close()
-		return nil, fmt.Errorf("conpty: initial resize: %w", err)
+		return nil, fmt.Errorf("ptyhost: initial resize: %w", err)
 	}
 
 	cmd := cp.Command(shellCmd, shellArgs...)
@@ -50,7 +50,7 @@ func newConPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
 
 	if err := cmd.Start(); err != nil {
 		_ = cp.Close()
-		return nil, fmt.Errorf("conpty: start command: %w", err)
+		return nil, fmt.Errorf("ptyhost: start command: %w", err)
 	}
 
 	c := &conptyConn{

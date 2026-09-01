@@ -3,7 +3,7 @@
 // loopback host and speaks the B1 framing protocol directly. The host replays
 // the scrollback Snapshot as the first MsgTerminalData on connect, so a fresh
 // Read naturally yields the repaint first.
-package conpty
+package ptyhost
 
 import (
 	"context"
@@ -23,11 +23,11 @@ var _ ports.Attacher = (*Runtime)(nil)
 func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error) {
 	sess := r.resolve(handle.ID)
 	if sess == nil {
-		return nil, fmt.Errorf("conpty: session %q not found", handle.ID)
+		return nil, fmt.Errorf("ptyhost: session %q not found", handle.ID)
 	}
 	conn, err := dialHost(sess.addr, dialTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("conpty: dial host for %q: %w", handle.ID, err)
+		return nil, fmt.Errorf("ptyhost: dial host for %q: %w", handle.ID, err)
 	}
 
 	pr, pw := io.Pipe()

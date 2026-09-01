@@ -1,6 +1,6 @@
 //go:build !windows
 
-package conpty
+package ptyhost
 
 import (
 	"errors"

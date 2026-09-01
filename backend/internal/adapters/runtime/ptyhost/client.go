@@ -1,7 +1,7 @@
 // client.go - loopback TCP client helpers that mirror pty-client.ts.
 // Each function dials the host addr fresh (short-lived connection) and
 // returns without maintaining state. Cross-platform: uses only stdlib net.
-package conpty
+package ptyhost
 
 import (
 	"encoding/json"

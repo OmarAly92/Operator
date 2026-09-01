@@ -1,7 +1,7 @@
 // spawn.go - injectable hostSpawner seam. The real detached-process spawn is
 // Windows-only (spawn_windows.go). This file defines the type and the
 // defaultSpawnHost variable; the non-windows stub is in spawn_other.go.
-package conpty
+package ptyhost
 
 import (
 	"context"

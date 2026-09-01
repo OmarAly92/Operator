@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost"
 )
 
 // newPtyHostCommand registers the "opr pty-host" hidden subcommand that the
@@ -19,7 +19,7 @@ func newPtyHostCommand() *cobra.Command {
 		Hidden:             true,
 		DisableFlagParsing: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			code := conpty.RunHost(args, os.Stdout)
+			code := ptyhost.RunHost(args, os.Stdout)
 			if code != 0 {
 				os.Exit(code)
 			}

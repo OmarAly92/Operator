@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"runtime"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/tmux"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -28,7 +28,7 @@ type Runtime interface {
 
 // Compile-time assertions: both adapters must implement the union interface.
 var _ Runtime = (*tmux.Runtime)(nil)
-var _ Runtime = (*conpty.Runtime)(nil)
+var _ Runtime = (*ptyhost.Runtime)(nil)
 
 // New returns the per-platform runtime: tmux on Darwin/Linux, conpty on Windows.
 // log is accepted for signature stability with callers but is currently unused.
@@ -36,5 +36,5 @@ func New(_ *slog.Logger) Runtime {
 	if runtime.GOOS != "windows" {
 		return tmux.New(tmux.Options{})
 	}
-	return conpty.New(conpty.Options{})
+	return ptyhost.New(ptyhost.Options{})
 }

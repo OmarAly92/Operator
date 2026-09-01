@@ -1,6 +1,6 @@
 //go:build !windows
 
-package conpty
+package ptyhost
 
 import "errors"
 
@@ -8,5 +8,5 @@ import "errors"
 // tests use a fake ptyConn; this stub only exists to keep the package buildable
 // on Darwin/Linux so the engine can be imported and tested without Windows.
 func newConPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
-	return nil, errors.New("conpty: unsupported on this OS")
+	return nil, errors.New("ptyhost: unsupported on this OS")
 }

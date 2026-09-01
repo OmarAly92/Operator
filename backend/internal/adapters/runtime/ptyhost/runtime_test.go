@@ -1,4 +1,4 @@
-package conpty
+package ptyhost
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/conpty/ptyregistry"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/ptyregistry"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )

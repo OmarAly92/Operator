@@ -2,7 +2,7 @@
 
 // spawn_windows.go - real detached pty-host spawner for Windows using
 // CREATE_NEW_PROCESS_GROUP + DETACHED_PROCESS so the host survives daemon exit.
-package conpty
+package ptyhost
 
 import (
 	"bufio"
@@ -64,7 +64,7 @@ func (b *boundedBuffer) String() string {
 func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", 0, fmt.Errorf("conpty spawn: resolve executable: %w", err)
+		return "", 0, fmt.Errorf("ptyhost spawn: resolve executable: %w", err)
 	}
 
 	// Translate a leading `env NAME=VALUE ...` prefix into real child env vars.
@@ -101,7 +101,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", 0, fmt.Errorf("conpty spawn: stdout pipe: %w", err)
+		return "", 0, fmt.Errorf("ptyhost spawn: stdout pipe: %w", err)
 	}
 	// Capture a bounded copy of the pty-host's stderr. It writes its startup
 	// diagnostics there (listen/newConPTY failures) before exiting without
@@ -110,7 +110,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 	cmd.Stderr = stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", 0, fmt.Errorf("conpty spawn: start: %w", err)
+		return "", 0, fmt.Errorf("ptyhost spawn: start: %w", err)
 	}
 
 	// Read READY line with a timeout.
@@ -136,7 +136,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 				return
 			}
 		}
-		msg := "conpty spawn: pty-host exited without printing READY"
+		msg := "ptyhost spawn: pty-host exited without printing READY"
 		if diag := strings.TrimSpace(stderr.String()); diag != "" {
 			msg += ": " + diag
 		}
@@ -163,7 +163,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 		return r.addr, cmd.Process.Pid, nil
 	case <-timer.C:
 		_ = cmd.Process.Kill()
-		return "", 0, fmt.Errorf("conpty spawn: pty-host startup timeout (%s)", spawnReadyTimeout)
+		return "", 0, fmt.Errorf("ptyhost spawn: pty-host startup timeout (%s)", spawnReadyTimeout)
 	case <-ctx.Done():
 		_ = cmd.Process.Kill()
 		return "", 0, ctx.Err()

@@ -258,7 +258,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 }
 
 // runtimeMessageSender is the narrow part of the concrete runtime needed by
-// opr send. Both tmux.Runtime and conpty.Runtime implement this via SendMessage.
+// opr send. Both tmux.Runtime and ptyhost.Runtime implement this via SendMessage.
 type runtimeMessageSender interface {
 	SendMessage(ctx context.Context, handle ports.RuntimeHandle, message string) error
 }
