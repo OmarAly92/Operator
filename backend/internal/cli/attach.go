@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +17,11 @@ import (
 )
 
 const attachDialTimeout = 3 * time.Second
+
+// ctrlC is ETX (0x03), the byte a terminal in raw mode delivers for Ctrl-C
+// instead of a local SIGINT. attachPipe intercepts it as a local detach
+// trigger rather than forwarding it to the remote session.
+const ctrlC = 0x03
 
 func newAttachCommand() *cobra.Command {
 	return &cobra.Command{
@@ -59,11 +67,35 @@ func runAttach(cmd *cobra.Command, sessionID string) error {
 	}
 	defer func() { _ = term.Restore(stdinFD, oldState) }()
 
-	out := cmd.OutOrStdout()
+	return attachPipe(conn, os.Stdin, cmd.OutOrStdout())
+}
 
-	done := make(chan struct{})
+// attachPipe copies terminal data from conn to out, and stdin from in to
+// conn, until either side finishes: the remote closes conn, in reaches EOF
+// or errors, or in produces a Ctrl-C byte (0x03), which is treated as a
+// local detach request and never forwarded to the remote session.
+//
+// Both directions run as goroutines. closeConn is guarded by a sync.Once
+// that also carries the triggering error to winner: whichever goroutine
+// first detects an end condition (a Ctrl-C byte, a read/write failure, or
+// EOF) is the one whose call to closeConn actually runs, so winner always
+// reports the true cause rather than racing two independently-produced
+// errors against each other. Closing conn also unblocks whichever goroutine
+// is blocked in conn.Read. attachPipe returns as soon as winner receives a
+// value — it does not wait for a goroutine still blocked on a local read of
+// in, since that read cannot be cancelled portably; it is left to exit (or
+// leak harmlessly until process exit) on its own.
+func attachPipe(conn net.Conn, in io.Reader, out io.Writer) error {
+	var closeOnce sync.Once
+	winner := make(chan error, 1)
+	closeConn := func(cause error) {
+		closeOnce.Do(func() {
+			_ = conn.Close()
+			winner <- cause
+		})
+	}
+
 	go func() {
-		defer close(done)
 		parser := ptyhost.NewMessageParser(func(msgType byte, payload []byte) {
 			if msgType == ptyhost.MsgTerminalData {
 				_, _ = out.Write(payload)
@@ -76,28 +108,49 @@ func runAttach(cmd *cobra.Command, sessionID string) error {
 				parser.Feed(buf[:n])
 			}
 			if err != nil {
+				closeConn(err)
 				return
 			}
 		}
 	}()
 
-	inBuf := make([]byte, 4096)
-	for {
-		n, err := os.Stdin.Read(inBuf)
-		if n > 0 {
-			frame, encErr := ptyhost.EncodeMessage(ptyhost.MsgTerminalInput, inBuf[:n])
-			if encErr != nil {
-				return fmt.Errorf("attach: encode input: %w", encErr)
+	go func() {
+		inBuf := make([]byte, 4096)
+		for {
+			n, err := in.Read(inBuf)
+			if n > 0 {
+				chunk := inBuf[:n]
+				if idx := bytes.IndexByte(chunk, ctrlC); idx >= 0 {
+					if idx > 0 {
+						_ = sendInput(conn, chunk[:idx])
+					}
+					closeConn(nil)
+					return
+				}
+				if sendErr := sendInput(conn, chunk); sendErr != nil {
+					closeConn(sendErr)
+					return
+				}
 			}
-			if _, writeErr := conn.Write(frame); writeErr != nil {
-				break
+			if err != nil {
+				closeConn(err)
+				return
 			}
 		}
-		if err != nil {
-			break
-		}
-	}
+	}()
 
-	<-done
+	cause := <-winner
+	if cause != nil && cause != io.EOF {
+		return fmt.Errorf("attach: session ended: %w", cause)
+	}
 	return nil
+}
+
+func sendInput(conn net.Conn, chunk []byte) error {
+	frame, err := ptyhost.EncodeMessage(ptyhost.MsgTerminalInput, chunk)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(frame)
+	return err
 }
