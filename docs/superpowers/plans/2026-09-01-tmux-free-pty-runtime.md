@@ -563,7 +563,7 @@ git commit -m "feat(runtime): back the ptyConn seam with a real Unix PTY"
 **Interfaces:**
 - Produces: `defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (addr string, pid int, err error)` — same signature the Windows implementation already has (`spawn_windows.go:64`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test** (with a `TestMain` re-exec dispatcher added — required so the test binary itself answers to the `pty-host` subcommand)
 
 `spawn_unix_test.go`:
 
@@ -600,12 +600,12 @@ func TestDefaultSpawnHostDetachesAndReportsAddress(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestDefaultSpawnHost -v`
 Expected: FAIL — `defaultSpawnHost: ptyhost spawn: unsupported on this OS`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `spawn_unix.go`. The child is put in its own session with `Setsid` so it survives the daemon exiting — the Unix equivalent of the Windows detached-process flags:
 
@@ -699,7 +699,7 @@ func stopHostProcess(pid int) {
 
 Verify the `READY:<pid> <port>` format against `host_main.go` before running — the parse must match what the host prints (`host_main.go:64` today: `READY:%d %d\n`).
 
-- [ ] **Step 4: Re-point the host's stdout/stderr after READY — the detachment is a fiction without this**
+- [x] **Step 4: Re-point the host's stdout/stderr after READY — the detachment is a fiction without this**
 
 The host keeps logging to stderr after startup (`host_main.go:75`, `:90`), and the daemon holds the pipe. Once the daemon exits, the next stderr write gets EPIPE, and the Go runtime kills the process on EPIPE to fd 1/2 with SIGPIPE — so on Unix the "survives daemon restart" property dies the first time the orphaned host logs anything. Windows has no SIGPIPE, which is why conpty never noticed.
 
@@ -718,12 +718,12 @@ func redirectStdio(f *os.File) {
 
 Add a test: spawn a host, SIGKILL the spawner's pipe end (close it), send the host input that makes it log, and assert the host is still alive.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestDefaultSpawnHost -v`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** (commit `8b033b0f4`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
