@@ -86,6 +86,12 @@ surface (`npm run sqlc`, `npm run api`).
   [#109](https://github.com/OmarAly92/operator/issues/109)).
 - Terminal mux over WebSocket (`/mux`): per-client `tmux attach` PTY on
   Darwin/Linux; conpty loopback pty-host on Windows.
+- Durable shell blocks for standalone tmux shells: a single `pipe-pane` helper writes a
+  bounded journal independent of attached clients; the daemon adopts it after restart,
+  persists exact raw replays in `terminal_blocks`, and exposes chronological history at
+  `GET /api/v1/shell-terminals/{handleId}/blocks`. History retains the newest 100 blocks
+  per terminal and 5,000 output lines per block (plus an 8 MiB raw-byte safety cap).
+  Windows retains the raw ConPTY terminal and reports `durableBlocks: false`.
 - Lifecycle reducer plus reaper (`internal/observe/reaper`).
 - Agent adapter platform under `internal/adapters/agent/` (25 adapters) with a
   registry and `opr hooks` activity dispatch.
@@ -153,6 +159,8 @@ surface (`npm run sqlc`, `npm run api`).
   restart. Startup parse weight dropped ~34.5% via route-level code splitting;
   binding warm-start/idle-memory comparisons remain unmeasured pending native
   runners (`docs/benchmarks/tauri-port-baseline.md`).
+- Shell-terminal history replays decoded raw bytes before its live mux attachment opens,
+  preserving chronological block order across page reloads and daemon restarts.
 - Chat history uses bounded pages and targeted CDC/SSE invalidation rather than
   polling and transferring the full lifetime of a conversation.
 - In-app notification center with click access, Unread/All filters, paginated

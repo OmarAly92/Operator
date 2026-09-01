@@ -1,0 +1,79 @@
+{
+  "shells": {
+    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR={{script}}.d exec zsh"] },
+    "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "exec bash --rcfile {{script}}.d/.bashrc -i"] },
+    "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
+  },
+  "cases": [
+    {
+      "shell": "zsh",
+      "integration": "auto",
+      "suppressPrompt": false,
+      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR=\"__SCRIPT__\".d exec zsh"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "0" }
+    },
+    {
+      "shell": "bash",
+      "integration": "auto",
+      "suppressPrompt": false,
+      "argv": ["bash", "-c", "exec bash --rcfile \"__SCRIPT__\".d/.bashrc -i"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "0" }
+    },
+    {
+      "shell": "fish",
+      "integration": "auto",
+      "suppressPrompt": false,
+      "argv": ["fish", "-C", "source \"__SCRIPT__\""],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "0" }
+    },
+    {
+      "shell": "zsh",
+      "integration": "auto",
+      "suppressPrompt": true,
+      "argv": ["zsh", "-c", "source \"__SCRIPT__\"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR=\"__SCRIPT__\".d exec zsh"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "1" }
+    },
+    {
+      "shell": "zsh",
+      "integration": "osc133-only",
+      "suppressPrompt": false,
+      "argv": ["zsh"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" }
+    },
+    {
+      "shell": "bash",
+      "integration": "osc133-only",
+      "suppressPrompt": false,
+      "argv": ["bash"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" }
+    },
+    {
+      "shell": "fish",
+      "integration": "osc133-only",
+      "suppressPrompt": false,
+      "argv": ["fish"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" }
+    },
+    {
+      "shell": "zsh",
+      "integration": "off",
+      "suppressPrompt": false,
+      "argv": ["zsh"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "off" }
+    },
+    {
+      "shell": "bash",
+      "integration": "off",
+      "suppressPrompt": false,
+      "argv": ["bash"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "off" }
+    },
+    {
+      "shell": "fish",
+      "integration": "off",
+      "suppressPrompt": false,
+      "argv": ["fish"],
+      "env": { "OPERATOR_TERMINAL_INTEGRATION": "off" }
+    }
+  ]
+}

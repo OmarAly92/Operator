@@ -213,6 +213,15 @@ func TestCommandBuilders(t *testing.T) {
 	if got, want := capturePaneStyledArgs("sess-1", 10), []string{"capture-pane", "-e", "-t", "sess-1", "-p", "-S", "-10"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("capturePaneStyledArgs = %#v, want %#v", got, want)
 	}
+	if got, want := captureStateArgs("sess-1"), []string{"display-message", "-p", "-t", "sess-1:0.0", "#{pane_pipe},#{alternate_on}"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("captureStateArgs = %#v, want %#v", got, want)
+	}
+	if got, want := pipePaneArgs("sess-1", "cat >> /tmp/cap.log"), []string{"pipe-pane", "-o", "-t", "sess-1", "cat >> /tmp/cap.log"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pipePaneArgs = %#v, want %#v", got, want)
+	}
+	if got, want := pipePaneOffArgs("sess-1"), []string{"pipe-pane", "-t", "sess-1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pipePaneOffArgs = %#v, want %#v", got, want)
+	}
 }
 
 // -- session name sanitization --
@@ -1445,5 +1454,137 @@ func TestIsSessionIDClaimedSurfacesUnexpectedProbeFailure(t *testing.T) {
 
 	if _, err := r.IsSessionIDClaimed(context.Background(), domain.SessionID("scratch-1")); err == nil {
 		t.Fatal("err = nil, want an error for an unrecognised probe failure")
+	}
+}
+
+func TestCaptureStateParsesFlags(t *testing.T) {
+	cases := []struct {
+		out       string
+		pipeOpen  bool
+		alternate bool
+	}{
+		{"0,0\n", false, false},
+		{"1,0\n", true, false},
+		{"0,1\n", false, true},
+		{"1,1\n", true, true},
+	}
+	for _, tc := range cases {
+		r, fr := newTestRuntime(0)
+		fr.outputs = [][]byte{[]byte(tc.out)}
+		st, err := r.CaptureState(context.Background(), ports.RuntimeHandle{ID: "sess-1"})
+		if err != nil {
+			t.Fatalf("CaptureState(%q): %v", tc.out, err)
+		}
+		if st.PipeOpen != tc.pipeOpen || st.AlternateOn != tc.alternate {
+			t.Fatalf("CaptureState(%q) = %+v, want pipeOpen=%v alternate=%v", tc.out, st, tc.pipeOpen, tc.alternate)
+		}
+		if len(fr.calls) != 1 {
+			t.Fatalf("calls = %d, want exactly one display-message", len(fr.calls))
+		}
+		want := []string{"display-message", "-p", "-t", "sess-1:0.0", "#{pane_pipe},#{alternate_on}"}
+		if !reflect.DeepEqual(fr.calls[0].args, want) {
+			t.Fatalf("argv = %#v, want %#v", fr.calls[0].args, want)
+		}
+	}
+}
+
+func TestCaptureStateRejectsMalformedOutput(t *testing.T) {
+	for _, out := range []string{"", "\n", "1\n", "1,\n", ",1\n", "2,0\n", "1,2\n", "1,0,1\n", "yes,no\n"} {
+		r, fr := newTestRuntime(0)
+		fr.outputs = [][]byte{[]byte(out)}
+		st, err := r.CaptureState(context.Background(), ports.RuntimeHandle{ID: "sess-1"})
+		if err == nil {
+			t.Fatalf("CaptureState(%q) = %+v, want a malformed-output error", out, st)
+		}
+		if strings.Contains(out, "2") && !strings.Contains(err.Error(), "not a tmux 0/1 flag") {
+			t.Fatalf("CaptureState(%q) error = %q, want flag parse cause", out, err)
+		}
+	}
+}
+
+func TestStartCaptureBuildsPipePaneArgvAndRoundTripsThroughSh(t *testing.T) {
+	helperDir := t.TempDir()
+	helper := filepath.Join(helperDir, "echo-args")
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\nfor a in \"$0\" \"$@\"; do printf '%s\\000' \"$a\"; done\n"), 0o755); err != nil {
+		t.Fatalf("write helper: %v", err)
+	}
+	prev := executablePath
+	executablePath = func() (string, error) { return helper, nil }
+	defer func() { executablePath = prev }()
+
+	cases := map[string][]string{
+		"path with spaces":  {"pane-capture", "--dir", "/tmp/o malley/journal dir", "--epoch", "5f3a2b1c-uuid"},
+		"single quote":      {"pane-capture", "--dir", "/x", "--note", "it's mine"},
+		"command sub":       {"pane-capture", "--dir", "/x", "--note", "$(rm -rf /)`whoami`"},
+		"shell metachars":   {"pane-capture", "--dir", "/x", "--note", "a;b|c&d>e"},
+		"double quote glob": {"pane-capture", "--dir", "/x", "--note", `say "hi" *.go`},
+		"newline":           {"pane-capture", "--dir", "/x", "--note", "line1\nline2"},
+	}
+	for name, argv := range cases {
+		t.Run(name, func(t *testing.T) {
+			r, fr := newTestRuntime(0)
+			fr.outputs = [][]byte{[]byte("0,0\n")}
+			if err := r.StartCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, argv); err != nil {
+				t.Fatalf("StartCapture: %v", err)
+			}
+			if len(fr.calls) != 2 {
+				t.Fatalf("calls = %d, want 2 (display-message probe then pipe-pane)", len(fr.calls))
+			}
+			got := fr.calls[1].args
+			if len(got) != 5 || got[0] != "pipe-pane" || got[1] != "-o" || got[2] != "-t" || got[3] != "sess-1" {
+				t.Fatalf("argv = %#v, want [pipe-pane -o -t sess-1 <cmd>]", got)
+			}
+			out, err := exec.Command("/bin/sh", "-c", got[4]).Output()
+			if err != nil {
+				t.Fatalf("sh -c %q: %v", got[4], err)
+			}
+			parts := strings.Split(string(out), "\x00")
+			parts = parts[:len(parts)-1]
+			want := append([]string{helper}, argv...)
+			if !reflect.DeepEqual(parts, want) {
+				t.Fatalf("sh reconstructed argv = %#v, want %#v", parts, want)
+			}
+		})
+	}
+}
+
+func TestStartCaptureIsNoOpWhenAlreadyPiping(t *testing.T) {
+	prev := executablePath
+	executablePath = func() (string, error) { return "/unused", nil }
+	defer func() { executablePath = prev }()
+
+	r, fr := newTestRuntime(0)
+	fr.outputs = [][]byte{[]byte("1,0\n")}
+	if err := r.StartCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, []string{"pane-capture", "--dir", "/x"}); err != nil {
+		t.Fatalf("StartCapture: %v", err)
+	}
+	if len(fr.calls) != 1 {
+		t.Fatalf("calls = %d, want 1 (probe only; no pipe-pane on an already-piped pane)", len(fr.calls))
+	}
+	if fr.calls[0].args[0] != "display-message" {
+		t.Fatalf("call = %#v, want a display-message probe", fr.calls[0].args)
+	}
+}
+
+func TestStartCaptureRejectsEmptyArgv(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	if err := r.StartCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, nil); err == nil {
+		t.Fatal("err = nil, want error for empty argv")
+	}
+	if len(fr.calls) != 0 {
+		t.Fatalf("calls = %d, want 0 (argv validated before any tmux call)", len(fr.calls))
+	}
+}
+
+func TestStopCaptureCallsBarePipePane(t *testing.T) {
+	r, fr := newTestRuntime(0)
+	if err := r.StopCapture(context.Background(), ports.RuntimeHandle{ID: "sess-1"}); err != nil {
+		t.Fatalf("StopCapture: %v", err)
+	}
+	if len(fr.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fr.calls))
+	}
+	if got, want := fr.calls[0].args, []string{"pipe-pane", "-t", "sess-1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("call = %#v, want %#v", got, want)
 	}
 }

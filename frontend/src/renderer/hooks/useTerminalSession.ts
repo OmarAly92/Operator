@@ -72,6 +72,7 @@ export type UseTerminalSessionOptions = {
 	isVisible?: boolean;
 	/** Test seam: build the mux client. Defaults to a fresh socket against the current API base. */
 	createMux?: () => TerminalMux;
+	enabled?: boolean;
 	/**
 	 * Attach to a standalone shell terminal (POST /api/v1/shell-terminals)
 	 * instead of a session's pane. When set it wins over `session`, which
@@ -708,7 +709,9 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			r.attempts = 0;
 			setError(undefined);
 			if (handle) {
-				if (optionsRef.current.daemonReady) {
+				if (optionsRef.current.enabled === false) {
+					transition("connecting");
+				} else if (optionsRef.current.daemonReady) {
 					transition("connecting");
 					connect();
 				} else {
@@ -772,13 +775,26 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 	// Daemon came back while we were waiting: reconnect immediately, without
 	// backoff debt from attempts made against the dead daemon.
 	const daemonReady = options.daemonReady;
+	const enabled = options.enabled !== false;
 	useEffect(() => {
 		const r = runtime.current;
-		if (!daemonReady || r.detached) return;
+		if (!daemonReady || !enabled || r.detached) return;
 		if (stateRef.current !== "reattaching" || r.retryTimer) return;
 		r.attempts = 0;
 		connect();
-	}, [daemonReady, connect]);
+	}, [daemonReady, enabled, connect]);
+
+	useEffect(() => {
+		const r = runtime.current;
+		if (!enabled || r.detached || !r.terminal || !r.handle || r.mux) return;
+		if (stateRef.current !== "connecting" && stateRef.current !== "reattaching") return;
+		if (optionsRef.current.daemonReady) {
+			transition("connecting");
+			connect();
+		} else {
+			transition("reattaching");
+		}
+	}, [enabled, connect, transition]);
 
 	// A parked cache entry keeps parsing output, but it must be inert as a PTY
 	// client. Cancel resize work queued while it was visible and remember that a

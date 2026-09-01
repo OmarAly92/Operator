@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { haveTmux, runInPty } from "./pty.mjs";
+import { parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./fish.fish", import.meta.url));
 const haveFish = (() => {
@@ -13,13 +13,12 @@ const haveFish = (() => {
 		return false;
 	}
 })();
-const ptySkip = haveFish && haveTmux() ? false : "fish and tmux are required";
+const fishCheck = haveFish
+	? execFileSync("fish", ["--version"], { encoding: "utf8" }).trim()
+	: "fish not found";
+const fishSkip = haveFish ? false : `fish is not installed (${fishCheck})`;
 
-if (ptySkip) {
-	console.warn(
-		"Skipping fish prompt and ownership integration tests: fish and tmux are required",
-	);
-}
+console.log(`fish executable check: ${fishCheck}`);
 
 function runFish(commands) {
 	return runInPty("fish --no-config --interactive", [
@@ -32,20 +31,20 @@ function runFishScript(script) {
 	return execFileSync("fish", ["--no-config", "-c", script], { encoding: "latin1" });
 }
 
-test("produces two command records with fish OSC 133 enabled", { skip: ptySkip }, () => {
+test("produces two command records with fish OSC 133 enabled", { skip: fishSkip }, () => {
 	const out = runFish(["echo one", "echo two"]);
 	assert.ok((out.match(/\x1b\]133;A/g) ?? []).length >= 2);
 	assert.match(out, /cmd=echo%20one/);
 	assert.match(out, /cmd=echo%20two/);
 });
 
-test("emits line-editor ownership marks from real fish events", { skip: ptySkip }, () => {
+test("emits line-editor ownership marks from real fish events", { skip: fishSkip }, () => {
 	const out = runFish(["echo hi"]);
 	assert.match(out, /input-ready=1/);
 	assert.match(out, /input-released=1/);
 });
 
-test("suppresses the prompt only when requested", { skip: haveFish ? false : "fish is required" }, () => {
+test("suppresses the prompt only when requested", { skip: fishSkip }, () => {
 	const on = runFishScript(
 		`function fish_prompt; printf SHELLPROMPT; end; set -gx OPERATOR_TERMINAL_SUPPRESS_PROMPT 1; source ${JSON.stringify(bootstrap)}; __operator_terminal_prompt >/dev/null; fish_prompt`,
 	);
@@ -54,4 +53,55 @@ test("suppresses the prompt only when requested", { skip: haveFish ? false : "fi
 		`function fish_prompt; printf SHELLPROMPT; end; set -gx OPERATOR_TERMINAL_SUPPRESS_PROMPT 0; source ${JSON.stringify(bootstrap)}; __operator_terminal_prompt >/dev/null; fish_prompt`,
 	);
 	assert.equal(off, "SHELLPROMPT");
+});
+
+function field(payload, name) {
+	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
+}
+
+test("emits fish lifecycle records for success and failure, records nothing for a syntax error, and reopens a prompt", { skip: fishSkip }, () => {
+	const raw = runInPty(
+		"fish --no-config --interactive",
+		[
+			`source ${JSON.stringify(bootstrap)}`,
+			"true",
+			"false",
+			"echo )",
+			{ keys: "" },
+		],
+		{ settleMs: 120, env: { OPERATOR_TERMINAL_ID: "terminal-1" } },
+	);
+	const records = parseOscRecords(raw);
+	assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
+	const commands = records
+		.filter((record) => field(record.payload, "cmd") !== undefined)
+		.map((record) => ({ id: field(record.payload, "id"), cmd: field(record.payload, "cmd") }));
+	assert.deepEqual(commands, [
+		{ id: "terminal-1-1", cmd: "true" },
+		{ id: "terminal-1-2", cmd: "false" },
+	]);
+	const ends = records.filter((record) => record.payload.startsWith("133;D;")).map((record) => record.payload);
+	assert.deepEqual(ends, ["133;D;0", "133;D;0", "133;D;1"]);
+	const exitRecords = records.filter(
+		(record) => field(record.payload, "id") !== undefined && field(record.payload, "exit") !== undefined,
+	);
+	assert.ok(exitRecords.length >= 2, "expected an OSC 7000 exit= for each executed command");
+	for (const exitRecord of exitRecords) {
+		const exitIndex = records.indexOf(exitRecord);
+		const code = field(exitRecord.payload, "exit");
+		const previousCommandIndex = records.findLastIndex(
+			(record, index) => index < exitIndex && field(record.payload, "cmd") !== undefined,
+		);
+		assert.ok(previousCommandIndex >= 0, `OSC 7000 exit=${code} must follow a command record`);
+		const endIndex = records.findLastIndex(
+			(record, index) =>
+				index > previousCommandIndex && index < exitIndex && record.payload === `133;D;${code}`,
+		);
+		assert.ok(
+			endIndex > previousCommandIndex,
+			`OSC 7000 exit=${code} must close the same lifecycle as its OSC 133 D`,
+		);
+	}
+	const openPrompt = records.slice(-2).map((record) => record.payload);
+	assert.deepEqual(openPrompt, ["133;A;click_events=1", "133;B"]);
 });

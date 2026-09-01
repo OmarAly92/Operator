@@ -178,6 +178,19 @@ type Stream interface {
 	Resize(rows, cols uint16) error
 }
 
+var ErrCaptureUnsupported = errors.New("runtime: pane capture unsupported")
+
+type PaneCaptureState struct {
+	PipeOpen    bool
+	AlternateOn bool
+}
+
+type PaneCapturer interface {
+	CaptureState(context.Context, RuntimeHandle) (PaneCaptureState, error)
+	StartCapture(context.Context, RuntimeHandle, []string) error
+	StopCapture(context.Context, RuntimeHandle) error
+}
+
 // Attacher opens a fresh attach Stream for a session handle, sized rows x cols from
 // birth (0 means size not yet known). ctx cancellation must terminate the stream.
 type Attacher interface {

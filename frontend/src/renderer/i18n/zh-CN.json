@@ -887,6 +887,7 @@
 	"terminal.sessionEndedNotTerminated": "终端进程已结束，但会话尚未标记为已终止。",
 	"terminal.sessionAria": "会话终端",
 	"terminal.shellExited": "此 shell 已退出。可关闭标签页，或打开新终端。",
+	"terminal.shellHistoryUnavailable": "无法加载此 shell 的历史记录。实时输出仍保持连接。",
 	"terminal.shellAria": "Shell 终端",
 	"terminal.startingSession": "正在启动会话",
 	"terminal.tabsAria": "打开的终端",

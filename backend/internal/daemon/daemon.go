@@ -47,6 +47,8 @@ import (
 	prsvc "github.com/OmarAly92/operator/backend/internal/service/pr"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
+	terminalblocksvc "github.com/OmarAly92/operator/backend/internal/service/terminalblock"
+	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
@@ -147,6 +149,10 @@ func Run() error {
 		log.Info("loaded user redaction patterns", "count", n)
 	}
 	blockEvents := blockevent.NewService(store, termMgr, 500)
+
+	terminalBlocks := terminalblocksvc.NewService(store)
+	captureSup := capturesvc.NewSupervisor(runtimeAdapter, terminalBlocks, cfg.DataDir, cfg.ShutdownTimeout, log)
+	captureSup.SetBlockPublisher(termMgr)
 
 	// The agent messenger sends validated user input to the session's live
 	// runtime pane. Keep this path small until durable inbox semantics are needed.
@@ -309,7 +315,7 @@ func Run() error {
 	// behind them. They reuse the same runtime adapter (and therefore the same
 	// terminal mux) as session panes, but keep their own ids, storage, and
 	// lifetime — see internal/service/shellterm.
-	shellTermSvc := startShellTerminals(ctx, cfg, runtimeAdapter, store, projectSvc, sessionSvc, log)
+	shellTermSvc := startShellTerminals(ctx, cfg, runtimeAdapter, store, projectSvc, sessionSvc, captureSup, log)
 	// Late-bound so Kill/Cleanup close a session's scoped shells before its
 	// worktree is torn down (shellTermSvc cannot exist before sessMgr does; see
 	// SetShellTerminalCloser).
@@ -398,29 +404,30 @@ func Run() error {
 	}
 
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:           projectSvc,
-		Agents:             agentSvc,
-		Sessions:           sessionSvc,
-		PRs:                prActions,
-		Reviews:            reviewSvc,
-		Notifications:      notifier,
-		NotificationStream: notificationHub,
-		Push:               pushRegistry,
-		Import:             importsvc.New(importsvc.Deps{Store: store}),
-		ShellTerminals:     shellTermSvc,
-		Conversations:      chatSvc,
-		Settings:           settingsSvc,
-		DevScan:            folderScanner,
-		DevBlockReplay:     blockevent.NewReplay(blockEvents),
-		CDC:                store,
-		Events:             cdcPipe.Broadcaster,
-		Activity:           lcStack.LCM,
-		BlockEvents:        blockEvents,
-		BlockHistory:       blockEvents,
-		UsageHooks:         usageCollector,
-		UsageSummary:       usagesvc.NewSummaryReader(store),
-		Telemetry:          telemetrySink,
-		Mobile:             mc,
+		Projects:            projectSvc,
+		Agents:              agentSvc,
+		Sessions:            sessionSvc,
+		PRs:                 prActions,
+		Reviews:             reviewSvc,
+		Notifications:       notifier,
+		NotificationStream:  notificationHub,
+		Push:                pushRegistry,
+		Import:              importsvc.New(importsvc.Deps{Store: store}),
+		ShellTerminals:      shellTermSvc,
+		ShellTerminalBlocks: terminalBlocks,
+		Conversations:       chatSvc,
+		Settings:            settingsSvc,
+		DevScan:             folderScanner,
+		DevBlockReplay:      blockevent.NewReplay(blockEvents),
+		CDC:                 store,
+		Events:              cdcPipe.Broadcaster,
+		Activity:            lcStack.LCM,
+		BlockEvents:         blockEvents,
+		BlockHistory:        blockEvents,
+		UsageHooks:          usageCollector,
+		UsageSummary:        usagesvc.NewSummaryReader(store),
+		Telemetry:           telemetrySink,
+		Mobile:              mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,
@@ -502,6 +509,11 @@ func Run() error {
 		<-usageDone
 	}
 	lcStack.Stop()
+	captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	if err := captureSup.DrainAndDetach(captureStopCtx); err != nil {
+		log.Error("shell block capture drain-and-detach", "err", err)
+	}
+	captureCancel()
 	lanStopCtx, lanCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer lanCancel()
 	if err := lan.Stop(lanStopCtx); err != nil {

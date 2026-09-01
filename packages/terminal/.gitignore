@@ -3,6 +3,7 @@ dist/
 smoke/dist/
 bench/results/
 ts/core/wasm/
+ts/core/assets/
 *.tsbuildinfo
 target/
 fuzz/target/

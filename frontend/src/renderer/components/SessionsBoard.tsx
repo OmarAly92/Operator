@@ -12,6 +12,7 @@ import {
 	Plus,
 	RotateCcw,
 	RotateCw,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import {
@@ -118,6 +119,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
 	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
+	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
 	const health = workspace ? orchestratorHealth(workspace, isProjectRestarting) : { state: "ok" as const };
 	const visibleSpawnError = spawnError ?? orchestratorStartupError;
@@ -277,6 +279,10 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					{t("newTask.createAsTui")}
 				</TopbarButton>
 			) : null}
+			<TopbarButton aria-label={t("shortcut.new-shell-terminal")} onClick={requestNewShellTerminal}>
+				<SquareTerminal className="size-icon-md" aria-hidden="true" />
+				{t("shortcut.new-shell-terminal")}
+			</TopbarButton>
 			<TopbarButton
 				aria-label={t("shell.newTask")}
 				disabled={isProjectRestarting}

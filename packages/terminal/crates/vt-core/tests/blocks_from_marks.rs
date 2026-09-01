@@ -48,6 +48,19 @@ fn extension_marks_upgrade_the_block_and_carry_the_command() {
 }
 
 #[test]
+fn extension_metadata_before_prompt_start_applies_to_the_next_block() {
+    let mut core = TerminalCore::new(40, 200).unwrap();
+    core.feed(b"\x1b]7000;v=1;id=terminal-1-1;cwd=%2Ftmp;branch=main\x07");
+    core.feed(b"\x1b]133;A\x07\x1b]7000;v=1;cmd=pwd\x07\x1b]133;C\x07/tmp\n\x1b]133;D;0\x07");
+    let snapshot = core.snapshot().unwrap();
+
+    assert_eq!(snapshot.blocks[0].source, BlockSource::Extension);
+    assert_eq!(snapshot.block_command(0), "pwd");
+    assert_eq!(snapshot.block_cwd(0), "/tmp");
+    assert_eq!(snapshot.block_branch(0), "main");
+}
+
+#[test]
 fn successive_blocks_on_screen_have_distinct_row_ranges() {
     let mut core = TerminalCore::new(20, 200).unwrap();
     core.resize(20, 24);

@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { GitBranch, PanelRightClose, PanelRightOpen, Plus, Trash2 } from "lucide-react";
+import { GitBranch, PanelRightClose, PanelRightOpen, Plus, SquareTerminal, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { NotificationCenter } from "./NotificationCenter";
@@ -68,6 +68,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
+	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const isFullScreen = useWindowFullScreen();
 	const prefersReducedMotion = useReducedMotion();
@@ -228,6 +229,14 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 								{boardSpawnError}
 							</TopbarKillError>
 						) : null}
+						<TopbarButton
+							aria-label={t("shortcut.new-shell-terminal")}
+							onClick={requestNewShellTerminal}
+							style={noDragStyle}
+						>
+							<SquareTerminal className="size-icon-lg" aria-hidden="true" />
+							{t("shortcut.new-shell-terminal")}
+						</TopbarButton>
 						<TopbarButton
 							aria-label={t("shell.newTask")}
 							disabled={isProjectRestarting}

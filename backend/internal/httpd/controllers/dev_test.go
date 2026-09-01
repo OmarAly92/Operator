@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,13 +21,22 @@ import (
 
 type fakeDevReplay struct {
 	runs atomic.Int32
+	mu   sync.RWMutex
 	got  blockeventsvc.ReplayInput
 }
 
 func (f *fakeDevReplay) Run(_ context.Context, in blockeventsvc.ReplayInput) error {
-	f.runs.Add(1)
+	f.mu.Lock()
 	f.got = in
+	f.mu.Unlock()
+	f.runs.Add(1)
 	return nil
+}
+
+func (f *fakeDevReplay) input() blockeventsvc.ReplayInput {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.got
 }
 
 func newDevReplayServer(t *testing.T, replayer controllers.DevBlockReplayer) *httptest.Server {
@@ -79,14 +89,15 @@ func TestDevBlockReplayReturnsAcceptedWhenEnabled(t *testing.T) {
 	if err := waitForRuns(svc); err != nil {
 		t.Fatal(err)
 	}
-	if svc.got.SessionID != domain.SessionID("s-1") {
-		t.Fatalf("SessionID = %q, want s-1", svc.got.SessionID)
+	got := svc.input()
+	if got.SessionID != domain.SessionID("s-1") {
+		t.Fatalf("SessionID = %q, want s-1", got.SessionID)
 	}
-	if svc.got.Harness != "claude-code" {
-		t.Fatalf("Harness = %q, want claude-code", svc.got.Harness)
+	if got.Harness != "claude-code" {
+		t.Fatalf("Harness = %q, want claude-code", got.Harness)
 	}
-	if svc.got.Events != 4 {
-		t.Fatalf("Events = %d, want 4", svc.got.Events)
+	if got.Events != 4 {
+		t.Fatalf("Events = %d, want 4", got.Events)
 	}
 }
 

@@ -1096,17 +1096,39 @@ type UpdateShellTerminalRequest struct {
 // ShellTerminalResponse is one standalone shell terminal. HandleID is what the
 // client opens on the terminal mux, exactly as it would a session's pane.
 type ShellTerminalResponse struct {
-	HandleID   string    `json:"handleId"`
-	ProjectID  string    `json:"projectId,omitempty"`
-	SessionID  string    `json:"sessionId,omitempty"`
-	WorkingDir string    `json:"workingDir"`
-	Title      string    `json:"title"`
-	CreatedAt  time.Time `json:"createdAt"`
+	HandleID      string    `json:"handleId"`
+	ProjectID     string    `json:"projectId,omitempty"`
+	SessionID     string    `json:"sessionId,omitempty"`
+	WorkingDir    string    `json:"workingDir"`
+	Title         string    `json:"title"`
+	CreatedAt     time.Time `json:"createdAt"`
+	DurableBlocks bool      `json:"durableBlocks" description:"True when this shell's runtime is capturing durable block history; false when the platform or runtime cannot."`
 }
 
 // ListShellTerminalsResponse is the body of GET /api/v1/shell-terminals.
 type ListShellTerminalsResponse struct {
 	ShellTerminals []ShellTerminalResponse `json:"shellTerminals"`
+}
+
+type TerminalBlockView struct {
+	TerminalID     string    `json:"terminalId"`
+	SourceID       string    `json:"sourceId"`
+	SessionID      string    `json:"sessionId,omitempty"`
+	Command        string    `json:"command"`
+	Cwd            string    `json:"cwd"`
+	GitBranch      string    `json:"gitBranch"`
+	ExitCode       *int      `json:"exitCode"`
+	RawOutput      string    `json:"rawOutput"`
+	StartedAt      time.Time `json:"startedAt"`
+	FinishedAt     time.Time `json:"finishedAt"`
+	CreatedAt      time.Time `json:"createdAt"`
+	ShellKind      string    `json:"shellKind"`
+	ShellVersion   string    `json:"shellVersion"`
+	TruncatedLines int       `json:"truncatedLines"`
+	TruncatedBytes int       `json:"truncatedBytes"`
+	CaptureEpoch   string    `json:"captureEpoch"`
+	StartOffset    int64     `json:"startOffset"`
+	EndOffset      int64     `json:"endOffset"`
 }
 
 // ShellTerminalEnvelope is the { shellTerminal } response body for shell

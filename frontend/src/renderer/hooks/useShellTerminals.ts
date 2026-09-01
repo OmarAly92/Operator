@@ -17,6 +17,7 @@ export type ShellTerminal = {
 	workingDir: string;
 	title: string;
 	createdAt: string;
+	durableBlocks?: boolean;
 };
 
 export const shellTerminalsQueryKey = ["shell-terminals"] as const;
@@ -30,6 +31,7 @@ function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): She
 		workingDir: t.workingDir,
 		title: t.title,
 		createdAt: t.createdAt,
+		durableBlocks: t.durableBlocks,
 	};
 }
 

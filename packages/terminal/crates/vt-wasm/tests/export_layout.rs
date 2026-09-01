@@ -4,7 +4,7 @@ use vt_wasm::ExportBuffers;
 #[test]
 fn flattens_rows_and_runs_as_u32_pairs() {
     let mut core = TerminalCore::new(16, 10).unwrap();
-    core.feed(b"\x1b[31mred\x1b[0m ok\nplain");
+    core.feed(b"\x1b[31mred\x1b[0m ok\r\nplain");
     let mut buffers = ExportBuffers::default();
     buffers.refresh(&core.snapshot().unwrap()).unwrap();
 
@@ -27,13 +27,13 @@ fn offset_overflow_when_u64_exceeds_u32_max() {
 #[test]
 fn refresh_clears_previous_buffers() {
     let mut core = TerminalCore::new(16, 10).unwrap();
-    core.feed(b"first row\nsecond");
+    core.feed(b"first row\r\nsecond");
     let mut buffers = ExportBuffers::default();
     buffers.refresh(&core.snapshot().unwrap()).unwrap();
     let first_content = buffers.content().to_vec();
     let first_rows = buffers.rows().to_vec();
 
-    core.feed(b"\nshort");
+    core.feed(b"\r\nshort");
     buffers.refresh(&core.snapshot().unwrap()).unwrap();
 
     assert_ne!(first_content.len(), buffers.content().len());

@@ -4798,6 +4798,63 @@ paths:
       summary: Rename a standalone shell terminal tab
       tags:
       - shellTerminals
+  /api/v1/shell-terminals/{handleId}/blocks:
+    get:
+      operationId: listShellTerminalBlocks
+      parameters:
+      - description: Shell terminal runtime handle identifier.
+        in: path
+        name: handleId
+        required: true
+        schema:
+          description: Shell terminal runtime handle identifier.
+          type: string
+      - description: Maximum blocks to return, oldest first. Defaults to 100.
+        in: query
+        name: limit
+        schema:
+          description: Maximum blocks to return, oldest first. Defaults to 100.
+          maximum: 500
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TerminalBlockView'
+                type: array
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read a shell terminal's retained raw block history, oldest first
+      tags:
+      - shellTerminals
   /api/v1/usage/sessions:
     get:
       operationId: listCompactSessionUsage
@@ -7967,6 +8024,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        durableBlocks:
+          description: True when this shell's runtime is capturing durable block history;
+            false when the platform or runtime cannot.
+          type: boolean
         handleId:
           type: string
         projectId:
@@ -7982,6 +8043,7 @@ components:
       - workingDir
       - title
       - createdAt
+      - durableBlocks
       type: object
     ShortcutBinding:
       properties:
@@ -8241,6 +8303,70 @@ components:
           type: string
       required:
       - targetHarness
+      type: object
+    TerminalBlockView:
+      properties:
+        captureEpoch:
+          type: string
+        command:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        cwd:
+          type: string
+        endOffset:
+          format: int64
+          type: integer
+        exitCode:
+          type:
+          - "null"
+          - integer
+        finishedAt:
+          format: date-time
+          type: string
+        gitBranch:
+          type: string
+        rawOutput:
+          type: string
+        sessionId:
+          type: string
+        shellKind:
+          type: string
+        shellVersion:
+          type: string
+        sourceId:
+          type: string
+        startOffset:
+          format: int64
+          type: integer
+        startedAt:
+          format: date-time
+          type: string
+        terminalId:
+          type: string
+        truncatedBytes:
+          type: integer
+        truncatedLines:
+          type: integer
+      required:
+      - terminalId
+      - sourceId
+      - command
+      - cwd
+      - gitBranch
+      - exitCode
+      - rawOutput
+      - startedAt
+      - finishedAt
+      - createdAt
+      - shellKind
+      - shellVersion
+      - truncatedLines
+      - truncatedBytes
+      - captureEpoch
+      - startOffset
+      - endOffset
       type: object
     TrackerIntakeConfig:
       properties:

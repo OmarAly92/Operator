@@ -124,8 +124,18 @@ func capturePaneArgs(id string, lines int) []string {
 	return []string{"capture-pane", "-t", id, "-p", "-S", fmt.Sprintf("-%d", lines)}
 }
 
-// capturePaneStyledArgs preserves SGR sequences so callers can distinguish a
-// dim TUI placeholder from normal human-authored composer text.
 func capturePaneStyledArgs(id string, lines int) []string {
 	return []string{"capture-pane", "-e", "-t", id, "-p", "-S", fmt.Sprintf("-%d", lines)}
+}
+
+func captureStateArgs(id string) []string {
+	return []string{"display-message", "-p", "-t", id + ":0.0", "#{pane_pipe},#{alternate_on}"}
+}
+
+func pipePaneArgs(id, command string) []string {
+	return []string{"pipe-pane", "-o", "-t", id, command}
+}
+
+func pipePaneOffArgs(id string) []string {
+	return []string{"pipe-pane", "-t", id}
 }

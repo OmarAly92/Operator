@@ -37,9 +37,12 @@ import { cn } from "../lib/utils";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useShellTerminals } from "../hooks/useShellTerminals";
+import { useShellTerminalBlocks } from "../hooks/useShellTerminalBlocks";
 import { nativeShellBridgePresent } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
-import { BlockTerminal } from "./BlockTerminal";
+import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+
+const NO_HISTORY_BLOCKS: BlockTerminalHistoryBlock[] = [];
 
 // The xterm renderer stack (~570KB parsed) is the single largest eager edge
 // from the shell route (route-bundle-report before.json, 2026-08-24) and no
@@ -925,10 +928,13 @@ function AttachedTerminal({
 	// A shell pane has no session, so it hands the hook its handle directly
 	// instead of reading one off `attachSession`.
 	const shellTerminalHandleId = terminalTarget?.kind === "shell" ? terminalTarget.handleId : undefined;
+	const isShellTarget = terminalTarget?.kind === "shell";
+	const shellBlocks = useShellTerminalBlocks(terminalTarget);
 	const { attach, state, error, replaySettled, syncVisibleSize, transport } = useTerminalSession(attachSession, {
 		coverInitialReplay: terminalTarget?.kind !== "reviewer",
 		createMux,
 		daemonReady,
+		enabled: !isShellTarget || !shellBlocks.isLoading,
 		inputDisabled,
 		isVisible,
 		shellTerminalHandleId,
@@ -1086,7 +1092,7 @@ function AttachedTerminal({
 					<BlockTerminal
 						transport={transport}
 						sessionId={handleId ?? "no-session"}
-						historyBlocks={[]}
+						historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
 						agentTui={terminalTarget?.kind === "worker"}
 						theme={theme}
 						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
@@ -1116,6 +1122,22 @@ function AttachedTerminal({
 					</div>
 				)}
 				{showReplayCover && <ReplayCover />}
+				{isShellTarget && shellBlocks.durableBlocks === false && (
+					<div
+						data-testid="shell-blocks-unavailable"
+						className="absolute inset-x-3 top-2 rounded-md border border-border bg-surface/95 px-3 py-1.5 font-mono text-caption text-muted-foreground"
+					>
+						{t("blocks.shellBlocksUnavailable")}
+					</div>
+				)}
+				{isShellTarget && shellBlocks.durableBlocks !== false && shellBlocks.error && (
+					<div
+						data-testid="shell-history-warning"
+						className="absolute inset-x-3 top-2 rounded-md border border-border bg-surface/95 px-3 py-1.5 font-mono text-caption text-muted-foreground"
+					>
+						{t("terminal.shellHistoryUnavailable")}
+					</div>
+				)}
 				{banner && (
 					<div className="absolute inset-x-3 top-2 rounded-md border border-border bg-surface/95 px-3 py-1.5 font-mono text-caption text-muted-foreground">
 						{banner}

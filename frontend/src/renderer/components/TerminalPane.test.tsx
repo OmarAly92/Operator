@@ -30,7 +30,11 @@ const {
 } = vi.hoisted(
 	() => ({
 		attachMock: vi.fn(() => vi.fn()),
-		getMock: vi.fn(async (_path: string, _options: unknown) => ({ data: undefined })),
+		getMock: vi.fn(
+			async (_path: string, _options?: unknown): Promise<{ data?: unknown; error?: unknown }> => ({
+				data: undefined,
+			}),
+		),
 		postMock: vi.fn(),
 		prepareForActivationMock: vi.fn(async (): Promise<void> => undefined),
 		terminalError: { value: undefined as string | undefined },
@@ -669,6 +673,98 @@ describe("TerminalCacheProvider", () => {
 		} finally {
 			view.unmount();
 			window.operator = previousAO;
+		}
+	});
+});
+
+describe("shell block history", () => {
+	const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+	const shellCreatedAt = "2026-07-30T00:00:00Z";
+	function shellDto(over: Partial<ShellTerminal> = {}): ShellTerminal {
+		return {
+			handleId: "shell-h",
+			sessionId: sessionA.id,
+			workingDir: "/repo/my-app",
+			title: "scratch",
+			createdAt: shellCreatedAt,
+			durableBlocks: true,
+			...over,
+		};
+	}
+	const shellTarget: TerminalTarget = {
+		kind: "shell",
+		handleId: "shell-h",
+		generation: shellCreatedAt,
+		sessionId: sessionA.id,
+		title: "scratch",
+	};
+
+	it("loads raw block history through the hook for a shell target", async () => {
+		const paths: string[] = [];
+		getMock.mockImplementation(async (path: string) => {
+			paths.push(path);
+			return { data: [], error: undefined };
+		});
+		const view = renderCachedPane({
+			session: sessionA,
+			sessions: [sessionA],
+			shellTerminals: [shellDto()],
+			terminalTarget: shellTarget,
+		});
+		try {
+			await waitFor(() => expect(paths).toContain("/api/v1/shell-terminals/{handleId}/blocks"));
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("never loads shell block history for a worker target", async () => {
+		const paths: string[] = [];
+		getMock.mockImplementation(async (path: string) => {
+			paths.push(path);
+			return { data: undefined, error: undefined };
+		});
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA] });
+		try {
+			await waitFor(() => activeXterm());
+			expect(paths).not.toContain("/api/v1/shell-terminals/{handleId}/blocks");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("renders the shell-blocks-unavailable notice when the DTO reports durableBlocks:false", async () => {
+		getMock.mockImplementation(async () => ({ data: [], error: undefined }));
+		const view = renderCachedPane({
+			session: sessionA,
+			sessions: [sessionA],
+			shellTerminals: [shellDto({ durableBlocks: false })],
+			terminalTarget: shellTarget,
+		});
+		try {
+			const notice = await screen.findByTestId("shell-blocks-unavailable");
+			expect(notice).toHaveTextContent("Shell blocks are unavailable in this terminal.");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("still shows the live terminal, plus a warning, when shell history fails to load", async () => {
+		getMock.mockImplementation(async (path: string) => {
+			if (path.endsWith("/blocks")) return { data: undefined, error: { message: "offline" } };
+			return { data: undefined, error: undefined };
+		});
+		const view = renderCachedPane({
+			session: sessionA,
+			sessions: [sessionA],
+			shellTerminals: [shellDto()],
+			terminalTarget: shellTarget,
+		});
+		try {
+			expect(await screen.findByTestId("shell-history-warning", {}, { timeout: 5000 })).toBeInTheDocument();
+			expect(activeXterm()).toBeInTheDocument();
+		} finally {
+			view.restore();
 		}
 	});
 });

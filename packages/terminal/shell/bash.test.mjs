@@ -1,14 +1,29 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { haveTmux, parseOscRecords, runInPty, splitEveryByte } from "./pty.mjs";
 
 const bootstrap = fileURLToPath(new URL("./bash.sh", import.meta.url));
+const ptySkip = haveTmux() ? false : "tmux is required";
 
 function runBash(script) {
 	return execFileSync("bash", ["--noprofile", "--norc", "-c", script], {
 		encoding: "latin1",
 	});
+}
+
+function productionBashCommand() {
+	const manifest = JSON.parse(
+		readFileSync(new URL("../protocol/recipes.json", import.meta.url), "utf8"),
+	);
+	return manifest.shells.bash.argv
+		.map((argument) => argument.replaceAll("{{script}}", JSON.stringify(bootstrap)))
+		.map((argument) => JSON.stringify(argument))
+		.join(" ");
 }
 
 test("emits command and line-editor ownership marks", () => {
@@ -18,12 +33,83 @@ test("emits command and line-editor ownership marks", () => {
 	assert.match(out, /input-ready=1/);
 });
 
-test("preserves a pre-existing DEBUG trap", () => {
-	const out = runBash(
-		`trap 'printf user-debug-ran' DEBUG; source ${JSON.stringify(bootstrap)}; :`,
-	);
-	assert.match(out, /user-debug-ran/);
-	assert.match(out, /input-released=1/);
+function fieldOf(payload, name) {
+	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
+}
+
+test("chains a pre-existing DEBUG trap and PROMPT_COMMAND through the full lifecycle", { skip: ptySkip }, () => {
+	const dir = mkdtempSync(join(tmpdir(), "opr-hooks-"));
+	const debugMark = join(dir, "debug");
+	const promptMark = join(dir, "prompt");
+	try {
+		const raw = runInPty(
+			"bash --noprofile --norc -i",
+			[
+				`trap 'printf d >> ${JSON.stringify(debugMark)}' DEBUG`,
+				`PROMPT_COMMAND='printf p >> ${JSON.stringify(promptMark)}'`,
+				`source ${bootstrap}`,
+				"true",
+				"false",
+				"echo chained",
+			],
+			{ settleMs: 150, env: { OPERATOR_TERMINAL_ID: "terminal-1" } },
+		);
+		const records = parseOscRecords(raw);
+		assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
+
+		const commands = records
+			.filter((record) => fieldOf(record.payload, "cmd") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), cmd: fieldOf(record.payload, "cmd") }));
+		assert.deepEqual(commands, [
+			{ id: "terminal-1-1", cmd: "true" },
+			{ id: "terminal-1-2", cmd: "false" },
+			{ id: "terminal-1-3", cmd: "echo%20chained" },
+		]);
+
+		const exits = records
+			.filter((record) => fieldOf(record.payload, "exit") !== undefined && fieldOf(record.payload, "id") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), exit: fieldOf(record.payload, "exit") }));
+		assert.deepEqual(exits, [
+			{ id: "terminal-1-1", exit: "0" },
+			{ id: "terminal-1-2", exit: "1" },
+			{ id: "terminal-1-3", exit: "0" },
+		]);
+
+		assert.ok(records.every((record) => !record.payload.includes("__operator_terminal_")));
+
+		for (const { id } of commands) {
+			const commandIndex = records.findIndex(
+				(record) => fieldOf(record.payload, "id") === id && fieldOf(record.payload, "cmd") !== undefined,
+			);
+			const nextCommandIndex = records.findIndex(
+				(record, index) => index > commandIndex && fieldOf(record.payload, "cmd") !== undefined,
+			);
+			const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
+			const releasedIndex = records.findIndex(
+				(record, index) => index > commandIndex && index < lifecycleEnd && record.payload === "7000;v=1;input-released=1",
+			);
+			const outputIndex = records.findIndex(
+				(record, index) => index > releasedIndex && index < lifecycleEnd && record.payload === "133;C",
+			);
+			const exitIndex = records.findIndex(
+				(record, index) => index > outputIndex && index < lifecycleEnd && fieldOf(record.payload, "id") === id && fieldOf(record.payload, "exit") !== undefined,
+			);
+			const endIndex = records.findIndex(
+				(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${fieldOf(records[exitIndex].payload, "exit")}`,
+			);
+			assert.ok(
+				commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex,
+				`ordering broken for ${id}`,
+			);
+		}
+
+		assert.match(readFileSync(debugMark, "latin1"), /d/, "the pre-existing DEBUG trap body must still run");
+		assert.match(readFileSync(promptMark, "latin1"), /p/, "the pre-existing PROMPT_COMMAND must still run");
+	} finally {
+		try {
+			rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+		} catch {}
+	}
 });
 
 test("preserves a pre-existing PROMPT_COMMAND", () => {
@@ -32,6 +118,30 @@ test("preserves a pre-existing PROMPT_COMMAND", () => {
 	);
 	assert.match(out, /user-prompt-ran/);
 	assert.match(out, /input-ready=1/);
+});
+
+test("production bash recipe keeps lifecycle hooks after startup", { skip: ptySkip }, () => {
+	const home = mkdtempSync(join(tmpdir(), "opr-bash-home-"));
+	try {
+		const raw = runInPty(productionBashCommand(), ["true", "false"], {
+			settleMs: 150,
+			env: { HOME: home, OPERATOR_TERMINAL_ID: "terminal-recipe" },
+		});
+		const records = parseOscRecords(raw);
+		const commands = records
+			.filter((record) => fieldOf(record.payload, "cmd") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), cmd: fieldOf(record.payload, "cmd") }));
+		assert.deepEqual(commands, [
+			{ id: "terminal-recipe-1", cmd: "true" },
+			{ id: "terminal-recipe-2", cmd: "false" },
+		]);
+		const exits = records
+			.filter((record) => fieldOf(record.payload, "id") !== undefined && fieldOf(record.payload, "exit") !== undefined)
+			.map((record) => fieldOf(record.payload, "exit"));
+		assert.deepEqual(exits, ["0", "1"]);
+	} finally {
+		rmSync(home, { recursive: true, force: true });
+	}
 });
 
 test("is idempotent under a second source", () => {
@@ -50,4 +160,82 @@ test("suppresses the prompt only when requested", () => {
 		`PS1=SHELLPROMPT; OPERATOR_TERMINAL_SUPPRESS_PROMPT=0; source ${JSON.stringify(bootstrap)}; __operator_terminal_precmd >/dev/null; printf 'prompt=[%s]' "$PS1"`,
 	);
 	assert.match(off, /prompt=\[SHELLPROMPT\]/);
+});
+
+function field(payload, name) {
+	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
+}
+
+function lifecycleRecords() {
+	const raw = runInPty(
+		"bash --noprofile --norc -i",
+		[
+			`source ${bootstrap}`,
+			"true",
+			"false",
+			"printf x | grep x",
+			"for value in one two; do",
+			"printf '%s\\n' $value",
+			"done",
+			{ keys: "sleep 5" },
+			{ keys: "C-c", enter: false, waitMs: 300 },
+			"cd /tmp",
+			"true",
+			"false",
+		],
+		{ settleMs: 120, env: { OPERATOR_TERMINAL_ID: "terminal-1" } },
+	);
+	return { raw, records: parseOscRecords(raw) };
+}
+
+test("reports bash failure and Ctrl-C exit statuses", { skip: ptySkip }, () => {
+	const { records } = lifecycleRecords();
+	const exits = records
+		.filter((record) => field(record.payload, "exit") !== undefined)
+		.map((record) => field(record.payload, "exit"));
+	assert.deepEqual(exits, ["0", "0", "1", "0", "0", "130", "0", "0", "1"]);
+});
+
+test("emits one ordered bash lifecycle without DEBUG hook commands", { skip: ptySkip }, () => {
+	const { raw, records } = lifecycleRecords();
+	assert.deepEqual(parseOscRecords(raw, splitEveryByte(raw)), records);
+	const commands = records
+		.filter((record) => field(record.payload, "cmd") !== undefined)
+		.map((record) => ({ id: field(record.payload, "id"), cmd: field(record.payload, "cmd") }));
+	assert.deepEqual(commands, [
+		{ id: "terminal-1-1", cmd: "true" },
+		{ id: "terminal-1-2", cmd: "false" },
+		{ id: "terminal-1-3", cmd: "printf%20x%20%7c%20grep%20x" },
+		{
+			id: "terminal-1-4",
+			cmd: "for%20value%20in%20one%20two%3b%20do%0aprintf%20%27%25s%5cn%27%20$value%0adone",
+		},
+		{ id: "terminal-1-5", cmd: "sleep%205" },
+		{ id: "terminal-1-6", cmd: "cd%20/tmp" },
+		{ id: "terminal-1-7", cmd: "true" },
+		{ id: "terminal-1-8", cmd: "false" },
+	]);
+	assert.ok(records.every((record) => !record.payload.includes("__operator_terminal_")));
+	for (const { id } of commands) {
+		const commandIndex = records.findIndex(
+			(record) => field(record.payload, "id") === id && field(record.payload, "cmd") !== undefined,
+		);
+		const nextCommandIndex = records.findIndex(
+			(record, index) => index > commandIndex && field(record.payload, "cmd") !== undefined,
+		);
+		const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
+		const releasedIndex = records.findIndex(
+			(record, index) => index > commandIndex && index < lifecycleEnd && record.payload === "7000;v=1;input-released=1",
+		);
+		const outputIndex = records.findIndex(
+			(record, index) => index > releasedIndex && index < lifecycleEnd && record.payload === "133;C",
+		);
+		const exitIndex = records.findIndex(
+			(record, index) => index > outputIndex && index < lifecycleEnd && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
+		);
+		const endIndex = records.findIndex(
+			(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
+		);
+		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
+	}
 });

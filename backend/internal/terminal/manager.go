@@ -375,11 +375,12 @@ type connState struct {
 	cancel context.CancelFunc
 	out    chan serverMsg
 
-	mu        sync.Mutex
-	terms     map[string]*attachment // terminal id -> this conn's own attach PTY
-	blockSubs map[string]struct{}    // session id -> subscribed
-	unsubEvts func()
-	closed    bool
+	mu            sync.Mutex
+	terms         map[string]*attachment // terminal id -> this conn's own attach PTY
+	blockSubs     map[string]struct{}    // session id -> subscribed
+	termBlockSubs map[string]struct{}    // runtime handle -> subscribed
+	unsubEvts     func()
+	closed        bool
 }
 
 func (c *connState) handle(msg clientMsg) {
@@ -540,17 +541,30 @@ func (c *connState) handleBlockSubscribe(msg clientMsg) {
 	if msg.ID == "" {
 		return
 	}
+	terminalStream := msg.BlockType == blockTypeTerminalBlock
 	switch msg.Type {
 	case msgSubscribe:
 		c.mu.Lock()
-		if c.blockSubs == nil {
-			c.blockSubs = map[string]struct{}{}
+		if terminalStream {
+			if c.termBlockSubs == nil {
+				c.termBlockSubs = map[string]struct{}{}
+			}
+			c.termBlockSubs[msg.ID] = struct{}{}
+		} else {
+			if c.blockSubs == nil {
+				c.blockSubs = map[string]struct{}{}
+			}
+			c.blockSubs[msg.ID] = struct{}{}
 		}
-		c.blockSubs[msg.ID] = struct{}{}
 		c.mu.Unlock()
 	case msgUnsubscribe:
 		c.mu.Lock()
-		delete(c.blockSubs, msg.ID)
+		if terminalStream || msg.BlockType == "" {
+			delete(c.termBlockSubs, msg.ID)
+		}
+		if !terminalStream {
+			delete(c.blockSubs, msg.ID)
+		}
 		c.mu.Unlock()
 	}
 }
@@ -597,6 +611,81 @@ func (m *Manager) blockSubscriberCount(sessionID string) int {
 		conn.mu.Unlock()
 	}
 	return n
+}
+
+func (m *Manager) PublishTerminalBlock(handleID string, block domain.Block) {
+	frame := toTerminalBlockFrame(block)
+
+	m.mu.Lock()
+	conns := make([]*connState, 0, len(m.conns))
+	for conn := range m.conns {
+		conns = append(conns, conn)
+	}
+	m.mu.Unlock()
+
+	for _, conn := range conns {
+		conn.mu.Lock()
+		_, subscribed := conn.termBlockSubs[handleID]
+		conn.mu.Unlock()
+		if !subscribed {
+			continue
+		}
+		payload := frame
+		conn.enqueue(serverMsg{
+			Ch:            chBlocks,
+			ID:            handleID,
+			Type:          msgBlock,
+			BlockType:     blockTypeTerminalBlock,
+			TerminalBlock: &payload,
+		})
+	}
+}
+
+func (m *Manager) termBlockSubscriberCount(handleID string) int {
+	m.mu.Lock()
+	conns := make([]*connState, 0, len(m.conns))
+	for conn := range m.conns {
+		conns = append(conns, conn)
+	}
+	m.mu.Unlock()
+
+	n := 0
+	for _, conn := range conns {
+		conn.mu.Lock()
+		if _, ok := conn.termBlockSubs[handleID]; ok {
+			n++
+		}
+		conn.mu.Unlock()
+	}
+	return n
+}
+
+func toTerminalBlockFrame(b domain.Block) terminalBlockFrame {
+	var exitCode *int
+	if b.ExitCode != nil {
+		v := *b.ExitCode
+		exitCode = &v
+	}
+	return terminalBlockFrame{
+		TerminalID:     b.TerminalID,
+		SourceID:       b.SourceID,
+		SessionID:      b.SessionID,
+		Command:        b.Command,
+		Cwd:            b.Cwd,
+		GitBranch:      b.GitBranch,
+		ExitCode:       exitCode,
+		RawOutput:      base64.StdEncoding.EncodeToString(b.RawOutput),
+		StartedAt:      b.StartedAt,
+		FinishedAt:     b.FinishedAt,
+		CreatedAt:      b.CreatedAt,
+		ShellKind:      b.ShellKind,
+		ShellVersion:   b.ShellVersion,
+		TruncatedLines: b.TruncatedLines,
+		TruncatedBytes: b.TruncatedBytes,
+		CaptureEpoch:   b.CaptureEpoch,
+		StartOffset:    b.StartOffset,
+		EndOffset:      b.EndOffset,
+	}
 }
 
 // enqueue pushes a frame to the writer. If the buffer is full the client is too

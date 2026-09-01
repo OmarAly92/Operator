@@ -265,7 +265,6 @@ async function main() {
 				readOnly: main?.dataset.editorReadOnly ?? "",
 				raw: main?.dataset.rawInput ?? "",
 				blocks: main?.querySelectorAll("[data-terminal-block-id]").length ?? 0,
-				recipe: main?.dataset.spawnRecipe ?? "",
 			};
 		});
 		if (tierOne.state !== "unknown") {
@@ -279,9 +278,6 @@ async function main() {
 		}
 		if (tierOne.blocks !== 1) {
 			fail(`Tier-1 OSC 133 stream must render one block, got ${tierOne.blocks}`);
-		}
-		if (tierOne.recipe !== "zsh:osc133-only") {
-			fail(`Tier-1 spawn recipe mismatch: ${tierOne.recipe}`);
 		}
 
 		await page.waitForSelector('[data-terminal-alt-shred="ready"]', {

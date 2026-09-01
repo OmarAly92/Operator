@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "shells": {
+    "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR={{script}}.d exec zsh"] },
+    "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "exec bash --rcfile {{script}}.d/.bashrc -i"] },
+    "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
+  },
+  "env": {
+    "auto":         { "OPERATOR_TERMINAL_INTEGRATION": "auto" },
+    "osc133-only":  { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" },
+    "off":          { "OPERATOR_TERMINAL_INTEGRATION": "off" }
+  }
+}

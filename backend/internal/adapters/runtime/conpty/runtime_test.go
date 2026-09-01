@@ -35,6 +35,21 @@ func TestRuntimeDoesNotAdvertiseStyledRenderedTerminalOutput(t *testing.T) {
 	}
 }
 
+func TestPaneCaptureReturnsUnsupportedSentinel(t *testing.T) {
+	rt := New(Options{})
+	h := ports.RuntimeHandle{ID: "sess-1"}
+
+	if _, err := rt.CaptureState(context.Background(), h); !errors.Is(err, ports.ErrCaptureUnsupported) {
+		t.Fatalf("CaptureState err = %v, want ErrCaptureUnsupported", err)
+	}
+	if err := rt.StartCapture(context.Background(), h, []string{"pane-capture", "--dir", "/x"}); !errors.Is(err, ports.ErrCaptureUnsupported) {
+		t.Fatalf("StartCapture err = %v, want ErrCaptureUnsupported", err)
+	}
+	if err := rt.StopCapture(context.Background(), h); !errors.Is(err, ports.ErrCaptureUnsupported) {
+		t.Fatalf("StopCapture err = %v, want ErrCaptureUnsupported", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Test harness: in-process pty-host backed by a fakePTY.
 // ---------------------------------------------------------------------------

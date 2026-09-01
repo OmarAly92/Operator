@@ -1,6 +1,8 @@
 package terminal
 
 import (
+	"time"
+
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 )
 
@@ -12,7 +14,6 @@ import (
 //	ch "subscribe" — the client opts into the session-state channel
 //	ch "sessions"  — server-pushed session-state messages (CDC-fed)
 //	ch "system"    — liveness; ws-level ping/pong also runs underneath
-//	ch "blocks"    — server-pushed normalized agent block events, keyed by session id
 //
 // Terminal payloads are base64 in the Data field: PTY output is arbitrary bytes
 // and need not be valid UTF-8, which a raw JSON string could not carry.
@@ -57,6 +58,8 @@ const (
 	roleSecondary = "secondary"
 )
 
+const blockTypeTerminalBlock = "terminal_block"
+
 // clientMsg is one inbound frame. Fields are shared across channels; which are
 // populated depends on Ch/Type.
 type clientMsg struct {
@@ -73,6 +76,8 @@ type clientMsg struct {
 	// Role is the client's role for a terminal "open" (see roleSecondary). Empty
 	// means primary.
 	Role string `json:"role,omitempty"`
+
+	BlockType string `json:"blockType,omitempty"`
 }
 
 // serverMsg is one outbound frame.
@@ -90,6 +95,30 @@ type serverMsg struct {
 	Session *sessionUpdate `json:"session,omitempty"`
 	// Block is the ch "blocks" payload: one normalized agent block event.
 	Block *blockeventsvc.Record `json:"block,omitempty"`
+
+	BlockType     string              `json:"blockType,omitempty"`
+	TerminalBlock *terminalBlockFrame `json:"terminalBlock,omitempty"`
+}
+
+type terminalBlockFrame struct {
+	TerminalID     string    `json:"terminalId"`
+	SourceID       string    `json:"sourceId"`
+	SessionID      string    `json:"sessionId,omitempty"`
+	Command        string    `json:"command"`
+	Cwd            string    `json:"cwd"`
+	GitBranch      string    `json:"gitBranch"`
+	ExitCode       *int      `json:"exitCode"`
+	RawOutput      string    `json:"rawOutput"`
+	StartedAt      time.Time `json:"startedAt"`
+	FinishedAt     time.Time `json:"finishedAt"`
+	CreatedAt      time.Time `json:"createdAt"`
+	ShellKind      string    `json:"shellKind"`
+	ShellVersion   string    `json:"shellVersion"`
+	TruncatedLines int       `json:"truncatedLines"`
+	TruncatedBytes int       `json:"truncatedBytes"`
+	CaptureEpoch   string    `json:"captureEpoch"`
+	StartOffset    int64     `json:"startOffset"`
+	EndOffset      int64     `json:"endOffset"`
 }
 
 // sessionUpdate is the ch "sessions" payload: a single CDC change projected to

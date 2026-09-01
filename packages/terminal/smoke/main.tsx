@@ -6,7 +6,6 @@ import {
 	initTerminalCoreFromUrl,
 	warpDarkTheme,
 } from "@operator/terminal-react";
-import { spawnRecipe } from "@operator/terminal-core";
 
 const FONT = {
 	family: "ui-monospace, monospace",
@@ -204,11 +203,9 @@ function TierOneApp(): ReactElement | null {
 				if (!main || !editor) return;
 				editor.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
 				editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-				const recipe = spawnRecipe("zsh", { integration: "osc133-only", suppressPrompt: false });
 				main.dataset.lineEditorState = core.lineEditorState();
 				main.dataset.editorReadOnly = editor.getAttribute("aria-readonly") ?? "";
 				main.dataset.rawInput = raw.current.replaceAll("\r", "\\r");
-				main.dataset.spawnRecipe = `${recipe.argv.join(",")}:${recipe.env.OPERATOR_TERMINAL_INTEGRATION}`;
 				main.dataset.terminalTierOne = "ready";
 			});
 		});

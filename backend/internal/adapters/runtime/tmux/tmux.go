@@ -73,6 +73,7 @@ type Runtime struct {
 var _ ports.Runtime = (*Runtime)(nil)
 var _ ports.Attacher = (*Runtime)(nil)
 var _ ports.SessionIDClaimChecker = (*Runtime)(nil)
+var _ ports.PaneCapturer = (*Runtime)(nil)
 
 type runner interface {
 	Run(ctx context.Context, env []string, name string, args ...string) ([]byte, error)
@@ -735,6 +736,95 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 		return nil, err
 	}
 	return ptyexec.Spawn(ctx, argv, attachEnv(os.Environ()), rows, cols)
+}
+
+var executablePath = os.Executable
+
+func (r *Runtime) CaptureState(ctx context.Context, handle ports.RuntimeHandle) (ports.PaneCaptureState, error) {
+	id, err := handleID(handle)
+	if err != nil {
+		return ports.PaneCaptureState{}, err
+	}
+	out, err := r.run(ctx, captureStateArgs(id)...)
+	if err != nil {
+		return ports.PaneCaptureState{}, fmt.Errorf("tmux runtime: capture state %s: %w", id, err)
+	}
+	state, err := parseCaptureState(string(out))
+	if err != nil {
+		return ports.PaneCaptureState{}, fmt.Errorf("tmux runtime: capture state %s: %w", id, err)
+	}
+	return state, nil
+}
+
+func parseCaptureState(out string) (ports.PaneCaptureState, error) {
+	fields := strings.Split(strings.TrimSpace(out), ",")
+	if len(fields) != 2 {
+		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q", out)
+	}
+	pipeOpen, err := parseTmuxFlag(fields[0])
+	if err != nil {
+		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q: %w", out, err)
+	}
+	alternateOn, err := parseTmuxFlag(fields[1])
+	if err != nil {
+		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q: %w", out, err)
+	}
+	return ports.PaneCaptureState{PipeOpen: pipeOpen, AlternateOn: alternateOn}, nil
+}
+
+func parseTmuxFlag(s string) (bool, error) {
+	switch s {
+	case "0":
+		return false, nil
+	case "1":
+		return true, nil
+	default:
+		return false, fmt.Errorf("not a tmux 0/1 flag: %q", s)
+	}
+}
+
+func (r *Runtime) StartCapture(ctx context.Context, handle ports.RuntimeHandle, argv []string) error {
+	id, err := handleID(handle)
+	if err != nil {
+		return err
+	}
+	if len(argv) == 0 {
+		return errors.New("tmux runtime: capture argv is required")
+	}
+	state, err := r.CaptureState(ctx, handle)
+	if err != nil {
+		return err
+	}
+	if state.PipeOpen {
+		return nil
+	}
+	self, err := executablePath()
+	if err != nil {
+		return fmt.Errorf("tmux runtime: resolve executable: %w", err)
+	}
+	if _, err := r.run(ctx, pipePaneArgs(id, shellCommandString(append([]string{self}, argv...)))...); err != nil {
+		return fmt.Errorf("tmux runtime: start capture %s: %w", id, err)
+	}
+	return nil
+}
+
+func shellCommandString(argv []string) string {
+	quoted := make([]string, len(argv))
+	for i, arg := range argv {
+		quoted[i] = shellQuote(arg)
+	}
+	return strings.Join(quoted, " ")
+}
+
+func (r *Runtime) StopCapture(ctx context.Context, handle ports.RuntimeHandle) error {
+	id, err := handleID(handle)
+	if err != nil {
+		return err
+	}
+	if _, err := r.run(ctx, pipePaneOffArgs(id)...); err != nil {
+		return fmt.Errorf("tmux runtime: stop capture %s: %w", id, err)
+	}
+	return nil
 }
 
 // attachCommand returns the argv to attach a terminal to the session.

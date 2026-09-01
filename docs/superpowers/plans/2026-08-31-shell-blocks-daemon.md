@@ -1,365 +1,758 @@
-# Shell Blocks — The Daemon's Half (spec §13.2) Implementation Plan
+# Production Shell Blocks — Daemon Capture, Persistence, and Replay Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development`
+> or `superpowers:executing-plans` to implement this plan task by task. Keep the checklist
+> current and stop at every review gate.
 
-**Goal:** Make a shell pane emit OSC 133 marks, so blocks, the Warp prompt and the
-package's line editor actually appear in the running app.
+**Status:** Amended 2026-08-31 after recovery and production-readiness review.
 
-**Architecture:** Spec §13 splits into two halves. §13.3, the renderer's half, landed
-2026-08-30. §13.2, the daemon's half, was never started: nothing calls `spawnRecipe`,
-nothing runs `tmux pipe-pane`, and nothing imports `packages/terminal/go/marks`. The
-downstream consumer — `blockevent.Service`, its sqlite store, its HTTP controller and
-`Manager.PublishBlockEvent` — is fully built. The pipe is welded at both ends with
-nothing entering it. This plan builds the producer.
+**Goal:** Give Operator shell panes the same user-visible command-block behavior as Warp:
+stable command boundaries, command/cwd/branch/exit metadata, exact terminal output,
+alternate-screen isolation, bounded durable history, and correct restore after detach or
+daemon restart.
 
-**Tech Stack:** Go (daemon, tmux adapter, a new `packages/terminal/go/bootstrap` module),
-TypeScript (one manifest read), shared JSON vectors.
+**Architecture:** The package-owned bootstrap emits additive OSC 133 and OSC 7000 marks.
+On Unix, tmux `pipe-pane` sends the pane stream to a hidden `opr pane-capture` helper. The
+helper, not the daemon reader, owns a bounded segmented journal under Operator's data dir,
+so rotation never renames a file that `cat` still has open. A daemon capture supervisor
+adopts every live shell terminal in the current app run, queries tmux's existing
+`#{alternate_on}` and `#{pane_pipe}` state, tails the journal once per pane, assembles
+lossless terminal blocks, and upserts complete rows into a dedicated `terminal_blocks`
+store. The shell-terminal history API returns the original byte stream and metadata. The
+renderer loads and feeds that history before opening the live terminal channel. Explicit
+terminal teardown stops `pipe-pane`, waits for the helper's EOF seal, performs a final
+drain, and only then destroys the runtime.
 
-**Spec:** [`docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`](../specs/2026-08-29-warp-terminal-package-design.md) — §4.1 (host boundary), §7.2 (mark tiers), §8 (additive-only bootstrap), §13.1 (relationship to plan 7), §13.2 (this plan), §13.3 (what already landed).
+**Parity definition:** “Identical to Warp” means observable block behavior: one block per
+submitted command, exact displayed bytes and styling, correct exit/cwd/branch metadata,
+no alternate-screen repaint history, 100 retained blocks per terminal, 5,000 retained
+output lines per block, and stable restoration. It does not mean copying Warp's private
+protocol or its invasive shell-hook behavior. Operator keeps its documented OSC 133/7000
+contract, additive hooks, daemon/API boundaries, and safety restrictions.
+
+**Tech stack:** Go, Cobra, tmux, SQLite/sqlc, React/TypeScript, Vitest, real PTY/tmux shell
+integration tests, and the existing `packages/terminal` Rust/Go/TypeScript conformance
+vectors.
+
+**Primary spec:**
+[`docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`](../specs/2026-08-29-warp-terminal-package-design.md),
+especially §§7–8 and 13. This plan deliberately corrects the incomplete lifecycle and
+storage wording in §13.2; Task 12 makes that correction durable.
 
 ---
 
-## Why this plan exists, and what it is worth
+## Recovered baseline — validate, do not reimplement
 
-Verified on 2026-08-31 in this repository:
+The implementation worktree is
+`/Users/omaraly/development/AI/Operator-shell-blocks` on branch
+`shell-blocks-daemon`. It was clean when this amendment was written. Preserve these
+commits:
 
-| §13.2 step | State | Evidence |
+| Commit | Recovered work | Production disposition |
 | --- | --- | --- |
-| 1. Spawn the shell from a `SpawnRecipe` | **missing** | `grep -rn spawnRecipe backend/ frontend/src packages/desktop` → empty |
-| 2. `tmux pipe-pane` into `go/marks` | **missing** | no `pipe-pane` in `backend/`; nothing imports `packages/terminal/go/marks` |
-| 3. Record boundaries via `blockevent.Service` | present | `backend/internal/service/blockevent/service.go:36` |
-| 4. Suspend capture across alt-screen | **missing** | — |
-| 5. Publish on the `blocks` mux channel | present | `backend/internal/terminal/manager.go:558` |
+| `828b7d0bb` | language-neutral spawn recipe manifest | keep |
+| `c66520990` | spawn argv tests | keep and extend |
+| `6b422b86a` | shell-terminal bootstrap wiring | keep and extend |
+| `5b6db5678` | first `pipe-pane` sink and mark decoder | retain decoder work; replace file lifecycle |
+| `8618dce73` | alternate-screen suppression | retain state-machine behavior |
+| `4d2a0914` | rename-based bounding | supersede with Task 5 |
+| `1e505bf62` | finish an in-flight block on alternate-screen entry | retain behavior |
+| `8d9090656` | warning for the stalled old-inode writer | supersede with Task 5 |
 
-**Task 2 is the visible win, and it is small.** §13.3 already decided that *live* blocks
-come from the package's own parse of the stream the renderer is receiving anyway — not
-from the daemon. So the moment a shell is spawned with the bootstrap, the renderer starts
-seeing marks and blocks appear. Tasks 3–6 add persistence and history, which is what makes
-blocks survive a reattach or a daemon restart. Do not reorder: if Task 2 does not produce
-a visible block, nothing after it will.
+Before new production code, run:
 
-## The reusability constraint (read before writing any code)
+```bash
+cd /Users/omaraly/development/AI/Operator-shell-blocks/backend
+go test ./internal/terminal ./internal/adapters/runtime/tmux
+```
 
-`packages/terminal` is a **product-independent package**. Spec §4.1 states it directly:
-"Operator's daemon is one host; a plain PTY in another project is another." The user
-reaffirmed this on 2026-08-31 when commissioning this plan.
-
-Concretely, for every file you touch:
-
-- Nothing Operator-shaped may enter `packages/terminal` — no tmux, no session id, no
-  `blockevent`, no mux channel, no `~/.operator` path, no daemon concept.
-- The new Go module under `packages/terminal/go/bootstrap` must be usable by a Go host
-  that has never heard of Operator. It takes a shell name and a directory to
-  materialize scripts into; it returns argv and env. That is all.
-- Everything Operator-specific — tmux invocation, capture lifetime, `blockevent`
-  recording, the `blocks` channel — lives in `backend/`.
-- Review gate for every task: *could a second, non-Operator host use this unchanged?*
-
-## Global Constraints
-
-- **No comments in code.** The user's global rule, and it applies to test harnesses and
-  scaffolding too.
-- **All app state under `~/.operator`** (`OPERATOR_DATA_DIR`). Task 1 materializes shell
-  scripts to disk; they go under the daemon's data dir, never an OS app-data location.
-- **No file over 600 lines** (`packages/terminal` is checked by `check:boundaries`).
-- The package must not import from `backend/` or `frontend/`.
-- Every task ends green on: `cd backend && go test ./...`,
-  `npm --prefix packages/terminal test`, `npm --prefix frontend test`,
-  `npm --prefix packages/terminal run check:boundaries`.
-- Do **not** expect `bench:gate` to be green. `input-latency` is red from the paint
-  throttle in `ac9236563`; spec §9.5 carries that as an open decision. Note if a number
-  moves; do not try to fix it here.
+Those focused tests were green during recovery. Their success proves only the recovered
+unit behavior; it does not prove capture is started, adopted, stopped, persisted, or
+replayed.
 
 ---
 
-### Task 1: One recipe, readable from both languages
+## Production invariants
 
-**Problem this solves.** `spawnRecipe` is TypeScript
-(`packages/terminal/ts/core/src/spawn-recipe.ts:22`) and resolves the bootstrap script
-path through `import.meta.url`. A Go daemon cannot call it. Reimplementing the argv rules
-in Go would be two sources of truth for a contract §4.1 says the package alone owns, and
-they would drift on the first shell added.
+These are acceptance rules, not implementation suggestions:
 
-**Design.** The package publishes a language-neutral manifest. Both languages read it;
-neither owns the rules. This mirrors the established `packages/terminal/protocol/vectors/`
-pattern, which is already how `crates/marks`, `go/marks` and the TS decoder stay agreed
-(`go/marks/marks_test.go:26` globs `../../protocol/vectors/*.json`).
+1. Exactly one capture writer and one daemon decoder own a live tmux pane, independent of
+   the number of attached clients.
+2. Shells in the current `appRunID` survive daemon restart, and capture resumes without a
+   new shell or duplicate block rows.
+3. A client is never required for capture; commands run with zero clients appear in
+   history later.
+4. `#{alternate_on}` seeds capture state before the first byte is decoded. OSC
+   `?1049h`/`?1049l` updates it thereafter.
+5. Alternate-screen bytes are never persisted as command-block output. A command already
+   in flight may finish when alternate mode begins, but repaint bytes are excluded.
+6. Raw bytes are preserved as `BLOB`; do not reconstruct history from plain text.
+7. Rotation is writer-owned. The daemon must never rename or truncate a path still held
+   open by `pipe-pane`, `cat`, or the helper.
+8. Explicit close order is stop writer, seal, drain, persist, destroy runtime, delete row.
+9. Daemon shutdown drains to the latest durable journal cursor before SQLite closes. Any
+   bytes arriving after that cursor remain in the journal and are adopted next boot.
+10. Reprocessing a segment or complete block is idempotent.
+11. Retain the newest 100 blocks per terminal. Retain at most 5,000 output lines and 8 MiB
+    of raw bytes per block; store the number of omitted lines/bytes.
+12. Journal storage is bounded to eight 1 MiB sealed segments plus one active segment per
+    terminal. If an offline daemon falls behind the bound, discard oldest sealed segments,
+    record a gap, abandon the partial block, and recover at the next valid prompt boundary.
+13. All capture state lives under the configured Operator data dir. Nothing uses an OS
+    default app-data path.
+14. Windows remains a working raw terminal. Durable shell blocks are reported unavailable
+    until a ConPTY-native capture owner exists.
+15. `packages/terminal` remains product-independent. No Operator session, tmux, SQLite,
+    mux, or data-dir concept enters it.
+16. Do not add code comments, per repository instruction.
+
+---
+
+### Task 1: Pin real shell behavior before changing the hooks
 
 **Files:**
-- Create: `packages/terminal/protocol/recipes.json`
-- Create: `packages/terminal/go/bootstrap/{go.mod,bootstrap.go,bootstrap_test.go}`
-- Modify: `packages/terminal/ts/core/src/spawn-recipe.ts`
-- Modify: `packages/terminal/ts/core/src/spawn-recipe.test.ts`
 
-Manifest shape — argv is a template so neither language encodes quoting rules:
+- Modify: `packages/terminal/shell/zsh.test.mjs`
+- Modify: `packages/terminal/shell/bash.test.mjs`
+- Modify: `packages/terminal/shell/fish.test.mjs`
+- Modify: `packages/terminal/shell/pty.mjs`
+- Create: `packages/terminal/protocol/vectors/real-shell-blocks.json`
 
-```json
-{
-  "version": 1,
-  "shells": {
-    "zsh":  { "script": "zsh.sh",     "argv": ["zsh", "-c", "source {{script}}; exec zsh"] },
-    "bash": { "script": "bash.sh",    "argv": ["bash", "-c", "source {{script}}; exec bash"] },
-    "fish": { "script": "fish.fish",  "argv": ["fish", "-C", "source {{script}}"] }
-  },
-  "env": {
-    "auto":         { "OPERATOR_TERMINAL_INTEGRATION": "auto" },
-    "osc133-only":  { "OPERATOR_TERMINAL_INTEGRATION": "osc133-only" },
-    "off":          { "OPERATOR_TERMINAL_INTEGRATION": "off" }
-  }
+The existing tests accept mocked or incomplete streams. They currently miss two observed
+failures: zsh captures `$?` after another command and always reports zero, while its block
+counter mutates inside a command-substitution subshell and repeatedly emits `1`; bash's
+recursive DEBUG trap emits its own hook internals and never produces a stable A/C/D
+sequence.
+
+- [ ] Add a PTY assertion helper that parses the actual emitted byte stream and returns
+  ordered OSC 133/7000 records without normalizing their order.
+- [ ] Add zsh cases for `true`, `false`, a pipeline, multiline input, Ctrl-C, `cd`, and two
+  consecutive commands. Assert distinct increasing IDs and the real exit code.
+- [ ] Add bash cases for the same lifecycle and assert no hook implementation text appears
+  as a command.
+- [ ] Add fish cases for success, failure, syntax error, and an empty prompt cycle. Skip
+  only when `fish` is absent, and print the executable check in the test result.
+- [ ] Add chunk-splitting cases in which every byte can be a PTY read boundary.
+- [ ] Write the observed canonical sequences to `real-shell-blocks.json` for reuse by Go
+  assembler tests.
+- [ ] Run the tests and confirm zsh and bash fail for the known reasons before editing a
+  bootstrap script:
+
+```bash
+node --test packages/terminal/shell/*.test.mjs
+```
+
+- [ ] Sabotage: make the expected second ID equal the first. Confirm the test fails, then
+  restore the assertion.
+- [ ] Commit: `test(terminal): pin real shell block streams`
+
+### Task 2: Emit one ordered, stable lifecycle from zsh, bash, and fish
+
+**Files:**
+
+- Modify: `packages/terminal/shell/zsh.sh`
+- Modify: `packages/terminal/shell/bash.sh`
+- Modify: `packages/terminal/shell/fish.fish`
+- Modify: checked-in bootstrap copies under `packages/terminal/go/bootstrap/`
+- Modify: corresponding tests from Task 1
+
+Use one lifecycle in every shell:
+
+```text
+pre-command prompt:
+  capture previous exit status before any helper runs
+  if a command was executing: OSC7000(id=current, exit=code), OSC133(D;code)
+  allocate current ID in the parent shell
+  OSC7000(id=current, cwd, branch), OSC133(A)
+  render prompt, OSC133(B), input-ready
+
+pre-exec:
+  OSC7000(id=current, cmd=exact submitted command), input-released, OSC133(C)
+```
+
+- [ ] Generate IDs as `<terminal-handle>-<parent-shell-counter>` using only the protocol's
+  `[A-Za-z0-9_-]` ID alphabet. Pass the terminal handle
+  in `RuntimeConfig.Env` as `OPERATOR_TERMINAL_ID`; never increment the counter inside zsh
+  command substitution or another subshell.
+- [ ] In zsh, save `$?` as the first `precmd` operation, before `emulate`, git lookup, or
+  formatting. Use `add-zsh-hook` without replacing user hooks.
+- [ ] In bash, guard DEBUG recursion, ignore prompt/helper evaluation, preserve and chain
+  existing `PROMPT_COMMAND` and DEBUG traps, and capture `BASH_COMMAND` only for a real
+  submitted command.
+- [ ] In fish, use preexec/postexec/prompt events and the error-prompt path so syntax errors
+  close their block. Keep functions idempotent across `exec fish` and nested shells.
+- [ ] Emit exit metadata before OSC 133 D so the daemon has all metadata when D finalizes
+  the block. Emit next-block metadata before A.
+- [ ] Ensure OSC payload escaping is byte-for-byte compatible with `go/marks` and the Rust
+  and TypeScript decoders.
+- [ ] Update the bootstrap divergence test so package assets and embedded Go copies cannot
+  drift.
+- [ ] Run:
+
+```bash
+node --test packages/terminal/shell/*.test.mjs
+cd packages/terminal/go/bootstrap && go test ./...
+npm --prefix packages/terminal run check:boundaries
+```
+
+- [ ] Sabotage: move zsh's exit capture below `emulate -L zsh`; confirm the `false` test
+  reports the regression, then restore it.
+- [ ] Commit: `fix(terminal): stabilize shell mark ordering`
+
+### Task 3: Make `go/marks` lossless and cursor-aware
+
+**Files:**
+
+- Modify: `packages/terminal/go/marks/marks.go`
+- Modify: `packages/terminal/go/marks/scanner.go`
+- Modify: `packages/terminal/go/marks/marks_test.go`
+- Modify: shared protocol vectors only if a missing recovery case is discovered
+
+The current callback API returns semantic marks but not the bytes between them. Replace
+the daemon-facing API with a lossless stream decoder while keeping mark parsing reusable:
+
+```go
+type Token struct {
+    Kind TokenKind
+    Raw []byte
+    Mark Mark
+    Start int64
+    End int64
+}
+
+func (d *Decoder) Feed(chunk []byte) []Token
+func (d *Decoder) Flush() []Token
+func (d *Decoder) ResetAt(offset int64)
+```
+
+`Raw` must concatenate back to the original input exactly, including malformed escape
+sequences. `Start` and `End` are absolute offsets within one journal epoch.
+
+- [ ] Add tests proving `bytes.Join(token.Raw)` equals the input for plain UTF-8,
+  arbitrary bytes, split OSC, malformed OSC, SGR, and alternate-screen sequences.
+- [ ] Add a reset/gap test: begin mid-OSC, call `ResetAt`, feed noise, then a valid A/C/D
+  sequence. The decoder must recover without assigning pre-gap bytes to a block.
+- [ ] Add `Flush` tests for a terminal ending after ordinary output and ending inside an
+  incomplete escape sequence.
+- [ ] Preserve every §7.4 semantic recovery rule.
+- [ ] Run:
+
+```bash
+cd packages/terminal/go/marks && go test ./...
+```
+
+- [ ] Sabotage: omit the OSC terminator from `Raw`; confirm round-trip tests fail, then
+  restore it.
+- [ ] Commit: `feat(terminal): expose lossless mark tokens`
+
+### Task 4: Add a durable terminal-block model instead of overloading agent events
+
+**Files:**
+
+- Create: `backend/internal/domain/terminalblock.go`
+- Create: `backend/internal/service/terminalblock/types.go`
+- Create: `backend/internal/service/terminalblock/service.go`
+- Create: `backend/internal/service/terminalblock/service_test.go`
+- Create: `backend/internal/storage/sqlite/migrations/0092_terminal_blocks.sql`
+- Create: `backend/internal/storage/sqlite/queries/terminal_blocks.sql`
+- Modify: `backend/internal/storage/sqlite/store.go`
+- Regenerate: `backend/internal/storage/sqlite/gen/*` with `npm run sqlc`
+- Modify: SQLite integration/migration tests beside the existing block-event tests
+
+Do not add shell fields to `block_events`. That table is an append-only agent hook event
+log keyed by sequence; a shell block is a completed, idempotently upserted terminal
+artifact with raw bytes and different retention.
+
+Create `terminal_blocks` with these columns:
+
+```sql
+terminal_id TEXT NOT NULL
+source_id TEXT NOT NULL
+session_id TEXT NOT NULL DEFAULT ''
+command TEXT NOT NULL DEFAULT ''
+cwd TEXT NOT NULL DEFAULT ''
+git_branch TEXT NOT NULL DEFAULT ''
+exit_code INTEGER
+raw_output BLOB NOT NULL
+started_at TIMESTAMP
+finished_at TIMESTAMP NOT NULL
+shell_kind TEXT NOT NULL DEFAULT ''
+shell_version TEXT NOT NULL DEFAULT ''
+truncated_lines INTEGER NOT NULL DEFAULT 0
+truncated_bytes INTEGER NOT NULL DEFAULT 0
+capture_epoch TEXT NOT NULL
+start_offset INTEGER NOT NULL
+end_offset INTEGER NOT NULL
+created_at TIMESTAMP NOT NULL
+PRIMARY KEY (terminal_id, source_id)
+```
+
+Add indexes for `(terminal_id, finished_at DESC)` and non-empty `session_id`. The migration
+must add SQLite triggers that write `change_log`; service/store methods must not emit
+manual CDC rows.
+
+Expose this service boundary:
+
+```go
+type Store interface {
+    UpsertTerminalBlock(context.Context, Block) error
+    ListTerminalBlocks(context.Context, string, int) ([]Block, error)
+    TrimTerminalBlocks(context.Context, string, int) error
+    DeleteTerminalBlocks(context.Context, string) error
+}
+
+func (s *Service) Record(context.Context, Block) error
+func (s *Service) History(context.Context, terminalID string, limit int) ([]Block, error)
+```
+
+- [ ] Test insert, same-ID replay/upsert, nullable exit code, arbitrary non-UTF-8 output,
+  chronological history, per-terminal isolation, deletion, and 100-row retention.
+- [ ] Test the 5,000-line and 8 MiB limits. Truncate only at a complete byte boundary,
+  retain the newest output, and report omitted line and byte counts.
+- [ ] Test migration from a database at migration 0091. Do not modify migrations 0090 or
+  0091.
+- [ ] Run:
+
+```bash
+npm run sqlc
+cd backend && go test ./internal/storage/sqlite/... ./internal/service/terminalblock/...
+```
+
+- [ ] Sabotage: change the upsert conflict key to `source_id` alone; confirm two terminals
+  using the same counter fail the isolation test, then restore it.
+- [ ] Commit: `feat(storage): persist terminal blocks`
+
+### Task 5: Replace rename rotation with a writer-owned bounded journal
+
+**Files:**
+
+- Create: `backend/internal/terminalcapture/journal.go`
+- Create: `backend/internal/terminalcapture/journal_test.go`
+- Create: `backend/internal/terminalcapture/sink.go`
+- Create: `backend/internal/terminalcapture/sink_test.go`
+- Create: `backend/internal/cli/pane_capture.go`
+- Create: `backend/internal/cli/pane_capture_test.go`
+- Modify: `backend/internal/cli/root.go`
+- Delete after replacement: rename/truncation code in
+  `backend/internal/terminal/capture.go` on the implementation branch
+
+Register a hidden internal command matching the existing `opr pty-host` pattern:
+
+```text
+opr pane-capture --dir <validated-terminal-journal-dir> --epoch <uuid>
+```
+
+The tmux pipe writes directly to this helper's stdin. The helper writes
+`<sequence>.open`, rotates itself at 1 MiB, fsyncs, and atomically renames the closed file
+to `<sequence>.ready`. It retains eight ready files plus the active file. On stdin EOF it
+seals the final non-empty file and writes an atomic epoch manifest containing the final
+sequence and byte offset.
+
+- [ ] Reject an output directory outside the configured capture root. Construct the root
+  in the daemon and pass the resolved absolute path; do not trust a user-facing CLI path.
+- [ ] Use monotonically named segments within a random epoch directory. The reader orders
+  by epoch manifest and sequence, never filesystem mtime.
+- [ ] Write an atomic `gap.json` before pruning an unread sealed segment. Include the first
+  retained sequence so the decoder knows to reset.
+- [ ] Never rename or truncate an `.open` file from the reader. Only the writer seals it.
+- [ ] Make the helper independent of daemon lifetime. Killing and restarting the daemon
+  must not block tmux or stop segment rotation.
+- [ ] Test >10 MiB input with no reader: disk use stays within the stated bound, the helper
+  keeps consuming stdin, and the newest segment contains the final sentinel.
+- [ ] Test a reader concurrently consuming while rotation occurs; concatenated retained
+  bytes are ordered with no duplicates.
+- [ ] Test EOF with a short last segment and confirm it becomes `.ready` before process
+  exit.
+- [ ] Run:
+
+```bash
+cd backend && go test ./internal/terminalcapture ./internal/cli
+```
+
+- [ ] Sabotage: rotate a file from the reader instead of the writer and keep the writer's
+  descriptor open. Confirm the integration test detects that new bytes remain on the old
+  inode, then restore the segmented design.
+- [ ] Commit: `feat(terminal): add bounded capture journal`
+
+### Task 6: Make tmux capture state observable and idempotent
+
+**Files:**
+
+- Modify: `backend/internal/ports/outbound.go`
+- Modify: `backend/internal/adapters/runtime/tmux/commands.go`
+- Modify: `backend/internal/adapters/runtime/tmux/tmux.go`
+- Modify: `backend/internal/adapters/runtime/tmux/tmux_test.go`
+- Modify: `backend/internal/adapters/runtime/tmux/tmux_integration_test.go`
+
+Replace the write-only `StartCapture`/`StopCapture` surface with:
+
+```go
+type PaneCaptureState struct {
+    PipeOpen bool
+    AlternateOn bool
+}
+
+type PaneCapturer interface {
+    CaptureState(context.Context, RuntimeHandle) (PaneCaptureState, error)
+    StartCapture(context.Context, RuntimeHandle, []string) error
+    StopCapture(context.Context, RuntimeHandle) error
 }
 ```
 
-- [ ] **Step 1: Write the failing tests, both languages, against the same manifest**
+The adapter must read `#{pane_pipe}` and `#{alternate_on}` in one
+`display-message -p -t <target>` call. `StartCapture` must use `pipe-pane -o` and a
+shell-escaped argv built from the current executable plus `pane-capture` arguments.
 
-TS: assert `spawnRecipe("zsh", {integration:"auto", suppressPrompt:false})` produces argv
-whose third element contains the manifest's template with `{{script}}` replaced by an
-absolute path ending `shell/zsh.sh`, and that the two `off`/`osc133-only` forms return a
-bare `[shell]` argv. The existing six cases in `spawn-recipe.test.ts` already pin this
-behaviour — they must keep passing unchanged. That is the point: the manifest is a
-refactor, not a behaviour change.
+- [ ] Unit-test exact argv and quoting for spaces, quotes, and shell metacharacters.
+- [ ] Return a typed unsupported-capability error on ConPTY rather than adding a fake
+  capture implementation.
+- [ ] Real-tmux test: start a pane, assert pipe false/alternate false, start capture twice,
+  assert one pipe, enter alternate screen, assert `AlternateOn`, leave, stop, assert false.
+- [ ] Run:
 
-Go: a table test over all three shells asserting `bootstrap.Recipe(shell, dir, opts)`
-returns byte-identical argv to the TS side for the same inputs. Encode the expected argv
-once, in the manifest's own test fixture, so neither language can drift silently.
-
-- [ ] **Step 2: Sabotage check**
-
-Change `"exec zsh"` to `"exec bash"` in the manifest. Both test suites must go red. If
-only one does, the other is not really reading the manifest — fix it before continuing.
-
-- [ ] **Step 3: `go:embed` the scripts, materialize under the host's directory**
-
-The Go package embeds `zsh.sh`, `bash.sh`, `fish.fish` and `recipes.json`, and exposes:
-
-```go
-func Recipe(shell string, scriptDir string, opts Options) (argv []string, env map[string]string, err error)
+```bash
+cd backend && go test ./internal/adapters/runtime/tmux
 ```
 
-`Recipe` writes the script into `scriptDir` (0700, content-addressed filename so a
-concurrent daemon or a second host cannot half-write it) and returns argv pointing at it.
-`scriptDir` is the caller's choice — that is what keeps this package host-agnostic. The
-daemon will pass a path under `OPERATOR_DATA_DIR`; another host passes whatever it likes.
+- [ ] Sabotage: remove `-o`; confirm the second-start integration test exposes replacement
+  or duplication, then restore it.
+- [ ] Commit: `feat(tmux): expose pane capture state`
 
-Note the embed path constraint: `go:embed` cannot reach outside its own module directory,
-so `go/bootstrap/` needs the scripts copied in at build time or a `go:generate` step. Prefer
-a checked-in copy plus a test that fails when it diverges from `shell/` — a generation step
-would need a CI stage that does not exist (same reasoning as the committed `*.g.dart` in
-`packages/mobile`).
-
-- [ ] **Step 4: Verify** — `npm --prefix packages/terminal test`, `cd packages/terminal/go/bootstrap && go test ./...`
-
----
-
-### Task 2: Spawn shell terminals with the bootstrap — the visible win
+### Task 7: Assemble exact blocks, alternate-screen gaps, and final drain
 
 **Files:**
-- Modify: `backend/internal/service/shellterm/service.go:226`
-- Modify: `backend/internal/service/shellterm/loginshell.go`
-- Modify: `backend/internal/service/shellterm/service_test.go`
-- Modify: `backend/go.mod` (require the new module; it is a separate module, so a
-  `replace` directive pointing at `../packages/terminal/go/bootstrap` — the same shape
-  `go/marks` will need in Task 3)
 
-Today `service.go:226` reads `argv := resolveUserLoginShell()` and passes
-`ports.RuntimeConfig{Argv: argv}` with `Env` left unset. `RuntimeConfig.Env` already
-exists (`backend/internal/ports/outbound.go:123`), is validated by the tmux adapter
-(`tmux.go:300`) and is exported into the launch command by `buildLaunchCommand`.
+- Replace: `backend/internal/terminal/capture.go`
+- Replace/extend: `backend/internal/terminal/capture_test.go`
+- Create: `backend/internal/terminal/block_assembler.go`
+- Create: `backend/internal/terminal/block_assembler_test.go`
 
-- [ ] **Step 1: Write the failing test**
+The capture worker reads journal cursors and feeds lossless tokens into a state machine.
+It owns no lifecycle map; Task 8 owns workers.
 
-In `service_test.go`, open a shell terminal against a fake runtime and assert the captured
-`RuntimeConfig`:
-- `Argv[0]` is the resolved login shell,
-- `Argv` carries the bootstrap source form for a known shell,
-- `Env["OPERATOR_TERMINAL_INTEGRATION"] == "auto"`.
+Required state:
 
-- [ ] **Step 2: Map the login shell to a `ShellKind`**
+```go
+type CaptureCursor struct {
+    Epoch string
+    Segment uint64
+    Offset int64
+}
 
-`resolveUserLoginShell` returns an absolute path (`/bin/zsh`, `/opt/homebrew/bin/fish`).
-`bootstrap.Recipe` takes a kind. Add `shellKindFor(path string) (string, bool)` matching
-on the **basename only**, and when it does not match one of the three, fall back to today's
-bare argv with `integration: "osc133-only"` — §4.1 requires that tier to be a first-class
-tested path, not a degraded one. A user on `nu` or `elvish` gets a working terminal with
-Tier 1 marks, not a broken one.
+type BlockAssembler struct {
+    TerminalID string
+    SessionID string
+    AlternateOn bool
+}
+```
 
-- [ ] **Step 3: Wire it, with the script dir under `OPERATOR_DATA_DIR`**
+- [ ] Seed `AlternateOn` from Task 6 before calling `Feed` for the first time.
+- [ ] Start a block at A, attach exact command metadata to the current ID, begin output at
+  C, and finalize only after the matching D and preceding exit metadata.
+- [ ] Persist `raw_output` as a self-contained replay stream from the block's first
+  OSC7000/A mark through D, including the real prompt, input echo, styling, control bytes,
+  and closing marks. Do not synthesize a header or command during replay. When retention
+  drops old output, preserve the original prefix/boundary marks and suffix/D bytes around
+  the exact retained output tokens so the stream remains parseable.
+- [ ] If alternate mode begins during an executing command, allow its boundary metadata
+  and D to finish the block while excluding all repaint payload. Ignore new block starts
+  until alternate mode leaves.
+- [ ] On journal gap, discard the partial block, reset the decoder at the retained cursor,
+  and recover on the next A. Never splice bytes from opposite sides of a gap.
+- [ ] For Tier 1 streams without OSC 7000 IDs, derive
+  `osc133-<epoch>-<A-start-offset>` using the protocol's ID alphabet. Tier 1 restore is stable within the durable journal;
+  Tier 2 IDs remain stable across journal epochs and daemon restarts.
+- [ ] Checkpoint a cursor only after every finalized block through that cursor commits.
+  Re-reading from the prior checkpoint must upsert, not duplicate.
+- [ ] Implement `Drain(ctx, final bool)`: read every currently durable byte, call decoder
+  `Flush` only when the writer is sealed, persist the last complete block, persist the
+  cursor, and return. An unfinished command remains recoverable unless explicit terminal
+  close makes completion impossible, in which case store it with `exit_code = NULL` and a
+  finished timestamp.
+- [ ] Test all protocol recovery rows, initial alternate-on, enter/leave split across
+  chunks, in-flight completion, gap recovery, replay from old cursor, and cancellation
+  followed by final drain.
+- [ ] Run:
 
-The service needs the daemon's data dir. Inject it — do not read the env var inside the
-service, which would make it untestable and would bypass `OPERATOR_DATA_DIR` overrides in
-tests. `daemon.startShellTerminals` (`backend/internal/daemon/shellterm_wiring.go`) is the
-construction site.
+```bash
+cd backend && go test ./internal/terminal
+```
 
-- [ ] **Step 4: Prove it by hand, not by test**
+- [ ] Sabotage: return immediately on `ctx.Done()` before `Drain`; confirm the last-block
+  shutdown test fails, then restore final drain.
+- [ ] Commit: `feat(terminal): assemble durable shell blocks`
 
-This is the accept criterion that Phase 4 lacked and paid for. Build, run the app, open a
-shell terminal, run `ls`, and confirm you see a **block** with a header — not a bare grid.
-Attach the screenshot to the task. If there is no visible block, stop: something between
-here and §13.3 is broken and Tasks 3–7 will not fix it.
-
-- [ ] **Step 5: Verify** — `cd backend && go test ./...`
-
----
-
-### Task 3: Capture the pane with `tmux pipe-pane`, decode with `go/marks`
-
-**Why pipe-pane and not `attachment.onData`.** §13.1 settles this and it is not reopened:
-`newAttachment` is per-client (`backend/internal/terminal/manager.go:448`,
-`backend/internal/terminal/doc.go:11`), so parsing at `onData` produces duplicate blocks
-with two clients attached and **no** blocks with zero attached. Capture must be
-server-side and independent of who is watching.
-
-**Files:**
-- Create: `backend/internal/terminal/capture.go`, `capture_test.go`
-- Modify: `backend/internal/adapters/runtime/tmux/commands.go` (a `pipePaneArgs` builder,
-  matching the existing `setStatusOffArgs` house style)
-- Modify: `backend/internal/adapters/runtime/tmux/tmux.go` (a `StartCapture`/`StopCapture`
-  pair on the runtime, behind a new optional port so conpty can decline)
-- Modify: `backend/go.mod` (`replace` for `packages/terminal/go/marks`)
-
-- [ ] **Step 1: Write the failing test**
-
-Feed a recorded byte stream containing OSC 133 A/C/D and one OSC 7000 extension mark
-through the capture reader with a fake `blockevent` recorder, and assert the recorder saw
-one complete block with the right command text, cwd and exit code. Reuse a fixture from
-`packages/terminal/protocol/vectors/` rather than hand-writing bytes.
-
-- [ ] **Step 2: Decide the sink, and write it down in the file**
-
-`tmux pipe-pane -o 'cat >> <path>'` writes to a file; the daemon tails it. A FIFO is the
-obvious alternative and is worse: a FIFO blocks the pane's writer when nothing is reading,
-so a daemon restart would **freeze the user's shell**. Use a file under the data dir, tail
-it, and truncate on block boundaries. State this reasoning in the commit message — the next
-person will otherwise "simplify" it to a FIFO.
-
-- [ ] **Step 3: Bound it**
-
-A capture file that only grows is a disk leak on a long-lived pane. Cap it, and drop the
-oldest bytes rather than the newest — a truncated *old* block is a missing history entry, a
-truncated *new* one is a corrupt live block.
-
-- [ ] **Step 4: Verify** — `cd backend && go test ./...`
-
----
-
-### Task 4: Suspend capture across alt-screen
+### Task 8: Own capture for the whole shell-terminal lifecycle
 
 **Files:**
-- Modify: `backend/internal/terminal/capture.go`, `capture_test.go`
 
-§13.2 step 4. An agent TUI repaints its whole screen many times a second; capturing that
-into block storage is both meaningless and a disk-fill. The decoder must track
-`?1049h`/`?1049l` and suspend recording between them.
-
-**The trap, named.** Spec §11 records that in a tmux-hosted pane the agent is *already*
-in the alternate screen because tmux put it there — so the enter you are looking for may
-have happened before capture started. Handle "capture starts while already in alt-screen"
-explicitly, and write a test for exactly that ordering. This is the same fact that made an
-earlier version of this design wrong.
-
-- [ ] **Step 1: Write the failing test** — both orderings: enter-then-capture, and
-  capture-then-enter.
-- [ ] **Step 2: Implement.**
-- [ ] **Step 3: Verify** — `cd backend && go test ./...`
-
----
-
-### Task 5: A second entry point on `blockevent` — not an `ActivitySignal` overload
-
-**Files:**
-- Modify: `backend/internal/domain/blockevent.go`
-- Modify: `backend/internal/service/blockevent/{types.go,service.go}`
-- Modify: `backend/internal/service/blockevent/service_test.go`
-
-§13.1 is explicit and this is the task where it is easy to get wrong:
-`Service.Record` takes `ports.ActivitySignal`
-(`backend/internal/service/blockevent/service.go:46`), which is hook-shaped.
-`backend/internal/ports/runtime_observations.go` is built around tool-use hooks, and
-stuffing a shell command counter into a `ToolUseID` "is a lie that costs a week."
-
-- [ ] **Step 1: Write the failing test** for a new
-  `RecordShellBlock(ctx, sessionID, ShellBlock)` method.
-- [ ] **Step 2: Add the kinds.** `BlockEventKind` (`domain/blockevent.go:13-22`) is a closed
-  vocabulary and `ParseBlockEventKind` gates it. Add `shell_command_start` and
-  `shell_command_end`, and extend the parse test — an unlisted kind silently becomes
-  `unknown` and the block disappears with no error.
-- [ ] **Step 3: `SourceID` is the mark's block id**, never invented here. `types.go:14-17`
-  already documents this exact future: "a shell mark's counter later." Deduplication on
-  reconnect depends on it.
-- [ ] **Step 4: Redaction still applies.** A shell command line can contain a token. Route
-  it through `redact` like every other path, and test one.
-- [ ] **Step 5: Verify** — `cd backend && go test ./...`
-
----
-
-### Task 6: History converges with the live parse on the same `BlockId`
-
-**Files:**
-- Modify: `backend/internal/httpd/controllers/sessions.go` (history for shell blocks)
-- Modify: `frontend/src/renderer/components/BlockTerminal.tsx`
-- Modify: the matching frontend test
-
-§13.3: live blocks come from the package's own parse; history comes from the REST
-endpoint. **Both must produce the same `BlockId`** — that is why block id continuity is a
-Tier-2 field (§7.2). If they disagree, a reattach shows every block twice, which is the
-same class of bug the vt-core resize duplication was.
-
-- [ ] **Step 1: Write the failing test** — feed history for blocks 1–3, then live marks for
-  blocks 3–4, and assert four blocks, not five, with block 3 appearing once.
-- [ ] **Step 2: Implement.**
-- [ ] **Step 3: Verify by hand** — open a shell pane, run three commands, reload the app,
-  confirm the three blocks come back once each.
-
----
-
-### Task 7: Windows says so, out loud
-
-**Files:**
+- Create: `backend/internal/service/terminalcapture/supervisor.go`
+- Create: `backend/internal/service/terminalcapture/supervisor_test.go`
 - Modify: `backend/internal/service/shellterm/service.go`
-- Modify: `frontend/src/renderer/components/BlockTerminal.tsx`
+- Modify: `backend/internal/service/shellterm/service_test.go`
+- Modify: `backend/internal/daemon/shellterm_wiring.go`
+- Modify: `backend/internal/daemon/shellterm_wiring_test.go`
+- Modify: `backend/internal/daemon/daemon.go`
 
-§13.1: "Windows gets no shell blocks and says so." conpty has no `pipe-pane` equivalent
-in this design. `TerminalStrings.shellBlocksUnavailable`
-(`packages/terminal/ts/core/src/types.ts`) already exists for this message — use it rather
-than inventing copy.
+Use an injected narrow lifecycle interface in `shellterm`; do not make it import tmux or
+the terminal manager:
 
-- [ ] **Step 1:** On Windows, spawn with `integration: "osc133-only"` and surface the
-  string. A silently plain terminal reads as a bug; a stated limitation does not.
-- [ ] **Step 2: Verify** — `cd backend && go test ./...`, `npm --prefix frontend test`
+```go
+type BlockCaptureLifecycle interface {
+    Start(context.Context, ShellTerminalRecord) error
+    StopAndDrain(context.Context, string) error
+}
+```
 
----
+The supervisor owns the worker map and exposes:
 
-### Task 8: Record it, and settle plan 7
+```go
+func (s *Supervisor) Start(context.Context, shellterm.ShellTerminalRecord) error
+func (s *Supervisor) Adopt(context.Context, []shellterm.ShellTerminalRecord) error
+func (s *Supervisor) StopAndDrain(context.Context, string) error
+func (s *Supervisor) DrainAndDetach(context.Context) error
+```
+
+- [ ] New terminal: create runtime, insert row, start capture, then return. If capture is
+  unsupported, return the terminal with a capability field set false. If capture fails on
+  a supported runtime, destroy the runtime and delete the row so “blocks available” never
+  names an uncaptured pane.
+- [ ] Daemon boot: reap prior-app-run terminals first; list current-app-run terminals;
+  confirm liveness; then `Adopt`. If `#{pane_pipe}` is already true, resume the existing
+  journal without replacing its helper. If false, start a new epoch.
+- [ ] Explicit shell close and session teardown: call `StopAndDrain` before runtime
+  destruction. If stop/drain fails, preserve the shell row and do not remove its worktree.
+- [ ] Daemon shutdown: call `DrainAndDetach` before store close. Leave live current-app-run
+  tmux pipes running so a desktop-supervised daemon restart loses no bytes. Save the latest
+  committed cursor; remaining journal bytes are adopted next boot.
+- [ ] Dead runtime reconciliation: final-drain a sealed journal before deleting the shell
+  row. Keep its completed block history until the terminal's explicit history-retention
+  policy removes it; do not cascade-delete merely because the PTY exited.
+- [ ] Bound every shutdown wait by `cfg.ShutdownTimeout` and join worker errors. Never hold
+  the shell session gate while waiting without honoring context cancellation.
+- [ ] Unit-test start rollback, idempotent start, adoption with existing pipe, adoption
+  without pipe, close ordering, session teardown ordering, failed drain row preservation,
+  daemon detach, and unsupported capability.
+- [ ] Run:
+
+```bash
+cd backend && go test ./internal/service/terminalcapture ./internal/service/shellterm ./internal/daemon
+```
+
+- [ ] Sabotage: remove `Adopt` from boot wiring; confirm the daemon-restart test misses a
+  command run while the daemon is down, then restore it.
+- [ ] Commit: `feat(daemon): supervise shell block capture`
+
+### Task 9: Publish terminal blocks and expose terminal-keyed raw history
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md` §13.2
-- Modify: `docs/superpowers/plans/2026-08-28-shell-blocks.md`
 
-- [ ] **Step 1:** Mark §13.2 landed, with the same "what landed and the rules it settled"
-  shape §13.3 already uses. Record the three decisions this plan made that the spec did not
-  anticipate: the shared recipe manifest, the file-not-FIFO capture sink, and the
-  osc133-only fallback for unrecognized shells.
-- [ ] **Step 2:** Execute §13.1's outstanding action — rewrite
-  `2026-08-28-shell-blocks.md` as the backend-only plan it should have been, rather than
-  leaving a plan on disk whose frontend half is superseded.
-- [ ] **Step 3:** Add a line to §15 (Common wrong turns): *a package that ships with no
-  caller is not shipped.* Three subsystems have now failed this way — `spawnRecipe`,
-  `createCompletionProvider`, `listDirectory`.
+- Modify: `backend/internal/terminal/protocol.go`
+- Modify: `backend/internal/terminal/manager.go`
+- Modify: `backend/internal/terminal/manager_test.go`
+- Modify: `backend/internal/httpd/controllers/shell_terminals.go`
+- Modify: `backend/internal/httpd/controllers/shell_terminals_test.go`
+- Modify: `backend/internal/httpd/controllers/dto.go`
+- Modify: `backend/internal/httpd/apispec/specgen/build.go`
+- Regenerate: `backend/internal/httpd/apispec/openapi.yaml`
+- Regenerate: `frontend/src/api/schema.ts`
+
+Do not put terminal history behind the existing session-block endpoint. A standalone
+shell has no session, and the terminal mux is keyed by runtime handle. Add:
+
+```text
+GET /api/v1/shell-terminals/{handleId}/blocks?limit=100
+```
+
+Response block fields are `terminalId`, `sourceId`, optional `sessionId`, `command`, `cwd`,
+`gitBranch`, nullable `exitCode`, base64 `rawOutput`, timestamps, shell kind/version,
+truncation counts, and capture cursor fields. Return oldest-to-newest so feeding preserves
+stream order.
+
+- [ ] Extend the `blocks` mux payload additively with a discriminator such as
+  `blockType: "agent_event" | "terminal_block"`. Keep existing agent subscribers and
+  their payloads wire-compatible.
+- [ ] Publish a terminal block only after its DB commit. Key terminal-block subscriptions
+  by terminal handle, not associated session ID.
+- [ ] Authorize history only through the same loopback/LAN middleware already protecting
+  the shell-terminal API. Do not expose control routes on LAN.
+- [ ] Return 404 for an unknown handle, 400 for invalid limits, and the standard API error
+  envelope/request ID for failures.
+- [ ] Regenerate rather than hand-edit generated files:
+
+```bash
+npm run api
+cd backend && go test ./internal/httpd/... ./internal/terminal/...
+```
+
+- [ ] Sabotage: key publication by `sessionId`; confirm standalone-shell delivery fails,
+  then restore handle-keyed publication.
+- [ ] Commit: `feat(api): expose terminal block history`
+
+### Task 10: Restore exact history before opening the live stream
+
+**Files:**
+
+- Create: `frontend/src/renderer/hooks/useShellTerminalBlocks.ts`
+- Create: `frontend/src/renderer/hooks/useShellTerminalBlocks.test.tsx`
+- Modify: `frontend/src/renderer/hooks/useTerminalSession.ts`
+- Modify: `frontend/src/renderer/hooks/useTerminalSession.test.tsx`
+- Modify: `frontend/src/renderer/components/TerminalPane.tsx`
+- Modify: `frontend/src/renderer/components/TerminalPane.test.tsx`
+- Modify: `frontend/src/renderer/components/BlockTerminal.tsx`
+- Modify: `frontend/src/renderer/components/BlockTerminal.test.tsx`
+- Modify: `frontend/src/renderer/lib/terminal-mux.ts`
+
+Delete synthetic `encodeHistoryBlock`. History must feed decoded `rawOutput` bytes into a
+fresh core in chronological order. Avoid a REST/live race by adding `enabled` to
+`useTerminalSession`: for a shell target, fetch history and initialize the block core
+first, then open the terminal mux. Bytes arriving after open are live and therefore newer
+than the history snapshot.
+
+- [ ] Fetch terminal history only for `terminalTarget.kind === "shell"`. Agent/reviewer
+  surfaces retain their existing behavior.
+- [ ] Decode base64 without round-tripping through a JavaScript string that can corrupt
+  arbitrary bytes.
+- [ ] Initialize the core, feed history, set its seen Tier-2 IDs, then enable terminal
+  attach. Buffer live bytes only during WASM initialization after this barrier.
+- [ ] Remove the current duplicate strategy that strips only an OSC 7000 ID mark while
+  retaining the duplicate block bytes. With history-before-open, a completed block belongs
+  to exactly one side of the barrier. Keep ID-based upsert behavior only for reconnect of
+  an in-flight Tier-2 block.
+- [ ] Surface loading and history-fetch errors without blocking raw terminal access. On
+  history failure, show the warning and open live transport.
+- [ ] Use the API capability field to render `TerminalStrings.shellBlocksUnavailable` on
+  Windows; do not infer support from browser platform strings.
+- [ ] Test three restored blocks followed by one live block, binary SGR/OSC preservation,
+  history failure fallback, terminal switch generation safety, and no duplicate attach.
+- [ ] Run:
+
+```bash
+npm --prefix frontend test -- BlockTerminal TerminalPane useTerminalSession useShellTerminalBlocks
+npm run frontend:typecheck
+```
+
+- [ ] Sabotage: enable the terminal mux before the delayed history promise resolves;
+  confirm the ordering test fails, then restore the barrier.
+- [ ] Commit: `feat(frontend): restore raw shell block history`
+
+### Task 11: Prove lifecycle and Warp-visible parity end to end
+
+**Files:**
+
+- Create: `backend/internal/integration/shell_blocks_tmux_test.go`
+- Modify: `frontend/e2e/shell-terminal-tabs.spec.ts`
+- Create: `docs/superpowers/evidence/shell-blocks-parity.md`
+
+The Go integration test may use local tmux and installed shells, following the existing
+tmux integration pattern. It must not make network calls.
+
+- [ ] Scenario: start daemon services and a zsh pane with zero clients, run three commands,
+  attach one client, and assert three historical blocks and no duplicates.
+- [ ] Scenario: attach two clients, run one command, and assert one DB row and one published
+  terminal-block event.
+- [ ] Scenario: stop only the daemon reader, run commands while tmux/helper remain alive,
+  construct a new supervisor with the same app-run ID, adopt, and assert all commands.
+- [ ] Scenario: start capture while `#{alternate_on}` is true, generate repaint traffic,
+  leave alternate mode, run a command, and assert repaint bytes were not stored.
+- [ ] Scenario: write beyond journal capacity while the daemon is absent, restart, verify a
+  recorded gap and recovery at the next prompt without a corrupt merged block.
+- [ ] Scenario: submit a final command and immediately close the shell. Assert its row is
+  persisted before runtime deletion.
+- [ ] Scenario: graceful daemon shutdown followed by restart within the same app run.
+  Assert the last completed block is present exactly once.
+- [ ] Browser e2e: run success/failure/cd/styled-output commands, reload, and compare block
+  count, text, styling, metadata, and exit indicators before and after reload.
+- [ ] Record a parity matrix against the local Warp checkout. Use these references as
+  behavioral evidence, not code to copy:
+  - `app/assets/bundled/bootstrap/zsh_body.sh` for early exit capture and preexec command;
+  - `crates/warp_terminal/src/model/ansi/dcs_hooks.rs` for prompt/preexec/completion
+    lifecycle semantics;
+  - `app/src/terminal/model/blocks.rs` for completing the active block before allocating
+    the next;
+  - `crates/persistence/src/schema.rs` for stored command/output metadata;
+  - `app/src/persistence/block_list.rs` and `app/src/terminal/model/block.rs` for the
+    100-block/5,000-line limits.
+- [ ] Run:
+
+```bash
+cd backend && go test ./internal/integration -run ShellBlocks -count=1
+npm --prefix frontend run test:e2e -- shell-terminal-tabs.spec.ts
+```
+
+- [ ] Commit: `test(terminal): prove shell block lifecycle parity`
+
+### Task 12: Amend the spec and close obsolete plan claims
+
+**Files:**
+
+- Modify: `docs/superpowers/specs/2026-08-29-warp-terminal-package-design.md`
+- Modify: `docs/superpowers/plans/2026-08-28-shell-blocks.md`
+- Modify: `docs/STATUS.md`
+- Modify: `docs/architecture.md`
+
+- [ ] Rewrite §7.5 to require lossless raw spans and journal cursors, not merely semantic
+  mark callbacks.
+- [ ] Rewrite §13.2 with the helper journal, tmux state query, supervisor adoption,
+  dedicated `terminal_blocks` persistence, terminal-keyed history, and final-drain order.
+- [ ] Rewrite §13.3 to say history is raw replay loaded before terminal attach. Remove the
+  stale claim that the existing session block-event endpoint returns pre-parsed shell
+  blocks.
+- [ ] Clarify §13.4: shell-terminal tabs may be retired in phase 7, but their handle-keyed
+  capture/history ownership remains the current production bridge and must be migrated,
+  not deleted, when one-session/one-terminal lands.
+- [ ] Replace the backend half of the 2026-08-28 plan with a pointer to this amended plan so
+  no future worker executes both.
+- [ ] Document the Windows capability and the two retention limits.
+- [ ] Run documentation link/path verification and the docs guard. Correct every stale
+  symbol, route, and command before marking this task complete.
+- [ ] Commit: `docs(terminal): settle production shell block design`
+
+### Task 13: Full verification and clean-code review
+
+- [ ] Run the narrow suites from every prior task.
+- [ ] Run repository gates:
+
+```bash
+npm run lint
+npm run frontend:typecheck
+cd backend && go build ./... && go test ./... && go test -race ./... && go vet ./...
+npm --prefix packages/terminal test
+npm --prefix packages/terminal run check:boundaries
+cd frontend && npm run check:desktop-parity && node --test scripts/no-electron.test.mjs
+```
+
+- [ ] Run `superpowers:requesting-code-review`, then `clean-code-guard`, `test-guard`, and
+  `docs-guard`. Fix findings within scope and rerun affected gates.
+- [ ] Inspect `git diff --check`, generated API/sqlc drift, and `git status --short`. Do not
+  include local daemon state, build output, the root worktree's untracked
+  `docs/superpowers/prompts/`, or unrelated user changes.
+- [ ] Launch the real desktop app with the repository's `opr-desktop-dev` skill, open an
+  external preview with `opr preview`, and execute the Task 11 manual parity matrix.
+- [ ] Do not claim completion until the last-block close test, daemon-restart adoption test,
+  bounded-journal test, real zsh/bash tests, and frontend history-before-live test are all
+  green.
+- [ ] Commit: `feat(terminal): complete production shell blocks`
 
 ---
 
-## Accept when
+## Release acceptance
 
-**Behavioural, deliberately — this is the criterion Phase 4's plan lacked:**
+The feature is production-ready only when all of these are demonstrated:
 
-1. A human opens a shell terminal in the running app, types `ls`, and sees a block with a
-   header, a command line and an exit status.
-2. The pane still works on a shell with no bootstrap (`nu`, `elvish`) — plain, Tier 1, no
-   crash, no empty block list.
-3. Two clients attached to the same pane see each block **once**.
-4. Zero clients attached, then one attaches: the blocks that ran while nobody watched are
-   in history.
-5. An agent pane records nothing to block storage and its capture file does not grow.
-6. `cd backend && go test ./...`, `npm --prefix packages/terminal test`,
-   `npm --prefix frontend test` and `check:boundaries` are green.
-7. `packages/terminal` contains no new reference to tmux, sessions, `blockevent`, or
-   `~/.operator`.
+1. zsh, bash, and fish each produce stable IDs, exact commands, correct exit status, cwd,
+   branch, and one A/B/C/D lifecycle per submitted command.
+2. A command run with zero clients appears after attach; two clients do not duplicate it.
+3. Reload and daemon restart restore exact styled bytes once, in order.
+4. A pane already in alternate-screen mode at capture start stores no repaint history.
+5. Capture remains bounded while the daemon is stopped and tmux continues accepting
+   output.
+6. Explicit close persists the final block before destroying the PTY.
+7. The daemon's graceful shutdown cannot strand committed bytes after SQLite closes;
+   uncommitted durable bytes are adopted on restart.
+8. Windows presents a working raw terminal and an explicit durable-block capability
+   message.
+9. Operator matches the Warp-visible parity matrix while preserving Operator's additive
+   bootstrap, protocol, data-root, listener, and daemon/API safety boundaries.
+
+Anything less is an intermediate milestone, not completion.

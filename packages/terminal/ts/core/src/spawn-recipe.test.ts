@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { spawnRecipe } from "./index";
 
@@ -35,5 +36,28 @@ describe("spawnRecipe", () => {
 	it("still offers a show-shell-prompt fallback", () => {
 		const recipe = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
 		expect(recipe.env.OPERATOR_TERMINAL_SUPPRESS_PROMPT).toBe("0");
+	});
+
+	it("templates the manifest argv so the manifest is the single source of truth", () => {
+		const zsh = spawnRecipe("zsh", { integration: "auto", suppressPrompt: false });
+		expect(zsh.argv[0]).toBe("zsh");
+		expect(zsh.argv[1]).toBe("-c");
+		expect(zsh.argv[2]).toMatch(
+			/source "[^"]*shell\/zsh\.sh"; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR="\$\{ZDOTDIR:-\$HOME\}" ZDOTDIR="[^"]*shell\/zsh\.sh"\.d exec zsh$/,
+		);
+		const zshScript = zsh.argv[2].match(/^source "([^"]+)";/)?.[1];
+		expect(zshScript).toBeDefined();
+		expect(existsSync(`${zshScript}.d/.zshrc`)).toBe(true);
+
+		const bash = spawnRecipe("bash", { integration: "auto", suppressPrompt: false });
+		expect(bash.argv[2]).toMatch(/exec bash --rcfile "[^"]*shell\/bash\.sh"\.d\/\.bashrc -i$/);
+		const bashScript = bash.argv[2].match(/--rcfile "([^"]+)"\.d\//)?.[1];
+		expect(bashScript).toBeDefined();
+		expect(existsSync(`${bashScript}.d/.bashrc`)).toBe(true);
+
+		const fish = spawnRecipe("fish", { integration: "auto", suppressPrompt: false });
+		expect(fish.argv[0]).toBe("fish");
+		expect(fish.argv[1]).toBe("-C");
+		expect(fish.argv[2]).toMatch(/^source "[^"]*shell\/fish\.fish"$/);
 	});
 });

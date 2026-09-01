@@ -33,9 +33,24 @@ const (
 	stateCsiPrivate
 )
 
+type segKind int
+
+const (
+	segText segKind = iota
+	segEscape
+)
+
+type segment struct {
+	raw    []byte
+	kind   segKind
+	events []Event
+}
+
 type scanner struct {
 	state           state
 	pending         []byte
+	raw             []byte
+	text            []byte
 	privateQuestion bool
 	privateDigits   []byte
 }
@@ -44,25 +59,33 @@ func newScanner() *scanner {
 	return &scanner{
 		state:         stateGround,
 		pending:       make([]byte, 0, 64),
+		raw:           make([]byte, 0, 64),
+		text:          make([]byte, 0, 64),
 		privateDigits: make([]byte, 0, 4),
 	}
 }
 
-func (s *scanner) feed(bytes []byte) []Event {
-	events := make([]Event, 0, 4)
-	for _, b := range bytes {
-		s.step(b, &events)
+func (s *scanner) feed(input []byte) []segment {
+	segs := make([]segment, 0, 4)
+	for _, b := range input {
+		s.step(b, &segs)
 	}
-	return events
+	s.emitText(&segs)
+	return segs
 }
 
-func (s *scanner) step(b byte, events *[]Event) {
+func (s *scanner) step(b byte, segs *[]segment) {
 	switch s.state {
 	case stateGround:
 		if b == esc {
+			s.emitText(segs)
+			s.raw = append(s.raw[:0], b)
 			s.state = stateAfterEsc
+		} else {
+			s.text = append(s.text, b)
 		}
 	case stateAfterEsc:
+		s.raw = append(s.raw, b)
 		switch b {
 		case bracket:
 			s.pending = s.pending[:0]
@@ -72,38 +95,34 @@ func (s *scanner) step(b byte, events *[]Event) {
 			s.privateDigits = s.privateDigits[:0]
 			s.state = stateCsiPrivate
 		default:
-			// Some other escape (e.g. `ESC c` for full reset). Drop it
-			// and resume scanning — a stray ESC never opens an OSC.
-			s.state = stateGround
+			s.completeEscape(segs, nil)
 		}
 	case stateOsc:
 		switch {
 		case b == bel:
-			s.flushOsc(events)
-			s.state = stateGround
+			s.raw = append(s.raw, b)
+			s.completeEscape(segs, s.oscEvents())
 		case b == esc:
-			// Defer the ST-or-abort decision to the next byte.
+			s.raw = append(s.raw, b)
 			s.state = stateOscSawEsc
 		default:
-			s.pushPending(b)
+			s.raw = append(s.raw, b)
+			s.pushPending(b, segs)
 		}
 	case stateOscSawEsc:
 		if b == backslash {
-			// Real ST — close the OSC.
-			s.flushOsc(events)
-			s.state = stateGround
+			s.raw = append(s.raw, b)
+			s.completeEscape(segs, s.oscEvents())
 		} else {
-			// A bare ESC inside an OSC is what shells send when they
-			// abort a half-written prompt. The
-			// `malformed-truncated-sequence` vector is the regression:
-			// drop the OSC payload, then re-process the new byte as
-			// if we had just seen ESC. That way a `]` following the
-			// abort opens a fresh OSC, matching the expected output.
+			s.raw = s.raw[:len(s.raw)-1]
+			s.completeEscape(segs, nil)
+			s.raw = append(s.raw[:0], esc)
 			s.pending = s.pending[:0]
 			s.state = stateAfterEsc
-			s.step(b, events)
+			s.step(b, segs)
 		}
 	case stateCsiPrivate:
+		s.raw = append(s.raw, b)
 		switch {
 		case !s.privateQuestion && b == question && len(s.privateDigits) == 0:
 			s.privateQuestion = true
@@ -112,41 +131,84 @@ func (s *scanner) step(b byte, events *[]Event) {
 				s.privateDigits = append(s.privateDigits, b)
 			}
 		case b == 'h':
+			var evs []Event
 			if s.privateQuestion && string(s.privateDigits) == "1049" {
-				*events = append(*events, Event{Kind: "alt_screen_enter", Tier: TierOSC133})
+				evs = []Event{{Kind: "alt_screen_enter", Tier: TierOSC133}}
 			}
-			s.state = stateGround
+			s.completeEscape(segs, evs)
 		case b == 'l':
+			var evs []Event
 			if s.privateQuestion && string(s.privateDigits) == "1049" {
-				*events = append(*events, Event{Kind: "alt_screen_leave", Tier: TierOSC133})
+				evs = []Event{{Kind: "alt_screen_leave", Tier: TierOSC133}}
 			}
-			s.state = stateGround
+			s.completeEscape(segs, evs)
 		default:
-			// Some other CSI we don't model. Abort cleanly.
-			s.state = stateGround
+			s.completeEscape(segs, nil)
 		}
 	}
 }
 
-func (s *scanner) pushPending(b byte) {
+func (s *scanner) emitText(segs *[]segment) {
+	if len(s.text) == 0 {
+		return
+	}
+	*segs = append(*segs, segment{
+		raw:  append([]byte(nil), s.text...),
+		kind: segText,
+	})
+	s.text = s.text[:0]
+}
+
+func (s *scanner) completeEscape(segs *[]segment, events []Event) {
+	*segs = append(*segs, segment{
+		raw:    append([]byte(nil), s.raw...),
+		kind:   segEscape,
+		events: events,
+	})
+	s.raw = s.raw[:0]
+	s.pending = s.pending[:0]
+	s.privateQuestion = false
+	s.privateDigits = s.privateDigits[:0]
+	s.state = stateGround
+}
+
+func (s *scanner) reset() {
+	s.state = stateGround
+	s.raw = s.raw[:0]
+	s.pending = s.pending[:0]
+	s.text = s.text[:0]
+	s.privateQuestion = false
+	s.privateDigits = s.privateDigits[:0]
+}
+
+func (s *scanner) flushIncomplete() []byte {
+	if len(s.raw) == 0 {
+		return nil
+	}
+	out := append([]byte(nil), s.raw...)
+	s.reset()
+	return out
+}
+
+func (s *scanner) pushPending(b byte, segs *[]segment) {
 	s.pending = append(s.pending, b)
 	if len(s.pending) > pendingCap {
 		// Spec: "give up on the unterminated sequence and resume on the
 		// next byte." This is the only allocation bound we need.
-		s.pending = s.pending[:0]
-		s.state = stateGround
+		s.completeEscape(segs, nil)
 	}
 }
 
-func (s *scanner) flushOsc(events *[]Event) {
+func (s *scanner) oscEvents() []Event {
 	// An empty OSC payload is meaningless; both decoders must ignore it.
 	payload := s.pending
-	s.pending = make([]byte, 0, 64)
 	if e, ok := decodeOsc(payload); ok {
-		*events = append(*events, e)
-	} else if f, ok := decodeExtension(payload); ok {
-		*events = append(*events, extensionEvents(f)...)
+		return []Event{e}
 	}
+	if f, ok := decodeExtension(payload); ok {
+		return extensionEvents(f)
+	}
+	return nil
 }
 
 func extensionEvents(fields map[string]string) []Event {

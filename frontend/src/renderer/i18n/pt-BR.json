@@ -911,6 +911,7 @@
 	"terminal.sessionEndedNotTerminated": "Este processo do terminal encerrou, mas a sessão ainda não está marcada como encerrada.",
 	"terminal.sessionAria": "Terminal da sessão",
 	"terminal.shellExited": "Este shell foi encerrado. Feche a aba ou abra um novo terminal.",
+	"terminal.shellHistoryUnavailable": "Não foi possível carregar o histórico deste shell. A saída ao vivo continua conectada.",
 	"terminal.shellAria": "Terminal do shell",
 	"terminal.startingSession": "Iniciando sessão",
 	"terminal.tabsAria": "Terminais abertos",

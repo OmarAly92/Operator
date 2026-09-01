@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 	"github.com/OmarAly92/operator/backend/internal/ports"
+	"github.com/OmarAly92/operator/packages/terminal/go/bootstrap"
 )
 
 // ShellRuntime is the slice of the runtime adapter a shell terminal needs:
@@ -31,6 +33,12 @@ type ShellRuntime interface {
 // start in. The daemon wiring adapts the project service to it.
 type ProjectRootLocator interface {
 	ProjectRoot(ctx context.Context, id domain.ProjectID) (string, error)
+}
+
+type BlockCaptureLifecycle interface {
+	Start(context.Context, ShellTerminalRecord) error
+	StopAndDrain(context.Context, string) error
+	Capturing(handleID string) bool
 }
 
 // SessionWorkspaceLocator resolves a session id to the workspace it is
@@ -54,6 +62,7 @@ type Service struct {
 	store    Store
 	projects ProjectRootLocator
 	sessions SessionWorkspaceLocator
+	capture  BlockCaptureLifecycle
 	dataDir  string
 	appRunID string
 	log      *slog.Logger
@@ -146,7 +155,7 @@ func (g *sessionGate) acquire(ctx context.Context, id domain.SessionID) (release
 // NewService builds the shell terminal service. dataDir is the fallback working
 // directory for a shell opened with no project context. A nil logger falls back
 // to slog.Default.
-func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, sessions SessionWorkspaceLocator, dataDir, appRunID string, log *slog.Logger) *Service {
+func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, sessions SessionWorkspaceLocator, capture BlockCaptureLifecycle, dataDir, appRunID string, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -155,6 +164,7 @@ func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, 
 		store:       store,
 		projects:    projects,
 		sessions:    sessions,
+		capture:     capture,
 		dataDir:     dataDir,
 		appRunID:    appRunID,
 		log:         log,
@@ -223,15 +233,20 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	if err != nil {
 		return ShellTerminal{}, err
 	}
-	argv := resolveUserLoginShell()
-	if len(argv) == 0 {
+	resolved := resolveUserLoginShell()
+	if len(resolved) == 0 {
 		return ShellTerminal{}, apierr.Internal("SHELL_TERMINAL_NO_SHELL",
 			"Could not determine a shell to launch. Set SHELL (macOS/Linux) or ComSpec (Windows).")
+	}
+	argv, env, err := s.shellBootstrapArgvEnv(resolved[0])
+	if err != nil {
+		return ShellTerminal{}, fmt.Errorf("open shell terminal: shell recipe: %w", err)
 	}
 	handleID, err := s.newHandleID()
 	if err != nil {
 		return ShellTerminal{}, fmt.Errorf("open shell terminal: handle id: %w", err)
 	}
+	env["OPERATOR_TERMINAL_ID"] = handleID
 
 	// SessionID is the runtime adapters' name for "what to call this PTY"; it
 	// is not a session row and no sessions record is ever created. The
@@ -240,6 +255,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		SessionID:     domain.SessionID(handleID),
 		WorkspacePath: workingDir,
 		Argv:          argv,
+		Env:           env,
 	})
 	if err != nil {
 		return ShellTerminal{}, fmt.Errorf("open shell terminal %s: runtime: %w", handleID, err)
@@ -267,8 +283,20 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		return ShellTerminal{}, fmt.Errorf("open shell terminal %s: persist: %w", handle.ID, err)
 	}
 
-	s.log.Info("shell terminal opened", "handleId", handle.ID, "workingDir", workingDir)
-	return shellTerminalFromRecord(rec), nil
+	out := shellTerminalFromRecord(rec)
+	if s.capture != nil {
+		if startErr := s.capture.Start(ctx, rec); startErr != nil && !errors.Is(startErr, ports.ErrCaptureUnsupported) {
+			if stillAlive, _ := s.destroyConfirmed(context.WithoutCancel(ctx), handle.ID); stillAlive {
+				s.log.Warn("shell terminal: capture start failed and runtime would not die",
+					"handleId", handle.ID)
+			}
+			return ShellTerminal{}, fmt.Errorf("open shell terminal %s: start capture: %w", handle.ID, startErr)
+		}
+	}
+	out.DurableBlocks = s.capturing(handle.ID)
+
+	s.log.Info("shell terminal opened", "handleId", handle.ID, "workingDir", workingDir, "durableBlocks", out.DurableBlocks)
+	return out, nil
 }
 
 // maxShellTerminalTitleLen bounds a user-supplied tab name. Tabs are truncated
@@ -297,7 +325,9 @@ func (s *Service) RenameShellTerminal(ctx context.Context, handleID, title strin
 		return ShellTerminal{}, apierr.NotFound("SHELL_TERMINAL_NOT_FOUND", "No such shell terminal: "+handleID)
 	}
 	s.log.Info("shell terminal renamed", "handleId", handleID)
-	return shellTerminalFromRecord(rec), nil
+	out := shellTerminalFromRecord(rec)
+	out.DurableBlocks = s.capturing(handleID)
+	return out, nil
 }
 
 // CloseShellTerminal destroys a shell's PTY and forgets it — but only once
@@ -334,6 +364,12 @@ func (s *Service) CloseShellTerminal(ctx context.Context, handleID string) error
 		defer release()
 	}
 
+	if s.capture != nil {
+		if err := s.capture.StopAndDrain(ctx, handleID); err != nil {
+			return fmt.Errorf("close shell terminal %s: stop capture: %w", handleID, err)
+		}
+	}
+
 	stillAlive, destroyErr := s.destroyConfirmed(ctx, handleID)
 	if stillAlive {
 		s.log.Warn("close shell terminal: runtime still alive after destroy", "handleId", handleID, "error", destroyErr)
@@ -352,26 +388,53 @@ func (s *Service) CloseShellTerminal(ctx context.Context, handleID string) error
 // internal/terminal applies on attach — so a transient runtime hiccup cannot
 // silently delete a working terminal.
 func (s *Service) ListShellTerminalsForCurrentAppRun(ctx context.Context) ([]ShellTerminal, error) {
+	recs, err := s.liveShellTerminalRecordsForCurrentAppRun(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ShellTerminal, 0, len(recs))
+	for _, rec := range recs {
+		dto := shellTerminalFromRecord(rec)
+		dto.DurableBlocks = s.capturing(rec.HandleID)
+		out = append(out, dto)
+	}
+	return out, nil
+}
+
+func (s *Service) capturing(handleID string) bool {
+	return s.capture != nil && s.capture.Capturing(handleID)
+}
+
+func (s *Service) LiveShellTerminalRecordsForCurrentAppRun(ctx context.Context) ([]ShellTerminalRecord, error) {
+	return s.liveShellTerminalRecordsForCurrentAppRun(ctx)
+}
+
+func (s *Service) liveShellTerminalRecordsForCurrentAppRun(ctx context.Context) ([]ShellTerminalRecord, error) {
 	recs, err := s.store.SelectShellTerminalsByAppRunID(ctx, s.appRunID)
 	if err != nil {
 		return nil, fmt.Errorf("list shell terminals: %w", err)
 	}
-	out := make([]ShellTerminal, 0, len(recs))
+	out := make([]ShellTerminalRecord, 0, len(recs))
 	for _, rec := range recs {
 		alive, err := s.runtime.IsAlive(ctx, ports.RuntimeHandle{ID: rec.HandleID})
 		if err != nil {
 			s.log.Warn("shell terminal liveness probe failed; keeping row",
 				"handleId", rec.HandleID, "error", err)
-			out = append(out, shellTerminalFromRecord(rec))
+			out = append(out, rec)
 			continue
 		}
 		if !alive {
+			if s.capture != nil {
+				if err := s.capture.StopAndDrain(ctx, rec.HandleID); err != nil {
+					s.log.Warn("pruning dead shell terminal: final drain failed", "handleId", rec.HandleID, "error", err)
+				}
+			}
 			if _, delErr := s.store.DeleteShellTerminalByHandleID(ctx, rec.HandleID); delErr != nil {
 				s.log.Warn("pruning dead shell terminal failed", "handleId", rec.HandleID, "error", delErr)
 			}
 			continue
 		}
-		out = append(out, shellTerminalFromRecord(rec))
+		out = append(out, rec)
 	}
 	return out, nil
 }
@@ -394,6 +457,11 @@ func (s *Service) ReapShellTerminalsFromPreviousAppRuns(ctx context.Context) (in
 	}
 	var cleared int64
 	for _, rec := range orphans {
+		if s.capture != nil {
+			if err := s.capture.StopAndDrain(ctx, rec.HandleID); err != nil {
+				s.log.Warn("reaping orphaned shell terminal: final drain failed", "handleId", rec.HandleID, "error", err)
+			}
+		}
 		stillAlive, destroyErr := s.destroyConfirmed(ctx, rec.HandleID)
 		if stillAlive {
 			s.log.Warn("reaping orphaned shell terminal: runtime still alive after destroy",
@@ -471,20 +539,28 @@ func (s *Service) BeginSessionTeardown(ctx context.Context, sessionID domain.Ses
 		return nil, fmt.Errorf("close shell terminals for session %s: %w", sessionID, err)
 	}
 
-	var stillAlive []error
+	var failed []error
 	for _, rec := range recs {
+		if s.capture != nil {
+			if err := s.capture.StopAndDrain(ctx, rec.HandleID); err != nil {
+				s.log.Warn("close shell terminal for session: stop capture failed",
+					"sessionID", sessionID, "handleId", rec.HandleID, "error", err)
+				failed = append(failed, fmt.Errorf("%s: stop capture: %w", rec.HandleID, err))
+				continue
+			}
+		}
 		alive, destroyErr := s.destroyConfirmed(ctx, rec.HandleID)
 		if alive {
 			s.log.Warn("close shell terminal for session: runtime still alive after destroy",
 				"sessionID", sessionID, "handleId", rec.HandleID, "error", destroyErr)
-			stillAlive = append(stillAlive, fmt.Errorf("%s: %w", rec.HandleID, destroyErr))
+			failed = append(failed, fmt.Errorf("%s: %w", rec.HandleID, destroyErr))
 		}
 	}
 
-	if len(stillAlive) > 0 {
+	if len(failed) > 0 {
 		release()
-		return nil, fmt.Errorf("close shell terminals for session %s: %d still alive: %w",
-			sessionID, len(stillAlive), errors.Join(stillAlive...))
+		return nil, fmt.Errorf("close shell terminals for session %s: %d unresolved: %w",
+			sessionID, len(failed), errors.Join(failed...))
 	}
 	return release, nil
 }
@@ -544,6 +620,23 @@ func (s *Service) resolveProjectRootOrDataDir(ctx context.Context, projectID dom
 			"No such project: "+string(projectID))
 	}
 	return root, nil
+}
+
+func (s *Service) shellBootstrapArgvEnv(shellPath string) ([]string, map[string]string, error) {
+	scriptDir := filepath.Join(s.dataDir, "shell")
+	if kind, ok := shellKindFor(shellPath); ok {
+		argv, env, err := bootstrap.Recipe(kind, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationAuto})
+		if err != nil {
+			return nil, nil, err
+		}
+		argv[0] = shellPath
+		return argv, env, nil
+	}
+	argv, env, err := bootstrap.Recipe(shellPath, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationOSC133Only})
+	if err != nil {
+		return nil, nil, err
+	}
+	return argv, env, nil
 }
 
 // newShellTerminalHandleID mints a runtime handle id for a shell pane.

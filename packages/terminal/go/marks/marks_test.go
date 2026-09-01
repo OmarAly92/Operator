@@ -1,6 +1,7 @@
 package marks
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -117,5 +118,236 @@ func TestUnterminatedOSCIsBounded(t *testing.T) {
 	events := d.Feed([]byte("\x1b]133;A\x07"))
 	if len(events) != 1 {
 		t.Fatalf("decoder did not recover: %+v", events)
+	}
+}
+
+func streamAll(d *StreamDecoder, chunks ...[]byte) []Token {
+	var all []Token
+	for _, c := range chunks {
+		all = append(all, d.Feed(c)...)
+	}
+	all = append(all, d.Flush()...)
+	return all
+}
+
+func joinRaw(tokens []Token) []byte {
+	parts := make([][]byte, len(tokens))
+	for i, tok := range tokens {
+		parts[i] = tok.Raw
+	}
+	return bytes.Join(parts, nil)
+}
+
+func assertRoundTrip(t *testing.T, want []byte, chunks ...[]byte) []Token {
+	t.Helper()
+	tokens := streamAll(NewStreamDecoder(), chunks...)
+	if got := joinRaw(tokens); !bytes.Equal(got, want) {
+		t.Fatalf("round-trip mismatch:\n got %q\nwant %q", got, want)
+	}
+	return tokens
+}
+
+func TestStreamDecoderRoundTripsPlainUTF8(t *testing.T) {
+	in := []byte("hello, world\nこんにちは 🌍\n")
+	assertRoundTrip(t, in, in)
+}
+
+func TestStreamDecoderRoundTripsArbitraryBytes(t *testing.T) {
+	in := make([]byte, 512)
+	for i := range in {
+		in[i] = byte((i * 7) % 256)
+	}
+	assertRoundTrip(t, in, in[:200], in[200:201], in[201:])
+}
+
+func TestStreamDecoderRoundTripsSplitOSC(t *testing.T) {
+	a := []byte("before\x1b]133;")
+	b := []byte("A\x07after")
+	tokens := assertRoundTrip(t, append(append([]byte{}, a...), b...), a, b)
+	var marks int
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			marks++
+			if tok.Mark.Kind != "prompt_start" {
+				t.Fatalf("got mark %+v", tok.Mark)
+			}
+			if !bytes.Equal(tok.Raw, []byte("\x1b]133;A\x07")) {
+				t.Fatalf("mark raw = %q", tok.Raw)
+			}
+		}
+	}
+	if marks != 1 {
+		t.Fatalf("want 1 mark token, got %d", marks)
+	}
+}
+
+func TestStreamDecoderRoundTripsMalformedOSC(t *testing.T) {
+	in := []byte("start\x1b]133after\x1b]133;A\x07done")
+	tokens := assertRoundTrip(t, in, in)
+	var kinds []string
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			kinds = append(kinds, tok.Mark.Kind)
+		}
+	}
+	if len(kinds) != 1 || kinds[0] != "prompt_start" {
+		t.Fatalf("malformed OSC should yield exactly the trailing prompt_start, got %v", kinds)
+	}
+}
+
+func TestStreamDecoderRoundTripsUnmodeledCSISequence(t *testing.T) {
+	in := []byte("plain\x1b[1;31mred\x1b[0mplain again")
+	tokens := assertRoundTrip(t, in, in)
+
+	type kr struct {
+		kind TokenKind
+		raw  string
+	}
+	var got []kr
+	for _, tok := range tokens {
+		got = append(got, kr{tok.Kind, string(tok.Raw)})
+	}
+	want := []kr{
+		{TokenText, "plain"},
+		{TokenControl, "\x1b[1"},
+		{TokenText, ";31mred"},
+		{TokenControl, "\x1b[0"},
+		{TokenText, "mplain again"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("token sequence = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("token %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestStreamDecoderFlushEndsOnEscInsideOSC(t *testing.T) {
+	d := NewStreamDecoder()
+	var all []Token
+	all = append(all, d.Feed([]byte("hi\x1b]133;A\x1b"))...)
+	all = append(all, d.Flush()...)
+
+	want := []byte("hi\x1b]133;A\x1b")
+	if got := joinRaw(all); !bytes.Equal(got, want) {
+		t.Fatalf("round-trip mismatch:\n got %q\nwant %q", got, want)
+	}
+	last := all[len(all)-1]
+	if last.Kind != TokenIncomplete || !bytes.Equal(last.Raw, []byte("\x1b]133;A\x1b")) {
+		t.Fatalf("incomplete token = %+v", last)
+	}
+}
+
+func TestStreamDecoderMultiEventOSCFansOut(t *testing.T) {
+	in := []byte("\x1b]7000;v=1;cmd=ls;input-ready=1\x07")
+	d := NewStreamDecoder()
+	tokens := append(d.Feed(in), d.Flush()...)
+
+	if got := joinRaw(tokens); !bytes.Equal(got, in) {
+		t.Fatalf("round-trip mismatch: got %q want %q", got, in)
+	}
+
+	var marks []Token
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			marks = append(marks, tok)
+		}
+	}
+	if len(marks) < 2 {
+		t.Fatalf("want more than one mark token from fan-out, got %d (%+v)", len(marks), marks)
+	}
+	if !bytes.Equal(marks[0].Raw, in) {
+		t.Fatalf("first fan-out token must carry the full raw, got %q", marks[0].Raw)
+	}
+	for _, extra := range marks[1:] {
+		if extra.Raw != nil || extra.Start != extra.End {
+			t.Fatalf("trailing fan-out token must be zero-width with nil raw: %+v", extra)
+		}
+	}
+}
+
+func TestStreamDecoderRoundTripsAltScreen(t *testing.T) {
+	in := []byte("\x1b[?1049hin alt screen\x1b[?1049lback")
+	tokens := assertRoundTrip(t, in, in)
+	var seen []string
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			seen = append(seen, tok.Mark.Kind)
+		}
+	}
+	if len(seen) != 2 || seen[0] != "alt_screen_enter" || seen[1] != "alt_screen_leave" {
+		t.Fatalf("alt-screen marks = %v", seen)
+	}
+}
+
+func TestStreamDecoderResetAtRecoversWithoutPreGapBytes(t *testing.T) {
+	d := NewStreamDecoder()
+	if tokens := d.Feed([]byte("\x1b]133;A")); len(tokens) != 0 {
+		t.Fatalf("mid-OSC feed produced %d tokens", len(tokens))
+	}
+	d.ResetAt(1000)
+
+	var tokens []Token
+	tokens = append(tokens, d.Feed([]byte("noise\xff\xfe"))...)
+	tokens = append(tokens, d.Feed([]byte("\x1b]133;A\x07\x1b]133;C\x07\x1b]133;D;0\x07"))...)
+
+	for _, tok := range tokens {
+		if bytes.Contains(tok.Raw, []byte("133;A")) && tok.Kind != TokenMark {
+			t.Fatalf("pre-gap bytes leaked into %+v", tok)
+		}
+		if tok.Start < 1000 {
+			t.Fatalf("token %+v has offset before the gap", tok)
+		}
+	}
+
+	if tokens[0].Kind != TokenText || tokens[0].Start != 1000 || tokens[0].End != 1000+int64(len("noise\xff\xfe")) {
+		t.Fatalf("noise token = %+v", tokens[0])
+	}
+
+	var marks []string
+	var firstMarkStart int64 = -1
+	for _, tok := range tokens {
+		if tok.Kind == TokenMark {
+			if firstMarkStart < 0 {
+				firstMarkStart = tok.Start
+			}
+			marks = append(marks, tok.Mark.Kind)
+		}
+	}
+	wantStart := int64(1000 + len("noise\xff\xfe"))
+	if firstMarkStart != wantStart {
+		t.Fatalf("first post-gap mark starts at %d, want %d", firstMarkStart, wantStart)
+	}
+	if len(marks) != 3 || marks[0] != "prompt_start" || marks[1] != "output_start" || marks[2] != "command_end" {
+		t.Fatalf("post-gap marks = %v", marks)
+	}
+}
+
+func TestStreamDecoderFlushAfterOrdinaryOutput(t *testing.T) {
+	in := []byte("just some output\n")
+	d := NewStreamDecoder()
+	tokens := d.Feed(in)
+	flush := d.Flush()
+	if len(flush) != 0 {
+		t.Fatalf("flush after ordinary output emitted %+v", flush)
+	}
+	if got := joinRaw(append(tokens, flush...)); !bytes.Equal(got, in) {
+		t.Fatalf("round-trip mismatch: got %q want %q", got, in)
+	}
+}
+
+func TestStreamDecoderFlushInsideIncompleteEscape(t *testing.T) {
+	d := NewStreamDecoder()
+	tokens := d.Feed([]byte("hello\x1b]133;"))
+	flush := d.Flush()
+	all := append(tokens, flush...)
+	if got := joinRaw(all); !bytes.Equal(got, []byte("hello\x1b]133;")) {
+		t.Fatalf("round-trip mismatch: got %q", got)
+	}
+	last := all[len(all)-1]
+	if last.Kind != TokenIncomplete || !bytes.Equal(last.Raw, []byte("\x1b]133;")) {
+		t.Fatalf("incomplete token = %+v", last)
 	}
 }

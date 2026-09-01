@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ func testLogger() *slog.Logger {
 type fakeShellRuntime struct {
 	created   []ports.RuntimeConfig
 	destroyed []string
+	log       *callLog
 
 	createErr  error
 	destroyErr error
@@ -47,6 +50,7 @@ func (f *fakeShellRuntime) Create(_ context.Context, cfg ports.RuntimeConfig) (p
 
 func (f *fakeShellRuntime) Destroy(_ context.Context, handle ports.RuntimeHandle) error {
 	f.destroyed = append(f.destroyed, handle.ID)
+	f.log.add("destroy:" + handle.ID)
 	// Only a successful destroy is modeled as actually killing the runtime — a
 	// failed one leaves aliveByHandle as the caller set it up, so tests can
 	// distinguish "destroy errored but it was already dead" (aliveByHandle has
@@ -187,16 +191,79 @@ func (f *fakeSessionWorkspaceLocator) SessionWorkspace(_ context.Context, id dom
 	return ws.workspacePath, ws.projectID, nil
 }
 
-// newTestService wires a service with deterministic ids so assertions can name
-// exact handles instead of matching on a prefix. Session resolution is not
-// under test here, so it is wired with an empty locator; tests that need it
-// use newTestServiceWithSessions.
-func newTestService(rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator) *Service {
-	return newTestServiceWithSessions(rt, st, projects, &fakeSessionWorkspaceLocator{})
+type callLog struct {
+	mu sync.Mutex
+	ev []string
 }
 
-func newTestServiceWithSessions(rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator) *Service {
-	svc := NewService(rt, st, projects, sessions, "/data/dir", testAppRunID, testLogger())
+func (c *callLog) add(s string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.ev = append(c.ev, s)
+	c.mu.Unlock()
+}
+
+func (c *callLog) snapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.ev...)
+}
+
+type fakeCaptureLifecycle struct {
+	log         *callLog
+	started     []string
+	stopped     []string
+	live        map[string]bool
+	startErr    error
+	stopErr     error
+	unsupported bool
+}
+
+func (f *fakeCaptureLifecycle) Start(_ context.Context, rec ShellTerminalRecord) error {
+	f.started = append(f.started, rec.HandleID)
+	f.log.add("start:" + rec.HandleID)
+	if f.unsupported {
+		return ports.ErrCaptureUnsupported
+	}
+	if f.startErr != nil {
+		return f.startErr
+	}
+	if f.live == nil {
+		f.live = map[string]bool{}
+	}
+	f.live[rec.HandleID] = true
+	return nil
+}
+
+func (f *fakeCaptureLifecycle) StopAndDrain(_ context.Context, handleID string) error {
+	f.stopped = append(f.stopped, handleID)
+	f.log.add("stopdrain:" + handleID)
+	if f.stopErr != nil {
+		return f.stopErr
+	}
+	delete(f.live, handleID)
+	return nil
+}
+
+func (f *fakeCaptureLifecycle) Capturing(handleID string) bool {
+	return f.live[handleID]
+}
+
+func newTestService(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator) *Service {
+	t.Helper()
+	return newTestServiceWithSessions(t, rt, st, projects, &fakeSessionWorkspaceLocator{})
+}
+
+func newTestServiceWithSessions(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator) *Service {
+	t.Helper()
+	return newTestServiceWithCapture(t, rt, st, projects, sessions, nil)
+}
+
+func newTestServiceWithCapture(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator, capture BlockCaptureLifecycle) *Service {
+	t.Helper()
+	svc := NewService(rt, st, projects, sessions, capture, t.TempDir(), testAppRunID, testLogger())
 	var n int
 	svc.newHandleID = func() (string, error) {
 		n++
@@ -210,7 +277,7 @@ func TestOpenShellTerminalStartsLoginShellInProjectRoot(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
 	projects := &fakeProjectRootLocator{roots: map[domain.ProjectID]string{"portfolio": "/repos/portfolio"}}
-	svc := newTestService(rt, st, projects)
+	svc := newTestService(t, rt, st, projects)
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{ProjectID: "portfolio"})
 	if err != nil {
@@ -239,23 +306,96 @@ func TestOpenShellTerminalStartsLoginShellInProjectRoot(t *testing.T) {
 
 func TestOpenShellTerminalFallsBackToDataDirWhenNoProjectGiven(t *testing.T) {
 	rt := newFakeShellRuntime()
-	svc := newTestService(rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
 	}
-	if term.WorkingDir != "/data/dir" {
-		t.Errorf("working dir = %q, want the daemon data dir", term.WorkingDir)
+	if term.WorkingDir != svc.dataDir {
+		t.Errorf("working dir = %q, want the daemon data dir %q", term.WorkingDir, svc.dataDir)
 	}
 	if term.ProjectID != "" {
 		t.Errorf("project id = %q, want empty", term.ProjectID)
 	}
 }
 
+func TestOpenShellTerminalWrapsKnownShellWithBootstrapRecipe(t *testing.T) {
+	t.Setenv("SHELL", "/bin/zsh")
+	rt := newFakeShellRuntime()
+	svc := newTestService(t, rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
+
+	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+
+	if len(rt.created) != 1 {
+		t.Fatalf("runtime creates = %d, want 1", len(rt.created))
+	}
+	cfg := rt.created[0]
+	if len(cfg.Argv) == 0 {
+		t.Fatal("argv is empty; a shell terminal must launch a resolved shell")
+	}
+	if cfg.Argv[0] != "/bin/zsh" {
+		t.Errorf("argv[0] = %q, want the resolved login shell /bin/zsh", cfg.Argv[0])
+	}
+	joined := strings.Join(cfg.Argv, " ")
+	if !strings.Contains(joined, "source ") {
+		t.Errorf("argv = %v, want the bootstrap source form carrying a source line", cfg.Argv)
+	}
+	if !strings.Contains(joined, "exec zsh") {
+		t.Errorf("argv = %v, want the bootstrap source form ending in `exec zsh`", cfg.Argv)
+	}
+	if cfg.Env["OPERATOR_TERMINAL_INTEGRATION"] != "auto" {
+		t.Errorf("env integration = %q, want auto; full env = %v", cfg.Env["OPERATOR_TERMINAL_INTEGRATION"], cfg.Env)
+	}
+}
+
+func TestOpenShellTerminalFallsBackToOsc133OnlyForUnknownShell(t *testing.T) {
+	t.Setenv("SHELL", "/opt/homebrew/bin/nu")
+	rt := newFakeShellRuntime()
+	svc := newTestService(t, rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
+
+	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+
+	if len(rt.created) != 1 {
+		t.Fatalf("runtime creates = %d, want 1", len(rt.created))
+	}
+	cfg := rt.created[0]
+	if len(cfg.Argv) == 0 || cfg.Argv[0] != "/opt/homebrew/bin/nu" {
+		t.Fatalf("argv[0] = %v, want the resolved login shell", cfg.Argv)
+	}
+	if cfg.Env["OPERATOR_TERMINAL_INTEGRATION"] != "osc133-only" {
+		t.Errorf("env integration = %q, want osc133-only; full env = %v", cfg.Env["OPERATOR_TERMINAL_INTEGRATION"], cfg.Env)
+	}
+}
+
+func TestShellKindForMatchesKnownBasenames(t *testing.T) {
+	for _, tt := range []struct {
+		path string
+		want string
+		ok   bool
+	}{
+		{"/bin/zsh", "zsh", true},
+		{"/usr/bin/bash", "bash", true},
+		{"/opt/homebrew/bin/fish", "fish", true},
+		{"/opt/homebrew/bin/nu", "", false},
+		{"/usr/bin/elvish", "", false},
+		{"/bin/zsh-5.9", "", false},
+		{"", "", false},
+	} {
+		got, ok := shellKindFor(tt.path)
+		if got != tt.want || ok != tt.ok {
+			t.Errorf("shellKindFor(%q) = (%q, %v), want (%q, %v)", tt.path, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
 func TestOpenShellTerminalReturnsNotFoundForUnknownProject(t *testing.T) {
 	rt := newFakeShellRuntime()
-	svc := newTestService(rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{roots: map[domain.ProjectID]string{}})
+	svc := newTestService(t, rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{roots: map[domain.ProjectID]string{}})
 
 	_, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{ProjectID: "ghost"})
 
@@ -275,7 +415,7 @@ func TestOpenShellTerminalScopesToSession(t *testing.T) {
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, st, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{ProjectID: "portfolio", SessionID: "portfolio-3"})
 	if err != nil {
@@ -299,7 +439,7 @@ func TestOpenShellTerminalStartsInSessionWorkspaceOverProjectRoot(t *testing.T) 
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "/worktrees/portfolio-3", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, st, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{ProjectID: "portfolio", SessionID: "portfolio-3"})
 	if err != nil {
@@ -323,7 +463,7 @@ func TestOpenShellTerminalFallsBackToProjectRootWhenSessionHasNoWorkspace(t *tes
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-orch": {workspacePath: "", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, st, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "portfolio-orch"})
 	if err != nil {
@@ -337,7 +477,7 @@ func TestOpenShellTerminalFallsBackToProjectRootWhenSessionHasNoWorkspace(t *tes
 func TestOpenShellTerminalReturnsNotFoundForUnknownSession(t *testing.T) {
 	rt := newFakeShellRuntime()
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{}}
-	svc := newTestServiceWithSessions(rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{}, sessions)
+	svc := newTestServiceWithSessions(t, rt, &fakeShellTerminalStore{}, &fakeProjectRootLocator{}, sessions)
 
 	_, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "ghost"})
 
@@ -358,7 +498,7 @@ func TestOpenShellTerminalReturnsNotFoundForUnknownSession(t *testing.T) {
 // untouched.
 func TestOpenShellTerminalDoesNotAllocateGateForUnknownSession(t *testing.T) {
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{}}
-	svc := newTestServiceWithSessions(newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{}, sessions)
+	svc := newTestServiceWithSessions(t, newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{}, sessions)
 
 	for _, id := range []domain.SessionID{"ghost-1", "ghost-2", "ghost-3"} {
 		if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: id}); err == nil {
@@ -385,7 +525,7 @@ func TestBeginSessionTeardownDestroysRuntimeAndDeletesRows(t *testing.T) {
 	rt.aliveByHandle["shellterm-1"] = true
 	rt.aliveByHandle["shellterm-2"] = true
 	rt.aliveByHandle["shellterm-other"] = true
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -411,7 +551,7 @@ func TestBeginSessionTeardownContinuesPastDestroyFailureWhenConfirmedDead(t *tes
 		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
 		{HandleID: "shellterm-2", SessionID: "portfolio-3"},
 	}}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 	// rt.aliveByHandle has no entry for either handle, so IsAlive answers false:
 	// confirmed dead despite the destroy error.
 
@@ -437,7 +577,7 @@ func TestBeginSessionTeardownReturnsErrorAndKeepsRowWhenRuntimeStaysAlive(t *tes
 		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
 	}}
 	rt.aliveByHandle["shellterm-1"] = true // still alive despite the destroy error
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err == nil {
@@ -457,7 +597,7 @@ func TestBeginSessionTeardownNoopWhenSessionHasNoShells(t *testing.T) {
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-other", SessionID: "other-session"},
 	}}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -481,7 +621,7 @@ func TestBeginSessionTeardownNoopWhenSessionHasNoShells(t *testing.T) {
 func TestBeginSessionTeardownReleaseIsAcquisitionSpecific(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	release1, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -542,7 +682,7 @@ func TestOpenShellTerminalAbortsWhenContextCancelledWaitingForGate(t *testing.T)
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, &fakeShellTerminalStore{}, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, &fakeShellTerminalStore{}, projects, sessions)
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -586,7 +726,7 @@ func TestOpenShellTerminalGivesUpWaitingForAWedgedGate(t *testing.T) {
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, &fakeShellTerminalStore{}, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, &fakeShellTerminalStore{}, projects, sessions)
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -606,7 +746,7 @@ func TestCloseShellTerminalAbortsWhenContextCancelledWaitingForGate(t *testing.T
 	shrinkSessionGateWait(t, 10*time.Second)
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -651,7 +791,7 @@ func TestOpenShellTerminalPersistsSessionProjectWhenRequestOmitsIt(t *testing.T)
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "/worktrees/portfolio-3", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, st, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "portfolio-3"})
 	if err != nil {
@@ -685,7 +825,7 @@ func TestBeginSessionTeardownBlocksConcurrentOpenUntilEnd(t *testing.T) {
 	sessions := &fakeSessionWorkspaceLocator{sessions: map[domain.SessionID]fakeSessionWorkspace{
 		"portfolio-3": {workspacePath: "", projectID: "portfolio"},
 	}}
-	svc := newTestServiceWithSessions(rt, st, projects, sessions)
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
 
 	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
 	if err != nil {
@@ -736,7 +876,7 @@ func TestRenameShellTerminalUpdatesTitle(t *testing.T) {
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-1", Title: "portfolio", AppRunID: testAppRunID},
 	}}
-	svc := newTestService(newFakeShellRuntime(), st, &fakeProjectRootLocator{})
+	svc := newTestService(t, newFakeShellRuntime(), st, &fakeProjectRootLocator{})
 
 	term, err := svc.RenameShellTerminal(context.Background(), "shellterm-1", "  deploy logs  ")
 	if err != nil {
@@ -752,7 +892,7 @@ func TestRenameShellTerminalUpdatesTitle(t *testing.T) {
 
 func TestRenameShellTerminalRejectsEmptyTitle(t *testing.T) {
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{{HandleID: "shellterm-1", Title: "portfolio"}}}
-	svc := newTestService(newFakeShellRuntime(), st, &fakeProjectRootLocator{})
+	svc := newTestService(t, newFakeShellRuntime(), st, &fakeProjectRootLocator{})
 
 	_, err := svc.RenameShellTerminal(context.Background(), "shellterm-1", "   ")
 
@@ -766,7 +906,7 @@ func TestRenameShellTerminalRejectsEmptyTitle(t *testing.T) {
 }
 
 func TestRenameShellTerminalReturnsNotFoundForUnknownHandle(t *testing.T) {
-	svc := newTestService(newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
+	svc := newTestService(t, newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
 
 	_, err := svc.RenameShellTerminal(context.Background(), "shellterm-ghost", "whatever")
 
@@ -781,7 +921,7 @@ func TestRenameShellTerminalReturnsNotFoundForUnknownHandle(t *testing.T) {
 func TestOpenShellTerminalDestroysRuntimeWhenPersistFails(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{insertErr: errors.New("disk full")}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err == nil {
 		t.Fatal("OpenShellTerminal succeeded despite a failed insert")
@@ -797,7 +937,7 @@ func TestOpenShellTerminalDestroysRuntimeWhenPersistFails(t *testing.T) {
 func TestCloseShellTerminalDestroysRuntimeAndDeletesRecord(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
@@ -816,7 +956,7 @@ func TestCloseShellTerminalDestroysRuntimeAndDeletesRecord(t *testing.T) {
 }
 
 func TestCloseShellTerminalReturnsNotFoundForUnknownHandle(t *testing.T) {
-	svc := newTestService(newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
+	svc := newTestService(t, newFakeShellRuntime(), &fakeShellTerminalStore{}, &fakeProjectRootLocator{})
 
 	err := svc.CloseShellTerminal(context.Background(), "shellterm-missing")
 
@@ -836,7 +976,7 @@ func TestCloseShellTerminalReturnsNotFoundForUnknownHandle(t *testing.T) {
 func TestCloseShellTerminalKeepsRowWhenRuntimeStaysAlive(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
@@ -867,7 +1007,7 @@ func TestCloseShellTerminalKeepsRowWhenRuntimeStaysAlive(t *testing.T) {
 func TestCloseShellTerminalBlocksUntilSessionTeardownReleases(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	// Nothing scoped to the session yet, so Begin's own drain finds nothing and
 	// succeeds trivially — it still holds the gate via the returned release.
@@ -923,7 +1063,7 @@ func TestCloseShellTerminalBlocksUntilSessionTeardownReleases(t *testing.T) {
 func TestCloseShellTerminalDoesNotGateStandaloneShells(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
@@ -942,7 +1082,7 @@ func TestCloseShellTerminalDoesNotGateStandaloneShells(t *testing.T) {
 func TestListShellTerminalsForCurrentAppRunReturnsSurvivingTerminals(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
@@ -950,7 +1090,7 @@ func TestListShellTerminalsForCurrentAppRunReturnsSurvivingTerminals(t *testing.
 
 	// A fresh Service over the SAME store and runtime stands in for the daemon
 	// coming back up within one app run.
-	restarted := NewService(rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, "/data/dir", testAppRunID, testLogger())
+	restarted := NewService(rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, nil, svc.dataDir, testAppRunID, testLogger())
 	got, err := restarted.ListShellTerminalsForCurrentAppRun(context.Background())
 	if err != nil {
 		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)
@@ -963,7 +1103,7 @@ func TestListShellTerminalsForCurrentAppRunReturnsSurvivingTerminals(t *testing.
 func TestListShellTerminalsForCurrentAppRunPrunesTerminalsWhoseShellExited(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
 	if err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
@@ -987,7 +1127,7 @@ func TestListShellTerminalsForCurrentAppRunPrunesTerminalsWhoseShellExited(t *te
 func TestListShellTerminalsForCurrentAppRunKeepsTerminalWhenLivenessProbeErrors(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
 	}
@@ -1014,7 +1154,7 @@ func TestReapShellTerminalsFromPreviousAppRunsDestroysOrphansOnly(t *testing.T) 
 		{HandleID: "shellterm-orphan2", AppRunID: "app-run-crashed", WorkingDir: "/b"},
 		{HandleID: "shellterm-current", AppRunID: testAppRunID, WorkingDir: "/c"},
 	}}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	cleared, err := svc.ReapShellTerminalsFromPreviousAppRuns(context.Background())
 	if err != nil {
@@ -1039,7 +1179,7 @@ func TestReapShellTerminalsFromPreviousAppRunsClearsRowsWhenDestroyFails(t *test
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-orphan", AppRunID: "app-run-crashed", WorkingDir: "/a"},
 	}}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	cleared, err := svc.ReapShellTerminalsFromPreviousAppRuns(context.Background())
 	if err != nil {
@@ -1070,7 +1210,7 @@ func TestReapShellTerminalsFromPreviousAppRunsKeepsRowForConfirmedLiveOrphan(t *
 		{HandleID: "shellterm-orphan-alive", SessionID: "mer-1", AppRunID: "app-run-crashed", WorkingDir: "/a"},
 		{HandleID: "shellterm-orphan-dead", AppRunID: "app-run-crashed", WorkingDir: "/b"},
 	}}
-	svc := newTestService(rt, st, &fakeProjectRootLocator{})
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
 
 	cleared, err := svc.ReapShellTerminalsFromPreviousAppRuns(context.Background())
 	if err != nil {
@@ -1101,5 +1241,216 @@ func TestShellTerminalTitleFallsBackForRootlessPaths(t *testing.T) {
 	}
 	if got := shellTerminalTitle("/repos/portfolio"); got != "portfolio" {
 		t.Errorf("title = %q, want %q", got, "portfolio")
+	}
+}
+
+func indexOf(ss []string, want string) int {
+	for i, s := range ss {
+		if s == want {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestOpenShellTerminalStartsCapture(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	capturer := &fakeCaptureLifecycle{log: &callLog{}}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if len(capturer.started) != 1 || capturer.started[0] != term.HandleID {
+		t.Fatalf("capture Start calls = %v, want [%s]", capturer.started, term.HandleID)
+	}
+	if !term.DurableBlocks {
+		t.Fatal("DurableBlocks = false, want true on a supported runtime")
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row kept", st.records)
+	}
+}
+
+func TestOpenShellTerminalUnsupportedCaptureStillOpens(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	capturer := &fakeCaptureLifecycle{log: &callLog{}, unsupported: true}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if term.DurableBlocks {
+		t.Fatal("DurableBlocks = true, want false when the runtime cannot capture")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want no rollback for an unsupported runtime", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row kept", st.records)
+	}
+}
+
+func TestOpenShellTerminalRollsBackWhenCaptureStartFails(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	capturer := &fakeCaptureLifecycle{log: &callLog{}, startErr: errors.New("pipe-pane: server not found")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err == nil {
+		t.Fatal("OpenShellTerminal succeeded despite a capture start failure on a supported runtime")
+	}
+	if len(rt.destroyed) != 1 {
+		t.Fatalf("destroyed = %v, want the spawned PTY rolled back", rt.destroyed)
+	}
+	if len(st.records) != 0 {
+		t.Fatalf("records = %+v, want the row deleted", st.records)
+	}
+}
+
+func TestCloseShellTerminalStopsCaptureBeforeDestroy(t *testing.T) {
+	rt := newFakeShellRuntime()
+	log := &callLog{}
+	rt.log = log
+	st := &fakeShellTerminalStore{}
+	capturer := &fakeCaptureLifecycle{log: log}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if err := svc.CloseShellTerminal(context.Background(), term.HandleID); err != nil {
+		t.Fatalf("CloseShellTerminal: %v", err)
+	}
+
+	ev := log.snapshot()
+	sd := indexOf(ev, "stopdrain:"+term.HandleID)
+	de := indexOf(ev, "destroy:"+term.HandleID)
+	if sd < 0 || de < 0 || sd > de {
+		t.Fatalf("event order = %v, want stopdrain before destroy", ev)
+	}
+}
+
+func TestCloseShellTerminalFailedDrainPreservesRow(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	capturer := &fakeCaptureLifecycle{log: &callLog{}, stopErr: errors.New("final drain: disk full")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if err := svc.CloseShellTerminal(context.Background(), term.HandleID); err == nil {
+		t.Fatal("CloseShellTerminal succeeded despite a capture drain failure")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want the PTY left running after a drain failure", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row preserved", st.records)
+	}
+}
+
+func TestBeginSessionTeardownStopsCaptureBeforeDestroy(t *testing.T) {
+	rt := newFakeShellRuntime()
+	log := &callLog{}
+	rt.log = log
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
+	}}
+	rt.aliveByHandle["shellterm-1"] = true
+	capturer := &fakeCaptureLifecycle{log: log}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
+	if err != nil {
+		t.Fatalf("BeginSessionTeardown: %v", err)
+	}
+	release()
+
+	ev := log.snapshot()
+	sd := indexOf(ev, "stopdrain:shellterm-1")
+	de := indexOf(ev, "destroy:shellterm-1")
+	if sd < 0 || de < 0 || sd > de {
+		t.Fatalf("event order = %v, want stopdrain before destroy", ev)
+	}
+}
+
+func TestBeginSessionTeardownFailedDrainPreservesRowAndBlocksWorktree(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
+	}}
+	rt.aliveByHandle["shellterm-1"] = true
+	capturer := &fakeCaptureLifecycle{log: &callLog{}, stopErr: errors.New("seal never observed")}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	release, err := svc.BeginSessionTeardown(context.Background(), "portfolio-3")
+	if err == nil {
+		t.Fatal("BeginSessionTeardown: want an error when a scoped shell's capture drain fails")
+	}
+	if release != nil {
+		t.Error("release should be nil on a failed Begin")
+	}
+	if len(rt.destroyed) != 0 {
+		t.Fatalf("destroyed = %v, want the PTY left alone after a drain failure", rt.destroyed)
+	}
+	if len(st.records) != 1 {
+		t.Fatalf("records = %+v, want the row preserved", st.records)
+	}
+}
+
+func TestOpenShellTerminalNilCaptureReportsNoDurableBlocks(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, nil)
+
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{})
+	if err != nil {
+		t.Fatalf("OpenShellTerminal: %v", err)
+	}
+	if term.DurableBlocks {
+		t.Fatal("DurableBlocks = true with no capture lifecycle wired; want false")
+	}
+}
+
+func TestListAndRenameReflectLiveCaptureState(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
+		{HandleID: "shellterm-captured", AppRunID: testAppRunID, WorkingDir: "/a", Title: "a"},
+		{HandleID: "shellterm-uncaptured", AppRunID: testAppRunID, WorkingDir: "/b", Title: "b"},
+	}}
+	rt.aliveByHandle["shellterm-captured"] = true
+	rt.aliveByHandle["shellterm-uncaptured"] = true
+	capturer := &fakeCaptureLifecycle{log: &callLog{}, live: map[string]bool{"shellterm-captured": true}}
+	svc := newTestServiceWithCapture(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{}, capturer)
+
+	list, err := svc.ListShellTerminalsForCurrentAppRun(context.Background())
+	if err != nil {
+		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)
+	}
+	got := map[string]bool{}
+	for _, term := range list {
+		got[term.HandleID] = term.DurableBlocks
+	}
+	if !got["shellterm-captured"] {
+		t.Error("list: captured handle reported DurableBlocks=false")
+	}
+	if got["shellterm-uncaptured"] {
+		t.Error("list: uncaptured handle reported DurableBlocks=true")
+	}
+
+	renamed, err := svc.RenameShellTerminal(context.Background(), "shellterm-captured", "logs")
+	if err != nil {
+		t.Fatalf("RenameShellTerminal: %v", err)
+	}
+	if !renamed.DurableBlocks {
+		t.Error("rename: captured handle reported DurableBlocks=false")
 	}
 }

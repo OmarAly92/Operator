@@ -78,5 +78,83 @@ func (d *Decoder) Feed(p []byte) []Event {
 	// question (SPEC 7.5 scopes this package to finding boundaries and
 	// extracting fields), and keeping that state here would make this
 	// package and the Rust one disagree about where block state lives.
-	return d.scanner.feed(p)
+	segs := d.scanner.feed(p)
+	events := make([]Event, 0, 4)
+	for _, seg := range segs {
+		events = append(events, seg.events...)
+	}
+	return events
+}
+
+type TokenKind int
+
+const (
+	TokenText TokenKind = iota
+	TokenMark
+	TokenControl
+	TokenIncomplete
+)
+
+type Mark = Event
+
+type Token struct {
+	Kind  TokenKind
+	Raw   []byte
+	Mark  Mark
+	Start int64
+	End   int64
+}
+
+type StreamDecoder struct {
+	scanner *scanner
+	offset  int64
+}
+
+func NewStreamDecoder() *StreamDecoder {
+	return &StreamDecoder{scanner: newScanner()}
+}
+
+func (d *StreamDecoder) Feed(chunk []byte) []Token {
+	return d.tokenize(d.scanner.feed(chunk))
+}
+
+func (d *StreamDecoder) Flush() []Token {
+	raw := d.scanner.flushIncomplete()
+	if len(raw) == 0 {
+		return nil
+	}
+	start := d.offset
+	d.offset += int64(len(raw))
+	return []Token{{
+		Kind:  TokenIncomplete,
+		Raw:   raw,
+		Start: start,
+		End:   d.offset,
+	}}
+}
+
+func (d *StreamDecoder) ResetAt(offset int64) {
+	d.scanner.reset()
+	d.offset = offset
+}
+
+func (d *StreamDecoder) tokenize(segs []segment) []Token {
+	tokens := make([]Token, 0, len(segs))
+	for _, seg := range segs {
+		start := d.offset
+		d.offset += int64(len(seg.raw))
+		end := d.offset
+		switch {
+		case seg.kind == segText:
+			tokens = append(tokens, Token{Kind: TokenText, Raw: seg.raw, Start: start, End: end})
+		case len(seg.events) == 0:
+			tokens = append(tokens, Token{Kind: TokenControl, Raw: seg.raw, Start: start, End: end})
+		default:
+			tokens = append(tokens, Token{Kind: TokenMark, Raw: seg.raw, Mark: seg.events[0], Start: start, End: end})
+			for _, extra := range seg.events[1:] {
+				tokens = append(tokens, Token{Kind: TokenMark, Mark: extra, Start: end, End: end})
+			}
+		}
+	}
+	return tokens
 }
