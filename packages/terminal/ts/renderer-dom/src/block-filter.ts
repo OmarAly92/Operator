@@ -5,6 +5,7 @@ export type BlockFilter = Readonly<{
 	exitCodeNonZero?: boolean;
 	source?: "osc133" | "extension" | "synthetic";
 	bookmarked?: boolean;
+	command?: string;
 }>;
 
 export function applyFilter(
@@ -20,6 +21,7 @@ export function applyFilter(
 		}
 		if (filter.source !== undefined && block.source !== filter.source) continue;
 		if (filter.bookmarked !== undefined && block.bookmarked !== filter.bookmarked) continue;
+		if (filter.command !== undefined && block.command !== filter.command) continue;
 		result.push(block);
 	}
 	return result;

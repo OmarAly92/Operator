@@ -13,6 +13,7 @@ import {
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
+import { bindActionEvents } from "./action-events.js";
 import { renderBlockHeader } from "./block-header.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -114,6 +115,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		});
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
+		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
 		this.repaint();
 	}
 
@@ -179,10 +181,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	dispose(): void {
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
-		if (this.scrollUnsubscribe) {
-			this.scrollUnsubscribe();
-			this.scrollUnsubscribe = null;
-		}
+		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();

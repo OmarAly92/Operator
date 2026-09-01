@@ -152,6 +152,10 @@ export type TerminalStrings = Readonly<{
 	blockAbandoned: string;
 	copyCommand: string;
 	copyOutput: string;
+	shareOutput: string;
+	bookmark: string;
+	filterToCommand: string;
+	jump: string;
 	rerunCommand: string;
 	shellBlocksUnavailable: string;
 	searchHistory: string;
@@ -168,6 +172,10 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	blockAbandoned: "Abandoned",
 	copyCommand: "Copy command",
 	copyOutput: "Copy output",
+	shareOutput: "Save output",
+	bookmark: "Bookmark",
+	filterToCommand: "Filter to this command",
+	jump: "Jump to block",
 	rerunCommand: "Re-run",
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
 	searchHistory: "Search history",
