@@ -61,6 +61,9 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 		if newParser != nil {
 			_ = newParser.Close()
 		}
+		h.mu.Lock()
+		h.parser = nil
+		h.mu.Unlock()
 		h.sendTo(conn, respawnResFrame(false, 0, err.Error()))
 		return
 	}

@@ -227,3 +227,64 @@ func TestRestartResetsRingAndKeepsClientAttached(t *testing.T) {
 		t.Fatalf("pre-restart client connection never saw post-restart output; got %q", got)
 	}
 }
+
+// failingRestartConfig names a binary that cannot exist, forcing newPTY to
+// fail inside handleRespawn's step 7.
+func failingRestartConfig(t *testing.T) ports.RuntimeConfig {
+	t.Helper()
+	return ports.RuntimeConfig{
+		SessionID:     "sess-restart",
+		WorkspacePath: t.TempDir(),
+		Argv:          []string{"/nonexistent-binary-ptyhost-restart-test"},
+	}
+}
+
+// TestRestartFailureFallsBackToRing exercises the step-7 newPTY-failure path:
+// the host is left alive with no child, and a GetOutput query that arrives
+// before a later successful respawn must fall back to the ring rather than
+// calling into the closed old parser (which would silently render "" instead
+// of erroring, masking the bug).
+func TestRestartFailureFallsBackToRing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	isolateRegistry(t)
+	hosts := map[string]*realInProcHost{}
+	rt := New(Options{Spawner: realSpawnerFor(t, hosts)})
+
+	handle, err := rt.Create(context.Background(), restartConfig(t))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	h := hosts["sess-restart"]
+	t.Cleanup(func() {
+		h.cancel()
+		select {
+		case <-h.done:
+		case <-time.After(2 * time.Second):
+			t.Log("warning: realInProcHost did not stop within 2s")
+		}
+	})
+
+	// A successful respawn first: this is what actually installs a live
+	// vtwasm parser on h (Serve started with none in this test harness), so
+	// the second, failing respawn below has a real parser to (mis)handle.
+	if _, err := rt.Restart(context.Background(), handle, restartConfig(t)); err != nil {
+		t.Fatalf("first Restart (setup): %v", err)
+	}
+
+	if _, err := rt.Restart(context.Background(), handle, failingRestartConfig(t)); err == nil {
+		t.Fatal("Restart with a nonexistent binary: want error, got nil")
+	}
+
+	const marker = "post-failure-ring-fallback"
+	h.ring.Append([]byte(marker + "\n"))
+
+	text, err := rt.GetOutput(context.Background(), handle, 10)
+	if err != nil {
+		t.Fatalf("GetOutput after failed restart: %v", err)
+	}
+	if !strings.Contains(text, marker) {
+		t.Fatalf("GetOutput after failed restart = %q, want it to contain the ring-seeded marker %q (parser was likely left non-nil pointing at a closed instance)", text, marker)
+	}
+}
