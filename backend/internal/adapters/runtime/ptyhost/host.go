@@ -174,37 +174,107 @@ func (h *host) shutdown() {
 	})
 }
 
-// pumpPTY reads PTY output continuously, appends to the ring, and broadcasts
-// to clients. On PTY exit it flushes the partial line and sends a status
-// update but does NOT close the listener (keep-alive).
+const (
+	readBufferSize = 0x4_0000
+	flushInterval  = time.Second / 60
+)
+
+// pumpPTY turns the PTY stream into coalesced client frames. A reader
+// goroutine blocks on PTY.Read; this loop drains everything already available
+// before deciding to flush. Idle traffic flushes immediately — the timer only
+// arms when a flush already happened inside the current interval — so
+// sustained load batches at 60Hz while a lone keystroke echo never waits.
 func (h *host) pumpPTY() {
-	buf := make([]byte, 32*1024)
+	chunks := make(chan []byte, 64)
+	go h.readPTY(chunks)
+
+	var pending []byte
+	var lastFlush time.Time
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	timerArmed := false
+
+	flush := func() {
+		if len(pending) == 0 {
+			return
+		}
+		h.deliver(pending)
+		pending = nil
+		lastFlush = time.Now()
+	}
+
+	for {
+		select {
+		case chunk, ok := <-chunks:
+			if !ok {
+				flush()
+				h.finishPump()
+				return
+			}
+			pending = append(pending, chunk...)
+		drain:
+			for len(pending) < readBufferSize {
+				select {
+				case more, ok := <-chunks:
+					if !ok {
+						flush()
+						h.finishPump()
+						return
+					}
+					pending = append(pending, more...)
+				default:
+					break drain
+				}
+			}
+			if len(pending) >= readBufferSize || time.Since(lastFlush) >= flushInterval {
+				if timerArmed && !timer.Stop() {
+					<-timer.C
+				}
+				timerArmed = false
+				flush()
+			} else if !timerArmed {
+				timer.Reset(flushInterval - time.Since(lastFlush))
+				timerArmed = true
+			}
+		case <-timer.C:
+			timerArmed = false
+			flush()
+		}
+	}
+}
+
+func (h *host) readPTY(chunks chan<- []byte) {
+	defer close(chunks)
+	buf := make([]byte, readBufferSize)
 	for {
 		n, err := h.cfg.PTY.Read(buf)
 		if n > 0 {
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
-			h.cfg.Ring.Append(chunk)
-			if frame, err := EncodeMessage(MsgTerminalData, chunk); err == nil {
-				h.broadcast(frame)
-			}
+			chunks <- chunk
 		}
 		if err != nil {
-			break
+			return
 		}
 	}
+}
 
-	// PTY reader is done (process exited or PTY closed). Wait for the Done
-	// signal so ExitCode is populated before we send the status broadcast.
+// deliver is the single choke point later tasks extend: Task 7 appends the
+// parser feed and Task 10 the capture tee — both strictly after the broadcast.
+func (h *host) deliver(batch []byte) {
+	h.cfg.Ring.Append(batch)
+	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
+		h.broadcast(frame)
+	}
+}
+
+func (h *host) finishPump() {
 	<-h.cfg.PTY.Done()
-
 	h.cfg.Ring.FlushPartial()
-
 	code, _ := h.cfg.PTY.ExitCode()
-	pid := h.cfg.PTY.PID()
-	h.broadcast(statusFrame(false, pid, &code))
-	// Keep-alive: do NOT shutdown here. The host stays up so clients can
-	// still connect and read scrollback.
+	h.broadcast(statusFrame(false, h.cfg.PTY.PID(), &code))
 }
 
 // broadcast sends msg to all connected clients, removing any that error.
@@ -279,7 +349,7 @@ func (h *host) handleConn(conn net.Conn) {
 		h.handleClientMsg(conn, msgType, payload)
 	})
 
-	buf := make([]byte, 4096)
+	buf := make([]byte, 65536)
 	for {
 		n, err := conn.Read(buf)
 		if n > 0 {
