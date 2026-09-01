@@ -1395,7 +1395,7 @@ Closes the `StyledTerminalOutputReader` gap. `composerIsEmpty` (`agent_switching
 **Interfaces:**
 - Produces: `(*Runtime).GetStyledOutput(ctx, handle, lines) (string, error)` satisfying `ports.StyledTerminalOutputReader` (`ports/outbound.go:93`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestGetStyledOutputPreservesSGR(t *testing.T) {
@@ -1411,25 +1411,25 @@ func TestGetStyledOutputPreservesSGR(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestGetStyledOutput -v`
 Expected: FAIL — `client.getStyledOutput undefined`
 
-- [ ] **Step 3: Add `vt_render_styled` to the shim**
+- [x] **Step 3: Add `vt_render_styled` to the shim**
 
 The snapshot carries `run_ranges` and `style_pairs` alongside `content`; re-emit SGR at each run boundary. Add to `vt-host/src/lib.rs`, mirroring `vt_render` but walking the style pairs and writing `\x1b[<code>m` before each run, then `\x1b[0m` at each row end. `StyleCode` lives in `crates/vt-core/src/style.rs` (re-exported from `lib.rs`) — read its encoding there first. Note `AltSnapshot` has no methods; index `content` by `row_ranges` directly, exactly as `vt_render` already does. Rebuild the wasm and re-copy it into `vtwasm/assets/`.
 
-- [ ] **Step 4: Wire the protocol and the runtime method**
+- [x] **Step 4: Wire the protocol and the runtime method**
 
 Add `MsgStyledOutputReq byte = 0x09` and `MsgStyledOutputRes byte = 0x0A` to `proto.go`; handle the request in `host.go` exactly as `MsgGetOutputReq` but calling `RenderStyledTail`; add `clientGetStyledOutput` to `client.go` mirroring `clientGetOutput` (`client.go:96`); add `(*Runtime).GetStyledOutput` mirroring `GetOutput` (`runtime.go:280`).
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/...`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** (commit `773b7f3b8`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost packages/terminal/crates/vt-host
