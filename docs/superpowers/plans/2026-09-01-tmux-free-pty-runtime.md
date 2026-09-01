@@ -1708,11 +1708,13 @@ git commit -m "feat(cli): opr attach for debugging a live session"
 
 The oracle is tmux, and it only exists to be asked while it is still in the tree. This task must land before Task 15 deletes it.
 
+**GATE 1 RESULT (2026-09-01): NOT FULLY PASSED. 8/11 scenarios pass. 3 fail on genuine `vt-core` parser gaps** (`resize-mid-stream`: resize evicts/blanks on-screen content on any resize with content present, even growing; `less-page`: ~5/6-run deterministic content-position divergence during plain scroll, root cause not fully isolated; `agent-cli-idle`: no XTVERSION/DA1 auto-answer in `vt-core`, unlike tmux). All three independently corroborated against `vt-core` source by the task reviewer, not just the implementer's own diagnosis. None fixed — explicitly out of scope for this session (no deep `vt-core` surgery under time pressure, per the task's own instructions). The harness itself (this task's actual deliverable) is well-built and Approved: `normalize()` verified compliant with the non-negotiable two-operations-only rule, both sides confirmed to go through real production PTY code paths, decision-site cross-check exercises real production functions and all agree. Full diagnosis: `.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-13-report.md`. **Per the original instructions, Task 15 requires both Gate 1 and Gate 2 to pass — this gate is unresolved, so the plan stops after Task 14 rather than proceeding to Task 15.**
+
 **Files:**
 - Create: `backend/internal/adapters/runtime/parity/parity_test.go`
 - Create: `backend/internal/adapters/runtime/parity/corpus.go`
 
-- [ ] **Step 1: Write the differential test**
+- [x] **Step 1: Write the differential test**
 
 The design principle: **replay recorded bytes, never live apps.** A live `htop` paints differently per run; a recorded byte stream is bit-identical on both sides, so any diff is a parser gap, not timing. And **both sides must feed through a real PTY**: a PTY's termios mangles the stream (ONLCR turns `\n` into `\r\n`), tmux's panes get that mangling, and feeding one side raw while the other goes through a PTY manufactures false diffs. The delivery vehicle on both sides is the same: a pane running `cat <fifo>`, with the test writing the vector bytes into the FIFO.
 
@@ -1769,16 +1771,16 @@ func TestRenderedOutputMatchesTmux(t *testing.T) {
 
 `requireTmux(t)` — `t.Skip` when `tmux` is not in `PATH` (CI images without it run the build, not the oracle).
 
-- [ ] **Step 2: Run it and fix what it finds**
+- [x] **Step 2: Run it and fix what it finds** — RESULT: 8/11 scenarios pass; 3 fail on genuine `vt-core` parser gaps (`resize-mid-stream`, `less-page`, `agent-cli-idle`), not fixed per explicit out-of-scope instruction; see task-13-report.md and SDD ledger
 
 Run: `cd backend && go test -tags parity ./internal/adapters/runtime/parity/ -v`
 Expected: initially FAIL on some scenarios. Each failure is a real parser gap — fix `vt-host`/`vt-core`, do not relax `normalize`.
 
-- [ ] **Step 3: Exercise every decision site against both runtimes**
+- [x] **Step 3: Exercise every decision site against both runtimes** — all decision sites agree despite the raw-text diffs
 
 Add a test that runs each consumer of terminal text against identical agent output under both runtimes, asserting identical decisions: the activity observer (`observe/activity/observer.go:126`), the handoff probe (`agent_switching.go:295`) and its styled composer check (`agent_switching.go:1493`), the delivery readiness check (`message_delivery.go:76`), the review launcher (`launcher.go:463`), the stale-idle transition proof (`interface_transition.go:567`), and the spawn prompt-readiness poll (`manager.go:3616`). Also run the capture supervisor (`service/terminalcapture/supervisor.go`) once against ptyhost — it has only ever exercised its `ErrCaptureUnsupported` branch on Windows, and this is the first time capture works everywhere.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** (commit `35edd25c5`)
 
 ```bash
 git add backend/internal/adapters/runtime/parity
