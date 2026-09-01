@@ -4,6 +4,47 @@ A Warp-grade terminal as a reusable package, written as if it could be
 published to npm and crates.io. Lives at `packages/terminal/` in this
 repository.
 
+## Phase 5 capability
+
+Phase 5 adds navigation on top of the block-aware renderer:
+
+- **Find.** `createFindBar({ core, renderer, host, strings })` returns a
+  `FindBar` handle. Cmd/Ctrl+F opens the bar; typing runs an incremental
+  find session; Enter walks forward, Shift+Enter walks backward, Escape
+  closes and restores focus. The find cursor is rebuilt lazily on every
+  step and held only as a `u32` session id in JS; cancellation is
+  `core.findCancel(id)`. The bench proves the gate: **29.60ms p95** at
+  the chosen `FIND_STEP_BUDGET = 1000`, under the 100ms ceiling, for a
+  500k-row scrollback.
+- **Sticky command header.** The pinned header is the first child of
+  the host, `position: sticky; top: 0`. It names the block the center
+  of the viewport is scrolled into. Sticky survives `contain: strict`
+  on the host in Chromium; the absolute alternative was tried and
+  failed because absolute children of `overflow: auto` containers
+  position at the content origin.
+- **Block navigation.** Cmd/Ctrl+ArrowUp/Down walks the block list
+  (filtered if a filter is active) and scrolls the focused block to
+  the center. Inert in the alt screen; the first assertion in
+  `block-nav.test.ts`. Lives in `ts/renderer-dom/src/block-nav.ts`,
+  not in the line-editor keymap.
+- **Filter and bookmark.** `applyFilter(blocks, filter)` is a pure
+  function; it never mutates, reorders, evicts, or renumbers
+  `BlockId`s. `core.setBlockBookmarked(id, bool)` and
+  `core.blockBookmarked(id)` are the bookend API; the host owns
+  persistence.
+- **Full block action menu.** Up to seven buttons per block:
+  copy-command, copy-output, share-output, bookmark, filter-to-command,
+  jump, rerun. Every action is a real `<button>` with `aria-label`; the
+  rerun action fires a `CustomEvent` that the host's line editor
+  consumes (rerun writes bytes to the transport; the user runs the
+  command). No action may call a `HostCapabilities` method that can
+  execute anything — `HostCapabilities` itself has no such method.
+- **Command palette.** `mountPalette({ container, getCommands, isAltScreenActive, strings })`
+  opens on Cmd/Ctrl+Shift+P, lists package- and host-defined commands,
+  and supports type/arrow/Enter/Escape. Substring filter, not strict
+  prefix — `includes`, not `startsWith` — a strict superset. The
+  first test in `palette.test.ts` is alt-screen inertness.
+
 ## Phase 0 capability
 
 Phase 0 is an append-and-wrap parser slice, not a daily-driver terminal.
