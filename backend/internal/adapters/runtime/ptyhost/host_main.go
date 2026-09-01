@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
@@ -63,6 +64,12 @@ func RunHost(args []string, stdout io.Writer) int {
 	// Print READY after both the listener and the PTY are up.
 	_, _ = fmt.Fprintf(stdout, "READY:%d %d\n", pty.PID(), port)
 
+	// Re-point fds 1/2 at a log file now that the parent has what it needs.
+	// The spawning daemon may exit at any point after this; on Unix, a
+	// stdio write after that happens would otherwise get EPIPE and the Go
+	// runtime would SIGPIPE this process (see redirect_unix.go).
+	redirectStdio(openSessionLogFile(sessionID))
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -91,4 +98,24 @@ func RunHost(args []string, stdout io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// openSessionLogFile opens (creating if needed) the per-session log file that
+// post-READY stdio is redirected to, under ~/.operator/pty-host-logs. Falls
+// back to os.DevNull if the home directory or the log file cannot be
+// resolved/created, since a missing log is not a reason to fail the host.
+func openSessionLogFile(sessionID string) *os.File {
+	home, err := os.UserHomeDir()
+	if err == nil {
+		dir := filepath.Join(home, ".operator", "pty-host-logs")
+		if err := os.MkdirAll(dir, 0o700); err == nil {
+			if f, err := os.OpenFile(filepath.Join(dir, sessionID+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+				return f
+			}
+		}
+	}
+	if f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0); err == nil {
+		return f
+	}
+	return nil
 }
