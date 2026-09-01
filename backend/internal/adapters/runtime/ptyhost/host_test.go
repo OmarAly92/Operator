@@ -334,14 +334,12 @@ collect:
 		t.Fatalf("client never received the final chunk %q; got %d bytes", sentinel, len(got))
 	}
 
-	// Parse the received bytes back into the ordered list of line indices.
-	// Each line is "[NNNN]\n". The client may legitimately start late (the
-	// snapshot only captures lines written before the connect), and a line may
-	// appear twice at the snapshot/live seam (a chunk landing in the ring just
-	// before this client registers can be both snapshotted and broadcast). The
-	// DROP bug instead produced a MISSING index in the middle. So the invariant
-	// is: the indices, in order, are non-decreasing, advance by 0 or 1 each
-	// step (no jump that skips an index), and reach the final index nChunks-1.
+	// Parse the received bytes back into the ordered list of line indices. The
+	// client may legitimately start late — the snapshot only holds lines written
+	// before the connect — but from there the sequence must be strictly
+	// contiguous. A repeat means a batch was both snapshotted and broadcast; a
+	// gap means one was neither. deliver() and handleConn each hold h.mu across
+	// their whole ring-and-clients update precisely so neither can happen.
 	lines := strings.Split(string(got), "\n")
 	// Trailing "" after the final \n.
 	if lines[len(lines)-1] == "" {
@@ -357,8 +355,11 @@ collect:
 			prev = idx
 			continue
 		}
-		if idx != prev && idx != prev+1 {
-			t.Fatalf("non-contiguous line indices (dropped chunk): %d followed by %d", prev, idx)
+		if idx != prev+1 {
+			lo := max(li-3, 0)
+			hi := min(li+3, len(lines))
+			t.Fatalf("client stream is not contiguous at line %d: %d followed by %d (context %q, %d lines total)",
+				li, prev, idx, lines[lo:hi], len(lines))
 		}
 		prev = idx
 	}

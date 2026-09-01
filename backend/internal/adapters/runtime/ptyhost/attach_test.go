@@ -138,6 +138,33 @@ func TestAttachResizeReachesPTY(t *testing.T) {
 	t.Fatalf("resizes did not reach pty as expected: %+v", f.pty.resizes)
 }
 
+// TestAttachAppliesResizeBeforeReturning pins the attach handshake: the client's
+// grid must reach the PTY (and the parser behind it) before Attach hands back a
+// stream. Without the acknowledgement round-trip the resize races the child's
+// first output, which is then parsed at the pre-attach grid — the defect that
+// made GetOutput render several rows and columns off for real sessions. The
+// assertion deliberately does not poll: a sleep here would pass either way.
+func TestAttachAppliesResizeBeforeReturning(t *testing.T) {
+	f := startServe(t, 303)
+	defer f.cancel()
+
+	r := runtimeForFixture("sess", f)
+	s, err := r.Attach(context.Background(), nameHandle("sess"), 30, 100)
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	defer s.Close()
+
+	f.pty.resizeMu.Lock()
+	defer f.pty.resizeMu.Unlock()
+	if len(f.pty.resizes) == 0 {
+		t.Fatal("Attach returned before the resize reached the PTY")
+	}
+	if got := f.pty.resizes[len(f.pty.resizes)-1]; got.Cols != 100 || got.Rows != 30 {
+		t.Fatalf("applied resize = %+v, want {Cols:100 Rows:30}", got)
+	}
+}
+
 // TestAttachUnknownSession: Attach to a session with no resolvable addr errors.
 func TestAttachUnknownSession(t *testing.T) {
 	r := New(Options{})

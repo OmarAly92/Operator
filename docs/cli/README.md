@@ -29,7 +29,7 @@ Every product command resolves to a daemon HTTP route. Run `opr <command>
 | `opr start`                    | Start the daemon in the background and wait for `/readyz`.                                                                        |
 | `opr stop`                     | Gracefully stop the daemon via loopback `POST /shutdown` after verifying daemon identity.                                         |
 | `opr status` / `--json`        | Report daemon state from `running.json`, process liveness, `/healthz`, and `/readyz`.                                             |
-| `opr doctor` / `--json`        | Check config, data directory, DB-file presence, daemon state, `git`, and (on Darwin/Linux) `tmux`; on Windows conpty is built in. |
+| `opr doctor` / `--json`        | Check config, data directory, DB-file presence, daemon state, `git`, and the built-in pty-host runtime. |
 | `opr completion <shell>`       | Generate completions for `bash`, `zsh`, `fish`, or `powershell`.                                                                  |
 | `opr version` / `opr --version` | Print build metadata.                                                                                                             |
 | `opr daemon`                   | Hidden internal daemon entrypoint used by `opr start`.                                                                             |

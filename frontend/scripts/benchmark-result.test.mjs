@@ -1446,10 +1446,28 @@ test("large-output results fail closed unless every observed workload carried th
 });
 
 test("terminal benchmark accepts the resource and latency scenarios with their sampling contracts", async () => {
-	const { parseTerminalArguments } = await import("./benchmark-terminal.mjs");
-	for (const scenario of ["input-latency", "reconnect", "cpu-time"]) {
+	const { parseTerminalArguments, runTerminalBenchmark, tauriHarnessConfig, tauriHarnessProxyConfig } = await import("./benchmark-terminal.mjs");
+	for (const scenario of ["input-latency", "reconnect", "cpu-time", "scroll-latency"]) {
 		assert.deepEqual(parseTerminalArguments(["--shell", "tauri", "--scenario", scenario]), { shell: "tauri", scenario });
 	}
+	await assert.rejects(
+		runTerminalBenchmark(["--shell", "tauri", "--scenario", "scroll-latency"], { OPERATOR_RUNTIME: "ptyhost" }),
+		/OPERATOR_RUNTIME selects the benchmark shell's unused daemon, not OPERATOR_BENCH_DAEMON_URL/,
+	);
+	assert.deepEqual(JSON.parse(tauriHarnessConfig("http://127.0.0.1:5173")), {
+		productName: "Operator Benchmark",
+		identifier: "dev.operator.desktop.benchmark",
+		build: { beforeDevCommand: "", devUrl: "http://127.0.0.1:5173" },
+		app: { security: { capabilities: ["phase0", "default", "terminal-benchmark"] } },
+	});
+	const handlers = new Map();
+	const proxy = tauriHarnessProxyConfig("http://127.0.0.1:4317");
+	proxy.configure({ on: (event, handler) => handlers.set(event, handler) });
+	assert.equal(proxy.target, "http://127.0.0.1:4317/");
+	assert.equal(proxy.ws, true);
+	let removedHeader;
+	handlers.get("proxyReqWs")({ removeHeader: (name) => { removedHeader = name; } });
+	assert.equal(removedHeader, "origin");
 	assert.deepEqual(parseTerminalArguments(["--shell", "tauri", "--scenario", "vtebench", "--compositing", "disabled"]), {
 		shell: "tauri",
 		scenario: "vtebench",
@@ -1466,9 +1484,11 @@ test("terminal benchmark accepts the resource and latency scenarios with their s
 	assert.equal(REQUIRED_SAMPLES.reconnect, 10);
 	assert.equal(REQUIRED_SAMPLES["cpu-time"], 10);
 	assert.equal(REQUIRED_SAMPLES["active-memory"], 5);
+	assert.equal(REQUIRED_SAMPLES["scroll-latency"], 20);
 	assert.equal(REQUIRED_WARMUPS["input-latency"], 3);
 	assert.equal(REQUIRED_WARMUPS.reconnect, 3);
 	assert.equal(REQUIRED_WARMUPS["cpu-time"], 3);
+	assert.equal(REQUIRED_WARMUPS["scroll-latency"], 3);
 });
 
 test("compositing mode is recorded in terminal results and only pairs on linux", async () => {

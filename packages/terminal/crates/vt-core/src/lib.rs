@@ -171,6 +171,13 @@ impl TerminalCore {
         self.parser.trim_to(self.scrollback_rows);
     }
 
+    // The renderer's resize model evicts the screen into the block stream and
+    // reflows; a headless consumer that needs tmux capture-pane semantics
+    // (resize preserves the visible screen in place) turns reflow off.
+    pub fn set_reflow_on_resize(&mut self, on: bool) {
+        self.parser.set_reflow_on_resize(on);
+    }
+
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
     }

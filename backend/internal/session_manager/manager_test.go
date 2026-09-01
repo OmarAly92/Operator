@@ -4355,7 +4355,7 @@ func TestSpawn_ValidatesBinaryAfterEnvPrefix(t *testing.T) {
 	}
 	wantLookups := []string{"opencode"}
 	if runtime.GOOS != "windows" {
-		wantLookups = []string{"tmux", "opencode"}
+		wantLookups = []string{"opencode"}
 	}
 	if !reflect.DeepEqual(lookedUp, wantLookups) {
 		t.Fatalf("lookups = %#v, want %#v", lookedUp, wantLookups)
@@ -4390,7 +4390,7 @@ func TestSpawn_RejectsMissingBinaryAfterEnvPrefix(t *testing.T) {
 	}
 	wantLookups := []string{"opencode"}
 	if runtime.GOOS != "windows" {
-		wantLookups = []string{"tmux", "opencode"}
+		wantLookups = []string{"opencode"}
 	}
 	if !reflect.DeepEqual(lookedUp, wantLookups) {
 		t.Fatalf("lookups = %#v, want %#v", lookedUp, wantLookups)
@@ -4435,34 +4435,31 @@ func TestSpawn_RejectsEnvPrefixWithoutBinary(t *testing.T) {
 	}
 }
 
-func TestSpawn_RejectsMissingTmuxBeforeSessionRow(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows uses ConPTY, not tmux")
-	}
+// The pty-host is this binary re-exec'd as `opr pty-host`, so the only runtime
+// prerequisite left is that the daemon can resolve its own path — a daemon that
+// cannot is unable to launch any session at all. What this pins is the
+// ordering: the check must abort before any session row, workspace or runtime
+// exists, so a failure leaves nothing half-created behind.
+func TestSpawn_RejectsUnresolvableExecutableBeforeSessionRow(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
 	rt := &fakeRuntime{}
 	ws := &fakeWorkspace{}
-	lookPath := func(name string) (string, error) {
-		if name == "tmux" {
-			return "", fmt.Errorf("exec: %q: not found", name)
-		}
-		return "/bin/true", nil
-	}
-	m := New(Deps{Runtime: rt, Agents: fakeAgents{}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+	m := New(Deps{Runtime: rt, Agents: fakeAgents{}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st},
+		Executable: func() (string, error) { return "", errors.New("no exe") }})
 
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
-	if !errors.Is(err, ports.ErrRuntimePrerequisite) || !strings.Contains(err.Error(), "tmux required") {
-		t.Fatalf("err = %v, want missing tmux prerequisite", err)
+	if !errors.Is(err, ports.ErrRuntimePrerequisite) {
+		t.Fatalf("err = %v, want ErrRuntimePrerequisite", err)
 	}
 	if len(st.sessions) != 0 {
 		t.Fatalf("no session row should be created before runtime prerequisites pass, got %d", len(st.sessions))
 	}
 	if ws.lastCfg.SessionID != "" || ws.destroyed != 0 {
-		t.Fatal("workspace must not be created when tmux is missing")
+		t.Fatal("workspace must not be created when the runtime prerequisite fails")
 	}
 	if rt.created != 0 {
-		t.Fatal("runtime must not be created when tmux is missing")
+		t.Fatal("runtime must not be created when the runtime prerequisite fails")
 	}
 }
 
@@ -4559,7 +4556,6 @@ func TestSpawn_HookPATHPinUnavailable(t *testing.T) {
 		name       string
 		executable func() (string, error)
 	}{
-		{"executable unresolvable", func() (string, error) { return "", errors.New("no exe") }},
 		{"executable not named opr", func() (string, error) { return "/opt/aod/opr-daemon", nil }},
 	}
 	for _, tc := range cases {

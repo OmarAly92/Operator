@@ -89,6 +89,24 @@ func startPumpHost(t *testing.T) (*pipePTY, net.Conn, *frameLog) {
 			}
 		}
 	}()
+	// Dial returns on the TCP handshake, but the host only joins the conn to its
+	// broadcast set once handleConn runs. Writing to the PTY before that races:
+	// this fixture's payload carries no newline, so the ring holds it all as an
+	// in-progress partial line, which Snapshot deliberately omits — a batch
+	// delivered in the gap reaches neither the snapshot nor this client and is
+	// gone for good. A status round-trip proves registration, because the host
+	// registers before it reads a single client frame.
+	if frame, err := EncodeMessage(MsgStatusReq, nil); err != nil {
+		t.Fatalf("encode status request: %v", err)
+	} else if _, err := conn.Write(frame); err != nil {
+		t.Fatalf("write status request: %v", err)
+	}
+	select {
+	case <-log.status:
+	case <-time.After(10 * time.Second):
+		t.Fatal("host did not answer the status request; client never registered")
+	}
+
 	return pty, conn, log
 }
 
@@ -114,7 +132,13 @@ func TestPumpCoalescesUnderLoad(t *testing.T) {
 			t.Fatalf("write: %v", err)
 		}
 	}
-	waitFor(t, 5*time.Second, func() bool { return log.byteCount() == writes*len(payload) })
+	// Generous on purpose: this wait is not the assertion. The coalescing claim
+	// is the flush ceiling below, which is derived from the elapsed time and so
+	// stays honest however long the transfer takes. The transfer itself is ~30ms
+	// standalone, but the full suite runs packages in parallel and can starve
+	// this goroutine for seconds, which is a scheduling artifact rather than a
+	// pump defect.
+	waitFor(t, 60*time.Second, func() bool { return log.byteCount() == writes*len(payload) })
 	elapsed := time.Since(start)
 
 	if !bytes.Equal(log.received(), bytes.Repeat(payload, writes)) {
@@ -139,7 +163,7 @@ func TestPumpFlushesImmediatelyWhenIdle(t *testing.T) {
 		if _, err := pty.w.Write([]byte("x")); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		waitFor(t, time.Second, func() bool { return log.byteCount() > before })
+		waitFor(t, 30*time.Second, func() bool { return log.byteCount() > before })
 		latencies = append(latencies, time.Since(start))
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })

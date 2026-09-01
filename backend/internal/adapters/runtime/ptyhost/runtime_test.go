@@ -565,6 +565,35 @@ func TestSupervisedProcessExitKeepsHostAlive(t *testing.T) {
 	}
 }
 
+func TestSupervisedGenerationProbeSynchronizesWithRestartUpdate(t *testing.T) {
+	rt := New(Options{})
+	sess := &hostSession{launchID: "launch-a"}
+	rt.sessions["sess-race"] = sess
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 10_000; i++ {
+			rt.mu.Lock()
+			if i%2 == 0 {
+				sess.launchID = "launch-a"
+			} else {
+				sess.launchID = "launch-b"
+			}
+			rt.mu.Unlock()
+		}
+	}()
+	for i := 0; i < 10_000; i++ {
+		alive, err := rt.IsSupervisedProcessAlive(context.Background(), ports.RuntimeHandle{ID: "sess-race"}, ports.SupervisedProcessRef{
+			SessionID: "sess-race",
+			LaunchID:  "never-current",
+		})
+		if err != nil || alive {
+			t.Fatalf("probe = (%v, %v), want (false, nil)", alive, err)
+		}
+	}
+	<-done
+}
+
 // TestIsAlive_FalseForUnknownSession verifies IsAlive returns (false, nil) for
 // a session not in the map or registry.
 func TestIsAlive_FalseForUnknownSession(t *testing.T) {

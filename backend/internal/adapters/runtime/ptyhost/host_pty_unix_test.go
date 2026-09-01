@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewPTYRunsCommandAndReportsExit(t *testing.T) {
-	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "printf hello; exit 3"})
+	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "printf hello; exit 3"}, nil)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestNewPTYRunsCommandAndReportsExit(t *testing.T) {
 }
 
 func TestNewPTYResize(t *testing.T) {
-	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "sleep 5"})
+	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "sleep 5"}, nil)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}

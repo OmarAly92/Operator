@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -53,64 +52,18 @@ func TestDoctorFailsWhenGitMissing(t *testing.T) {
 	}
 }
 
-func TestDoctorChecksTmuxVersion(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("opr doctor emits a conpty check on Windows, not tmux")
-	}
-	setConfigEnv(t)
-	c := doctorContext(t, map[string]string{"git": "/bin/git", "tmux": "/bin/tmux"}, func(_ context.Context, name string, args ...string) ([]byte, error) {
-		switch name {
-		case "/bin/git":
-			return []byte("git version 2.43.0\n"), nil
-		case "/bin/tmux":
-			if len(args) != 1 || args[0] != "-V" {
-				t.Fatalf("unexpected tmux command: %s %v", name, args)
-			}
-			return []byte("tmux 3.3a\n"), nil
-		default:
-			t.Fatalf("unexpected command: %s %v", name, args)
-			return nil, nil
-		}
-	})
-
-	check := findDoctorCheck(t, c.runDoctor(context.Background()), "tmux")
-	if check.Level != doctorPass || !strings.Contains(check.Message, "3.3a") {
-		t.Fatalf("tmux check = %+v, want PASS with version", check)
-	}
-}
-
-// TestDoctorChecksTmuxVersionFailsOnError covers the case where tmux is found
-// but the version command fails.
-func TestDoctorChecksTmuxVersionFailsOnError(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("opr doctor emits a conpty check on Windows, not tmux")
-	}
-	setConfigEnv(t)
-	c := doctorContext(t, map[string]string{"git": "/bin/git", "tmux": "/bin/tmux"}, func(_ context.Context, name string, _ ...string) ([]byte, error) {
-		if name == "/bin/git" {
-			return []byte("git version 2.43.0\n"), nil
-		}
-		return nil, errors.New("exec: tmux: not found")
-	})
-
-	check := findDoctorCheck(t, c.runDoctor(context.Background()), "tmux")
-	if check.Level != doctorFail {
-		t.Fatalf("tmux check = %+v, want FAIL on version error", check)
-	}
-}
-
-func TestDoctorWarnsWhenTmuxMissing(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("opr doctor emits a conpty check on Windows, not tmux")
-	}
+// The pty-host is compiled into opr, so the check must pass with no external
+// binary on PATH — the regression this pins is a doctor that still demands a
+// terminal multiplexer the product no longer uses.
+func TestDoctorReportsBuiltInPtyHost(t *testing.T) {
 	setConfigEnv(t)
 	c := doctorContext(t, map[string]string{"git": "/bin/git"}, func(context.Context, string, ...string) ([]byte, error) {
 		return []byte("git version 2.43.0\n"), nil
 	})
 
-	check := findDoctorCheck(t, c.runDoctor(context.Background()), "tmux")
-	if check.Level != doctorWarn {
-		t.Fatalf("tmux check = %+v, want WARN", check)
+	check := findDoctorCheck(t, c.runDoctor(context.Background()), "pty-host")
+	if check.Level != doctorPass || !strings.Contains(check.Message, "built in") {
+		t.Fatalf("pty-host check = %+v, want PASS reporting the built-in runtime", check)
 	}
 }
 

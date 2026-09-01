@@ -121,12 +121,12 @@ export function terminalAcknowledgementDurations(messages, primaryName = "worklo
 	let workloadStart;
 	for (const message of [...messages].sort((left, right) => left.timestamp - right.timestamp)) {
 		if (message.name === "workload-start") {
-			if (workloadStart !== undefined) throw new Error("terminal workload acknowledgements are out of order");
+			if (workloadStart !== undefined) throw new Error(`terminal workload acknowledgements are out of order: start ${message.timestamp} followed start ${workloadStart}`);
 			workloadStart = message.timestamp;
 		}
 		if (message.name === primaryName) {
 			if (workloadStart === undefined || message.timestamp <= workloadStart) {
-				throw new Error("terminal workload acknowledgements are out of order");
+				throw new Error(`terminal workload acknowledgements are out of order: ${primaryName} ${message.timestamp} after ${workloadStart ?? "no start"}`);
 			}
 			durations.push(message.timestamp - workloadStart);
 			observedBytes.push(message.bytes);
@@ -470,7 +470,19 @@ function terminalReporter(expectedWorkloads, { primaryName = "workload", require
 	};
 }
 
-async function terminalViteServer(query) {
+
+export function tauriHarnessProxyConfig(daemonBaseUrl) {
+	return {
+		target: tauriDaemonUrl({ OPERATOR_BENCH_DAEMON_URL: daemonBaseUrl }),
+		ws: true,
+		configure(proxy) {
+			proxy.on("proxyReqWs", (request) => request.removeHeader("origin"));
+		},
+	};
+}
+
+async function terminalViteServer(queryForUrl, daemonBaseUrl) {
+	let query = "";
 	const vite = await createViteServer({
 		configFile: terminalViteConfigPath,
 		logLevel: "error",
@@ -482,7 +494,12 @@ async function terminalViteServer(query) {
 				},
 			},
 		],
-		server: { host: "127.0.0.1", port: 0, strictPort: false },
+		server: {
+			host: "127.0.0.1",
+			port: 0,
+			strictPort: false,
+			proxy: { "/mux": tauriHarnessProxyConfig(daemonBaseUrl) },
+		},
 	});
 	await vite.listen();
 	const address = vite.httpServer?.address();
@@ -490,12 +507,19 @@ async function terminalViteServer(query) {
 		await vite.close();
 		throw new Error("terminal benchmark Vite server did not bind a TCP port");
 	}
-	return { url: `http://127.0.0.1:${address.port}`, close: () => vite.close() };
+	const url = `http://127.0.0.1:${address.port}`;
+	try {
+		query = queryForUrl(url);
+	} catch (error) {
+		await vite.close();
+		throw error;
+	}
+	return { url, close: () => vite.close() };
 }
 
-function tauriHarnessQuery(env, scenarioName, scenario, reportUrl) {
+function tauriHarnessQuery(env, scenarioName, scenario, reportUrl, daemonBaseUrl = tauriDaemonUrl(env)) {
 	return new URLSearchParams({
-		daemonBaseUrl: tauriDaemonUrl(env),
+		daemonBaseUrl,
 		sessionId: requiredTauriInput(env, "OPERATOR_BENCH_SESSION_ID"),
 		terminalId: requiredTauriInput(env, "OPERATOR_BENCH_TERMINAL_ID"),
 		scenario: scenarioName,
@@ -506,15 +530,24 @@ function tauriHarnessQuery(env, scenarioName, scenario, reportUrl) {
 	}).toString();
 }
 
+export function tauriHarnessConfig(harnessUrl) {
+	return JSON.stringify({
+		productName: "Operator Benchmark",
+		identifier: "dev.operator.desktop.benchmark",
+		build: { beforeDevCommand: "", devUrl: harnessUrl },
+		app: { security: { capabilities: ["phase0", "default", "terminal-benchmark"] } },
+	});
+}
+
 function spawnTauriHarness(harnessUrl, stateRoot, env, compositing) {
-	const config = JSON.stringify({ build: { beforeDevCommand: "", devUrl: harnessUrl } });
+	const config = tauriHarnessConfig(harnessUrl);
 	const controlled = {
 		OPERATOR_DATA_DIR: path.join(stateRoot, "operator", "data"),
 		OPERATOR_RUN_FILE: path.join(stateRoot, "operator", "running.json"),
 		OPERATOR_TAURI_TERMINAL_BENCHMARK: "1",
+		OPERATOR_TAURI_TERMINAL_BENCHMARK_URL: harnessUrl,
 	};
 	if (compositing === "disabled") controlled.WEBKIT_DISABLE_COMPOSITING_MODE = "1";
-	if (env.OPERATOR_RUNTIME !== undefined) controlled.OPERATOR_RUNTIME = env.OPERATOR_RUNTIME;
 	const application = spawn(
 		process.execPath,
 		[tauriCliPath, "dev", "--no-watch", "--no-dev-server-wait", "--config", config],
@@ -610,6 +643,9 @@ function totalScenarioIterations(scenario) {
 
 export async function runTerminalBenchmark(argv = process.argv.slice(2), env = process.env) {
 	const options = parseTerminalArguments(argv);
+	if (options.shell === "tauri" && env.OPERATOR_RUNTIME !== undefined) {
+		throw new Error("OPERATOR_RUNTIME selects the benchmark shell's unused daemon, not OPERATOR_BENCH_DAEMON_URL; start the measured daemon with the intended runtime instead");
+	}
 	const scenarios = JSON.parse(await readFile(scenariosPath, "utf8"));
 	const scenario = scenarios[options.scenario];
 	if (!scenario) throw new Error(`missing terminal scenario configuration: ${options.scenario}`);
@@ -899,8 +935,10 @@ async function runTauriTerminalBenchmark(options, env, scenario) {
 	let nativeHarness;
 	let stopOnSignal;
 	try {
-		const query = tauriHarnessQuery(env, options.scenario, scenario, reportUrl);
-		vite = await terminalViteServer(query);
+		vite = await terminalViteServer(
+			(harnessUrl) => tauriHarnessQuery(env, options.scenario, scenario, reportUrl, harnessUrl),
+			tauriDaemonUrl(env),
+		);
 		stateRoot = await benchmarkStateDirectory("tauri");
 		nativeHarness = spawnTauriHarness(vite.url, stateRoot, env, options.compositing);
 		nativeHarness.application.once("exit", (code, signal) => {
@@ -966,8 +1004,10 @@ async function runTauriActiveMemoryScenario(options, env, scenario, evidence) {
 		let stateRoot;
 		let nativeHarness;
 		try {
-			const query = tauriHarnessQuery(env, options.scenario, { ...scenario, warmups: 0, samples: burstCount }, reportUrl);
-			vite = await terminalViteServer(query);
+			vite = await terminalViteServer(
+				(harnessUrl) => tauriHarnessQuery(env, options.scenario, { ...scenario, warmups: 0, samples: burstCount }, reportUrl, harnessUrl),
+				tauriDaemonUrl(env),
+			);
 			stateRoot = await benchmarkStateDirectory("tauri");
 			nativeHarness = spawnTauriHarness(vite.url, stateRoot, env, options.compositing);
 			nativeHarness.application.once("exit", (code, signal) => {

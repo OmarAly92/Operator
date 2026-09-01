@@ -146,9 +146,9 @@ graph TD
 - CLI output shapes
 - OpenAPI wrapper types
 - sqlc generated rows
-- External system payloads (GitHub, tmux, agent-specific)
+- External system payloads (GitHub, the pty-host protocol, agent-specific)
 
-**Rule of thumb:** If Operator would still use the concept after replacing HTTP, CLI, SQLite, GitHub, tmux, and every agent adapter, it belongs in domain.
+**Rule of thumb:** If Operator would still use the concept after replacing HTTP, CLI, SQLite, GitHub, the pty-host, and every agent adapter, it belongs in domain.
 
 ---
 
@@ -187,7 +187,7 @@ graph LR
 
 | Port             | Purpose                 | Implementations         |
 | ---------------- | ----------------------- | ----------------------- |
-| `Runtime`        | Process isolation       | `tmux`, `conpty`        |
+| `Runtime`        | Process isolation       | `ptyhost`               |
 | `Workspace`      | Git worktree management | `gitworktree`           |
 | `Agent`          | Agent launching         | 23+ agent adapters      |
 | `SCM`            | PR/CI observation       | `github`                |
@@ -377,7 +377,7 @@ graph TD
 
     subgraph External
         GitHub[GitHub API]
-        Runtimes[tmux/conpty]
+        Runtimes[ptyhost]
     end
 
     subgraph Internal
@@ -492,7 +492,7 @@ graph TD
     Terminal -->|creates| Attach[Attach Streams]
     Attach -->|wraps| PTY[PTY Sessions]
 
-    PTY --> Unix[Unix: tmux attach<br/>via ptyexec]
+    PTY --> Unix[pty-host attach<br/>over loopback]
     PTY --> Windows[Windows: conpty<br/>loopback dial]
 
     Terminal -->|manages| State[Session States]
@@ -601,7 +601,7 @@ graph TD
     Ports[Ports Interfaces] -->|implemented by| Adapters[Adapters]
 
     Adapters --> Agent[agent/*<br/>23+ harnesses]
-    Adapters --> Runtime[runtime/*<br/>tmux, conpty]
+    Adapters --> Runtime[runtime/*<br/>ptyhost]
     Adapters --> Workspace[workspace/*<br/>gitworktree]
     Adapters --> SCM[scm/*<br/>github]
     Adapters --> Tracker[tracker/*<br/>github]
@@ -625,7 +625,7 @@ graph TD
 
 ```
 session_manager → ports.Runtime
-adapters/runtime/tmux → ports + domain
+adapters/runtime/ptyhost → ports + domain
 adapters/workspace/gitworktree → ports + domain
 daemon → adapters + services + storage
 ```
@@ -634,7 +634,7 @@ daemon → adapters + services + storage
 
 ```
 domain → adapters
-service/session → adapters/runtime/tmux
+service/session → adapters/runtime/ptyhost
 httpd/controllers → storage/sqlite/store
 adapters/* → httpd
 ```

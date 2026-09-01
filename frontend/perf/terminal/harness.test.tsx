@@ -298,6 +298,58 @@ describe("terminal benchmark harness", () => {
 		await waitFor(() => expect(mux.open).toHaveBeenCalledWith("terminal-1", 120, 40));
 	});
 
+	it("puts the POSIX scroll responder in noncanonical mode before sending wheel input", async () => {
+		const defaultUserAgent = navigator.userAgent;
+		Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Macintosh" });
+		const mux = fakeMux();
+		const acknowledgements: TerminalAcknowledgement[] = [];
+		try {
+			render(
+				<SkinProvider>
+					<TerminalBenchmarkHarness
+						configuration={configuration()}
+						createMux={() => mux}
+						scenarioName="scroll-latency"
+						onAcknowledgement={(acknowledgement) => acknowledgements.push(acknowledgement)}
+					/>
+				</SkinProvider>,
+			);
+			await waitFor(() => expect(mux.open).toHaveBeenCalled());
+			const responder = vi.mocked(mux.sendInput).mock.calls[0]?.[1] as string;
+			expect(responder).toContain("stty -echo -icanon min 1 time 0");
+
+			act(() => window.dispatchEvent(new CustomEvent("operator:terminal-benchmark-scroll")));
+			expect(vi.mocked(mux.sendInput).mock.calls[1]?.[1]).toBe("\x1b[<64;1;1M");
+			act(() => emitRender(250));
+			expect(acknowledgements.some(({ name }) => name === "scroll")).toBe(false);
+			act(() => mux.emitData(new TextEncoder().encode("__OPERATOR_SCROLL_RESPONSE__ 1\r\n")));
+			act(completeWrite);
+			act(() => emitRender(300));
+			expect(acknowledgements).toContainEqual({ name: "scroll", timestamp: 300 });
+		} finally {
+			Object.defineProperty(navigator, "userAgent", { configurable: true, value: defaultUserAgent });
+		}
+	});
+
+	it("stops the scroll responder before detaching", async () => {
+		const mux = fakeMux();
+		const view = render(
+			<SkinProvider>
+				<TerminalBenchmarkHarness
+					configuration={configuration()}
+					createMux={() => mux}
+					scenarioName="scroll-latency"
+				/>
+			</SkinProvider>,
+		);
+		await waitFor(() => expect(mux.open).toHaveBeenCalled());
+
+		view.unmount();
+
+		expect(mux.sendInput).toHaveBeenLastCalledWith("terminal-1", "\x03");
+		expect(mux.close).toHaveBeenCalledWith("terminal-1");
+	});
+
 	it("does not arm workload completion until the marker write finishes", async () => {
 		const mux = fakeMux();
 		const acknowledgements: TerminalAcknowledgement[] = [];

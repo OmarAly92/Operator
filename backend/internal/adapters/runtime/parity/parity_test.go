@@ -49,6 +49,18 @@ func TestRenderedOutputMatchesTmux(t *testing.T) {
 	}
 }
 
+// replayCommand feeds a recorded vector into a pane with echo off, applied to
+// both runners alike. In cooked mode the tty echoes a terminal's own query
+// replies back onto the screen: tmux answers XTVERSION and Primary DA, so its
+// capture grows a literal "^[P>|tmux 3.6b^[\" that no parser produced and that
+// nothing but tmux could ever reproduce. Real agent CLIs run the tty raw, and
+// the recordings contain no reply bytes, so echoing them compares line-discipline
+// behaviour rather than terminal emulation. Disabling it symmetrically cannot
+// mask a parser difference — neither side can echo what neither side is sent.
+func replayCommand(fifoPath string) string {
+	return "stty -echo; cat < " + fifoPath
+}
+
 func requireTmux(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -99,7 +111,7 @@ func runUnderTmux(t *testing.T, sc Scenario) []string {
 
 	newSession := tmuxCmd("-f", "/dev/null", "new-session", "-d", "-s", session,
 		"-x", strconv.Itoa(sc.Cols), "-y", strconv.Itoa(sc.Rows),
-		"cat < "+fifoPath)
+		replayCommand(fifoPath))
 	if out, err := newSession.CombinedOutput(); err != nil {
 		t.Fatalf("tmux new-session: %v: %s", err, out)
 	}
@@ -153,7 +165,7 @@ func runUnderPtyHost(t *testing.T, sc Scenario) []string {
 	handle, err := rt.Create(ctx, ports.RuntimeConfig{
 		SessionID:     domain.SessionID(sessionID),
 		WorkspacePath: workDir,
-		Argv:          []string{"/bin/sh", "-c", "cat < " + fifoPath},
+		Argv:          []string{"/bin/sh", "-c", replayCommand(fifoPath)},
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)

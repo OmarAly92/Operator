@@ -3959,12 +3959,13 @@ func normalizeNodeVersion(version string) string {
 	return strings.TrimPrefix(strings.TrimSpace(version), "v")
 }
 
+// validateRuntimePrerequisites checks what the pty-host runtime needs from the
+// host. There is no external multiplexer to find any more — the host is this
+// binary, re-exec'd as `opr pty-host` — so the only prerequisite left is that
+// the binary can locate itself.
 func (m *Manager) validateRuntimePrerequisites() error {
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-	if path, err := m.lookPath("tmux"); err != nil || path == "" {
-		return fmt.Errorf("%w: tmux required on macOS/Linux but not in PATH", ports.ErrRuntimePrerequisite)
+	if _, err := m.executable(); err != nil {
+		return fmt.Errorf("%w: cannot resolve the opr executable to launch a pty-host: %v", ports.ErrRuntimePrerequisite, err)
 	}
 	return nil
 }

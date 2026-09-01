@@ -41,7 +41,7 @@ surface (`npm run sqlc`, `npm run api`).
   rollback, cleanup, send, activity, PR claim/list. Orchestrator routes
   (list/spawn/get) are wired too.
 - One daemon-committed interface per session. TUI sessions retain the established
-  tmux/conpty agent runtime; Chat sessions use runtime-less native controllers,
+  pty-host agent runtime; Chat sessions use runtime-less native controllers,
   persist provider conversation identity, and dispatch lifecycle reactions
   through the same mode-aware session manager. A durable, capability-gated
   drain/interrupt handoff can move the same Claude Code or Codex native
@@ -84,9 +84,9 @@ surface (`npm run sqlc`, `npm run api`).
   ([#75](https://github.com/OmarAly92/operator/issues/75),
   [#108](https://github.com/OmarAly92/operator/issues/108),
   [#109](https://github.com/OmarAly92/operator/issues/109)).
-- Terminal mux over WebSocket (`/mux`): per-client `tmux attach` PTY on
+- Terminal mux over WebSocket (`/mux`): per-client pty-host attach stream on
   Darwin/Linux; conpty loopback pty-host on Windows.
-- Durable shell blocks for standalone tmux shells: a single `pipe-pane` helper writes a
+- Durable shell blocks for standalone shells: a single capture tee writes a
   bounded journal independent of attached clients; the daemon adopts it after restart,
   persists exact raw replays in `terminal_blocks`, and exposes chronological history at
   `GET /api/v1/shell-terminals/{handleId}/blocks`. History retains the newest 100 blocks
@@ -141,7 +141,7 @@ surface (`npm run sqlc`, `npm run api`).
   spawn-orchestrator flow.
 - SessionView renders from the session's persisted mode: the existing terminal
   surface for TUI, or the durable Chat timeline/composer for Chat. Chat retains
-  access to session-scoped worktree shells without creating an agent tmux pane.
+  access to session-scoped worktree shells without creating an agent session.
 - Compatible Claude Code and Codex sessions expose an in-session “Open Chat” /
   “Open Terminal UI” action. Idle sessions switch directly; busy sessions offer
   an explicit finish-and-drain or stop-and-interrupt policy and show durable

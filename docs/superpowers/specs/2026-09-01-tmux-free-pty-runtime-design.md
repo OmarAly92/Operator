@@ -350,6 +350,16 @@ Pre-release, no users, sessions disposable — these are decisions, not oversigh
 - **No reboot hygiene.** After a reboot, `ptyregistry` entries point at dead
   PIDs and sockets; recovery just fails and the session is respawned fresh.
   Stale-entry GC can come later.
+- **Nobody answers terminal capability queries with no client attached.** tmux
+  was itself the emulator on the agent's PTY, so it always answered XTVERSION
+  (`CSI > q`) and Primary DA (`CSI c`). With tmux gone the emulator is the
+  renderer: xterm.js answers those on the alternate-screen surface, but only
+  while a client is attached, and `vt-core` does not answer at all. A TUI that
+  blocks on a DA reply in a detached session would therefore wait. Deferred on
+  evidence rather than assumption: `conpty` has shipped on Windows with exactly
+  this behaviour and no report has traced to it. The fix, if it ever bites, is
+  cheap and stays off the hot path — the passive parser already sees the query,
+  so it can queue a reply for the host to write to the PTY's input side.
 
 ## Rollout
 

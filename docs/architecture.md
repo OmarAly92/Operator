@@ -1,6 +1,6 @@
 # Operator Architecture
 
-Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a tmux/conpty runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
+Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a pty-host runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
 
 ## Table of Contents
 
@@ -87,7 +87,7 @@ graph TB
 
     subgraph Adapters["Adapters"]
         AgentAdapter[Agent Adapters]
-        RuntimeAdapter[Runtime tmux/conpty]
+        RuntimeAdapter[Runtime pty-host]
         ChatDriver[Native Chat / ACP Drivers]
         WorkspaceAdapter[Workspace git worktree]
         SCMAdapter[SCM GitHub]
@@ -212,7 +212,7 @@ backend/internal/
 ├── adapters/            # Concrete adapter implementations
 │   ├── agent/           # 23+ agent harnesses
 │   ├── chatdriver/      # Native provider protocols and reusable ACP transport
-│   ├── runtime/         # tmux/conpty runtimes
+│   ├── runtime/         # pty-host runtime
 │   ├── workspace/       # git worktree
 │   ├── scm/             # GitHub
 │   └── tracker/         # GitHub tracker
@@ -261,7 +261,7 @@ sequenceDiagram
     alt persisted mode = tui
         Note over Mgr: 3a. Launch terminal controller
         Mgr->>Runtime: Create(session)
-        Runtime->>Runtime: Start tmux/conpty
+        Runtime->>Runtime: Start pty-host
         Mgr->>Agent: GetLaunchCommand()
         Agent-->>Mgr: launch command
         Mgr->>Runtime: Execute(agent command)
@@ -300,7 +300,7 @@ flowchart TD
     CreateRow --> Trigger1[CDC: session.created]
     CreateRow --> CreateWS[Create git worktree]
     CreateWS --> LaunchMode{Persisted mode}
-    LaunchMode -->|tui| CreateRT[Launch runtime tmux/conpty]
+    LaunchMode -->|tui| CreateRT[Launch pty-host runtime]
     CreateRT --> GetCmd[Get agent launch command]
     GetCmd --> ExecAgent[Execute agent in runtime]
     LaunchMode -->|chat| ChatController[Start or resume provider controller]
@@ -773,7 +773,7 @@ flowchart TD
 flowchart LR
     subgraph External["External State"]
         GitHub[GitHub API]
-        Runtimes[tmux/conpty]
+        Runtimes[pty-host]
     end
 
     subgraph Observers["Observation Layer"]
@@ -904,29 +904,30 @@ sequenceDiagram
 
 The mux is the primary agent controller only for TUI-mode sessions. Chat-mode
 sessions have no agent runtime handle and never attach their provider through
-tmux. They may still open session-scoped shell terminals as a worktree escape
+the mux. They may still open session-scoped shell terminals as a worktree escape
 hatch; those shells are separate resources and do not become the agent
 controller.
 
 ### Durable shell-block capture
 
-On Darwin/Linux, each eligible standalone shell has one tmux `pipe-pane` writer. It runs
-the internal `opr pane-capture` helper, which writes an epoch-scoped journal below the
-Operator data root: one active 1 MiB segment and at most eight sealed segments. Before
+Each eligible standalone shell has one capture writer, tee'd off the pty-host's
+own output path after the client broadcast so it can never delay a byte reaching the
+screen. It writes an epoch-scoped journal below the Operator data root: one active 1 MiB segment and at most eight sealed segments. Before
 pruning unread data it records a gap. The reader never rotates or truncates the journal;
 after a gap it abandons the partial block and resumes at the next valid prompt. The
 alternate-screen flag intentionally remains unchanged across a gap, favoring suppression
 of possible TUI repaint bytes over an unsafe reset.
 
-The capture supervisor serializes start/stop per terminal handle, queries tmux pipe and
+The capture supervisor serializes start/stop per terminal handle, queries capture and
 alternate-screen state, and adopts live writers after daemon restart. On an explicit
 close it stops and seals the writer, drains and persists final data, then lets runtime
 destruction proceed. On graceful daemon shutdown it drains and detaches but leaves live
 writers running for restart adoption. Raw replay blocks and their cursor metadata live in
 `terminal_blocks`, keyed by terminal handle; `GET /api/v1/shell-terminals/{handleId}/blocks`
 returns chronological history. The store retains the newest 100 blocks per terminal and
-5,000 output lines per block, with an additional 8 MiB raw-byte safety cap. Windows has
-no ConPTY capture path, so its raw terminal advertises `durableBlocks: false`.
+5,000 output lines per block, with an additional 8 MiB raw-byte safety cap. Capture is
+part of the pty-host, so it behaves the same on every platform; `durableBlocks` reports
+whether a given handle is actually being captured, not which OS it runs on.
 
 ### Terminal Architecture
 
@@ -946,18 +947,15 @@ flowchart TD
     end
 
     subgraph Runtime
-        TMux[tmux Runtime]
-        ConPTY[conpty Runtime]
+        PtyHost[pty-host Runtime]
     end
 
     Browser -->|WebSocket| WS
     WS -->|attach| Mux
     Mux --> Sessions
-    Sessions -->|create| TMux
-    Sessions -->|create| ConPTY
+    Sessions -->|create| PtyHost
 
-    TMux -->|PTY attach| Mux
-    ConPTY -->|loopback dial| Mux
+    PtyHost -->|loopback dial| Mux
 
     Mux -->|frame| WS
     WS -->|binary| Browser
@@ -971,14 +969,14 @@ sequenceDiagram
     participant Client as Browser
     participant WS as WebSocket Handler
     participant Mux as Terminal Mux
-    participant Runtime as tmux/conpty
+    participant Runtime as pty-host
 
     Client->>WS: WebSocket upgrade
     WS->>Mux: Attach(session, rows, cols)
     Mux->>Runtime: Attach(handle, rows, cols)
 
     Runtime->>Runtime: Create PTY
-    Runtime->>Runtime: Spawn tmux attach
+    Runtime->>Runtime: Dial the session's pty-host
 
     loop Data Loop
         Runtime->>Mux: PTY output

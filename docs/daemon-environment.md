@@ -16,7 +16,7 @@ macOS (and any GUI-launched desktop platform)
 
 When the desktop app is launched from Finder/Dock/Spotlight, the daemon it spawns
 inherits a stunted environment (minimal `PATH`, no shell-exported credentials).
-The daemon then cannot find `tmux`/`git`/the agent CLIs, and the agents it
+The daemon then cannot find `git`/the agent CLIs, and the agents it
 launches cannot see API keys. The same app launched from a terminal works,
 because a terminal-started process inherits the shell's fully-populated
 environment. The fix is to resolve the user's login-shell environment once at
@@ -27,7 +27,7 @@ startup and use it as the base for the daemon's environment.
 The Electron supervisor spawns the Go daemon with the environment it forwards in
 `daemonEnv()` (`frontend/src/main.ts`), which is essentially `...process.env`
 plus Operator's telemetry defaults. The daemon, in turn, is the parent of every agent
-session (it execs `tmux`, which runs `claude`/`codex`, etc.), and the agent's
+session (its pty-host runs `claude`/`codex`, etc.), and the agent's
 `PATH` is derived from the daemon's own `PATH`
 (`runtimeEnv` -> `HookPATH(m.executable, os.Getenv, ...)` in
 `backend/internal/session_manager/manager.go`).
@@ -35,7 +35,7 @@ session (it execs `tmux`, which runs `claude`/`codex`, etc.), and the agent's
 So whatever environment the daemon receives propagates to the entire stack:
 
 ```
-launchd (or terminal) -> Electron main -> daemon -> tmux -> agent (claude/codex)
+launchd (or terminal) -> Electron main -> daemon -> pty-host -> agent (claude/codex)
 ```
 
 When that environment is impoverished, everything downstream breaks.
@@ -50,13 +50,13 @@ All of these were traced to the same root cause:
 - Sessions stuck `idle` + `is_terminated = 0` in the store, never reaped, and
   therefore not restorable (`Restore` requires `IsTerminated`, otherwise
   `ErrNotRestorable`).
-- `tmux list-sessions` showing sessions as alive-but-unreachable or dead,
-  depending on which socket universe was inspected.
+- Sessions showing as alive-but-unreachable or dead, depending on which
+  environment the probing process had.
 
 The unifying cause: the running, GUI-launched daemon cannot execute
-`/opt/homebrew/bin/tmux` (and friends), so its liveness probes error
+`/opt/homebrew/bin/git` (and the agent CLIs), so its liveness probes error
 (`ProbeFailed`, never `ProbeDead`, so the reaper never terminates the row) and
-its terminal attaches cannot spawn `tmux attach`.
+the agents it launches cannot start.
 
 ## Root cause: GUI apps do not inherit the shell environment
 
@@ -87,7 +87,7 @@ single most common macOS-Electron footgun; it is why packages like `fix-path` an
 
 Forwarding the environment is not the bug. The daemon and agents genuinely need:
 
-- `PATH` to resolve `tmux`, `git`, `node`, and the agent CLIs;
+- `PATH` to resolve `git`, `node`, and the agent CLIs;
 - `HOME` for config/credentials (`~/.gitconfig`, `~/.claude`, `~/.codex`, ssh
   keys);
 - shell-exported credentials (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GH_TOKEN`,
@@ -145,7 +145,7 @@ GH_TOKEN=ghp_...
 LANG=en_US.UTF-8
 ```
 
-The daemon can now resolve `/opt/homebrew/bin/tmux`, and agents inherit the
+The daemon can now resolve `/opt/homebrew/bin/git`, and agents inherit the
 credentials.
 
 ### Implementation details
@@ -167,7 +167,7 @@ parent that hands env to the daemon.
 - **Fallback on any failure.** If the probe fails, times out, or exits nonzero,
   fall back to a static base: prepend
   `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin` and pull
-  through known credential vars. A weird shell config then degrades to "tmux
+  through known credential vars. A weird shell config then degrades to "git
   and git resolve" rather than "broken."
 
 ### Platform scope
@@ -188,7 +188,7 @@ it. We shell out once to the user's own shell and adopt its result.
 - Fallback test: simulate probe failure/timeout; assert the static PATH floor and
   credential pass-through are applied.
 - Manual: launch the packaged app from Finder (not a terminal) and confirm a new
-  session spawns, the terminal attaches, and `tmux`/`git`/agent binaries
+  session spawns, the terminal attaches, and `git`/agent binaries
   resolve.
 
 ## Relevant code
@@ -197,9 +197,10 @@ it. We shell out once to the user's own shell and adopt its result.
   spawn.
 - `backend/internal/session_manager/manager.go` - `runtimeEnv` / `HookPATH`
   (agent `PATH` derived from the daemon's `PATH`); `spawnEnv`.
-- `backend/internal/adapters/runtime/tmux/tmux.go` - `defaultBinary()`
-  (`exec.LookPath("tmux")` against the daemon's `PATH`).
+- `backend/internal/adapters/runtime/ptyhost/spawn.go` - the pty-host is
+  re-exec'd from this binary via `os.Executable()`, so it needs no `PATH` entry
+  of its own; the shell and agent CLI it launches still do.
 - `backend/internal/observe/reaper/reaper.go`,
   `backend/internal/lifecycle/runtime.go` - liveness -> termination
-  (`ProbeFailed` never terminates, so a daemon that cannot run `tmux` strands
-  sessions).
+  (`ProbeFailed` never terminates, so a daemon that cannot run the agent CLI
+  strands sessions).

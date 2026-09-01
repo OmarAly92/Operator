@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
@@ -31,7 +32,7 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 	}
 
 	pr, pw := io.Pipe()
-	s := &loopbackStream{conn: conn, pr: pr, pw: pw}
+	s := &loopbackStream{conn: conn, pr: pr, pw: pw, applied: make(chan struct{}, 1)}
 
 	// Pump host frames: MsgTerminalData payloads go into the pipe that Read
 	// drains. The first such frame is the scrollback snapshot, so the replay
@@ -50,6 +51,15 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 			_ = s.Close()
 			return nil, err
 		}
+		// Wait for the host to have applied it before handing back the stream.
+		// The host dispatches one connection's messages in order, so a status
+		// reply proves the resize landed. Returning early instead lets the
+		// child's first output be parsed at the pre-attach grid, which renders
+		// GetOutput at the wrong width and height until the race resolves.
+		if err := s.awaitApplied(); err != nil {
+			_ = s.Close()
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -62,6 +72,11 @@ type loopbackStream struct {
 	pr   *io.PipeReader
 	pw   *io.PipeWriter
 
+	// applied carries host status replies, which Attach uses to confirm its
+	// initial resize took effect. Buffered and best-effort: nothing after
+	// Attach reads it, so the pump never blocks on it.
+	applied chan struct{}
+
 	closeOnce sync.Once
 }
 
@@ -69,9 +84,15 @@ type loopbackStream struct {
 // pipe. It closes the pipe when the connection ends so Read returns EOF.
 func (s *loopbackStream) pump() {
 	parser := NewMessageParser(func(msgType byte, payload []byte) {
-		if msgType == MsgTerminalData {
+		switch msgType {
+		case MsgTerminalData:
 			// Write blocks until Read drains, preserving back-pressure and order.
 			_, _ = s.pw.Write(payload)
+		case MsgStatusRes:
+			select {
+			case s.applied <- struct{}{}:
+			default:
+			}
 		}
 	})
 	buf := make([]byte, 4096)
@@ -98,6 +119,26 @@ func (s *loopbackStream) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+const attachResizeAckTimeout = 5 * time.Second
+
+// awaitApplied round-trips a status request so the caller knows every frame
+// written before it has been handled.
+func (s *loopbackStream) awaitApplied() error {
+	frame, err := EncodeMessage(MsgStatusReq, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := s.conn.Write(frame); err != nil {
+		return err
+	}
+	select {
+	case <-s.applied:
+		return nil
+	case <-time.After(attachResizeAckTimeout):
+		return fmt.Errorf("ptyhost: host did not acknowledge the attach resize in %s", attachResizeAckTimeout)
+	}
 }
 
 func (s *loopbackStream) Resize(rows, cols uint16) error {

@@ -403,31 +403,36 @@ fn build_main_window(
     app: &tauri::AppHandle,
     state_root: &Path,
     audit_script: Option<String>,
+    external_url: Option<tauri::Url>,
 ) -> Result<tauri::WebviewWindow, tauri::Error> {
-    let mut builder = tauri::WebviewWindowBuilder::new(
-        app,
-        shortcuts::MAIN_WINDOW_LABEL,
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("Operator")
-    .inner_size(1320.0, 860.0)
-    .min_inner_size(960.0, 640.0)
-    .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
-    .data_directory(state_root.join("webview"))
-    .use_https_scheme(false)
-    .on_page_load(|webview, payload| {
-        if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
-            if let Some(shell) = webview.app_handle().try_state::<native::ShellState>() {
-                native::reset_native_shell(&shell);
-                let sessions = shell
-                    .sessions
-                    .lock()
-                    .map(|guard| guard.clone())
-                    .unwrap_or_default();
-                let _ = tray::apply_state(webview.app_handle(), &sessions);
+    let window_label = if external_url.is_some() {
+        "terminal-benchmark"
+    } else {
+        shortcuts::MAIN_WINDOW_LABEL
+    };
+    let window_url = external_url
+        .map(tauri::WebviewUrl::External)
+        .unwrap_or_else(|| tauri::WebviewUrl::App("index.html".into()));
+    let mut builder = tauri::WebviewWindowBuilder::new(app, window_label, window_url)
+        .title("Operator")
+        .inner_size(1320.0, 860.0)
+        .min_inner_size(960.0, 640.0)
+        .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
+        .data_directory(state_root.join("webview"))
+        .use_https_scheme(false)
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                if let Some(shell) = webview.app_handle().try_state::<native::ShellState>() {
+                    native::reset_native_shell(&shell);
+                    let sessions = shell
+                        .sessions
+                        .lock()
+                        .map(|guard| guard.clone())
+                        .unwrap_or_default();
+                    let _ = tray::apply_state(webview.app_handle(), &sessions);
+                }
             }
-        }
-    });
+        });
     if let Some(script) = audit_script {
         builder = builder.initialization_script(script);
     }
@@ -439,7 +444,7 @@ fn rebuild_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
         .try_state::<native::ShellState>()
         .map(|shell| shell.state_root.clone())
         .ok_or_else(|| std::io::Error::other("Operator shell state was not initialized"))?;
-    build_main_window(app, &state_root, None)?;
+    build_main_window(app, &state_root, None, None)?;
     Ok(())
 }
 
@@ -449,6 +454,24 @@ fn terminal_benchmark_context(raw: Option<&str>) -> Result<bool, &'static str> {
         Some("1") => Ok(true),
         Some(_) => Err("invalid OPERATOR_TAURI_TERMINAL_BENCHMARK"),
     }
+}
+
+fn terminal_benchmark_window_url(raw: Option<&str>) -> Result<tauri::Url, &'static str> {
+    let raw = raw.ok_or("OPERATOR_TAURI_TERMINAL_BENCHMARK_URL is required")?;
+    let url =
+        tauri::Url::parse(raw).map_err(|_| "OPERATOR_TAURI_TERMINAL_BENCHMARK_URL is invalid")?;
+    let loopback = matches!(
+        url.host_str(),
+        Some("127.0.0.1" | "localhost" | "::1" | "[::1]")
+    );
+    if !matches!(url.scheme(), "http" | "https")
+        || !loopback
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("OPERATOR_TAURI_TERMINAL_BENCHMARK_URL must use a loopback HTTP(S) origin");
+    }
+    Ok(url)
 }
 
 fn native_runtime_identity(webview_version: Result<String, String>) -> Result<String, String> {
@@ -932,6 +955,18 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     if terminal_benchmark && audit_mode.is_some() {
         return Err(std::io::Error::other("Tauri audit contexts are mutually exclusive").into());
     }
+    let terminal_benchmark_url = if terminal_benchmark {
+        Some(
+            terminal_benchmark_window_url(
+                env::var("OPERATOR_TAURI_TERMINAL_BENCHMARK_URL")
+                    .ok()
+                    .as_deref(),
+            )
+            .map_err(std::io::Error::other)?,
+        )
+    } else {
+        None
+    };
     let audit_script = audit_mode.as_ref().map(|_| {
         r##"
 void (async () => {
@@ -1071,7 +1106,12 @@ void (async () => {
                     manager.start().await;
                 });
             }
-            build_main_window(app.handle(), &state_root, audit_script.clone())?;
+            build_main_window(
+                app.handle(),
+                &state_root,
+                audit_script.clone(),
+                terminal_benchmark_url.clone(),
+            )?;
             if !app.manage(native::ShellState {
                 state_root: state_root.clone(),
                 tray: std::sync::Mutex::new(None),
@@ -1197,6 +1237,7 @@ mod tests {
     use super::resolve_state_root;
     use super::state_environment;
     use super::terminal_benchmark_context;
+    use super::terminal_benchmark_window_url;
     use super::updater_temp_dir;
     use super::StateProfile;
 
@@ -1232,6 +1273,22 @@ mod tests {
             terminal_benchmark_context(Some("true")).unwrap_err(),
             "invalid OPERATOR_TAURI_TERMINAL_BENCHMARK"
         );
+    }
+
+    #[test]
+    fn terminal_benchmark_window_requires_a_loopback_http_url() {
+        assert_eq!(
+            terminal_benchmark_window_url(Some("http://127.0.0.1:5173/path?scenario=scroll"))
+                .unwrap()
+                .as_str(),
+            "http://127.0.0.1:5173/path?scenario=scroll"
+        );
+        assert!(terminal_benchmark_window_url(Some("https://localhost:5173/")).is_ok());
+        assert!(terminal_benchmark_window_url(Some("http://[::1]:5173/")).is_ok());
+        assert!(terminal_benchmark_window_url(None).is_err());
+        assert!(terminal_benchmark_window_url(Some("https://operator.dev/")).is_err());
+        assert!(terminal_benchmark_window_url(Some("http://user@127.0.0.1:5173/")).is_err());
+        assert!(terminal_benchmark_window_url(Some("file://127.0.0.1/tmp/index.html")).is_err());
     }
 
     #[test]

@@ -50,6 +50,8 @@ type WorkloadRequest = {
 
 const workloadMarker = "__OPERATOR_TERMINAL_WORKLOAD_COMPLETE__";
 const workloadMarkerBytes = new TextEncoder().encode(workloadMarker);
+const scrollResponseMarker = "__OPERATOR_SCROLL_RESPONSE__";
+const scrollResponseMarkerBytes = new TextEncoder().encode(scrollResponseMarker);
 
 const acknowledgementMarks: Record<TerminalAcknowledgement["name"], string> = {
 	"first-paint": "operator:terminal-first-paint",
@@ -107,19 +109,19 @@ export function terminalHarnessConfiguration(search: string): TerminalHarnessCon
 	};
 }
 
-function markerMatcher(): (bytes: Uint8Array) => boolean {
+function markerMatcher(markerBytes = workloadMarkerBytes): (bytes: Uint8Array) => boolean {
 	let matchedBytes = 0;
 	return (bytes) => {
 		let completed = false;
 		for (const byte of bytes) {
-			if (byte === workloadMarkerBytes[matchedBytes]) {
+			if (byte === markerBytes[matchedBytes]) {
 				matchedBytes += 1;
-				if (matchedBytes === workloadMarkerBytes.length) {
+				if (matchedBytes === markerBytes.length) {
 					completed = true;
 					matchedBytes = 0;
 				}
 			} else {
-				matchedBytes = byte === workloadMarkerBytes[0] ? 1 : 0;
+				matchedBytes = byte === markerBytes[0] ? 1 : 0;
 			}
 		}
 		return completed;
@@ -169,9 +171,9 @@ function scenarioRequiresAlternateScreenResponder(scenarioName?: string): boolea
 
 function alternateScreenResponderScript(): string {
 	if (navigator.userAgent.includes("Windows")) {
-		return `[Console]::Out.Write([char]27 + '[?1049h' + [char]27 + '[?1006h' + [char]27 + '[?1000h'); $i=0; while($true){ $b=[Console]::In.Read(); if ($b -lt 0) { break }; $i++; [Console]::Out.Write([char]27 + '[H' + [char]27 + '[2Kscroll ' + $i + [char]13 + [char]10) }\r`;
+		return `[Console]::Out.Write([char]27 + '[?1049h' + [char]27 + '[?1006h' + [char]27 + '[?1000h'); $i=0; while($true){ $b=[Console]::In.Read(); if ($b -lt 0) { break }; if ($b -ne 77) { continue }; $i++; [Console]::Out.Write([char]27 + '[H' + [char]27 + '[2K${scrollResponseMarker} ' + $i + [char]13 + [char]10) }\r`;
 	}
-	return "printf '\\033[?1049h\\033[?1006h\\033[?1000h'; i=0; while chunk=$(dd bs=32 count=1 2>/dev/null); do i=$((i+1)); printf '\\033[H\\033[2Kscroll %d\\r\\n' \"$i\"; done\r";
+	return `( saved=$(stty -g); cleanup(){ stty "$saved"; printf '\\033[?1000l\\033[?1006l\\033[?1049l'; }; trap 'exit 0' HUP INT TERM; trap cleanup EXIT; stty -echo -icanon min 1 time 0; printf '\\033[?1049h\\033[?1006h\\033[?1000h'; i=0; while chunk=$(dd bs=32 count=1 2>/dev/null); do case "$chunk" in *M*) ;; *) continue ;; esac; i=$((i+1)); printf '\\033[H\\033[2K${scrollResponseMarker} %d\\r\\n' "$i"; done )\r`;
 }
 
 function useAcknowledgements(onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void) {
@@ -222,6 +224,7 @@ export function TerminalBenchmarkHarness({
 	const lastPrimaryBytesRef = useRef<number | undefined>(undefined);
 	const inputEchoPendingRef = useRef(0);
 	const scrollPendingRef = useRef(0);
+	const scrollPaintPendingRef = useRef(0);
 	const responderStartedRef = useRef(false);
 	const firstPaintRef = useRef(false);
 	const acknowledge = useAcknowledgements(onAcknowledgement);
@@ -244,8 +247,8 @@ export function TerminalBenchmarkHarness({
 				acknowledge("input-echo", event.timestamp);
 				return;
 			}
-			if (scrollPendingRef.current > 0) {
-				scrollPendingRef.current -= 1;
+			if (scrollPaintPendingRef.current > 0) {
+				scrollPaintPendingRef.current -= 1;
 				acknowledge("scroll", event.timestamp);
 			}
 			return;
@@ -316,7 +319,10 @@ export function TerminalBenchmarkHarness({
 		if (!terminal || mode === "disposal") return undefined;
 		const mux = createMux(muxUrlFromApiBase(configuration.daemonBaseUrl));
 		const seesWorkloadMarker = markerMatcher();
+		const seesScrollResponse = markerMatcher(scrollResponseMarkerBytes);
 		const reconnecting = attachmentGeneration > 0;
+		let socketOpened = false;
+		let socketClosed = false;
 		muxRef.current = mux;
 		const subscriptions = [
 			mux.onData(configuration.terminalId, (bytes) => {
@@ -333,6 +339,13 @@ export function TerminalBenchmarkHarness({
 					});
 					return;
 				}
+				if (scrollPendingRef.current > 0 && seesScrollResponse(bytes)) {
+					scrollPendingRef.current -= 1;
+					terminal.write(bytes, () => {
+						scrollPaintPendingRef.current += 1;
+					});
+					return;
+				}
 				if (workloadByteWindowRef.current) accumulatedWorkloadBytesRef.current += bytes.byteLength;
 				terminal.write(bytes);
 			}),
@@ -340,7 +353,11 @@ export function TerminalBenchmarkHarness({
 				if (reconnecting) acknowledge("reconnect");
 			}),
 			mux.onConnectionChange((state) => {
-				if (state === "closed") setAttachmentGeneration((generation) => generation + 1);
+				if (state === "open") socketOpened = true;
+				if (state === "closed") {
+					socketClosed = true;
+					setAttachmentGeneration((generation) => generation + 1);
+				}
 			}),
 		];
 		mux.open(configuration.terminalId, configuration.columns, configuration.rows);
@@ -351,6 +368,13 @@ export function TerminalBenchmarkHarness({
 		return () => {
 			if (muxRef.current === mux) muxRef.current = null;
 			for (const unsubscribe of subscriptions) unsubscribe();
+			if (startAlternateScreenResponder && responderStartedRef.current) {
+				mux.sendInput(configuration.terminalId, "\x03");
+				// A dropped socket discards the queued interrupt, so the responder
+				// outlives this mux; leaving the flag set keeps the next attachment
+				// from feeding it the script a second time.
+				responderStartedRef.current = socketOpened && socketClosed;
+			}
 			mux.close(configuration.terminalId);
 			mux.dispose();
 		};

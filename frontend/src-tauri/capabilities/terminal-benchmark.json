@@ -1,0 +1,6 @@
+{
+	"identifier": "terminal-benchmark",
+	"description": "Native runtime identity for the isolated terminal benchmark window",
+	"windows": ["terminal-benchmark"],
+	"permissions": ["allow-terminal-benchmark-runtime-identity"]
+}

@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -292,36 +291,16 @@ func (c *commandContext) checkGit(ctx context.Context) doctorCheck {
 	return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: "git", Message: fmt.Sprintf("%s (version %s; supports worktrees)", path, version)}
 }
 
-// checkTerminalRuntime checks the runtime multiplexer used on this platform:
-// tmux on Darwin/Linux, ConPTY (built-in) on Windows.
-func (c *commandContext) checkTerminalRuntime(ctx context.Context) doctorCheck {
-	if runtime.GOOS == "windows" {
-		return doctorCheck{
-			Level:   doctorPass,
-			Section: doctorSectionTools,
-			Name:    "conpty",
-			Message: "ConPTY (built-in): no external terminal multiplexer required on Windows",
-		}
-	}
-	return c.checkTmux(ctx)
-}
-
-func (c *commandContext) checkTmux(ctx context.Context) doctorCheck {
-	path, err := c.deps.LookPath("tmux")
-	if err != nil || path == "" {
-		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: "tmux", Message: "not found in PATH; required on macOS/Linux to start sessions"}
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, probeTimeout)
-	defer cancel()
-	out, err := c.deps.CommandOutput(reqCtx, path, "-V")
+// checkTerminalRuntime reports the terminal runtime. Every platform now runs
+// the in-process pty-host, so there is no external multiplexer to find: the
+// check confirms the one thing that can still fail, which is resolving this
+// executable's own path — the spawner re-execs it as `opr pty-host`.
+func (c *commandContext) checkTerminalRuntime(_ context.Context) doctorCheck {
+	exe, err := os.Executable()
 	if err != nil {
-		return doctorCheck{Level: doctorFail, Section: doctorSectionTools, Name: "tmux", Message: fmt.Sprintf("%s: %v", path, err)}
+		return doctorCheck{Level: doctorFail, Section: doctorSectionTools, Name: "pty-host", Message: fmt.Sprintf("cannot resolve the opr executable, so sessions cannot spawn: %v", err)}
 	}
-	version := firstOutputLine(out)
-	if version == "" {
-		version = "version unknown"
-	}
-	return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: "tmux", Message: fmt.Sprintf("%s (%s)", path, version)}
+	return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: "pty-host", Message: fmt.Sprintf("built in (%s); no external terminal multiplexer required", exe)}
 }
 
 // checkHooksLog surfaces recent agent hook delivery failures. `opr hooks`

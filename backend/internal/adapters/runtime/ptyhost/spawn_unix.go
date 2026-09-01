@@ -28,10 +28,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 	args := append([]string{"pty-host", sessionID, cwd}, argv...)
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = cwd
-	cmd.Env = os.Environ()
-	for key, value := range env {
-		cmd.Env = append(cmd.Env, key+"="+value)
-	}
+	cmd.Env = processEnvironment(env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()

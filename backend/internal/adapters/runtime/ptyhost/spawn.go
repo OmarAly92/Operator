@@ -5,6 +5,7 @@ package ptyhost
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -13,6 +14,14 @@ import (
 // loopback address ("127.0.0.1:PORT") and OS pid once it prints READY.
 // Injectable for tests: replace this field on Options before calling New.
 type hostSpawner func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (addr string, pid int, err error)
+
+func processEnvironment(overrides map[string]string) []string {
+	env := append([]string(nil), os.Environ()...)
+	for key, value := range overrides {
+		env = append(env, key+"="+value)
+	}
+	return env
+}
 
 // stripEnvAssignments splits a launch argv that may begin with a Unix-style
 // `env NAME=VALUE ...` prefix into the environment assignments ("NAME=VALUE"

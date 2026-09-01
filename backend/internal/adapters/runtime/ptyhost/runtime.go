@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,18 +103,21 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: spawn pty-host for %q: %w", id, err)
 	}
 
-	sess := &hostSession{addr: addr, pid: pid, launchID: cfg.Env[runtimeLaunchIDEnv]}
+	launchID := cfg.Env[runtimeLaunchIDEnv]
+	sess := &hostSession{addr: addr, pid: pid, launchID: launchID}
 
 	r.mu.Lock()
 	r.sessions[id] = sess
 	r.mu.Unlock()
 
 	// Register in B2 registry for daemon-restart recovery (best-effort).
+	// launchID is read from the local, not sess: the session is public the
+	// instant it enters the map, and Restart mutates sess.launchID under r.mu.
 	_ = ptyregistry.Register(ptyregistry.Entry{
 		SessionID:    id,
 		PtyHostPID:   pid,
 		PipePath:     addr, // ponytail: reuse PipePath field for loopback addr
-		LaunchID:     sess.launchID,
+		LaunchID:     launchID,
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
 	})
 
@@ -210,11 +214,26 @@ func (r *Runtime) Restart(ctx context.Context, handle ports.RuntimeHandle, cfg p
 	}
 
 	launchID := cfg.Env[runtimeLaunchIDEnv]
+
+	// Same `env NAME=VALUE` prefix handling the Create path applies in
+	// spawn_windows.go: the host execs Shell directly, and Windows has no `env`
+	// binary, so the assignments have to become real child env vars here.
+	envAssignments, argv := stripEnvAssignments(cfg.Argv)
+	respawnEnv := make(map[string]string, len(cfg.Env)+len(envAssignments))
+	for key, value := range cfg.Env {
+		respawnEnv[key] = value
+	}
+	for _, assignment := range envAssignments {
+		if key, value, ok := strings.Cut(assignment, "="); ok {
+			respawnEnv[key] = value
+		}
+	}
+
 	if _, err := clientRestart(sess.addr, RespawnPayload{
 		Cwd:       cfg.WorkspacePath,
-		Shell:     cfg.Argv[0],
-		LaunchCmd: cfg.Argv[1:],
-		LaunchID:  launchID,
+		Shell:     argv[0],
+		LaunchCmd: argv[1:],
+		Env:       respawnEnv,
 	}); err != nil {
 		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: restart %q: %w", handle.ID, err)
 	}
@@ -267,7 +286,10 @@ func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.Run
 	if ref.SessionID != "" && string(ref.SessionID) != handle.ID {
 		return false, nil
 	}
-	if ref.LaunchID != "" && (sess.launchID == "" || sess.launchID != ref.LaunchID) {
+	r.mu.Lock()
+	launchID := sess.launchID
+	r.mu.Unlock()
+	if ref.LaunchID != "" && (launchID == "" || launchID != ref.LaunchID) {
 		return false, nil
 	}
 	status, hostAlive, err := clientStatus(sess.addr)

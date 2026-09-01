@@ -26,7 +26,7 @@ func realSpawnerFor(t *testing.T, hosts map[string]*realInProcHost) hostSpawner 
 		if err != nil {
 			return "", 0, err
 		}
-		pty, err := newPTY(cwd, argv[0], argv[1:])
+		pty, err := newPTY(cwd, argv[0], argv[1:], env)
 		if err != nil {
 			_ = ln.Close()
 			return "", 0, err
@@ -116,6 +116,76 @@ func TestRestartReplacesProcessAndKeepsHandle(t *testing.T) {
 	}
 	if alive, _ := rt.IsAlive(context.Background(), after); !alive {
 		t.Fatal("IsAlive = false after Restart")
+	}
+}
+
+func TestRestartAppliesReplacementEnvironment(t *testing.T) {
+	const envName = "OPERATOR_PTYHOST_RESTART_ENV_TEST"
+	t.Setenv(envName, "parent")
+	rt, handle := newTestRuntimeSession(t)
+	cfg := restartConfig(t)
+	cfg.Argv = []string{"/bin/sh", "-c", `printf '%s\n' "$` + envName + `"; sleep 30`}
+	cfg.Env = map[string]string{envName: "replacement"}
+
+	if _, err := rt.Restart(context.Background(), handle, cfg); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	sess := rt.resolve(handle.ID)
+	if sess == nil {
+		t.Fatalf("resolve %q: not found", handle.ID)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		output, err := clientGetOutput(sess.addr, 10)
+		if err != nil {
+			t.Fatalf("GetOutput: %v", err)
+		}
+		if strings.Contains(output, "replacement") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("GetOutput = %q, want replacement environment value", output)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// TestRestartFoldsEnvArgvPrefix pins the Create path's `env NAME=VALUE`
+// handling into Restart. Four adapters (opencode, goose, kilocode and the
+// kilocode reviewer) emit that prefix; the host execs Shell directly and
+// Windows has no `env` binary, so a Restart that passed the prefix through
+// verbatim would exec a missing `env` there while working on Unix.
+func TestRestartFoldsEnvArgvPrefix(t *testing.T) {
+	const envName = "OPERATOR_PTYHOST_RESTART_PREFIX_TEST"
+	rt, handle := newTestRuntimeSession(t)
+	cfg := restartConfig(t)
+	cfg.Argv = []string{
+		"env", envName + "=folded",
+		"/bin/sh", "-c", `printf '%s\n' "$` + envName + `"; sleep 30`,
+	}
+
+	if _, err := rt.Restart(context.Background(), handle, cfg); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	sess := rt.resolve(handle.ID)
+	if sess == nil {
+		t.Fatalf("resolve %q: not found", handle.ID)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		output, err := clientGetOutput(sess.addr, 10)
+		if err != nil {
+			t.Fatalf("GetOutput: %v", err)
+		}
+		if strings.Contains(output, "folded") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("GetOutput = %q, want the stripped env assignment applied", output)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

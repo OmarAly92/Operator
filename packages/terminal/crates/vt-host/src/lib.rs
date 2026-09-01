@@ -25,6 +25,7 @@ pub extern "C" fn vt_new(cols: u32, rows: u32, scrollback: u32) -> u32 {
     let Ok(mut core) = TerminalCore::new(cols as usize, scrollback as usize) else {
         return 0;
     };
+    core.set_reflow_on_resize(false);
     core.resize(cols as usize, rows as usize);
     NEXT_ID.with(|n| {
         let mut n = n.borrow_mut();

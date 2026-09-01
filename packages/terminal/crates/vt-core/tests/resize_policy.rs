@@ -99,3 +99,30 @@ fn a_resize_after_more_output_keeps_every_line_once() {
     core.resize(40, 10);
     assert_eq!(content(&core), vec!["one", "two", "three"]);
 }
+
+#[test]
+fn shrinking_height_keeps_the_cursor_row_instead_of_the_top_rows() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.set_reflow_on_resize(false);
+    core.resize(80, 24);
+    core.feed(b"\x1b[?1049h\x1b[24;1H");
+    for line in 0..40u32 {
+        core.feed(format!("line {line}\r\n").as_bytes());
+    }
+    core.resize(60, 20);
+    let alt = core.alt_grid().expect("alt grid");
+    assert_eq!(alt.row_text(0).trim_end(), "line 21");
+    assert_eq!(alt.row_text(18).trim_end(), "line 39");
+}
+
+#[test]
+fn shrinking_height_below_the_cursor_still_drops_from_the_bottom() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.set_reflow_on_resize(false);
+    core.resize(80, 24);
+    core.feed(b"\x1b[?1049h\x1b[1;1Hkeep me\x1b[2;1Hsecond");
+    core.resize(80, 20);
+    let alt = core.alt_grid().expect("alt grid");
+    assert_eq!(alt.row_text(0).trim_end(), "keep me");
+    assert_eq!(alt.row_text(1).trim_end(), "second");
+}

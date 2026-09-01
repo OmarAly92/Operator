@@ -1708,7 +1708,7 @@ git commit -m "feat(cli): opr attach for debugging a live session"
 
 The oracle is tmux, and it only exists to be asked while it is still in the tree. This task must land before Task 15 deletes it.
 
-**GATE 1 RESULT (2026-09-01): NOT FULLY PASSED. 8/11 scenarios pass. 3 fail on genuine `vt-core` parser gaps** (`resize-mid-stream`: resize evicts/blanks on-screen content on any resize with content present, even growing; `less-page`: ~5/6-run deterministic content-position divergence during plain scroll, root cause not fully isolated; `agent-cli-idle`: no XTVERSION/DA1 auto-answer in `vt-core`, unlike tmux). All three independently corroborated against `vt-core` source by the task reviewer, not just the implementer's own diagnosis. None fixed — explicitly out of scope for this session (no deep `vt-core` surgery under time pressure, per the task's own instructions). The harness itself (this task's actual deliverable) is well-built and Approved: `normalize()` verified compliant with the non-negotiable two-operations-only rule, both sides confirmed to go through real production PTY code paths, decision-site cross-check exercises real production functions and all agree. Full diagnosis: `.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-13-report.md`. **Per the original instructions, Task 15 requires both Gate 1 and Gate 2 to pass — this gate is unresolved, so the plan stops after Task 14 rather than proceeding to Task 15.**
+**GATE 1 RESULT (2026-09-02): PASSED, 11/11.** The three failures reported on 2026-09-01 were each root-caused and fixed rather than waived. `resize-mid-stream`: the parser applied renderer reflow-and-evict semantics on resize; `vt-core` now exposes `set_reflow_on_resize`, and the host disables it to match `capture-pane`. `less-page`: `ScreenGrid::resize_cells` shrank height by keeping the top rows, where tmux's `screen_resize_y` deletes lines below the cursor and then pushes off the top; fixed with regression tests in both directions. `agent-cli-idle`: not a parser gap at all — the extra text in tmux's capture was the tty line discipline echoing tmux's own XTVERSION/DA reply, with ECHOCTL rendering ESC as a literal `^[`. Both runners now replay with `stty -echo`, applied symmetrically so it cannot mask a real difference. That investigation also surfaced a production bug: `Attach` returned before its resize reached the PTY, so the child's first output was parsed at the pre-attach grid; it now round-trips a status frame, pinned by `TestAttachAppliesResizeBeforeReturning` (verified failing without the fix).
 
 **Files:**
 - Create: `backend/internal/adapters/runtime/parity/parity_test.go`
@@ -1791,7 +1791,7 @@ git commit -m "test(runtime): differential parity harness against tmux"
 
 ### Task 14: `scroll-latency` perf scenario — GATE 2
 
-**GATE 2 RESULT (2026-09-01): DEFERRED — no GUI/display access in this environment.** All code wiring (Step 1's `OPERATOR_RUNTIME` passthrough, Step 2's scenario registration across 6 parallel registries, Step 3's render-callback measurement) is complete and independently verified correct by the task reviewer via direct source tracing. Steps 4-5 (the actual p50/p95 numbers) could not be run: `npm run bench:terminal -- --shell tauri --scenario scroll-latency` fails immediately at input validation (`OPERATOR_BENCH_DAEMON_URL is required`) because this sandboxed environment has no live daemon, no built Tauri bundle, and no macOS WindowServer session — the same infeasibility as the manual GUI checks deferred in Tasks 5, 6, and 12. No numbers were fabricated. Full detail: `.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-14-report.md`. **Per the original instructions, Task 15 requires both Gate 1 and Gate 2 to pass — Gate 2's numeric verdict is unknown, so the plan stops here rather than proceeding to Task 15.**
+**GATE 2 RESULT (2026-09-02): CLOSED ON PARTIAL EVIDENCE by explicit user decision, not by the numbers.** The scroll A/B has no tmux number and cannot get one as written: the tmux adapter set `mouse on` per session, so tmux consumed the wheel report itself and entered copy-mode, and the application-level marker the scenario waits for was never echoed. Independently, ptyhost measured p50 = p95 = 17.000 ms — one 60 Hz frame, zero variance — so the metric sits on its vsync floor and has no discriminating headroom regardless. `vtebench` (binary not installed), `reconnect` (stalls on both runtimes) and `cpu-time`/`active-memory` (a harness bug: `src-tauri/src/lib.rs:1103` skips the daemon spawn under the benchmark flag, so the run file the harness waits for never appears) also produced no numbers. What did land: `input-latency` shows no regression (ptyhost 17/18 vs tmux 17/17, both one frame), and on the same 16 MiB `large-output` workload tmux emitted ~332 KB of extra redraw bytes — 2%, deterministic over 3 runs, enough to fail the harness's byte-exactness assertion outright — against ptyhost's 1,010 bytes, or 0.006%. Full write-up and the follow-up work: `todo_without_tmux.md`.
 
 **Files:**
 - Modify: `frontend/perf/scenarios.json`
@@ -1828,7 +1828,7 @@ Registration is not one Set — `benchmark-terminal.mjs` has parallel registries
 
 Copy the existing input-latency pattern — it is already a true send-input → xterm-render-callback delta (`harness.tsx:344-349` sends, `:207-223` acknowledges off the render event). For scroll: start a deterministic alt-screen responder in the pane (a tiny script that enters the alternate screen with `\x1b[?1049h`, enables SGR mouse reporting, and rewrites one line on every wheel report it reads — deterministic, unlike `less`), then per sample send one SGR wheel report (`\x1b[<64;1;1M`) and acknowledge on the next render callback that changes the grid. Report p50 and p95.
 
-- [ ] **Step 4: Run it against both runtimes** — DEFERRED (no GUI/display access; see task-14-report.md)
+- [ ] **Step 4: Run it against both runtimes** — RAN 2026-09-02 on a real GUI session; ptyhost measured (p50 = p95 = 17.000 ms, the vsync floor), tmux structurally unmeasurable by this metric. Still unchecked: no A/B verdict exists. See `todo_without_tmux.md` §1.
 
 ```bash
 cd frontend && npm run bench:terminal -- --shell tauri --scenario scroll-latency
@@ -1837,7 +1837,7 @@ OPERATOR_RUNTIME=ptyhost npm run bench:terminal -- --shell tauri --scenario scro
 
 **Gate:** ptyhost must beat tmux decisively on p50 and p95. This is the number that represents the original complaint; if it does not improve, the premise of the whole plan is wrong and that must be reported rather than worked around.
 
-- [ ] **Step 5: Run the full suite against both runtimes** — DEFERRED (same reason as Step 4)
+- [ ] **Step 5: Run the full suite against both runtimes** — PARTIAL 2026-09-02: `input-latency` both runtimes (no regression), `large-output` ptyhost only (tmux fails the harness's byte-exactness check by ~332 KB of redraw). `vtebench`, `reconnect`, `cpu-time`, `active-memory` produced no numbers. See `todo_without_tmux.md` §2.
 
 ```bash
 cd frontend && for s in vtebench large-output input-latency reconnect cpu-time active-memory; do
@@ -1861,13 +1861,23 @@ git commit -m "test(perf): scroll-latency scenario for wheel-to-frame timing"
 
 Only after Tasks 13 and 14 both pass.
 
+**TASK 15 RESULT (2026-09-02): DONE.** Beyond the literal steps, four things the plan
+did not anticipate had to be handled, all recorded in `todo_without_tmux.md`:
+`ptyhost` had to gain `IsSessionIDClaimed` (deleting tmux removed the only
+implementation of `ports.SessionIDClaimChecker`, which would have silently
+reopened the duplicate-session-id bug on a fresh install); `validateRuntimePrerequisites`
+still hard-required `tmux` on `PATH` and would have blocked every session start on
+a machine without it; `ptyexec` was kept because `internal/httpd/terminal_mux_test.go`
+still spawns through it; and three tmux-only integration tests were deleted rather
+than ported, while the session-id claim test was ported to the registry-backed probe.
+
 **Files:**
 - Modify: `backend/internal/adapters/runtime/runtimeselect/runtimeselect.go`
 - Delete: `backend/internal/adapters/runtime/tmux/`
 - Delete: `backend/internal/adapters/runtime/ptyexec/` if nothing else uses it
 - Modify: `AGENTS.md`, `CLAUDE.md`, `docs/`, packaging scripts mentioning tmux
 
-- [ ] **Step 1: Flip the default**
+- [x] **Step 1: Flip the default**
 
 ```go
 func New(_ *slog.Logger) Runtime {
@@ -1877,14 +1887,14 @@ func New(_ *slog.Logger) Runtime {
 
 Delete the `OPERATOR_RUNTIME` override and its test — with tmux gone there is nothing to select.
 
-- [ ] **Step 2: Delete the adapter**
+- [x] **Step 2: Delete the adapter**
 
 ```bash
 git rm -r backend/internal/adapters/runtime/tmux
 grep -rn "ptyexec" backend --include="*.go" | grep -v "runtime/ptyexec"   # empty means it can go too
 ```
 
-- [ ] **Step 3: Verify nothing references tmux**
+- [x] **Step 3: Verify nothing references tmux**
 
 ```bash
 grep -rni "tmux" backend frontend/src packages --include="*.go" --include="*.ts" --include="*.tsx" | grep -v node_modules
@@ -1892,18 +1902,18 @@ grep -rni "tmux" backend frontend/src packages --include="*.go" --include="*.ts"
 
 Expected: no hits outside `docs/` history and the spec's problem statement.
 
-- [ ] **Step 4: Full test suite on every platform**
+- [x] **Step 4: Full test suite on every platform**
 
 ```bash
 cd backend && go test ./... && for os in darwin linux windows; do GOOS=$os go build ./...; done
 cd ../frontend && npm test
 ```
 
-- [ ] **Step 5: Update the docs**
+- [x] **Step 5: Update the docs**
 
 `AGENTS.md` and `CLAUDE.md` describe tmux as the session runtime. Replace with the pty-host model. Remove any tmux install requirement from setup docs and packaging.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A

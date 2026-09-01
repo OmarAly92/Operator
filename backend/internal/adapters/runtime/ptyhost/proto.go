@@ -62,10 +62,10 @@ type CaptureStateRes struct {
 
 // RespawnPayload is the JSON body for MsgRespawnReq.
 type RespawnPayload struct {
-	Cwd       string   `json:"cwd"`
-	Shell     string   `json:"shell"`
-	LaunchCmd []string `json:"launchCmd"`
-	LaunchID  string   `json:"launchId"`
+	Cwd       string            `json:"cwd"`
+	Shell     string            `json:"shell"`
+	LaunchCmd []string          `json:"launchCmd"`
+	Env       map[string]string `json:"env,omitempty"`
 }
 
 // RespawnResPayload is the JSON body for MsgRespawnRes.

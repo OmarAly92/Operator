@@ -326,10 +326,19 @@ func (h *host) readPTY(pty ptyConn, chunks chan<- []byte) {
 // deliver is the single choke point later tasks extend: Task 7 appends the
 // parser feed and Task 10 the capture tee — both strictly after the broadcast.
 func (h *host) deliver(batch []byte) {
+	// The ring append and the broadcast are one critical section, for the same
+	// reason handleConn's snapshot and registration are: they are the two halves
+	// of what a connecting client sees. Appending under a separate lock lets a
+	// client snapshot the batch and then receive it again live, replaying the
+	// whole coalesced batch — up to readBufferSize — as duplicate output the
+	// moment it attaches.
+	h.mu.Lock()
 	h.cfg.Ring.Append(batch)
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
-		h.broadcast(frame)
+		h.broadcastLocked(frame)
 	}
+	h.mu.Unlock()
+
 	h.feedParser(batch)
 	h.capture.write(batch)
 }
@@ -367,6 +376,11 @@ func (h *host) finishPump(pty ptyConn, done chan struct{}) {
 func (h *host) broadcast(msg []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.broadcastLocked(msg)
+}
+
+// broadcastLocked is broadcast's body for callers already holding h.mu.
+func (h *host) broadcastLocked(msg []byte) {
 	removed := false
 	for c := range h.clients {
 		if _, err := c.Write(msg); err != nil {

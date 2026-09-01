@@ -388,7 +388,12 @@ function controlledProbeEnvironment(stateRoot, daemonPort, { benchmarkMode = fal
 		// Benchmark mode registers the harness-only IPC surface
 		// (terminal_benchmark_runtime_identity); it also stops the shell from
 		// auto-spawning its daemon, so only the disposal probe uses it.
-		...(benchmarkMode ? { OPERATOR_TAURI_TERMINAL_BENCHMARK: "1" } : {}),
+		...(benchmarkMode
+			? {
+				OPERATOR_TAURI_TERMINAL_BENCHMARK: "1",
+				OPERATOR_TAURI_TERMINAL_BENCHMARK_URL: `http://127.0.0.1:${devUrlPort}`,
+			}
+			: {}),
 		...(existsSync(daemonBinaryPath) ? { OPERATOR_DAEMON_COMMAND: `${daemonBinaryPath} daemon` } : {}),
 	});
 }

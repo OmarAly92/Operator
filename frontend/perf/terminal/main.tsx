@@ -10,6 +10,7 @@ import {
 	type TerminalAcknowledgement,
 } from "./harness";
 import { nativeTerminalRuntimeIdentity } from "./runtime";
+import { createOrderedReporter } from "./reporter";
 
 type ReporterMessage =
 	| TerminalAcknowledgement
@@ -55,15 +56,8 @@ function reporterUrl(parameters: URLSearchParams): string | undefined {
 }
 
 function reporter(url: string | undefined) {
-	return (message: ReporterMessage) => {
-		if (!url) return;
-		void fetch(url, {
-			body: JSON.stringify(message),
-			headers: { "content-type": "text/plain;charset=UTF-8" },
-			keepalive: true,
-			method: "POST",
-		});
-	};
+	if (!url) return (_message: ReporterMessage) => undefined;
+	return createOrderedReporter<ReporterMessage>(url);
 }
 
 function scenarioController(

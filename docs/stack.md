@@ -23,7 +23,7 @@ invariants.
 | Backend language   | Go 1.25.7                                                                                       | Implemented            | Matches `backend/go.mod`; small daemon, strong stdlib, easy local distribution.                                                     |
 | Backend core       | Go stdlib                                                                                       | Implemented            | Domain, lifecycle, session, and adapter contracts should stay dependency-light.                                                     |
 | Frontend shell     | Tauri 2 + React/TypeScript (Rust shell in `frontend/src-tauri`)                                 | Implemented            | Local desktop control plane paired with the daemon; the Electron/Forge shell was removed with the Tauri port.                       |
-| Runtime adapter    | `tmux` CLI via `os/exec` (Darwin/Linux), conpty pty-host (Windows), selected by `runtimeselect` | Implemented            | Terminal multiplexing fits long-running sessions, attach/debug workflows, and adapter isolation.                                    |
+| Runtime adapter    | in-process pty-host on every platform (`ptyhost`), named by `runtimeselect` | Implemented            | A PTY per session with no attach hop: sessions stay long-running and detachable while raw bytes reach the client unparsed.          |
 | Terminal PTY       | `github.com/creack/pty`                                                                         | Implemented            | PTY-backed terminal sessions with resize/input/output control.                                                                      |
 | Git/worktrees      | `git` CLI via `os/exec`                                                                         | Implemented            | Uses real repo behavior, credentials, hooks, LFS, submodules, and user config.                                                      |
 | HTTP API           | `net/http` + `github.com/go-chi/chi/v5`                                                         | Implemented            | Lightweight, idiomatic router without committing Operator to a large web framework.                                                       |
@@ -87,7 +87,7 @@ Go daemon
   net/http + github.com/go-chi/chi/v5
   github.com/coder/websocket
   github.com/creack/pty
-  tmux runtime adapter via os/exec (conpty on Windows), selected by runtimeselect
+  pty-host runtime adapter on every platform, named by runtimeselect
   git worktree adapter via git CLI
   SQLite via database/sql + modernc.org/sqlite
   github.com/sqlc-dev/sqlc generated queries

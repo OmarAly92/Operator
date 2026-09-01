@@ -23,10 +23,10 @@ type unixPTY struct {
 	exited   bool
 }
 
-func newPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
+func newPTY(cwd, shellCmd string, shellArgs []string, env map[string]string) (ptyConn, error) {
 	cmd := exec.Command(shellCmd, shellArgs...)
 	cmd.Dir = cwd
-	cmd.Env = os.Environ()
+	cmd.Env = processEnvironment(env)
 	file, err := pty.Start(cmd)
 	if err != nil {
 		return nil, err

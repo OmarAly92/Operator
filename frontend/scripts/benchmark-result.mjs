@@ -45,6 +45,7 @@ export const REQUIRED_SAMPLES = Object.freeze({
 	reconnect: 10,
 	"active-memory": 5,
 	"cpu-time": 10,
+	"scroll-latency": 20,
 });
 
 export const REQUIRED_WARMUPS = Object.freeze({
@@ -55,6 +56,7 @@ export const REQUIRED_WARMUPS = Object.freeze({
 	"input-latency": 3,
 	reconnect: 3,
 	"cpu-time": 3,
+	"scroll-latency": 3,
 });
 
 const BINDING_ENVIRONMENT_PREFIXES = Object.freeze([

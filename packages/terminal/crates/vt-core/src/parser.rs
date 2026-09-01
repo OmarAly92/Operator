@@ -145,6 +145,10 @@ impl Parser {
         }
     }
 
+    pub fn set_reflow_on_resize(&mut self, on: bool) {
+        self.screen.set_reflow_on_resize(on);
+    }
+
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.screen.set_reflow_on_resize(!on);
         self.screen.set_clear_policy(if on {

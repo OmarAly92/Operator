@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters"
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/tmux"
 	telemetryadapter "github.com/OmarAly92/operator/backend/internal/adapters/telemetry"
 	"github.com/OmarAly92/operator/backend/internal/cdc"
 	"github.com/OmarAly92/operator/backend/internal/config"
@@ -217,8 +217,6 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 	binDir := t.TempDir()
 	writeFakeExecutable(t, filepath.Join(binDir, "claude"))
 	writeFakeExecutable(t, filepath.Join(binDir, "claude.cmd"))
-	writeFakeExecutable(t, filepath.Join(binDir, "tmux"))
-	writeFakeExecutable(t, filepath.Join(binDir, "tmux.cmd"))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	homeDir := t.TempDir()
@@ -557,7 +555,7 @@ func TestWiring_StartLifecycleThreadsMessengerIntoLCM(t *testing.T) {
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	messenger := &captureMessenger{}
-	stack := startLifecycle(ctx, store, tmux.New(tmux.Options{}), messenger, nil, nil, nil, log)
+	stack := startLifecycle(ctx, store, ptyhost.New(ptyhost.Options{}), messenger, nil, nil, nil, log)
 	t.Cleanup(stack.Stop)
 	t.Cleanup(cancel)
 
