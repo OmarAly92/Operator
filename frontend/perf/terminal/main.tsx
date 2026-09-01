@@ -21,6 +21,7 @@ type ScenarioDriver = {
 	eventName:
 		| "operator:terminal-benchmark-run"
 		| "operator:terminal-benchmark-input"
+		| "operator:terminal-benchmark-scroll"
 		| "operator:terminal-benchmark-reconnect"
 		| "operator:terminal-benchmark-disposal";
 	ackName: TerminalAcknowledgement["name"];
@@ -38,6 +39,7 @@ const scenarioDrivers: Record<string, ScenarioDriver> = {
 	"cpu-time": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "cpu-time", iteration }) },
 	"active-memory": { eventName: "operator:terminal-benchmark-run", ackName: "workload", detail: (iteration) => ({ scenario: "active-memory", iteration }) },
 	"input-latency": { eventName: "operator:terminal-benchmark-input", ackName: "input-echo" },
+	"scroll-latency": { eventName: "operator:terminal-benchmark-scroll", ackName: "scroll" },
 	reconnect: { eventName: "operator:terminal-benchmark-reconnect", ackName: "reconnect" },
 	disposal: { eventName: "operator:terminal-benchmark-disposal", ackName: "disposal" },
 };
@@ -126,6 +128,7 @@ async function renderHarness() {
 					configuration={terminalHarnessConfiguration(window.location.search)}
 					disposalBytes={Number(parameters.get("disposalBytes") ?? 2_097_152)}
 					mode={parameters.get("scenario") === "disposal" ? "disposal" : "workload"}
+					scenarioName={parameters.get("scenario") ?? undefined}
 					onAcknowledgement={onAcknowledgement}
 					onRendererKind={(rendererKind) => {
 						report({

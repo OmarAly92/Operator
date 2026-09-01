@@ -14,6 +14,7 @@ type TerminalScenario = {
 	scrollback: number;
 	outputBytes?: number;
 	workloadIterations?: number;
+	alternateScreen?: boolean;
 };
 
 export type TerminalHarnessConfiguration = {
@@ -26,7 +27,7 @@ export type TerminalHarnessConfiguration = {
 };
 
 export type TerminalAcknowledgement = {
-	name: "first-paint" | "workload" | "input-echo" | "resize" | "reconnect" | "renderer-recovery" | "disposal";
+	name: "first-paint" | "workload" | "input-echo" | "resize" | "reconnect" | "renderer-recovery" | "disposal" | "scroll";
 	timestamp: number;
 	bytes?: number;
 };
@@ -36,6 +37,7 @@ type TerminalBenchmarkHarnessProps = {
 	mode?: "workload" | "disposal";
 	disposalBytes?: number;
 	disposalSettleMs?: number;
+	scenarioName?: string;
 	createMux?: (url: string) => TerminalMux;
 	onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void;
 	onRendererKind?: (kind: TerminalRendererKind) => void;
@@ -57,6 +59,7 @@ const acknowledgementMarks: Record<TerminalAcknowledgement["name"], string> = {
 	reconnect: "operator:terminal-reconnect",
 	"renderer-recovery": "operator:terminal-renderer-recovery",
 	disposal: "operator:terminal-disposed",
+	scroll: "operator:terminal-scroll-echo",
 };
 
 const defaultCreateMux = (url: string) => createTerminalMux(url);
@@ -156,6 +159,21 @@ function workloadInput(request: WorkloadRequest): string {
 	throw new Error("unsupported terminal benchmark workload");
 }
 
+const sgrWheelUpReport = "\x1b[<64;1;1M";
+
+function scenarioRequiresAlternateScreenResponder(scenarioName?: string): boolean {
+	if (!scenarioName) return false;
+	const scenarioConfig = (scenarios as Record<string, TerminalScenario | undefined>)[scenarioName];
+	return scenarioConfig?.alternateScreen === true;
+}
+
+function alternateScreenResponderScript(): string {
+	if (navigator.userAgent.includes("Windows")) {
+		return `[Console]::Out.Write([char]27 + '[?1049h' + [char]27 + '[?1006h' + [char]27 + '[?1000h'); $i=0; while($true){ $b=[Console]::In.Read(); if ($b -lt 0) { break }; $i++; [Console]::Out.Write([char]27 + '[H' + [char]27 + '[2Kscroll ' + $i + [char]13 + [char]10) }\r`;
+	}
+	return "printf '\\033[?1049h\\033[?1006h\\033[?1000h'; i=0; while chunk=$(dd bs=32 count=1 2>/dev/null); do i=$((i+1)); printf '\\033[H\\033[2Kscroll %d\\r\\n' \"$i\"; done\r";
+}
+
 function useAcknowledgements(onAcknowledgement?: (acknowledgement: TerminalAcknowledgement) => void) {
 	const callbackRef = useRef(onAcknowledgement);
 	callbackRef.current = onAcknowledgement;
@@ -178,10 +196,12 @@ export function TerminalBenchmarkHarness({
 	mode = "workload",
 	disposalBytes = 2_097_152,
 	disposalSettleMs = 200,
+	scenarioName,
 	createMux = defaultCreateMux,
 	onAcknowledgement,
 	onRendererKind,
 }: TerminalBenchmarkHarnessProps) {
+	const startAlternateScreenResponder = scenarioRequiresAlternateScreenResponder(scenarioName);
 	const [terminal, setTerminal] = useState<AttachableTerminal | null>(null);
 	const [rendererKind, setRendererKind] = useState<TerminalRendererKind | undefined>();
 	const [attachmentGeneration, setAttachmentGeneration] = useState(0);
@@ -201,6 +221,8 @@ export function TerminalBenchmarkHarness({
 	const accumulatedWorkloadBytesRef = useRef(0);
 	const lastPrimaryBytesRef = useRef<number | undefined>(undefined);
 	const inputEchoPendingRef = useRef(0);
+	const scrollPendingRef = useRef(0);
+	const responderStartedRef = useRef(false);
 	const firstPaintRef = useRef(false);
 	const acknowledge = useAcknowledgements(onAcknowledgement);
 
@@ -220,6 +242,11 @@ export function TerminalBenchmarkHarness({
 			if (inputEchoPendingRef.current > 0) {
 				inputEchoPendingRef.current -= 1;
 				acknowledge("input-echo", event.timestamp);
+				return;
+			}
+			if (scrollPendingRef.current > 0) {
+				scrollPendingRef.current -= 1;
+				acknowledge("scroll", event.timestamp);
 			}
 			return;
 		}
@@ -317,13 +344,17 @@ export function TerminalBenchmarkHarness({
 			}),
 		];
 		mux.open(configuration.terminalId, configuration.columns, configuration.rows);
+		if (startAlternateScreenResponder && !responderStartedRef.current) {
+			responderStartedRef.current = true;
+			mux.sendInput(configuration.terminalId, alternateScreenResponderScript());
+		}
 		return () => {
 			if (muxRef.current === mux) muxRef.current = null;
 			for (const unsubscribe of subscriptions) unsubscribe();
 			mux.close(configuration.terminalId);
 			mux.dispose();
 		};
-	}, [acknowledge, attachmentGeneration, configuration, createMux, mode, terminal]);
+	}, [acknowledge, attachmentGeneration, configuration, createMux, mode, startAlternateScreenResponder, terminal]);
 
 	useEffect(() => {
 		const runWorkload = (event: Event) => {
@@ -347,6 +378,12 @@ export function TerminalBenchmarkHarness({
 			inputEchoPendingRef.current += 1;
 			mux.sendInput(configuration.terminalId, "x");
 		};
+		const sendScrollProbe = () => {
+			const mux = muxRef.current;
+			if (!mux || !terminal) return;
+			scrollPendingRef.current += 1;
+			mux.sendInput(configuration.terminalId, sgrWheelUpReport);
+		};
 		const forceDisconnect = () => {
 			const mux = muxRef.current;
 			if (!mux) return;
@@ -354,10 +391,12 @@ export function TerminalBenchmarkHarness({
 		};
 		window.addEventListener("operator:terminal-benchmark-run", runWorkload);
 		window.addEventListener("operator:terminal-benchmark-input", sendInputProbe);
+		window.addEventListener("operator:terminal-benchmark-scroll", sendScrollProbe);
 		window.addEventListener("operator:terminal-benchmark-reconnect", forceDisconnect);
 		return () => {
 			window.removeEventListener("operator:terminal-benchmark-run", runWorkload);
 			window.removeEventListener("operator:terminal-benchmark-input", sendInputProbe);
+			window.removeEventListener("operator:terminal-benchmark-scroll", sendScrollProbe);
 			window.removeEventListener("operator:terminal-benchmark-reconnect", forceDisconnect);
 		};
 	}, [configuration.columns, configuration.rows, configuration.terminalId, terminal]);
