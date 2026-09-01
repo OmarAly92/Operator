@@ -14,6 +14,7 @@ function makeBlock(id: string, command: string): BlockView {
 		command,
 		cwd: "",
 		gitBranch: "",
+		bookmarked: false,
 	};
 }
 

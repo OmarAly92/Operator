@@ -15,6 +15,7 @@ function blocks(counts: number[]) {
 			command: "",
 			cwd: "",
 			gitBranch: "",
+			bookmarked: false,
 		};
 		firstRow += rowCount;
 		return block;

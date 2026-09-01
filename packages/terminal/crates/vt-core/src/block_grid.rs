@@ -149,6 +149,28 @@ impl BlockGrid {
         }
     }
 
+    pub fn set_block_bookmarked(&mut self, id: BlockId, bookmarked: bool) {
+        if let Some(block) = self.open.as_mut() {
+            if block.id == id {
+                block.meta.bookmarked = bookmarked;
+                return;
+            }
+        }
+        self.closed.set_meta(id, |meta| meta.bookmarked = bookmarked);
+    }
+
+    pub fn block_bookmarked(&self, id: BlockId) -> bool {
+        if let Some(block) = self.open.as_ref() {
+            if block.id == id {
+                return block.meta.bookmarked;
+            }
+        }
+        self.closed
+            .find(id)
+            .map(|block| block.meta.bookmarked)
+            .unwrap_or(false)
+    }
+
     /// Drop everything before `first_row` and renumber so the oldest
     /// surviving block starts at row 0. Renumbering every survivor is
     /// O(n); a root-level offset would make it O(log n), but that is a
@@ -388,5 +410,36 @@ mod tests {
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].first_row, 0);
         assert_eq!(blocks[0].row_count, 3);
+    }
+
+    #[test]
+    fn bookmark_round_trips_through_close() {
+        let mut grid = BlockGrid::new();
+        grid.open_block(BlockSource::Osc133);
+        grid.note_row_completed();
+        grid.close_block(Some(0));
+        let id = grid.blocks().next().unwrap().id;
+        assert!(!grid.block_bookmarked(id), "fresh block is not bookmarked");
+        grid.set_block_bookmarked(id, true);
+        assert!(grid.block_bookmarked(id), "the close keeps the bookmark");
+        grid.set_block_bookmarked(id, false);
+        assert!(!grid.block_bookmarked(id), "the bookmark clears");
+    }
+
+    #[test]
+    fn bookmark_round_trips_through_open() {
+        let mut grid = BlockGrid::new();
+        grid.open_block(BlockSource::Osc133);
+        let id = grid.open.as_ref().unwrap().id;
+        assert!(!grid.block_bookmarked(id));
+        grid.set_block_bookmarked(id, true);
+        assert!(grid.block_bookmarked(id), "open block can be bookmarked");
+    }
+
+    #[test]
+    fn bookmark_unknown_id_is_a_no_op() {
+        let mut grid = BlockGrid::new();
+        grid.set_block_bookmarked(99, true);
+        assert!(!grid.block_bookmarked(99));
     }
 }

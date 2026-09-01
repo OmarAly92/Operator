@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createTerminalCore,
+	decodeBlocks,
 	initTerminalCore,
 	validateRowRange,
 	type FontConfig,
@@ -488,6 +489,95 @@ describe("pinned command header", () => {
 		core.feed(new TextEncoder().encode("\x1b[?1049h"));
 		await flushRepaint();
 		expect(pinned.hidden).toBe(true);
+		renderer.dispose();
+	});
+});
+
+function feedOsc133BlockWithExit(
+	core: TerminalCore,
+	command: string,
+	lines: number,
+	exitCode: number,
+): void {
+	const start = `\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1; cmd=${command}\x07\x1b]133;C\x07`;
+	const body = Array.from({ length: lines }, (_unused, i) => `line-${i + 1}`).join("\n");
+	const end = `\x1b]133;D;${exitCode}\x07`;
+	core.feed(new TextEncoder().encode(`${start}${body}${end}`));
+}
+
+describe("block filter", () => {
+	const APP_FONT = {
+		family: "ui-monospace, monospace",
+		sizePx: 14,
+		lineHeight: 1.2,
+		weight: 400,
+		letterSpacingPx: 0,
+		ligatures: false,
+	};
+
+	function mountWithFilter(): {
+		core: TerminalCore;
+		host: HTMLElement;
+		renderer: DomBlockRenderer;
+	} {
+		const core = createTerminalCore({ columns: 20, scrollback: 1000 });
+		feedOsc133BlockWithExit(core, "ok-cmd", 4, 0);
+		feedOsc133BlockWithExit(core, "fail-cmd", 4, 1);
+		feedOsc133BlockWithExit(core, "ok-2", 4, 0);
+		const host = document.createElement("div");
+		Object.defineProperty(host, "clientHeight", { value: 500, configurable: true });
+		document.body.append(host);
+		const renderer = new DomBlockRenderer();
+		renderer.mount(host, core);
+		renderer.setTheme(theme);
+		renderer.setFont(APP_FONT);
+		return { core, host, renderer };
+	}
+
+	it("renders all blocks when no filter is set", async () => {
+		const { host, renderer } = mountWithFilter();
+		await flushRepaint();
+		const sections = host.querySelectorAll('[data-terminal-block-id]');
+		expect(sections.length).toBe(3);
+		renderer.dispose();
+	});
+
+	it("renders only matching blocks when a filter is set", async () => {
+		const { host, renderer } = mountWithFilter();
+		renderer.setFilter({ exitCodeNonZero: true });
+		await flushRepaint();
+		const sections = host.querySelectorAll('[data-terminal-block-id]');
+		expect(sections.length).toBe(1);
+		const visible = sections[0] as HTMLElement;
+		expect(visible.textContent).toContain("fail-cmd");
+		renderer.dispose();
+	});
+
+	it("restores all blocks when the filter is cleared", async () => {
+		const { host, renderer } = mountWithFilter();
+		renderer.setFilter({ exitCodeNonZero: true });
+		await flushRepaint();
+		expect(host.querySelectorAll('[data-terminal-block-id]').length).toBe(1);
+		renderer.setFilter(null);
+		await flushRepaint();
+		expect(host.querySelectorAll('[data-terminal-block-id]').length).toBe(3);
+		renderer.dispose();
+	});
+
+	it("does not mutate the underlying block ids across a filter-and-clear cycle", async () => {
+		const { core, host, renderer } = mountWithFilter();
+		await flushRepaint();
+		const beforeIds = Array.from(host.querySelectorAll('[data-terminal-block-id]'))
+			.map((el) => (el as HTMLElement).dataset.terminalBlockId ?? "");
+		renderer.setFilter({ exitCodeNonZero: true });
+		await flushRepaint();
+		renderer.setFilter(null);
+		await flushRepaint();
+		const afterIds = Array.from(host.querySelectorAll('[data-terminal-block-id]'))
+			.map((el) => (el as HTMLElement).dataset.terminalBlockId ?? "");
+		expect(afterIds).toEqual(beforeIds);
+		const blocks = decodeBlocks(core.snapshot());
+		expect(blocks.length).toBe(3);
 		renderer.dispose();
 	});
 });

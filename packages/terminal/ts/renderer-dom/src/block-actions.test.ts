@@ -5,7 +5,7 @@ import { renderBlockActions, RERUN_EVENT } from "./block-actions";
 const block = {
 	id: "0:1", firstRow: 0, rowCount: 1, state: "finished" as const,
 	source: "extension" as const, exitCode: 0, durationMs: 1,
-	command: "ls -la", cwd: "/tmp", gitBranch: "main",
+	command: "ls -la", cwd: "/tmp", gitBranch: "main", bookmarked: false,
 };
 
 const text = { command: () => "ls -la", output: () => "a.txt\nb.txt" };

@@ -124,8 +124,13 @@ impl ExportBuffers {
             // at i32::MAX -- and the exit parameter arrives from untrusted
             // terminal output, so neither is hypothetical.
             let has_exit = u32::from(record.exit_code.is_some());
-            self.blocks
-                .push(record.state.as_u32() | (record.source.as_u32() << 8) | (has_exit << 16));
+            let bookmarked = u32::from(record.bookmarked);
+            self.blocks.push(
+                record.state.as_u32()
+                    | (record.source.as_u32() << 8)
+                    | (has_exit << 16)
+                    | (bookmarked << 17),
+            );
             self.blocks.push(record.exit_code.unwrap_or(0) as u32);
             let (duration_lo, duration_hi) = match record.duration_ms {
                 None => (u32::MAX, u32::MAX),
@@ -268,6 +273,24 @@ impl WasmTerminalCore {
     #[wasm_bindgen(js_name = setAgentTuiMode)]
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.core.set_agent_tui_mode(on);
+    }
+
+    pub fn set_block_bookmarked(&mut self, id_lo: u32, id_hi: u32, bookmarked: bool) -> Result<(), JsError> {
+        let id = ((id_hi as u64) << 32) | (id_lo as u64);
+        self.core.set_block_bookmarked(id, bookmarked);
+        self.refresh_after_mutation()
+    }
+
+    pub fn block_bookmarked(&self, id_lo: u32, id_hi: u32) -> bool {
+        let id = ((id_hi as u64) << 32) | (id_lo as u32 as u64);
+        self.core.block_bookmarked(id)
+    }
+
+    fn refresh_after_mutation(&mut self) -> Result<(), JsError> {
+        let snapshot = self.core.snapshot().map_err(js_error_from_core)?;
+        self.export.refresh(&snapshot)?;
+        self.generation = self.generation.wrapping_add(1);
+        Ok(())
     }
 
     pub fn generation(&self) -> u32 {

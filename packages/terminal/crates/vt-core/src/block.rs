@@ -46,6 +46,7 @@ pub struct BlockMeta {
     pub exit_code: Option<i32>,
     pub started_at_ms: Option<u64>,
     pub finished_at_ms: Option<u64>,
+    pub bookmarked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -79,4 +80,5 @@ pub struct BlockRecord {
     pub command: TextSpan,
     pub cwd: TextSpan,
     pub git_branch: TextSpan,
+    pub bookmarked: bool,
 }

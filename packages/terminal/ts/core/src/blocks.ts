@@ -34,6 +34,7 @@ export function decodeBlocks(
 			throw new Error(`block source byte ${sourceByte} is out of range`);
 		}
 		const hasExit = ((packed >> 16) & 1) === 1;
+		const bookmarked = ((packed >> 17) & 1) === 1;
 		// `| 0` reinterprets the u32 word as the i32 it was encoded from.
 		const exitCode = hasExit ? blocks[base + 5] | 0 : null;
 		const durationLow = blocks[base + 6];
@@ -54,6 +55,7 @@ export function decodeBlocks(
 			command: decodeSpan(blockText, blocks[base + 8], blocks[base + 9]),
 			cwd: decodeSpan(blockText, blocks[base + 10], blocks[base + 11]),
 			gitBranch: decodeSpan(blockText, blocks[base + 12], blocks[base + 13]),
+			bookmarked,
 		});
 	}
 	return views;

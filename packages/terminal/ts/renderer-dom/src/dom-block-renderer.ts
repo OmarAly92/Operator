@@ -14,6 +14,7 @@ import {
 import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
+import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
@@ -76,6 +77,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		stylePairs: Uint32Array;
 	} | null = null;
 	private latestBlocks: readonly BlockView[] = [];
+	private filteredBlocks: readonly BlockView[] = [];
+	private currentFilter: BlockFilter | null = null;
 	private pinnedHeader: HTMLElement | null = null;
 	private blockNav: BlockNavHandle | null = null;
 
@@ -110,10 +113,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.scheduleRepaint();
 		});
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
-		this.blockNav = mountBlockNavFromRenderer({
-			container, getBlocks: () => this.latestBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null,
-		});
-
+		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		this.repaint();
 	}
 
@@ -125,6 +125,10 @@ export class DomBlockRenderer implements BlockRenderer {
 	setFont(font: FontConfig): void {
 		this.font = font;
 		this.applyStyleVars();
+	}
+
+	setFilter(filter: BlockFilter | null): void {
+		this.currentFilter = filter, this.scheduleRepaint();
 	}
 
 	setHostCapabilities(host: HostCapabilities | null): void {
@@ -337,13 +341,14 @@ export class DomBlockRenderer implements BlockRenderer {
 			stylePairs: snapshot.stylePairs,
 		};
 		this.latestBlocks = blocks;
+		this.filteredBlocks = applyFilter(blocks, this.currentFilter);
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const anchorScrollTop = container.scrollTop;
 		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
 		const viewportHeight = container.clientHeight || 1;
 		const windowResult = computeWindow({
-			blocks,
+			blocks: this.filteredBlocks,
 			scrollTop,
 			viewportHeight,
 			rowHeight,
@@ -354,13 +359,13 @@ export class DomBlockRenderer implements BlockRenderer {
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
 		if (this.blockNav) this.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
-		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, blocks, windowResult.pinnedBlockIndex, defaultStrings);
+		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, windowResult.pinnedBlockIndex, defaultStrings);
 
 		const textSource: BlockTextSource = this.buildTextSource();
 		const visibleIds = new Set<BlockId>();
 		if (windowResult.firstBlock <= windowResult.lastBlock) {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-				const block = blocks[i]!;
+				const block = this.filteredBlocks[i]!;
 				visibleIds.add(block.id);
 				const element = this.ensureBlockElement(block);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
@@ -379,7 +384,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 		const orderedVisible: HTMLElement[] = [];
 		for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-			const block = blocks[i]!;
+			const block = this.filteredBlocks[i]!;
 			const element = this.blockElements.get(block.id);
 			if (element) orderedVisible.push(element);
 		}
@@ -423,10 +428,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const snapshot = this.latestSnapshot;
 		const blocks = this.latestBlocks;
 		const decoder = this.decoder;
-		const blockById = new Map<BlockId, BlockView>();
-		for (const block of blocks) {
-			blockById.set(block.id, block);
-		}
+		const blockById = new Map(blocks.map((b) => [b.id, b] as const));
 		return {
 			command: (id) => blockById.get(id)?.command ?? "",
 			output: (id) => {

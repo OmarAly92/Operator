@@ -17,6 +17,7 @@ export type BlockView = Readonly<{
 	command: string;
 	cwd: string;
 	gitBranch: string;
+	bookmarked: boolean;
 }>;
 
 export type RowRange = Readonly<{ start: number; end: number }>;

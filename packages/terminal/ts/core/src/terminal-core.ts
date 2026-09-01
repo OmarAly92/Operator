@@ -8,6 +8,7 @@ import {
 	type WasmInput,
 } from "./wasm-runtime.js";
 import type {
+	BlockId,
 	ChangeListener,
 	FindMatch,
 	HostCapabilities,
@@ -207,6 +208,22 @@ export class TerminalCore {
 		this.inner.setAgentTuiMode(on);
 	}
 
+	setBlockBookmarked(id: BlockId, bookmarked: boolean): void {
+		if (this.disposed) {
+			return;
+		}
+		const [idLo, idHi] = parseBlockId(id);
+		this.inner.set_block_bookmarked(idLo, idHi, bookmarked);
+	}
+
+	blockBookmarked(id: BlockId): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		const [idLo, idHi] = parseBlockId(id);
+		return this.inner.block_bookmarked(idLo, idHi);
+	}
+
 	lineEditorState(): LineEditorState {
 		return LINE_EDITOR_STATES[this.snapshot().lineEditorState] ?? "unknown";
 	}
@@ -253,6 +270,19 @@ function validateEvenLength(name: string, length: number): void {
 	if (length % 2 !== 0) {
 		throw new Error(`${name} length ${length} is not even`);
 	}
+}
+
+function parseBlockId(id: BlockId): [number, number] {
+	const separator = id.indexOf(":");
+	if (separator < 0) {
+		throw new Error(`block id ${id} is not in hi:lo form`);
+	}
+	const hi = Number.parseInt(id.slice(0, separator), 10);
+	const lo = Number.parseInt(id.slice(separator + 1), 10);
+	if (!Number.isFinite(hi) || !Number.isFinite(lo)) {
+		throw new Error(`block id ${id} is not numeric`);
+	}
+	return [lo, hi];
 }
 
 export type { WasmInput };

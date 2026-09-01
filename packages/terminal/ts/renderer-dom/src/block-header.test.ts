@@ -10,6 +10,7 @@ const base = {
 	command: "git status",
 	cwd: "/Users/me/project",
 	gitBranch: "main",
+	bookmarked: false,
 };
 
 describe("renderBlockHeader", () => {

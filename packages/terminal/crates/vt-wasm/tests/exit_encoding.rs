@@ -13,6 +13,7 @@ fn record(exit: Option<i32>) -> BlockRecord {
         command: TextSpan::default(),
         cwd: TextSpan::default(),
         git_branch: TextSpan::default(),
+        bookmarked: false,
     }
 }
 

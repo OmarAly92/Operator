@@ -175,6 +175,14 @@ impl TerminalCore {
         self.parser.set_agent_tui_mode(on);
     }
 
+    pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
+        self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+    }
+
+    pub fn block_bookmarked(&self, id: crate::block::BlockId) -> bool {
+        self.parser.grid().block_bookmarked(id)
+    }
+
     pub fn rows(&self) -> usize {
         self.rows
     }
