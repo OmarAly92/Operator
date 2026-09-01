@@ -30,9 +30,7 @@ impl ScreenGrid {
         for r in self.scroll_top..(self.scroll_top + count) {
             self.record_eviction(r);
         }
-        for r in self.scroll_top..=(self.scroll_bottom - count) {
-            self.copy_row(r + count, r);
-        }
+        self.rotate_region_up(count);
         for r in (self.scroll_bottom + 1 - count)..=self.scroll_bottom {
             self.blank_row(r);
         }
@@ -49,9 +47,7 @@ impl ScreenGrid {
             }
             return;
         }
-        for r in ((self.scroll_top + count)..=self.scroll_bottom).rev() {
-            self.copy_row(r - count, r);
-        }
+        self.rotate_region_down(count);
         for r in self.scroll_top..(self.scroll_top + count) {
             self.blank_row(r);
         }

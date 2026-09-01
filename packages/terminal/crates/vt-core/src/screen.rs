@@ -76,6 +76,7 @@ pub struct ScreenGrid {
     rows: usize,
     cols: usize,
     cells: Vec<Cell>,
+    first: usize,
     row: usize,
     max_cursor_row: usize,
     col: usize,
@@ -102,6 +103,7 @@ impl ScreenGrid {
             rows,
             cols,
             cells: vec![Cell::BLANK; rows * cols],
+            first: 0,
             row: 0,
             max_cursor_row: 0,
             col: 0,
@@ -137,7 +139,7 @@ impl ScreenGrid {
         if !self.records_eviction || self.scroll_top != 0 || self.scroll_bottom + 1 != self.rows {
             return;
         }
-        let start = row * self.cols;
+        let start = self.phys_start(row);
         self.evicted
             .push(self.cells[start..start + self.cols].to_vec());
     }
@@ -174,28 +176,74 @@ impl ScreenGrid {
         if row >= self.rows || col >= self.cols {
             return Cell::BLANK;
         }
-        self.cells[row * self.cols + col].clone()
+        self.cells[self.phys_start(row) + col].clone()
     }
 
     pub(crate) fn cell_ref(&self, row: usize, col: usize) -> Option<&Cell> {
         if row >= self.rows || col >= self.cols {
             return None;
         }
-        self.cells.get(row * self.cols + col)
+        self.cells.get(self.phys_start(row) + col)
     }
 
     pub(crate) fn set(&mut self, row: usize, col: usize, cell: Cell) {
         if row >= self.rows || col >= self.cols {
             return;
         }
-        let index = row * self.cols + col;
+        let index = self.phys_start(row) + col;
         self.cells[index] = cell;
     }
 
     pub(crate) fn blank_row(&mut self, row: usize) {
-        for col in 0..self.cols {
-            self.set(row, col, Cell::BLANK);
+        if row >= self.rows {
+            return;
         }
+        let start = self.phys_start(row);
+        self.cells[start..start + self.cols].fill(Cell::BLANK);
+    }
+
+    // Logical row -> physical byte offset. The grid is a ring of rows: a
+    // full-screen scroll advances `first` instead of moving cells, so a
+    // newline costs O(cols) (one blanked row) rather than O(rows * cols).
+    #[inline]
+    fn phys_start(&self, row: usize) -> usize {
+        ((row + self.first) % self.rows) * self.cols
+    }
+
+    // Partial scroll regions still move cells; the ring must be unwound first
+    // so the region is contiguous. Rotating whole rows never clones a Cell.
+    fn materialize(&mut self) {
+        if self.first != 0 {
+            let shift = self.first * self.cols;
+            self.cells.rotate_left(shift);
+            self.first = 0;
+        }
+    }
+
+    fn region_is_full(&self) -> bool {
+        self.scroll_top == 0 && self.scroll_bottom + 1 == self.rows
+    }
+
+    pub(crate) fn rotate_region_up(&mut self, count: usize) {
+        if self.region_is_full() {
+            self.first = (self.first + count) % self.rows;
+            return;
+        }
+        self.materialize();
+        let start = self.scroll_top * self.cols;
+        let end = (self.scroll_bottom + 1) * self.cols;
+        self.cells[start..end].rotate_left(count * self.cols);
+    }
+
+    pub(crate) fn rotate_region_down(&mut self, count: usize) {
+        if self.region_is_full() {
+            self.first = (self.first + self.rows - count) % self.rows;
+            return;
+        }
+        self.materialize();
+        let start = self.scroll_top * self.cols;
+        let end = (self.scroll_bottom + 1) * self.cols;
+        self.cells[start..end].rotate_right(count * self.cols);
     }
 
     pub(crate) fn copy_row(&mut self, from: usize, to: usize) {
@@ -284,7 +332,7 @@ impl ScreenGrid {
         if row >= self.rows || col >= self.cols {
             return;
         }
-        let index = row * self.cols + col;
+        let index = self.phys_start(row) + col;
         self.cells[index].push_zerowidth(ch);
     }
 
@@ -354,10 +402,11 @@ impl ScreenGrid {
         let mut next = vec![Cell::BLANK; rows * cols];
         for row in 0..rows.min(self.rows) {
             for col in 0..cols.min(self.cols) {
-                next[row * cols + col] = self.cells[row * self.cols + col].clone();
+                next[row * cols + col] = self.cells[self.phys_start(row) + col].clone();
             }
         }
         self.cells = next;
+        self.first = 0;
         self.rows = rows;
         self.cols = cols;
         self.scroll_top = 0;

@@ -1,0 +1,5 @@
+# Without bulk-memory, every memmove in the wasm build compiles to a
+# byte-at-a-time loop — measured as a 2x throughput loss on the vt-host
+# parser. Pinned here so a plain `cargo build` can never silently lose it.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+bulk-memory,+simd128"]
