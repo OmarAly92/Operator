@@ -8,6 +8,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -35,18 +37,64 @@ func TestRuntimeAdvertisesStyledRenderedTerminalOutput(t *testing.T) {
 	}
 }
 
-func TestPaneCaptureReturnsUnsupportedSentinel(t *testing.T) {
+func TestPaneCaptureUnknownSessionErrors(t *testing.T) {
 	rt := New(Options{})
 	h := ports.RuntimeHandle{ID: "sess-1"}
 
-	if _, err := rt.CaptureState(context.Background(), h); !errors.Is(err, ports.ErrCaptureUnsupported) {
-		t.Fatalf("CaptureState err = %v, want ErrCaptureUnsupported", err)
+	if _, err := rt.CaptureState(context.Background(), h); err == nil {
+		t.Fatal("CaptureState: want error for unknown session, got nil")
 	}
-	if err := rt.StartCapture(context.Background(), h, []string{"pane-capture", "--dir", "/x"}); !errors.Is(err, ports.ErrCaptureUnsupported) {
-		t.Fatalf("StartCapture err = %v, want ErrCaptureUnsupported", err)
+	if err := rt.StartCapture(context.Background(), h, []string{"pane-capture", "--dir", "/x"}); err == nil {
+		t.Fatal("StartCapture: want error for unknown session, got nil")
 	}
-	if err := rt.StopCapture(context.Background(), h); !errors.Is(err, ports.ErrCaptureUnsupported) {
-		t.Fatalf("StopCapture err = %v, want ErrCaptureUnsupported", err)
+	if err := rt.StopCapture(context.Background(), h); err == nil {
+		t.Fatal("StopCapture: want error for unknown session, got nil")
+	}
+}
+
+func TestPaneCaptureRoundTrip(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	isolateRegistry(t)
+	hosts := map[string]*inProcHost{}
+	rt := New(Options{Spawner: fakeSpawnerFor(t, hosts, livePID())})
+	ctx := context.Background()
+
+	handle, err := rt.Create(ctx, ports.RuntimeConfig{
+		SessionID:     "sess-cap",
+		WorkspacePath: "/tmp/w",
+		Argv:          []string{"sh"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	h := hosts["sess-cap"]
+	defer h.cleanup(t)
+
+	sink := filepath.Join(t.TempDir(), "capture.log")
+	if err := rt.StartCapture(ctx, handle, []string{"/bin/sh", "-c", "cat > " + sink}); err != nil {
+		t.Fatalf("StartCapture: %v", err)
+	}
+
+	state, err := rt.CaptureState(ctx, handle)
+	if err != nil {
+		t.Fatalf("CaptureState: %v", err)
+	}
+	if !state.PipeOpen {
+		t.Fatal("PipeOpen = false, want true while capture is armed")
+	}
+
+	if err := rt.StopCapture(ctx, handle); err != nil {
+		t.Fatalf("StopCapture: %v", err)
+	}
+
+	state, err = rt.CaptureState(ctx, handle)
+	if err != nil {
+		t.Fatalf("CaptureState after stop: %v", err)
+	}
+	if state.PipeOpen {
+		t.Fatal("PipeOpen = true after StopCapture, want false")
 	}
 }
 

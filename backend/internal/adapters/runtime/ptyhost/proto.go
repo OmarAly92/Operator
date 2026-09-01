@@ -23,6 +23,10 @@ const (
 	MsgKillReq         byte = 0x08 // client -> host: empty
 	MsgStyledOutputReq byte = 0x09 // client -> host: JSON {lines}
 	MsgStyledOutputRes byte = 0x0A // host -> client: UTF-8 text with SGR escapes
+	MsgCaptureStartReq byte = 0x0B
+	MsgCaptureStopReq  byte = 0x0C
+	MsgCaptureStateReq byte = 0x0D
+	MsgCaptureStateRes byte = 0x0E
 )
 
 // JSON payload structs shared with later tasks (kept minimal).
@@ -43,6 +47,15 @@ type StatusPayload struct {
 // GetOutputReq is the JSON body for MsgGetOutputReq.
 type GetOutputReq struct {
 	Lines int `json:"lines"`
+}
+
+type CaptureStartReq struct {
+	Argv []string `json:"argv"`
+}
+
+type CaptureStateRes struct {
+	PipeOpen    bool `json:"pipeOpen"`
+	AlternateOn bool `json:"alternateOn"`
 }
 
 // EncodeMessage encodes a single frame into the binary protocol format.

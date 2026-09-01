@@ -193,6 +193,88 @@ func clientGetStyledOutput(addr string, lines int) (string, error) {
 	}
 }
 
+func clientStartCapture(addr string, argv []string) error {
+	conn, err := dialHost(addr, dialTimeout)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	req, err := json.Marshal(CaptureStartReq{Argv: argv})
+	if err != nil {
+		return err
+	}
+	frame, err := EncodeMessage(MsgCaptureStartReq, req)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(frame)
+	return err
+}
+
+func clientStopCapture(addr string) error {
+	conn, err := dialHost(addr, dialTimeout)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	frame, err := EncodeMessage(MsgCaptureStopReq, nil)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(frame)
+	return err
+}
+
+func clientCaptureState(addr string) (CaptureStateRes, error) {
+	conn, err := dialHost(addr, getOutputTimeout)
+	if err != nil {
+		return CaptureStateRes{}, err
+	}
+	defer func() { _ = conn.Close() }()
+
+	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
+
+	reqFrame, err := EncodeMessage(MsgCaptureStateReq, nil)
+	if err != nil {
+		return CaptureStateRes{}, err
+	}
+	if _, err := conn.Write(reqFrame); err != nil {
+		return CaptureStateRes{}, err
+	}
+
+	type stateResult struct {
+		state CaptureStateRes
+		err   error
+	}
+	resultC := make(chan stateResult, 1)
+	parser := NewMessageParser(func(msgType byte, payload []byte) {
+		if msgType == MsgCaptureStateRes {
+			var state CaptureStateRes
+			err := json.Unmarshal(payload, &state)
+			select {
+			case resultC <- stateResult{state: state, err: err}:
+			default:
+			}
+		}
+	})
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		select {
+		case result := <-resultC:
+			return result.state, result.err
+		default:
+		}
+		if err != nil {
+			return CaptureStateRes{}, err
+		}
+	}
+}
+
 // clientIsAlive probes the host with MsgStatusReq and distinguishes three
 // outcomes for the reaper (see IsAlive in runtime.go):
 //

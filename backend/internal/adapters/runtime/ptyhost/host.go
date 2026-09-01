@@ -51,6 +51,7 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 		cfg:       cfg,
 		clients:   make(map[net.Conn]*clientState),
 		shutdownC: make(chan struct{}),
+		capture:   &captureSink{},
 	}
 	return h.run(ctx)
 }
@@ -77,6 +78,8 @@ type host struct {
 
 	shutdownOnce sync.Once
 	shutdownC    chan struct{} // closed when Shutdown is called
+
+	capture *captureSink
 }
 
 // applyLargestLocked sizes the shared PTY to a SINGLE client's grid — the
@@ -277,6 +280,7 @@ func (h *host) deliver(batch []byte) {
 		h.broadcast(frame)
 	}
 	h.feedParser(batch)
+	h.capture.write(batch)
 }
 
 const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ
@@ -453,6 +457,34 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 		// No Parser means no styled-output source: the ring only ever kept
 		// plain bytes, so there is no styled fallback to fall back to.
 		if frame, err := EncodeMessage(MsgStyledOutputRes, []byte(text)); err == nil {
+			h.sendTo(conn, frame)
+		}
+
+	case MsgCaptureStartReq:
+		var req CaptureStartReq
+		if err := json.Unmarshal(payload, &req); err == nil && len(req.Argv) > 0 {
+			if err := h.capture.start(req.Argv); err != nil {
+				h.logf("start capture: %v", err)
+			}
+		}
+
+	case MsgCaptureStopReq:
+		if err := h.capture.stop(); err != nil {
+			h.logf("stop capture: %v", err)
+		}
+
+	case MsgCaptureStateReq:
+		var alternateOn bool
+		if h.cfg.Parser != nil {
+			on, err := h.cfg.Parser.AltActive()
+			if err != nil {
+				h.logf("alt active for CaptureState: %v", err)
+			}
+			alternateOn = on
+		}
+		state := CaptureStateRes{PipeOpen: h.capture.open(), AlternateOn: alternateOn}
+		b, _ := json.Marshal(state)
+		if frame, err := EncodeMessage(MsgCaptureStateRes, b); err == nil {
 			h.sendTo(conn, frame)
 		}
 
