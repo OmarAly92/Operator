@@ -306,8 +306,13 @@ cd backend && VT_HOST_WASM=../packages/terminal/target/wasm32-unknown-unknown/re
 - **10–50 MB/s** — workable, since the parser is off the hot path and may lag. Proceed, but note it in the plan's results and re-check under `active-memory`.
 - **< 10 MB/s** — STOP. Report to the user; the parser decision flips to a Go emulator held to `packages/terminal/protocol/alt-vectors`, and Tasks 7–9 must be rewritten before continuing.
 
-**RESULT (2026-09-01): ~1.28–1.29 MB/s across two runs (`-benchtime=1x` and `-benchtime=2x`), on darwin/arm64 (Apple M1 Max). This is in the < 10 MB/s STOP bucket — an order of magnitude below the workable floor and ~40x below the comfortable floor.** Full benchmark output and command in
-`.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-1-report.md`. Per gate policy: STOPPED. Reported to the user; awaiting a human decision before any further task in this plan is dispatched. Tasks 7–9 (and any other task assuming a WASM parser is fast enough) are not executed as specced.
+**RESULT (2026-09-01, initial run): ~1.28–1.29 MB/s across two runs (`-benchtime=1x` and `-benchtime=2x`), on darwin/arm64 (Apple M1 Max). This was in the < 10 MB/s STOP bucket.** Per gate policy: STOPPED and reported to the user.
+
+**Root cause found and fixed (commit `8eb799c46`, landed during the gate review, upstream of this session's continuation):** the STOP number was not WASM overhead. Native `vt-core` measured only 4.6 MB/s on the same bytes — `scroll_up` copied the whole grid cell-by-cell on every newline. The grid is now a ring of rows (`crates/vt-core/src/screen.rs`: `phys_start`/`rotate_region_up`/`materialize`), taking native throughput 4.6 → 57.1 MB/s. Separately, the wasm build was missing `+bulk-memory`, so every memmove was a byte loop; the target features are now pinned in `packages/terminal/.cargo/config.toml` (~2x on top).
+
+**RESULT (2026-09-01, re-run after the fix, reproduced independently by the controller session): 16.19 MB/s** (`BenchmarkFeed16MB-10  5  1024805633 ns/op  16.19 MB/s`, `-benchtime=5x`, plain `cargo build --release -p vt-host --target wasm32-unknown-unknown` from `packages/terminal` with no manual `RUSTFLAGS` — `.cargo/config.toml` applies the pinned target features automatically). Matches the reported 16.5–18.3 MB/s range within run-to-run variance. **This is in the 10–50 MB/s "workable" bucket: proceed with the WASM design as specced.** Per that bucket's rule, parser cost must be re-checked under the `active-memory` scenario when Task 14 runs.
+
+Full benchmark output and command for the original STOP run: `.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-1-report.md`. Gate is now **PASSED (workable band)** — plan execution resumes at Task 2.
 
 - [x] **Step 6: Commit**
 
