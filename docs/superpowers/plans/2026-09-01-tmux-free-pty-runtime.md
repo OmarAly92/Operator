@@ -333,7 +333,7 @@ Mechanical, and worth its own commit so later diffs are readable.
 - Modify: `backend/internal/cli/ptyhost.go`
 - Modify: `backend/internal/terminal/doc.go` (mentions conpty)
 
-- [ ] **Step 1: Move the package and rewrite the identifier**
+- [x] **Step 1: Move the package and rewrite the identifier** (fix round 1: `backend/internal/terminal/doc.go` and `attachment.go` prose also updated, commit `0505c3e1f`)
 
 ```bash
 cd backend/internal/adapters/runtime
@@ -349,7 +349,7 @@ nothing. `xargs -r` is a GNU flag; BSD xargs skips empty input by default.)
 
 Keep the `conptyConn` type name and `newConPTY` function — those are genuinely ConPTY-specific and stay Windows-tagged.
 
-- [ ] **Step 2: Build for all three platforms**
+- [x] **Step 2: Build for all three platforms**
 
 ```bash
 cd backend && for os in darwin linux windows; do GOOS=$os go build ./... || echo "FAILED $os"; done
@@ -357,12 +357,12 @@ cd backend && for os in darwin linux windows; do GOOS=$os go build ./... || echo
 
 Expected: no output, three successful builds.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/...`
 Expected: PASS, same count as before the rename.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** (commits `c102e9426`, `0505c3e1f`)
 
 ```bash
 git add -A backend
