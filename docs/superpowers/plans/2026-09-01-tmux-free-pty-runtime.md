@@ -1591,7 +1591,7 @@ git commit -m "feat(runtime): pane capture without pipe-pane"
 **Interfaces:**
 - Produces: `(*Runtime).Restart(ctx, handle, cfg) (ports.RuntimeHandle, error)` satisfying `ports.RuntimeRestarter` (`ports/outbound.go:111`), consumed at `manager.go:1768`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestRestartReplacesProcessAndKeepsHandle(t *testing.T) {
@@ -1614,12 +1614,12 @@ func TestRestartReplacesProcessAndKeepsHandle(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestRestartReplaces -v`
 Expected: FAIL — `runtime.Restart undefined`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `MsgRespawnReq = 0x0F` / `MsgRespawnRes = 0x10`.
 
@@ -1641,12 +1641,12 @@ If `ptyregistry` records the child pid, update the entry here too.
 
 The listener, registry entry and client set are untouched throughout — that is the entire point of respawn versus destroy-and-create. `(*Runtime).Restart` sends the message, waits for the response with a 10s timeout, and returns the same handle; the test's `pidOf` helper reads the pid from a status request.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/...`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (commits `9e51e4a3b`, `1afc15281`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
