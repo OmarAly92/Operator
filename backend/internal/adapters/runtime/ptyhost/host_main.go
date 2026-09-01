@@ -12,6 +12,16 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/vtwasm"
+)
+
+// initialCols/initialRows are the grid the shared PTY (and its passive parser)
+// start at before any client has sent a resize; vt-core defaults to 24 rows
+// on its own, so this mirrors the same 80x24 into both.
+const (
+	initialCols = 80
+	initialRows = 24
 )
 
 // RunHost is the "opr pty-host" entrypoint. argv is everything after the
@@ -86,11 +96,17 @@ func RunHost(args []string, stdout io.Writer) int {
 	}()
 
 	ring := NewRing()
+	parser, err := vtwasm.New(ctx, vtwasm.Module, initialCols, initialRows, MaxOutputLines)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pty-host [%s]: vtwasm.New: %v\n", sessionID, err)
+		parser = nil
+	}
 	cfg := ServeConfig{
 		SessionID: sessionID,
 		Listener:  ln,
 		PTY:       pty,
 		Ring:      ring,
+		Parser:    parser,
 	}
 
 	if err := Serve(ctx, cfg); err != nil {

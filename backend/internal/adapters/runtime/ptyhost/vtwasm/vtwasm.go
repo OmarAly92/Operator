@@ -52,3 +52,56 @@ func (p *Parser) Feed(bytes []byte) error {
 }
 
 func (p *Parser) Close() error { return p.runtime.Close(p.ctx) }
+
+const (
+	renderBufferBytes = 1 << 20
+	renderErr         = ^uint32(0)
+	renderTooBig      = ^uint32(0) - 1
+)
+
+// RenderTail returns ("", nil) for a genuinely empty screen. Errors are errors:
+// the caller must never treat one as "fall back to the raw ring", or the
+// platform-divergence bug this parser exists to kill comes back through the
+// side door.
+func (p *Parser) RenderTail(lines int) (string, error) {
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
+	if err != nil {
+		return "", fmt.Errorf("vtwasm: alloc render buffer: %w", err)
+	}
+	out := uint32(res[0])
+	defer p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes)
+
+	res, err = p.module.ExportedFunction("vt_render").
+		Call(p.ctx, uint64(p.handle), uint64(lines), uint64(out), renderBufferBytes)
+	if err != nil {
+		return "", fmt.Errorf("vtwasm: render: %w", err)
+	}
+	switch written := uint32(res[0]); written {
+	case 0:
+		return "", nil
+	case renderErr:
+		return "", fmt.Errorf("vtwasm: render failed for handle %d", p.handle)
+	case renderTooBig:
+		return "", fmt.Errorf("vtwasm: rendered screen exceeds %d bytes", renderBufferBytes)
+	default:
+		bytes, ok := p.module.Memory().Read(out, written)
+		if !ok {
+			return "", fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		return string(bytes), nil
+	}
+}
+
+func (p *Parser) Resize(cols, rows uint32) error {
+	_, err := p.module.ExportedFunction("vt_resize").
+		Call(p.ctx, uint64(p.handle), uint64(cols), uint64(rows))
+	return err
+}
+
+func (p *Parser) AltActive() (bool, error) {
+	res, err := p.module.ExportedFunction("vt_alt_active").Call(p.ctx, uint64(p.handle))
+	if err != nil {
+		return false, fmt.Errorf("vtwasm: alt_active: %w", err)
+	}
+	return res[0] == 1, nil
+}

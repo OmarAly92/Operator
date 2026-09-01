@@ -15,6 +15,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}/backend"
+TERMINAL_DIR="${SCRIPT_DIR}/terminal"
+
+# Rebuild the vt-host wasm module before the Go build, so the artifact
+# embedded via vtwasm/embed.go can never drift from the source that produced
+# it. Plain `cargo build`: the .cargo/config.toml pinned under TERMINAL_DIR
+# supplies +bulk-memory,+simd128 automatically.
+echo "Building vt-host wasm module from ${TERMINAL_DIR}"
+(cd "${TERMINAL_DIR}" && cargo build --release -p vt-host --target wasm32-unknown-unknown)
+cp "${TERMINAL_DIR}/target/wasm32-unknown-unknown/release/vt_host.wasm" \
+  "${BACKEND_DIR}/internal/adapters/runtime/ptyhost/vtwasm/assets/vt_host.wasm"
 
 # pkg_dir : npm_os : npm_arch : GOOS : GOARCH : bin_name
 TARGETS=(

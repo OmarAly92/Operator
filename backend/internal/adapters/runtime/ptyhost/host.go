@@ -14,6 +14,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/vtwasm"
 )
 
 // ptyConn is the host's handle to the running agent's pseudo-terminal.
@@ -34,6 +36,7 @@ type ServeConfig struct {
 	Listener  net.Listener // caller provides (loopback); engine owns Accept loop
 	PTY       ptyConn
 	Ring      *Ring
+	Parser    *vtwasm.Parser
 }
 
 // Serve runs the host event loop until the listener closes or Shutdown is
@@ -112,6 +115,9 @@ func (h *host) applyLargestLocked() {
 	}
 	h.curCols, h.curRows = bestCols, bestRows
 	_ = h.cfg.PTY.Resize(bestCols, bestRows)
+	if h.cfg.Parser != nil {
+		_ = h.cfg.Parser.Resize(uint32(bestCols), uint32(bestRows))
+	}
 }
 
 // run is the main event loop.
@@ -267,6 +273,23 @@ func (h *host) deliver(batch []byte) {
 	h.cfg.Ring.Append(batch)
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
 		h.broadcast(frame)
+	}
+	h.feedParser(batch)
+}
+
+const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ
+
+// feedParser hands the batch to the passive parser in bounded slices. It runs
+// after the client broadcast, never before: a slow or failing parser must not
+// delay a single byte reaching the screen. Errors are dropped for the same
+// reason -- a broken parser degrades GetOutput, it does not break the terminal.
+func (h *host) feedParser(batch []byte) {
+	if h.cfg.Parser == nil {
+		return
+	}
+	for offset := 0; offset < len(batch); offset += maxParserSliceBytes {
+		end := min(offset+maxParserSliceBytes, len(batch))
+		_ = h.cfg.Parser.Feed(batch[offset:end])
 	}
 }
 
