@@ -288,6 +288,19 @@ func (r *Runtime) GetOutput(ctx context.Context, handle ports.RuntimeHandle, lin
 	return clientGetOutput(sess.addr, lines)
 }
 
+// GetStyledOutput returns the last lines lines from the pty-host parser,
+// SGR escapes preserved, satisfying ports.StyledTerminalOutputReader.
+func (r *Runtime) GetStyledOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error) {
+	if lines <= 0 {
+		return "", fmt.Errorf("ptyhost: lines must be > 0")
+	}
+	sess := r.resolve(handle.ID)
+	if sess == nil {
+		return "", fmt.Errorf("ptyhost: session %q not found", handle.ID)
+	}
+	return clientGetStyledOutput(sess.addr, lines)
+}
+
 // resolve looks up a session by id: first the in-memory map, then the B2
 // registry (for daemon-restart recovery). Returns nil if not found either way.
 func (r *Runtime) resolve(id string) *hostSession {

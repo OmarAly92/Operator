@@ -142,6 +142,57 @@ func clientGetOutput(addr string, lines int) (string, error) {
 	}
 }
 
+// clientGetStyledOutput sends MsgStyledOutputReq and reads frames until
+// MsgStyledOutputRes. Returns "" on timeout or connection failure (no error),
+// matching clientGetOutput.
+func clientGetStyledOutput(addr string, lines int) (string, error) {
+	conn, err := dialHost(addr, getOutputTimeout)
+	if err != nil {
+		return "", nil
+	}
+	defer func() { _ = conn.Close() }()
+
+	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
+
+	req, _ := json.Marshal(GetOutputReq{Lines: lines})
+	reqFrame, _ := EncodeMessage(MsgStyledOutputReq, req) // req is small JSON, never overflows uint32
+	if _, err := conn.Write(reqFrame); err != nil {
+		return "", nil
+	}
+
+	resultC := make(chan string, 1)
+	parser := NewMessageParser(func(msgType byte, payload []byte) {
+		if msgType == MsgStyledOutputRes {
+			select {
+			case resultC <- string(payload):
+			default:
+			}
+		}
+	})
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		select {
+		case text := <-resultC:
+			return text, nil
+		default:
+		}
+		if err != nil {
+			break
+		}
+	}
+	select {
+	case text := <-resultC:
+		return text, nil
+	default:
+		return "", nil
+	}
+}
+
 // clientIsAlive probes the host with MsgStatusReq and distinguishes three
 // outcomes for the reaper (see IsAlive in runtime.go):
 //

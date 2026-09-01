@@ -28,10 +28,10 @@ func livePID() int { return os.Getpid() }
 // ponytail: PID 2147483647 (MaxInt32) is never a real process; signal-0 returns ESRCH.
 func deadPID() int { return 2147483647 }
 
-func TestRuntimeDoesNotAdvertiseStyledRenderedTerminalOutput(t *testing.T) {
+func TestRuntimeAdvertisesStyledRenderedTerminalOutput(t *testing.T) {
 	var runtime any = New(Options{})
-	if _, ok := runtime.(ports.StyledTerminalOutputReader); ok {
-		t.Fatal("raw ConPTY history must not be used as rendered composer state")
+	if _, ok := runtime.(ports.StyledTerminalOutputReader); !ok {
+		t.Fatal("Runtime must satisfy ports.StyledTerminalOutputReader now that the parser renders styled output")
 	}
 }
 

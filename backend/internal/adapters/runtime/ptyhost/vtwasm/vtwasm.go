@@ -6,16 +6,22 @@ package vtwasm
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
 
+// Parser serializes every call into the wasm module behind mu. The module's
+// linear memory is shared mutable state: pumpPTY's Feed calls race client
+// goroutines' RenderTail/RenderStyledTail/Resize/AltActive calls on the same
+// handle, and wazero gives no thread-safety guarantee across concurrent calls.
 type Parser struct {
 	runtime wazero.Runtime
 	module  api.Module
 	handle  uint32
 	ctx     context.Context
+	mu      sync.Mutex
 }
 
 func New(ctx context.Context, wasmModule []byte, cols, rows, scrollback uint32) (*Parser, error) {
@@ -37,6 +43,8 @@ func (p *Parser) Feed(bytes []byte) error {
 	if len(bytes) == 0 {
 		return nil
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, uint64(len(bytes)))
 	if err != nil {
 		return fmt.Errorf("vtwasm: alloc: %w", err)
@@ -64,6 +72,8 @@ const (
 // platform-divergence bug this parser exists to kill comes back through the
 // side door.
 func (p *Parser) RenderTail(lines int) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
 	if err != nil {
 		return "", fmt.Errorf("vtwasm: alloc render buffer: %w", err)
@@ -92,13 +102,50 @@ func (p *Parser) RenderTail(lines int) (string, error) {
 	}
 }
 
+// RenderStyledTail mirrors RenderTail but calls vt_render_styled, which
+// re-emits SGR escapes at each style-run boundary.
+func (p *Parser) RenderStyledTail(lines int) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
+	if err != nil {
+		return "", fmt.Errorf("vtwasm: alloc render buffer: %w", err)
+	}
+	out := uint32(res[0])
+	defer p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes)
+
+	res, err = p.module.ExportedFunction("vt_render_styled").
+		Call(p.ctx, uint64(p.handle), uint64(lines), uint64(out), renderBufferBytes)
+	if err != nil {
+		return "", fmt.Errorf("vtwasm: render_styled: %w", err)
+	}
+	switch written := uint32(res[0]); written {
+	case 0:
+		return "", nil
+	case renderErr:
+		return "", fmt.Errorf("vtwasm: styled render failed for handle %d", p.handle)
+	case renderTooBig:
+		return "", fmt.Errorf("vtwasm: styled rendered screen exceeds %d bytes", renderBufferBytes)
+	default:
+		bytes, ok := p.module.Memory().Read(out, written)
+		if !ok {
+			return "", fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
+		}
+		return string(bytes), nil
+	}
+}
+
 func (p *Parser) Resize(cols, rows uint32) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	_, err := p.module.ExportedFunction("vt_resize").
 		Call(p.ctx, uint64(p.handle), uint64(cols), uint64(rows))
 	return err
 }
 
 func (p *Parser) AltActive() (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	res, err := p.module.ExportedFunction("vt_alt_active").Call(p.ctx, uint64(p.handle))
 	if err != nil {
 		return false, fmt.Errorf("vtwasm: alt_active: %w", err)

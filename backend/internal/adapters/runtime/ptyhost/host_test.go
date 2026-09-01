@@ -718,6 +718,24 @@ func newTestHostWithParser(t *testing.T) (*serveFixture, *testClient) {
 	return f, c
 }
 
+// syncClientRegistered blocks until the host has finished registering c into
+// h.clients. A successful Dial only proves the TCP handshake completed, not
+// that handleConn has reached the registration line yet; a PTY chunk fed
+// immediately after connecting can race that registration and broadcast to
+// an empty client set, leaving c waiting forever for a frame that already
+// came and went. A round trip through the host's single-goroutine message
+// loop can only complete after registration, so it is a reliable barrier.
+func syncClientRegistered(t *testing.T, c *testClient) {
+	t.Helper()
+	if err := c.send(MsgStatusReq, nil); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	typ, _ := c.readFrame(t)
+	if typ != MsgStatusRes {
+		t.Fatalf("got type 0x%02x, want MsgStatusRes", typ)
+	}
+}
+
 func (f *serveFixture) feedPTY(t *testing.T, data string) {
 	t.Helper()
 	if _, err := f.pty.WriteOutput([]byte(data)); err != nil {
@@ -743,6 +761,7 @@ func TestGetOutputReturnsRenderedScreen(t *testing.T) {
 	defer f.cancel()
 	defer c.close()
 
+	syncClientRegistered(t, c)
 	f.feedPTY(t, "AAAA\x1b[1;1HB\n")
 
 	c.readFrame(t)
@@ -753,6 +772,39 @@ func TestGetOutputReturnsRenderedScreen(t *testing.T) {
 	}
 	if strings.Contains(text, "\x1b[") {
 		t.Fatalf("GetOutput = %q, want no escape sequences", text)
+	}
+}
+
+// getStyledOutput skips any MsgTerminalData broadcasts that race the response
+// (pumpPTY's flush timer can interleave one with the reply) and returns the
+// first MsgStyledOutputRes frame.
+func (tc *testClient) getStyledOutput(t *testing.T, lines int) string {
+	t.Helper()
+	reqPayload, _ := json.Marshal(GetOutputReq{Lines: lines})
+	if err := tc.send(MsgStyledOutputReq, reqPayload); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	for {
+		typ, payload := tc.readFrame(t)
+		if typ == MsgStyledOutputRes {
+			return string(payload)
+		}
+	}
+}
+
+func TestGetStyledOutputPreservesSGR(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+
+	syncClientRegistered(t, c)
+	f.feedPTY(t, "\x1b[31mred\x1b[0m plain")
+
+	c.readFrame(t)
+
+	text := c.getStyledOutput(t, 50)
+	if !strings.Contains(text, "\x1b[31m") {
+		t.Fatalf("GetStyledOutput = %q, want the SGR sequence preserved", text)
 	}
 }
 

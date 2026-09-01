@@ -436,6 +436,26 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 			h.sendTo(conn, frame)
 		}
 
+	case MsgStyledOutputReq:
+		lines := 50 // default matches TS
+		var req GetOutputReq
+		if err := json.Unmarshal(payload, &req); err == nil && req.Lines > 0 {
+			lines = req.Lines
+		}
+		var text string
+		if h.cfg.Parser != nil {
+			rendered, err := h.cfg.Parser.RenderStyledTail(lines)
+			if err != nil {
+				h.logf("render for GetStyledOutput: %v", err)
+			}
+			text = rendered
+		}
+		// No Parser means no styled-output source: the ring only ever kept
+		// plain bytes, so there is no styled fallback to fall back to.
+		if frame, err := EncodeMessage(MsgStyledOutputRes, []byte(text)); err == nil {
+			h.sendTo(conn, frame)
+		}
+
 	case MsgStatusReq:
 		code, exited := h.cfg.PTY.ExitCode()
 		alive := !exited
