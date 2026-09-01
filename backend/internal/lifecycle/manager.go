@@ -583,7 +583,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		next.FirstSignalAt = timeOr(s.Timestamp, now)
 	}
 	if s.State == domain.ActivityExited {
-		// The agent process can exit while the managed tmux session remains
+		// The agent process can exit while the managed runtime session remains
 		// alive and inspectable. Do not infer session termination from this
 		// hook; a runtime observation or explicit lifecycle action owns that
 		// fact. No tool/permission correlation survives an agent process exit.

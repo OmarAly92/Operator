@@ -213,7 +213,8 @@ type kilocodeAgentSettings struct {
 // kilocode. A bare `KILO_CONFIG_CONTENT=...` argv element would not work: the
 // runtime shell-quotes every element, and a quoted token is run as a command
 // rather than read as an assignment — hence the explicit `env` wrapper.
-// POSIX-only, which matches the tmux runtime.
+// The spawner applies such assignments to the child environment itself on every
+// platform (see stripEnvAssignments).
 func kilocodeConfigEnvPrefix(mode ports.PermissionMode, inlinePrompt, promptFile, sessionID, model string) ([]string, string, error) {
 	config := kilocodeInlineConfig{Permission: kilocodePermissionConfig(mode)}
 	agentName := ""

@@ -32,7 +32,7 @@
 //
 // ActiveTurnSteer: Kimchi has a programmatic steering mechanism
 // (pi.sendMessage with deliverAs:"steer") used by internal extensions to inject
-// guidance into the active turn. However, Operator writes to the tmux pane as
+// guidance into the active turn. However, Operator writes to the session's PTY as
 // terminal keystrokes, which go through the TUI editor's default submit path —
 // those messages queue for the next turn, they do not steer the current one.
 // Only the programmatic API can steer; terminal input cannot. Therefore
@@ -202,12 +202,12 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 }
 
 // GetLaunchCommand builds the argv to start an interactive Kimchi session
-// inside a tmux pane:
+// inside the session's PTY:
 //
 //	kimchi [--model <id>] [--auto|--yolo] [--append-system-prompt <text>] [<prompt>]
 //
 // Kimchi runs interactively (no --print): its TUI requires a TTY, which
-// tmux provides. The prompt is a trailing positional argument.
+// the pty-host provides. The prompt is a trailing positional argument.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.kimchiBinary(ctx)
 	if err != nil {

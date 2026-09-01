@@ -180,7 +180,7 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 - You may coordinate multiple workers, but Operator workers only. If parallel help is needed, spawn or redirect additional Operator worker sessions.
 - If a worker is stuck, clarify the task with `+"`opr send`"+`, or spawn/redirect another worker when appropriate.
 - Never claim a PR into the orchestrator session. If a PR needs continuation, assign or spawn a worker.
-- Use `+"`opr send`"+` for session communication. Do not bypass Operator by writing directly to tmux, PTY, pipes, or runtime internals.
+- Use `+"`opr send`"+` for session communication. Do not bypass Operator by writing directly to the PTY, pipes, or runtime internals.
 
 ## Core Commands
 

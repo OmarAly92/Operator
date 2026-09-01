@@ -806,6 +806,25 @@ describe("XtermTerminal", () => {
 		expect(onInput).not.toHaveBeenCalled();
 	});
 
+	it("eases the viewport between row positions instead of teleporting", () => {
+		render(<XtermTerminal theme="dark" />);
+		expect(state.lastTerminal!.options.smoothScrollDuration).toBe(75);
+	});
+
+	it("measures wheel travel against the rendered cell height, not fontSize * lineHeight", () => {
+		render(<XtermTerminal theme="dark" />);
+		state.lastTerminal!.modes.mouseTrackingMode = "none";
+		state.lastTerminal!.buffer.active.type = "normal";
+		(state.lastTerminal!._core as Record<string, unknown>)._renderService = {
+			dimensions: { css: { cell: { height: 21 } } },
+		};
+
+		// The estimate (fontSize 12 * lineHeight 1.35 = 16.2px) would scroll 3 rows
+		// for 50px; the rendered cell is 21px, so the finger moves exactly 2 rows.
+		expect(state.lastTerminal!.wheelHandler!({ deltaY: -50 } as WheelEvent)).toBe(false);
+		expect(state.lastTerminal!.scrollLines).toHaveBeenLastCalledWith(-2);
+	});
+
 	it("falls back to PageUp/PageDown for alt-buffer panes with mouse tracking off", () => {
 		const onInput = vi.fn();
 		render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);

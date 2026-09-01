@@ -287,7 +287,7 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 		return result, fmt.Errorf("switch agent %s: close permission input: %w", id, err)
 	}
 	// Capture the newest bounded scrollback at the final source boundary. The
-	// tmux runtime destroys its pane during stop, so this evidence cannot be
+	// runtime destroys the session's PTY during stop, so this evidence cannot be
 	// recovered afterward. It stays in memory and is rendered only if the final
 	// semantic file and verified transcript excerpt are both unavailable.
 	sourceHandle := ports.RuntimeHandle{ID: rec.Metadata.RuntimeHandleID}

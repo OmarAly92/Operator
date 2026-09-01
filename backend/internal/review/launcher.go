@@ -74,7 +74,7 @@ type LaunchResult struct {
 }
 
 // reviewerRuntime is the runtime surface the launcher needs: create a pane,
-// inject a message into a running pane, and probe liveness. The tmux runtime
+// inject a message into a running pane, and probe liveness. The pty-host runtime
 // satisfies it.
 type reviewerRuntime interface {
 	Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error)
@@ -390,7 +390,7 @@ func (l *agentLauncher) launchReviewerTerminalWithMode(ctx context.Context, spec
 	}
 	handleID := reviewerHandleID(spec.WorkerID)
 	// The reviewer handle is stable per worker, so a still-live pane from a
-	// previous pass would otherwise block `tmux new-session` (duplicate name) or,
+	// previous pass would otherwise block a fresh Create (duplicate handle id) or,
 	// worse, keep serving under its old harness. Destroy any stale pane on this
 	// handle first so the reviewer always (re)launches under spec.Harness's
 	// sandbox/permissions/env — which are applied only here at Create, never by

@@ -26,6 +26,32 @@ export interface TerminalSurfaceProps {
 	onGeometry?: (columns: number, rows: number) => void;
 }
 
+// macOS hands a native app an already-accelerated scroll delta: a flick reports
+// tens of pixels per event and keeps reporting through a momentum tail. The
+// WebView hands us the raw gesture instead -- measured on a trackpad, ~1-3px per
+// event at ~115 events/sec, with no tail -- so a flick and a crawl travel nearly
+// the same distance and the alt screen advances a row at a time. Scale the delta
+// by gesture velocity to restore the curve the platform withheld. Below the
+// reference speed the gain is 1, so slow, deliberate scrolling stays exact.
+const ACCEL_REFERENCE_PX_PER_SEC = 100;
+const ACCEL_MAX_GAIN = 6;
+// A gap this long means fingers left the trackpad; the next event starts a new
+// gesture rather than inheriting the old one's speed.
+const GESTURE_IDLE_MS = 200;
+// Velocity is averaged over recent events: a single jittery sample should not
+// launch the viewport. Averaging up from zero also means a gesture has to
+// sustain speed before it accelerates, so a short nudge stays a short nudge.
+const VELOCITY_SMOOTHING = 0.3;
+// Events closer together than this are one frame's worth of coalesced motion,
+// not evidence of speed; dividing by their sub-millisecond gap would report
+// thousands of pixels per second for an ordinary scroll.
+const MIN_VELOCITY_SAMPLE_MS = 4;
+
+function accelerationGain(velocityPxPerSec: number): number {
+	const gain = velocityPxPerSec / ACCEL_REFERENCE_PX_PER_SEC;
+	return Math.min(Math.max(gain, 1), ACCEL_MAX_GAIN);
+}
+
 export function TerminalSurface({
 	core,
 	theme,
@@ -161,6 +187,8 @@ export function TerminalSurface({
 			return;
 		}
 		let pendingWheelLines = 0;
+		let velocityPxPerSec = 0;
+		let lastWheelAt = 0;
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		const onKeyDown = (event: KeyboardEvent) => {
 			const command = mapKey(event);
@@ -169,6 +197,22 @@ export function TerminalSurface({
 			}
 			event.preventDefault();
 			onSendRaw(passthroughFor(command, appCursor()));
+		};
+		const sampleVelocity = (deltaY: number): number => {
+			const now = performance.now();
+			const elapsed = now - lastWheelAt;
+			if (elapsed > GESTURE_IDLE_MS) {
+				lastWheelAt = now;
+				velocityPxPerSec = 0;
+				return 0;
+			}
+			if (elapsed < MIN_VELOCITY_SAMPLE_MS) {
+				return velocityPxPerSec;
+			}
+			lastWheelAt = now;
+			const sample = (Math.abs(deltaY) / elapsed) * 1000;
+			velocityPxPerSec += (sample - velocityPxPerSec) * VELOCITY_SMOOTHING;
+			return velocityPxPerSec;
 		};
 		const onWheel = (event: WheelEvent) => {
 			event.preventDefault();
@@ -180,7 +224,7 @@ export function TerminalSurface({
 					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
 						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
 						: measuredCellHeight > 0
-							? event.deltaY / measuredCellHeight
+							? (event.deltaY * accelerationGain(sampleVelocity(event.deltaY))) / measuredCellHeight
 							: 0;
 			if (!Number.isFinite(deltaLines)) return;
 			pendingWheelLines += deltaLines;

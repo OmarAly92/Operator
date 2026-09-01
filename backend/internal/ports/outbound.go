@@ -171,8 +171,8 @@ type ContainerReaper interface {
 }
 
 // Stream is one live terminal attach: PTY-like bytes plus resize. Returned
-// already-open by a Runtime's Attach. tmux backs it with a local PTY around
-// their attach CLI; conpty backs it with a loopback connection to the pty-host.
+// already-open by a Runtime's Attach, which backs it with a loopback
+// connection to the session's pty-host.
 type Stream interface {
 	io.ReadWriteCloser
 	Resize(rows, cols uint16) error
@@ -318,14 +318,14 @@ var (
 	ErrRuntimePrerequisite = errors.New("runtime: prerequisite missing")
 	// ErrRuntimeWorkspaceCwdMismatch reports that a runtime session's working
 	// directory never settled on the wanted workspace path after Create's
-	// retried verification (see the tmux adapter's verifyPaneWorkingDirectory).
+	// retried verification.
 	// Wrapping this sentinel lets the session service map it to a typed,
 	// actionable apierr instead of letting it fall through to an opaque 500
 	// with no message (issue #2775).
 	ErrRuntimeWorkspaceCwdMismatch = errors.New("runtime: session working directory mismatch")
 	// ErrRuntimeUnavailable reports that a liveness probe could not reach the
-	// runtime infrastructure at all (e.g. tmux "no server running" or "error
-	// connecting"). It says nothing about any individual session, so callers
+	// runtime infrastructure at all (e.g. the pty-host's loopback dial is
+	// refused). It says nothing about any individual session, so callers
 	// must treat it as an inconclusive probe, never as per-session death
 	// (issue #3475: reading a server-level outage as N session deaths archived
 	// every session on the board). Adapters wrap this sentinel via fmt.Errorf

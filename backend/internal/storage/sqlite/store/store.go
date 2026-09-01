@@ -34,10 +34,10 @@ type Store struct {
 
 // SetSessionIDInUse installs a probe consulted while allocating a session ID.
 // Session IDs double as terminal-runtime session names, and that namespace is
-// shared by every Operator instance on the machine — a tmux server outlives the
-// daemon that populated it, so a fresh database allocating from 1 can hand out
-// a name tmux still holds and the spawn fails at launch. The probe lets the
-// allocator skip those.
+// shared by every Operator instance on the machine — a pty-host outlives the
+// daemon that spawned it, so a fresh database allocating from 1 can hand out a
+// name a live host still holds and the spawn fails at launch. The probe lets
+// the allocator skip those.
 //
 // The probe answers yes/no with no error: whether an unanswerable probe means
 // "free" or "taken" is a policy its owner decides, not the allocator. Wiring

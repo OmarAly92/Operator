@@ -1,6 +1,5 @@
-// respawn.go implements restart-in-place: kill the child, exec a
-// replacement, keep the socket/ring/registry/handle. This is the tmux-free
-// equivalent of `respawn-pane -k`.
+// respawn.go implements restart-in-place: kill the child, exec a replacement,
+// keep the socket/ring/registry/handle so attached clients survive the swap.
 package ptyhost
 
 import (

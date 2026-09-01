@@ -214,6 +214,9 @@ type XtermInternal = Terminal & {
 		viewport?: {
 			scrollBarWidth: number;
 		};
+		_renderService?: {
+			dimensions?: { css?: { cell?: { height?: number } } };
+		};
 		_selectionService?: {
 			enable: () => void;
 			shouldForceSelection: (event: MouseEvent) => boolean;
@@ -270,6 +273,18 @@ function forceSelectionMode(term: Terminal): void {
 	selectionService.shouldForceSelection = () => true;
 	selectionService.enable();
 	element.classList.remove("enable-mouse-events");
+}
+
+// The height of one rendered row. xterm derives it from the measured font
+// metrics (floor(device char height * lineHeight) / dpr), which is not
+// fontSize * lineHeight: for a typical Nerd Font stack the two differ by
+// several pixels. Estimating it makes the transcript travel faster or slower
+// than the pointer, which reads as the scroll not tracking the finger. The
+// estimate stays only as a fallback for the first wheel before a render.
+function renderedRowHeight(term: Terminal): number {
+	const measured = (term as XtermInternal)._core?._renderService?.dimensions?.css?.cell?.height;
+	if (typeof measured === "number" && measured > 0) return measured;
+	return (term.options.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT) * (term.options.lineHeight ?? 1);
 }
 
 function removeHiddenScrollbarReservation(term: Terminal): void {
@@ -419,6 +434,14 @@ function RenderedXtermTerminal(props: XtermTerminalProps) {
 				// handler's normal-buffer branch). The scrollbar itself is hidden in
 				// CSS; its matching FitAddon reservation is removed after open() below.
 				scrollback: props.scrollback ?? 5000,
+				// Ease the viewport between row positions instead of teleporting.
+				// term.scrollLines() routes through the viewport, so this applies to
+				// the wheel handler's local-scroll path. It does not make scrolling
+				// continuous — xterm renders whole rows only (Viewport._handleScroll
+				// rounds scrollTop to a row before moving ydisp) — it only spreads a
+				// multi-row jump across a short animation. Keep it short: every row
+				// now lands up to this long after the finger moves.
+				smoothScrollDuration: 75,
 				theme: skinToXtermTheme(skinRef.current, props.theme),
 			});
 		} catch (error) {
@@ -782,7 +805,8 @@ function RenderedXtermTerminal(props: XtermTerminalProps) {
 		// pixels (mode 0, the macOS case), while many Linux/Windows mouse wheels
 		// report whole lines (mode 1) or pages (mode 2). Mirror xterm's native
 		// getLinesScrolled across all three so scroll works everywhere; pixel
-		// deltas accumulate so a full cell-height emits one line. Returning false
+		// deltas accumulate so a full rendered cell-height (renderedRowHeight)
+		// emits one line. Returning false
 		// suppresses xterm's arrow-key wheel fallback. Ctrl/Cmd wheel is the
 		// font-size zoom (CenterPane), so leave it for that handler.
 		let wheelAccumPx = 0;
@@ -794,7 +818,7 @@ function RenderedXtermTerminal(props: XtermTerminalProps) {
 			} else if (event.deltaMode === 2 /* DOM_DELTA_PAGE */) {
 				lines = (Math.trunc(event.deltaY) || Math.sign(event.deltaY)) * term.rows;
 			} else {
-				const rowHeight = (term.options.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT) * (term.options.lineHeight ?? 1);
+				const rowHeight = renderedRowHeight(term);
 				wheelAccumPx += event.deltaY;
 				lines = Math.trunc(wheelAccumPx / rowHeight);
 				wheelAccumPx -= lines * rowHeight;

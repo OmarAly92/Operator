@@ -50,7 +50,8 @@ type ServeConfig struct {
 // invoked via the returned ShutdownFunc. It pumps PTY output into the ring
 // and broadcasts to all clients, accepts new clients (replaying ring snapshot),
 // and dispatches client messages. On PTY exit it broadcasts a status update
-// but stays alive (keep-alive, mirroring tmux behavior). Returns when shut down.
+// but stays alive (keep-alive), so a client can still read the final screen.
+// Returns when shut down.
 func Serve(ctx context.Context, cfg ServeConfig) error {
 	h := &host{
 		cfg:       cfg,

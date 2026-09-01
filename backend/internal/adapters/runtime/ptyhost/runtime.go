@@ -264,8 +264,8 @@ func (r *Runtime) Restart(ctx context.Context, handle ports.RuntimeHandle, cfg p
 //     then-failed I/O). The reaper records ProbeFailed and retries rather than
 //     treating it as a death conclusion.
 //
-// tmux returns a non-nil error for transient failures for the same
-// reason; conpty matches that contract here.
+// A transient failure must therefore surface as a non-nil error, never as a
+// confident "dead".
 func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool, error) {
 	sess := r.resolve(handle.ID)
 	if sess == nil {

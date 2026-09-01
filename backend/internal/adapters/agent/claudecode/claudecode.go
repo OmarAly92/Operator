@@ -11,7 +11,7 @@
 //
 // Claude Code starts an interactive session by default (no -p/--print), which
 // is exactly what Operator wants: a live agent the user can attach to in the
-// browser terminal or via `tmux attach`. The initial task prompt is passed
+// browser terminal or via `opr attach`. The initial task prompt is passed
 // as the positional argument; the orchestrator system prompt (if any) is
 // appended to Claude's default system prompt so its built-in coding
 // instructions are preserved.

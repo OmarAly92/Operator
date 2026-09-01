@@ -137,7 +137,7 @@ const (
 	// EnvRuntimeLaunchID identifies the current supervised agent generation.
 	EnvRuntimeLaunchID = "OPERATOR_RUNTIME_LAUNCH_ID"
 	// EnvSupervisedProcess tells terminal runtimes that the Operator supervisor owns
-	// this launch. When it exits, tmux must park on a non-interpreting input sink
+	// this launch. When it exits, the runtime must park on a non-interpreting input sink
 	// instead of exposing its historical interactive-shell fallback.
 	EnvSupervisedProcess = "OPERATOR_SUPERVISED_PROCESS"
 	// EnvDataDir tells a spawned agent's Operator hook commands where the store lives.
@@ -491,8 +491,8 @@ type BrowserCapabilityIssuer interface {
 }
 
 // sendConfirmConfig bounds the best-effort activity-confirmation loop run after
-// Send. Operator has no delivery ack: opr send returns 200 the moment tmux send-keys
-// exits 0, and for a large multiline paste the single Enter may not submit the
+// Send. Operator has no delivery ack: opr send returns 200 the moment the runtime
+// accepts the keystrokes, and for a large multiline paste the single Enter may not submit the
 // prompt — so UserPromptSubmit never fires and the orchestrator cannot tell the
 // worker started. confirmActive observes the durable Activity.State (written by
 // the user-prompt-submit hook) and re-sends Enter until the session is active or
@@ -811,7 +811,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 	// Pre-flight: confirm argv[0] actually exists on PATH (or as an absolute
 	// path the adapter returned) BEFORE handing the launch to the runtime.
-	// tmux happily creates a session+pane around a missing command, so an
+	// The runtime happily creates a session around a missing command, so an
 	// unresolved binary would leak through as a "live" session that never ran.
 	if err := m.validateAgentBinary(argv); err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -1759,7 +1759,7 @@ func (m *Manager) restartRuntime(ctx context.Context, handle ports.RuntimeHandle
 		if !errors.Is(err, ports.ErrRuntimeUnavailable) {
 			return ports.RuntimeHandle{}, fmt.Errorf("probe existing runtime: %w", err)
 		}
-		// The runtime infrastructure itself is gone (e.g. the tmux server was
+		// The runtime infrastructure itself is gone (e.g. the pty-host was
 		// killed). Restore/restart is exactly the recovery path for that
 		// outage, so proceed as "no existing runtime" and create a fresh one.
 		alive = false
@@ -1891,7 +1891,7 @@ func (m *Manager) saveAndTeardownOne(ctx context.Context, rec domain.SessionReco
 }
 
 // reconcileLive handles a single non-terminated session on boot. If its runtime
-// session is still alive (tmux is the persistence layer, so it survives a daemon
+// session is still alive (the pty-host is detached, so it survives a daemon
 // crash) we adopt it: a no-op, the agent keeps running. If the runtime is gone,
 // the agent died with the daemon, so we save-and-tear-down to the SAME end state
 // a graceful shutdown produces: capture uncommitted work into a preserve ref,
@@ -1912,7 +1912,7 @@ func (m *Manager) reconcileLive(ctx context.Context, rec domain.SessionRecord) e
 	if rec.Metadata.WorkspacePath == "" || (rec.Metadata.Branch == "" && projectKind != domain.ProjectKindScratch) {
 		return nil
 	}
-	// A chat controller is an in-process child of the daemon, so unlike tmux it can
+	// A chat controller is an in-process child of the daemon, so unlike a pty-host it can
 	// never have survived the crash: there is nothing to adopt and nothing to
 	// probe. It falls through to the same save-and-teardown a dead runtime gets,
 	// which is what records the restore marker RestoreAll needs — skipping that
@@ -1951,7 +1951,7 @@ func (m *Manager) reconcileLive(ctx context.Context, rec domain.SessionRecord) e
 	return nil
 }
 
-// reconcileReap kills the leaked tmux session of a session the DB already marks
+// reconcileReap kills the leaked runtime session of a session the DB already marks
 // terminated. This covers the teardown that marked the row terminated but failed
 // to kill the runtime (e.g. ForceDestroy/Destroy errored after MarkTerminated).
 // Destroy is idempotent, so an already-gone session is a no-op.
@@ -1984,7 +1984,7 @@ func (m *Manager) reconcileReap(ctx context.Context, rec domain.SessionRecord) e
 //     survived, else capture work and mark terminated (reconcileLive).
 //  2. Reap pass: for each terminated session whose runtime leaked, kill it
 //     (reconcileReap). Runs before restore so a restored session does not
-//     collide with a leaked tmux of the same name.
+//     collide with a leaked runtime session of the same name.
 //  3. Restore pass: relaunch shutdown-saved sessions (existing RestoreAll).
 //
 // Ordinary per-session liveness failures remain best-effort. Durable
@@ -3974,7 +3974,7 @@ func (m *Manager) superviseAgentProcess(agent ports.Agent, id domain.SessionID, 
 	// Switching-capable providers always use the exact-generation
 	// supervisor, even when their native hooks also report exit. That gives a
 	// later semantic handoff a safe foreground-process proof and ensures an exit
-	// races into the non-interpreting tmux sink rather than a shell.
+	// races into the non-interpreting input sink rather than a shell.
 	_, switchingCapable := agent.(ports.AgentContinuationCapabilityProvider)
 	return m.superviseAgentProcessMode(agent, id, env, argv, switchingCapable)
 }

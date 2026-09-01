@@ -1,6 +1,6 @@
 // Package runtimeselect names the runtime backend the daemon wires. Every
-// platform runs the pty-host; the selection this package once made between tmux
-// and ConPTY is gone with tmux itself.
+// platform runs the pty-host, so there is nothing left to select; the package
+// remains as the single place callers name the runtime.
 package runtimeselect
 
 import (

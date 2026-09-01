@@ -275,7 +275,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	}
 	if err := s.store.InsertShellTerminal(ctx, rec); err != nil {
 		// Roll back the PTY: an unrecorded runtime would never be reaped,
-		// leaking a tmux session / pty-host for the life of the machine.
+		// leaking a pty-host for the life of the machine.
 		if destroyErr := s.runtime.Destroy(context.WithoutCancel(ctx), handle); destroyErr != nil {
 			s.log.Warn("shell terminal rollback failed; runtime may be orphaned",
 				"handleId", handle.ID, "error", destroyErr)
@@ -644,7 +644,7 @@ func (s *Service) shellBootstrapArgvEnv(shellPath string) ([]string, map[string]
 // The shellterm- prefix keeps shell handles trivially distinguishable from
 // session handles in logs, the DB, and the mux. The character set is
 // constrained by the runtime adapters, which are stricter than they look:
-// conpty rejects anything outside ^[a-zA-Z0-9_-]+$ and tmux uses the id as a
+// the pty-host rejects anything outside ^[a-zA-Z0-9_-]+$ and uses the id as a
 // session name — so hex, not base64.
 func newShellTerminalHandleID() (string, error) {
 	buf := make([]byte, 8)

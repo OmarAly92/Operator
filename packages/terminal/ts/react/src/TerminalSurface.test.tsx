@@ -383,6 +383,41 @@ describe("TerminalSurface", () => {
 		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
 	});
 
+	it("accelerates a flick so it travels further than the same pixels crept", () => {
+		const cellHeight = font.lineHeight * font.sizePx;
+		let now = 1000;
+		const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+		const countRows = (onSendRaw: ReturnType<typeof vi.fn>) =>
+			onSendRaw.mock.calls.reduce(
+				(total, call) => total + ((call[0] as string).match(/\x1bOB|\x1b\[B/g)?.length ?? 0),
+				0,
+			);
+		const drip = (events: number, deltaY: number, gapMs: number) => {
+			cleanup();
+			const onSendRaw = vi.fn();
+			const { container, core } = renderSurface({ onSendRaw });
+			act(() => {
+				feed(core, "\x1b[?1049h\x1b[?1h");
+			});
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			for (let i = 0; i < events; i += 1) {
+				now += gapMs;
+				surface.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true }));
+			}
+			return countRows(onSendRaw);
+		};
+
+		// Identical pixel travel -- 60px either way -- delivered at ~17px/s over
+		// 3.6s versus ~375px/s over 160ms.
+		const crept = drip(60, 1, 60);
+		now += 1000;
+		const flicked = drip(20, 3, 8);
+
+		expect(crept).toBe(Math.trunc(60 / cellHeight));
+		expect(flicked).toBeGreaterThan(crept * 2);
+		clock.mockRestore();
+	});
+
 	it("treats line-mode wheel deltas as terminal lines", () => {
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });

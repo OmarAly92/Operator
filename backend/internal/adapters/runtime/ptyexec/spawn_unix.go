@@ -1,9 +1,10 @@
 //go:build !windows
 
-// Package ptyexec spawns a local PTY around an attach CLI (tmux) and
-// exposes it as a ports.Stream. It is the shared spawn the terminal layer used
-// to own directly; extracting it lets each runtime adapter back its Attach with
-// the same creack/pty (unix) or go-pty ConPTY (windows) plumbing.
+// Package ptyexec spawns a local PTY around a command and exposes it as a
+// ports.Stream, over creack/pty (unix) or go-pty ConPTY (windows). It backed
+// the attach path when a runtime adapter needed a client process; the pty-host
+// dials its session directly and does not, so nothing in production uses this
+// any more — only the terminal mux tests, which need a real PTY to spawn.
 package ptyexec
 
 import (

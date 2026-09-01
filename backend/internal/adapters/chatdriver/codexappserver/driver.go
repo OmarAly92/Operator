@@ -442,7 +442,7 @@ func spawnAppServer(ctx context.Context, bin, workdir string, env []string) (*pr
 //
 // The merge is the point. Operator's map is an OVERLAY -- session id, project id, the
 // HookPATH-pinned PATH -- not a whole environment; the terminal path gets away
-// with treating it as one only because tmux inherits the daemon's env underneath.
+// with treating it as one only because the pty-host inherits the daemon's env underneath.
 // Using it as a replacement launched the provider with eight variables and no
 // HOME, USER, TMPDIR, LANG or SSH_AUTH_SOCK. The provider itself survived that
 // (its home-directory lookup falls back to the passwd database), which is why it

@@ -29,10 +29,10 @@ func processEnvironment(overrides map[string]string) []string {
 //
 // Some agent adapters (e.g. opencode) prepend `env KEY=value` to their launch
 // command to inject process env vars the CLI has no flag for. That is portable
-// on macOS/Linux, where the tmux runtime runs the argv through a shell and the
-// `env` coreutil applies the assignments. Windows has no `env` binary and the
-// ConPTY pty-host execs argv[0] directly, so the spawner must apply the
-// assignments to the child's environment itself — otherwise the launch fails
+// only where a shell runs the argv and the `env` coreutil applies the
+// assignments. Windows has no `env` binary and the pty-host execs argv[0]
+// directly, so the spawner must apply the assignments to the child's
+// environment itself — otherwise the launch fails
 // with `env: executable file not found`. This mirrors launchBinary in the
 // session manager, which already skips the same prefix to validate the real
 // binary.

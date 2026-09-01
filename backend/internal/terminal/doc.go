@@ -3,10 +3,9 @@
 // ch-tagged wire protocol, alongside a session-state channel fed by the CDC
 // broadcaster.
 //
-// The runtime is selected by runtimeselect: tmux on Darwin/Linux, ptyhost on
-// Windows. On unix, tmux spawns an attach CLI (`tmux attach`) on a local PTY
-// via ptyexec; on Windows, ptyhost dials the session's loopback pty-host and
-// speaks its framing protocol directly (no attach CLI).
+// The runtime is ptyhost on every platform: an attach dials the session's
+// loopback pty-host and speaks its framing protocol directly. There is no
+// attach CLI and no client process per pane.
 //
 // Per-client attach (no shared PTY, no replay buffer): the multiplexer owns the
 // session's screen state and scrollback, and answers every fresh attach with
@@ -15,8 +14,8 @@
 // ring to late subscribers loses exactly that handshake (it is emitted once, at
 // the head of the stream), which left clients without mouse reporting (wheel
 // scroll dead). Spawning a fresh attach per client makes the runtime re-send
-// it, every time, by construction. The cost is one client process (tmux) or one
-// loopback connection (ptyhost) per open pane per connection.
+// it, every time, by construction. The cost is one loopback connection to the
+// pty-host per open pane per connection.
 //
 // Boundaries (see docs/architecture.md):
 //

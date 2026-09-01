@@ -745,7 +745,7 @@ func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (por
 		// the directory). Fall through to recreate the worktree at path below,
 		// on the registration's own branch (not cfg.Branch), instead of
 		// returning a handle to a directory that does not exist, which
-		// previously made `cd <path> || exit` in the tmux launch command exit
+		// previously made `cd <path> || exit` in the runtime launch command exit
 		// instantly with no diagnostic. addWorktree re-registers the stale path
 		// itself via `worktree add --force`; the registration is left in place
 		// until then.
@@ -810,7 +810,7 @@ func (w *Workspace) existingWorktree(ctx context.Context, repo, path string, cfg
 // session's DB row) can outlive its directory when something removes the path
 // out of band of Operator's own teardown (issue #2775: session operator-78
 // kept its branches and worktree registration but its directory was gone, so
-// handing that path straight to the runtime made the tmux launch command's
+// handing that path straight to the runtime made the launch command's
 // `cd <path> || exit` guard exit instantly with no diagnostic). When it reports
 // true, the caller materializes a fresh worktree at the same path with
 // `git worktree add --force` (see worktreeAddForce), which re-registers the

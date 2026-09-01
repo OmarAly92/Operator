@@ -11,7 +11,7 @@ import (
 // ErrAgentBinaryNotFound is returned by agent adapters when neither PATH nor
 // any well-known install location holds the agent's binary. The session
 // manager surfaces this BEFORE creating the runtime so a missing CLI doesn't
-// silently launch into an empty tmux pane that the reaper later mistakes
+// silently launch into an empty pane that the reaper later mistakes
 // for a live session.
 var ErrAgentBinaryNotFound = errors.New("agent: binary not found on PATH")
 

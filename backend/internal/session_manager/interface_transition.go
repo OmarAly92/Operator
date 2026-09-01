@@ -648,7 +648,7 @@ func (m *Manager) stopSourceController(ctx context.Context, rec domain.SessionRe
 
 // stopSourceControllerConclusive makes one retry because both shipped runtime
 // teardown and Chat stop are idempotent. A TUI liveness probe can turn a failed
-// tmux command into a conclusive success when the process did in fact exit. Chat
+// runtime command into a conclusive success when the process did in fact exit. Chat
 // Service retains a controller whose event stream has not stopped, so its retry
 // waits for the same process rather than losing the only handle to it.
 func (m *Manager) stopSourceControllerConclusive(rec domain.SessionRecord) error {

@@ -1894,7 +1894,7 @@ git rm -r backend/internal/adapters/runtime/tmux
 grep -rn "ptyexec" backend --include="*.go" | grep -v "runtime/ptyexec"   # empty means it can go too
 ```
 
-- [x] **Step 3: Verify nothing references tmux**
+- [ ] **Step 3: Verify nothing references tmux** — non-test Go is clean (0 hits). Still outstanding: 67 hits in test fixtures (handle-id strings like `"tmux-mer-1"`, `lookPath` stubs, stale comments) outside the parity package, where 43 hits are legitimate because tmux is the oracle.
 
 ```bash
 grep -rni "tmux" backend frontend/src packages --include="*.go" --include="*.ts" --include="*.tsx" | grep -v node_modules
@@ -1909,7 +1909,7 @@ cd backend && go test ./... && for os in darwin linux windows; do GOOS=$os go bu
 cd ../frontend && npm test
 ```
 
-- [x] **Step 5: Update the docs**
+- [x] **Step 5: Update the docs** — `docs/` and all non-test code comments retired; `AGENTS.md`/`CLAUDE.md` never mentioned tmux. `docs/adr/0002` and `docs/todo/` keep theirs as history.
 
 `AGENTS.md` and `CLAUDE.md` describe tmux as the session runtime. Replace with the pty-host model. Remove any tmux install requirement from setup docs and packaging.
 

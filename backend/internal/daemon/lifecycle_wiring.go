@@ -185,7 +185,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Projects: store,
 	})
 	// Session ids double as runtime session names, and a terminal runtime's
-	// namespace is machine-wide: a tmux server outlives the daemon that filled
+	// namespace is machine-wide: a pty-host outlives the daemon that spawned
 	// it, so a database allocating from 1 can pick a name that is still taken
 	// and the spawn dies at launch. Let the allocator skip those.
 	store.SetSessionIDInUse(sessionIDClaimProbe(runtime, log))
@@ -258,7 +258,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 }
 
 // runtimeMessageSender is the narrow part of the concrete runtime needed by
-// opr send. Both tmux.Runtime and ptyhost.Runtime implement this via SendMessage.
+// opr send. ptyhost.Runtime implements this via SendMessage.
 type runtimeMessageSender interface {
 	SendMessage(ctx context.Context, handle ports.RuntimeHandle, message string) error
 }

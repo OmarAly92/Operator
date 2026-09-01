@@ -28,8 +28,8 @@ var errStalePreviewPID = errors.New("preview pid is stale or recycled; refusing 
 // fails. It is captured at launch and compared verbatim before any group
 // signal: a bare PID stops identifying anything the moment the child is
 // reaped, and a group kill on a recycled number destroys an unrelated process
-// family — a tmux server is its own group leader, so one stale group kill
-// took out every tmux session at once (issue #3475).
+// family — a long-lived server process is its own group leader, so one stale
+// group kill took out every session under it at once (issue #3475).
 func previewProcessStartTime(pid int) string {
 	if pid <= 0 {
 		return ""
@@ -51,8 +51,8 @@ func previewGroupHasMembers(pid int) bool {
 // leader is still alive and its kernel start time matches the recorded one
 // verbatim. Anything less is not proof that the group is Operator's preview: once
 // the leader is gone the number may already have been recycled, and a group
-// kill on a recycled PID can take down an unrelated family (a tmux server and
-// every agent session in it, issue #3475). A descendant that survives its
+// kill on a recycled PID can take down an unrelated family (a server process
+// and every agent session under it, issue #3475). A descendant that survives its
 // leader is deliberately leaked rather than guessed at.
 //
 // ponytail: the verify-then-kill pair is not atomic; without pidfd-style

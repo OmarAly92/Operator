@@ -1,4 +1,4 @@
-// capture.go implements pane capture without tmux's pipe-pane: the host spawns
+// capture.go implements pane capture inside the host: it spawns
 // the capture argv and tees raw PTY output into its stdin. The tee subscribes to
 // the same broadcast the clients read, so capture can never alter what a client
 // sees.

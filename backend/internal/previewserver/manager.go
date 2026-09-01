@@ -847,7 +847,7 @@ func (m *Manager) reapPersistedProcesses() {
 		}
 		// PIDs recorded by a previous daemon generation are stale by
 		// construction: the number may have been recycled by anything since
-		// (one recycled group kill destroyed a whole tmux server, #3475).
+		// (one recycled group kill destroyed a whole server process tree, #3475).
 		// Kill only what still carries the recorded launch identity.
 		if process.StartTime == "" {
 			m.log.Warn("skip reaping preview process without a recorded start time",
