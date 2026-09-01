@@ -1449,7 +1449,7 @@ git commit -m "feat(runtime): styled pane output from the pty-host parser"
 **Interfaces:**
 - Produces: `CaptureState`, `StartCapture`, `StopCapture` satisfying `ports.PaneCapturer` (`ports/outbound.go:188`); `PaneCaptureState{PipeOpen, AlternateOn bool}`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestStartCaptureTeesOutputToArgv(t *testing.T) {
@@ -1489,12 +1489,12 @@ func TestCaptureStateReportsAlternateScreen(t *testing.T) {
 
 The first test shells out to `/bin/sh`, so give it a `//go:build !windows` tag (or a `runtime.GOOS` skip); `capture.go` itself is cross-platform.
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestStartCapture -v`
 Expected: FAIL — `client.startCapture undefined`
 
-- [ ] **Step 3: Implement the capture sink**
+- [x] **Step 3: Implement the capture sink**
 
 `capture.go` — the sink subscribes to the same raw broadcast the clients get, which is how Warp's recorder works (`local_tty/recorder.rs`), rather than tapping the parser:
 
@@ -1567,12 +1567,12 @@ func (c *captureSink) open() bool {
 
 Add message types `MsgCaptureStartReq = 0x0B`, `MsgCaptureStopReq = 0x0C`, `MsgCaptureStateReq = 0x0D`, `MsgCaptureStateRes = 0x0E`; call `sink.write(batch)` at the end of `deliver` (after the broadcast, beside the parser feed); answer `MsgCaptureStateReq` with `{PipeOpen: sink.open(), AlternateOn: parser.AltActive()}`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/...`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (commit `6eee05ddc`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
