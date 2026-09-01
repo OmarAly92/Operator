@@ -810,7 +810,7 @@ This is the performance half of the plan. Today's `pumpPTY` (`host.go:180-208`) 
 **Interfaces:**
 - Produces: the same `broadcast(frame)` fan-out, now fed batches instead of raw reads; a `flusher` owning the coalescing clock
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `pump_test.go`, complete. The fake is an `io.Pipe`, which is synchronous — every `Write` blocks until the pump reads it, so the tests are paced by the pump itself, not by sleeps. Construct the `Ring` exactly the way `RunHost` in `host_main.go` does (read it first — do not invent a constructor):
 
@@ -998,7 +998,7 @@ func TestPumpDoesNotStarveControlMessages(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Implement — replace `pumpPTY` with this structure**
+- [x] **Step 2: Implement — replace `pumpPTY` with this structure**
 
 In `host.go`. The current `pumpPTY` body (one `Read` → one broadcast) is replaced entirely; its exit tail (wait for `Done`, `FlushPartial`, dead-status broadcast, keep-alive) moves to `finishPump` unchanged:
 
@@ -1111,16 +1111,16 @@ Two properties to preserve, both load-bearing: `pending` is handed to `deliver` 
 
 Also bump `handleConn`'s read buffer (`host.go:282`) from 4096 to 64KB so a large paste is not sliced into 4KB feeds.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestPump -v`
 Expected: PASS
 
-- [ ] **Step 4: Re-run the manual scroll check from Task 5**
+- [ ] **Step 4: Re-run the manual scroll check from Task 5** — DEFERRED (no GUI/visual access in this environment; see task-6-report.md)
 
 Same as Task 5 Step 5 — the loop change must feel identical or better, never worse.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (commit `d5b2c228d`; one intermediate ruling — see plan bookkeeping commit and SDD ledger — fixed a test-only `ceiling` formula defect before this commit landed)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
