@@ -59,7 +59,7 @@ function field(payload, name) {
 	return payload.match(new RegExp(`(?:^|;)${name}=([^;]*)`))?.[1];
 }
 
-test("emits fish lifecycle records for success, failure, syntax errors, and an empty prompt", { skip: fishSkip }, () => {
+test("emits fish lifecycle records for success and failure, records nothing for a syntax error, and reopens a prompt", { skip: fishSkip }, () => {
 	const raw = runInPty(
 		"fish --no-config --interactive",
 		[
@@ -79,26 +79,29 @@ test("emits fish lifecycle records for success, failure, syntax errors, and an e
 	assert.deepEqual(commands, [
 		{ id: "terminal-1-1", cmd: "true" },
 		{ id: "terminal-1-2", cmd: "false" },
-		{ id: "terminal-1-3", cmd: "echo%20%29" },
 	]);
 	const ends = records.filter((record) => record.payload.startsWith("133;D;")).map((record) => record.payload);
-	assert.deepEqual(ends, ["133;D;0", "133;D;1", "133;D;2"]);
+	assert.deepEqual(ends, ["133;D;0", "133;D;0", "133;D;1"]);
 	const exitRecords = records.filter(
 		(record) => field(record.payload, "id") !== undefined && field(record.payload, "exit") !== undefined,
 	);
 	assert.ok(exitRecords.length >= 2, "expected an OSC 7000 exit= for each executed command");
 	for (const exitRecord of exitRecords) {
 		const exitIndex = records.indexOf(exitRecord);
-		const nextCommandIndex = records.findIndex(
-			(record, index) => index > exitIndex && field(record.payload, "cmd") !== undefined,
-		);
-		const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
 		const code = field(exitRecord.payload, "exit");
-		const endIndex = records.findIndex(
-			(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${code}`,
+		const previousCommandIndex = records.findLastIndex(
+			(record, index) => index < exitIndex && field(record.payload, "cmd") !== undefined,
 		);
-		assert.ok(endIndex > exitIndex, `OSC 7000 exit=${code} must precede its OSC 133 D`);
+		assert.ok(previousCommandIndex >= 0, `OSC 7000 exit=${code} must follow a command record`);
+		const endIndex = records.findLastIndex(
+			(record, index) =>
+				index > previousCommandIndex && index < exitIndex && record.payload === `133;D;${code}`,
+		);
+		assert.ok(
+			endIndex > previousCommandIndex,
+			`OSC 7000 exit=${code} must close the same lifecycle as its OSC 133 D`,
+		);
 	}
-	const emptyPrompt = records.slice(-3).map((record) => record.payload);
-	assert.deepEqual(emptyPrompt, ["133;A", "133;B", "7000;v=1;input-ready=1"]);
+	const openPrompt = records.slice(-2).map((record) => record.payload);
+	assert.deepEqual(openPrompt, ["133;A;click_events=1", "133;B"]);
 });
