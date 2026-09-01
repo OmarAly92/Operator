@@ -16,7 +16,7 @@ func TestSessionInterfaceTransitionClaimModeCASAndOutbox(t *testing.T) {
 	rec := sampleRecord("switch")
 	rec.ID = "switch-1"
 	rec.Mode = domain.SessionModeTUI
-	rec.Metadata.RuntimeHandleID = "tmux-switch-1"
+	rec.Metadata.RuntimeHandleID = "pty-switch-1"
 	rec.Metadata.RuntimeLaunchID = "tui-generation-1"
 	rec.Metadata.AgentSessionID = "native-conversation-1"
 	createdSession, err := st.CreateSession(ctx, rec)

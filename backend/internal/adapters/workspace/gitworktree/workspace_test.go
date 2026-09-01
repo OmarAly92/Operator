@@ -300,7 +300,7 @@ func assertNoDestructiveRegistrationCleanup(t *testing.T, op, calls string) {
 // exercised that path when the git registration was ALSO gone. The observed
 // #2775 case (session operator-78) had a registration and DB row
 // that survived a directory deletion, so Restore returned a handle to a
-// missing directory and the tmux launch command's `cd <path> || exit` guard
+// missing directory and the launch command's `cd <path> || exit` guard
 // exited instantly with no diagnostic.
 func TestRestoreRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 	root := t.TempDir()

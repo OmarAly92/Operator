@@ -332,8 +332,8 @@ describe("apiErrorMessage", () => {
 		expect(
 			apiErrorMessage({
 				code: "RUNTIME_PREREQUISITE_MISSING",
-				message: "tmux required (RUNTIME_PREREQUISITE_MISSING)",
+				message: "git required (RUNTIME_PREREQUISITE_MISSING)",
 			}),
-		).toBe("tmux required (RUNTIME_PREREQUISITE_MISSING)");
+		).toBe("git required (RUNTIME_PREREQUISITE_MISSING)");
 	});
 });

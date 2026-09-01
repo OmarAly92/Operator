@@ -879,7 +879,7 @@ function reviewerPreviewLines(session: WorkspaceSession | undefined): string[] {
 // PageUp/PageDown for these (see XtermTerminal's paneScrollsByKeyboard).
 // kilocode is a fork of opencode and shares its TUI surface; grok also uses a
 // full-screen keyboard-scroll TUI, so both scroll the same way. Muse Code uses
-// the normal terminal buffer instead and must keep the SGR -> tmux scroll path.
+// the normal terminal buffer instead and must keep the SGR mouse-report scroll path.
 const KEYBOARD_SCROLL_PROVIDERS = new Set(["opencode", "kilocode", "grok"]);
 
 // Whether the given provider's TUI is one of the keyboard-scroll agents above.

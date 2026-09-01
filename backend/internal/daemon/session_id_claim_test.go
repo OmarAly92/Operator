@@ -53,12 +53,12 @@ func TestSessionIDClaimProbeDelegatesToRuntime(t *testing.T) {
 // leaves a trace, so allocation degrades to the database-only behavior.
 func TestSessionIDClaimProbeReportsFreeAndLogsWhenRuntimeErrors(t *testing.T) {
 	log, buf := testLogger()
-	probe := sessionIDClaimProbe(claimingRuntime{err: errors.New("tmux exploded")}, log)
+	probe := sessionIDClaimProbe(claimingRuntime{err: errors.New("runtime exploded")}, log)
 
 	if probe(context.Background(), "scratch-1") {
 		t.Fatal("probe = true, want false when the runtime cannot answer")
 	}
-	if !strings.Contains(buf.String(), "tmux exploded") {
+	if !strings.Contains(buf.String(), "runtime exploded") {
 		t.Fatalf("log = %q, want the runtime error recorded", buf.String())
 	}
 }

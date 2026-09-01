@@ -17,7 +17,7 @@ func TestParserRendersCursorAddressedOutput(t *testing.T) {
 
 	// Write "AAAA", then jump home and overwrite with "B". A raw byte ring
 	// returns both; a real screen returns "BAAA". This is the exact difference
-	// between tmux capture-pane and the old conpty ring.
+	// between a real screen grid and the old conpty ring.
 	if err := parser.Feed([]byte("AAAA\x1b[1;1HB")); err != nil {
 		t.Fatalf("feed: %v", err)
 	}

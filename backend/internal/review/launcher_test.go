@@ -376,7 +376,7 @@ func TestLauncherUsesReviewerNeutralWorkingDirectory(t *testing.T) {
 
 // Spawn must replace any stale pane on the stable per-worker handle before
 // creating the new one — otherwise a reviewer-harness switch either collides
-// with the old pane's tmux session name or leaves it serving under the old
+// with the old pane's runtime handle name or leaves it serving under the old
 // harness's sandbox/permissions/env (which are applied only at Create).
 func TestLauncherSpawnReplacesStalePane(t *testing.T) {
 	reviewer := &fakeReviewer{}

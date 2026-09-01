@@ -546,7 +546,7 @@ func TestBeginSessionTeardownDestroysRuntimeAndDeletesRows(t *testing.T) {
 // must still be cleaned up rather than left stranded.
 func TestBeginSessionTeardownContinuesPastDestroyFailureWhenConfirmedDead(t *testing.T) {
 	rt := newFakeShellRuntime()
-	rt.destroyErr = errors.New("tmux: no such session")
+	rt.destroyErr = errors.New("runtime: no such session")
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
 		{HandleID: "shellterm-2", SessionID: "portfolio-3"},
@@ -572,7 +572,7 @@ func TestBeginSessionTeardownContinuesPastDestroyFailureWhenConfirmedDead(t *tes
 // knows not to remove the worktree out from under it.
 func TestBeginSessionTeardownReturnsErrorAndKeepsRowWhenRuntimeStaysAlive(t *testing.T) {
 	rt := newFakeShellRuntime()
-	rt.destroyErr = errors.New("tmux: kill-session refused")
+	rt.destroyErr = errors.New("runtime: destroy refused")
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-1", SessionID: "portfolio-3"},
 	}}
@@ -982,7 +982,7 @@ func TestCloseShellTerminalKeepsRowWhenRuntimeStaysAlive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
 	}
-	rt.destroyErr = errors.New("tmux: kill-session refused")
+	rt.destroyErr = errors.New("runtime: destroy refused")
 	// aliveByHandle already has term.HandleID from the open above: still alive
 	// despite the destroy error.
 
@@ -1131,7 +1131,7 @@ func TestListShellTerminalsForCurrentAppRunKeepsTerminalWhenLivenessProbeErrors(
 	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{}); err != nil {
 		t.Fatalf("OpenShellTerminal: %v", err)
 	}
-	rt.aliveErr = errors.New("tmux server unreachable")
+	rt.aliveErr = errors.New("runtime process unreachable")
 
 	got, err := svc.ListShellTerminalsForCurrentAppRun(context.Background())
 	if err != nil {
@@ -1175,7 +1175,7 @@ func TestReapShellTerminalsFromPreviousAppRunsDestroysOrphansOnly(t *testing.T) 
 // or every future boot would retry the same failure forever.
 func TestReapShellTerminalsFromPreviousAppRunsClearsRowsWhenDestroyFails(t *testing.T) {
 	rt := newFakeShellRuntime()
-	rt.destroyErr = errors.New("tmux: no such session")
+	rt.destroyErr = errors.New("runtime: no such session")
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-orphan", AppRunID: "app-run-crashed", WorkingDir: "/a"},
 	}}
@@ -1196,7 +1196,7 @@ func TestReapShellTerminalsFromPreviousAppRunsClearsRowsWhenDestroyFails(t *test
 // TestReapShellTerminalsFromPreviousAppRunsKeepsRowForConfirmedLiveOrphan is
 // the boot-order regression: the old Reap bulk-deleted every orphan row after
 // best-effort destroys, regardless of whether each one actually died. A shell
-// that survived a crash independently of the daemon (its OS-level tmux/conpty
+// that survived a crash independently of the daemon (its OS-level pty-host/conpty
 // session outlives the process) would then have its row wiped anyway —
 // invisible to a later BeginSessionTeardown for the session it's scoped to,
 // which would find nothing to drain and let that session's worktree be
@@ -1204,7 +1204,7 @@ func TestReapShellTerminalsFromPreviousAppRunsClearsRowsWhenDestroyFails(t *test
 // that row instead, so the later teardown still sees it.
 func TestReapShellTerminalsFromPreviousAppRunsKeepsRowForConfirmedLiveOrphan(t *testing.T) {
 	rt := newFakeShellRuntime()
-	rt.destroyErr = errors.New("tmux: kill-session refused")
+	rt.destroyErr = errors.New("runtime: destroy refused")
 	rt.aliveByHandle["shellterm-orphan-alive"] = true // survives the crash, still alive
 	st := &fakeShellTerminalStore{records: []ShellTerminalRecord{
 		{HandleID: "shellterm-orphan-alive", SessionID: "mer-1", AppRunID: "app-run-crashed", WorkingDir: "/a"},

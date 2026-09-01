@@ -640,7 +640,7 @@ func TestSessionRuntimeLaunchIDRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	seedProject(t, s, "mer")
 	rec := sampleRecord("mer")
-	rec.Metadata.RuntimeHandleID = "tmux-1"
+	rec.Metadata.RuntimeHandleID = "pty-1"
 	rec.Metadata.RuntimeLaunchID = "launch-1"
 
 	created, err := s.CreateSession(ctx, rec)

@@ -46,7 +46,7 @@ func sleeperRunning(t *testing.T, pid int) bool {
 // Regression for issue #3475 (A1): a PID recorded by a previous daemon
 // generation is stale by construction. If the live process holding that number
 // does not carry the recorded launch identity, reap must not kill it — the
-// recycled number can belong to anything, including a tmux server whose group
+// recycled number can belong to anything, including a pty-host process whose group
 // kill wipes every session at once.
 func TestReapPersistedProcessesRefusesMismatchedIdentity(t *testing.T) {
 	cmd := startSleeper(t, "sleep", "60")

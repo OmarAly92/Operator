@@ -243,11 +243,12 @@ type TerminalContextMenuAction = "copy" | "paste" | "selectAll" | "clear";
 type TerminalContextMenuActions = Record<TerminalContextMenuAction, () => void>;
 
 // For mouse-tracking panes we synthesize SGR mouse-wheel reports and write them
-// to the pane; tmux (with `mouse on`, set by the runtime adapter) acts on them
-// and scrolls its scrollback via copy-mode. Left to itself xterm would convert
-// the wheel into cursor-arrow keys (its alt-buffer fallback), which move the
-// agent's cursor rather than scrolling. SGR button 64 = wheel up, 65 = down;
-// reports are 1-based and a single cell is enough for a borderless single pane.
+// to the pane; an app with mouse tracking on (e.g. a mux like tmux/zellij the
+// agent runs itself) acts on them and scrolls its scrollback via copy-mode.
+// Left to itself xterm would convert the wheel into cursor-arrow keys (its
+// alt-buffer fallback), which move the agent's cursor rather than scrolling.
+// SGR button 64 = wheel up, 65 = down; reports are 1-based and a single cell
+// is enough for a borderless single pane.
 const SGR_WHEEL_UP = 64;
 const SGR_WHEEL_DOWN = 65;
 

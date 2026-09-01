@@ -957,7 +957,7 @@ func TestActivity_NewLaunchSignalWaitsForMarkSpawned(t *testing.T) {
 	}
 
 	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{
-		RuntimeHandleID: "tmux-mer-1",
+		RuntimeHandleID: "pty-mer-1",
 		RuntimeLaunchID: "launch-new",
 	}); err != nil {
 		t.Fatal(err)

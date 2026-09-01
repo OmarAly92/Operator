@@ -840,7 +840,7 @@ describe("providerScrollsByKeyboard", () => {
 		expect(providerScrollsByKeyboard("codex")).toBe(false);
 		expect(providerScrollsByKeyboard("claude-code")).toBe(false);
 		// Muse writes its transcript to the normal buffer. PageUp is ignored by
-		// Muse, so wheel input must stay on the SGR -> tmux copy-mode path.
+		// Muse, so wheel input must stay on the SGR mouse-report scroll path.
 		expect(providerScrollsByKeyboard("muse")).toBe(false);
 	});
 

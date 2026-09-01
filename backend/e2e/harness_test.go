@@ -146,9 +146,9 @@ func startDaemon(t *testing.T, dataDir string) *daemon {
 	}
 	t.Cleanup(d.kill)
 	d.waitReady()
-	// Kill this daemon's sessions before it goes away. A TUI session's tmux lives
-	// outside the data dir and outlives the daemon, so without this the machine
-	// accumulates panes that later collide by name. Best-effort: the crash
+	// Kill this daemon's sessions before it goes away. A TUI session's runtime
+	// handle lives outside the data dir and outlives the daemon, so without this
+	// the machine accumulates panes that later collide by name. Best-effort: the crash
 	// scenarios kill the daemon on purpose and these calls simply fail.
 	t.Cleanup(d.killAllSessions)
 	return d
@@ -335,7 +335,7 @@ func (d *daemon) callExpectingError(method, path string, body any) (int, apiErro
 // workspace is a real worktree cut from a real branch.
 //
 // The project id is made unique per run because session ids derive from it and a
-// TUI session's tmux name is global to the machine, not scoped to the data dir. A
+// TUI session's runtime handle name is global to the machine, not scoped to the data dir. A
 // fixed fixture name collides with its own leftovers from an earlier run.
 func seedProject(t *testing.T, d *daemon, name string) string {
 	t.Helper()

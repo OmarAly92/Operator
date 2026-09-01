@@ -1894,7 +1894,7 @@ git rm -r backend/internal/adapters/runtime/tmux
 grep -rn "ptyexec" backend --include="*.go" | grep -v "runtime/ptyexec"   # empty means it can go too
 ```
 
-- [ ] **Step 3: Verify nothing references tmux** — non-test Go is clean (0 hits). Still outstanding: 67 hits in test fixtures (handle-id strings like `"tmux-mer-1"`, `lookPath` stubs, stale comments) outside the parity package, where 43 hits are legitimate because tmux is the oracle.
+- [x] **Step 3: Verify nothing references tmux** — non-test Go is clean (0 hits). The 69 hits in test fixtures outside the parity package (handle-id strings like `"tmux-mer-1"`, dead `lookPath` stubs left over from when tmux was a hard runtime prerequisite, and stale comments) are renamed/removed; the 43 hits in `internal/adapters/runtime/parity/` stay because tmux is the differential oracle there, and `runtimeselect_test.go` keeps its one deliberate `OPERATOR_RUNTIME=tmux` case proving a stale value is ignored. Frontend had three more stale comments/fixtures (`XtermTerminal.tsx`, `TerminalPane.tsx`/`.test.tsx`, `api-client.test.ts`) claiming the deleted tmux adapter set `mouse on`; corrected to describe a mux the agent runs itself, not Operator's own runtime.
 
 ```bash
 grep -rni "tmux" backend frontend/src packages --include="*.go" --include="*.ts" --include="*.tsx" | grep -v node_modules

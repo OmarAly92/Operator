@@ -1107,7 +1107,7 @@ func TestCancelInterfaceTransitionDoesNotAcknowledgeALostStopBoundaryRace(t *tes
 
 func TestInterfaceTransitionRetriesAnAmbiguousSourceStopBeforeStartingTarget(t *testing.T) {
 	manager, store, runtime, _, log := newTransitionManager(t, domain.SessionModeTUI)
-	runtime.stopErrors = []error{errors.New("tmux command timed out"), nil}
+	runtime.stopErrors = []error{errors.New("runtime command timed out"), nil}
 	runtime.aliveByHandle = map[string]bool{"runtime-1": true}
 
 	transition, err := manager.StartInterfaceTransition(context.Background(), "session-1",

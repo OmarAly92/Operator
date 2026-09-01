@@ -1240,7 +1240,7 @@ func newExitedResumeManager(t *testing.T, runtime runtimeController, agent ports
 		Metadata: domain.SessionMetadata{
 			WorkspacePath:   "/ws/mer-1",
 			Branch:          "opr/mer-1",
-			RuntimeHandleID: "tmux-mer-1",
+			RuntimeHandleID: "pty-mer-1",
 			RuntimeLaunchID: "launch-old",
 			AgentSessionID:  "agent-x",
 			Prompt:          "continue the task",
@@ -1259,7 +1259,7 @@ func newExitedResumeManager(t *testing.T, runtime runtimeController, agent ports
 }
 
 func TestResumeAgent_RestartsRuntimeWithManagedGeneration(t *testing.T) {
-	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 	runtime := &fakeRestartRuntime{fakeRuntime: baseRuntime}
 	agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
 	m, st, ws := newExitedResumeManager(t, runtime, agent)
@@ -1274,11 +1274,11 @@ func TestResumeAgent_RestartsRuntimeWithManagedGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.restarted != 1 || runtime.restartHandle.ID != "tmux-mer-1" {
+	if runtime.restarted != 1 || runtime.restartHandle.ID != "pty-mer-1" {
 		t.Fatalf("restart = %d handle=%+v", runtime.restarted, runtime.restartHandle)
 	}
 	if baseRuntime.created != 0 || baseRuntime.destroyed != 0 {
-		t.Fatalf("tmux restart should not recreate runtime: created=%d destroyed=%d", baseRuntime.created, baseRuntime.destroyed)
+		t.Fatalf("handle restart should not recreate runtime: created=%d destroyed=%d", baseRuntime.created, baseRuntime.destroyed)
 	}
 	if ws.lastCfg.SessionID != "" || len(ws.calls) != 0 {
 		t.Fatalf("resume should not restore or recreate workspace: cfg=%+v calls=%v", ws.lastCfg, ws.calls)
@@ -1294,7 +1294,7 @@ func TestResumeAgent_RestartsRuntimeWithManagedGeneration(t *testing.T) {
 	if got.IsTerminated || got.Activity.State != domain.ActivityIdle {
 		t.Fatalf("resumed session = %+v, want live idle", got)
 	}
-	if got.Metadata.RuntimeHandleID != "tmux-mer-1" || got.Metadata.RuntimeLaunchID != "launch-new" {
+	if got.Metadata.RuntimeHandleID != "pty-mer-1" || got.Metadata.RuntimeLaunchID != "launch-new" {
 		t.Fatalf("resumed metadata = %+v", got.Metadata)
 	}
 	if result.Mode != RestoreModeNative {
@@ -1306,14 +1306,14 @@ func TestResumeAgent_RestartsRuntimeWithManagedGeneration(t *testing.T) {
 }
 
 func TestResumeAgent_FallsBackToRuntimeRecreateWithoutRestartCapability(t *testing.T) {
-	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 	agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
 	m, st, _ := newExitedResumeManager(t, runtime, agent)
 
 	if _, err := m.ResumeAgentWithMode(ctx, "mer-1"); err != nil {
 		t.Fatal(err)
 	}
-	if runtime.destroyed != 1 || runtime.created != 1 || !reflect.DeepEqual(runtime.destroyedIDs, []string{"tmux-mer-1"}) {
+	if runtime.destroyed != 1 || runtime.created != 1 || !reflect.DeepEqual(runtime.destroyedIDs, []string{"pty-mer-1"}) {
 		t.Fatalf("fallback runtime lifecycle: created=%d destroyed=%d ids=%v", runtime.created, runtime.destroyed, runtime.destroyedIDs)
 	}
 	if got := st.sessions["mer-1"].Metadata.RuntimeHandleID; got != "h1" {
@@ -1322,7 +1322,7 @@ func TestResumeAgent_FallsBackToRuntimeRecreateWithoutRestartCapability(t *testi
 }
 
 func TestResumeAgent_RequiresLiveExitedSession(t *testing.T) {
-	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 	agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
 	m, st, _ := newExitedResumeManager(t, runtime, agent)
 
@@ -1345,7 +1345,7 @@ func TestResumeAgent_RequiresLiveExitedSession(t *testing.T) {
 }
 
 func TestResumeAgent_RestartFailureLeavesSessionExited(t *testing.T) {
-	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 	runtime := &fakeRestartRuntime{fakeRuntime: baseRuntime, restartErr: errors.New("respawn failed")}
 	agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
 	m, st, _ := newExitedResumeManager(t, runtime, agent)
@@ -1364,7 +1364,7 @@ func TestResumeAgent_RestartFailureLeavesSessionExited(t *testing.T) {
 }
 
 func TestResumeAgent_RejectsConcurrentRequest(t *testing.T) {
-	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+	baseRuntime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 	runtime := &blockingRestartRuntime{
 		fakeRuntime: baseRuntime,
 		entered:     make(chan struct{}),
@@ -1410,7 +1410,7 @@ func TestResumeAgent_ReleasesInputGateAfterInterfaceTransitionRejection(t *testi
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runtime := &fakeRuntime{aliveByHandle: map[string]bool{"tmux-mer-1": true}}
+			runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
 			agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
 			manager, store, _ := newExitedResumeManager(t, runtime, agent)
 			transitionStore := newTransitionStore()
@@ -2497,7 +2497,7 @@ func TestKill_WorkspaceProjectDirtyRowRefusesRemoval(t *testing.T) {
 
 func TestKill_RuntimeDestroyFailureLeavesSessionActive(t *testing.T) {
 	m, st, rt, ws := newManager()
-	rt.destroyErr = errors.New("tmux transient")
+	rt.destroyErr = errors.New("runtime transient")
 	st.sessions["mer-1"] = mkLive("mer-1")
 
 	freed, err := m.Kill(ctx, "mer-1")
@@ -3987,7 +3987,7 @@ func TestRestore_PromptlessOrchestratorResumesViaAdapter(t *testing.T) {
 // case: a promptless session whose adapter cannot resume (no native session id,
 // no captured AgentSessionID) must be relaunched fresh via GetLaunchCommand
 // in the SAME id. The orchestrator is the canonical example: after a reboot
-// where tmux is truly gone, RestoreAll must recover it in place rather than
+// where the runtime process is truly gone, RestoreAll must recover it in place rather than
 // abandon it and mint a new one (which caused the id-increment bug).
 func TestRestore_PromptlessUnresumableRelaunchesFresh(t *testing.T) {
 	st := newFakeStore()
@@ -4142,7 +4142,7 @@ func TestRollbackSpawn_FallsBackToKillForLiveRow(t *testing.T) {
 
 // TestSpawn_RejectsMissingAgentBinary covers Bug 6: when the agent adapter
 // returns an argv whose binary is not on PATH, Manager.Spawn must abort BEFORE
-// runtime.Create rather than launching into an empty tmux pane that the
+// runtime.Create rather than launching into an empty pty-host pane that the
 // reaper later mistakes for a live session.
 func TestSpawn_RejectsMissingAgentBinary(t *testing.T) {
 	st := newFakeStore()
@@ -4151,9 +4151,6 @@ func TestSpawn_RejectsMissingAgentBinary(t *testing.T) {
 	ws := &fakeWorkspace{}
 	dataDir := t.TempDir()
 	notFound := func(name string) (string, error) {
-		if name == "tmux" {
-			return "/bin/tmux", nil
-		}
 		return "", fmt.Errorf("exec: %q: not found", name)
 	}
 	m := New(Deps{Runtime: rt, Agents: fakeAgents{}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, DataDir: dataDir, LookPath: notFound})
@@ -4187,9 +4184,6 @@ func TestSpawn_MissingBinaryPreservesNonEmptyScratchWorkspaceForRetry(t *testing
 		t.Fatal(err)
 	}
 	notFound := func(name string) (string, error) {
-		if name == "tmux" {
-			return "/bin/tmux", nil
-		}
 		return "", fmt.Errorf("exec: %q: not found", name)
 	}
 	m := New(Deps{
@@ -4339,8 +4333,6 @@ func TestSpawn_ValidatesBinaryAfterEnvPrefix(t *testing.T) {
 	lookPath := func(name string) (string, error) {
 		lookedUp = append(lookedUp, name)
 		switch name {
-		case "tmux":
-			return "/bin/tmux", nil
 		case "opencode":
 			return "/usr/local/bin/opencode", nil
 		default:
@@ -4376,9 +4368,6 @@ func TestSpawn_RejectsMissingBinaryAfterEnvPrefix(t *testing.T) {
 	lookedUp := []string{}
 	lookPath := func(name string) (string, error) {
 		lookedUp = append(lookedUp, name)
-		if name == "tmux" {
-			return "/bin/tmux", nil
-		}
 		return "", fmt.Errorf("exec: %q: not found", name)
 	}
 	agent := launchArgvAgent{argv: []string{"env", "OPENCODE_CONFIG=/tmp/opr/opencode.json", "opencode", "--agent", "opr-mer-1"}}
@@ -4416,9 +4405,6 @@ func TestSpawn_RejectsEnvPrefixWithoutBinary(t *testing.T) {
 		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st,
 		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st},
 		LookPath: func(name string) (string, error) {
-			if name == "tmux" {
-				return "/bin/tmux", nil
-			}
 			return "/bin/" + name, nil
 		},
 	})
@@ -5414,7 +5400,7 @@ func TestRetireForReplacementWorkspaceProjectCapturesAndReleasesEveryRepo(t *tes
 
 func TestRetireForReplacementWorkspaceProjectRuntimeDestroyFailureKeepsRepoInventory(t *testing.T) {
 	m, st, rt, ws := newLifecycleManager()
-	rt.destroyErr = errors.New("tmux transient")
+	rt.destroyErr = errors.New("runtime transient")
 	ws.stashRef = "refs/opr/preserved/mer-orch"
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repos/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
 	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{{
@@ -5555,7 +5541,7 @@ func TestRetireForReplacementForceDestroyFailureLeavesSessionActive(t *testing.T
 
 func TestRetireForReplacementRuntimeDestroyFailureBlocksWorkspaceRelease(t *testing.T) {
 	m, st, rt, ws := newLifecycleManager()
-	rt.destroyErr = errors.New("tmux transient")
+	rt.destroyErr = errors.New("runtime transient")
 	ws.stashRef = "refs/opr/preserved/mer-orch"
 	st.sessions["mer-orch"] = domain.SessionRecord{
 		ID:        "mer-orch",
@@ -6186,7 +6172,7 @@ func TestReconcileLive_DeadSessionStashedAndTerminated(t *testing.T) {
 		t.Fatalf("MarkTerminated(s1) = %d, want 1", lcm.terminated["s1"])
 	}
 	if rt.destroyed != 0 {
-		t.Fatalf("Destroy calls = %d, want 0 (dead session: no tmux to kill)", rt.destroyed)
+		t.Fatalf("Destroy calls = %d, want 0 (dead session: no runtime process to kill)", rt.destroyed)
 	}
 	// The crash-orphaned session must be saved for restore, exactly like a
 	// graceful shutdown: a session_worktrees marker carrying the preserve ref,
@@ -6443,7 +6429,7 @@ func TestReconcile_AdoptAcrossDaemonRestart(t *testing.T) {
 	}
 }
 
-func TestReconcileReap_TerminatedButAliveTmuxDestroyed(t *testing.T) {
+func TestReconcileReap_TerminatedButAliveHostDestroyed(t *testing.T) {
 	st := newFakeStore()
 	rt := &fakeRuntime{aliveByHandle: map[string]bool{"t1": true}}
 	ws := &fakeWorkspace{}
@@ -6464,7 +6450,7 @@ func TestReconcileReap_TerminatedButAliveTmuxDestroyed(t *testing.T) {
 	}
 }
 
-func TestReconcileReap_TerminatedAndDeadTmuxLeftAlone(t *testing.T) {
+func TestReconcileReap_TerminatedAndDeadHostLeftAlone(t *testing.T) {
 	st := newFakeStore()
 	rt := &fakeRuntime{aliveByHandle: map[string]bool{}} // t2 not alive
 	ws := &fakeWorkspace{}

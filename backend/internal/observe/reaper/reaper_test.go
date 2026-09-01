@@ -116,7 +116,7 @@ func TestTick_ReportsWorkloadProbeErrorAsFailed(t *testing.T) {
 func TestTick_ReportsProbeErrorAsFailed(t *testing.T) {
 	lcm := &fakeLCM{}
 	sessions := fakeSessions{rows: []domain.SessionRecord{probableSession("mer-1")}}
-	if err := newReaper(lcm, sessions, fakeRuntime{err: errors.New("tmux gone")}).Tick(ctx); err != nil {
+	if err := newReaper(lcm, sessions, fakeRuntime{err: errors.New("runtime gone")}).Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := lcm.observed["mer-1"]; got.Runtime != ports.ProbeFailed || got.Workload != ports.ProbeFailed {
@@ -152,7 +152,7 @@ func handledSession(id domain.SessionID) domain.SessionRecord {
 }
 
 // A pass where (nearly) every session probes dead is one infrastructure
-// outage, not N independent exits (issue #3475: a killed tmux server read as
+// outage, not N independent exits (issue #3475: a killed runtime server read as
 // 28 session deaths archived the whole board). The breaker must downgrade
 // every dead conclusion of that pass to a failed probe.
 func TestTick_MassDeathPassIsReportedAsInconclusive(t *testing.T) {

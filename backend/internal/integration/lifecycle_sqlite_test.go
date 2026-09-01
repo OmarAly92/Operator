@@ -252,7 +252,7 @@ func TestRestoreRoundTripPreservesMetadata(t *testing.T) {
 	}
 }
 
-// TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux exercises
+// TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedHandle exercises
 // Manager.Reconcile against a real sqlite.Store:
 //
 //   - Session A: is_terminated=0 but its runtime is GONE and it is a promptless
@@ -261,7 +261,7 @@ func TestRestoreRoundTripPreservesMetadata(t *testing.T) {
 //     is_terminated=true, runtime.Create count stays 0.
 //   - Session B: is_terminated=1 but its runtime is still ALIVE (leaked teardown)
 //     => Reconcile must call Destroy on its handle.
-func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux(t *testing.T) {
+func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedHandle(t *testing.T) {
 	ctx := context.Background()
 	st := newStack(t)
 
