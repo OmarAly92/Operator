@@ -1791,17 +1791,19 @@ git commit -m "test(runtime): differential parity harness against tmux"
 
 ### Task 14: `scroll-latency` perf scenario — GATE 2
 
+**GATE 2 RESULT (2026-09-01): DEFERRED — no GUI/display access in this environment.** All code wiring (Step 1's `OPERATOR_RUNTIME` passthrough, Step 2's scenario registration across 6 parallel registries, Step 3's render-callback measurement) is complete and independently verified correct by the task reviewer via direct source tracing. Steps 4-5 (the actual p50/p95 numbers) could not be run: `npm run bench:terminal -- --shell tauri --scenario scroll-latency` fails immediately at input validation (`OPERATOR_BENCH_DAEMON_URL is required`) because this sandboxed environment has no live daemon, no built Tauri bundle, and no macOS WindowServer session — the same infeasibility as the manual GUI checks deferred in Tasks 5, 6, and 12. No numbers were fabricated. Full detail: `.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-14-report.md`. **Per the original instructions, Task 15 requires both Gate 1 and Gate 2 to pass — Gate 2's numeric verdict is unknown, so the plan stops here rather than proceeding to Task 15.**
+
 **Files:**
 - Modify: `frontend/perf/scenarios.json`
 - Modify: `frontend/scripts/benchmark-terminal.mjs` (four parallel registries, see Step 2)
 - Modify: `frontend/scripts/benchmark-result.mjs` (env allowlist, see Step 1)
 - Modify: `frontend/perf/terminal/harness.tsx` (the measurement lives here, **not** `runtime.ts` — that file is a 9-line runtime-identity helper)
 
-- [ ] **Step 1: Let the harness select the runtime — without this, every A/B below silently compares tmux to tmux**
+- [x] **Step 1: Let the harness select the runtime — without this, every A/B below silently compares tmux to tmux**
 
 The harness strips all `OPERATOR_*` variables from the child environment (`benchmark-result.mjs:60-107`, `BINDING_ENVIRONMENT_PREFIXES` + `sanitizedBindingEnvironment`), so an `OPERATOR_RUNTIME=ptyhost` prefix on the bench command evaporates before it reaches the daemon, with no error. Add `OPERATOR_RUNTIME` to the `controlled` object in `spawnTauriHarness` (`benchmark-terminal.mjs:514-521`), passing the parent value through when set. The stripping exists for evidence-integrity — check `resolveEvidenceScope` and confirm the passthrough doesn't downgrade runs to non-binding. The electron shell attaches to an already-running daemon (`OPERATOR_BENCH_DAEMON_URL`), so runtime selection there belongs to whoever started the daemon; use `--shell tauri` for these A/Bs.
 
-- [ ] **Step 2: Add the scenario definition and register it everywhere the harness checks**
+- [x] **Step 2: Add the scenario definition and register it everywhere the harness checks**
 
 In `scenarios.json`, alongside `input-latency` (note `alternateScreen` is a new field — Step 3 is what reads it):
 
@@ -1822,11 +1824,11 @@ In `scenarios.json`, alongside `input-latency` (note `alternateScreen` is a new 
 
 Registration is not one Set — `benchmark-terminal.mjs` has parallel registries that each throw on an unknown scenario: `terminalScenarios` (:29), `primaryAcknowledgementNames` (:41), `scenarioMeasurementPlan()` (:70), `terminalThroughputSample()` (:81), plus the `--help` text. On the harness side, add the new acknowledgement to `acknowledgementMarks` and the ack union type in `harness.tsx` (:29, :55).
 
-- [ ] **Step 3: Implement the measurement in `harness.tsx`**
+- [x] **Step 3: Implement the measurement in `harness.tsx`**
 
 Copy the existing input-latency pattern — it is already a true send-input → xterm-render-callback delta (`harness.tsx:344-349` sends, `:207-223` acknowledges off the render event). For scroll: start a deterministic alt-screen responder in the pane (a tiny script that enters the alternate screen with `\x1b[?1049h`, enables SGR mouse reporting, and rewrites one line on every wheel report it reads — deterministic, unlike `less`), then per sample send one SGR wheel report (`\x1b[<64;1;1M`) and acknowledge on the next render callback that changes the grid. Report p50 and p95.
 
-- [ ] **Step 4: Run it against both runtimes**
+- [ ] **Step 4: Run it against both runtimes** — DEFERRED (no GUI/display access; see task-14-report.md)
 
 ```bash
 cd frontend && npm run bench:terminal -- --shell tauri --scenario scroll-latency
@@ -1835,7 +1837,7 @@ OPERATOR_RUNTIME=ptyhost npm run bench:terminal -- --shell tauri --scenario scro
 
 **Gate:** ptyhost must beat tmux decisively on p50 and p95. This is the number that represents the original complaint; if it does not improve, the premise of the whole plan is wrong and that must be reported rather than worked around.
 
-- [ ] **Step 5: Run the full suite against both runtimes**
+- [ ] **Step 5: Run the full suite against both runtimes** — DEFERRED (same reason as Step 4)
 
 ```bash
 cd frontend && for s in vtebench large-output input-latency reconnect cpu-time active-memory; do
@@ -1846,7 +1848,7 @@ done
 
 Expected: `input-latency`, `reconnect`, `cpu-time`, `active-memory` no worse; `vtebench` and `large-output` improved. A `large-output` regression means the parser reached the hot path — find it before continuing. The `reconnect` numbers also answer the spec's open question about a rendered ring snapshot.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** (commit `eb4aab72a`)
 
 ```bash
 git add frontend/perf frontend/scripts/benchmark-terminal.mjs frontend/scripts/benchmark-result.mjs
