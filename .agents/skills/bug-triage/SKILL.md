@@ -8,9 +8,10 @@ trigger: User reports a bug, or asks to triage/file an issue for a reported prob
 
 Triage bugs into well-structured GitHub issues on the Operator repo.
 
-> **Operator is Go + Electron.** The backend is a Go daemon (`backend/`)
-> exposing a loopback HTTP API on `127.0.0.1:3001`; the frontend is an Electron +
-> React supervisor (`frontend/`). There is **no** pm2/tmux/Node runtime here —
+> **Operator is Go + Tauri.** The backend is a Go daemon (`backend/`)
+> exposing a loopback HTTP API on `127.0.0.1:3001`; the frontend is a Tauri +
+> React supervisor (`frontend/`). Electron was removed and is gated against by
+> `scripts/no-electron.test.mjs`. There is **no** pm2/tmux/Node runtime here —
 > the daemon owns lifecycle and sessions run under the **Zellij** runtime
 > adapter. Triage against _this_ stack, not the old TypeScript operator.
 
@@ -141,7 +142,7 @@ git log --oneline -S 'exact-string' -- <file>
 git show <sha> -- <file> | grep -B 5 -A 10 'pattern'
 ```
 
-**Research dependencies** (Zellij, the agent harness binary, Electron, React, the
+**Research dependencies** (Zellij, the agent harness binary, Tauri, React, the
 SQLite driver) — check installed vs latest version, search their issue trackers,
 check changelogs. Root cause is sometimes in a dependency, not Operator.
 
@@ -356,11 +357,11 @@ any priority/confidence stated in the body), root cause summary.
 | **Agent harness**               | Harness name + version                    | `backend/internal/adapters/agent/<harness>/`                               |
 | **Storage**                     | DB state, migrations                      | `backend/internal/storage/sqlite/`, `~/.operator/data/opr.db`                     |
 | **Hooks**                       | Hook event, agent, payload                | `backend/internal/cli/hooks.go`                                            |
-| **Frontend (Electron/React)**   | Screenshot, viewport, daemon connectivity | `frontend/src/`                                                            |
+| **Frontend (Tauri/React)**      | Screenshot, viewport, daemon connectivity | `frontend/src/`                                                            |
 
 **Misrouting patterns:**
 
-- Terminal bugs → Zellij runtime adapter vs the terminal mux vs the Electron xterm
+- Terminal bugs → Zellij runtime adapter vs the terminal mux vs the Tauri xterm
   surface. Trace where bytes flow (daemon → mux → frontend).
 - "Session stuck" → lifecycle/session-manager state vs agent harness process vs
   Zellij runtime connection.

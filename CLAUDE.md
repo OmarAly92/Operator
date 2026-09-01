@@ -7,13 +7,12 @@ Read and follow [`AGENTS.md`](AGENTS.md) for repository layout, commands, coding
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.
 
-## App state lives under `~/.operator` only
+## Nested worktrees poison repo-wide search
 
-All app state, the daemon's data dir, `running.json`, worktrees, and the desktop
-shell's webview state (cache, cookies, local/session storage, crash dumps) must
-resolve under `~/.operator` (overridable via `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`).
-Never write to or read from `~/Library/Application Support` or any other OS-default
-app-data location. See the hard rule in `AGENTS.md`.
+Some git worktrees live *inside* this checkout (`.worktrees/`, `.claude/worktrees/`),
+alongside external siblings (`../Operator-*`). A repo-wide `grep` or `find` from the
+root matches stale duplicate copies of tracked files, including old `AGENTS.md`
+versions. Scope searches to the real source directories, or exclude those two paths.
 
 ## Design System
 
@@ -33,11 +32,6 @@ older design-reference framing** in DESIGN.md (per explicit user decision 2026-0
 Build new UI from shadcn primitives (`components/ui/*`) where a component fits. Do not
 deviate without explicit user approval. In QA/review, flag any renderer code that
 diverges from **agent-orchestrator** — do **not** re-flag old design-reference mismatches.
-
-When showing or demoing frontend changes, run `opr preview [url]` from inside the
-session so the change opens in the user's default browser as an external preview
-(`opr preview clear` removes the target without opening anything); do not just
-describe it.
 
 ## Mobile client (`packages/mobile`)
 
@@ -73,9 +67,9 @@ flutter build ios --release --no-codesign
 
 `lib/core/` holds what every feature needs; `lib/feature/<feature>/` is split
 `data/` (data sources, models, `model/params/`, repositories), `logic/` (pure
-functions), `presentation/<screen>_screen/{logic,ui}` (cubit + widgets). Eleven
+functions), `presentation/<screen>_screen/{logic,ui}` (cubit + widgets). Twelve
 features: `pairing`, `onboarding`, `sessions`, `pull_request`, `orchestrator`,
-`spawn`, `chat`, `terminal`, `preview`, `notification`, `settings`.
+`spawn`, `chat`, `terminal`, `preview`, `notification`, `settings`, `blocks`.
 
 **`ServerConfig` is the spine.** The API base URL does not exist until pairing
 completes, so no data source ever sees host/port/password. `ServerConfigStore` holds

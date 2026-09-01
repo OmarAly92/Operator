@@ -1,9 +1,18 @@
 ---
 name: opr-desktop-dev
-description: Launch, restart, or troubleshoot the real Operator Electron desktop app from this repository; run a checkout against isolated or real local Operator data; combine PR branches for local UI review; and diagnose stale Electron processes, port conflicts, or preload bridge mismatches. Use whenever asked to run, open, show, or visually verify Operator frontend changes in the actual desktop app rather than opr preview, dev:web, or mock data.
+description: Launch, restart, or troubleshoot the real Operator desktop app from this repository; run a checkout against isolated or real local Operator data; combine PR branches for local UI review; and diagnose stale desktop-shell processes, port conflicts, or bridge mismatches. Use whenever asked to run, open, show, or visually verify Operator frontend changes in the actual desktop app rather than opr preview, dev:web, or mock data.
 ---
 
 # Operator Desktop Dev
+
+> **STALE — verify before following.** The procedure below was written for the
+> Electron + Electron Forge shell, which this repository no longer uses. The
+> desktop shell is now Tauri (`cd frontend && npm run tauri:dev`, which supervises
+> the daemon), and `scripts/no-electron.test.mjs` gates Electron's absence. Every
+> `electron-forge` command, the `rs` restart, the preload-bridge diagnostics, and
+> the `~/.operator/dev/electron` paths are obsolete. The data-mode discipline and
+> the "never claim visual success from compilation alone" rules still hold. This
+> skill needs a rewrite against the real Tauri workflow.
 
 Run the Electron application from the current checkout and verify it in the native window. Keep the dev daemon, renderer, Electron preload, and selected data mode explicit so the user never reviews a mock or stale build by accident.
 
