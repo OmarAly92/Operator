@@ -102,11 +102,13 @@ func RunHost(args []string, stdout io.Writer) int {
 		parser = nil
 	}
 	cfg := ServeConfig{
-		SessionID: sessionID,
-		Listener:  ln,
-		PTY:       pty,
-		Ring:      ring,
-		Parser:    parser,
+		SessionID:   sessionID,
+		Listener:    ln,
+		PTY:         pty,
+		Ring:        ring,
+		Parser:      parser,
+		InitialCols: initialCols,
+		InitialRows: initialRows,
 	}
 
 	if err := Serve(ctx, cfg); err != nil {

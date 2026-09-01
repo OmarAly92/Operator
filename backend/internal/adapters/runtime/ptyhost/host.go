@@ -32,13 +32,18 @@ type ptyConn interface {
 	PID() int
 }
 
-// ServeConfig carries everything the host needs.
+// ServeConfig carries everything the host needs. PTY and Parser seed the
+// host's mutable pty/parser fields (see host.pty/host.parser); InitialCols/
+// InitialRows are the grid a respawned PTY falls back to when no client has
+// resized yet.
 type ServeConfig struct {
-	SessionID string
-	Listener  net.Listener // caller provides (loopback); engine owns Accept loop
-	PTY       ptyConn
-	Ring      *Ring
-	Parser    *vtwasm.Parser
+	SessionID   string
+	Listener    net.Listener // caller provides (loopback); engine owns Accept loop
+	PTY         ptyConn
+	Ring        *Ring
+	Parser      *vtwasm.Parser
+	InitialCols int
+	InitialRows int
 }
 
 // Serve runs the host event loop until the listener closes or Shutdown is
@@ -49,9 +54,13 @@ type ServeConfig struct {
 func Serve(ctx context.Context, cfg ServeConfig) error {
 	h := &host{
 		cfg:       cfg,
+		ctx:       ctx,
 		clients:   make(map[net.Conn]*clientState),
 		shutdownC: make(chan struct{}),
 		capture:   &captureSink{},
+		pty:       cfg.PTY,
+		parser:    cfg.Parser,
+		pumpDone:  make(chan struct{}),
 	}
 	return h.run(ctx)
 }
@@ -69,8 +78,18 @@ type clientState struct {
 // host holds the mutable state for a single pty-host session.
 type host struct {
 	cfg     ServeConfig
+	ctx     context.Context
 	mu      sync.Mutex
 	clients map[net.Conn]*clientState
+
+	// pty/parser are the live child process and its passive parser. Both start
+	// out as cfg.PTY/cfg.Parser and are replaced in place by respawn (see
+	// respawn.go), which is the only writer besides Serve's construction.
+	// Every other reader goes through currentPTY()/currentParser() (or, inside
+	// a function that already holds mu, the field directly) so a respawn swap
+	// is never observed as a torn read.
+	pty    ptyConn
+	parser *vtwasm.Parser
 
 	// curCols/curRows are the grid the host last applied to the shared PTY (0,0
 	// = none applied yet). Guarded by mu; used to skip redundant resizes.
@@ -79,7 +98,34 @@ type host struct {
 	shutdownOnce sync.Once
 	shutdownC    chan struct{} // closed when Shutdown is called
 
+	// pumpDone is closed when the current pumpPTY generation's reader hits EOF.
+	// Recreated before each `go h.pumpPTY()` (initial start and every respawn).
+	// Guarded by mu.
+	pumpDone chan struct{}
+
+	// respawnMu serializes concurrent MsgRespawnReq handling so two respawns
+	// never race the pty/parser swap.
+	respawnMu sync.Mutex
+
 	capture *captureSink
+}
+
+// currentPTY returns the live child PTY connection. Safe to call from any
+// goroutine; the returned value may become stale the instant it returns (a
+// concurrent respawn may swap it), which is fine — every caller uses it for a
+// single, self-contained operation rather than holding it across a respawn.
+func (h *host) currentPTY() ptyConn {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.pty
+}
+
+// currentParser returns the live passive parser (nil if it failed to start).
+// Same staleness contract as currentPTY.
+func (h *host) currentParser() *vtwasm.Parser {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.parser
 }
 
 // applyLargestLocked sizes the shared PTY to a SINGLE client's grid — the
@@ -119,9 +165,9 @@ func (h *host) applyLargestLocked() {
 		return
 	}
 	h.curCols, h.curRows = bestCols, bestRows
-	_ = h.cfg.PTY.Resize(bestCols, bestRows)
-	if h.cfg.Parser != nil {
-		_ = h.cfg.Parser.Resize(uint32(bestCols), uint32(bestRows))
+	_ = h.pty.Resize(bestCols, bestRows)
+	if h.parser != nil {
+		_ = h.parser.Resize(uint32(bestCols), uint32(bestRows))
 	}
 }
 
@@ -167,7 +213,7 @@ func (h *host) shutdown() {
 		close(h.shutdownC)
 
 		// 1. Dispose the ConPTY first (critical ordering).
-		_ = h.cfg.PTY.Close()
+		_ = h.currentPTY().Close()
 
 		// 2. Brief grace so the OS ConPTY helper can clean up.
 		time.Sleep(50 * time.Millisecond)
@@ -196,8 +242,13 @@ const (
 // arms when a flush already happened inside the current interval — so
 // sustained load batches at 60Hz while a lone keystroke echo never waits.
 func (h *host) pumpPTY() {
+	h.mu.Lock()
+	pty := h.pty
+	done := h.pumpDone
+	h.mu.Unlock()
+
 	chunks := make(chan []byte, 64)
-	go h.readPTY(chunks)
+	go h.readPTY(pty, chunks)
 
 	var pending []byte
 	var lastFlush time.Time
@@ -221,7 +272,7 @@ func (h *host) pumpPTY() {
 		case chunk, ok := <-chunks:
 			if !ok {
 				flush()
-				h.finishPump()
+				h.finishPump(pty, done)
 				return
 			}
 			pending = append(pending, chunk...)
@@ -231,7 +282,7 @@ func (h *host) pumpPTY() {
 				case more, ok := <-chunks:
 					if !ok {
 						flush()
-						h.finishPump()
+						h.finishPump(pty, done)
 						return
 					}
 					pending = append(pending, more...)
@@ -256,11 +307,11 @@ func (h *host) pumpPTY() {
 	}
 }
 
-func (h *host) readPTY(chunks chan<- []byte) {
+func (h *host) readPTY(pty ptyConn, chunks chan<- []byte) {
 	defer close(chunks)
 	buf := make([]byte, readBufferSize)
 	for {
-		n, err := h.cfg.PTY.Read(buf)
+		n, err := pty.Read(buf)
 		if n > 0 {
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
@@ -290,20 +341,26 @@ const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ
 // delay a single byte reaching the screen. Errors are dropped for the same
 // reason -- a broken parser degrades GetOutput, it does not break the terminal.
 func (h *host) feedParser(batch []byte) {
-	if h.cfg.Parser == nil {
+	parser := h.currentParser()
+	if parser == nil {
 		return
 	}
 	for offset := 0; offset < len(batch); offset += maxParserSliceBytes {
 		end := min(offset+maxParserSliceBytes, len(batch))
-		_ = h.cfg.Parser.Feed(batch[offset:end])
+		_ = parser.Feed(batch[offset:end])
 	}
 }
 
-func (h *host) finishPump() {
-	<-h.cfg.PTY.Done()
+// finishPump runs once the pump's reader hits EOF (child exited, or its PTY
+// was closed for a respawn): it drains the ring's partial line, broadcasts
+// the dead status, and closes done so a waiting respawn (or nothing, on a
+// real exit) knows nothing is reading pty any more.
+func (h *host) finishPump(pty ptyConn, done chan struct{}) {
+	<-pty.Done()
 	h.cfg.Ring.FlushPartial()
-	code, _ := h.cfg.PTY.ExitCode()
-	h.broadcast(statusFrame(false, h.cfg.PTY.PID(), &code))
+	code, _ := pty.ExitCode()
+	h.broadcast(statusFrame(false, pty.PID(), &code))
+	close(done)
 }
 
 // broadcast sends msg to all connected clients, removing any that error.
@@ -399,12 +456,13 @@ func (h *host) handleConn(conn net.Conn) {
 func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 	switch msgType {
 	case MsgTerminalInput:
-		if _, alive := h.cfg.PTY.ExitCode(); !alive {
-			_, _ = h.cfg.PTY.Write(payload)
+		pty := h.currentPTY()
+		if _, alive := pty.ExitCode(); !alive {
+			_, _ = pty.Write(payload)
 		}
 
 	case MsgResize:
-		if _, alive := h.cfg.PTY.ExitCode(); !alive {
+		if _, alive := h.currentPTY().ExitCode(); !alive {
 			var rp ResizePayload
 			if err := json.Unmarshal(payload, &rp); err == nil && rp.Cols > 0 && rp.Rows > 0 {
 				// Record this client's requested grid, then size the shared PTY to
@@ -427,8 +485,8 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 			lines = req.Lines
 		}
 		var text string
-		if h.cfg.Parser != nil {
-			rendered, err := h.cfg.Parser.RenderTail(lines)
+		if parser := h.currentParser(); parser != nil {
+			rendered, err := parser.RenderTail(lines)
 			if err != nil {
 				h.logf("render for GetOutput: %v", err)
 			}
@@ -447,8 +505,8 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 			lines = req.Lines
 		}
 		var text string
-		if h.cfg.Parser != nil {
-			rendered, err := h.cfg.Parser.RenderStyledTail(lines)
+		if parser := h.currentParser(); parser != nil {
+			rendered, err := parser.RenderStyledTail(lines)
 			if err != nil {
 				h.logf("render for GetStyledOutput: %v", err)
 			}
@@ -475,8 +533,8 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 
 	case MsgCaptureStateReq:
 		var alternateOn bool
-		if h.cfg.Parser != nil {
-			on, err := h.cfg.Parser.AltActive()
+		if parser := h.currentParser(); parser != nil {
+			on, err := parser.AltActive()
 			if err != nil {
 				h.logf("alt active for CaptureState: %v", err)
 			}
@@ -489,9 +547,10 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 		}
 
 	case MsgStatusReq:
-		code, exited := h.cfg.PTY.ExitCode()
+		pty := h.currentPTY()
+		code, exited := pty.ExitCode()
 		alive := !exited
-		pid := h.cfg.PTY.PID()
+		pid := pty.PID()
 		var codePtr *int
 		if exited {
 			codePtr = &code
@@ -501,6 +560,9 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 	case MsgKillReq:
 		// Trigger graceful shutdown; returns immediately (idempotent).
 		go h.shutdown()
+
+	case MsgRespawnReq:
+		h.handleRespawn(conn, payload)
 	}
 }
 

@@ -24,6 +24,7 @@ const (
 	dialTimeout      = 3 * time.Second
 	getOutputTimeout = 3 * time.Second
 	isAliveTimeout   = 2 * time.Second
+	restartTimeout   = 10 * time.Second
 )
 
 // dialHost opens a TCP connection to addr with a deadline. Callers close it.
@@ -387,6 +388,61 @@ func isConnRefused(err error) bool {
 	}
 	const wsaeconnrefused = syscall.Errno(10061)
 	return errors.Is(err, wsaeconnrefused)
+}
+
+// clientRestart sends MsgRespawnReq and waits up to restartTimeout for
+// MsgRespawnRes. Returns the replacement child's pid on success.
+func clientRestart(addr string, req RespawnPayload) (int, error) {
+	conn, err := dialHost(addr, dialTimeout)
+	if err != nil {
+		return 0, fmt.Errorf("dial pty-host for restart: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(restartTimeout))
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return 0, err
+	}
+	frame, err := EncodeMessage(MsgRespawnReq, body)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := conn.Write(frame); err != nil {
+		return 0, fmt.Errorf("write pty-host restart request: %w", err)
+	}
+
+	resultC := make(chan RespawnResPayload, 1)
+	parser := NewMessageParser(func(msgType byte, payload []byte) {
+		if msgType == MsgRespawnRes {
+			var res RespawnResPayload
+			if err := json.Unmarshal(payload, &res); err == nil {
+				select {
+				case resultC <- res:
+				default:
+				}
+			}
+		}
+	})
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		select {
+		case res := <-resultC:
+			if !res.OK {
+				return 0, fmt.Errorf("ptyhost: restart failed: %s", res.Error)
+			}
+			return res.PID, nil
+		default:
+		}
+		if err != nil {
+			return 0, fmt.Errorf("read pty-host restart response: %w", err)
+		}
+	}
 }
 
 // clientKill sends MsgKillReq. Connection refused is idempotent success because

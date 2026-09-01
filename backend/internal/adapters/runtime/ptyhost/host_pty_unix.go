@@ -54,7 +54,17 @@ func (p *unixPTY) Resize(cols, rows int) error {
 	return pty.Setsize(p.file, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 }
 
-func (p *unixPTY) Close() error { return p.file.Close() }
+func (p *unixPTY) Close() error {
+	err := p.file.Close()
+	// Best-effort kill: losing the controlling terminal does not reliably
+	// terminate the child on every platform/shell (observed: a shell blocked
+	// on a concurrent Read of the master fd can outlive the close). Mirrors
+	// conptyConn.Close's best-effort kill on Windows.
+	if p.cmd.Process != nil {
+		_ = p.cmd.Process.Kill()
+	}
+	return err
+}
 
 func (p *unixPTY) Done() <-chan struct{} { return p.done }
 

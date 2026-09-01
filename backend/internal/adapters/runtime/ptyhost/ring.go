@@ -56,6 +56,18 @@ func (r *Ring) FlushPartial() {
 	r.partialLine = ""
 }
 
+// Reset clears the stored lines and the partial line, as if the ring were
+// freshly constructed. Used on respawn: the replacement process starts from a
+// blank pane, so a ring still holding the dead process's bytes must not
+// replay them ahead of the new process's output.
+func (r *Ring) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.lines = nil
+	r.partialLine = ""
+}
+
 // Snapshot returns all stored lines concatenated as raw bytes for scrollback replay.
 // The in-progress partialLine is NOT included (matches TS outputBuffer.join("")).
 func (r *Ring) Snapshot() []byte {

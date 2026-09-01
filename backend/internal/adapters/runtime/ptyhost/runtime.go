@@ -19,6 +19,7 @@ const runtimeLaunchIDEnv = "OPERATOR_RUNTIME_LAUNCH_ID"
 
 // Ensure Runtime satisfies the port at compile time (Attach in attach.go).
 var _ ports.Runtime = (*Runtime)(nil)
+var _ ports.RuntimeRestarter = (*Runtime)(nil)
 
 // validSessionID matches operator's assertValidSessionId.
 var validSessionID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -191,6 +192,46 @@ func (r *Runtime) waitForPIDExit(ctx context.Context, pid int) (bool, error) {
 			}
 		}
 	}
+}
+
+// Restart replaces the running process inside an existing pty-host session in
+// place: same handle, same listener, same registry entry, same attached
+// clients. Only the child process and its scrollback are replaced.
+func (r *Runtime) Restart(ctx context.Context, handle ports.RuntimeHandle, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error) {
+	sess := r.resolve(handle.ID)
+	if sess == nil {
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: session %q not found", handle.ID)
+	}
+	if cfg.WorkspacePath == "" {
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: workspace path required")
+	}
+	if len(cfg.Argv) == 0 {
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: argv required")
+	}
+
+	launchID := cfg.Env[runtimeLaunchIDEnv]
+	if _, err := clientRestart(sess.addr, RespawnPayload{
+		Cwd:       cfg.WorkspacePath,
+		Shell:     cfg.Argv[0],
+		LaunchCmd: cfg.Argv[1:],
+		LaunchID:  launchID,
+	}); err != nil {
+		return ports.RuntimeHandle{}, fmt.Errorf("ptyhost: restart %q: %w", handle.ID, err)
+	}
+
+	r.mu.Lock()
+	sess.launchID = launchID
+	r.mu.Unlock()
+
+	_ = ptyregistry.Register(ptyregistry.Entry{
+		SessionID:    handle.ID,
+		PtyHostPID:   sess.pid,
+		PipePath:     sess.addr,
+		LaunchID:     launchID,
+		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
+	})
+
+	return handle, nil
 }
 
 // IsAlive distinguishes three outcomes so the reaper never spuriously reaps a

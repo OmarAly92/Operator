@@ -27,6 +27,8 @@ const (
 	MsgCaptureStopReq  byte = 0x0C
 	MsgCaptureStateReq byte = 0x0D
 	MsgCaptureStateRes byte = 0x0E
+	MsgRespawnReq      byte = 0x0F // client -> host: JSON {cwd, shell, launchCmd, launchId}
+	MsgRespawnRes      byte = 0x10 // host -> client: JSON {ok, pid?, error?}
 )
 
 // JSON payload structs shared with later tasks (kept minimal).
@@ -56,6 +58,21 @@ type CaptureStartReq struct {
 type CaptureStateRes struct {
 	PipeOpen    bool `json:"pipeOpen"`
 	AlternateOn bool `json:"alternateOn"`
+}
+
+// RespawnPayload is the JSON body for MsgRespawnReq.
+type RespawnPayload struct {
+	Cwd       string   `json:"cwd"`
+	Shell     string   `json:"shell"`
+	LaunchCmd []string `json:"launchCmd"`
+	LaunchID  string   `json:"launchId"`
+}
+
+// RespawnResPayload is the JSON body for MsgRespawnRes.
+type RespawnResPayload struct {
+	OK    bool   `json:"ok"`
+	PID   int    `json:"pid,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 // EncodeMessage encodes a single frame into the binary protocol format.
