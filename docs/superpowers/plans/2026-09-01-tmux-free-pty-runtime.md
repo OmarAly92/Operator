@@ -1141,7 +1141,7 @@ git commit -m "perf(runtime): greedy PTY drain with load-only 60Hz coalescing"
 - Consumes: `vtwasm.New(ctx, module []byte, cols, scrollback uint32) (*Parser, error)`, `(*Parser).Feed([]byte) error`
 - Produces: `(*Parser).RenderTail(lines int) (string, error)`, `(*Parser).AltActive() (bool, error)`; `ServeConfig.Parser *vtwasm.Parser` (optional — nil disables parsing)
 
-- [ ] **Step 1: Embed the wasm module**
+- [x] **Step 1: Embed the wasm module**
 
 ```bash
 mkdir -p backend/internal/adapters/runtime/ptyhost/vtwasm/assets
@@ -1162,7 +1162,7 @@ var Module []byte
 
 Add a build step to `packages/build-binaries.sh` that rebuilds the wasm before the Go build, so the committed artifact cannot drift silently. This also means the four release CI workflows need `rustup` + the `wasm32-unknown-unknown` target installed before the Go build — one wasm artifact serves all four platform binaries, so cross-compilation survives, but the workflow files must change and that change lands with this task.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 `host_parser_test.go`:
 
@@ -1203,12 +1203,12 @@ func TestParserRendersCursorAddressedOutput(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestParserRenders -v`
 Expected: FAIL — `parser.RenderTail undefined`
 
-- [ ] **Step 4: Implement `RenderTail` and `AltActive`**
+- [x] **Step 4: Implement `RenderTail` and `AltActive`**
 
 Append to `vtwasm/vtwasm.go`:
 
@@ -1267,7 +1267,7 @@ func (p *Parser) AltActive() (bool, error) {
 }
 ```
 
-- [ ] **Step 5: Feed the parser from the host's pump, off the hot path**
+- [x] **Step 5: Feed the parser from the host's pump, off the hot path**
 
 In `host.go`, add `Parser *vtwasm.Parser` to `ServeConfig`, and call `h.feedParser(batch)` at the end of `deliver` (Task 6's choke point) — **after** the broadcast, in bounded slices:
 
@@ -1289,7 +1289,7 @@ func (h *host) feedParser(batch []byte) {
 }
 ```
 
-- [ ] **Step 6: Keep the parser the same size as the PTY, and actually construct it**
+- [x] **Step 6: Keep the parser the same size as the PTY, and actually construct it**
 
 Two wirings without which every earlier step is dead code:
 
@@ -1298,12 +1298,12 @@ Two wirings without which every earlier step is dead code:
 
 Add a test: resize to 100x40, feed a full-screen frame, assert `RenderTail` yields 40 rows.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/...`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** (commit `5c07024b4`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost packages/build-binaries.sh
