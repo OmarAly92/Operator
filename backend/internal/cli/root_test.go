@@ -154,6 +154,7 @@ func TestCLIInvocationActorType(t *testing.T) {
 
 func TestTelemetryMetaClassifiesRegisteredCommandPaths(t *testing.T) {
 	systemCommands := map[string]struct{}{
+		"opr attach":                  {},
 		"opr agent-process":           {},
 		"opr agent-process supervise": {},
 		"opr completion":              {},
