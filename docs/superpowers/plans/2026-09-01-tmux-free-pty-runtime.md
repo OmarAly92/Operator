@@ -740,7 +740,7 @@ Makes the runtime reachable on macOS for manual testing, without changing the de
 - Modify: `backend/internal/adapters/runtime/runtimeselect/runtimeselect.go`
 - Create: `backend/internal/adapters/runtime/runtimeselect/runtimeselect_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 package runtimeselect
@@ -759,12 +759,12 @@ func TestNewHonoursPtyHostOverride(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/runtimeselect/ -v`
 Expected: FAIL — returns `*tmux.Runtime`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `runtimeselect.go`, replace the body of `New`:
 
@@ -777,12 +777,12 @@ func New(_ *slog.Logger) Runtime {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/...`
 Expected: PASS
 
-- [ ] **Step 5: Manual end-to-end check**
+- [ ] **Step 5: Manual end-to-end check** — DEFERRED (no GUI/visual access in this environment; see task-5-report.md)
 
 ```bash
 cd frontend && OPERATOR_RUNTIME=ptyhost npm run tauri:dev
@@ -790,7 +790,7 @@ cd frontend && OPERATOR_RUNTIME=ptyhost npm run tauri:dev
 
 Start a session, confirm the agent runs and the terminal renders. Scroll it. **This is the first moment the scroll fix is observable** — compare against a tmux-backed run. Expect smooth; if it is not, stop and re-read the hot path before continuing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** (commit `f9306f1a4`)
 
 ```bash
 git add backend/internal/adapters/runtime/runtimeselect
