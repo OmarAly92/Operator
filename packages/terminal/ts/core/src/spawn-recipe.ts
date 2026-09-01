@@ -15,7 +15,9 @@ type Manifest = {
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
-const manifestPath = join(here, "..", "..", "..", "protocol", "recipes.json");
+const packageRoot = join(here, "..");
+const assetsRoot = join(packageRoot, "assets");
+const manifestPath = join(assetsRoot, "recipes.json");
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
 
@@ -33,7 +35,7 @@ export function spawnRecipe(shell: ShellKind, options: BootstrapOptions): SpawnR
 		return {
 			argv: renderArgv(
 				manifest.shells[shell].argv,
-				new URL(`../../../shell/${manifest.shells[shell].script}`, import.meta.url).pathname,
+				join(assetsRoot, "shell", manifest.shells[shell].script),
 			),
 			env,
 		};

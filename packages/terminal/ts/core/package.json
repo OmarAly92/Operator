@@ -6,7 +6,8 @@
 	"description": "Phase 0 typed-array view over the vt-wasm linear memory.",
 	"files": [
 		"dist",
-		"wasm"
+		"wasm",
+		"assets"
 	],
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -25,7 +26,9 @@
 		}
 	},
 	"scripts": {
-		"build": "tsc -b",
+		"prepare:spawn-assets": "node ./scripts/prepare-spawn-assets.mjs",
+		"build": "npm run prepare:spawn-assets && tsc -b",
+		"prepack": "npm run build",
 		"test": "vitest run --config ./vitest.config.ts --passWithNoTests"
 	},
 	"devDependencies": {
