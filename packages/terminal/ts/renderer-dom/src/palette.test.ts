@@ -23,6 +23,7 @@ const STRINGS: TerminalStrings = {
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
+	jumpToBottom: "Jump to bottom",
 };
 
 function key(init: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {

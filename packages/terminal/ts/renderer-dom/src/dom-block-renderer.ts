@@ -17,6 +17,7 @@ import { bindActionEvents } from "./action-events.js";
 import { renderBlockHeader } from "./block-header.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
+import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
@@ -82,6 +83,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private currentFilter: BlockFilter | null = null;
 	private pinnedHeader: HTMLElement | null = null;
 	private blockNav: BlockNavHandle | null = null;
+	private jumpToBottom: JumpToBottom | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -116,6 +118,8 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
 		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
 		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
+		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
+		this.jumpToBottom.mount();
 		this.repaint();
 	}
 
@@ -168,6 +172,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		element.scrollIntoView({ block: align, inline: "nearest" });
 	}
 
+	scrollToLatest(): void {
+		const c = this.container;
+		if (!c) return;
+		this.stickToBottom = true;
+		const target = c.scrollHeight - c.clientHeight;
+		if (target > 0) c.scrollTop = target;
+		this.scheduleRepaint();
+	}
+
+
 	getSelectionRange(): import("./selection.js").BlockRange | null {
 		const root = this.container;
 		if (!root) return null;
@@ -179,6 +193,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
+		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
 		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
@@ -262,24 +277,8 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private styleVarsString(): string {
 		const entries: string[] = [];
-		this.theme.ansi.forEach((color, index) => {
-			entries.push(`--terminal-ansi-${index}: ${color}`);
-		});
-		entries.push(`--terminal-foreground: ${this.theme.foreground}`);
-		entries.push(`--terminal-background: ${this.theme.background}`);
-		entries.push(`--terminal-cursor: ${this.theme.cursor}`);
-		entries.push(`--terminal-selection: ${this.theme.selection}`);
-		entries.push(`--terminal-block-background: ${this.theme.blockBackground}`);
-		entries.push(`--terminal-block-border: ${this.theme.blockBorder}`);
-		entries.push(`--terminal-block-header-foreground: ${this.theme.blockHeaderForeground}`);
-		entries.push(`--terminal-font-family: ${this.font.family}`);
-		entries.push(`--terminal-font-size: ${this.font.sizePx}px`);
-		entries.push(`--terminal-font-weight: ${this.font.weight}`);
-		entries.push(`--terminal-letter-spacing: ${this.font.letterSpacingPx}px`);
-		entries.push(`--terminal-line-height: ${this.font.lineHeight * this.font.sizePx}px`);
-		entries.push(
-			`--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`,
-		);
+		this.theme.ansi.forEach((color, index) => entries.push(`--terminal-ansi-${index}: ${color}`));
+		entries.push(`--terminal-foreground: ${this.theme.foreground}`, `--terminal-background: ${this.theme.background}`, `--terminal-cursor: ${this.theme.cursor}`, `--terminal-selection: ${this.theme.selection}`, `--terminal-block-background: ${this.theme.blockBackground}`, `--terminal-block-border: ${this.theme.blockBorder}`, `--terminal-block-header-foreground: ${this.theme.blockHeaderForeground}`, `--terminal-font-family: ${this.font.family}`, `--terminal-font-size: ${this.font.sizePx}px`, `--terminal-font-weight: ${this.font.weight}`, `--terminal-letter-spacing: ${this.font.letterSpacingPx}px`, `--terminal-line-height: ${this.font.lineHeight * this.font.sizePx}px`, `--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`);
 		return entries.join("; ");
 	}
 

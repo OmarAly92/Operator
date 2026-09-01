@@ -166,6 +166,7 @@ export type TerminalStrings = Readonly<{
 	palettePlaceholder: string;
 	paletteLabel: string;
 	paletteNoMatches: string;
+	jumpToBottom: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -189,6 +190,7 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	palettePlaceholder: "Type a command",
 	paletteLabel: "Command palette",
 	paletteNoMatches: "No matching commands",
+	jumpToBottom: "Jump to bottom",
 });
 
 export type PaletteCommand = Readonly<{
