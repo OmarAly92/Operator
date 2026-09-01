@@ -36,7 +36,7 @@ Everything downstream assumes `vt-core` in `wazero` is fast enough. Find out fir
 - Consumes: `vt_core::TerminalCore::{new, feed, snapshot, alt_screen_active, resize}` — note `TerminalCore::new(columns, scrollback_rows)` takes no rows and defaults to 24; rows are only ever set via `resize`, so `vt_new` must resize immediately or every alt-screen render is 24 rows tall
 - Produces: a wasm module exporting `vt_new(cols: u32, rows: u32, scrollback: u32) -> u32`, `vt_feed(handle: u32, ptr: u32, len: u32)`, `vt_resize(handle: u32, cols: u32, rows: u32)`, `vt_alt_active(handle: u32) -> u32`, `vt_render(handle: u32, lines: u32, out_ptr: u32, out_cap: u32) -> u32` (returns bytes written; `0` = genuinely empty screen; `0xFFFF_FFFF` = bad handle or snapshot failure; `0xFFFF_FFFE` = does not fit in `out_cap` — the three cases must stay distinguishable so the Go side never falls back to raw ring bytes on error), `vt_alloc(len: u32) -> u32`, `vt_free(ptr: u32, len: u32)`
 
-- [ ] **Step 1: Create the C-ABI wasm shim crate**
+- [x] **Step 1: Create the C-ABI wasm shim crate**
 
 `packages/terminal/crates/vt-host/Cargo.toml`:
 
@@ -167,7 +167,7 @@ pub extern "C" fn vt_render(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
 
 Add `"crates/vt-host"` to the workspace `members` in `packages/terminal/Cargo.toml`.
 
-- [ ] **Step 2: Build the wasm module**
+- [x] **Step 2: Build the wasm module**
 
 ```bash
 cd packages/terminal && cargo build --release -p vt-host --target wasm32-unknown-unknown
@@ -176,7 +176,7 @@ ls -la target/wasm32-unknown-unknown/release/vt_host.wasm
 
 Expected: the `.wasm` file exists. If the target is missing: `rustup target add wasm32-unknown-unknown`.
 
-- [ ] **Step 3: Write the throughput benchmark**
+- [x] **Step 3: Write the throughput benchmark**
 
 `backend/internal/adapters/runtime/conpty/vtwasm/bench_test.go`:
 
@@ -230,7 +230,7 @@ func BenchmarkFeed16MB(b *testing.B) {
 }
 ```
 
-- [ ] **Step 4: Write the minimal wazero binding the benchmark needs**
+- [x] **Step 4: Write the minimal wazero binding the benchmark needs**
 
 `backend/internal/adapters/runtime/conpty/vtwasm/vtwasm.go`:
 
@@ -293,7 +293,7 @@ func (p *Parser) Close() error { return p.runtime.Close(p.ctx) }
 
 Add the dependency: `cd backend && go get github.com/tetratelabs/wazero@latest`
 
-- [ ] **Step 5: Run the benchmark and record the number**
+- [x] **Step 5: Run the benchmark and record the number**
 
 ```bash
 cd backend && VT_HOST_WASM=../packages/terminal/target/wasm32-unknown-unknown/release/vt_host.wasm \
@@ -306,7 +306,10 @@ cd backend && VT_HOST_WASM=../packages/terminal/target/wasm32-unknown-unknown/re
 - **10–50 MB/s** — workable, since the parser is off the hot path and may lag. Proceed, but note it in the plan's results and re-check under `active-memory`.
 - **< 10 MB/s** — STOP. Report to the user; the parser decision flips to a Go emulator held to `packages/terminal/protocol/alt-vectors`, and Tasks 7–9 must be rewritten before continuing.
 
-- [ ] **Step 6: Commit**
+**RESULT (2026-09-01): ~1.28–1.29 MB/s across two runs (`-benchtime=1x` and `-benchtime=2x`), on darwin/arm64 (Apple M1 Max). This is in the < 10 MB/s STOP bucket — an order of magnitude below the workable floor and ~40x below the comfortable floor.** Full benchmark output and command in
+`.superpowers/sdd/2026-09-01-tmux-free-pty-runtime/task-1-report.md`. Per gate policy: STOPPED. Reported to the user; awaiting a human decision before any further task in this plan is dispatched. Tasks 7–9 (and any other task assuming a WASM parser is fast enough) are not executed as specced.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/terminal/crates/vt-host packages/terminal/Cargo.toml backend/internal/adapters/runtime/conpty/vtwasm backend/go.mod backend/go.sum
