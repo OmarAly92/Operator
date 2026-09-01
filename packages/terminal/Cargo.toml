@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/marks", "crates/vt-core", "crates/vt-wasm"]
+members = ["crates/marks", "crates/vt-core", "crates/vt-wasm", "crates/vt-host"]
 exclude = ["fuzz"]
 resolver = "2"
 

@@ -195,6 +195,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "vt-host"
+version = "0.1.0"
+dependencies = [
+ "vt-core",
+]
+
+[[package]]
 name = "vt-wasm"
 version = "0.1.0"
 dependencies = [
