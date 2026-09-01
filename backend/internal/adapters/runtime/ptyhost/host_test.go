@@ -690,9 +690,6 @@ func TestKillReq(t *testing.T) {
 	c.close()
 }
 
-// newTestHostWithParser starts a Serve with a real vtwasm parser wired in, for
-// tests that assert GetOutput answers from the rendered screen instead of the
-// raw ring.
 func newTestHostWithParser(t *testing.T) (*serveFixture, *testClient) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -721,7 +718,6 @@ func newTestHostWithParser(t *testing.T) (*serveFixture, *testClient) {
 	return f, c
 }
 
-// feedPTY simulates the agent's PTY producing output.
 func (f *serveFixture) feedPTY(t *testing.T, data string) {
 	t.Helper()
 	if _, err := f.pty.WriteOutput([]byte(data)); err != nil {
@@ -729,7 +725,6 @@ func (f *serveFixture) feedPTY(t *testing.T, data string) {
 	}
 }
 
-// getOutput sends MsgGetOutputReq and returns the MsgGetOutputRes payload.
 func (tc *testClient) getOutput(t *testing.T, lines int) string {
 	t.Helper()
 	reqPayload, _ := json.Marshal(GetOutputReq{Lines: lines})
@@ -743,11 +738,6 @@ func (tc *testClient) getOutput(t *testing.T, lines int) string {
 	return string(payload)
 }
 
-// TestGetOutputReturnsRenderedScreen: with a parser wired in, GetOutput must
-// answer from the rendered grid, not the raw ring. "AAAA" followed by a
-// cursor-home overwrite with "B" is the exact platform-divergence bug this
-// plan exists to fix: the raw ring concatenates both; a real screen shows
-// "BAAA".
 func TestGetOutputReturnsRenderedScreen(t *testing.T) {
 	f, c := newTestHostWithParser(t)
 	defer f.cancel()
@@ -755,9 +745,6 @@ func TestGetOutputReturnsRenderedScreen(t *testing.T) {
 
 	f.feedPTY(t, "AAAA\x1b[1;1HB\n")
 
-	// Drain the broadcast frame: deliver() feeds the parser strictly after
-	// broadcasting, in the same synchronous call, so once this frame has
-	// arrived the parser has already seen the bytes.
 	c.readFrame(t)
 
 	text := c.getOutput(t, 50)

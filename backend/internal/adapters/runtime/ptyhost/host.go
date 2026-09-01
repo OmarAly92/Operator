@@ -321,9 +321,6 @@ func (h *host) broadcast(msg []byte) {
 	}
 }
 
-// logf writes a session-tagged line to stderr, matching the "pty-host [%s]: "
-// prefix RunHost already uses; post-READY, stderr is redirected to the
-// per-session log file (see host_main.go), so this lands there too.
 func (h *host) logf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "pty-host [%s]: "+format+"\n", append([]any{h.cfg.SessionID}, args...)...)
 }
