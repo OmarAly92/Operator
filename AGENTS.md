@@ -38,6 +38,7 @@ Frontend-specific checks:
 ```bash
 cd frontend
 npm run typecheck
+npm run frontend:lint              # ESLint 9 flat config (frontend/eslint.config.js)
 npm run check:desktop-parity   # desktop parity ledger (frontend/perf/parity-ledger.json)
 node --test scripts/no-electron.test.mjs   # Electron-absence gate
 ```

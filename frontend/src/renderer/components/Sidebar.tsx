@@ -201,7 +201,8 @@ export function Sidebar({
 	const toggleCollapsed = (id: string) =>
 		setCollapsedIds((prev) => {
 			const next = new Set(prev);
-			next.has(id) ? next.delete(id) : next.add(id);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
 			return next;
 		});
 	// Section disclosure: Pinned header collapses its body. Projects stays open.
@@ -960,7 +961,8 @@ function SessionRow({
 					)}
 					onClick={(e) => {
 						e.stopPropagation();
-						session.isPinned ? unpinSession(session) : pinSession(session);
+						if (session.isPinned) unpinSession(session);
+						else pinSession(session);
 					}}
 					type="button"
 				>
