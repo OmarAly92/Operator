@@ -274,6 +274,12 @@ export const terminalStyles = `@font-face {
 
 .terminal-pinned-header[hidden] {
 	display: none;
+}
+
+.terminal-block-focused {
+	border-color: var(--terminal-block-header-foreground);
+	outline: 1px solid var(--terminal-block-header-foreground);
+	outline-offset: -1px;
 }`;
 
 const terminalFontUrls: Record<string, string> = {

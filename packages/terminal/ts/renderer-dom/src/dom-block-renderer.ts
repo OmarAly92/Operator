@@ -14,6 +14,7 @@ import {
 import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
 import { renderBlockHeader } from "./block-header.js";
+import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
@@ -76,6 +77,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	} | null = null;
 	private latestBlocks: readonly BlockView[] = [];
 	private pinnedHeader: HTMLElement | null = null;
+	private blockNav: BlockNavHandle | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -108,6 +110,10 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.scheduleRepaint();
 		});
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
+		this.blockNav = mountBlockNavFromRenderer({
+			container, getBlocks: () => this.latestBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null,
+		});
+
 		this.repaint();
 	}
 
@@ -167,17 +173,13 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
-		if (this.unsubscribe) {
-			this.unsubscribe();
-			this.unsubscribe = null;
-		}
+		this.blockNav?.dispose(), (this.blockNav = null);
+		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
 		if (this.scrollUnsubscribe) {
 			this.scrollUnsubscribe();
 			this.scrollUnsubscribe = null;
 		}
-		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") {
-			cancelAnimationFrame(this.rafHandle);
-		}
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
 		if (this.container) {
@@ -351,6 +353,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
+		if (this.blockNav) this.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
 		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, blocks, windowResult.pinnedBlockIndex, defaultStrings);
 
 		const textSource: BlockTextSource = this.buildTextSource();
@@ -447,10 +450,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private cellMetrics(): { cellWidth: number; cellHeight: number } {
 		const { cellWidth, cellHeight } = this.measure();
-		return {
-			cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6,
-			cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx,
-		};
+		return { cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6, cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx };
 	}
 
 	private ensureAltRoot(container: HTMLElement): HTMLElement {

@@ -134,3 +134,18 @@ function computePinnedBlockIndex(
 	}
 	return blocks.length - 1;
 }
+
+export function findNeighbourBlock(
+	blocks: readonly BlockView[],
+	currentIndex: number,
+	delta: -1 | 1,
+): number {
+	if (blocks.length === 0) return -1;
+	if (currentIndex < 0) {
+		return delta > 0 ? 0 : blocks.length - 1;
+	}
+	const next = currentIndex + delta;
+	if (next < 0) return 0;
+	if (next >= blocks.length) return blocks.length - 1;
+	return next;
+}

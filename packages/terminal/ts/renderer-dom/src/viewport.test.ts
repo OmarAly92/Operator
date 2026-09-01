@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeWindow } from "./viewport";
+import { computeWindow, findNeighbourBlock } from "./viewport";
 
 function blocks(counts: number[]) {
 	let firstRow = 0;
@@ -106,5 +106,33 @@ describe("computeWindow", () => {
 			const result = computeWindow({ ...pinnedBase, blocks: [], scrollTop: 0 });
 			expect(result.pinnedBlockIndex).toBe(-1);
 		});
+	});
+});
+
+describe("findNeighbourBlock", () => {
+	it("returns -1 for an empty list", () => {
+		expect(findNeighbourBlock([], 0, 1)).toBe(-1);
+		expect(findNeighbourBlock([], -1, -1)).toBe(-1);
+	});
+
+	it("returns the first block when stepping forward from -1", () => {
+		expect(findNeighbourBlock(blocks([2, 2, 2]), -1, 1)).toBe(0);
+	});
+
+	it("returns the last block when stepping backward from -1", () => {
+		expect(findNeighbourBlock(blocks([2, 2, 2]), -1, -1)).toBe(2);
+	});
+
+	it("clamps to the start when stepping past the first block", () => {
+		expect(findNeighbourBlock(blocks([2, 2, 2]), 0, -1)).toBe(0);
+	});
+
+	it("clamps to the end when stepping past the last block", () => {
+		expect(findNeighbourBlock(blocks([2, 2, 2]), 2, 1)).toBe(2);
+	});
+
+	it("moves by exactly delta in the middle of the list", () => {
+		expect(findNeighbourBlock(blocks([2, 2, 2, 2, 2]), 2, 1)).toBe(3);
+		expect(findNeighbourBlock(blocks([2, 2, 2, 2, 2]), 2, -1)).toBe(1);
 	});
 });
