@@ -5,6 +5,7 @@ package runtimeselect
 import (
 	"context"
 	"log/slog"
+	"os"
 	"runtime"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost"
@@ -33,8 +34,8 @@ var _ Runtime = (*ptyhost.Runtime)(nil)
 // New returns the per-platform runtime: tmux on Darwin/Linux, conpty on Windows.
 // log is accepted for signature stability with callers but is currently unused.
 func New(_ *slog.Logger) Runtime {
-	if runtime.GOOS != "windows" {
-		return tmux.New(tmux.Options{})
+	if os.Getenv("OPERATOR_RUNTIME") == "ptyhost" || runtime.GOOS == "windows" {
+		return ptyhost.New(ptyhost.Options{})
 	}
-	return ptyhost.New(ptyhost.Options{})
+	return tmux.New(tmux.Options{})
 }
