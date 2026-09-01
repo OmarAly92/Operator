@@ -10,8 +10,10 @@ package ptyhost
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -319,6 +321,13 @@ func (h *host) broadcast(msg []byte) {
 	}
 }
 
+// logf writes a session-tagged line to stderr, matching the "pty-host [%s]: "
+// prefix RunHost already uses; post-READY, stderr is redirected to the
+// per-session log file (see host_main.go), so this lands there too.
+func (h *host) logf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "pty-host [%s]: "+format+"\n", append([]any{h.cfg.SessionID}, args...)...)
+}
+
 // sendTo sends msg to a single conn (best-effort; removes on error).
 func (h *host) sendTo(conn net.Conn, msg []byte) {
 	if _, err := conn.Write(msg); err != nil {
@@ -416,7 +425,16 @@ func (h *host) handleClientMsg(conn net.Conn, msgType byte, payload []byte) {
 		if err := json.Unmarshal(payload, &req); err == nil && req.Lines > 0 {
 			lines = req.Lines
 		}
-		text := h.cfg.Ring.Tail(lines)
+		var text string
+		if h.cfg.Parser != nil {
+			rendered, err := h.cfg.Parser.RenderTail(lines)
+			if err != nil {
+				h.logf("render for GetOutput: %v", err)
+			}
+			text = rendered
+		} else {
+			text = h.cfg.Ring.Tail(lines)
+		}
 		if frame, err := EncodeMessage(MsgGetOutputRes, []byte(text)); err == nil {
 			h.sendTo(conn, frame)
 		}
