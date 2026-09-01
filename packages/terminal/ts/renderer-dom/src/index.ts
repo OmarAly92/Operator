@@ -4,3 +4,4 @@ export { selectionToBlockRange, type BlockRange } from "./selection.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
 export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";
+export { mountPalette, type Palette, type PaletteHost, type PaletteOptions } from "./palette.js";

@@ -163,6 +163,9 @@ export type TerminalStrings = Readonly<{
 	findPlaceholder: string;
 	findLabel: string;
 	findMatchCount: string;
+	palettePlaceholder: string;
+	paletteLabel: string;
+	paletteNoMatches: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -183,7 +186,16 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	findPlaceholder: "Find in terminal",
 	findLabel: "Find",
 	findMatchCount: "%1 of %2",
+	palettePlaceholder: "Type a command",
+	paletteLabel: "Command palette",
+	paletteNoMatches: "No matching commands",
 });
+
+export type PaletteCommand = Readonly<{
+	id: string;
+	label: string;
+	run(): void;
+}>;
 
 export type DirEntry = Readonly<{
 	name: string;

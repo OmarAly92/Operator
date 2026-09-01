@@ -17,6 +17,7 @@ export type {
 	HostCapabilities,
 	HistoryStore,
 	LineEditorState,
+	PaletteCommand,
 	RowRange,
 	ShellKind,
 	SpawnRecipe,
