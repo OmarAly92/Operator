@@ -100,3 +100,7 @@ func (c *conptyConn) ExitCode() (int, bool) {
 	defer c.exitMu.Unlock()
 	return c.exitCode, c.exited
 }
+
+func newPTY(cwd, shellCmd string, shellArgs []string) (ptyConn, error) {
+	return newConPTY(cwd, shellCmd, shellArgs)
+}
