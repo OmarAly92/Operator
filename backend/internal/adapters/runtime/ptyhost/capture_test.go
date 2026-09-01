@@ -58,6 +58,10 @@ func TestStartCaptureTeesOutputToArgv(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shells out to /bin/sh")
 	}
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	defer func() { captureExecutablePath = prevExecutable }()
+
 	f, c := newTestHostWithParser(t)
 	defer f.cancel()
 	defer c.close()
@@ -65,7 +69,7 @@ func TestStartCaptureTeesOutputToArgv(t *testing.T) {
 	syncClientRegistered(t, c)
 
 	sink := filepath.Join(t.TempDir(), "capture.log")
-	if err := c.startCapture(t, []string{"/bin/sh", "-c", "cat > " + sink}); err != nil {
+	if err := c.startCapture(t, []string{"-c", "cat > " + sink}); err != nil {
 		t.Fatalf("startCapture: %v", err)
 	}
 	state := c.captureState(t)

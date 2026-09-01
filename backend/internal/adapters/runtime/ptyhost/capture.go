@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -15,6 +16,8 @@ import (
 )
 
 var _ ports.PaneCapturer = (*Runtime)(nil)
+
+var captureExecutablePath = os.Executable
 
 type captureSink struct {
 	mu    sync.Mutex
@@ -28,7 +31,12 @@ func (c *captureSink) start(argv []string) error {
 	if c.cmd != nil {
 		return nil
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
+	self, err := captureExecutablePath()
+	if err != nil {
+		return fmt.Errorf("ptyhost: resolve executable for pane capture: %w", err)
+	}
+	full := append([]string{self}, argv...)
+	cmd := exec.Command(full[0], full[1:]...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err

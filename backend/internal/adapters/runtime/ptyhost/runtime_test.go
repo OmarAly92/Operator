@@ -57,6 +57,9 @@ func TestPaneCaptureRoundTrip(t *testing.T) {
 		t.Skip("shells out to /bin/sh")
 	}
 	isolateRegistry(t)
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	t.Cleanup(func() { captureExecutablePath = prevExecutable })
 	hosts := map[string]*inProcHost{}
 	rt := New(Options{Spawner: fakeSpawnerFor(t, hosts, livePID())})
 	ctx := context.Background()
@@ -73,13 +76,21 @@ func TestPaneCaptureRoundTrip(t *testing.T) {
 	defer h.cleanup(t)
 
 	sink := filepath.Join(t.TempDir(), "capture.log")
-	if err := rt.StartCapture(ctx, handle, []string{"/bin/sh", "-c", "cat > " + sink}); err != nil {
+	if err := rt.StartCapture(ctx, handle, []string{"-c", "cat > " + sink}); err != nil {
 		t.Fatalf("StartCapture: %v", err)
 	}
 
-	state, err := rt.CaptureState(ctx, handle)
-	if err != nil {
-		t.Fatalf("CaptureState: %v", err)
+	var state ports.PaneCaptureState
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		state, err = rt.CaptureState(ctx, handle)
+		if err != nil {
+			t.Fatalf("CaptureState: %v", err)
+		}
+		if state.PipeOpen || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if !state.PipeOpen {
 		t.Fatal("PipeOpen = false, want true while capture is armed")
