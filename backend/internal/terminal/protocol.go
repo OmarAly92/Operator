@@ -14,10 +14,6 @@ import (
 //	ch "subscribe" — the client opts into the session-state channel
 //	ch "sessions"  — server-pushed session-state messages (CDC-fed)
 //	ch "system"    — liveness; ws-level ping/pong also runs underneath
-//	ch "blocks"    — server-pushed block frames, discriminated by "blockType":
-//	                 "agent_event" (agent block events keyed by session id; the
-//	                 field is omitted for wire compatibility) and "terminal_block"
-//	                 (committed terminal blocks keyed by runtime handle)
 //
 // Terminal payloads are base64 in the Data field: PTY output is arbitrary bytes
 // and need not be valid UTF-8, which a raw JSON string could not carry.

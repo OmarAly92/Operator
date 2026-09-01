@@ -106,3 +106,39 @@ func TestCapOutput(t *testing.T) {
 		})
 	}
 }
+
+func TestCapOutputRetainsExactlyLineCap(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  []byte
+	}{
+		{name: "terminated", raw: []byte(strings.Repeat("line\n", maxOutputLines+1))},
+		{name: "unterminated", raw: []byte(strings.Repeat("line\n", maxOutputLines) + "tail")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, omittedLines, _ := capOutput(tc.raw)
+			lineCount := bytes.Count(out, []byte{'\n'})
+			if len(out) > 0 && out[len(out)-1] != '\n' {
+				lineCount++
+			}
+			if lineCount != maxOutputLines {
+				t.Fatalf("retained lines = %d, want %d", lineCount, maxOutputLines)
+			}
+			if omittedLines != 1 {
+				t.Fatalf("omittedLines = %d, want 1", omittedLines)
+			}
+		})
+	}
+}
+
+func TestCapOutputAdvancesPastUTF8Continuation(t *testing.T) {
+	raw := append(bytes.Repeat([]byte("é"), maxOutputBytes/2), 'x')
+	out, _, omittedBytes := capOutput(raw)
+	if omittedBytes != 2 {
+		t.Fatalf("omittedBytes = %d, want 2", omittedBytes)
+	}
+	if !utf8.Valid(out) {
+		t.Fatal("retained output starts inside a UTF-8 rune")
+	}
+}

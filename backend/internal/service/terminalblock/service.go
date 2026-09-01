@@ -49,8 +49,8 @@ func (s *Service) History(ctx context.Context, terminalID string, limit int) ([]
 func capOutput(raw []byte) (out []byte, omittedLines, omittedBytes int) {
 	out = raw
 
-	if bytes.Count(out, []byte{'\n'}) > maxOutputLines {
-		drop := bytes.Count(out, []byte{'\n'}) + 1 - maxOutputLines
+	if lines := countOutputLines(out); lines > maxOutputLines {
+		drop := lines - maxOutputLines
 		idx := 0
 		for i := 0; i < drop; i++ {
 			p := bytes.IndexByte(out[idx:], '\n')
@@ -74,4 +74,15 @@ func capOutput(raw []byte) (out []byte, omittedLines, omittedBytes int) {
 	omittedBytes = len(dropped)
 	omittedLines = bytes.Count(dropped, []byte{'\n'})
 	return out, omittedLines, omittedBytes
+}
+
+func countOutputLines(raw []byte) int {
+	if len(raw) == 0 {
+		return 0
+	}
+	lines := bytes.Count(raw, []byte{'\n'})
+	if raw[len(raw)-1] != '\n' {
+		lines++
+	}
+	return lines
 }

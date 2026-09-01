@@ -1,7 +1,7 @@
 {
   "shells": {
     "zsh":  { "script": "zsh.sh",    "argv": ["zsh", "-c", "source {{script}}; OPERATOR_TERMINAL_ORIGINAL_ZDOTDIR=\"${ZDOTDIR:-$HOME}\" ZDOTDIR={{script}}.d exec zsh"] },
-    "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "source {{script}}; exec bash"] },
+    "bash": { "script": "bash.sh",   "argv": ["bash", "-c", "exec bash --rcfile {{script}}.d/.bashrc -i"] },
     "fish": { "script": "fish.fish", "argv": ["fish", "-C", "source {{script}}"] }
   },
   "cases": [
@@ -16,7 +16,7 @@
       "shell": "bash",
       "integration": "auto",
       "suppressPrompt": false,
-      "argv": ["bash", "-c", "source \"__SCRIPT__\"; exec bash"],
+      "argv": ["bash", "-c", "exec bash --rcfile \"__SCRIPT__\".d/.bashrc -i"],
       "env": { "OPERATOR_TERMINAL_INTEGRATION": "auto", "OPERATOR_TERMINAL_SUPPRESS_PROMPT": "0" }
     },
     {

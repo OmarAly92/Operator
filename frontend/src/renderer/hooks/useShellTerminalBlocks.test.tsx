@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "../../api/schema";
@@ -108,6 +108,15 @@ describe("useShellTerminalBlocks", () => {
 		expect(result.current.blocks).toEqual([]);
 	});
 
+	it("does not retry a failed history request before enabling the live terminal", async () => {
+		getMock.mockResolvedValue({ data: undefined, error: { message: "offline" } });
+		const { wrapper } = makeWrapper();
+		const { result } = renderHook(() => useShellTerminalBlocks(shellTarget()), { wrapper });
+
+		await waitFor(() => expect(result.current.error).toContain("offline"), { timeout: 5000 });
+		expect(getMock).toHaveBeenCalledTimes(1);
+	});
+
 	it("reports durableBlocks=false from the cached shell-terminal list", async () => {
 		const { client, wrapper } = makeWrapper();
 		client.setQueryData(shellTerminalsQueryKey, [
@@ -117,6 +126,24 @@ describe("useShellTerminalBlocks", () => {
 
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		expect(result.current.durableBlocks).toBe(false);
+	});
+
+	it("reacts when the shell-terminal capability changes", async () => {
+		const { client, wrapper } = makeWrapper();
+		client.setQueryData(shellTerminalsQueryKey, [
+			{ handleId: "shell-1", workingDir: "/x", title: "scratch", createdAt: "2026-08-31T00:00:00Z", durableBlocks: true },
+		]);
+		const { result } = renderHook(() => useShellTerminalBlocks(shellTarget()), { wrapper });
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		expect(result.current.durableBlocks).toBe(true);
+
+		act(() => {
+			client.setQueryData(shellTerminalsQueryKey, [
+				{ handleId: "shell-1", workingDir: "/x", title: "scratch", createdAt: "2026-08-31T00:00:00Z", durableBlocks: false },
+			]);
+		});
+
+		await waitFor(() => expect(result.current.durableBlocks).toBe(false));
 	});
 
 	it("defaults durableBlocks to true when the shell is not in the cached list", async () => {

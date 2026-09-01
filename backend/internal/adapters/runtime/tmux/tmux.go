@@ -763,11 +763,11 @@ func parseCaptureState(out string) (ports.PaneCaptureState, error) {
 	}
 	pipeOpen, err := parseTmuxFlag(fields[0])
 	if err != nil {
-		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q", out)
+		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q: %w", out, err)
 	}
 	alternateOn, err := parseTmuxFlag(fields[1])
 	if err != nil {
-		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q", out)
+		return ports.PaneCaptureState{}, fmt.Errorf("malformed display-message output %q: %w", out, err)
 	}
 	return ports.PaneCaptureState{PipeOpen: pipeOpen, AlternateOn: alternateOn}, nil
 }

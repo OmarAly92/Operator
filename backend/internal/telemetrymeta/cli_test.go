@@ -18,6 +18,7 @@ func TestIsRoutineInternalCLICommandNormalizesLegacyShapes(t *testing.T) {
 		"opr session agent-switch ls sess-123",
 		"opr session handoff submit --switch switch-1",
 		"opr project ls",
+		"opr pane-capture --dir /tmp/capture --epoch 11111111-2222-3333-4444-555555555555",
 		"opr pty-host session-1",
 	} {
 		if !IsRoutineInternalCLICommand(commandPath) {
@@ -64,6 +65,7 @@ func TestCLIActorTypeSystemCommandsOverrideExplicitActor(t *testing.T) {
 	}{
 		{actorType: "user", commandPath: "opr daemon"},
 		{actorType: "agent", commandPath: "opr start"},
+		{actorType: "user", commandPath: "opr pane-capture"},
 		{actorType: "user", commandPath: "OPR  AGENT-PROCESS  SUPERVISE"},
 	} {
 		if got := CLIActorType(tc.actorType, tc.commandPath); got != "system" {

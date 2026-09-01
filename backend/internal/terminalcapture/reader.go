@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 )
@@ -19,7 +20,15 @@ func (c CaptureCursor) ByteOffset() int64 {
 	if c.Segment <= FirstSequence {
 		return c.Offset
 	}
-	return int64(c.Segment-FirstSequence)*SegmentSize + c.Offset
+	segment := c.Segment - FirstSequence
+	if segment > uint64(math.MaxInt64/SegmentSize) {
+		return math.MaxInt64
+	}
+	base := int64(segment) * SegmentSize
+	if c.Offset > math.MaxInt64-base {
+		return math.MaxInt64
+	}
+	return base + c.Offset
 }
 
 func CursorAtOffset(epoch string, off int64) CaptureCursor {
@@ -101,7 +110,7 @@ func (r *Reader) Read(from CaptureCursor) (ReadResult, error) {
 	return res, nil
 }
 
-func (r *Reader) resolveSegment(seq uint64) (path string, active bool, ok bool) {
+func (r *Reader) resolveSegment(seq uint64) (path string, active, ok bool) {
 	ready := filepath.Join(r.dir, SegmentName(seq, ReadySuffix))
 	if _, err := os.Stat(ready); err == nil {
 		return ready, false, true
@@ -158,11 +167,19 @@ func readSegmentFrom(path string, offset int64) ([]byte, error) {
 		}
 		return nil, err
 	}
-	defer f.Close()
 	if offset > 0 {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			_ = f.Close()
 			return nil, err
 		}
 	}
-	return io.ReadAll(f)
+	raw, readErr := io.ReadAll(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return raw, nil
 }

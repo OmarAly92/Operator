@@ -46,6 +46,7 @@ func TestMigration0092CreatesTerminalBlocksFrom0091(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pk: %v", err)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
@@ -53,7 +54,9 @@ func TestMigration0092CreatesTerminalBlocksFrom0091(t *testing.T) {
 		}
 		pk[name] = true
 	}
-	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate pk: %v", err)
+	}
 	if len(pk) != 2 || !pk["terminal_id"] || !pk["source_id"] {
 		t.Fatalf("primary key = %v, want {terminal_id, source_id}", pk)
 	}
@@ -63,6 +66,7 @@ func TestMigration0092CreatesTerminalBlocksFrom0091(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read indexes: %v", err)
 	}
+	defer idxRows.Close()
 	for idxRows.Next() {
 		var name string
 		if err := idxRows.Scan(&name); err != nil {
@@ -70,7 +74,9 @@ func TestMigration0092CreatesTerminalBlocksFrom0091(t *testing.T) {
 		}
 		indexes[name] = true
 	}
-	_ = idxRows.Close()
+	if err := idxRows.Err(); err != nil {
+		t.Fatalf("iterate indexes: %v", err)
+	}
 	if !indexes["terminal_blocks_terminal_finished"] || !indexes["terminal_blocks_session"] {
 		t.Fatalf("indexes = %v, want the (terminal_id, finished_at DESC) and partial session_id indexes", indexes)
 	}

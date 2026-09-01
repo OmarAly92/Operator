@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -232,7 +233,7 @@ func TestCaptureWorkerCancellationThenFinalDrainPersistsLastBlock(t *testing.T) 
 	}
 
 	cancel()
-	if err := <-done; err != nil && err != context.Canceled {
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run returned %v", err)
 	}
 

@@ -50,7 +50,10 @@ describe("spawnRecipe", () => {
 		expect(existsSync(`${zshScript}.d/.zshrc`)).toBe(true);
 
 		const bash = spawnRecipe("bash", { integration: "auto", suppressPrompt: false });
-		expect(bash.argv[2]).toMatch(/source "[^"]*shell\/bash\.sh"; exec bash$/);
+		expect(bash.argv[2]).toMatch(/exec bash --rcfile "[^"]*shell\/bash\.sh"\.d\/\.bashrc -i$/);
+		const bashScript = bash.argv[2].match(/--rcfile "([^"]+)"\.d\//)?.[1];
+		expect(bashScript).toBeDefined();
+		expect(existsSync(`${bashScript}.d/.bashrc`)).toBe(true);
 
 		const fish = spawnRecipe("fish", { integration: "auto", suppressPrompt: false });
 		expect(fish.argv[0]).toBe("fish");

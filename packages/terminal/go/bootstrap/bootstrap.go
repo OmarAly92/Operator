@@ -157,10 +157,6 @@ func materializeScript(dir, name string, body []byte) (string, error) {
 }
 
 func materializeZshStartup(scriptPath string) error {
-	dir := scriptPath + ".d"
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
 	quoted, err := jsonQuote(scriptPath)
 	if err != nil {
 		return err
@@ -173,7 +169,25 @@ func materializeZshStartup(scriptPath string) error {
 		"fi\n" +
 		"source " + quoted + "\n" +
 		"unset __operator_terminal_saved_zdotdir\n")
-	target := filepath.Join(dir, ".zshrc")
+	return materializeStartup(filepath.Join(scriptPath+".d", ".zshrc"), body)
+}
+
+func materializeBashStartup(scriptPath string) error {
+	quoted, err := jsonQuote(scriptPath)
+	if err != nil {
+		return err
+	}
+	body := []byte("if [ -r \"$HOME/.bashrc\" ]; then\n" +
+		"\tsource \"$HOME/.bashrc\"\n" +
+		"fi\n" +
+		"source " + quoted + "\n")
+	return materializeStartup(filepath.Join(scriptPath+".d", ".bashrc"), body)
+}
+
+func materializeStartup(target string, body []byte) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		return err
+	}
 	if existing, err := os.ReadFile(target); err == nil {
 		if string(existing) == string(body) {
 			return nil
@@ -182,7 +196,7 @@ func materializeZshStartup(scriptPath string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".zshrc-*.tmp")
+	tmp, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+"-*.tmp")
 	if err != nil {
 		return err
 	}
@@ -259,6 +273,10 @@ func Recipe(shell string, scriptDir string, opts Options) ([]string, map[string]
 	}
 	if shell == "zsh" {
 		if err := materializeZshStartup(written); err != nil {
+			return nil, nil, err
+		}
+	} else if shell == "bash" {
+		if err := materializeBashStartup(written); err != nil {
 			return nil, nil, err
 		}
 	}

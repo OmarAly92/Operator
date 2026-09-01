@@ -181,17 +181,21 @@ test("emits the real zsh lifecycle for successful, failed, multiline, interrupte
 		const commandIndex = records.findIndex(
 			(record) => field(record.payload, "id") === id && field(record.payload, "cmd") !== undefined,
 		);
+		const nextCommandIndex = records.findIndex(
+			(record, index) => index > commandIndex && field(record.payload, "cmd") !== undefined,
+		);
+		const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
 		const releasedIndex = records.findIndex(
-			(record, index) => index > commandIndex && record.payload === "7000;v=1;input-released=1",
+			(record, index) => index > commandIndex && index < lifecycleEnd && record.payload === "7000;v=1;input-released=1",
 		);
 		const outputIndex = records.findIndex(
-			(record, index) => index > releasedIndex && record.payload === "133;C",
+			(record, index) => index > releasedIndex && index < lifecycleEnd && record.payload === "133;C",
 		);
 		const exitIndex = records.findIndex(
-			(record, index) => index > outputIndex && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
+			(record, index) => index > outputIndex && index < lifecycleEnd && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
 		);
 		const endIndex = records.findIndex(
-			(record, index) => index > exitIndex && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
+			(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
 		);
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}

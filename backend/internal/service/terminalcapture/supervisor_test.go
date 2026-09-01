@@ -213,9 +213,9 @@ func (f *fakeBlockStore) distinct() int {
 
 func testLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-func newSupervisor(t *testing.T, cap *fakeCapturer, store *fakeBlockStore, poll time.Duration) *Supervisor {
+func newSupervisor(t *testing.T, capturer *fakeCapturer, store *fakeBlockStore, poll time.Duration) *Supervisor {
 	t.Helper()
-	sup := NewSupervisor(cap, terminalblock.NewService(store), t.TempDir(), 3*time.Second, testLogger())
+	sup := NewSupervisor(capturer, terminalblock.NewService(store), t.TempDir(), 3*time.Second, testLogger())
 	sup.newEpoch = func() string { return testEpoch }
 	sup.pollInterval = poll
 	sup.now = func() time.Time { return time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC) }
@@ -292,9 +292,9 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 }
 
 func TestStartSurfacesCaptureFailureOnSupportedRuntime(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.startErr = errors.New("pipe-pane: server not found")
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	capturer.startErr = errors.New("pipe-pane: server not found")
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	err := sup.Start(context.Background(), rec("shellterm-h1", ""))
 	if err == nil {
@@ -309,9 +309,9 @@ func TestStartSurfacesCaptureFailureOnSupportedRuntime(t *testing.T) {
 }
 
 func TestStartReportsUnsupportedWithoutStartingAWorker(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.unsupported = true
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	capturer.unsupported = true
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	err := sup.Start(context.Background(), rec("shellterm-h1", ""))
 	if !errors.Is(err, ports.ErrCaptureUnsupported) {
@@ -323,8 +323,8 @@ func TestStartReportsUnsupportedWithoutStartingAWorker(t *testing.T) {
 }
 
 func TestStartIsIdempotentUnderConcurrency(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 12; i++ {
@@ -338,9 +338,9 @@ func TestStartIsIdempotentUnderConcurrency(t *testing.T) {
 	}
 	wg.Wait()
 
-	cap.mu.Lock()
-	starts := cap.startCount
-	cap.mu.Unlock()
+	capturer.mu.Lock()
+	starts := capturer.startCount
+	capturer.mu.Unlock()
 	if starts != 1 {
 		t.Fatalf("StartCapture called %d times, want exactly 1", starts)
 	}
@@ -353,10 +353,10 @@ func TestStartIsIdempotentUnderConcurrency(t *testing.T) {
 }
 
 func TestAdoptResumesExistingEpochWhenPipeOpen(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.state["shellterm-h1"] = ports.PaneCaptureState{PipeOpen: true, AlternateOn: true}
+	capturer := newFakeCapturer(nil)
+	capturer.state["shellterm-h1"] = ports.PaneCaptureState{PipeOpen: true, AlternateOn: true}
 	store := newFakeBlockStore(nil)
-	sup := newSupervisor(t, cap, store, time.Hour)
+	sup := newSupervisor(t, capturer, store, time.Hour)
 
 	captureDir := sup.captureDir("shellterm-h1")
 	mkEpochDir(t, filepath.Join(captureDir, testEpoch), false)
@@ -365,9 +365,9 @@ func TestAdoptResumesExistingEpochWhenPipeOpen(t *testing.T) {
 		t.Fatalf("Adopt: %v", err)
 	}
 
-	cap.mu.Lock()
-	starts := cap.startCount
-	cap.mu.Unlock()
+	capturer.mu.Lock()
+	starts := capturer.startCount
+	capturer.mu.Unlock()
 	if starts != 0 {
 		t.Fatalf("StartCapture called %d times on an already-piped pane, want 0", starts)
 	}
@@ -383,16 +383,16 @@ func TestAdoptResumesExistingEpochWhenPipeOpen(t *testing.T) {
 }
 
 func TestAdoptStartsFreshEpochWhenNoPipe(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.state["shellterm-h1"] = ports.PaneCaptureState{PipeOpen: false}
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	capturer.state["shellterm-h1"] = ports.PaneCaptureState{PipeOpen: false}
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	if err := sup.Adopt(context.Background(), []shellterm.ShellTerminalRecord{rec("shellterm-h1", "sess-1")}); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	cap.mu.Lock()
-	starts, dir := cap.startCount, cap.epochDirByID["shellterm-h1"]
-	cap.mu.Unlock()
+	capturer.mu.Lock()
+	starts, dir := capturer.startCount, capturer.epochDirByID["shellterm-h1"]
+	capturer.mu.Unlock()
 	if starts != 1 {
 		t.Fatalf("StartCapture called %d times, want 1", starts)
 	}
@@ -403,10 +403,10 @@ func TestAdoptStartsFreshEpochWhenNoPipe(t *testing.T) {
 
 func TestStopAndDrainStopsWriterBeforeDraining(t *testing.T) {
 	log := &eventLog{}
-	cap := newFakeCapturer(log)
-	cap.sealOnStop = true
+	capturer := newFakeCapturer(log)
+	capturer.sealOnStop = true
 	store := newFakeBlockStore(log)
-	sup := newSupervisor(t, cap, store, time.Hour)
+	sup := newSupervisor(t, capturer, store, time.Hour)
 
 	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -439,9 +439,9 @@ func TestStopAndDrainStopsWriterBeforeDraining(t *testing.T) {
 
 func TestDrainAndDetachDrainsButLeavesPipesRunning(t *testing.T) {
 	log := &eventLog{}
-	cap := newFakeCapturer(log)
+	capturer := newFakeCapturer(log)
 	store := newFakeBlockStore(log)
-	sup := newSupervisor(t, cap, store, time.Hour)
+	sup := newSupervisor(t, capturer, store, time.Hour)
 
 	for _, h := range []string{"shellterm-a", "shellterm-b"} {
 		if err := sup.Start(context.Background(), rec(h, "sess-1")); err != nil {
@@ -454,9 +454,9 @@ func TestDrainAndDetachDrainsButLeavesPipesRunning(t *testing.T) {
 		t.Fatalf("DrainAndDetach: %v", err)
 	}
 
-	cap.mu.Lock()
-	stops := cap.stopCount
-	cap.mu.Unlock()
+	capturer.mu.Lock()
+	stops := capturer.stopCount
+	capturer.mu.Unlock()
 	if stops != 0 {
 		t.Fatalf("StopCapture called %d times, want 0 — pipes must stay running", stops)
 	}
@@ -468,10 +468,10 @@ func TestDrainAndDetachDrainsButLeavesPipesRunning(t *testing.T) {
 }
 
 func TestDrainAndDetachJoinsWorkerErrorsAndIsBounded(t *testing.T) {
-	cap := newFakeCapturer(nil)
+	capturer := newFakeCapturer(nil)
 	store := newFakeBlockStore(nil)
 	store.blockRec = make(chan struct{})
-	sup := NewSupervisor(cap, terminalblock.NewService(store), t.TempDir(), 80*time.Millisecond, testLogger())
+	sup := NewSupervisor(capturer, terminalblock.NewService(store), t.TempDir(), 80*time.Millisecond, testLogger())
 	sup.newEpoch = func() string { return testEpoch }
 	sup.pollInterval = time.Hour
 
@@ -494,9 +494,9 @@ func TestDrainAndDetachJoinsWorkerErrorsAndIsBounded(t *testing.T) {
 }
 
 func TestSupervisorWorkerLiveTailsUnsealedJournal(t *testing.T) {
-	cap := newFakeCapturer(nil)
+	capturer := newFakeCapturer(nil)
 	store := newFakeBlockStore(nil)
-	sup := newSupervisor(t, cap, store, 5*time.Millisecond)
+	sup := newSupervisor(t, capturer, store, 5*time.Millisecond)
 
 	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -524,21 +524,21 @@ func TestSupervisorWorkerLiveTailsUnsealedJournal(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(epochDir, journal.ManifestFileName)); err == nil {
 		t.Fatal("journal was sealed; the point is a live tail of an UNSEALED journal")
 	}
-	cap.mu.Lock()
-	stops := cap.stopCount
-	cap.mu.Unlock()
+	capturer.mu.Lock()
+	stops := capturer.stopCount
+	capturer.mu.Unlock()
 	if stops != 0 {
 		t.Fatal("no StopCapture should have been issued during a live tail")
 	}
 }
 
 func TestStopAndDrainMidDrainRecordFailure(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.sealOnStop = true
+	capturer := newFakeCapturer(nil)
+	capturer.sealOnStop = true
 	store := newFakeBlockStore(nil)
 	store.recordErr = errors.New("disk full")
 	store.recordErrN = 2
-	sup := newSupervisor(t, cap, store, time.Hour)
+	sup := newSupervisor(t, capturer, store, time.Hour)
 
 	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -561,9 +561,9 @@ func TestStopAndDrainMidDrainRecordFailure(t *testing.T) {
 }
 
 func TestCapturingReflectsWorkerMembership(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	cap.sealOnStop = true
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	capturer.sealOnStop = true
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	if sup.Capturing("shellterm-h1") {
 		t.Fatal("Capturing = true before any Start")
@@ -589,8 +589,8 @@ func TestCapturingReflectsWorkerMembership(t *testing.T) {
 }
 
 func TestDrainAndDetachIsIdempotentAndPrompt(t *testing.T) {
-	cap := newFakeCapturer(nil)
-	sup := newSupervisor(t, cap, newFakeBlockStore(nil), time.Hour)
+	capturer := newFakeCapturer(nil)
+	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
 	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
 		t.Fatalf("Start: %v", err)

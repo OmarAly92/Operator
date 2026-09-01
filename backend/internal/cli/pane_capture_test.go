@@ -22,6 +22,7 @@ func TestPaneCaptureRejectsBadArgs(t *testing.T) {
 		args []string
 	}{
 		{"missing dir", []string{"pane-capture", "--epoch", validEpoch}},
+		{"capture root itself", []string{"pane-capture", "--dir", captureRoot, "--epoch", validEpoch}},
 		{"dir outside capture root", []string{"pane-capture", "--dir", outside, "--epoch", validEpoch}},
 		{"malformed epoch", []string{"pane-capture", "--dir", inside, "--epoch", "not-a-uuid"}},
 		{"missing epoch", []string{"pane-capture", "--dir", inside}},

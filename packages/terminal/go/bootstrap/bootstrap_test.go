@@ -204,6 +204,31 @@ func TestRecipeMaterializesScript(t *testing.T) {
 	}
 }
 
+func TestRecipeMaterializesBashStartup(t *testing.T) {
+	dir := t.TempDir()
+	argv, _, err := Recipe("bash", dir, Options{Integration: IntegrationAuto})
+	if err != nil {
+		t.Fatalf("Recipe: %v", err)
+	}
+	if len(argv) != 3 || argv[0] != "bash" || argv[1] != "-c" {
+		t.Fatalf("argv = %q, want bash -c <startup command>", argv)
+	}
+	const prefix = `exec bash --rcfile "`
+	const suffix = `".d/.bashrc -i`
+	if !strings.HasPrefix(argv[2], prefix) || !strings.HasSuffix(argv[2], suffix) {
+		t.Fatalf("argv[2] = %q, want generated bash rcfile startup", argv[2])
+	}
+	scriptPath := strings.TrimSuffix(strings.TrimPrefix(argv[2], prefix), suffix)
+	startupPath := filepath.Join(scriptPath+".d", ".bashrc")
+	startup, err := os.ReadFile(startupPath)
+	if err != nil {
+		t.Fatalf("read generated bash startup: %v", err)
+	}
+	if !strings.Contains(string(startup), `source "`+scriptPath+`"`) {
+		t.Fatalf("generated bash startup does not source %q: %q", scriptPath, startup)
+	}
+}
+
 func TestRecipeIdempotentMaterialization(t *testing.T) {
 	dir := t.TempDir()
 	first, _, err := Recipe("bash", dir, Options{Integration: IntegrationAuto})

@@ -155,7 +155,7 @@ func TestReaderNeverMutatesSegments(t *testing.T) {
 				t.Fatalf("stat %s: %v", p, err)
 			}
 			st := fi.Sys().(*syscall.Stat_t)
-			m[p] = snap{ino: uint64(st.Ino), size: fi.Size(), mod: fi.ModTime()}
+			m[p] = snap{ino: st.Ino, size: fi.Size(), mod: fi.ModTime()}
 		}
 		return m
 	}

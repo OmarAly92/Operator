@@ -16,6 +16,16 @@ function runBash(script) {
 	});
 }
 
+function productionBashCommand() {
+	const manifest = JSON.parse(
+		readFileSync(new URL("../protocol/recipes.json", import.meta.url), "utf8"),
+	);
+	return manifest.shells.bash.argv
+		.map((argument) => argument.replaceAll("{{script}}", JSON.stringify(bootstrap)))
+		.map((argument) => JSON.stringify(argument))
+		.join(" ");
+}
+
 test("emits command and line-editor ownership marks", () => {
 	const out = runBash(`source ${JSON.stringify(bootstrap)}; printf command-ran; __operator_terminal_precmd`);
 	assert.match(out, /cmd=/);
@@ -71,17 +81,21 @@ test("chains a pre-existing DEBUG trap and PROMPT_COMMAND through the full lifec
 			const commandIndex = records.findIndex(
 				(record) => fieldOf(record.payload, "id") === id && fieldOf(record.payload, "cmd") !== undefined,
 			);
+			const nextCommandIndex = records.findIndex(
+				(record, index) => index > commandIndex && fieldOf(record.payload, "cmd") !== undefined,
+			);
+			const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
 			const releasedIndex = records.findIndex(
-				(record, index) => index > commandIndex && record.payload === "7000;v=1;input-released=1",
+				(record, index) => index > commandIndex && index < lifecycleEnd && record.payload === "7000;v=1;input-released=1",
 			);
 			const outputIndex = records.findIndex(
-				(record, index) => index > releasedIndex && record.payload === "133;C",
+				(record, index) => index > releasedIndex && index < lifecycleEnd && record.payload === "133;C",
 			);
 			const exitIndex = records.findIndex(
-				(record, index) => index > outputIndex && fieldOf(record.payload, "id") === id && fieldOf(record.payload, "exit") !== undefined,
+				(record, index) => index > outputIndex && index < lifecycleEnd && fieldOf(record.payload, "id") === id && fieldOf(record.payload, "exit") !== undefined,
 			);
 			const endIndex = records.findIndex(
-				(record, index) => index > exitIndex && record.payload === `133;D;${fieldOf(records[exitIndex].payload, "exit")}`,
+				(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${fieldOf(records[exitIndex].payload, "exit")}`,
 			);
 			assert.ok(
 				commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex,
@@ -104,6 +118,30 @@ test("preserves a pre-existing PROMPT_COMMAND", () => {
 	);
 	assert.match(out, /user-prompt-ran/);
 	assert.match(out, /input-ready=1/);
+});
+
+test("production bash recipe keeps lifecycle hooks after startup", { skip: ptySkip }, () => {
+	const home = mkdtempSync(join(tmpdir(), "opr-bash-home-"));
+	try {
+		const raw = runInPty(productionBashCommand(), ["true", "false"], {
+			settleMs: 150,
+			env: { HOME: home, OPERATOR_TERMINAL_ID: "terminal-recipe" },
+		});
+		const records = parseOscRecords(raw);
+		const commands = records
+			.filter((record) => fieldOf(record.payload, "cmd") !== undefined)
+			.map((record) => ({ id: fieldOf(record.payload, "id"), cmd: fieldOf(record.payload, "cmd") }));
+		assert.deepEqual(commands, [
+			{ id: "terminal-recipe-1", cmd: "true" },
+			{ id: "terminal-recipe-2", cmd: "false" },
+		]);
+		const exits = records
+			.filter((record) => fieldOf(record.payload, "id") !== undefined && fieldOf(record.payload, "exit") !== undefined)
+			.map((record) => fieldOf(record.payload, "exit"));
+		assert.deepEqual(exits, ["0", "1"]);
+	} finally {
+		rmSync(home, { recursive: true, force: true });
+	}
 });
 
 test("is idempotent under a second source", () => {
@@ -182,17 +220,21 @@ test("emits one ordered bash lifecycle without DEBUG hook commands", { skip: pty
 		const commandIndex = records.findIndex(
 			(record) => field(record.payload, "id") === id && field(record.payload, "cmd") !== undefined,
 		);
+		const nextCommandIndex = records.findIndex(
+			(record, index) => index > commandIndex && field(record.payload, "cmd") !== undefined,
+		);
+		const lifecycleEnd = nextCommandIndex < 0 ? records.length : nextCommandIndex;
 		const releasedIndex = records.findIndex(
-			(record, index) => index > commandIndex && record.payload === "7000;v=1;input-released=1",
+			(record, index) => index > commandIndex && index < lifecycleEnd && record.payload === "7000;v=1;input-released=1",
 		);
 		const outputIndex = records.findIndex(
-			(record, index) => index > releasedIndex && record.payload === "133;C",
+			(record, index) => index > releasedIndex && index < lifecycleEnd && record.payload === "133;C",
 		);
 		const exitIndex = records.findIndex(
-			(record, index) => index > outputIndex && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
+			(record, index) => index > outputIndex && index < lifecycleEnd && field(record.payload, "id") === id && field(record.payload, "exit") !== undefined,
 		);
 		const endIndex = records.findIndex(
-			(record, index) => index > exitIndex && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
+			(record, index) => index > exitIndex && index < lifecycleEnd && record.payload === `133;D;${field(records[exitIndex].payload, "exit")}`,
 		);
 		assert.ok(commandIndex < releasedIndex && releasedIndex < outputIndex && outputIndex < exitIndex && exitIndex < endIndex);
 	}

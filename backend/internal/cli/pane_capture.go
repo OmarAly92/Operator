@@ -74,7 +74,7 @@ func resolveWithinCaptureRoot(root, target string) (string, error) {
 	realRoot := realExistingPath(filepath.Clean(root))
 	realTarget := realExistingPath(target)
 	rel, err := filepath.Rel(realRoot, realTarget)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("pane-capture: --dir %q is outside the capture root %q", target, realRoot)
 	}
 	return target, nil

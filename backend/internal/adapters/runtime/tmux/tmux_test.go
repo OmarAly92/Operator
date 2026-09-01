@@ -1496,6 +1496,9 @@ func TestCaptureStateRejectsMalformedOutput(t *testing.T) {
 		if err == nil {
 			t.Fatalf("CaptureState(%q) = %+v, want a malformed-output error", out, st)
 		}
+		if strings.Contains(out, "2") && !strings.Contains(err.Error(), "not a tmux 0/1 flag") {
+			t.Fatalf("CaptureState(%q) error = %q, want flag parse cause", out, err)
+		}
 	}
 }
 

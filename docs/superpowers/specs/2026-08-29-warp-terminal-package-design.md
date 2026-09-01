@@ -1108,10 +1108,11 @@ plan above for the current implementation boundary.
    `#{pane_pipe}` guard supplies idempotency, while the supervisor serializes start and
    stop per handle. Adoption does not start a second helper when a live pane already
    has a pipe.
-3. `terminalcapture.Supervisor` owns worker lifecycle. On boot it reaps prior-run
-   terminals, checks current-run liveness, and adopts each live capture; an existing
-   pipe resumes its epoch, otherwise a fresh epoch starts. It seeds alternate-screen
-   state before consuming bytes and excludes repaint payload while alternate mode is on.
+3. Daemon shell-terminal wiring reaps prior-run terminals and checks current-run
+   liveness before passing live records to `terminalcapture.Supervisor.Adopt`. The
+   supervisor owns capture workers: an existing pipe resumes its epoch, otherwise a
+   fresh epoch starts. It seeds alternate-screen state before consuming bytes and
+   excludes repaint payload while alternate mode is on.
 4. `terminal_blocks` stores the assembled raw replay and lifecycle metadata. Cursor
    checkpoints advance only after the corresponding record commits; replaying an older
    cursor upserts rather than duplicates. The service retains the newest 100 blocks per

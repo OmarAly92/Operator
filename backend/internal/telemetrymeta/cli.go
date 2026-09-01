@@ -30,6 +30,7 @@ var routineInternalCLICommands = []string{
 	"opr project get",
 	"opr orchestrator ls",
 	"opr hooks",
+	"opr pane-capture",
 	"opr pty-host",
 }
 
@@ -68,6 +69,7 @@ var legacyActorlessSystemCLICommands = map[string]struct{}{
 	"opr completion":              {},
 	"opr daemon":                  {},
 	"opr help":                    {},
+	"opr pane-capture":            {},
 	"opr pty-host":                {},
 	"opr start":                   {},
 }
