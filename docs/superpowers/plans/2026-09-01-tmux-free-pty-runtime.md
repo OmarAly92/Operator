@@ -1318,7 +1318,7 @@ git commit -m "feat(runtime): passive vt-core parser inside the pty-host"
 - Modify: `backend/internal/adapters/runtime/ptyhost/host.go` (`MsgGetOutputReq` handler, line ~320)
 - Modify: `backend/internal/adapters/runtime/ptyhost/host_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestGetOutputReturnsRenderedScreen(t *testing.T) {
@@ -1337,12 +1337,12 @@ func TestGetOutputReturnsRenderedScreen(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/ -run TestGetOutputReturnsRendered -v`
 Expected: FAIL — returns the raw ring text including `\x1b[1;1H`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In the `MsgGetOutputReq` case in `host.go`, the ring is the fallback **only when no parser exists** — never on an empty render (a blank screen is a valid screen) and never on a render error (raw ring bytes are exactly the wrong-semantics answer this task deletes; log and return empty instead):
 
@@ -1368,12 +1368,12 @@ In the `MsgGetOutputReq` case in `host.go`, the ring is the fallback **only when
 		}
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && go test ./internal/adapters/runtime/ptyhost/...`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (commits `d8e9d7795`, `2af552083`)
 
 ```bash
 git add backend/internal/adapters/runtime/ptyhost
