@@ -1664,7 +1664,7 @@ Replaces the `tmux attach` escape hatch, which is otherwise lost.
 - Create: `backend/internal/cli/attach_test.go`
 - Modify: `backend/internal/cli/root.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestAttachCommandRejectsUnknownSession(t *testing.T) {
@@ -1677,16 +1677,16 @@ func TestAttachCommandRejectsUnknownSession(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && go test ./internal/cli/ -run TestAttachCommand -v`
 Expected: FAIL — `undefined: newAttachCommand`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `attach.go`: resolve the session via `ptyregistry.List()`, dial its address, put stdin in raw mode with `term.MakeRaw`, then `io.Copy` both directions using the `MsgTerminalInput` / `MsgTerminalData` framing from `proto.go`. Restore the terminal on exit. Register it hidden in `root.go` alongside `newPtyHostCommand`.
 
-- [ ] **Step 4: Run the tests, then try it by hand**
+- [ ] **Step 4: Run the tests, then try it by hand** — automated part DONE; manual interactive part DEFERRED (no live session/interactive terminal; see task-12-report.md)
 
 ```bash
 cd backend && go test ./internal/cli/ -v
@@ -1695,7 +1695,7 @@ go run . attach default-project-5
 
 Expected: the live agent screen, keystrokes reaching it, `Ctrl-C` detaching cleanly.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (commits `e6de9d83a`, `2d39481fb`)
 
 ```bash
 git add backend/internal/cli
