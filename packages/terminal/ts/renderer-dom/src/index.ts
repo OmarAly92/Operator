@@ -3,3 +3,6 @@ export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-a
 export { selectionToBlockRange, type BlockRange } from "./selection.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";
+export { createFindBar, type FindBar, type FindBarHost, type FindBarOptions } from "./find-bar.js";
+export { mountJumpToBottom, type JumpToBottom, type JumpToBottomOptions } from "./jump-to-bottom.js";
+export { mountPalette, type Palette, type PaletteHost, type PaletteOptions } from "./palette.js";

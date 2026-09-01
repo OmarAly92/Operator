@@ -408,6 +408,61 @@ function PaddingApp(): ReactElement | null {
 	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
 }
 
+function PinnedHeaderApp(): ReactElement | null {
+	const [core, setCore] = useState<ReturnType<typeof createTerminalCore> | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void initTerminalCoreFromUrl().then(() => {
+			if (cancelled) return;
+			const next = createTerminalCore({ columns: 20, scrollback: 2000 });
+			const start = `\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1; cmd=tall-cmd\x07\x1b]133;C\x07`;
+			const body = Array.from({ length: 200 }, (_unused, i) => `row-${i + 1}`).join("\n");
+			const end = `\x1b]133;D;0\x07`;
+			next.feed(new TextEncoder().encode(`${start}${body}${end}`));
+			const tail = `\x1b]133;A\x07\x1b]133;B\x07\x1b]7000;v=1; cmd=tail-cmd\x07\x1b]133;C\x07done\x1b]133;D;0\x07`;
+			next.feed(new TextEncoder().encode(tail));
+			setCore(next);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!core) return;
+		const frame = (): void => {
+			const main = document.getElementById("terminal-pinned-root");
+			if (!main) return;
+			const host = main.querySelector<HTMLElement>(".terminal-host");
+			const pinned = main.querySelector<HTMLElement>('[data-testid="terminal-pinned-header"]');
+			if (!host || !pinned) {
+				requestAnimationFrame(frame);
+				return;
+			}
+			host.scrollTop = Math.max(0, Math.round(host.scrollHeight / 2) - Math.round(host.clientHeight / 2));
+			host.dispatchEvent(new Event("scroll"));
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					const tall = main.querySelector('[data-terminal-block-id="0:0"]') as HTMLElement | null;
+					const tallRect = tall?.getBoundingClientRect();
+					main.dataset.terminalPinned = "ready";
+					main.dataset.terminalPinnedHidden = String(pinned.hidden);
+					main.dataset.terminalPinnedText = pinned.textContent ?? "";
+					main.dataset.terminalPinnedStatus = pinned.dataset.blockStatus ?? "";
+					main.dataset.terminalPinnedTallTop = tallRect ? String(Math.round(tallRect.top)) : "";
+					main.dataset.terminalPinnedHeaderTop = String(Math.round(pinned.getBoundingClientRect().top));
+				});
+			});
+		};
+		requestAnimationFrame(() => {
+			requestAnimationFrame(frame);
+		});
+	}, [core]);
+
+	return core ? <TerminalSurface core={core} theme={warpDarkTheme} font={FONT} altScreenActive={false} onSend={IGNORE_INPUT} onSendRaw={IGNORE_INPUT} /> : null;
+}
+
 const root = document.getElementById("terminal-smoke-root");
 if (!root) {
 	throw new Error("missing #terminal-smoke-root");
@@ -449,3 +504,9 @@ if (!paddingRoot) {
 	throw new Error("missing #terminal-padding-root");
 }
 createRoot(paddingRoot).render(<PaddingApp />);
+
+const pinnedRoot = document.getElementById("terminal-pinned-root");
+if (!pinnedRoot) {
+	throw new Error("missing #terminal-pinned-root");
+}
+createRoot(pinnedRoot).render(<PinnedHeaderApp />);

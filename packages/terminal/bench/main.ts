@@ -11,6 +11,7 @@ const knownScenarios = new Set<ScenarioName>([
 	"large-output",
 	"input-latency",
 	"input-latency-owned",
+	"find-500k",
 ]);
 
 const knownRenderers = new Set<RendererName>([

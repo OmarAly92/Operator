@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+memchr = { workspace = true }
 regex-automata = { workspace = true }
 terminal-marks = { path = "../marks" }
 unicode-width = { workspace = true }

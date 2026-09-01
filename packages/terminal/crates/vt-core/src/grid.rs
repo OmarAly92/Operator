@@ -106,6 +106,7 @@ pub(crate) fn build_snapshot(
             command: TextSpan::default(),
             cwd: TextSpan::default(),
             git_branch: TextSpan::default(),
+            bookmarked: false,
         }]
     } else {
         let mut records = Vec::with_capacity(grid.blocks().count());
@@ -136,6 +137,7 @@ pub(crate) fn build_snapshot(
                 command,
                 cwd,
                 git_branch,
+                bookmarked: block.meta.bookmarked,
             });
         }
         records

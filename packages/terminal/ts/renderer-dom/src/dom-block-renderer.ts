@@ -13,7 +13,12 @@ import {
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
+import { bindActionEvents } from "./action-events.js";
 import { renderBlockHeader } from "./block-header.js";
+import { applyFilter, type BlockFilter } from "./block-filter.js";
+import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
+import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
+import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
 import { terminalStylesForDocument } from "./styles.js";
@@ -74,6 +79,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		stylePairs: Uint32Array;
 	} | null = null;
 	private latestBlocks: readonly BlockView[] = [];
+	private filteredBlocks: readonly BlockView[] = [];
+	private currentFilter: BlockFilter | null = null;
+	private pinnedHeader: HTMLElement | null = null;
+	private blockNav: BlockNavHandle | null = null;
+	private jumpToBottom: JumpToBottom | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -96,6 +106,9 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.list = list;
 		this.leadingSpacer = leading;
 		this.trailingSpacer = trailing;
+		const pinned = createPinnedHeaderElement();
+		container.insertBefore(pinned, list);
+		this.pinnedHeader = pinned;
 		this.measureHost = ensureMeasureHost();
 		this.measureNode = this.measureHost.querySelector<HTMLElement>(`#${HIDDEN_MEASURE_ID}`);
 		this.scrollUnsubscribe = listenScroll(container, () => {
@@ -103,6 +116,10 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.scheduleRepaint();
 		});
 		this.unsubscribe = core.onChange(() => this.scheduleRepaint());
+		this.blockNav = mountBlockNavFromRenderer({ container, getBlocks: () => this.filteredBlocks, scrollToBlock: (id, align) => this.scrollToBlock(id, align), isAltScreenActive: () => core.snapshot().altScreen !== null });
+		bindActionEvents(container, { setBlockBookmarked: (id, b) => core.setBlockBookmarked(id, b), getBlockBookmarked: (id) => core.blockBookmarked(id), setFilter: (f) => this.setFilter(f), scrollToBlock: (id, a) => this.scrollToBlock(id, a), scheduleRepaint: () => this.scheduleRepaint() });
+		this.jumpToBottom = mountJumpToBottom({ container, getBlocks: () => this.filteredBlocks, getCellHeight: () => this.measure().cellHeight, getStickToBottom: () => this.stickToBottom, scrollToLatest: () => this.scrollToLatest(), isAltScreenActive: () => core.snapshot().altScreen !== null, strings: defaultStrings });
+		this.jumpToBottom.mount();
 		this.repaint();
 	}
 
@@ -114,6 +131,10 @@ export class DomBlockRenderer implements BlockRenderer {
 	setFont(font: FontConfig): void {
 		this.font = font;
 		this.applyStyleVars();
+	}
+
+	setFilter(filter: BlockFilter | null): void {
+		this.currentFilter = filter, this.scheduleRepaint();
 	}
 
 	setHostCapabilities(host: HostCapabilities | null): void {
@@ -151,6 +172,16 @@ export class DomBlockRenderer implements BlockRenderer {
 		element.scrollIntoView({ block: align, inline: "nearest" });
 	}
 
+	scrollToLatest(): void {
+		const c = this.container;
+		if (!c) return;
+		this.stickToBottom = true;
+		const target = c.scrollHeight - c.clientHeight;
+		if (target > 0) c.scrollTop = target;
+		this.scheduleRepaint();
+	}
+
+
 	getSelectionRange(): import("./selection.js").BlockRange | null {
 		const root = this.container;
 		if (!root) return null;
@@ -162,17 +193,11 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	dispose(): void {
-		if (this.unsubscribe) {
-			this.unsubscribe();
-			this.unsubscribe = null;
-		}
-		if (this.scrollUnsubscribe) {
-			this.scrollUnsubscribe();
-			this.scrollUnsubscribe = null;
-		}
-		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") {
-			cancelAnimationFrame(this.rafHandle);
-		}
+		this.jumpToBottom?.dispose(), (this.jumpToBottom = null);
+		this.blockNav?.dispose(), (this.blockNav = null);
+		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
+		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
+		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
 		if (this.container) {
@@ -187,6 +212,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.altRoot = null;
 		this.leadingSpacer = null;
 		this.trailingSpacer = null;
+		this.pinnedHeader = null;
 		this.blockElements.clear();
 		this.measureNode = null;
 		this.knownBlockId = null;
@@ -251,24 +277,8 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private styleVarsString(): string {
 		const entries: string[] = [];
-		this.theme.ansi.forEach((color, index) => {
-			entries.push(`--terminal-ansi-${index}: ${color}`);
-		});
-		entries.push(`--terminal-foreground: ${this.theme.foreground}`);
-		entries.push(`--terminal-background: ${this.theme.background}`);
-		entries.push(`--terminal-cursor: ${this.theme.cursor}`);
-		entries.push(`--terminal-selection: ${this.theme.selection}`);
-		entries.push(`--terminal-block-background: ${this.theme.blockBackground}`);
-		entries.push(`--terminal-block-border: ${this.theme.blockBorder}`);
-		entries.push(`--terminal-block-header-foreground: ${this.theme.blockHeaderForeground}`);
-		entries.push(`--terminal-font-family: ${this.font.family}`);
-		entries.push(`--terminal-font-size: ${this.font.sizePx}px`);
-		entries.push(`--terminal-font-weight: ${this.font.weight}`);
-		entries.push(`--terminal-letter-spacing: ${this.font.letterSpacingPx}px`);
-		entries.push(`--terminal-line-height: ${this.font.lineHeight * this.font.sizePx}px`);
-		entries.push(
-			`--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`,
-		);
+		this.theme.ansi.forEach((color, index) => entries.push(`--terminal-ansi-${index}: ${color}`));
+		entries.push(`--terminal-foreground: ${this.theme.foreground}`, `--terminal-background: ${this.theme.background}`, `--terminal-cursor: ${this.theme.cursor}`, `--terminal-selection: ${this.theme.selection}`, `--terminal-block-background: ${this.theme.blockBackground}`, `--terminal-block-border: ${this.theme.blockBorder}`, `--terminal-block-header-foreground: ${this.theme.blockHeaderForeground}`, `--terminal-font-family: ${this.font.family}`, `--terminal-font-size: ${this.font.sizePx}px`, `--terminal-font-weight: ${this.font.weight}`, `--terminal-letter-spacing: ${this.font.letterSpacingPx}px`, `--terminal-line-height: ${this.font.lineHeight * this.font.sizePx}px`, `--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`);
 		return entries.join("; ");
 	}
 
@@ -305,6 +315,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			altRoot.setAttribute("style", this.styleVarsString());
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
+			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
 			renderAltSurface(alt, this.altRoot!, this.decoder, this.cellMetrics());
 			if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 			this.notifyPainted();
@@ -328,13 +339,14 @@ export class DomBlockRenderer implements BlockRenderer {
 			stylePairs: snapshot.stylePairs,
 		};
 		this.latestBlocks = blocks;
+		this.filteredBlocks = applyFilter(blocks, this.currentFilter);
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const anchorScrollTop = container.scrollTop;
 		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
 		const viewportHeight = container.clientHeight || 1;
 		const windowResult = computeWindow({
-			blocks,
+			blocks: this.filteredBlocks,
 			scrollTop,
 			viewportHeight,
 			rowHeight,
@@ -344,12 +356,14 @@ export class DomBlockRenderer implements BlockRenderer {
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
+		if (this.blockNav) this.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
+		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, windowResult.pinnedBlockIndex, defaultStrings);
 
 		const textSource: BlockTextSource = this.buildTextSource();
 		const visibleIds = new Set<BlockId>();
 		if (windowResult.firstBlock <= windowResult.lastBlock) {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-				const block = blocks[i]!;
+				const block = this.filteredBlocks[i]!;
 				visibleIds.add(block.id);
 				const element = this.ensureBlockElement(block);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
@@ -368,7 +382,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 		const orderedVisible: HTMLElement[] = [];
 		for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
-			const block = blocks[i]!;
+			const block = this.filteredBlocks[i]!;
 			const element = this.blockElements.get(block.id);
 			if (element) orderedVisible.push(element);
 		}
@@ -412,10 +426,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const snapshot = this.latestSnapshot;
 		const blocks = this.latestBlocks;
 		const decoder = this.decoder;
-		const blockById = new Map<BlockId, BlockView>();
-		for (const block of blocks) {
-			blockById.set(block.id, block);
-		}
+		const blockById = new Map(blocks.map((b) => [b.id, b] as const));
 		return {
 			command: (id) => blockById.get(id)?.command ?? "",
 			output: (id) => {
@@ -439,10 +450,7 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private cellMetrics(): { cellWidth: number; cellHeight: number } {
 		const { cellWidth, cellHeight } = this.measure();
-		return {
-			cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6,
-			cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx,
-		};
+		return { cellWidth: cellWidth > 0 ? cellWidth : this.font.sizePx * 0.6, cellHeight: cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx };
 	}
 
 	private ensureAltRoot(container: HTMLElement): HTMLElement {

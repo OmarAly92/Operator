@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::{Block, BlockId, BlockMeta};
 
 mod node;
 use node::{summary_of_blocks, BlockIter, Node};
@@ -139,6 +139,52 @@ impl BlockTree {
                         }
                     }
                     return None;
+                }
+            }
+        }
+    }
+
+    pub fn find(&self, id: BlockId) -> Option<&Block> {
+        self.iter().find(|b| b.id == id)
+    }
+
+    pub fn set_meta(&mut self, id: BlockId, update: impl FnOnce(&mut BlockMeta)) -> bool {
+        let leaf_with_id = self.nodes.iter().position(|node| matches!(node, Node::Leaf { blocks, .. } if blocks.iter().any(|b| b.id == id)));
+        if let Some(leaf_idx) = leaf_with_id {
+            if let Node::Leaf { blocks, .. } = &mut self.nodes[leaf_idx] {
+                if let Some(block) = blocks.iter_mut().find(|b| b.id == id) {
+                    update(&mut block.meta);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Block> {
+        let root = self.root?;
+        let total = self.nodes[root].summary().blocks;
+        if index >= total {
+            return None;
+        }
+        let mut idx = root;
+        let mut remaining = index;
+        loop {
+            match &self.nodes[idx] {
+                Node::Internal { children, .. } => {
+                    let mut next = None;
+                    for &child_idx in children {
+                        let child_blocks = self.nodes[child_idx].summary().blocks;
+                        if remaining < child_blocks {
+                            next = Some(child_idx);
+                            break;
+                        }
+                        remaining -= child_blocks;
+                    }
+                    idx = next?;
+                }
+                Node::Leaf { blocks, .. } => {
+                    return blocks.get(remaining);
                 }
             }
         }

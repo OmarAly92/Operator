@@ -17,9 +17,17 @@ export type BlockView = Readonly<{
 	command: string;
 	cwd: string;
 	gitBranch: string;
+	bookmarked: boolean;
 }>;
 
 export type RowRange = Readonly<{ start: number; end: number }>;
+
+export type FindMatch = Readonly<{
+	blockId: BlockId;
+	row: number;
+	byteRangeStart: number;
+	byteRangeEnd: number;
+}>;
 
 export type FontConfig = Readonly<{
 	family: string;
@@ -144,10 +152,21 @@ export type TerminalStrings = Readonly<{
 	blockAbandoned: string;
 	copyCommand: string;
 	copyOutput: string;
+	shareOutput: string;
+	bookmark: string;
+	filterToCommand: string;
+	jump: string;
 	rerunCommand: string;
 	shellBlocksUnavailable: string;
 	searchHistory: string;
 	searchNoMatches: string;
+	findPlaceholder: string;
+	findLabel: string;
+	findMatchCount: string;
+	palettePlaceholder: string;
+	paletteLabel: string;
+	paletteNoMatches: string;
+	jumpToBottom: string;
 }>;
 
 export const defaultStrings: TerminalStrings = Object.freeze({
@@ -157,11 +176,28 @@ export const defaultStrings: TerminalStrings = Object.freeze({
 	blockAbandoned: "Abandoned",
 	copyCommand: "Copy command",
 	copyOutput: "Copy output",
+	shareOutput: "Save output",
+	bookmark: "Bookmark",
+	filterToCommand: "Filter to this command",
+	jump: "Jump to block",
 	rerunCommand: "Re-run",
 	shellBlocksUnavailable: "Shell blocks are unavailable in this terminal.",
 	searchHistory: "Search history",
 	searchNoMatches: "No matches",
+	findPlaceholder: "Find in terminal",
+	findLabel: "Find",
+	findMatchCount: "%1 of %2",
+	palettePlaceholder: "Type a command",
+	paletteLabel: "Command palette",
+	paletteNoMatches: "No matching commands",
+	jumpToBottom: "Jump to bottom",
 });
+
+export type PaletteCommand = Readonly<{
+	id: string;
+	label: string;
+	run(): void;
+}>;
 
 export type DirEntry = Readonly<{
 	name: string;

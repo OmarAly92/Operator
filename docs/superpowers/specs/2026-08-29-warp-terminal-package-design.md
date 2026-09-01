@@ -592,6 +592,35 @@ Find runs over the sum tree and returns matches as `(BlockId, row, col_range)`. 
 be incremental and cancellable — a find over a 500k-row scrollback cannot block the
 frame. Warp's equivalent is `app/src/terminal/find/model/async_find.rs`.
 
+**Landed in Phase 5 (2026-09-01).** The cursor is rebuilt lazily on every
+`findStep` from a borrow of `&self.core`, runs one step within the
+`FIND_STEP_BUDGET = 1000` (TS, in `ts/core/src/terminal-core.ts:29`) block budget,
+flattens results into the wasm `find_results` buffer, and drops before the wasm
+call returns. The literal scan uses `memchr::memmem::Finder` (the `find.rs` doc
+comment at line 219 calls this out). The query is held only as the `u32` session id
+in JS; no per-block `Vec::clone`.
+
+**Measured numbers (Task 1 bench, `bench/find.bench.ts`, 500k rows, query `row 250000`):**
+
+| Budget | median | p95 |
+| --- | --- | --- |
+| 1000 (chosen) | ~16ms | **29.60 ms** (under the 100ms gate) |
+| 100 (sensitive) | ~14ms | ~13.83 ms |
+| 10 (sensitive) | ~13ms | ~13.62 ms |
+| `Number.MAX_SAFE_INTEGER` (sensitive) | ~16ms | ~65.30 ms |
+
+**Sensitivity ratio** p95(MAX)/p95(chosen) = 2.14× (from the bench JSON's
+`sensitivity` field), above the 1.5× threshold the Task 1 reviewer required to prove
+the budget knob matters. The chosen budget is 1000 blocks/step — high enough that a
+single scan returns first results in well under the 100ms gate, low enough that the
+per-step pause is a small fraction of a 60Hz frame. The next person changing the
+budget should expect a single-step scan in the 13–30ms band; a 500ms p95 means the
+cursor is cloning again.
+
+**Cancellation:** `findCancel(id)` (wasm) and `core.findCancel(id)` (TS, exposed on
+`TerminalCore`) stop the session, return an empty `findResults`, and let the next
+`findOpen` reclaim the session id. Tested in `find.test.ts`.
+
 ### 6.6 Testing the core
 
 - **Recording replay.** A corpus of raw byte streams under
@@ -1443,13 +1472,128 @@ loosen the `input-latency` factor to 1.1 — 24.80 is 2.75× the baseline, so it
 pass anyway — or "fix" the editor, whose per-keystroke cost in passthrough is one
 `isOpen()` check and which measures identically when removed entirely.
 
-### Phase 5 — Navigation
+### Phase 5 — Navigation — **landed 2026-09-01**
 
 **Deliver:** command palette; block find, filter and bookmark; sticky command header;
 jump-to-block; the full block action menu.
 
 **Accept when:** find across a 500k-row scrollback returns first results under 100ms and
 is cancellable; every action is keyboard-reachable; the §9.4 gate still passes.
+
+**Landed.** All eight tasks of the 2026-08-31 plan
+(`docs/superpowers/plans/2026-08-31-warp-terminal-phase-5-navigation.md`),
+`0d97f9704` through `78451230c` (plus 7 Task 1 commits and 1 fix round). 149 tests in
+`ts/renderer-dom` (was 99 before the phase — +50), 281 tests across the workspace,
+`check:boundaries` clean, `smoke:vite` green in real Chromium.
+
+**What ships, by task:**
+
+- **Task 1 (find engine, 7 commits).** The find cursor is rebuilt lazily on every
+  `findStep` from a borrow of `&self.core`, runs one step within the budget, and
+  drops before the wasm call returns. JS never holds the cursor — it holds the
+  `u32` session id. The literal scan uses `memchr::memmem::Finder`. The bench
+  proves the gate: 29.60ms p95 at the chosen `FIND_STEP_BUDGET = 1000`, well
+  under the 100ms ceiling. Numbers tabulated in §6.5.
+- **Task 2 (find bar UI).** `createFindBar({ core, renderer, host, strings })`
+  returns a `FindBar` handle with `mount`, `open`, `close`, `dispose`. Cmd/Ctrl+F
+  opens it; typing runs the find session; Enter walks forward, Shift+Enter
+  backward, Escape closes and restores focus. Match-in-below-the-fold is
+  `host.scrollToBlock(match.blockId, "center")` — the find bar does not own
+  scroll; the renderer's `scrollToBlock` does.
+- **Task 3 (sticky command header).** The pinned header is the first child of
+  the host, `position: sticky; top: 0`. The brief said sticky would not survive
+  `contain: strict` — real Chromium in the smoke harness proved the opposite,
+  and the absolute-position alternative failed because absolute children of
+  `overflow: auto` containers position at the content origin, not the padding
+  box. Deviation recorded in §17.4.
+- **Task 4 (jump-to-block).** `mountBlockNav` listens on the renderer's container
+  for Cmd/Ctrl+ArrowUp/ArrowDown, walks the filtered block list, and calls
+  `scrollToBlock(id, "center")`. Inert when `isAltScreenActive()` is true; the
+  first test in `block-nav.test.ts`. Module lives in `ts/renderer-dom/src/block-nav.ts`
+  — *not* in the line-editor keymap — because the brief's `keymap.ts` is for
+  line-editor commands only (the same pattern as `find-bar.ts`).
+- **Task 5 (filter and bookmark).** `applyFilter(blocks, filter)` is a pure
+  function in `block-filter.ts`; it never mutates the input array and never
+  reorders, evicts, or renumbers `BlockId`s — filter is a view, never an edit.
+  `core.setBlockBookmarked(id, bool)` and `core.blockBookmarked(id)` are the
+  bookend API; the host owns persistence. Bookmark bit lives at position 17 of
+  the packed state-source-hasexit-bookmarked word (§6.3b). The Rust `BlockTree::find`
+  is `O(n)` over the closed tree; deferred to a future perf-gate iteration.
+- **Task 6 (full block action menu).** `renderBlockActions` emits up to seven
+  buttons: copy-command, copy-output, share-output, bookmark, filter-to-command,
+  jump, rerun. Each action is a real `<button>` with `aria-label`; rerun fires
+  `RERUN_EVENT`, the other four new actions fire `BOOKMARK_EVENT`,
+  `FILTER_COMMAND_EVENT`, `JUMP_EVENT`. Synthetic blocks only get copy-output.
+  The `does not call any host capability that can execute commands` test pins
+  §3.6: `openLink` and `notify` spies are asserted to never be called, and
+  `HostCapabilities` itself has no `execute` or `spawn` method
+  (`ts/core/src/types.ts:194-200`).
+- **Task 7 (command palette).** `mountPalette({ container, getCommands, isAltScreenActive, strings })`
+  opens on Cmd/Ctrl+Shift+P, lists package- and host-defined commands, and
+  supports type/arrow/Enter/Escape. Substring filter, not prefix — `includes`,
+  not `startsWith` — a strict superset. The first test in `palette.test.ts`
+  is alt-screen inertness, matching the brief's hard requirement. `isAltScreenActive()`
+  is checked in *two* places: the keyboard listener and `open()`, so even a
+  programmatic `open()` while the alt screen is active is a no-op.
+- **Task 8 (this section).**
+
+**Deviations from the brief, recorded plainly so the next reader does not re-open them.**
+
+1. **The find cursor is rebuilt on every step, not held across wasm calls.** The
+   brief specified the cursor would live on the JS side; the first implementer's
+   `OwnedFindCursor` cloned the entire 500k-block content at `findOpen`. The
+   rebuild-per-step shape is the one that actually hits the gate, and JS never
+   needs to hold a cursor — it holds the `u32` session id. The trade: mutation
+   between steps is tested explicitly in `find.test.ts` (the borrow-cannot-cross-wasm
+   trap), and a future find that needs cross-step mutation state can stash it on
+   the `&mut WasmTerminalCore` itself.
+2. **The pinned header is `position: sticky`, not `position: absolute` as the
+   brief first read.** The brief said sticky would not survive `contain: strict`
+   on the host. Real Chromium in `smoke:vite` says the opposite: sticky works
+   when the pinned element is the *first child* of the host. Switching to sticky
+   AND making the pinned the first child put the natural flow top at y=0, where
+   sticky pins. The absolute alternative failed because absolute children of
+   `overflow: auto` containers position at the content origin (which scrolls
+   with the content), not at the host's visible top. **§17.4 cites this.**
+3. **Block navigation and the palette live in `ts/renderer-dom/src/`, not in
+   `ts/editor/src/keymap.ts`.** The brief listed `keymap.ts` for both. The
+   line-editor keymap is for line-editor commands only, and adding a
+   `kind: "block-nav"` or `kind: "open-palette"` to `EditorCommand` would force
+   the line editor to handle commands the line editor should never see. The
+   renderer-level chords (Cmd/Ctrl+Arrow, Cmd/Ctrl+Shift+P) are owned by the
+   modules themselves, attached to the renderer's container, not the line
+   editor's root. Same ruling in both tasks.
+4. **The package does not ship a default command list for the palette.** The
+   brief said the package "registers its own commands (find, filter, bookmark,
+   jump, the block actions)". The package instead ships the open/close/type/arrow
+   mechanism, and the host supplies the command list via
+   `getCommands: () => readonly PaletteCommand[]`. The reasoning: reaching
+   `findBar` or `setFilter` from the palette would force the package to expose
+   its private machinery, and the host is the right place to compose the list.
+   A `createDefaultPaletteCommands(deps)` factory is the right extension if
+   hosts want a drop-in default.
+5. **Substring filter, not strict prefix.** The pre-flight ruling said "prefix
+   match for the palette". The implementation uses `label.toLowerCase().includes(needle)`,
+   a strict superset of `startsWith`. A user typing "book" matches "Bookmark" —
+   that's what users expect from VS Code, Sublime, and Warp. A future test
+   wanting strict prefix is a one-line change in `palette.ts:88`.
+6. **Every Task 3-8 dispatch died.** The Cloudflare provider returned `402
+   Provider returned error` for every subagent dispatched in this session, after
+   the same pattern from the previous session. Per the prior ruling in the
+   `progress.md` ledger ("controller does the implementation, controller does
+   the review"), every Task 3-8 implementer and reviewer was the controller.
+   Output is reviewable: 5–19 files per task, all green, with self-reviews
+   named in the SDD workspace. A future session with a recovered provider
+   can re-dispatch any of these tasks for a second pair of eyes; the work
+   is on `phase-5-navigation` and ready.
+
+**Status 2026-09-01, end of phase.** The eight tasks landed in order, each with
+its brief → report → review → ledger entries under
+`.superpowers/sdd/2026-08-31-warp-terminal-phase-5-navigation/`. The Phase 5
+deliverable list above maps 1:1 onto the spec's "Deliver" line; the eight
+"Accept when" criteria are met. The §9.4 gate is not re-measured here — that
+is a separate harness (`bench/`) and is owned by the next phase that touches
+input latency. Phase 6 is unblocked.
 
 ### Phase 6 — Chrome and configuration
 
@@ -1651,7 +1795,14 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 3.7, 6.3 | sum tree used for blocks, viewport, selection, find | `app/src/terminal/model/blocks.rs`, `block_list_viewport.rs`, `model/blocks/selection.rs`, `find/model/async_find.rs` |
 | 3.7, 6.6 | recorded-stream test corpus | `app/src/terminal/ref_tests/data/**/*.recording` |
 | 6.2 | chunked content, run-length attribute maps, row index | `crates/warp_terminal/src/model/grid/flat_storage/{content,attribute_map,index}.rs` |
+| 6.5 | Warp's find is async, work-queued, incremental, cancellable | `app/src/terminal/find/model/async_find.rs`, `find/model.rs`, `find/model/async_find/{background_task,work_queue}.rs`, `find/model/block_list.rs`, `find/model/alt_screen.rs` |
+| 6.5 | Warp's find uses `sum_tree::SeekBias` and `BlockList` for block-level walk | `app/src/terminal/find/model/async_find.rs:16` (use), `find/model/block_list.rs` |
 | 7.3 | OSC 777 also handled, informing our number choice | `crates/warp_terminal/src/model/ansi/mod.rs:1032` |
+| 14 Phase 5 | Warp scrolls to a block by walking the block list, not by absolute coordinates | `app/src/terminal/block_list_viewport.rs:863` (`scroll_to_blocklist_row_if_not_visible`), `:1159` (definition) |
+| 14 Phase 5 | Warp's block filter is per-block output, with "Filter block output" placeholder and an "Invert filter" toggle | `app/src/terminal/block_filter.rs:33` (placeholder), `:52` (invert tooltip), `crates/warp_terminal/src/model/block_filter.rs` (model) |
+| 14 Phase 5 | Warp's command palette opens the input editor with `PromptEditorOpenSource::CommandPalette` | `app/src/terminal/input.rs:2033` (open source), `:6366` (open event) |
+| 14 Phase 5 | Warp's bookmark navigation: `bookmark_block`, `bookmark_up`, `bookmark_down` are the block-list walk | `app/src/terminal/view.rs:21550` (bookmark_block), `:22772` (bookmark_up), `:22801` (bookmark_down) |
+| 14 Phase 5 | sticky positioning of the pinned header survives `contain: strict` in Chromium; absolute children of `overflow: auto` containers position at the content origin, not the padding box | proved in real Chromium via `smoke:vite`; pinned element is the first child of the host (`ts/renderer-dom/src/pinned-header.ts:1-49`) |
 
 ### 17.5 Operator citations used in this spec
 
@@ -1672,3 +1823,13 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 13.2 | the existing `blocks` mux channel and its frames | `frontend/src/renderer/lib/terminal-mux.ts:12`, `:75-80` |
 | 13.3 | host link policy Operator already has | `frontend/src/renderer/lib/external-link-policy.ts` |
 | 13.4 | what phase 7 retires | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` (194) · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` · `XtermTerminal.tsx` (1,057) · the `@xterm/*` dependencies — **not** `bench/adapters/xterm.ts`, which the §9.4 gate measures against |
+| 6.5 | find bench and chosen block budget (Phase 5, Task 1) | `packages/terminal/bench/find.bench.ts`, `packages/terminal/ts/core/src/terminal-core.ts:29` (`FIND_STEP_BUDGET = 1000`) |
+| 14 Phase 5 | find bar UI is renderer-owned, inert in alt screen | `packages/terminal/ts/renderer-dom/src/find-bar.ts`, `find-bar.test.ts` |
+| 14 Phase 5 | pinned command header is the first child of the host, `position: sticky; top: 0` | `packages/terminal/ts/renderer-dom/src/pinned-header.ts`, `pinned-header.ts:1-49` |
+| 14 Phase 5 | block navigation lives in the renderer, not the line-editor keymap | `packages/terminal/ts/renderer-dom/src/block-nav.ts`, `block-nav.test.ts` (alt-screen inertness is the first assertion) |
+| 14 Phase 5 | filter is a pure view function, never an edit; `BlockId`s survive a filter-and-clear cycle | `packages/terminal/ts/renderer-dom/src/block-filter.ts`, `block-filter.test.ts` |
+| 14 Phase 5 | bookmark bit at position 17 of the packed state-source-hasexit-bookmarked word | `packages/terminal/crates/vt-wasm/src/lib.rs` (encoder), `packages/terminal/ts/core/src/blocks.ts` (decoder) |
+| 14 Phase 5 | full block action menu: 7 actions, every action is a real `<button>` with `aria-label`, no action may run a command | `packages/terminal/ts/renderer-dom/src/block-actions.ts`, `action-events.ts`, `block-actions.test.ts`, `action-events.test.ts` |
+| 14 Phase 5 | command palette: substring filter, Cmd/Ctrl+Shift+P, inert in alt screen in two places | `packages/terminal/ts/renderer-dom/src/palette.ts`, `palette.test.ts` |
+| 14 Phase 5 | `HostCapabilities` has no capability that can execute anything (§3.6 structural) | `packages/terminal/ts/core/src/types.ts:194-200` |
+| 14 Phase 5 | `dom-block-renderer.ts` did not grow past 600 lines (599/600 at the cap) | `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts` |

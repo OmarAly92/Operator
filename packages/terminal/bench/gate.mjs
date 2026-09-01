@@ -38,6 +38,7 @@ const RULES = [
 	{ scenario: "large-output", compare: "at-least", factor: 1 },
 	{ scenario: "input-latency", compare: "at-most", factor: 1 },
 	{ scenario: "input-latency-owned", compare: "budget" },
+	{ scenario: "find-500k", compare: "budget" },
 ];
 
 const rows = [];
@@ -57,6 +58,18 @@ for (const rule of RULES) {
 		const ok = measured.p95 <= budget;
 		if (!ok) failed += 1;
 		rows.push([rule.scenario, `p95 ${measured.p95.toFixed(2)}ms`, `budget ${budget}ms`, ok ? "pass" : "FAIL"]);
+		if (rule.scenario === "find-500k" && measured.sensitivityRatio !== undefined) {
+			const sensitivityRatio = measured.sensitivityRatio;
+			const sensitivityP95 = measured.sensitivityP95 ?? 0;
+			const sensitivityOk = sensitivityRatio >= 1.5;
+			if (!sensitivityOk) failed += 1;
+			rows.push([
+				`  ${rule.scenario} sensitivity`,
+				`ratio ${sensitivityRatio.toFixed(2)}x (p95 ${sensitivityP95.toFixed(2)}ms)`,
+				`ratio >= 1.5x`,
+				sensitivityOk ? "pass" : "FAIL",
+			]);
+		}
 		continue;
 	}
 	const reference = base.scenarios[rule.scenario];

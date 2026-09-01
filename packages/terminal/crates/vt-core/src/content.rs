@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 const CHUNK_SIZE: usize = 4096;
 
+#[derive(Clone)]
 pub(crate) struct Chunk {
     pub start: u64,
     pub bytes: Vec<u8>,
@@ -10,6 +11,15 @@ pub(crate) struct Chunk {
 pub(crate) struct Content {
     chunks: VecDeque<Chunk>,
     next_offset: u64,
+}
+
+impl Clone for Content {
+    fn clone(&self) -> Self {
+        Self {
+            chunks: self.chunks.clone(),
+            next_offset: self.next_offset,
+        }
+    }
 }
 
 impl Content {
@@ -50,18 +60,16 @@ impl Content {
             return Vec::new();
         }
         let mut result = Vec::with_capacity((end - start) as usize);
-        for chunk in &self.chunks {
-            let chunk_start = chunk.start;
-            let chunk_end = chunk.start + chunk.bytes.len() as u64;
-            if chunk_end <= start {
-                continue;
-            }
-            if chunk_start >= end {
-                break;
-            }
-            let local_start = start.saturating_sub(chunk_start) as usize;
-            let local_end = (end - chunk_start) as usize;
-            let local_end = local_end.min(chunk.bytes.len());
+        let (front, back) = self.chunks.as_slices();
+        let first = front.partition_point(|c| c.start + c.bytes.len() as u64 <= start);
+        for chunk in front
+            .iter()
+            .skip(first)
+            .take_while(|c| c.start < end)
+            .chain(back.iter().take_while(|c| c.start < end))
+        {
+            let local_start = start.saturating_sub(chunk.start) as usize;
+            let local_end = ((end - chunk.start) as usize).min(chunk.bytes.len());
             if local_start < local_end {
                 result.extend_from_slice(&chunk.bytes[local_start..local_end]);
             }

@@ -137,6 +137,24 @@ impl TerminalCore {
         )
     }
 
+    pub fn find_with_state(
+        &self,
+        query: find::FindQuery,
+        next_block: usize,
+        results: Vec<find::FindMatch>,
+        complete: bool,
+    ) -> find::FindCursor<'_> {
+        find::FindCursor::with_state(
+            self.parser.grid(),
+            self.parser.rows(),
+            self.parser.content(),
+            query,
+            next_block,
+            results,
+            complete,
+        )
+    }
+
     pub fn alt_screen_active(&self) -> bool {
         self.alt_screen.is_active()
     }
@@ -155,6 +173,14 @@ impl TerminalCore {
 
     pub fn set_agent_tui_mode(&mut self, on: bool) {
         self.parser.set_agent_tui_mode(on);
+    }
+
+    pub fn set_block_bookmarked(&mut self, id: crate::block::BlockId, bookmarked: bool) {
+        self.parser.grid_mut().set_block_bookmarked(id, bookmarked);
+    }
+
+    pub fn block_bookmarked(&self, id: crate::block::BlockId) -> bool {
+        self.parser.grid().block_bookmarked(id)
     }
 
     pub fn rows(&self) -> usize {

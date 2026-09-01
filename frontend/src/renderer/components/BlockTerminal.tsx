@@ -358,9 +358,28 @@ export function BlockTerminal({
 			blockAbandoned: t("blocks.abandoned", { defaultValue: "Abandoned" }),
 			copyCommand: t("blocks.copyCommand", { defaultValue: "Copy command" }),
 			copyOutput: t("blocks.copyOutput", { defaultValue: "Copy output" }),
+			shareOutput: t("blocks.shareOutput", { defaultValue: "Save output" }),
+			bookmark: t("blocks.bookmark", { defaultValue: "Bookmark" }),
+			filterToCommand: t("blocks.filterToCommand", {
+				defaultValue: "Filter to this command",
+			}),
+			jump: t("blocks.jump", { defaultValue: "Jump to block" }),
 			rerunCommand: t("blocks.rerunCommand", { defaultValue: "Re-run" }),
 			searchHistory: t("blocks.searchHistory", { defaultValue: "Search history" }),
 			searchNoMatches: t("blocks.searchNoMatches", { defaultValue: "No matches" }),
+			findPlaceholder: t("blocks.findPlaceholder", {
+				defaultValue: "Find in terminal",
+			}),
+			findLabel: t("blocks.findLabel", { defaultValue: "Find" }),
+			findMatchCount: t("blocks.findMatchCount", { defaultValue: "%1 of %2" }),
+			palettePlaceholder: t("blocks.palettePlaceholder", {
+				defaultValue: "Type a command",
+			}),
+			paletteLabel: t("blocks.paletteLabel", { defaultValue: "Command palette" }),
+			paletteNoMatches: t("blocks.paletteNoMatches", {
+				defaultValue: "No matching commands",
+			}),
+			jumpToBottom: t("blocks.jumpToBottom", { defaultValue: "Jump to bottom" }),
 			shellBlocksUnavailable: t("blocks.shellBlocksUnavailable", {
 				defaultValue: "Shell blocks are unavailable in this terminal.",
 			}),

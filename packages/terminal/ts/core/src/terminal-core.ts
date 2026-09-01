@@ -8,7 +8,9 @@ import {
 	type WasmInput,
 } from "./wasm-runtime.js";
 import type {
+	BlockId,
 	ChangeListener,
+	FindMatch,
 	HostCapabilities,
 	LineEditorState,
 	TerminalCoreOptions,
@@ -21,6 +23,10 @@ import type {
 import { CompletionDispatcher } from "./completions.js";
 
 const LINE_EDITOR_STATES: readonly LineEditorState[] = ["unknown", "owned", "released"];
+
+export const FIND_MATCH_WORDS = 5;
+
+export const FIND_STEP_BUDGET = 1000;
 
 const NOOP_HOST: HostCapabilities = {
 	writeClipboard: async () => undefined,
@@ -140,11 +146,82 @@ export class TerminalCore {
 		}
 	}
 
+	findOpen(query: string, isRegex: boolean): number {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.find_open(query, isRegex);
+	}
+
+	findStep(id: number, budget: number = FIND_STEP_BUDGET): void {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		this.inner.find_step(id, budget);
+	}
+
+	findResults(): FindMatch[] {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		const memory = getMemory();
+		const ptr = this.inner.find_results_ptr();
+		const len = this.inner.find_results_len();
+		if (len % FIND_MATCH_WORDS !== 0) {
+			throw new Error(
+				`find results length ${len} is not a multiple of ${FIND_MATCH_WORDS}`,
+			);
+		}
+		const view = u32View(memory, ptr, len);
+		const count = len / FIND_MATCH_WORDS;
+		const matches: FindMatch[] = [];
+		for (let index = 0; index < count; index += 1) {
+			const base = index * FIND_MATCH_WORDS;
+			matches.push({
+				blockId: `${view[base + 1]!}:${view[base]!}`,
+				row: view[base + 2]!,
+				byteRangeStart: view[base + 3]!,
+				byteRangeEnd: view[base + 4]!,
+			});
+		}
+		return matches;
+	}
+
+	findIsComplete(id: number): boolean {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		return this.inner.find_is_complete(id);
+	}
+
+	findCancel(id: number): void {
+		if (this.disposed) {
+			throw new Error("terminal core is disposed");
+		}
+		this.inner.find_cancel(id);
+	}
+
 	setAgentTuiMode(on: boolean): void {
 		if (this.disposed) {
 			return;
 		}
 		this.inner.setAgentTuiMode(on);
+	}
+
+	setBlockBookmarked(id: BlockId, bookmarked: boolean): void {
+		if (this.disposed) {
+			return;
+		}
+		const [idLo, idHi] = parseBlockId(id);
+		this.inner.set_block_bookmarked(idLo, idHi, bookmarked);
+	}
+
+	blockBookmarked(id: BlockId): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		const [idLo, idHi] = parseBlockId(id);
+		return this.inner.block_bookmarked(idLo, idHi);
 	}
 
 	lineEditorState(): LineEditorState {
@@ -193,6 +270,19 @@ function validateEvenLength(name: string, length: number): void {
 	if (length % 2 !== 0) {
 		throw new Error(`${name} length ${length} is not even`);
 	}
+}
+
+function parseBlockId(id: BlockId): [number, number] {
+	const separator = id.indexOf(":");
+	if (separator < 0) {
+		throw new Error(`block id ${id} is not in hi:lo form`);
+	}
+	const hi = Number.parseInt(id.slice(0, separator), 10);
+	const lo = Number.parseInt(id.slice(separator + 1), 10);
+	if (!Number.isFinite(hi) || !Number.isFinite(lo)) {
+		throw new Error(`block id ${id} is not numeric`);
+	}
+	return [lo, hi];
 }
 
 export type { WasmInput };

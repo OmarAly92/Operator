@@ -13,14 +13,17 @@ export type BlockTextSource = Readonly<{
 }>;
 
 export const RERUN_EVENT = "terminal-block-rerun";
+export const BOOKMARK_EVENT = "terminal-block-bookmark";
+export const FILTER_COMMAND_EVENT = "terminal-block-filter-command";
+export const JUMP_EVENT = "terminal-block-jump";
 
-type Action = "copy-command" | "copy-output" | "rerun";
+type Action = "copy-command" | "copy-output" | "share-output" | "bookmark" | "filter-to-command" | "jump" | "rerun";
 
 function actionsFor(block: BlockView): readonly Action[] {
 	if (block.source === "synthetic") {
 		return ["copy-output"] as const;
 	}
-	return ["copy-command", "copy-output", "rerun"] as const;
+	return ["copy-command", "copy-output", "share-output", "bookmark", "filter-to-command", "jump", "rerun"] as const;
 }
 
 function ariaFor(action: Action, strings: TerminalStrings): string {
@@ -29,6 +32,14 @@ function ariaFor(action: Action, strings: TerminalStrings): string {
 			return strings.copyCommand;
 		case "copy-output":
 			return strings.copyOutput;
+		case "share-output":
+			return strings.shareOutput;
+		case "bookmark":
+			return strings.bookmark;
+		case "filter-to-command":
+			return strings.filterToCommand;
+		case "jump":
+			return strings.jump;
 		case "rerun":
 			return strings.rerunCommand;
 	}
@@ -50,19 +61,49 @@ function makeButton(
 	button.addEventListener("click", (event) => {
 		event.preventDefault();
 		event.stopPropagation();
-		if (action === "rerun") {
-			button.dispatchEvent(
-				new CustomEvent(RERUN_EVENT, {
-					detail: { blockId: block.id },
-					bubbles: true,
-				}),
-			);
-			return;
-		}
-		const value = action === "copy-command" ? text.command(block.id) : text.output(block.id);
-		void host.writeClipboard(value);
+		runAction(action, button, host, block, text);
 	});
 	return button;
+}
+
+export function runAction(
+	action: Action,
+	button: HTMLElement,
+	host: HostCapabilities,
+	block: BlockView,
+	text: BlockTextSource,
+): void {
+	switch (action) {
+		case "rerun":
+			button.dispatchEvent(
+				new CustomEvent(RERUN_EVENT, { detail: { blockId: block.id }, bubbles: true }),
+			);
+			return;
+		case "bookmark":
+			button.dispatchEvent(
+				new CustomEvent(BOOKMARK_EVENT, { detail: { blockId: block.id }, bubbles: true }),
+			);
+			return;
+		case "filter-to-command":
+			button.dispatchEvent(
+				new CustomEvent(FILTER_COMMAND_EVENT, { detail: { blockId: block.id, command: block.command }, bubbles: true }),
+			);
+			return;
+		case "jump":
+			button.dispatchEvent(
+				new CustomEvent(JUMP_EVENT, { detail: { blockId: block.id }, bubbles: true }),
+			);
+			return;
+		case "copy-command":
+			void host.writeClipboard(text.command(block.id));
+			return;
+		case "copy-output":
+			void host.writeClipboard(text.output(block.id));
+			return;
+		case "share-output":
+			void host.writeClipboard(text.output(block.id));
+			return;
+	}
 }
 
 export function renderBlockActions(
@@ -78,4 +119,8 @@ export function renderBlockActions(
 		container.append(makeButton(action, ariaFor(action, strings), host, block, text));
 	}
 	return container;
+}
+
+export function actionLabels(block: BlockView, strings: TerminalStrings): string[] {
+	return actionsFor(block).map((action) => ariaFor(action, strings));
 }

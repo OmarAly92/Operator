@@ -99,22 +99,30 @@ export function renderBlockHeader(
 		return header;
 	}
 
+	header.append(renderBlockHeaderContent(block, opts.home ?? null));
+	header.setAttribute("aria-label", statusLabel(status, strings));
+	return header;
+}
+
+export function renderBlockHeaderContent(block: BlockView, home: string | null): DocumentFragment {
+	const status = statusFor(block);
 	const fragment = document.createDocumentFragment();
 	fragment.append(buildDot(status));
 	fragment.append(buildCommand(block.command));
-	const cwd = buildCwd(block.cwd, opts.home ?? null);
+	const cwd = buildCwd(block.cwd, home);
 	if (cwd) fragment.append(cwd);
 	const branch = buildBranch(block.gitBranch);
 	if (branch) fragment.append(branch);
 	const duration = buildDuration(block.durationMs, status === "failed" ? block.exitCode : null);
 	if (duration) fragment.append(duration);
-	header.append(fragment);
-
-	header.setAttribute("aria-label", statusLabel(status, strings));
-	return header;
+	return fragment;
 }
 
-function statusLabel(status: ReturnType<typeof statusFor>, strings: TerminalStrings): string {
+export function blockHeaderStatus(block: BlockView): "running" | "succeeded" | "failed" | "abandoned" | "plain" {
+	return statusFor(block);
+}
+
+export function statusLabel(status: "running" | "succeeded" | "failed" | "abandoned" | "plain", strings: TerminalStrings): string {
 	switch (status) {
 		case "running":
 			return strings.blockRunning;

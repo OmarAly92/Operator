@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use memchr::memmem::Finder;
 use regex_automata::meta::Regex;
 
 use crate::block::{Block, BlockId};
@@ -10,6 +11,7 @@ use crate::row_index::RowIndex;
 /// What the caller is searching for. Construction goes through the
 /// associated `literal`/`regex` constructors so the variants stay the only
 /// legal way to form a query; matching them is an internal detail.
+#[derive(Clone)]
 pub enum FindQuery {
     Literal(String),
     Regex(Regex),
@@ -34,6 +36,7 @@ impl FindQuery {
 /// A single hit inside a block. `byte_range` is relative to the block's own
 /// bytes (the concatenation of its rows), so the renderer can re-anchor it
 /// to the block's first byte without knowing the content offset.
+#[derive(Clone)]
 pub struct FindMatch {
     pub block: BlockId,
     pub row: usize,
@@ -45,13 +48,19 @@ pub struct FindMatch {
 /// unit of progress; a block is the renderer's primary object and the find
 /// results are bucketed by block anyway.
 pub struct FindCursor<'a> {
-    blocks: Vec<Block>,
+    grid: &'a BlockGrid,
     rows: &'a RowIndex,
     content: &'a Content,
-    query: FindQuery,
+    regex: Option<Regex>,
+    prepared: PreparedSearch,
     next_block: usize,
     results: Vec<FindMatch>,
     complete: bool,
+}
+
+enum PreparedSearch {
+    Literal(Finder<'static>),
+    Regex,
 }
 
 impl<'a> FindCursor<'a> {
@@ -61,15 +70,34 @@ impl<'a> FindCursor<'a> {
         content: &'a Content,
         query: FindQuery,
     ) -> Self {
-        let blocks = grid.blocks().cloned().collect();
+        Self::with_state(grid, rows, content, query, 0, Vec::new(), false)
+    }
+
+    pub(crate) fn with_state(
+        grid: &'a BlockGrid,
+        rows: &'a RowIndex,
+        content: &'a Content,
+        query: FindQuery,
+        next_block: usize,
+        results: Vec<FindMatch>,
+        complete: bool,
+    ) -> Self {
+        let (regex, prepared) = match query {
+            FindQuery::Literal(needle) => {
+                let finder = Finder::new(needle.as_bytes()).into_owned();
+                (None, PreparedSearch::Literal(finder))
+            }
+            FindQuery::Regex(re) => (Some(re), PreparedSearch::Regex),
+        };
         Self {
-            blocks,
+            grid,
             rows,
             content,
-            query,
-            next_block: 0,
-            results: Vec::new(),
-            complete: false,
+            regex,
+            prepared,
+            next_block,
+            results,
+            complete,
         }
     }
 
@@ -81,19 +109,14 @@ impl<'a> FindCursor<'a> {
             return;
         }
         for _ in 0..budget_blocks {
-            if self.next_block >= self.blocks.len() {
+            let Some(block) = self.grid.get(self.next_block) else {
                 self.complete = true;
                 return;
-            }
-            // Clone to release the borrow on `self.blocks` before the
-            // `search_block` call, which needs `&mut self` to push into
-            // `results`. The block is small enough that the allocation is
-            // not worth restructuring around.
-            let block = self.blocks[self.next_block].clone();
-            self.search_block(&block);
+            };
+            self.search_block(block);
             self.next_block += 1;
         }
-        if self.next_block >= self.blocks.len() {
+        if self.grid.get(self.next_block).is_none() {
             self.complete = true;
         }
     }
@@ -112,6 +135,14 @@ impl<'a> FindCursor<'a> {
         self.complete = true;
     }
 
+    pub fn next_block(&self) -> usize {
+        self.next_block
+    }
+
+    pub fn into_parts(self) -> (usize, Vec<FindMatch>, bool) {
+        (self.next_block, self.results, self.complete)
+    }
+
     fn search_block(&mut self, block: &Block) {
         let byte_range = match block_byte_range(self.rows, block) {
             Some(range) => range,
@@ -121,23 +152,36 @@ impl<'a> FindCursor<'a> {
         if bytes.is_empty() {
             return;
         }
-        match &self.query {
-            FindQuery::Literal(needle) => search_literal(
-                &bytes,
-                needle,
-                block,
-                byte_range.start,
-                self.rows,
-                &mut self.results,
-            ),
-            FindQuery::Regex(re) => search_regex(
-                re,
-                &bytes,
-                block,
-                byte_range.start,
-                self.rows,
-                &mut self.results,
-            ),
+        match &self.prepared {
+            PreparedSearch::Literal(finder) => {
+                let mut cursor = 0;
+                while let Some(offset) = finder.find(&bytes[cursor..]) {
+                    let block_offset = cursor + offset;
+                    let absolute = byte_range.start + block_offset as u64;
+                    let needle_len = finder.needle().len();
+                    self.results.push(FindMatch {
+                        block: block.id,
+                        row: row_for_offset(absolute, self.rows),
+                        byte_range: block_offset..block_offset + needle_len,
+                    });
+                    cursor = block_offset + needle_len;
+                }
+            }
+            PreparedSearch::Regex => {
+                let re = self
+                    .regex
+                    .as_ref()
+                    .expect("regex variant implies regex is Some");
+                for m in re.find_iter(&bytes) {
+                    let range = m.range();
+                    let absolute = byte_range.start + range.start as u64;
+                    self.results.push(FindMatch {
+                        block: block.id,
+                        row: row_for_offset(absolute, self.rows),
+                        byte_range: range,
+                    });
+                }
+            }
         }
     }
 }
@@ -159,60 +203,6 @@ fn block_byte_range(rows: &RowIndex, block: &Block) -> Option<Range<u64>> {
     Some(first_row.start..last_row.end)
 }
 
-fn search_literal(
-    bytes: &[u8],
-    needle: &str,
-    block: &Block,
-    content_byte_start: u64,
-    rows: &RowIndex,
-    out: &mut Vec<FindMatch>,
-) {
-    let needle_bytes = needle.as_bytes();
-    if needle_bytes.is_empty() {
-        return;
-    }
-    let mut cursor = 0;
-    while let Some(offset) = find_subslice(&bytes[cursor..], needle_bytes) {
-        let block_offset = cursor + offset;
-        let absolute = content_byte_start + block_offset as u64;
-        out.push(FindMatch {
-            block: block.id,
-            row: row_for_offset(absolute, rows),
-            byte_range: block_offset..block_offset + needle_bytes.len(),
-        });
-        cursor = block_offset + needle_bytes.len();
-    }
-}
-
-fn search_regex(
-    re: &Regex,
-    bytes: &[u8],
-    block: &Block,
-    content_byte_start: u64,
-    rows: &RowIndex,
-    out: &mut Vec<FindMatch>,
-) {
-    for m in re.find_iter(bytes) {
-        let range = m.range();
-        let absolute = content_byte_start + range.start as u64;
-        out.push(FindMatch {
-            block: block.id,
-            row: row_for_offset(absolute, rows),
-            byte_range: range,
-        });
-    }
-}
-
-/// `memchr::memmem::Finder` would do this faster, but pulling in `memchr`
-/// for a single substring search is not worth the dependency. The naive
-/// scan is plenty fast for a find box sized in kilobytes.
-fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.len() > haystack.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
 /// The row index that contains `absolute` (a content-space offset). Used
 /// by both the literal and the regex paths so they agree on what "row"
 /// means for a hit that lands on a row boundary.
@@ -223,4 +213,79 @@ fn row_for_offset(absolute: u64, rows: &RowIndex) -> usize {
         }
     }
     rows.completed().len().saturating_sub(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grid_with_blocks() -> (BlockGrid, RowIndex, Content) {
+        (BlockGrid::new(), RowIndex::new(0), Content::new())
+    }
+
+    #[test]
+    fn cursor_starts_empty_and_incomplete() {
+        let (grid, rows, content) = grid_with_blocks();
+        let cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal("anything"));
+        assert!(cursor.results().is_empty());
+        assert!(!cursor.is_complete());
+        assert_eq!(cursor.next_block(), 0);
+    }
+
+    #[test]
+    fn empty_needle_is_a_noop() {
+        let (grid, rows, content) = grid_with_blocks();
+        let mut cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal(""));
+        cursor.step(1);
+        assert!(cursor.results().is_empty());
+    }
+
+    #[test]
+    fn cancelled_cursor_is_a_noop() {
+        let (grid, rows, content) = grid_with_blocks();
+        let mut cursor = FindCursor::new(&grid, &rows, &content, FindQuery::literal("a"));
+        cursor.cancel();
+        cursor.step(1000);
+        assert!(cursor.is_complete());
+        assert!(cursor.results().is_empty());
+    }
+
+    #[test]
+    fn with_state_resumes_at_saved_offset() {
+        let (grid, rows, content) = grid_with_blocks();
+        let prior = vec![FindMatch { block: 7, row: 0, byte_range: 0..1 }];
+        let cursor = FindCursor::with_state(
+            &grid,
+            &rows,
+            &content,
+            FindQuery::literal("a"),
+            42,
+            prior.clone(),
+            false,
+        );
+        assert_eq!(cursor.next_block(), 42);
+        let results = cursor.results();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].block, 7);
+        assert_eq!(results[0].row, 0);
+        assert_eq!(results[0].byte_range, 0..1);
+    }
+
+    #[test]
+    fn into_parts_returns_state() {
+        let (grid, rows, content) = grid_with_blocks();
+        let cursor = FindCursor::with_state(
+            &grid,
+            &rows,
+            &content,
+            FindQuery::literal("a"),
+            3,
+            Vec::new(),
+            true,
+        );
+        let (next, results, complete) = cursor.into_parts();
+        assert_eq!(next, 3);
+        assert!(results.is_empty());
+        assert!(complete);
+    }
 }
