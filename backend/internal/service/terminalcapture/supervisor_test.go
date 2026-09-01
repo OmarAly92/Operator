@@ -408,8 +408,21 @@ func TestStopAndDrainStopsWriterBeforeDraining(t *testing.T) {
 	store := newFakeBlockStore(log)
 	sup := newSupervisor(t, capturer, store, time.Hour)
 
+	idle := make(chan string, 1)
+	sup.onWorkerIdle = func(handleID string) {
+		select {
+		case idle <- handleID:
+		default:
+		}
+	}
+
 	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
 		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-idle:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker never reached its idle poll wait before the journal was written")
 	}
 	captureDir := sup.captureDir("shellterm-h1")
 	writeJournalAt(t, filepath.Join(captureDir, testEpoch), true, []byte(block("echo hi", "hi", 0)))

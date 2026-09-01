@@ -72,7 +72,6 @@ export type UseTerminalSessionOptions = {
 	isVisible?: boolean;
 	/** Test seam: build the mux client. Defaults to a fresh socket against the current API base. */
 	createMux?: () => TerminalMux;
-	/** Hold the mux attach until the caller has replayed history (defaults to true). */
 	enabled?: boolean;
 	/**
 	 * Attach to a standalone shell terminal (POST /api/v1/shell-terminals)

@@ -39,6 +39,7 @@ type Supervisor struct {
 	now          func() time.Time
 	newEpoch     func() string
 	pollInterval time.Duration
+	onWorkerIdle func(handleID string)
 
 	mu      sync.Mutex
 	workers map[string]*captureHandle
@@ -252,6 +253,11 @@ func (s *Supervisor) spawnWorker(parent context.Context, rec shellterm.ShellTerm
 		Recorder:     s.blockRecorder(),
 		Now:          s.now,
 		PollInterval: s.pollInterval,
+		OnIdle: func() {
+			if s.onWorkerIdle != nil {
+				s.onWorkerIdle(rec.HandleID)
+			}
+		},
 	})
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	done := make(chan error, 1)

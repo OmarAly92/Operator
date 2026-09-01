@@ -34,6 +34,7 @@ type CaptureWorkerConfig struct {
 	Recorder     BlockRecorder
 	Now          func() time.Time
 	PollInterval time.Duration
+	OnIdle       func()
 }
 
 type CaptureWorker struct {
@@ -42,6 +43,7 @@ type CaptureWorker struct {
 	epoch      string
 	cursorPath string
 	poll       time.Duration
+	onIdle     func()
 
 	reader    *terminalcapture.Reader
 	decoder   *marks.StreamDecoder
@@ -76,6 +78,7 @@ func NewCaptureWorker(cfg CaptureWorkerConfig) *CaptureWorker {
 		assembler:  NewBlockAssembler(cfg.TerminalID, cfg.SessionID, cfg.Epoch, cfg.AlternateOn, now),
 		recorder:   cfg.Recorder,
 		now:        now,
+		onIdle:     cfg.OnIdle,
 	}
 }
 
@@ -92,6 +95,9 @@ func (w *CaptureWorker) Run(ctx context.Context) error {
 		}
 		if progressed {
 			continue
+		}
+		if w.onIdle != nil {
+			w.onIdle()
 		}
 		timer := time.NewTimer(w.poll)
 		select {

@@ -472,7 +472,7 @@ describe("BlockTerminal", () => {
 		expect(Array.from(mockState.feeds[4])).toEqual([...laterLive]);
 	});
 
-	it("does not duplicate a block present in both history and the live stream", async () => {
+	it("upserts a live block whose id was already replayed from history, via the mock core's id-keyed seam", async () => {
 		const { transport, emit } = harness();
 		render(
 			<BlockTerminal
