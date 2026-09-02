@@ -155,8 +155,11 @@ export function TerminalSurface({
 			if (cellWidth <= 0 || cellHeight <= 0) {
 				return;
 			}
-			const columns = Math.max(1, Math.floor(blockHost.clientWidth / cellWidth));
-			const rows = Math.max(1, Math.floor(blockHost.clientHeight / cellHeight));
+			// Rows are laid out inside the block's padding, so the grid gets the
+			// space left after it -- not the host's full box.
+			const inset = renderer.blockContentInset();
+			const columns = Math.max(1, Math.floor((blockHost.clientWidth - inset.x) / cellWidth));
+			const rows = Math.max(1, Math.floor((blockHost.clientHeight - inset.y) / cellHeight));
 			if (columns === lastColumns && rows === lastRows) {
 				return;
 			}

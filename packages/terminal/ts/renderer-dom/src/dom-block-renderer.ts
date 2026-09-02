@@ -21,8 +21,9 @@ import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
+import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
-import { blockPaddingY } from "./block-metrics.js";
+import { BLOCK_PADDING_X_PX, blockPaddingY } from "./block-metrics.js";
 import { trimTrailingBlankRows } from "./block-rows.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
@@ -148,6 +149,15 @@ export class DomBlockRenderer implements BlockRenderer {
 		const cellHeight =
 			rect.height > 0 ? rect.height : this.font.lineHeight * this.font.sizePx;
 		return { cellWidth, cellHeight };
+	}
+
+	// The space a block reserves around its rows. A grid sized to the host rather
+	// than to this is told it has more columns than a row can actually show, so
+	// full-width lines overflow and the pane grows a horizontal scrollbar.
+	blockContentInset(): { x: number; y: number } {
+		const { cellHeight } = this.measure();
+		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
+		return { x: BLOCK_PADDING_X_PX * 2, y: blockPaddingY(rowHeight) };
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {
@@ -490,17 +500,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 }
 
-function defaultFont(): FontConfig {
-	return {
-		family: "ui-monospace, Menlo, Monaco, Consolas, monospace",
-		sizePx: 14,
-		lineHeight: 1.2,
-		weight: 400,
-		letterSpacingPx: 0,
-		ligatures: false,
-	};
-}
-
 function ensurePackageStyleTag(): HTMLStyleElement {
 	const existing = document.head.querySelector<HTMLStyleElement>("style[data-terminal-package]");
 	if (existing) {
@@ -517,7 +516,6 @@ function ensurePackageStyleTag(): HTMLStyleElement {
 	document.head.append(tag);
 	return tag;
 }
-
 
 function populateBlock(
 	section: HTMLElement,

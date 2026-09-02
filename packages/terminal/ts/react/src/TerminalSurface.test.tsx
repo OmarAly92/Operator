@@ -334,10 +334,23 @@ describe("TerminalSurface", () => {
 		expect(terminalStyles).toContain("--terminal-padding-y: 0px;");
 	});
 
+	it("sizes the grid to the space inside the block padding, not the whole host", () => {
+		// The rows are laid out inside .terminal-block, which reserves 16px each
+		// side and 2.1 lines top and bottom. Measuring columns against the host's
+		// full width tells the shell it has more columns than a row can show, so
+		// every full-width line overflows and the pane grows a horizontal
+		// scrollbar while appearing narrower than it is.
+		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockReturnValue({ cellWidth: 8, cellHeight: 16 });
+		const { core, host } = renderSurface();
+		const resize = vi.spyOn(core, "resize");
+		setHostSize(host, 816, 416);
+		expect(resize).toHaveBeenLastCalledWith(98, 23);
+		measure.mockRestore();
+	});
+
 	it("resizes from the host box, not the surface around it", () => {
-		// Geometry comes from the host the renderer measures. The surface adds no
-		// inset of its own now, so the two agree; the point of the test is that the
-		// columns follow the host.
+		// Geometry follows the host the renderer measures, less the block's inset:
+		// (808 - 32) / 8 = 97 columns, (408 - 2.1 * 16) / 16 = 23 rows.
 		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockReturnValue({ cellWidth: 8, cellHeight: 16 });
 		const { core, host, surface } = renderSurface();
 		Object.defineProperty(surface, "clientWidth", { value: 808, configurable: true });
@@ -345,7 +358,7 @@ describe("TerminalSurface", () => {
 		const resize = vi.spyOn(core, "resize");
 		setHostSize(host, 808, 408);
 		expect(host.clientWidth).toBe(808);
-		expect(resize).toHaveBeenLastCalledWith(101, 25);
+		expect(resize).toHaveBeenLastCalledWith(97, 23);
 		measure.mockRestore();
 	});
 
