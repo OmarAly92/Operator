@@ -343,15 +343,27 @@ export function TerminalSurface({
 			const prefix = snapshot.applicationCursorKeys ? "\x1bO" : "\x1b[";
 			onSendRaw(`${prefix}${lines > 0 ? "B" : "A"}`.repeat(count));
 		};
+		const onFocus = () => {
+			if (!core.snapshot().focusReporting) return;
+			onSendRaw("\x1b[I");
+		};
+		const onBlur = () => {
+			if (!core.snapshot().focusReporting) return;
+			onSendRaw("\x1b[O");
+		};
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
 		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
+		blockHost.addEventListener("focus", onFocus);
+		blockHost.addEventListener("blur", onBlur);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
 			window.removeEventListener("mouseup", onMouseUp);
 			blockHost.removeEventListener("wheel", onWheel);
+			blockHost.removeEventListener("focus", onFocus);
+			blockHost.removeEventListener("blur", onBlur);
 		};
 	}, [core, onSendRaw]);
 

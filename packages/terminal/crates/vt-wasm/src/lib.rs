@@ -391,6 +391,10 @@ impl WasmTerminalCore {
         self.core.bracketed_paste()
     }
 
+    pub fn focus_reporting(&self) -> bool {
+        self.core.focus_reporting()
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.core.mouse_tracking()
     }

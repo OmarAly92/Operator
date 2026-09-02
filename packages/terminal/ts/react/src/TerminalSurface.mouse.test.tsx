@@ -248,6 +248,21 @@ describe("TerminalSurface mouse and wheel", () => {
 		expect(onSendRaw).not.toHaveBeenCalled();
 	});
 
+	it("reports focus and blur only when the program asked", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new FocusEvent("focus"));
+		expect(onSendRaw).not.toHaveBeenCalled();
+		act(() => {
+			feed(core, "\x1b[?1004h");
+		});
+		surface.dispatchEvent(new FocusEvent("focus"));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1b[I");
+		surface.dispatchEvent(new FocusEvent("blur"));
+		expect(onSendRaw).toHaveBeenCalledWith("\x1b[O");
+	});
+
 	it("reports a drag under 1002 and never takes the default on motion", () => {
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });
