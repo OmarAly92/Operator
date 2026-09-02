@@ -6,7 +6,6 @@ import type { AgentSwitch } from "../hooks/useAgentSwitches";
 import type { SwitchAgentInput } from "../hooks/useSwitchAgent";
 import type { WorkspaceSession } from "../types/workspace";
 import { isMacPlatform } from "../lib/platform";
-import { useUiStore } from "../stores/ui-store";
 import { CenterPane } from "./CenterPane";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -134,7 +133,6 @@ beforeEach(() => {
 	agentSwitchMocks.mutation.input = undefined;
 	agentSwitchMocks.mutation.isPending = false;
 	cacheMocks.releaseWorker.mockReset();
-	useUiStore.setState({ sessionViewModeBySession: {} });
 });
 
 describe("CenterPane toolbar session label", () => {
@@ -600,58 +598,22 @@ describe("CenterPane toolbar session label", () => {
 	});
 });
 
-describe("CenterPane blocks toggle", () => {
+describe("CenterPane surfaces", () => {
 	const tuiWorker = { ...worker, mode: "tui" } satisfies WorkspaceSession;
 
-	it("opens a covered tui session raw, with the blocks toggle offered", () => {
-		renderCenterPane({ session: tuiWorker });
-
+	// The pane is the raw terminal, full stop. Blocks were a third surface
+	// alongside it and the chat UI; the toggle and the mode it stored are gone.
+	it("renders the terminal for every target, with no blocks toggle", () => {
+		const { unmount } = renderCenterPane({ session: tuiWorker });
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Show blocks" })).toBeInTheDocument();
-	});
+		expect(screen.queryByRole("button", { name: /blocks/i })).not.toBeInTheDocument();
+		unmount();
 
-	it("opens an uncovered harness raw", () => {
-		renderCenterPane({ session: { ...tuiWorker, provider: "aider" } });
-
-		expect(screen.getByText("terminal body")).toBeInTheDocument();
-	});
-
-	it("the toggle swaps to blocks and back to the raw terminal channel", async () => {
-		renderCenterPane({ session: tuiWorker });
-
-		await userEvent.click(screen.getByRole("button", { name: "Show blocks" }));
-		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
-
-		await userEvent.click(screen.getByRole("button", { name: "Show raw terminal" }));
-		expect(screen.getByText("terminal body")).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Show raw terminal" })).not.toBeInTheDocument();
-	});
-
-	it("switching to blocks releases the retained worker terminal", async () => {
-		renderCenterPane({ session: tuiWorker });
-		expect(cacheMocks.releaseWorker).not.toHaveBeenCalled();
-
-		await userEvent.click(screen.getByRole("button", { name: "Show blocks" }));
-
-		expect(cacheMocks.releaseWorker).toHaveBeenCalledWith("sess-1");
-		expect(screen.queryByText("terminal body")).not.toBeInTheDocument();
-	});
-
-	it("a shell target has no blocks toggle and stays raw", () => {
 		renderCenterPane({
 			session: tuiWorker,
 			terminalTarget: { kind: "shell", generation: "0", handleId: "h-0", sessionId: "sess-1", title: "operator-0" },
 		});
-
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: /Show blocks|Show raw terminal/ })).not.toBeInTheDocument();
-	});
-
-	it("does not render the Raw toggle for a chat-mode session", () => {
-		const chatWorker = { ...worker, mode: "chat" } satisfies WorkspaceSession;
-		renderCenterPane({ session: chatWorker });
-
-		expect(screen.queryByRole("button", { name: /Show blocks|Show raw terminal/ })).not.toBeInTheDocument();
-		expect(screen.getByText("terminal body")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /blocks/i })).not.toBeInTheDocument();
 	});
 });

@@ -65,8 +65,6 @@
 	"blocks.noDecisions": "The agent offered no options Operator can present.",
 	"blocks.redacted": "Secrets were redacted from this output",
 	"blocks.retry": "Retry",
-	"blocks.showBlocks": "Show blocks",
-	"blocks.showRaw": "Show raw terminal",
 	"blocks.title.assistant": "Assistant",
 	"blocks.title.event": "Event",
 	"blocks.title.permissionRequested": "Permission requested",

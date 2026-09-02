@@ -65,8 +65,6 @@
 	"blocks.noDecisions": "Der Agent hat keine Optionen angeboten, die Operator anzeigen kann.",
 	"blocks.redacted": "Geheimnisse wurden aus dieser Ausgabe entfernt",
 	"blocks.retry": "Wiederholen",
-	"blocks.showBlocks": "Blöcke anzeigen",
-	"blocks.showRaw": "Roh-Terminal anzeigen",
 	"blocks.title.assistant": "Assistent",
 	"blocks.title.event": "Ereignis",
 	"blocks.title.permissionRequested": "Berechtigung angefragt",

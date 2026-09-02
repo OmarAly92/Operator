@@ -65,8 +65,6 @@
 	"blocks.noDecisions": "에이전트가 Operator가 표시할 수 있는 옵션을 제공하지 않았습니다.",
 	"blocks.redacted": "이 출력에서 비밀 정보가 제거되었습니다",
 	"blocks.retry": "다시 시도",
-	"blocks.showBlocks": "블록 표시",
-	"blocks.showRaw": "원시 터미널 표시",
 	"blocks.title.assistant": "어시스턴트",
 	"blocks.title.event": "이벤트",
 	"blocks.title.permissionRequested": "권한 요청",

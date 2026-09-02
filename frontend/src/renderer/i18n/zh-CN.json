@@ -65,8 +65,6 @@
 	"blocks.noDecisions": "该智能体未提供 Operator 可呈现的选项。",
 	"blocks.redacted": "此输出中的密钥已被隐藏",
 	"blocks.retry": "重试",
-	"blocks.showBlocks": "显示区块",
-	"blocks.showRaw": "显示原始终端",
 	"blocks.title.assistant": "助手",
 	"blocks.title.event": "事件",
 	"blocks.title.permissionRequested": "请求权限",

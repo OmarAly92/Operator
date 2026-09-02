@@ -66,8 +66,6 @@
 	"blocks.noDecisions": "L'agent n'a proposé aucune option qu'Operator puisse présenter.",
 	"blocks.redacted": "Des secrets ont été masqués dans cette sortie",
 	"blocks.retry": "Réessayer",
-	"blocks.showBlocks": "Afficher les blocs",
-	"blocks.showRaw": "Afficher le terminal brut",
 	"blocks.title.assistant": "Assistant",
 	"blocks.title.event": "Événement",
 	"blocks.title.permissionRequested": "Autorisation demandée",

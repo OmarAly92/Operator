@@ -19,7 +19,7 @@ import { isLinuxPlatform, isMacPlatform } from "../lib/platform";
 import { operatorBridge } from "../lib/bridge";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
-import { useUiStore, type SessionViewMode, type Theme } from "../stores/ui-store";
+import { useUiStore, type Theme } from "../stores/ui-store";
 import type { TerminalTarget } from "../types/terminal";
 import {
 	brokenMcpServers,
@@ -31,7 +31,7 @@ import {
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { ShellTerminalTab } from "./ShellTerminalTab";
-import { TerminalPane, useTerminalCacheController } from "./TerminalPane";
+import { TerminalPane } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 import { BlockComposer, type BlockComposerSend } from "./blocks/BlockComposer";
@@ -130,9 +130,6 @@ export function CenterPane({
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [terminalBounds, setTerminalBounds] = useState({ leftInset: 0, rightInset: 0, width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
-	const storedViewMode = useUiStore((state) => (session ? state.sessionViewModeBySession[session.id] : undefined));
-	const setSessionViewMode = useUiStore((state) => state.setSessionViewMode);
-	const cache = useTerminalCacheController();
 	const tabOverflowWatch = `${session?.id ?? ""}|${shellTerminals.map((terminal) => terminal.handleId).join("|")}`;
 	const tabsOverflow = useOverflowScroll<HTMLDivElement>(tabOverflowWatch);
 	const agentSwitchesQuery = useAgentSwitches(session?.id ?? "");
@@ -153,18 +150,6 @@ export function CenterPane({
 	);
 	const target = terminalTarget ?? { kind: "worker" };
 
-	const blocksEligible = target.kind === "worker" && session?.mode === "tui";
-	const viewMode: SessionViewMode = blocksEligible
-		? (storedViewMode ?? defaultSessionViewMode(session))
-		: "raw";
-	const showBlocks = viewMode === "blocks";
-
-	const toggleViewMode = useCallback(() => {
-		if (!session) return;
-		const next: SessionViewMode = viewMode === "blocks" ? "raw" : "blocks";
-		if (next === "blocks") cache?.releaseWorker(session.id);
-		setSessionViewMode(session.id, next);
-	}, [cache, session, setSessionViewMode, viewMode]);
 	const sessionTabLabel = session
 		? isOrchestratorSession(session)
 			? t("shell.orchestrator")
@@ -441,16 +426,6 @@ export function CenterPane({
 						className="ml-auto flex shrink-0 items-center px-3"
 						data-testid="session-action-region"
 					>
-						{blocksEligible ? (
-							<Button
-								aria-label={showBlocks ? t("blocks.showRaw") : t("blocks.showBlocks")}
-								onClick={toggleViewMode}
-								size="sm"
-								variant="ghost"
-							>
-								{showBlocks ? t("blocks.showRaw") : t("blocks.showBlocks")}
-							</Button>
-						) : null}
 						{topbarActions}
 					</div>
 				)}
@@ -475,19 +450,15 @@ export function CenterPane({
 					data-testid="terminal-interaction-surface"
 					inert={(isSwitchingAgent || switchNeedsRecovery) && !switchPermissionRequired ? true : undefined}
 				>
-					{showBlocks ? (
-						<SessionBlocksPane session={session} />
-					) : (
-						<TerminalPane
-							daemonReady={daemonReady}
-							fontSize={fontSize}
-							focusRequested={switchPermissionRequired && target.kind === "worker"}
-							inputDisabled={agentInputDisabled && target.kind === "worker"}
-							session={session}
-							terminalTarget={target}
-							theme={theme}
-						/>
-					)}
+					<TerminalPane
+						daemonReady={daemonReady}
+						fontSize={fontSize}
+						focusRequested={switchPermissionRequired && target.kind === "worker"}
+						inputDisabled={agentInputDisabled && target.kind === "worker"}
+						session={session}
+						terminalTarget={target}
+						theme={theme}
+					/>
 				</div>
 				{(isSwitchingAgent || switchNeedsRecovery) && switchSource && switchTarget ? (
 					<AgentSwitchTerminalOverlay
@@ -692,10 +663,6 @@ function TerminalControl({ children, disabled, isPressed, label, onClick }: Term
 			<TooltipContent>{label}</TooltipContent>
 		</Tooltip>
 	);
-}
-
-export function defaultSessionViewMode(_session: WorkspaceSession | undefined): SessionViewMode {
-	return "raw";
 }
 
 export function SessionBlocksPane({ session, headerActions }: { session: WorkspaceSession | undefined; headerActions?: ReactNode }) {

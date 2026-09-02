@@ -9,7 +9,7 @@ import type { SessionBlocksResult } from "../hooks/useSessionBlocks";
 import { installVirtualLayout } from "../test/virtual-layout";
 import type { ConversationSnapshot } from "../types/conversation";
 import type { WorkspaceSession } from "../types/workspace";
-import { defaultSessionViewMode, SessionBlocksPane } from "./CenterPane";
+import { SessionBlocksPane } from "./CenterPane";
 import { TooltipProvider } from "./ui/tooltip";
 
 type CommandsStub = ReturnType<typeof import("../hooks/useConversation").useConversationCommands>;
@@ -696,18 +696,3 @@ describe("CenterPane capability-gated action wiring", () => {
 	});
 });
 
-describe("defaultSessionViewMode", () => {
-	const tuiSession = (provider: string): WorkspaceSession =>
-		({ id: "s", provider, mode: "tui" }) as unknown as WorkspaceSession;
-
-	it("opens a tui session on the raw terminal", () => {
-		for (const provider of ["claude-code", "codex", "grok", "aider"]) {
-			expect(defaultSessionViewMode(tuiSession(provider))).toBe("raw");
-		}
-	});
-
-	it("still opens a non-tui session on the raw terminal", () => {
-		expect(defaultSessionViewMode({ id: "s", provider: "claude-code", mode: "chat" } as unknown as WorkspaceSession)).toBe("raw");
-		expect(defaultSessionViewMode(undefined)).toBe("raw");
-	});
-});
