@@ -299,3 +299,36 @@ describe("package stylesheet", () => {
 		expect(tag?.textContent).toBe(editorStyles);
 	});
 });
+
+describe("LineEditor composition target stability", () => {
+	it("never detaches the composition target across renders", () => {
+		const { container, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		expect(core.lineEditorState()).toBe("owned");
+		const input = container.querySelector("[data-terminal-input]");
+		expect(input).not.toBeNull();
+		const root = container.querySelector(".terminal-editor") as HTMLElement;
+		let removals = 0;
+		const observer = new MutationObserver((records) => {
+			for (const record of records) {
+				for (const node of record.removedNodes) {
+					if (node === input) removals += 1;
+				}
+			}
+		});
+		observer.observe(root, { childList: true, subtree: true });
+		for (const key of ["a", "b", "c", "d", "e"]) {
+			root.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+		}
+		const flush = () => observer.takeRecords();
+		for (const record of flush()) {
+			for (const node of record.removedNodes) {
+				if (node === input) removals += 1;
+			}
+		}
+		observer.disconnect();
+		expect(root.textContent).toContain("abcde");
+		expect(removals).toBe(0);
+		expect(root.contains(input)).toBe(true);
+	});
+});

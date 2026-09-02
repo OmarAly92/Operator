@@ -33,12 +33,16 @@ export const editorStyles = `.terminal-editor {
 	min-height: var(--terminal-line-height, 20px);
 }
 
+.terminal-editor-content {
+	display: contents;
+}
+
 .terminal-editor-caret {
 	color: var(--terminal-background);
 	background: var(--terminal-cursor);
 }
 
-.terminal-editor:not(:focus) .terminal-editor-caret {
+.terminal-editor:not(:focus-within) .terminal-editor-caret {
 	color: inherit;
 	background: transparent;
 	border-bottom: 1px solid var(--terminal-cursor);

@@ -40,6 +40,7 @@ export class LineEditor {
 	private core: TerminalCore | null = null;
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
+	private content: HTMLElement | null = null;
 	private composition: CompositionTarget | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private unsubscribeCompletions: (() => void) | null = null;
@@ -68,6 +69,10 @@ export class LineEditor {
 		root.addEventListener("paste", this.onPaste);
 		container.append(root);
 		this.root = root;
+		const content = document.createElement("div");
+		content.className = "terminal-editor-content";
+		root.append(content);
+		this.content = content;
 		this.composition = createCompositionTarget({
 			parent: root,
 			onCommit: (text) => this.commitComposedText(text),
@@ -133,6 +138,7 @@ export class LineEditor {
 		this.dropdownOpen = false;
 		this.composition?.dispose();
 		this.composition = null;
+		this.content = null;
 		if (this.root) {
 			this.root.removeEventListener("keydown", this.onKeyDown);
 			this.root.remove();
@@ -355,7 +361,8 @@ export class LineEditor {
 
 	private render(): void {
 		const root = this.root;
-		if (!root) return;
+		const content = this.content;
+		if (!root || !content) return;
 		const state = this.core?.lineEditorState() ?? "unknown";
 		root.dataset.ownership = state;
 		root.setAttribute("aria-readonly", String(state !== "owned"));
@@ -364,7 +371,7 @@ export class LineEditor {
 		// that does not track what the user is typing. The root stays in the DOM
 		// and focusable -- it is still what receives the keys.
 		if (state !== "owned") {
-			root.replaceChildren(...compositionNodes(this.composition));
+			content.replaceChildren();
 			return;
 		}
 		const cursor = this.buffer.cursor;
@@ -421,7 +428,7 @@ export class LineEditor {
 				this.strings,
 			),
 		);
-		root.replaceChildren(...nodes, ...compositionNodes(this.composition));
+		content.replaceChildren(...nodes);
 	}
 
 	private handleSearchKey(event: KeyboardEvent): boolean {
@@ -469,10 +476,6 @@ export class LineEditor {
 		this.promptExitCode = newest?.exitCode ?? null;
 		this.promptDurationMs = newest?.durationMs ?? null;
 	}
-}
-
-function compositionNodes(composition: CompositionTarget | null): HTMLElement[] {
-	return composition ? [composition.element] : [];
 }
 
 function appendRange(
