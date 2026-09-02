@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
+	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
 	type FontConfig,
@@ -12,7 +13,6 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
-import { createCompositionTarget } from "./composition-target.js";
 import { encodeMouseReport, type MouseReportKind } from "./mouse-report.js";
 
 export interface TerminalSurfaceProps {

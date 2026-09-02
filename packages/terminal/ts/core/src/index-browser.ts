@@ -35,6 +35,7 @@ export type {
 } from "./completions.js";
 
 export { defaultStrings, validateRowRange } from "./types.js";
+export { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
 export { FIND_STEP_BUDGET } from "./terminal-core.js";
 export { TerminalCore };

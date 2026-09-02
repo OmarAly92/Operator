@@ -1,6 +1,8 @@
 import {
+	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
+	type CompositionTarget,
 	type FontConfig,
 	type TerminalCore,
 	type TerminalStrings,
@@ -8,7 +10,6 @@ import {
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
-import { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { encodeKey } from "./encode-key.js";
