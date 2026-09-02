@@ -24,11 +24,11 @@ export function TitlebarNav({
 
 	if (!isMac && !isLinux) return null;
 
-	// macOS: pinned beside the traffic lights. Native dots sit at y: 12 with a
-	// 12px hit target (centerline 18); the 40px clearance band is items-centered,
-	// so top: -2px puts the toggle/arrows on that same centerline. Linux: no
-	// traffic lights, so it sits at the sidebar's top-left within the reserved
-	// titlebar band.
+	// macOS: pinned beside the traffic lights. Native dots sit at y: 14 with a
+	// 12px hit target, so their centerline is the 40px clearance band's own
+	// centre and the items-centered band needs no offset. Linux: no traffic
+	// lights, so it sits at the sidebar's top-left within the reserved titlebar
+	// band.
 	const leftClass = !isMac
 		? "left-0"
 		: isFullScreen
@@ -40,9 +40,7 @@ export function TitlebarNav({
 		? "top-0.75"
 		: isFullScreen && hasSessionTopbar && !isSidebarOpen
 			? "top-1.5"
-			: isFullScreen
-				? "top-0"
-				: "-top-0.6";
+			: "top-0";
 	const heightClass = isMac && isFullScreen ? "h-traffic-light-clearance-fullscreen" : "h-traffic-light-clearance";
 
 	return (

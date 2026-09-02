@@ -254,11 +254,13 @@ export function CenterPane({
 								<ChevronLeft aria-hidden="true" className="size-icon-md" />
 							</button>
 						) : null}
-						{/* The permanent agent tab plus shells opened in this session's worktree. */}
+						{/* The permanent agent tab plus shells opened in this session's worktree.
+						    It hugs its tabs rather than growing, so the + that follows sits against
+						    the last tab; it still shrinks and scrolls once the tabs outgrow the row. */}
 						<div
 							ref={tabsOverflow.ref}
 							aria-label={t("terminal.tabsAria")}
-							className="scrollbar-none flex min-w-flex-min flex-1 self-stretch items-center overflow-x-auto"
+							className="scrollbar-none flex min-w-flex-min shrink self-stretch items-center overflow-x-auto"
 							onKeyDown={handleTerminalTabListKeyDown}
 							role="tablist"
 						>
@@ -309,7 +311,7 @@ export function CenterPane({
 								<TooltipTrigger asChild>
 									<Button
 										aria-label={t("shortcut.new-shell-terminal")}
-										className="shrink-0 text-muted-foreground"
+										className="ml-2 shrink-0 text-muted-foreground"
 										disabled={!onNewShellTerminal}
 										onClick={onNewShellTerminal}
 										size="icon-sm"

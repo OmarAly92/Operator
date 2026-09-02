@@ -44,6 +44,6 @@ describe("TitlebarNav", () => {
 		const { container } = render(<TitlebarNav />);
 
 		const nav = container.querySelector('[data-slot="titlebar-nav"]');
-		expect(nav).toHaveClass("left-titlebar-cluster-left", "h-traffic-light-clearance", "-top-0.6");
+		expect(nav).toHaveClass("left-titlebar-cluster-left", "h-traffic-light-clearance", "top-0");
 	});
 });

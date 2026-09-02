@@ -48,12 +48,12 @@ const dragRegion = windowDragRegion();
 // Embedded mode contributes session actions to the terminal bar — and for
 // orchestrators, the clickable project name that replaces the old Kanban button.
 // Pixel equivalents of the CSS custom properties used for titlebar clearance.
-// --size-titlebar-cluster-left (72) + --size-titlebar-cluster-width (3×28+2×4=92)
-// + --size-titlebar-content-gap (12) = 176; minus --size-center-panel-inset-mac (6) = 170.
-// Fullscreen: --space-2 (8) + 92 + 12 = 112.
+// --size-titlebar-cluster-left (84) + --size-titlebar-cluster-width (28)
+// + --size-titlebar-content-gap (12) = 124; minus --size-center-panel-inset-mac (6) = 118.
+// Fullscreen: --space-2 (8) + 28 + 12 = 48.
 const PADDING_DEFAULT = 18; // 1.125rem
-const PADDING_CLEARANCE = 170;
-const PADDING_CLEARANCE_FULLSCREEN = 112;
+const PADDING_CLEARANCE = 118;
+const PADDING_CLEARANCE_FULLSCREEN = 48;
 
 export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const { t } = useTranslation();

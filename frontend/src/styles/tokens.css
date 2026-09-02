@@ -197,7 +197,9 @@
 	--size-sidebar-icon: 48px;
 	--size-sidebar-default: 240px;
 	--size-sidebar-mobile: 288px;
-	--size-titlebar-cluster-left: 72px;
+	/* The traffic-light row ends at 72px (20px inset + 3 dots on a 20px pitch);
+	 * the extra 12px keeps the sidebar toggle off the green dot. */
+	--size-titlebar-cluster-left: 84px;
 	/* Linux has no traffic lights: the cluster sits at the sidebar's own left
 	 * inset (TitlebarNav `left-1.5`). */
 	--size-titlebar-cluster-left-linux: 6px;
