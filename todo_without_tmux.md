@@ -176,9 +176,22 @@ deleted — see below.
   now implements it in `backend/internal/adapters/runtime/ptyhost/claim.go`,
   backed by the on-disk pty-host registry (which prunes dead PIDs), and the
   integration test was rewritten against it.
-- **`ptyexec` was kept.** The plan said to delete it if nothing else used it.
-  After the tmux adapter went, `internal/httpd/terminal_mux_test.go` still spawns
-  through `ptyexec.Spawn`, so it stays.
+- **`ptyexec` was kept, then deleted (2026-09-02).** The plan said to delete it
+  if nothing else used it. After the tmux adapter went its only caller was
+  `internal/httpd/terminal_mux_test.go`, so it stayed. It is now gone: that
+  test's one need — a real PTY behind a `ports.Stream` — moved to
+  `spawnTestPTY` in `internal/httpd/pty_spawn_test.go`, a `!windows` test-only
+  helper that cannot be reached from production code. `terminal_mux_test.go`
+  carries the same build tag instead of skipping on Windows at runtime, since
+  both of its tests already did. `creack/pty` and `go-pty` stay in `go.mod`:
+  `ptyhost` uses them (`host_pty_unix.go`, `host_conpty_windows.go`).
+
+  Dropped with the package, deliberately, because they described attach-client
+  semantics that no longer exist: the SIGWINCH re-assert after `Setsize` (for
+  an attach client that re-reads the tty and re-reports its grid) and the
+  Windows ConPTY spawner. The idempotent SIGTERM→SIGKILL `Close` was kept —
+  the run loop and `attachment.close` both call `Close` on the same stream, and
+  a second concurrent `cmd.Wait` blocks forever.
 
 ## 6. Capability queries have no answerer
 

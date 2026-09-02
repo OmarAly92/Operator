@@ -1,10 +1,11 @@
+//go:build !windows
+
 package httpd
 
 import (
 	"context"
 	"encoding/base64"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
-	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyexec"
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	"github.com/OmarAly92/operator/backend/internal/terminal"
@@ -21,7 +21,7 @@ import (
 
 // stubSource attaches a throwaway shell command instead of a real mux pane, so
 // the /mux path exercises the genuine upgrade + wsjson + Serve + creack/pty flow
-// without needing a runtime. The pane reports alive until the first attach
+// without needing a runtime (see spawnTestPTY). The pane reports alive until the first attach
 // happens (the mux refuses to attach to a dead pane), then dead, so the
 // command's exit is treated as the pane being gone (no re-attach).
 type stubSource struct {
@@ -31,7 +31,7 @@ type stubSource struct {
 
 func (s *stubSource) Attach(ctx context.Context, _ ports.RuntimeHandle, rows, cols uint16) (ports.Stream, error) {
 	s.attached.Store(true)
-	return ptyexec.Spawn(ctx, s.argv, nil, rows, cols)
+	return spawnTestPTY(ctx, s.argv, rows, cols)
 }
 
 func (s *stubSource) IsAlive(context.Context, ports.RuntimeHandle) (bool, error) {
@@ -78,9 +78,6 @@ func readFrame(t *testing.T, c *websocket.Conn, ch, typ string, d time.Duration)
 }
 
 func TestMuxUpgradeStreamsTerminal(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("PTY spawning not supported on Windows")
-	}
 	mgr := terminal.NewManager(
 		&stubSource{argv: []string{"/bin/sh", "-c", "printf MUXOK; exit 0"}},
 		nil, discardLogger(),
@@ -108,9 +105,6 @@ func TestMuxUpgradeStreamsTerminal(t *testing.T) {
 }
 
 func TestMuxSystemPingPong(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("PTY spawning not supported on Windows")
-	}
 	mgr := terminal.NewManager(&stubSource{argv: []string{"/bin/sh"}}, nil, discardLogger())
 	defer mgr.Close()
 

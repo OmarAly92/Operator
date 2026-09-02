@@ -1875,6 +1875,8 @@ than ported, while the session-id claim test was ported to the registry-backed p
 - Modify: `backend/internal/adapters/runtime/runtimeselect/runtimeselect.go`
 - Delete: `backend/internal/adapters/runtime/tmux/`
 - Delete: `backend/internal/adapters/runtime/ptyexec/` if nothing else uses it
+  (deferred at the time because `internal/httpd/terminal_mux_test.go` still
+  spawned through it; deleted 2026-09-02 — see `todo_without_tmux.md` §5)
 - Modify: `AGENTS.md`, `CLAUDE.md`, `docs/`, packaging scripts mentioning tmux
 
 - [x] **Step 1: Flip the default**
