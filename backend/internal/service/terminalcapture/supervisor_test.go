@@ -258,8 +258,8 @@ func writeJournalAt(t *testing.T, epochDir string, seal bool, payload []byte) {
 	}
 }
 
-func rec(handle, session string) shellterm.ShellTerminalRecord {
-	return shellterm.ShellTerminalRecord{HandleID: handle, SessionID: domain.SessionID(session)}
+func rec(handle string) shellterm.ShellTerminalRecord {
+	return shellterm.ShellTerminalRecord{HandleID: handle}
 }
 
 func readCursorOffset(t *testing.T, captureDir string) (int64, bool) {
@@ -296,7 +296,7 @@ func TestStartSurfacesCaptureFailureOnSupportedRuntime(t *testing.T) {
 	capturer.startErr = errors.New("pipe-pane: server not found")
 	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
-	err := sup.Start(context.Background(), rec("shellterm-h1", ""))
+	err := sup.Start(context.Background(), rec("shellterm-h1"))
 	if err == nil {
 		t.Fatal("Start: want an error when a supported runtime's StartCapture fails")
 	}
@@ -313,7 +313,7 @@ func TestStartReportsUnsupportedWithoutStartingAWorker(t *testing.T) {
 	capturer.unsupported = true
 	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
-	err := sup.Start(context.Background(), rec("shellterm-h1", ""))
+	err := sup.Start(context.Background(), rec("shellterm-h1"))
 	if !errors.Is(err, ports.ErrCaptureUnsupported) {
 		t.Fatalf("error = %v, want ErrCaptureUnsupported", err)
 	}
@@ -331,7 +331,7 @@ func TestStartIsIdempotentUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := sup.Start(context.Background(), rec("shellterm-h1", "")); err != nil {
+			if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 				t.Errorf("Start: %v", err)
 			}
 		}()
@@ -361,7 +361,7 @@ func TestAdoptResumesExistingEpochWhenPipeOpen(t *testing.T) {
 	captureDir := sup.captureDir("shellterm-h1")
 	mkEpochDir(t, filepath.Join(captureDir, testEpoch), false)
 
-	if err := sup.Adopt(context.Background(), []shellterm.ShellTerminalRecord{rec("shellterm-h1", "sess-1")}); err != nil {
+	if err := sup.Adopt(context.Background(), []shellterm.ShellTerminalRecord{rec("shellterm-h1")}); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 
@@ -387,7 +387,7 @@ func TestAdoptStartsFreshEpochWhenNoPipe(t *testing.T) {
 	capturer.state["shellterm-h1"] = ports.PaneCaptureState{PipeOpen: false}
 	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
-	if err := sup.Adopt(context.Background(), []shellterm.ShellTerminalRecord{rec("shellterm-h1", "sess-1")}); err != nil {
+	if err := sup.Adopt(context.Background(), []shellterm.ShellTerminalRecord{rec("shellterm-h1")}); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 	capturer.mu.Lock()
@@ -416,7 +416,7 @@ func TestStopAndDrainStopsWriterBeforeDraining(t *testing.T) {
 		}
 	}
 
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	select {
@@ -457,7 +457,7 @@ func TestDrainAndDetachDrainsButLeavesPipesRunning(t *testing.T) {
 	sup := newSupervisor(t, capturer, store, time.Hour)
 
 	for _, h := range []string{"shellterm-a", "shellterm-b"} {
-		if err := sup.Start(context.Background(), rec(h, "sess-1")); err != nil {
+		if err := sup.Start(context.Background(), rec(h)); err != nil {
 			t.Fatalf("Start %s: %v", h, err)
 		}
 		writeJournalAt(t, filepath.Join(sup.captureDir(h), testEpoch), true, []byte(block("cmd", "out", 0)))
@@ -488,7 +488,7 @@ func TestDrainAndDetachJoinsWorkerErrorsAndIsBounded(t *testing.T) {
 	sup.newEpoch = func() string { return testEpoch }
 	sup.pollInterval = time.Hour
 
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	writeJournalAt(t, filepath.Join(sup.captureDir("shellterm-h1"), testEpoch), true, []byte(block("cmd", "out", 0)))
@@ -511,7 +511,7 @@ func TestSupervisorWorkerLiveTailsUnsealedJournal(t *testing.T) {
 	store := newFakeBlockStore(nil)
 	sup := newSupervisor(t, capturer, store, 5*time.Millisecond)
 
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	epochDir := filepath.Join(sup.captureDir("shellterm-h1"), testEpoch)
@@ -553,7 +553,7 @@ func TestStopAndDrainMidDrainRecordFailure(t *testing.T) {
 	store.recordErrN = 2
 	sup := newSupervisor(t, capturer, store, time.Hour)
 
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	captureDir := sup.captureDir("shellterm-h1")
@@ -581,7 +581,7 @@ func TestCapturingReflectsWorkerMembership(t *testing.T) {
 	if sup.Capturing("shellterm-h1") {
 		t.Fatal("Capturing = true before any Start")
 	}
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if !sup.Capturing("shellterm-h1") {
@@ -605,7 +605,7 @@ func TestDrainAndDetachIsIdempotentAndPrompt(t *testing.T) {
 	capturer := newFakeCapturer(nil)
 	sup := newSupervisor(t, capturer, newFakeBlockStore(nil), time.Hour)
 
-	if err := sup.Start(context.Background(), rec("shellterm-h1", "sess-1")); err != nil {
+	if err := sup.Start(context.Background(), rec("shellterm-h1")); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	writeJournalAt(t, filepath.Join(sup.captureDir("shellterm-h1"), testEpoch), true, []byte(block("cmd", "out", 0)))

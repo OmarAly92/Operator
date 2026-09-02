@@ -2346,8 +2346,6 @@ export interface components {
         OpenShellTerminalRequest: {
             /** @description Project whose root the shell starts in. Omitted opens the shell in the daemon data dir. */
             projectId?: string;
-            /** @description Agent session the shell is scoped to, so it appears only in that session's tab strip. Omitted makes it a standalone shell. */
-            sessionId?: string;
         };
         OrchestratorResponse: {
             id: string;
@@ -2819,7 +2817,6 @@ export interface components {
             durableBlocks: boolean;
             handleId: string;
             projectId?: string;
-            sessionId?: string;
             title: string;
             workingDir: string;
         };

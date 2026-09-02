@@ -13,7 +13,6 @@ import (
 type ShellTerminalRecord struct {
 	HandleID   string
 	ProjectID  domain.ProjectID
-	SessionID  domain.SessionID
 	WorkingDir string
 	Title      string
 	AppRunID   string
@@ -28,7 +27,6 @@ type Store interface {
 	UpdateShellTerminalTitle(ctx context.Context, handleID, title string) (ShellTerminalRecord, bool, error)
 	SelectShellTerminalByHandleID(ctx context.Context, handleID string) (ShellTerminalRecord, bool, error)
 	SelectShellTerminalsByAppRunID(ctx context.Context, appRunID string) ([]ShellTerminalRecord, error)
-	SelectShellTerminalsBySessionID(ctx context.Context, sessionID domain.SessionID) ([]ShellTerminalRecord, error)
 	SelectShellTerminalsFromPreviousAppRuns(ctx context.Context, appRunID string) ([]ShellTerminalRecord, error)
 	DeleteShellTerminalByHandleID(ctx context.Context, handleID string) (bool, error)
 	DeleteShellTerminalsFromPreviousAppRuns(ctx context.Context, appRunID string) (int64, error)

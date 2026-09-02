@@ -468,7 +468,6 @@ type ShellTerminal struct {
 	Title      string
 	AppRunID   string
 	CreatedAt  time.Time
-	SessionID  sql.NullString
 }
 
 type TelemetryEvent struct {

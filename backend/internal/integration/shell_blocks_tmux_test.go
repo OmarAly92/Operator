@@ -123,7 +123,7 @@ func newShellBlocksHarness(t *testing.T, appRunID string) *shellBlocksHarness {
 	publisher := &shellBlockPublisher{}
 	supervisor := capturesvc.NewSupervisor(runtime, blocks, dataDir, 10*time.Second, shellBlocksLogger())
 	supervisor.SetBlockPublisher(publisher)
-	shells := shellterm.NewService(runtime, store, nil, nil, supervisor, dataDir, appRunID, shellBlocksLogger())
+	shells := shellterm.NewService(runtime, store, nil, supervisor, dataDir, appRunID, shellBlocksLogger())
 	h := &shellBlocksHarness{
 		dataDir:    dataDir,
 		appRunID:   appRunID,
@@ -201,7 +201,7 @@ func (h *shellBlocksHarness) replaceSupervisor(t *testing.T, adopt bool) {
 	t.Helper()
 	supervisor := capturesvc.NewSupervisor(h.runtime, h.blocks, h.dataDir, 10*time.Second, shellBlocksLogger())
 	supervisor.SetBlockPublisher(h.publisher)
-	shells := shellterm.NewService(h.runtime, h.store, nil, nil, supervisor, h.dataDir, h.appRunID, shellBlocksLogger())
+	shells := shellterm.NewService(h.runtime, h.store, nil, supervisor, h.dataDir, h.appRunID, shellBlocksLogger())
 	if adopt {
 		records, err := shells.LiveShellTerminalRecordsForCurrentAppRun(context.Background())
 		if err != nil {

@@ -20,7 +20,6 @@ func (s *Store) InsertShellTerminal(ctx context.Context, rec shelltermsvc.ShellT
 	_, err := s.qw.InsertShellTerminal(ctx, gen.InsertShellTerminalParams{
 		HandleID:   rec.HandleID,
 		ProjectID:  optionalProjectID(rec.ProjectID),
-		SessionID:  optionalSessionID(rec.SessionID),
 		WorkingDir: rec.WorkingDir,
 		Title:      rec.Title,
 		AppRunID:   rec.AppRunID,
@@ -34,8 +33,6 @@ func (s *Store) InsertShellTerminal(ctx context.Context, rec shelltermsvc.ShellT
 
 // SelectShellTerminalByHandleID looks up one shell terminal's row, reporting
 // whether it existed so the caller can answer 404 for an unknown handle.
-// CloseShellTerminal uses this to learn the row's session id BEFORE
-// destroying it, so it can take that session's teardown gate first.
 func (s *Store) SelectShellTerminalByHandleID(ctx context.Context, handleID string) (shelltermsvc.ShellTerminalRecord, bool, error) {
 	row, err := s.qr.SelectShellTerminalByHandleID(ctx, handleID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -53,17 +50,6 @@ func (s *Store) SelectShellTerminalsByAppRunID(ctx context.Context, appRunID str
 	rows, err := s.qr.SelectShellTerminalsByAppRunID(ctx, appRunID)
 	if err != nil {
 		return nil, fmt.Errorf("select shell terminals for app run %s: %w", appRunID, err)
-	}
-	return shellTerminalsFromGen(rows), nil
-}
-
-// SelectShellTerminalsBySessionID returns the shell terminals scoped to one
-// session, oldest first. Session Manager uses this to close them before the
-// session's worktree is torn down.
-func (s *Store) SelectShellTerminalsBySessionID(ctx context.Context, sessionID domain.SessionID) ([]shelltermsvc.ShellTerminalRecord, error) {
-	rows, err := s.qr.SelectShellTerminalsBySessionID(ctx, optionalSessionID(sessionID))
-	if err != nil {
-		return nil, fmt.Errorf("select shell terminals for session %s: %w", sessionID, err)
 	}
 	return shellTerminalsFromGen(rows), nil
 }
@@ -128,16 +114,6 @@ func optionalProjectID(id domain.ProjectID) *domain.ProjectID {
 	return &id
 }
 
-// optionalSessionID maps the service's "no session" empty string onto the
-// nullable column, so a session-less shell stores NULL rather than an empty
-// string that would violate the sessions FK.
-func optionalSessionID(id domain.SessionID) sql.NullString {
-	if id == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: string(id), Valid: true}
-}
-
 func shellTerminalFromGen(row gen.ShellTerminal) shelltermsvc.ShellTerminalRecord {
 	rec := shelltermsvc.ShellTerminalRecord{
 		HandleID:   row.HandleID,
@@ -148,9 +124,6 @@ func shellTerminalFromGen(row gen.ShellTerminal) shelltermsvc.ShellTerminalRecor
 	}
 	if row.ProjectID != nil {
 		rec.ProjectID = *row.ProjectID
-	}
-	if row.SessionID.Valid {
-		rec.SessionID = domain.SessionID(row.SessionID.String)
 	}
 	return rec
 }

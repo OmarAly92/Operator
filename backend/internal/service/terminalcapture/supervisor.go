@@ -246,7 +246,6 @@ func (s *Supervisor) DrainAndDetach(ctx context.Context) error {
 func (s *Supervisor) spawnWorker(parent context.Context, rec shellterm.ShellTerminalRecord, captureDir, epoch string, alternateOn bool) {
 	w := terminal.NewCaptureWorker(terminal.CaptureWorkerConfig{
 		TerminalID:   rec.HandleID,
-		SessionID:    string(rec.SessionID),
 		CaptureDir:   captureDir,
 		Epoch:        epoch,
 		AlternateOn:  alternateOn,

@@ -124,11 +124,6 @@ type sessionLifecycle interface {
 	RestoreAll(ctx context.Context) error
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
-	// SetShellTerminalCloser late-binds Kill/Cleanup to close a session's
-	// scoped shell terminals before its worktree is torn down. shellterm.Service
-	// is built after Session Manager during boot (see startShellTerminals), so
-	// this cannot be a constructor argument.
-	SetShellTerminalCloser(closer sessionmanager.ShellTerminalCloser)
 	// AcquireSessionInput holds direct terminal writes across the actual pane
 	// write while ownership may move between provider processes.
 	AcquireSessionInput(id domain.SessionID) (release func(), ok bool)
