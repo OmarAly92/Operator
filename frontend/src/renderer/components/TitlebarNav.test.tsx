@@ -3,20 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "../stores/ui-store";
 import { TitlebarNav } from "./TitlebarNav";
 
-const { history } = vi.hoisted(() => ({
-	history: {
-		back: vi.fn(),
-		forward: vi.fn(),
-		location: { state: { __TSR_index: 0 } },
-		subscribe: vi.fn(() => () => undefined),
-	},
-}));
-
-vi.mock("@tanstack/react-router", () => ({
-	useCanGoBack: () => false,
-	useRouter: () => ({ history }),
-}));
-
 vi.mock("../lib/platform", () => ({
 	isLinuxPlatform: () => false,
 	isMacPlatform: () => true,
@@ -33,7 +19,8 @@ describe("TitlebarNav", () => {
 		const nav = container.querySelector('[data-slot="titlebar-nav"]');
 		expect(nav).toHaveClass("left-titlebar-cluster-left-fullscreen", "h-traffic-light-clearance-fullscreen", "top-0");
 		expect(nav).not.toHaveClass("h-traffic-light-clearance");
-		expect(screen.getByRole("button", { name: "Go back" })).toHaveClass("disabled:opacity-55");
+		// The history arrows are gone; the sidebar toggle is the whole cluster.
+		expect(screen.queryByRole("button", { name: /^Go (back|forward)$/ })).not.toBeInTheDocument();
 	});
 
 	it("centers collapsed fullscreen navigation on the inset session topbar", () => {

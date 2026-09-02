@@ -1,6 +1,4 @@
-import { useCanGoBack, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, PanelLeft } from "lucide-react";
-import { useEffect, useState } from "react";
+import { PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isLinuxPlatform, isMacPlatform } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
@@ -9,49 +7,21 @@ const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
 const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined;
 
-// Sidebar chrome cluster (sidebar toggle + history arrows). It stays fixed while
-// the sidebar expands, collapses, or appears as a hover preview. macOS pins it
-// beside the traffic lights; Linux has no traffic lights, so it sits at the
-// sidebar's top-left. (Windows keeps these controls in its own titlebar.)
-// The installed router has no useCanGoForward, and deriving one as
-// `__TSR_index < history.length - 1` (the upstream hook's approach) is wrong
-// here: window.history.length also counts entries the router never created —
-// the WebContents' initial blank entry, pre-router loads — so the tip of the
-// stack still reads as "forward available" and the arrow no-ops. Instead,
-// track the highest router index reachable on the live stack: a PUSH discards
-// the forward entries (the new index is the tip); BACK/FORWARD/GO only move
-// within it. After a mid-stack reload the tip resets to the current entry —
-// forward greys out rather than dangle on entries we can no longer see.
-function useCanGoForward(): boolean {
-	const router = useRouter();
-	const [canGoForward, setCanGoForward] = useState(false);
-	useEffect(() => {
-		let tip = router.history.location.state.__TSR_index;
-		return router.history.subscribe(({ location, action }) => {
-			const index = location.state.__TSR_index;
-			tip = action.type === "PUSH" ? index : Math.max(tip, index);
-			setCanGoForward(index < tip);
-		});
-	}, [router]);
-	return canGoForward;
-}
-
+// Sidebar chrome cluster. It stays fixed while the sidebar expands, collapses,
+// or appears as a hover preview. macOS pins it beside the traffic lights; Linux
+// has no traffic lights, so it sits at the sidebar's top-left. (Windows keeps
+// this control in its own titlebar.)
 export function TitlebarNav({
-	historyLocked = false,
 	hasSessionTopbar = false,
 	isFullScreen = false,
 	onSidebarPreviewEnter,
 }: {
-	historyLocked?: boolean;
 	hasSessionTopbar?: boolean;
 	isFullScreen?: boolean;
 	onSidebarPreviewEnter?: React.PointerEventHandler<HTMLButtonElement>;
 }) {
 	const { t } = useTranslation();
 	const { isSidebarOpen, toggleSidebar } = useUiStore();
-	const router = useRouter();
-	const canGoBack = useCanGoBack();
-	const canGoForward = useCanGoForward();
 
 	if (!isMac && !isLinux) return null;
 
@@ -89,22 +59,6 @@ export function TitlebarNav({
 				title={isSidebarOpen ? t("titlebar.collapseSidebarShortcut") : t("titlebar.expandSidebarShortcut")}
 			>
 				<PanelLeft className="size-icon-lg" aria-hidden="true" />
-			</TitlebarButton>
-			<TitlebarButton
-				disabled={historyLocked || !canGoBack}
-				label={t("titlebar.goBack")}
-				onClick={() => router.history.back()}
-				title={t("titlebar.goBack")}
-			>
-				<ArrowLeft className="size-icon-lg" aria-hidden="true" />
-			</TitlebarButton>
-			<TitlebarButton
-				disabled={historyLocked || !canGoForward}
-				label={t("titlebar.goForward")}
-				onClick={() => router.history.forward()}
-				title={t("titlebar.goForward")}
-			>
-				<ArrowRight className="size-icon-lg" aria-hidden="true" />
 			</TitlebarButton>
 		</div>
 	);

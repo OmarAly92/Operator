@@ -1,5 +1,5 @@
-import { ArrowRight, ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, Plus, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type WheelEvent } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight, Plus, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { defaultShortcutBindings, shortcutBindingLabel } from "../../shared/shortcuts";
@@ -88,22 +88,16 @@ type CenterPaneProps = {
 };
 
 const terminalFontSizeStorageKey = "opr.terminal.fontSize";
-const WHEEL_ZOOM_THRESHOLD = 80;
-const WHEEL_ZOOM_RESET_MS = 250;
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
 const newTerminalShortcutLabel = shortcutBindingLabel(defaultShortcutBindings("new-shell-terminal", isMac)[0], isMac);
-
-function clampTerminalFontSize(size: number): number {
-	return Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
-}
 
 function initialTerminalFontSize(): number {
 	if (typeof window === "undefined") return TERMINAL_FONT_SIZE_DEFAULT;
 	const raw = window.localStorage?.getItem(terminalFontSizeStorageKey);
 	const parsed = raw === null ? Number.NaN : Number(raw);
 	if (!Number.isFinite(parsed)) return TERMINAL_FONT_SIZE_DEFAULT;
-	return clampTerminalFontSize(parsed);
+	return Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, parsed));
 }
 
 export function CenterPane({
@@ -124,10 +118,7 @@ export function CenterPane({
 }: CenterPaneProps) {
 	const { t } = useTranslation();
 	const paneRef = useRef<HTMLDivElement | null>(null);
-	const wheelZoomRemainderRef = useRef(0);
-	const lastWheelZoomAtRef = useRef(0);
-	const [fontSize, setFontSize] = useState(initialTerminalFontSize);
-	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [fontSize] = useState(initialTerminalFontSize);
 	const [terminalBounds, setTerminalBounds] = useState({ leftInset: 0, rightInset: 0, width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const tabOverflowWatch = `${session?.id ?? ""}|${shellTerminals.map((terminal) => terminal.handleId).join("|")}`;
@@ -185,12 +176,6 @@ export function CenterPane({
 		return () => window.clearInterval(timer);
 	}, [activeAgentSwitch, agentSwitchesQuery.refetch, recoveryAgentSwitch, switchMutation.isPending]);
 
-	useEffect(() => {
-		const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === paneRef.current);
-		document.addEventListener("fullscreenchange", handleFullscreenChange);
-		return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-	}, []);
-
 	useEffect(
 		() =>
 			operatorBridge.app.onCloseShellTerminalShortcut(() => {
@@ -242,50 +227,6 @@ export function CenterPane({
 		return () => observer.disconnect();
 	}, []);
 
-	const updateFontSize = useCallback((delta: number) => {
-		setFontSize((current) => {
-			const next = clampTerminalFontSize(current + delta);
-			window.localStorage?.setItem(terminalFontSizeStorageKey, String(next));
-			return next;
-		});
-	}, []);
-
-	const toggleFullscreen = useCallback(async () => {
-		const pane = paneRef.current;
-		if (!pane) return;
-		try {
-			if (document.fullscreenElement === pane) {
-				await document.exitFullscreen();
-				return;
-			}
-			await pane.requestFullscreen();
-		} catch (error) {
-			console.warn("Unable to toggle terminal fullscreen", error);
-		}
-	}, []);
-
-	const handleWheelZoom = useCallback(
-		(event: WheelEvent<HTMLDivElement>) => {
-			if (!event.ctrlKey && !event.metaKey) return;
-			event.preventDefault();
-			event.stopPropagation();
-
-			if (event.timeStamp - lastWheelZoomAtRef.current > WHEEL_ZOOM_RESET_MS) {
-				wheelZoomRemainderRef.current = 0;
-			}
-			lastWheelZoomAtRef.current = event.timeStamp;
-			wheelZoomRemainderRef.current += event.deltaY;
-
-			const steps = Math.floor(Math.abs(wheelZoomRemainderRef.current) / WHEEL_ZOOM_THRESHOLD);
-			if (steps === 0) return;
-
-			const direction = wheelZoomRemainderRef.current > 0 ? -1 : 1;
-			updateFontSize(direction * steps);
-			wheelZoomRemainderRef.current -= Math.sign(wheelZoomRemainderRef.current) * steps * WHEEL_ZOOM_THRESHOLD;
-		},
-		[updateFontSize],
-	);
-
 	const terminalTopbar = (
 		<div className="flex h-inspector-tabs w-full shrink-0 items-stretch bg-sidebar">
 
@@ -293,8 +234,8 @@ export function CenterPane({
 				<div
 					className={cn(
 						"flex min-w-0 shrink items-center pr-1.5",
-						!isFullscreen && !isSidebarOpen && isMac && "session-topbar-titlebar-clearance-mac",
-						!isFullscreen && !isSidebarOpen && isLinux && "session-topbar-titlebar-clearance-linux",
+						!isSidebarOpen && isMac && "session-topbar-titlebar-clearance-mac",
+						!isSidebarOpen && isLinux && "session-topbar-titlebar-clearance-linux",
 					)}
 					data-testid="session-terminal-region"
 					style={{
@@ -382,53 +323,10 @@ export function CenterPane({
 							</Tooltip>
 						) : null}
 					</div>
-					<div
-						aria-label={t("terminal.controlsAria")}
-						className="ml-1.5 flex shrink-0 items-center gap-0.5 border-l border-border/70 pl-1.5"
-						role="toolbar"
-					>
-						<TerminalControl
-							disabled={fontSize <= TERMINAL_FONT_SIZE_MIN}
-							label={t("terminal.decreaseFontSize")}
-							onClick={() => updateFontSize(-1)}
-						>
-							<Minus aria-hidden="true" className="size-icon-sm" />
-						</TerminalControl>
-						<span
-							aria-label={t("terminal.fontSizeAria", { size: fontSize })}
-							className="w-font-size-label text-center font-mono text-micro tabular-nums text-muted-foreground"
-						>
-							{fontSize}px
-						</span>
-						<TerminalControl
-							disabled={fontSize >= TERMINAL_FONT_SIZE_MAX}
-							label={t("terminal.increaseFontSize")}
-							onClick={() => updateFontSize(1)}
-						>
-							<Plus aria-hidden="true" className="size-icon-sm" />
-						</TerminalControl>
-						<div aria-hidden="true" className="mx-1 h-4 w-px bg-border/70" />
-						<TerminalControl
-							isPressed={isFullscreen}
-							label={isFullscreen ? t("terminal.exitFullscreen") : t("terminal.fullscreen")}
-							onClick={() => void toggleFullscreen()}
-						>
-							{isFullscreen ? (
-								<Minimize2 aria-hidden="true" className="size-icon-md" />
-							) : (
-								<Maximize2 aria-hidden="true" className="size-icon-md" />
-							)}
-						</TerminalControl>
-					</div>
 				</div>
-				{isFullscreen ? null : (
-					<div
-						className="ml-auto flex shrink-0 items-center px-3"
-						data-testid="session-action-region"
-					>
-						{topbarActions}
-					</div>
-				)}
+				<div className="ml-auto flex shrink-0 items-center px-3" data-testid="session-action-region">
+					{topbarActions}
+				</div>
 			</div>
 		</div>
 	);
@@ -437,9 +335,8 @@ export function CenterPane({
 		<div
 			ref={paneRef}
 			className="terminal-pane-frame flex h-full min-h-0 min-w-flex-min flex-col"
-			onWheelCapture={handleWheelZoom}
 		>
-			{isFullscreen ? terminalTopbar : <SessionTopbarPortal>{terminalTopbar}</SessionTopbarPortal>}
+			<SessionTopbarPortal>{terminalTopbar}</SessionTopbarPortal>
 			<div
 				aria-label={t("terminal.panelAria", { title: activeTerminalLabel })}
 				className="relative min-h-0 flex-1"
@@ -632,36 +529,6 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 			</button>
 			{session ? <TerminalSwitchAgentButton key={session.id} session={session} /> : null}
 		</span>
-	);
-}
-
-type TerminalControlProps = {
-	children: ReactNode;
-	disabled?: boolean;
-	isPressed?: boolean;
-	label: string;
-	onClick: () => void;
-};
-
-function TerminalControl({ children, disabled, isPressed, label, onClick }: TerminalControlProps) {
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					aria-label={label}
-					aria-pressed={isPressed}
-					className="size-control-sm p-0 text-passive"
-					disabled={disabled}
-					onClick={onClick}
-					size="icon-sm"
-					type="button"
-					variant="ghost"
-				>
-					{children}
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
 	);
 }
 

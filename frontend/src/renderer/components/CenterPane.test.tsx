@@ -446,7 +446,6 @@ describe("CenterPane toolbar session label", () => {
 		expect(workspaceTopbar).toContainElement(terminalRegion);
 		expect(terminalRegion).toContainElement(screen.getByRole("tablist", { name: "Open terminals" }));
 		expect(terminalRegion).toContainElement(screen.getByRole("button", { name: "New terminal" }));
-		expect(terminalRegion).toContainElement(screen.getByRole("toolbar", { name: "Terminal display controls" }));
 		expect(terminalRegion).not.toContainElement(screen.getByTestId("session-action-region"));
 		const actionRegion = screen.getByTestId("session-action-region");
 		expect(actionRegion).not.toHaveClass("border-l");
@@ -455,19 +454,15 @@ describe("CenterPane toolbar session label", () => {
 		);
 	});
 
-	it("hides session-level actions while the terminal is fullscreen", () => {
-		const view = renderCenterPane({
-			session: worker,
-			topbarActions: <button type="button">Session action</button>,
-		});
-		const pane = view.container.querySelector(".terminal-pane-frame");
+	// The font-size stepper and the fullscreen button are gone; the topbar is the
+	// tab strip and the session actions.
+	it("offers no font-size or fullscreen controls", () => {
+		renderCenterPane({ session: worker, topbarActions: <button type="button">Session action</button> });
 
-		Object.defineProperty(document, "fullscreenElement", { configurable: true, value: pane });
-		act(() => document.dispatchEvent(new Event("fullscreenchange")));
-
-		expect(screen.queryByTestId("session-action-region")).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Exit fullscreen" })).toBeInTheDocument();
-		Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+		expect(screen.queryByRole("toolbar", { name: /display controls/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /font size/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /fullscreen/i })).not.toBeInTheDocument();
+		expect(screen.getByTestId("session-action-region")).toBeInTheDocument();
 	});
 
 	it("does not reserve tab-strip space for unavailable overflow controls", () => {
@@ -496,14 +491,6 @@ describe("CenterPane toolbar session label", () => {
 		// jsdom reports no overflow, so no unavailable control reserves header space.
 		expect(screen.queryByRole("button", { name: "Scroll tabs right" })).not.toBeInTheDocument();
 
-		// The display controls now complete the top bar, but stay outside the
-		// flexible scroll region so a long tab list cannot overlap them.
-		const tabList = screen.getByRole("tablist", { name: "Open terminals" });
-		const toolbar = screen.getByRole("toolbar", {
-			name: "Terminal display controls",
-		});
-		expect(tabList.contains(toolbar)).toBe(false);
-		expect(toolbar).toContainElement(screen.getByRole("button", { name: "Fullscreen terminal" }));
 	});
 
 	it("reveals scroll chevrons only when the tab strip actually overflows", () => {
