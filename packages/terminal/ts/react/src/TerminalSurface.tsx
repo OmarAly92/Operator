@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { LineEditor, mapKey, passthroughFor } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
@@ -264,10 +264,31 @@ export function TerminalSurface({
 		return () => document.removeEventListener("keydown", onKeyDown);
 	}, []);
 
+	// Clicking the transcript belongs to the editor, the way clicking anywhere in
+	// a terminal keeps you typing at the prompt. Without this the click lands on
+	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
+	// not mousedown, so a drag-select is left alone.
+	const focusEditorFromHost = useCallback(() => {
+		if (altActive) return;
+		const selection = document.getSelection();
+		if (selection && !selection.isCollapsed) return;
+		editorRef.current?.focus();
+	}, [altActive]);
+
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
 		<div className="terminal-surface">
-			<div ref={hostRef} className={hostClassName} tabIndex={0} />
+			{/* tabindex only while the alt-screen handler below is bound. In the
+			    normal buffer the editor is the input surface, and a focusable host
+			    steals the click: nothing handles keys there, so typing is dropped,
+			    arrows scroll the list, and the first keypress paints a focus ring
+			    around the whole terminal. */}
+			<div
+				ref={hostRef}
+				className={hostClassName}
+				onClick={focusEditorFromHost}
+				tabIndex={altActive ? 0 : undefined}
+			/>
 			<div ref={editorHostRef} className="terminal-editor-host" hidden={altActive} />
 		</div>
 	);

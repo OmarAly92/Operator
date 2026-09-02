@@ -228,6 +228,56 @@ describe("TerminalSurface", () => {
 		expect(editor).not.toBeVisible();
 	});
 
+	it("leaves the block list unfocusable in the normal buffer, and focusable only in the alt screen", () => {
+		// The host carries tabindex only when its alt-screen keydown handler is
+		// bound. With tabindex in the normal buffer a click lands focus on the
+		// block list instead of the editor, where nothing handles keys: typing
+		// does nothing, arrows scroll the list, and the first keypress paints a
+		// focus ring around the whole terminal.
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={ignoreSend} onSendRaw={ignoreRaw} />,
+		);
+		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+		expect(host.hasAttribute("tabindex")).toBe(false);
+
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		expect(host.getAttribute("tabindex")).toBe("0");
+	});
+
+	it("puts focus in the editor when the block list is clicked", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={ignoreSend} onSendRaw={ignoreRaw} />,
+		);
+		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
+		expect(document.activeElement).not.toBe(editor);
+
+		fireEvent.click(host);
+		expect(document.activeElement).toBe(editor);
+	});
+
+	it("does not steal focus into the editor while text is selected in the block list", () => {
+		const core = createTerminalCore({ columns: 16, scrollback: 100 });
+		feed(core, "selectable output");
+		const { container } = render(
+			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={ignoreSend} onSendRaw={ignoreRaw} />,
+		);
+		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
+		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
+		const selection = document.getSelection()!;
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNodeContents(host);
+		selection.addRange(range);
+
+		fireEvent.click(host);
+		expect(document.activeElement).not.toBe(editor);
+	});
+
 	it("sends bare submitted text through onSend", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "\x1b]7000;v=1;input-ready=1\x07");

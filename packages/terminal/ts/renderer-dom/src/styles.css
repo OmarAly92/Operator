@@ -44,6 +44,16 @@
 	width: 100%;
 }
 
+/* The host carries tabindex=0 only while the alt-screen key handler is bound.
+   That focus is an implementation detail of input routing, not a control the
+   user is tabbing through, so it must not paint the UA focus ring around the
+   whole terminal body -- it reads as "the terminal is selected". xterm.js
+   resets its own .xterm:focus outline for the same reason. */
+.terminal-host:focus,
+.terminal-host:focus-visible {
+	outline: none;
+}
+
 .terminal-alt-slot {
 	height: 100%;
 	width: 100%;
