@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
-import { LineEditor, mapKey, passthroughFor } from "@operator/terminal-editor";
+import { encodeKey, LineEditor } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
 	decodeBlocks,
@@ -191,12 +191,12 @@ export function TerminalSurface({
 		let lastWheelAt = 0;
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		const onKeyDown = (event: KeyboardEvent) => {
-			const command = mapKey(event);
-			if (!command) {
+			const data = encodeKey(event, appCursor());
+			if (data === null) {
 				return;
 			}
 			event.preventDefault();
-			onSendRaw(passthroughFor(command, appCursor()));
+			onSendRaw(data);
 		};
 		const sampleVelocity = (deltaY: number): number => {
 			const now = performance.now();

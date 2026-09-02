@@ -1,4 +1,5 @@
-export { DomBlockRenderer, warpDarkTheme } from "./dom-block-renderer.js";
+export { DomBlockRenderer } from "./dom-block-renderer.js";
+export { warpDarkTheme } from "./theme-warp.js";
 export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-actions.js";
 export { selectionToBlockRange, type BlockRange } from "./selection.js";
 export { styleCodeToCssVar } from "./style-code.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { warpDarkTheme } from "./dom-block-renderer";
+import { warpDarkTheme } from "./theme-warp";
 
 // Values taken from Warp itself, warp/app/src/themes/default_themes.rs.
 describe("warpDarkTheme", () => {

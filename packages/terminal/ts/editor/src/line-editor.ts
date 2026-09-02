@@ -10,6 +10,7 @@ import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
+import { encodeKey } from "./encode-key.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
@@ -133,6 +134,7 @@ export class LineEditor {
 	handleKey(event: KeyboardEvent): void {
 		if (this.handleSearchKey(event)) return;
 		if (this.dropdown.isOpen() && this.handleDropdownKey(event)) return;
+		if (this.passthrough(event) !== null) return;
 		const command = mapKey(event);
 		if (command) this.apply(command);
 	}
@@ -146,11 +148,28 @@ export class LineEditor {
 			event.preventDefault();
 			return;
 		}
+		const sent = this.passthrough(event);
+		if (sent !== null) {
+			if (sent) event.preventDefault();
+			return;
+		}
 		const command = mapKey(event);
 		if (!command) return;
 		event.preventDefault();
 		this.apply(command);
 	};
+
+	// Returns null when the editor owns the line and should edit locally, and
+	// otherwise the bytes handed to the child (empty when the key encodes to
+	// nothing, which still counts as handled).
+	private passthrough(event: KeyboardEvent): string | null {
+		const core = this.core;
+		if (!core || core.lineEditorState() === "owned") return null;
+		const data = encodeKey(event, core.snapshot().applicationCursorKeys);
+		if (data === null) return "";
+		this.host?.sendRaw(data);
+		return data;
+	}
 
 	private handleDropdownKey(event: KeyboardEvent): boolean {
 		if (this.dropdown.handleKey(event)) {
@@ -169,10 +188,6 @@ export class LineEditor {
 		if (!host) return;
 		if (command.kind === "passthrough") {
 			host.sendRaw(command.data);
-			return;
-		}
-		if (this.core?.lineEditorState() !== "owned") {
-			host.sendRaw(passthroughFor(command));
 			return;
 		}
 		const wasDropdownOpen = this.dropdownOpen;
@@ -423,43 +438,6 @@ function createCaret(character = "\u00a0"): HTMLElement {
 	caret.className = "terminal-editor-caret";
 	caret.textContent = character;
 	return caret;
-}
-
-export function passthroughFor(command: EditorCommand, applicationCursorKeys = false): string {
-	const cursorPrefix = applicationCursorKeys ? "\x1bO" : "\x1b[";
-	switch (command.kind) {
-		case "insert":
-			return command.text;
-		case "submit":
-			return "\r";
-		case "newline":
-			return "\n";
-		case "delete-backward":
-			return "\x7f";
-		case "delete-forward":
-			return "\x1b[3~";
-		case "move":
-			return `${cursorPrefix}${command.delta < 0 ? "D" : "C"}`;
-		case "move-word":
-			return command.direction < 0 ? "\x1bb" : "\x1bf";
-		case "move-line":
-		case "history":
-			return `${cursorPrefix}${command.direction < 0 ? "A" : "B"}`;
-		case "home":
-			return "\x01";
-		case "end":
-			return "\x05";
-		case "delete-word-backward":
-			return "\x17";
-		case "accept-suggestion":
-			return "\t";
-		case "complete":
-			return "\t";
-		case "reverse-search":
-			return "\x12";
-		case "passthrough":
-			return command.data;
-	}
 }
 
 function ensurePackageStyleTag(): void {

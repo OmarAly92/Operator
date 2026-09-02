@@ -211,3 +211,43 @@ describe("LineEditor ownership", () => {
 		expect(host.raw.join("")).toBe("\x03");
 	});
 });
+
+describe("LineEditor passthrough encoding", () => {
+	it("sends backtab for Shift+Tab so a TUI mode cycle is distinguishable from completion", () => {
+		const { editor, host } = mount();
+		editor.handleKey(key({ key: "Tab", shiftKey: true }));
+		expect(host.raw.join("")).toBe("\x1b[Z");
+	});
+
+	it("sends Escape", () => {
+		const { editor, host } = mount();
+		editor.handleKey(key({ key: "Escape" }));
+		expect(host.raw.join("")).toBe("\x1b");
+	});
+
+	it("sends a cursor-right, not a tab, for ArrowRight", () => {
+		const { editor, host } = mount();
+		editor.handleKey(key({ key: "ArrowRight" }));
+		expect(host.raw.join("")).toBe("\x1b[C");
+	});
+
+	it("sends Ctrl+E as its control code", () => {
+		const { editor, host } = mount();
+		editor.handleKey(key({ key: "e", ctrlKey: true }));
+		expect(host.raw.join("")).toBe("\x05");
+	});
+
+	it("honours application cursor keys for the arrows", () => {
+		const { editor, host, core } = mount();
+		core.feed(encode("\x1b[?1h"));
+		editor.handleKey(key({ key: "ArrowUp" }));
+		expect(host.raw.join("")).toBe("\x1bOA");
+	});
+
+	it("sends the page and function keys a TUI binds", () => {
+		const { editor, host } = mount();
+		editor.handleKey(key({ key: "PageUp" }));
+		editor.handleKey(key({ key: "F5" }));
+		expect(host.raw.join("")).toBe("\x1b[5~\x1b[15~");
+	});
+});
