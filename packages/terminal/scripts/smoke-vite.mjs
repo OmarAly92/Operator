@@ -12,7 +12,10 @@ const configFile = resolve(packageRoot, "smoke", "vite.config.ts");
 const smokeRoot = resolve(packageRoot, "smoke");
 
 const REQUIRED_TEXT = "red caféplain";
-const REQUIRED_ROWS = 3;
+// Two lines of text. The third row this used to expect was the blank row the
+// grid leaves after the last line, which the renderer no longer reserves space
+// for -- see trimTrailingBlankRows.
+const REQUIRED_ROWS = 2;
 const REQUIRED_RUNS = 3;
 const READY_SELECTOR = '[data-terminal-smoke="ready"]';
 

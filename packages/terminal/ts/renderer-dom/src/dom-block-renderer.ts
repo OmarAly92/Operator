@@ -23,6 +23,7 @@ import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
 import { blockPaddingY } from "./block-metrics.js";
+import { trimTrailingBlankRows } from "./block-rows.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
@@ -335,7 +336,11 @@ export class DomBlockRenderer implements BlockRenderer {
 			stylePairs: snapshot.stylePairs,
 		};
 		this.latestBlocks = blocks;
-		this.filteredBlocks = applyFilter(blocks, this.currentFilter);
+		// Trimmed for layout only. latestBlocks keeps the untrimmed rows so copying
+		// a block still yields exactly what the command wrote.
+		this.filteredBlocks = applyFilter(blocks, this.currentFilter).map((block) =>
+			trimTrailingBlankRows(snapshot, block),
+		);
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const anchorScrollTop = container.scrollTop;

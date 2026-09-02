@@ -100,7 +100,7 @@ function SmokeApp(): ReactElement {
 			const block = main.querySelector('[data-terminal-block-id="0:0"]');
 			const rowNodes = main.querySelectorAll("[data-terminal-row]");
 			const runNodes = main.querySelectorAll("[data-terminal-run]");
-			if (block && rowNodes.length === 3 && runNodes.length === 3 && !reported.current) {
+			if (block && rowNodes.length === 2 && runNodes.length === 3 && !reported.current) {
 				reported.current = true;
 				void reportReady(rowNodes.length, runNodes.length)
 					.then(() => markReady(rowNodes.length, runNodes.length))
