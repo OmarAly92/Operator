@@ -401,6 +401,15 @@ function PaddingApp(): ReactElement | null {
 				main.dataset.terminalPaddingOverflow = String(
 					Math.round(hostRect.height + editorHeight - surfaceRect.height),
 				);
+				// Warp anchors its block list to the bottom of the pane: the first
+				// command you run appears at the bottom edge and earlier output
+				// scrolls up off the top. Content shorter than the viewport must
+				// therefore sit against the bottom, not the top.
+				const rows = main.querySelectorAll<HTMLElement>("[data-terminal-row]");
+				const lastRow = rows[rows.length - 1];
+				main.dataset.terminalPaddingBottomGap = String(
+					lastRow ? Math.round(hostRect.bottom - lastRow.getBoundingClientRect().bottom) : -1,
+				);
 				main.dataset.terminalPaddingHostHeight = String(Math.round(hostRect.height));
 				main.dataset.terminalPaddingSurfaceHeight = String(Math.round(surfaceRect.height));
 				main.dataset.terminalPaddingEditorHeight = String(Math.round(editorHeight));

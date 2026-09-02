@@ -357,6 +357,7 @@ async function main() {
 				top: Number(main?.dataset.terminalPaddingInsetTop ?? "-1"),
 				right: Number(main?.dataset.terminalPaddingInsetRight ?? "-1"),
 				overflow: Number(main?.dataset.terminalPaddingOverflow ?? "-1"),
+				bottomGap: Number(main?.dataset.terminalPaddingBottomGap ?? "-1"),
 			};
 		});
 		if (padding.left !== 4 || padding.right !== 4) {
@@ -367,6 +368,13 @@ async function main() {
 		}
 		if (padding.top !== 0) {
 			fail(`the grid should sit flush against the top of the pane: top=${padding.top}`);
+		}
+		if (padding.bottomGap !== 0) {
+			fail(
+				`the block list is ${padding.bottomGap}px short of the bottom of the pane. ` +
+					"Warp anchors its blocks to the bottom edge and lets earlier output scroll " +
+					"off the top; content shorter than the viewport must not sit at the top.",
+			);
 		}
 		if (padding.overflow !== 0) {
 			fail(

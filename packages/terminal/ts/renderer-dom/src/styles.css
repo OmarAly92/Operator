@@ -56,6 +56,18 @@
 	min-height: 0;
 	width: 100%;
 	background: var(--terminal-background);
+	display: flex;
+	flex-direction: column;
+}
+
+/* Warp anchors its blocks to the bottom of the pane: the first command you run
+   appears at the bottom edge and earlier output scrolls up off the top. An auto
+   top margin does that without breaking the scroller -- it absorbs the spare
+   space when the content is short and resolves to zero once the content
+   overflows. justify-content: flex-end would overflow past the top of the
+   scroll box instead, putting the earliest output out of reach. */
+.terminal-list {
+	margin-top: auto;
 }
 
 .terminal-editor-host {
