@@ -1,7 +1,8 @@
 # Design — `packages/terminal`: a Warp-grade terminal as a reusable package
 
-Status: approved design, not yet planned
+Status: phases 0–5 landed; phase 6 deferred; phase 7 is next. See §0.7.
 Date: 2026-08-29
+Last synced to the tree: 2026-09-02 (tmux removal, blocks-view removal, look parity)
 Author: design session with the user, 2026-08-29
 Supersedes: the frontend half of `docs/superpowers/plans/2026-08-28-shell-blocks.md` (see §13)
 Reference codebase: Warp at `/Users/omaraly/development/AI/warp` (read-only; we never copy code, we learn from it)
@@ -26,7 +27,7 @@ user in one paragraph — do not silently plan something else.
 that is a bug in this spec — report it rather than planning around it.
 
 **0.3 — Phases are not negotiable in order, only in depth.** §14 lists phases 0
-through 7. A plan covers one phase. A plan that "gets a head start" on the next phase
+through 8. A plan covers one phase. A plan that "gets a head start" on the next phase
 is wrong: the phase boundaries are where the user looks at the thing and decides
 whether it feels like Warp. Removing a checkpoint removes the only steering we have.
 
@@ -41,6 +42,53 @@ already watched happen in Warp.** §15 lists the wrong turns explicitly. Read it
 **0.6 — Scope discipline.** This spec describes a package plus its integration into
 Operator. It does not authorize refactoring Operator's session model, chat, kanban,
 orchestrator, or backend beyond the integration points named in §13.
+
+**0.7 — Where this stands, and what changed under it.** Synced against the tree on
+2026-09-02. Phases 0–5 have landed. **Phase 6 is deferred by the user**: its four
+inherited look gaps are closed, its own four deliverables are re-scoped in the table under
+that phase, and scrollback persistence moved into phase 7. **Phase 7 is the next phase**,
+and its first step is the history migration, not a deletion. Phase 8 is untouched. §14
+carries the per-phase detail. Three things changed *outside*
+this spec since it was written, and each one invalidates something the spec asserted:
+
+1. **tmux is gone.** `docs/superpowers/specs/2026-09-01-tmux-free-pty-runtime-design.md`
+   replaced the tmux runtime with `ptyhost` on every platform, landed as
+   `ba5fd58a1` and the commits around it. `backend/internal/adapters/runtime/` now holds
+   `ptyhost`, `runtimeselect` and `parity` — no tmux adapter, and `runtimeselect.New`
+   has nothing left to select. The open work that cutover left behind is in
+   `todo_without_tmux.md`, not here.
+
+   **The consequence this spec must absorb: an agent pane is no longer in the alternate
+   screen.** §11 and phase 3 both recorded that a Claude Code pane sits in the alternate
+   screen "because tmux puts it there" — tmux's own client emitted `?1049h` in its first
+   chunk. With tmux out of the path, the agent's own bytes reach the renderer, and
+   Claude Code emits no `?1049` at all: it redraws inline in the **normal buffer** with
+   cursor addressing. The normal-buffer grid landed by the 2026-08-30 plan is therefore
+   not a hedge, it is the agent pane's only surface, and the block chrome is visible
+   there. `XtermTerminal` and the alternate-screen surface now carry full-screen TUIs
+   (`vim`, `htop`, `less`) and nothing else.
+
+2. **The blocks view is gone from the session pane** (`e246a1470`). The pane offered a
+   third surface behind a "Show blocks" toggle, with `defaultSessionViewMode` and an
+   in-memory `sessionViewModeBySession` behind it. All of it is deleted, along with the
+   font stepper, pane fullscreen and Cmd+wheel zoom (`c9c7f71d9`). A session is now the
+   terminal plus the chat UI, which is what §13.4's "one session has exactly one
+   terminal surface" was aiming at — arrived at from the other direction, and ahead of
+   phase 7. `SessionBlocksPane` survives: it is the chat UI's renderer, not a terminal
+   surface.
+
+3. **Phase 6's look parity landed** — `a83e29013` through `fbe04f719`. The three wrong
+   values in §12.1 are fixed and the table records that, as is the fourth item, the
+   clipped bottom row, which turned out to be two bugs.
+
+**And one thing that is settled but has no number to prove it.** Scroll — the complaint
+the tmux removal existed to fix — was confirmed good in real use by the user on
+2026-09-02. `todo_without_tmux.md` §1 records that the `scroll-latency` A/B was never run
+against tmux (tmux ate the wheel report and entered copy-mode; the metric is vsync-
+quantized at its floor, p50 = p95 = 17.000ms with zero variance). That gap is a missing
+measurement, not a suspected regression, and nobody should re-open the scroll question
+looking for a phase that fixes it: §0.7 item 1, §9.5's paint scheduling and §11's
+fractional wheel-delta accumulation are the fix, and they have all landed.
 
 ---
 
@@ -101,7 +149,10 @@ look in CSS, which is where a browser host is cheaper than a native one.
 - **Not** a change to Operator's session model, orchestrator, or kanban.
 - **Not** a Windows shell-block story in phases 0–6. Windows opens the raw grid and
   says shell blocks are unavailable, the same visible-absence rule plan 7 chose. Do
-  not silently degrade.
+  not silently degrade. *Obsolete as a carve-out since 2026-09-02:* one runtime now
+  runs on every platform (§0.7, §13.1), so Windows has capture and rendered output like
+  everywhere else. The visible-absence rule survives as the rule for any capability that
+  is genuinely absent.
 
 ---
 
@@ -153,6 +204,10 @@ ever appeared for a plain shell. Warp does not embed a second emulator; neither 
 Phase 3 gives `vt-core` a real alternate-screen grid and the renderer a raw surface, and
 phase 7 deletes `XtermTerminal.tsx` along with the shell-terminal tabs.
 *Consequence accepted:* completions, navigation and chrome each move one phase later.
+*Amended 2026-09-02, decision unchanged:* the premise — agent panes live in the alternate
+screen — was tmux's doing and expired with tmux (§0.7, §11). The decision stands on its
+own terms regardless: a host that embeds a second emulator for any buffer is a host whose
+pane is not ours, and phase 7 still deletes xterm.
 
 **2.7 — The terminal pane is pixel-Warp; the app chrome around it stays agent-orchestrator.**
 `DESIGN.md:36` already carves this out: *"the accent is refined blue, and the terminal
@@ -291,8 +346,8 @@ Not everything is a mistake. Adopt these:
 
 ### 4.1 What the host provides and what the package returns
 
-The package MUST NOT know that Operator exists. No daemon, no tmux, no HTTP, no mux
-channel, no session IDs, no Operator design tokens, no `react-i18next`.
+The package MUST NOT know that Operator exists. No daemon, no pty runtime, no HTTP, no
+mux channel, no session IDs, no Operator design tokens, no `react-i18next`.
 
 ```ts
 export interface PtyTransport {
@@ -366,6 +421,12 @@ another project is another. §13 shows Operator's wiring.
   nothing stops Operator types from leaking back in.
 - User-facing copy is injected via `TerminalStrings` (§12.2). The package ships English
   defaults and ships no locale files.
+- **`backend/` consumes the package the same way `frontend/` does: by name, never by
+  path.** Two edges exist as of 2026-09-02 — the `packages/terminal/go/marks` Go module
+  (§5.4), imported by module path with a `replace` directive in `backend/go.mod`, and
+  `vt-core` as a wasm artifact loaded at runtime (§5.5). Neither gives the daemon a
+  source-level dependency on anything else in the package, and neither may grow into one.
+  `check-boundaries.mjs` does not police the Go side; the module graph does.
 
 ### 4.3 Enforcement
 
@@ -435,6 +496,43 @@ requires it (`frontend/src-tauri`, `rust-version = "1.96.0"`).
 conformance vectors from `packages/terminal/protocol/vectors/` as the Rust decoder.
 Its only job is finding mark boundaries and extracting fields — it never renders and
 never owns a grid. §7.5.
+
+A **second** Go module, `packages/terminal/go/bootstrap`, ships alongside it: it owns the
+shell bootstrap scripts (`shell/`), their `recipes.json`, the `auto` / `osc133-only` /
+`off` integration modes and the content hashing that decides when an installed script is
+stale. Both are wired into `backend/go.mod` with `replace` directives (`:49`, `:51`), and
+both hold the §4.2 rule — they are consumed by module path, and they import nothing from
+`backend/`.
+
+### 5.5 The second WASM consumer — added 2026-09-02
+
+`vt-core` now has a **Go** consumer as well as a JS one. The tmux removal needed a VT
+emulator inside the daemon's pty-host to answer `GetOutput`, `GetStyledOutput` and
+alt-screen state, and the alternative — a second emulator written in Go — was rejected
+because two implementations drift silently. So the pty-host runs the same core:
+
+- `packages/terminal/crates/vt-host` is a `cdylib` exposing a plain **C-ABI wasm**
+  surface (`vt_render_styled` and friends). It is a sibling of `vt-wasm`, which stays
+  `wasm-bindgen` for the browser. The two exist because JS glue is unusable from Go.
+- `backend/internal/adapters/runtime/ptyhost/vtwasm/` instantiates that module under
+  **`wazero`** (`backend/go.mod:21`) — pure Go, so `CGO_ENABLED=0` cross-compilation
+  survives, which is what four platform binaries from one machine depends on.
+- The parser is **passive**: it is fed after the raw broadcast, never before it, so it
+  never sits between the agent and the screen. Nothing user-facing reads it. It may lag
+  the screen by milliseconds and that is correct.
+- It must be resized with the PTY. `vt-core` defaults to 24 rows and only learns its
+  height from `resize`; a parser that misses a resize renders a wrong grid, silently.
+
+Two consequences for this spec. First, **§4.2 gained a bullet**: the daemon consumes
+`vt-core` through the wasm boundary and must not gain a source-level dependency on
+anything else in the package. Second, **CI needs a Rust
+toolchain for the Go release builds** — `packages/build-binaries.sh` and the release
+workflows install `rustup` and the `wasm32-unknown-unknown` target before the Go build.
+`packages/build-binaries.sh:20-26` runs
+`cargo build --release -p vt-host --target wasm32-unknown-unknown` and copies
+`vt_host.wasm` into place ahead of it. One wasm artifact serves all four binaries, so the
+single-machine cross-compile story is intact. The full reasoning is in
+`docs/superpowers/specs/2026-09-01-tmux-free-pty-runtime-design.md`.
 
 ---
 
@@ -846,10 +944,17 @@ Gate, checked at the end of every phase from 1 onward:
 - `large-output` throughput MUST be ≥ the recorded xterm baseline.
 - `vtebench` MUST be ≥ 0.9× the xterm baseline (parser work moves to WASM; a small
   regression here is acceptable, a large one is not).
-- `input-latency` p95 MUST be ≤ the recorded xterm baseline. **This scenario measures
-  the passthrough path on both renderers** — keystroke leaves as raw bytes, the echo
-  comes back, the parser renders it. In `Released`/`Unknown` our editor does exactly
-  what xterm does, so the work is identical and the baseline is a fair yardstick.
+- `input-latency` p95 MUST be ≤ **the recorded xterm baseline plus one 60Hz frame plus
+  3.3ms of measurement tolerance** — that is, `baseline + 20.0ms`. **Amended 2026-09-02;
+  the original contract was `≤ baseline` and §9.5 records why it changed.** This
+  scenario measures the passthrough path on both renderers — keystroke leaves as raw
+  bytes, the echo comes back, the parser renders it. The allowance is not slack: the
+  paint cap in §9.5 means an echoed byte waits for the next frame like any other PTY
+  output, so exactly one frame is the structural cost of the cap and anything beyond it
+  is a real regression. Measured p95 at the time of the amendment was 24.80ms against a
+  9.00ms baseline, a +15.8ms delta consistent with one frame; the ceiling is 29.00ms.
+  **The allowance is additive, not a factor**, so `bench/gate.mjs` needs an `allowance`
+  field beside `factor` — see `todo_without_tmux.md` §10.
 - `input-latency-owned` p95 MUST be ≤ **16.7 ms**, one frame at 60fps. Once the editor
   owns the line there is no echo and no round trip, so xterm has no comparable
   measurement and a comparison would flatter us for doing less work. The question stops
@@ -908,8 +1013,7 @@ The evidence and the ruling-out of the other candidates are in §14 Phase 4. The
 is the `requestAnimationFrame` hop that replaced the synchronous paint path; the tail is the
 16.67ms inter-paint deferral.
 
-This is a genuine trade, not a bug to fix quietly, and the resolution is a spec decision
-that has not been made:
+This is a genuine trade, not a bug to fix quietly. Three options were on the table:
 
 - **Reverting the cap** restores sub-frame echo and brings back the ~250 paints/sec that
   made an agent pane visibly janky — the thing §9.5 exists to prevent.
@@ -924,8 +1028,36 @@ that has not been made:
   obviously reachable: in passthrough we cannot distinguish an echoed keystroke from any
   other PTY byte without inventing a heuristic §3.5 would warn about.
 
-Until this is decided, `bench:gate` fails on one scenario by design of the situation, not by
-oversight. Do not silence it by moving the factor.
+### DECIDED 2026-09-02 — option 2, amend the contract
+
+**The user's ruling, on evidence the benchmark does not carry: typing feels fine.** The
+cap stays; `input-latency`'s contract becomes `baseline + one frame + 3.3ms tolerance`
+(§9.4). The reasoning, recorded so this is not re-litigated:
+
+1. **The number measures the case where you are mostly reading, not typing.**
+   `input-latency` is the *passthrough* path — a program owns the line and every
+   keystroke round-trips the PTY. The path that carries the user's actual typing is the
+   owned line editor, and `input-latency-owned` passes at 8.50ms against a 16.7ms budget.
+   Warp's own answer to input latency is the same: own the line and never round-trip.
+2. **One frame is structural, not sloppiness.** With the cap, an echoed byte waits for the
+   next frame like every other PTY byte. The measured +15.8ms delta over baseline is one
+   frame, which is what the allowance encodes. It stays falsifiable: a regression past
+   29.00ms fails, and 24.80ms sits 4.2ms inside it.
+3. **The alternative was worse and measured.** Removing only the inter-paint deferral
+   recovers the tail (24.80 → 17.30) but not the median, because the median frame *is* the
+   `requestAnimationFrame` hop. Buying 7.5ms of tail back at the price of the jank the cap
+   exists to prevent is not a trade worth making.
+
+**What the allowance is not.** It is not a licence to keep loosening. The 3.3ms tolerance
+is measurement noise, not headroom, and one frame is the specific cost of one specific
+mechanism. If a future change adds a second frame, the answer is to remove the second
+frame, not to widen the allowance again. The original instruction stands in amended form:
+**do not silence a failure by moving the number.**
+
+**Still to do:** `bench/gate.mjs:39` expresses this rule as a multiplicative `factor`, and
+the new contract is additive. Until an `allowance` field lands, `bench:gate` keeps
+reporting this scenario red against the old rule. Tracked in `todo_without_tmux.md` §10.
+The decision is made; the gate has not caught up with it.
 
 ---
 
@@ -1051,14 +1183,25 @@ is true only of a plain shell. §2.8.
   trackpad feel continuous rather than stepping. There is no line cap — capping a burst
   loses scroll distance the user asked for.
 
-*A correction to the correction below (§14, Phase 3).* Claude Code driven directly emits
-no `?1049`. Claude Code as Operator actually runs it does, because the **tmux client**
-emits `?1049h` within the first chunk it writes to its terminal. Agent panes are
-therefore always in the alternate screen, and the normal-buffer grid landed by the
-2026-08-30 plan is what carries a pane after tmux leaves it. Two capture attempts got
-this wrong by reading the wrong layer: probing the agent directly, and `tmux pipe-pane`,
-both capture what the *program inside the pane* writes, never what tmux writes to its
-client. Capture through a pty running `tmux attach`.
+*Which buffer an agent pane is actually in — settled twice, and the second answer is
+the live one.* The original 2026-08-29 measurement saw `?1049h` in the first mux frame
+and concluded agent panes are permanently in the alternate screen. That was true, but
+not of the agent: the **tmux client** emitted it, within the first chunk it wrote to its
+terminal. A correction on 2026-08-30 recorded that Claude Code driven directly emits no
+`?1049` and redraws inline with `CUU`, and read that as a discrepancy to be reconciled
+with tmux in the path.
+
+**tmux left the path on 2026-09-02 and the discrepancy resolved in the agent's favour.**
+An Operator agent pane is now in the **normal buffer**, redrawing in place with cursor
+addressing, and the block chrome is visible in it. The normal-buffer cursor-addressable
+grid landed by the 2026-08-30 plan is not a hedge against a future tmux removal — it is
+the surface every agent pane uses. The alternate screen is now what it is in any
+terminal: `vim`, `htop`, `less`, and any TUI that asks for it.
+
+Nothing in §11's requirements changes. The alternate-screen grid, the shred rule, the
+wheel-reporting rules and the no-scrollback rule all still hold for the programs that do
+enter it. What changes is the stake: an alt-screen regression no longer blanks the pane
+the user watches all day, and a normal-buffer regression now does.
 
 `vt-core` MUST track alt-screen as explicit state, not as a rendering detail; the
 daemon-side decoder needs the same signal to suspend capture (§13.2). Phase 1's boolean
@@ -1078,19 +1221,26 @@ loader for **Warp's own theme file format**, so the ecosystem of Warp themes wor
 here. Operator passes a theme derived from its skin for the chrome colors only; the
 ANSI palette stays the terminal's own per `DESIGN.md:36`.
 
-**Warp's own defaults, for the values we currently get wrong.** Recorded 2026-08-30 so
-Phase 6 does not have to re-derive them:
+**Warp's own defaults, for the values we got wrong.** Recorded 2026-08-30 so Phase 6
+did not have to re-derive them; the last column is the 2026-09-02 state after the
+look-parity commits (`a83e29013` … `fbe04f719`):
 
-| Property | Warp | Ours today | Source |
+| Property | Warp | Ours | Source |
 | --- | --- | --- | --- |
-| Line-height ratio | `1.2` | `1.35` (host override) | `crates/warpui_core/src/elements/gui/text.rs:33`, wired at `app/src/settings/font.rs:50-58` |
-| Monospace family | `Hack` | `ui-monospace, "SF Mono", Menlo, monospace` | `app/src/settings/font.rs:11` |
+| Line-height ratio | `1.2` | ✅ `1.2` — `BlockTerminal.tsx:371` | `crates/warpui_core/src/elements/gui/text.rs:33`, wired at `app/src/settings/font.rs:50-58` |
+| Monospace family | `Hack` | ✅ `"Hack", ui-monospace, "SF Mono", Menlo, monospace`, bundled in `renderer-dom/src/fonts` — `BlockTerminal.tsx:369` | `app/src/settings/font.rs:11` |
 | Monospace size | `13.0` | `14` package default, host passes its own | `app/src/settings/font.rs:12` |
 | Monospace weight | `Normal` | `400` | `app/src/settings/font.rs:13` |
-| Grid padding | `16` left, `8` vertical | none | `app/src/terminal/view.rs:744, 13098-13099` |
+| Grid padding | `16` left, `8` vertical | ✅ carried by `.terminal-block`, not the surface — `styles.css:47-49, 97-100` | `app/src/terminal/view.rs:744, 13098-13099` |
 
-The package's own `defaultFont()` already uses `1.2`; the `1.35` comes from
-`BlockTerminal.tsx`, which overrides it. Warp also makes alt-screen padding separately
+The padding row landed in a shape worth knowing before touching it: `--terminal-padding-x`
+and `--terminal-padding-y` are `0px` on the surface and the 16px inset lives on the
+**block**, so a hairline block border sits flush and the grid measures against the space
+*inside* the padding (`2c700136f`). Sizing the grid off the surface box instead is what
+made rows clip.
+
+The package's own `defaultFont()` already used `1.2`; the `1.35` came from
+`BlockTerminal.tsx`, which overrode it. Warp also makes alt-screen padding separately
 configurable (`alt_screen_padding`, `app/src/terminal/settings.rs:163`) with a carve-out
 set for apps that must match blocklist padding — `k9s` and `lazygit`
 (`view.rs:603-609`). Copy the setting, not just the number.
@@ -1116,12 +1266,18 @@ superseded by the shipped lifecycle plan
 [`2026-08-31-shell-blocks-daemon.md`](../plans/2026-08-31-shell-blocks-daemon.md).
 
 **The production boundary this spec depends on:**
-- `tmux pipe-pane` is the server-side capture path. Capture must not read a client
-  attachment: attachment delivery is per client, while durable capture must exist with
-  zero clients and must not duplicate work with two.
+- **The runtime's own capture sink is the server-side capture path.** Since 2026-09-02
+  that is `ptyhost`'s capture tee (`ptyhost/capture.go`, armed over
+  `MsgCaptureStartReq`), which replaced `tmux pipe-pane`. The requirement is unchanged
+  and is what made the replacement non-optional: capture must not read a client
+  attachment, because attachment delivery is per client while durable capture must exist
+  with zero clients and must not duplicate work with two.
 - The stream is captured once, outside client attachments.
-- Windows gets a working raw ConPTY terminal with `durableBlocks: false`; it does not
-  pretend that shell-block history exists.
+- **Windows is no longer the exception.** The spec was written when tmux ran Unix and
+  ConPTY ran Windows with `durableBlocks: false` and `ErrCaptureUnsupported`. One runtime
+  now runs everywhere, so capture, rendered `GetOutput` and styled output work on all
+  platforms. The visible-absence rule that governed the Windows degradation stays as the
+  rule for any future capability gap; it currently has nothing to govern.
 
 **Superseded:** the execution steps in the 2026-08-28 plan. Use the amended lifecycle
 plan above for the current implementation boundary.
@@ -1129,14 +1285,26 @@ plan above for the current implementation boundary.
 ### 13.2 The daemon's job
 
 1. The shell runtime starts `opr pane-capture --dir <daemon-resolved journal directory>
-   --epoch <uuid>` through tmux `pipe-pane`. The helper owns rotation: one active 1 MiB
-   `.open` segment, at most eight sealed `.ready` segments, `gap.json` before pruning,
-   and a manifest when it seals. It remains running while the daemon is down.
-2. The tmux adapter reads `#{pane_pipe}` and `#{alternate_on}` together before capture.
-   `pipe-pane -o` is a toggle, not an atomic start-if-absent operation: the
-   `#{pane_pipe}` guard supplies idempotency, while the supervisor serializes start and
-   stop per handle. Adoption does not start a second helper when a live pane already
-   has a pipe.
+   --epoch <uuid>` as the runtime's capture sink — `MsgCaptureStartReq` to the pty-host,
+   which tees raw PTY output into the helper's stdin (`ptyhost/capture.go`). The helper
+   owns rotation: one active 1 MiB `.open` segment, at most eight sealed `.ready`
+   segments, `gap.json` before pruning, and a manifest when it seals. It remains running
+   while the daemon is down, because the pty-host outlives the daemon.
+2. The runtime reports `pipeOpen` and `alternateOn` together, over `MsgCaptureStateReq`
+   / `MsgCaptureStateRes`, before capture. This replaced tmux's `#{pane_pipe}` /
+   `#{alternate_on}` pair and the idempotency problem it existed to solve: `pipe-pane -o`
+   was a toggle rather than an atomic start-if-absent, so the `#{pane_pipe}` guard
+   supplied idempotency. The host now owns start-if-absent directly, and the supervisor
+   still serializes start and stop per handle. Adoption does not start a second helper
+   when a live pane already has a sink armed.
+
+   **The capture sink applies back-pressure, and that is deliberate.** `captureSink.write`
+   queues through a forwarder goroutine capped at `maxQueuedCaptureBytes` (four read
+   buffers); past the cap it blocks. It cannot write straight through, because a slow
+   `opr pane-capture` — disk stall, segment rotation — would then stall the host's pump
+   and freeze ring append and client broadcast for the whole session. Pinned by
+   `TestCaptureQueueIsBounded` and `TestCaptureBackpressureDoesNotStallDelivery`. The
+   reasoning is recorded at length in `todo_without_tmux.md` §8.
 3. Daemon shell-terminal wiring reaps prior-run terminals and checks current-run
    liveness before passing live records to `terminalcapture.Supervisor.Adopt`. The
    supervisor owns capture workers: an existing pipe resumes its epoch, otherwise a
@@ -1173,13 +1341,19 @@ deduplication mechanism.
 
 **What landed 2026-08-30, and the three host-side rules it settled.**
 
-*A session opens on the raw terminal.* `defaultSessionViewMode` returns `"raw"` for every
-session. It previously returned `"blocks"` for any harness with a block mapper
+*A session opens on the raw terminal.* `defaultSessionViewMode` returned `"raw"` for
+every session. It previously returned `"blocks"` for any harness with a block mapper
 (`claude-code`, `codex`, `grok`), so all three agents opened on the block view and had to
-be switched by hand — and because `sessionViewModeBySession` is in-memory only, never
-persisted, that switch was lost on every restart as well as on every new session. The
-toggle is unchanged and `blocksCoverHarness` still gates whether blocks are offered at
-all, so a harness with no mapper says so rather than offering an empty list.
+be switched by hand — and because `sessionViewModeBySession` was in-memory only, never
+persisted, that switch was lost on every restart as well as on every new session.
+
+**Superseded 2026-09-02 (`e246a1470`): the view mode is gone entirely.** The toggle,
+`defaultSessionViewMode`, `sessionViewModeBySession`, `blocksCoverHarness` and the two
+strings behind them are deleted. A session pane is the terminal; the chat UI is the other
+half of the screen and renders through `SessionBlocksPane`, which is not a terminal
+surface and stays. This lands §13.4's "one session has exactly one terminal surface"
+early and from the product side rather than as a phase-7 retirement step — phase 7 still
+owes the shell-terminal tabs and xterm.
 
 *`XtermTerminal` runs headless when it is not the surface.* Under the default
 (`VITE_ALT_SCREEN_SURFACE` unset), `XtermTerminal` mounts a headless attachment that
@@ -1247,6 +1421,20 @@ reporting (`?1000`/`?1002`/`?1003`/`?1006`)**; and IME composition. The first th
 A phase 7 that deletes `XtermTerminal.tsx` without them ships a pane that cannot paste,
 cannot be clicked in, and mis-encodes half the keyboard.
 
+**Three of those four landed ahead of phase 7, on 2026-09-02.** Recorded here so phase 7
+scopes against the tree rather than against this paragraph as first written:
+
+| Prerequisite | State |
+| --- | --- |
+| key→bytes encoder | ✅ `ts/editor/src/encode-key.ts` with its test — `4b31952aa`, "encode the key the user pressed for a child process". `DECKPAM` coverage still to be confirmed against the encoder's table. |
+| bracketed paste `?2004` | ✅ tracked in `vt-core` (`parser.rs:145`, surfaced on the snapshot as `bracketedPaste`, `terminal-core.ts:138`) and consumed by `ts/editor/src/paste.ts` — `7b36b82c9`, "make Cmd+V paste reach the terminal again". |
+| mouse reporting `?1000`/`?1002`/`?1003`/`?1006` | 🟡 wheel reporting is complete (§11, phase 3). Click and drag reporting are not; that is what "cannot be clicked in" still means. |
+| IME composition | ⬜ untouched. |
+
+Selection came along with them and is not on this list because xterm never supplied it:
+`4bf497c9d` and `fbe04f719` paint selection per row the way Warp does, and `90d06f15c`
+restored transcript selection.
+
 **13.4.3 One geometry publisher.** Settled 2026-08-30 while xterm was still mounted, and
 it stays true after removal: the measured pane box is the only thing that sizes the pty.
 The failure it fixes is worth recording, because it is easy to reintroduce — a mounted
@@ -1289,9 +1477,16 @@ the terminal to be *used*.
 and turns prompt suppression on. This is where the product identity lands.
 
 **Phase 3 is what makes the agent pane ours.** It is not enrichment. A session running
-an agent CLI sits in the alternate screen from its first chunk of output, so until
-phase 3 lands, everything phases 1 and 2 built is invisible in that pane and xterm is
-what the user is looking at. §2.8, §11.
+an agent CLI sat in the alternate screen from its first chunk of output, so until
+phase 3 landed, everything phases 1 and 2 built was invisible in that pane and xterm was
+what the user was looking at. §2.8, §11.
+
+*Why this reads in the past tense.* The alternate screen was the agent pane's buffer
+because tmux put it there, and tmux was deleted on 2026-09-02 (§0.7). Agent panes are now
+in the normal buffer. Phase 3 was still the right call and its grid still carries every
+full-screen TUI — but the argument above is history, and the sentence a later reader
+needs is the one in §11: an alt-screen regression no longer blanks the pane the user
+watches all day.
 
 **Phases 4–8 are enrichment.** Completions, navigation, chrome, retirement and mobile
 each make it better; none of them is load-bearing for a working terminal. If work stops
@@ -1333,8 +1528,9 @@ sum tree it queries is built here and retrofitting it later means rewriting it);
 `shell/zsh.sh` per §8 **with prompt suppression disabled** (§8.1); `renderer-dom` with
 two-level virtualization; Warp-style block headers carrying the block's metadata (cwd,
 branch, exit code, duration); per-block selection, copy and hover actions; alt-screen
-handoff to `XtermTerminal`; daemon capture via `pipe-pane` publishing on the `blocks`
-channel; the pane mounted in Operator per §13.3.
+handoff to `XtermTerminal`; daemon capture publishing on the `blocks` channel (via
+`pipe-pane` as shipped; the runtime's own capture sink since 2026-09-02, §13.2); the pane
+mounted in Operator per §13.3.
 
 The live input in phase 1 is the user's own shell prompt and readline, rendered in the
 grid. We draw chrome around blocks, we do not yet own the typing. §14.0.
@@ -1409,8 +1605,19 @@ section it changed: the zero-width scalar regression closed with Warp's per-cell
 storage (`4fa3c00a2`, §6.2a); wheel events reported to a mouse-tracking pane, and panes
 opened at the measured grid (`b2ce3f9cc`, §11 and §13.3); sessions opening raw with a
 headless `XtermTerminal` (`ac9236563`, §13.3); and the paint-scheduling and row-reuse
-rules that fixed the jank (`ac9236563`/`d45009946`, §9.5). The correction above is itself
-corrected in §11: an agent pane *is* in the alternate screen, because tmux puts it there.
+rules that fixed the jank (`ac9236563`/`d45009946`, §9.5). The correction above was itself corrected in §11 — an
+agent pane *is* in the alternate screen, because tmux puts it there — and that second
+correction expired on 2026-09-02.
+
+**Final answer, 2026-09-02.** tmux is deleted (§0.7). No tmux client means no injected
+`?1049h`, and Claude Code's own bytes are what reach the renderer: it stays in the
+**normal buffer** and redraws inline. So the 2026-08-30 capture was right about the agent
+all along, and the cursor-addressable normal-buffer rows it motivated are now the agent
+pane's production path rather than a hedge. Phase 3's third accept criterion — "an agent
+CLI runs end to end in the package's own surface" — is still met, but through the primary
+grid, not the alternate one. Do not re-derive this a fourth time: `?1049` in a capture
+tells you what the *outermost* program in the pane wants, and until 2026-09-02 that
+program was never the agent.
 
 ### Phase 4 — Completions — **landed 2026-08-30**
 
@@ -1595,7 +1802,7 @@ deliverable list above maps 1:1 onto the spec's "Deliver" line; the eight
 is a separate harness (`bench/`) and is owned by the next phase that touches
 input latency. Phase 6 is unblocked.
 
-### Phase 6 — Chrome and configuration
+### Phase 6 — Chrome and configuration — **look parity landed; the rest deferred 2026-09-02**
 
 **Deliver:** the theme system with Warp theme-file loading; font and ligature settings;
 splits and panes; scrollback persistence and restore.
@@ -1620,12 +1827,64 @@ is not a defect.
 its prior blocks with correct metadata; the four deferred items above are each fixed or
 explicitly re-deferred with a reason; the §9.4 gate still passes.
 
+**Status 2026-09-02 — the four deferred items are closed; the phase's own deliverables
+are not.** The look-parity work ran as
+[`2026-08-31-warp-look-parity.md`](../plans/2026-08-31-warp-look-parity.md), landing as
+`a83e29013` … `fbe04f719`. That plan's checkboxes were never ticked — read the tree, not
+the plan file.
+
+| Deferred item | State |
+| --- | --- |
+| line-height `1.35` → `1.2` | ✅ `BlockTerminal.tsx:371` |
+| no grid padding → Warp's 16px / 8px | ✅ carried by `.terminal-block` (`093791034`, `db0a09305`); see §12.1 for why it sits there and not on the surface |
+| system monospace → Hack 13 | ✅ Hack bundled in `renderer-dom/src/fonts`, `BlockTerminal.tsx:369`. The `13` size is still host-supplied against a package default of `14`. |
+| the unexplained clipped bottom row | ✅ reproduced and fixed, and it was two bugs, not one: blocks reserved height for rows a redraw had erased (`18dc9331e`), and the grid was measured against the surface box rather than the space inside the block padding (`2c700136f`) |
+
+Landing alongside them, in the same window and not on the deferred list: the block list
+anchored to the bottom of the pane (`0280b48e2`), the primary-screen cursor (`d12311401`),
+Warp's kill-line on Cmd+Backspace (`e6b05bd8c`, `20f716c3e`), Cmd+V paste
+(`7b36b82c9`), Warp-style selection painting (`4bf497c9d`, `fbe04f719`), and the line
+editor hiding its prompt while a child owns the line (`cd9e9f0a2`). The three that touch
+input and paste are phase-7 prerequisites arriving early — §13.4.2 tracks them.
+
+**Deferred by the user, 2026-09-02.** The phase's own four deliverables were written on
+2026-08-29, before anyone had used the terminal daily. Having used it, none of them is
+what stands between the pane and "good" — §14.0's own ruling that phases 4–8 are
+enrichment is the license, and the four *deferred look items* above were this phase's
+load-bearing half and are closed. The remaining four are re-scoped rather than dropped:
+
+| Deliverable | Disposition |
+| --- | --- |
+| Scrollback persistence and restore | **Moved into phase 7.** It was already half-required there: §13.4.1 makes retiring the shell-terminal tabs conditional on migrating the journal directory, supervisor lifecycle, `terminal_blocks` ownership, history endpoint contract and `durableBlocks` capability to the session terminal's handle. That migration *is* durable block history owned by the session rather than a tab, which is this deliverable wearing a different hat. Doing it inside phase 7 is one piece of work instead of two. |
+| Warp theme-file loading | Deferred, no phase. `renderer-dom/src/theme-warp.ts` ships `warpDarkTheme` — Warp's bundled dark palette transcribed with citations — and the host does not yet consume it. A *loader* for Warp's theme file format is unbuilt. Nothing downstream needs it. |
+| Font and ligature settings | Deferred, no phase, and the shape of the ask changed: `c9c7f71d9` deleted the font stepper deliberately, so "settings" now means a preferences surface, not a toolbar control. That is a product decision, not a terminal one. |
+| Splits and panes | Deferred, no phase, and **flagged rather than merely postponed**: Operator already has a session model with its own pane layout, and §0.6 forbids refactoring it. Whether the package should own splits at all needs a user decision before it needs a plan. |
+
+*Do not treat this as phase 6 being "done".* It is deferred with its remainder placed. A
+future reader who wants theme files or splits picks them up from this table; they do not
+belong to a numbered phase any more.
+
+**The §9.4 gate is inherited red from phase 4 and has not been re-measured.** It is not a
+phase 6 debt and deferring the phase does not discharge it — the §9.5 decision is
+outstanding regardless of what happens to the phase numbering.
+
+**What the deferral does not touch: scroll.** Phase 6 was never the scroll story and no
+reader should look for it here. Scroll smoothness was fixed by the tmux removal (§0.7),
+§9.5's paint scheduling, and §11's fractional wheel-delta accumulation — all landed, and
+confirmed good in real use by the user on 2026-09-02. `todo_without_tmux.md` §1 carries
+the remaining benchmark gap, which is a missing number, not a suspected regression.
+
 ### Phase 7 — Retirement
 
 **Deliver:** §13.4 — both the shell-terminal tabs (§13.4.1) and xterm itself (§13.4.2),
-including the input prerequisites §13.4.2 names.
+including the input prerequisites §13.4.2 names. **Plus scrollback persistence and
+restore, inherited from phase 6 on 2026-09-02** — see that phase's deferral table for
+why it belongs here rather than there.
 
 **Accept when:**
+- a restored session shows its prior blocks with correct metadata, and the durable
+  history that the shell-terminal tabs own today is owned by the session terminal's
+  handle rather than deleted with them (§13.4.1, and the phase 6 deferral);
 - the files listed in §13.4.1 and §13.4.2 are gone and no route references `/terminals`;
 - `grep -rn "@xterm" frontend/src frontend/package.json` returns nothing, while
   `packages/terminal/bench/adapters/xterm.ts` is untouched and `npm run bench:gate` still
@@ -1634,8 +1893,36 @@ including the input prerequisites §13.4.2 names.
   an agent CLI with no xterm in the tree — verified by running them, not by unit tests
   alone;
 - bracketed paste and mouse reporting are covered by `vt-core` tests and by at least one
-  recorded tmux vector each;
+  recorded vector each — the vectors live in `packages/terminal/protocol/alt-vectors`
+  and `redraw-vectors`, which is also what the pty-host parity harness replays;
 - the full e2e suite passes.
+
+**Scope note, 2026-09-02.** Two pieces of phase 7 arrived early from other work and are
+no longer this phase's to do: the session pane's third surface and its view-mode toggle
+are already deleted (§13.3), and three of the four xterm prerequisites in §13.4.2 have
+landed. What remains is the shell-terminal tabs (§13.4.1, `ShellTerminalsView.tsx` and
+friends are still in the tree with their handle-keyed capture and history ownership),
+click/drag mouse reporting, IME composition, and then the deletion itself.
+
+**Ordering within the phase, because one of these can destroy data and the others
+cannot.** The history migration comes first and lands on its own: §13.4.1 is explicit
+that *"deleting the tabs alone must not delete or session-key that bridge."* A phase 7
+that opens with `git rm` is the failure mode this phase is arranged to avoid. So:
+
+1. **Migrate durable block history to the session terminal's handle** — journal
+   directory, supervisor lifecycle, `terminal_blocks` ownership, history endpoint
+   contract, `durableBlocks` capability. Verified by a restored session showing its
+   prior blocks *while the tabs still exist*. This is the inherited phase 6 deliverable
+   and it is reversible on its own.
+2. **Close the input gaps** — click/drag mouse reporting (`?1000`/`?1002`/`?1003`, with
+   `?1006` encoding already tracked from phase 3) and IME composition. Until these land,
+   deleting `XtermTerminal.tsx` ships a pane that cannot be clicked in.
+3. **Delete the shell-terminal tabs**, once (1) proves the bridge moved.
+4. **Delete xterm**, last, once (2) proves the package supplies what xterm supplied.
+
+Steps 3 and 4 are the only irreversible ones and they are last by construction. §13.4's
+own closing line — *"This is last so a revert costs nothing before it"* — is the rule
+this ordering implements.
 
 ### Phase 8 — Mobile
 
@@ -1681,6 +1968,16 @@ broken.
     phase 1 shippable. Suppression ships with the editor, in phase 2. §8.1.
 17. **Treating phase 1 as a stepping stone rather than a release.** If phase 1 lands and
     everything stops, Operator must still have a terminal it can use every day. §14.0.
+18. **Assuming an agent pane is in the alternate screen.** It was, until 2026-09-02, and
+    only because tmux's client put it there. It is now in the normal buffer. Three
+    separate readings of the same capture reached three different answers, so: `?1049`
+    tells you what the *outermost* program in the pane wants, and the outermost program
+    is now the agent. §0.7, §11.
+19. **Reintroducing an unbounded queue to fix a blocking write in the runtime.** Every
+    write on the pty-host's paths is load-bearing back-pressure: it stops the pump, which
+    stops the PTY being read, which makes the child throttle itself. Bound the queue and
+    block past the cap, the way `captureSink` does. `todo_without_tmux.md` §8 is the full
+    account of getting this wrong and then right.
 
 ---
 
@@ -1815,7 +2112,7 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 5 | the single vite alias | `frontend/vite.renderer.config.ts:78-80` |
 | 5.2 | the only Cargo package, standalone, Rust 1.96 | `frontend/src-tauri/Cargo.toml` |
 | 9.4 | existing perf scenarios and runner | `frontend/perf/scenarios.json`, `frontend/scripts/benchmark-terminal.mjs` |
-| 11, 13.3 | the alt-screen bridge for phases 1–2, replaced in phase 3, deleted in phase 7 | `frontend/src/renderer/components/XtermTerminal.tsx` (1,057 lines) |
+| 11, 13.3 | the alt-screen bridge for phases 1–2, replaced in phase 3, deleted in phase 7 | `frontend/src/renderer/components/XtermTerminal.tsx` (1,117 lines on 2026-09-02; 1,057 when first cited) |
 | 12.2 | the eight locale files | `frontend/src/renderer/i18n/{en,zh-CN,ja,ko,es,fr,de,pt-BR}.json` |
 | 13.1 | per-client attach makes in-band parsing wrong | `backend/internal/terminal/manager.go:448`, `backend/internal/terminal/doc.go:11` |
 | 13.1 | `SourceID` was always meant to carry a shell mark's counter | `backend/internal/service/blockevent/types.go:11-17` |
@@ -1833,3 +2130,12 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 14 Phase 5 | command palette: substring filter, Cmd/Ctrl+Shift+P, inert in alt screen in two places | `packages/terminal/ts/renderer-dom/src/palette.ts`, `palette.test.ts` |
 | 14 Phase 5 | `HostCapabilities` has no capability that can execute anything (§3.6 structural) | `packages/terminal/ts/core/src/types.ts:194-200` |
 | 14 Phase 5 | `dom-block-renderer.ts` did not grow past 600 lines (599/600 at the cap) | `packages/terminal/ts/renderer-dom/src/dom-block-renderer.ts` |
+| 0.7 | tmux is deleted; one pty-host runtime on every platform | `backend/internal/adapters/runtime/{ptyhost,runtimeselect,parity}/`, `runtimeselect/runtimeselect.go` (`New` returns `ptyhost` unconditionally), commit `ba5fd58a1` |
+| 0.7, 13.2 | the runtime's own capture sink replaced `pipe-pane`, and is bounded rather than unbounded | `backend/internal/adapters/runtime/ptyhost/capture.go`, `TestCaptureQueueIsBounded`, `TestCaptureBackpressureDoesNotStallDelivery`, `todo_without_tmux.md` §8 |
+| 0.7, 11, 14 Phase 3 | an agent pane is in the normal buffer now that no tmux client injects `?1049h` | `docs/superpowers/specs/2026-09-01-tmux-free-pty-runtime-design.md` (§Problem), and the 2026-08-30 direct capture of Claude Code recorded in 14 Phase 3 |
+| 0.7, 13.3 | the session view mode and its blocks surface are deleted | commit `e246a1470`; `frontend/src/renderer/components/CenterPane.tsx`, `stores/ui-store.ts` |
+| 0.7, 14 Phase 6 | the font stepper, pane fullscreen and Cmd+wheel zoom are deleted | commit `c9c7f71d9`; `frontend/src/renderer/components/CenterPane.tsx`, `TitlebarNav.tsx` |
+| 12.1, 14 Phase 6 | the four §12.1 look gaps are closed | `frontend/src/renderer/components/BlockTerminal.tsx:369,371`, `packages/terminal/ts/renderer-dom/src/styles.css:47-49,97-100`, `packages/terminal/ts/renderer-dom/src/fonts/`, commits `a83e29013` … `fbe04f719` |
+| 13.4.2 | three of the four xterm prerequisites landed early | `packages/terminal/ts/editor/src/encode-key.ts`, `paste.ts`, `packages/terminal/crates/vt-core/src/parser.rs:145`, `packages/terminal/ts/core/src/terminal-core.ts:138` |
+| 13.4.1 | the shell-terminal tabs are still in the tree | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` |
+| 5.5 | `vt-core` runs in the daemon as a C-ABI wasm module under `wazero`, passive and resized with the PTY | `packages/terminal/crates/vt-host/` (cdylib), `backend/internal/adapters/runtime/ptyhost/vtwasm/vtwasm.go`, `backend/go.mod:21`, `packages/build-binaries.sh:20-26` |
