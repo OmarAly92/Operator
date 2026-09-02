@@ -21,6 +21,8 @@ import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
+import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
+import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
 import { computeWindow, type RowWindow } from "./viewport.js";
@@ -28,7 +30,6 @@ import { computeWindow, type RowWindow } from "./viewport.js";
 const CLASS_BLOCK = "terminal-block";
 const CLASS_LEADING_SPACER = "terminal-spacer";
 const CLASS_TRAILING_SPACER = "terminal-spacer";
-const HIDDEN_MEASURE_ID = "terminal-m-measure";
 const DEFAULT_HEADER_HEIGHT = 24;
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
@@ -53,6 +54,7 @@ export class DomBlockRenderer implements BlockRenderer {
 	private readonly paintListeners = new Set<() => void>();
 	private knownBlockId: BlockId | null = null;
 	private stickToBottom = true;
+	private lastClientHeight = 0;
 	private lastPaintAt: number | null = null;
 	private wasAltActive = false;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
@@ -166,7 +168,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.scheduleRepaint();
 	}
 
-
 	getSelectionRange(): import("./selection.js").BlockRange | null {
 		const root = this.container;
 		if (!root) return null;
@@ -202,6 +203,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.measureNode = null;
 		this.knownBlockId = null;
 		this.stickToBottom = true;
+		this.lastClientHeight = 0;
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
 		this.host = null;
@@ -251,13 +253,21 @@ export class DomBlockRenderer implements BlockRenderer {
 	}
 
 	private applyStyleVars(): void {
-		const style = this.styleVarsString();
+		const style = styleVarsString(this.theme, this.font);
 		// The host gets them too, so the surface behind and between the blocks can
 		// paint the theme's own background. Without this the gaps between blocks
 		// fall through to whatever the embedding app painted, which seams against
 		// the blocks whenever the terminal's palette is not the app's.
+		//
+		// Set them one at a time rather than replacing the style attribute: the
+		// container is the one element mount() also styles, and overwriting the
+		// attribute drops position/overflow/contain, which stops it being a
+		// scroll container at all.
 		if (this.container) {
-			this.container.setAttribute("style", style);
+			const target = this.container.style;
+			for (const [name, value] of styleVarEntries(this.theme, this.font)) {
+				target.setProperty(name, value);
+			}
 		}
 		for (const element of this.blockElements.values()) {
 			element.setAttribute("style", style);
@@ -265,13 +275,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (this.altRoot) {
 			this.altRoot.setAttribute("style", style);
 		}
-	}
-
-	private styleVarsString(): string {
-		const entries: string[] = [];
-		this.theme.ansi.forEach((color, index) => entries.push(`--terminal-ansi-${index}: ${color}`));
-		entries.push(`--terminal-foreground: ${this.theme.foreground}`, `--terminal-background: ${this.theme.background}`, `--terminal-cursor: ${this.theme.cursor}`, `--terminal-selection: ${this.theme.selection}`, `--terminal-block-background: ${this.theme.blockBackground}`, `--terminal-block-border: ${this.theme.blockBorder}`, `--terminal-block-header-foreground: ${this.theme.blockHeaderForeground}`, `--terminal-font-family: ${this.font.family}`, `--terminal-font-size: ${this.font.sizePx}px`, `--terminal-font-weight: ${this.font.weight}`, `--terminal-letter-spacing: ${this.font.letterSpacingPx}px`, `--terminal-line-height: ${this.font.lineHeight * this.font.sizePx}px`, `--terminal-ligatures: ${this.font.ligatures ? "common-ligatures" : "none"}`);
-		return entries.join("; ");
 	}
 
 	private applyFontToMeasureNode(node: HTMLElement): void {
@@ -304,7 +307,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			container.style.overflow = "hidden";
 			container.scrollTop = 0;
 			const altRoot = this.ensureAltRoot(container);
-			altRoot.setAttribute("style", this.styleVarsString());
+			altRoot.setAttribute("style", styleVarsString(this.theme, this.font));
 			altRoot.hidden = false;
 			if (this.list) this.list.hidden = true;
 			if (this.pinnedHeader) this.pinnedHeader.hidden = true;
@@ -337,6 +340,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const anchorScrollTop = container.scrollTop;
 		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
 		const viewportHeight = container.clientHeight || 1;
+		this.lastClientHeight = container.clientHeight;
 		const windowResult = computeWindow({
 			blocks: this.filteredBlocks,
 			scrollTop,
@@ -400,6 +404,17 @@ export class DomBlockRenderer implements BlockRenderer {
 	private updateStickiness(): void {
 		const container = this.container;
 		if (!container) return;
+		// A viewport that changed height moves the bottom out from under a pinned
+		// terminal. The scroll event that follows belongs to the layout, not to
+		// the user, and reading it as a deliberate scroll leaves the terminal
+		// stranded a few rows short of the bottom for the rest of the session.
+		if (container.clientHeight !== this.lastClientHeight) {
+			this.lastClientHeight = container.clientHeight;
+			if (this.stickToBottom) {
+				this.applyStickiness();
+				return;
+			}
+		}
 		const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
 		this.stickToBottom = distance <= STICK_THRESHOLD_PX;
 	}
@@ -435,7 +450,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const section = document.createElement("section");
 		section.className = CLASS_BLOCK;
 		section.dataset.terminalBlockId = block.id;
-		section.setAttribute("style", this.styleVarsString());
+		section.setAttribute("style", styleVarsString(this.theme, this.font));
 		this.blockElements.set(block.id, section);
 		return section;
 	}
@@ -450,7 +465,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		const root = document.createElement("div");
 		root.setAttribute("data-terminal-alt-surface", "");
 		root.classList.add("terminal-alt-surface");
-		root.setAttribute("style", this.styleVarsString());
+		root.setAttribute("style", styleVarsString(this.theme, this.font));
 		container.append(root);
 		this.altRoot = root;
 		return root;
@@ -491,30 +506,6 @@ function ensurePackageStyleTag(): HTMLStyleElement {
 	return tag;
 }
 
-function ensureMeasureHost(): HTMLElement {
-	const existing = document.getElementById("terminal-measure-host");
-	if (existing) {
-		return existing;
-	}
-	const host = document.createElement("div");
-	host.id = "terminal-measure-host";
-	host.style.position = "absolute";
-	host.style.visibility = "hidden";
-	host.style.pointerEvents = "none";
-	host.style.left = "-9999px";
-	host.style.top = "0";
-	const node = document.createElement("span");
-	node.id = HIDDEN_MEASURE_ID;
-	node.textContent = "M";
-	host.append(node);
-	document.body.append(host);
-	return host;
-}
-
-function listenScroll(target: EventTarget, listener: () => void): () => void {
-	target.addEventListener("scroll", listener, { passive: true });
-	return () => target.removeEventListener("scroll", listener);
-}
 
 function populateBlock(
 	section: HTMLElement,

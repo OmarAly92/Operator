@@ -394,8 +394,12 @@ function PaddingApp(): ReactElement | null {
 				main.dataset.terminalPaddingInsetLeft = String(Math.round(hostRect.left - surfaceRect.left));
 				main.dataset.terminalPaddingInsetTop = String(Math.round(hostRect.top - surfaceRect.top));
 				main.dataset.terminalPaddingInsetRight = String(Math.round(surfaceRect.right - hostRect.right));
+				// The editor is a sibling of the host inside the surface. If the host
+				// claims the surface's full height the editor is laid out past the
+				// bottom edge, the pane clips the overflow, and the first row of the
+				// transcript is cut off with no way to scroll up to it.
 				main.dataset.terminalPaddingOverflow = String(
-					Math.round(hostRect.height + editorHeight - (surfaceRect.height - 16)),
+					Math.round(hostRect.height + editorHeight - surfaceRect.height),
 				);
 				main.dataset.terminalPaddingHostHeight = String(Math.round(hostRect.height));
 				main.dataset.terminalPaddingSurfaceHeight = String(Math.round(surfaceRect.height));

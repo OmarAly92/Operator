@@ -32,6 +32,12 @@
 
 .terminal-surface {
 	box-sizing: border-box;
+	/* A column so the host takes the space the line editor leaves. With the host
+	   at height:100% the editor was laid out past the surface's bottom edge, the
+	   pane clipped the overflow, and the first row of the transcript was cut off
+	   with no way to scroll up to it. */
+	display: flex;
+	flex-direction: column;
 	height: 100%;
 	width: 100%;
 	/* A 4px hairline left and right so glyphs do not touch the pane edge, and
@@ -44,9 +50,16 @@
 }
 
 .terminal-host {
-	height: 100%;
+	flex: 1 1 auto;
+	/* Without this the flex item refuses to shrink below its content height, so
+	   the scroll container never forms and the overflow returns. */
+	min-height: 0;
 	width: 100%;
 	background: var(--terminal-background);
+}
+
+.terminal-editor-host {
+	flex: 0 0 auto;
 }
 
 /* The host carries tabindex=0 only while the alt-screen key handler is bound.

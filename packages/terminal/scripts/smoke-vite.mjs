@@ -356,16 +356,24 @@ async function main() {
 				left: Number(main?.dataset.terminalPaddingInsetLeft ?? "-1"),
 				top: Number(main?.dataset.terminalPaddingInsetTop ?? "-1"),
 				right: Number(main?.dataset.terminalPaddingInsetRight ?? "-1"),
+				overflow: Number(main?.dataset.terminalPaddingOverflow ?? "-1"),
 			};
 		});
-		if (padding.left !== 16 || padding.right !== 16) {
+		if (padding.left !== 4 || padding.right !== 4) {
 			fail(
-				`the grid is not inset by Warp's 16px horizontally: left=${padding.left} right=${padding.right}. ` +
+				`the grid is not inset by the 4px hairline horizontally: left=${padding.left} right=${padding.right}. ` +
 					"Padding belongs on .terminal-surface, never on the measured .terminal-host.",
 			);
 		}
-		if (padding.top !== 8) {
-			fail(`the grid is not inset by Warp's 8px vertically: top=${padding.top}`);
+		if (padding.top !== 0) {
+			fail(`the grid should sit flush against the top of the pane: top=${padding.top}`);
+		}
+		if (padding.overflow !== 0) {
+			fail(
+				`the host and the line editor overflow .terminal-surface by ${padding.overflow}px. ` +
+					"The host must take the space the editor leaves, not the surface's full height, " +
+					"or the pane clips the top of the transcript and it cannot be scrolled to.",
+			);
 		}
 
 
