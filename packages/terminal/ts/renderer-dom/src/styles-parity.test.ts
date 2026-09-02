@@ -61,6 +61,37 @@ describe("terminalStyles", () => {
 		expect(row).toContain("z-index: 0");
 	});
 
+	// A desktop shell that sets `user-select: none` on the body -- the usual
+	// convention, and what this one does -- otherwise makes the whole transcript
+	// unselectable through inheritance, with nothing in the terminal's own
+	// stylesheet to say otherwise.
+	it("keeps the transcript selectable whatever the host does to the body", () => {
+		const block = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-block,"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")),
+		);
+		expect(block).toContain(".terminal-alt-surface");
+		expect(block).toContain("user-select: text");
+		expect(block).toContain("-webkit-user-select: text");
+	});
+
+	it("leaves the chrome around it unselectable", () => {
+		const chrome = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-block-header,"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block-header,")),
+		);
+		for (const name of [
+			".terminal-block-actions",
+			".terminal-pinned-header",
+			".terminal-jump-to-bottom",
+			".terminal-find-bar",
+			".terminal-palette",
+		]) {
+			expect(chrome).toContain(name);
+		}
+		expect(chrome).toContain("user-select: none");
+	});
+
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});

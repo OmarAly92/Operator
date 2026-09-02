@@ -10,4 +10,9 @@ describe("editorStyles", () => {
 		const css = readFileSync(cssPath, "utf8").replace(/\n+$/, "");
 		expect(editorStyles).toBe(css);
 	});
+
+	it("keeps the input line selectable whatever the host does to the body", () => {
+		expect(editorStyles).toContain("user-select: text");
+		expect(editorStyles).toContain("-webkit-user-select: text");
+	});
 });

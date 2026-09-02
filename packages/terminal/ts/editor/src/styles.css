@@ -13,6 +13,11 @@
 	font-variant-ligatures: var(--terminal-ligatures);
 	white-space: pre;
 	outline: none;
+	/* What the user typed is text they may want to copy, and a host that turns
+	   selection off app-wide would otherwise take that away. */
+	-webkit-user-select: text;
+	user-select: text;
+	cursor: text;
 }
 
 /* Empty while the child owns the line, so it must not reserve a row's worth of

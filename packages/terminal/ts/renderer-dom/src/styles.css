@@ -176,6 +176,31 @@
 	content: "";
 }
 
+/* The transcript is text the user copies out of, and a desktop shell that turns
+   selection off app-wide -- the usual convention, so a drag on chrome does not
+   paint it blue -- otherwise takes that with it. Selection is what the copy
+   actions and getSelectionRange() are for, so the package asserts it rather
+   than depending on the host to make an exception for us. */
+.terminal-block,
+.terminal-alt-surface {
+	-webkit-user-select: text;
+	user-select: text;
+	cursor: text;
+}
+
+/* Chrome stays unselectable, so dragging across a block picks up its output and
+   not the header metadata or the labels of the buttons floating over it. */
+.terminal-block-header,
+.terminal-block-actions,
+.terminal-pinned-header,
+.terminal-jump-to-bottom,
+.terminal-find-bar,
+.terminal-palette {
+	-webkit-user-select: none;
+	user-select: none;
+	cursor: default;
+}
+
 .terminal-row {
 	position: relative;
 	z-index: 0;
