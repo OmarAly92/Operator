@@ -2,8 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import {
 	createContext,
-	lazy,
-	Suspense,
 	useCallback,
 	useContext,
 	useEffect,
@@ -24,7 +22,6 @@ import {
 	type AttachableTerminal,
 	type TerminalSessionState,
 } from "../hooks/useTerminalSession";
-import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 import { getApiBaseUrl } from "../lib/api-client";
 import {
 	createTerminalMux,
@@ -41,18 +38,9 @@ import { useShellTerminalBlocks } from "../hooks/useShellTerminalBlocks";
 import { nativeShellBridgePresent } from "../lib/bridge";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { TerminalAttachment } from "./TerminalAttachment";
 
 const NO_HISTORY_BLOCKS: BlockTerminalHistoryBlock[] = [];
-
-// The xterm renderer stack (~570KB parsed) is the single largest eager edge
-// from the shell route (route-bundle-report before.json, 2026-08-24) and no
-// board paint ever mounts it. Splitting the renderer behind this boundary
-// keeps TerminalPane's cache provider eager while xterm parses on first pane.
-const XtermTerminal = lazy(() =>
-	import("./XtermTerminal").then((module) => ({ default: module.XtermTerminal })),
-);
-
-const usesXtermSurface = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
 type TerminalPaneProps = {
 	session?: WorkspaceSession;
@@ -81,7 +69,6 @@ type CachedTerminalEntry = TerminalCacheDescriptor & {
 	activationId: number;
 	activationPhase: "parked" | "preparing" | "ready" | "revealed" | "visible";
 	container: HTMLDivElement;
-	discardOnDeactivate?: boolean;
 	props: TerminalPaneProps;
 	terminal?: AttachableTerminal;
 };
@@ -230,7 +217,6 @@ function activateTerminal(entry: CachedTerminalEntry): void {
 function CachedTerminalPortal({
 	active,
 	entry,
-	onFatal,
 	onPrepared,
 	onReveal,
 	onActivated,
@@ -238,16 +224,11 @@ function CachedTerminalPortal({
 }: {
 	active: boolean;
 	entry: CachedTerminalEntry;
-	onFatal: (cacheKey: string, message: string) => void;
 	onPrepared: (cacheKey: string, activationId: number) => void;
 	onReveal: (cacheKey: string, activationId: number) => void;
 	onActivated: (cacheKey: string, activationId: number) => void;
 	onTerminalReady: (cacheKey: string, terminal: AttachableTerminal) => void;
 }) {
-	const handleFatal = useCallback(
-		(message: string) => onFatal(entry.cacheKey, message),
-		[entry.cacheKey, onFatal],
-	);
 	const handleTerminalReady = useCallback(
 		(terminal: AttachableTerminal) => {
 			onTerminalReady(entry.cacheKey, terminal);
@@ -295,7 +276,6 @@ function CachedTerminalPortal({
 		<AttachedTerminal
 			{...entry.props}
 			isVisible={active && entry.activationPhase === "visible"}
-			onFatal={handleFatal}
 			onTerminalReady={handleTerminalReady}
 		/>,
 		entry.container,
@@ -371,10 +351,6 @@ export function TerminalCacheProvider({
 				const previousEntry = entriesRef.current.get(previous.key);
 				if (previousEntry) {
 					parkTerminal(previousEntry, parking);
-					if (previousEntry.discardOnDeactivate) {
-						entriesRef.current.delete(previous.key);
-						previousEntry.container.remove();
-					}
 				}
 			}
 
@@ -426,7 +402,7 @@ export function TerminalCacheProvider({
 			const parking = parkingRef.current;
 			activeRef.current = null;
 			if (!entry) return;
-			if (entry.discardOnDeactivate || !parking) {
+			if (!parking) {
 				entriesRef.current.delete(cacheKey);
 				entry.container.remove();
 				rerender();
@@ -447,22 +423,6 @@ export function TerminalCacheProvider({
 			rerender();
 		},
 		[muxPool, rerender],
-	);
-
-	const markFatal = useCallback(
-		(cacheKey: string, _message: string) => {
-			const entry = entriesRef.current.get(cacheKey);
-			if (!entry) return;
-			if (activeRef.current?.key !== cacheKey) {
-				removeEntry(cacheKey);
-				return;
-			}
-			// Renderer initialization failed. AttachedTerminal owns the visible
-			// error surface; mark the entry only so it is discarded when the user
-			// leaves instead of retaining an unusable renderer.
-			entry.discardOnDeactivate = true;
-		},
-		[removeEntry],
 	);
 
 	const markTerminalReady = useCallback(
@@ -634,7 +594,6 @@ export function TerminalCacheProvider({
 					entry={entry}
 					key={entry.cacheKey}
 					onActivated={markActivated}
-					onFatal={markFatal}
 					onPrepared={markPrepared}
 					onReveal={markReveal}
 					onTerminalReady={markTerminalReady}
@@ -896,19 +855,15 @@ function bannerText(state: TerminalSessionState, t: TFunction, error?: string): 
 
 function AttachedTerminal({
 	session,
-	theme,
 	daemonReady,
 	terminalTarget,
 	fontSize,
 	inputDisabled,
-	focusRequested,
 	createMux,
 	isVisible = true,
-	onFatal,
 	onTerminalReady,
 }: TerminalPaneProps & {
 	isVisible?: boolean;
-	onFatal?: (message: string) => void;
 	onTerminalReady?: (terminal: AttachableTerminal) => void;
 }) {
 	const { t } = useTranslation();
@@ -920,7 +875,6 @@ function AttachedTerminal({
 	// cache retains this component across route switches; a replacement handle
 	// gets a new component rather than inheriting stale screen/input state.
 	const [terminal, setTerminal] = useState<AttachableTerminal | null>(null);
-	const [initFailed, setInitFailed] = useState(false);
 	const [isRestoring, setIsRestoring] = useState(false);
 	const [restoreError, setRestoreError] = useState<string | undefined>();
 	const [restoreUnavailable, setRestoreUnavailable] = useState(false);
@@ -931,7 +885,7 @@ function AttachedTerminal({
 	const shellTerminalHandleId = terminalTarget?.kind === "shell" ? terminalTarget.handleId : undefined;
 	const isShellTarget = terminalTarget?.kind === "shell";
 	const shellBlocks = useShellTerminalBlocks(terminalTarget);
-	const { attach, state, error, replaySettled, syncVisibleSize, transport } = useTerminalSession(attachSession, {
+	const { attach, state, error, replaySettled, transport } = useTerminalSession(attachSession, {
 		coverInitialReplay: terminalTarget?.kind !== "reviewer",
 		createMux,
 		daemonReady,
@@ -961,7 +915,6 @@ function AttachedTerminal({
 		};
 	}, [replayPaintPending, replaySettled, terminal]);
 	const handleId = shellTerminalHandleId ?? attachSession?.terminalHandleId;
-	const provider = terminalTarget?.kind === "reviewer" ? terminalTarget.harness : session?.provider;
 	const isSessionActive = session ? sessionIsActive(session) : false;
 	// A standalone shell is never restorable: there is no session row to restore.
 	const canRestoreSession =
@@ -972,21 +925,16 @@ function AttachedTerminal({
 
 	const detachRef = useRef<(() => void) | undefined>(undefined);
 	const handleReady = useCallback((handle: AttachableTerminal) => {
-		// Detach any previous attachment before the new xterm takes over. The cache
-		// re-mounts a new xterm on a generation change; the old one has already
-		// disposed, but the hook still needs the explicit flush to land any tail
-		// bytes and bump the generation so the new open isn't treated as a
-		// superseded reconnect.
+		// Detach any previous attachment before the new one takes over. The cache
+		// re-mounts on a generation change; the hook still needs the explicit flush
+		// to land any tail bytes and bump the generation so the new open isn't
+		// treated as a superseded reconnect.
 		detachRef.current?.();
 		detachRef.current = undefined;
 		setTerminal(handle);
-		// A new xterm starts at its constructor default (80×24). Opening the PTY
-		// before FitAddon has measured its real slot makes full-screen worker TUIs
-		// redraw once at 80×24 and again at the actual grid. Settle that first fit
-		// before attaching so the daemon receives only the authoritative size.
-		// xterm no longer receives mux bytes — the block list does, via `transport`.
-		// The hook still needs the terminal for onUserInput/onResize forwarding
-		// when an alt-screen TUI is on top, and for the initial cols/rows.
+		// The block list is the byte sink, via `transport`. The hook still needs
+		// the handle for the attachment lifecycle and the fallback cols/rows the
+		// PTY opens at before the surface has measured its own geometry.
 		void handle.prepareForActivation().then(() => {
 			detachRef.current = attach(handle);
 		});
@@ -994,23 +942,6 @@ function AttachedTerminal({
 	useLayoutEffect(() => {
 		if (terminal) onTerminalReady?.(terminal);
 	}, [onTerminalReady, terminal]);
-	const handleInitError = useCallback((err: unknown) => {
-		console.error("xterm failed to initialize", err);
-		setInitFailed(true);
-	}, []);
-	useEffect(() => {
-		if (initFailed) {
-			onFatal?.("renderer initialization failed");
-			return;
-		}
-	}, [initFailed, onFatal]);
-	const handleLinkOpen = useCallback(
-		(uri: string) => {
-			if (!isWebLink(uri)) return;
-			void openLinkInSystemBrowser(uri);
-		},
-		[],
-	);
 	const restoreSession = useCallback(async () => {
 		if (!session?.id || !canRestoreSession || isRestoring) return;
 		setIsRestoring(true);
@@ -1037,14 +968,6 @@ function AttachedTerminal({
 			detachRef.current = undefined;
 		};
 	}, []);
-
-	if (initFailed) {
-		return (
-			<div className="terminal-pane-surface grid h-full place-items-center p-4 font-mono text-xs text-muted-foreground">
-				{t("terminal.initFailed")}
-			</div>
-		);
-	}
 
 	const banner = bannerText(state, t, error);
 	const showEmptyState = !handleId;
@@ -1087,34 +1010,19 @@ function AttachedTerminal({
 			    whose BlockPadding (app/src/terminal/mod.rs) is vertical-only and pads
 			    nothing horizontally. The earlier 8px left gutter stacked with the
 			    surface's own 16px inset for 24px of dead space and cost a noticeable
-			    number of columns per line. The block list host fills the content box;
-			    FitAddon still measures correctly inside the alt-screen xterm, and the
-			    absolute overlays (empty state, banner) still cover the full box. */}
+			    number of columns per line. The block list host fills the content box,
+			    and the absolute overlays (empty state, banner) still cover the full
+			    box. */}
 			<div className="relative min-h-0 flex-1">
-				<Suspense fallback={null}>
-					<BlockTerminal
-						transport={transport}
-						sessionId={handleId ?? "no-session"}
-						historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
-						agentTui={terminalTarget?.kind === "worker"}
-						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
-						fontSize={fontSize}
-					>
-						<XtermTerminal
-							ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
-							fontSize={fontSize}
-							focusRequested={focusRequested}
-							headless={!usesXtermSurface}
-							isVisible={isVisible}
-							onError={handleInitError}
-							onLinkOpen={handleLinkOpen}
-							onReady={handleReady}
-							onVisibleSize={syncVisibleSize}
-							paneScrollsByKeyboard={providerScrollsByKeyboard(provider)}
-							theme={theme}
-						/>
-					</BlockTerminal>
-				</Suspense>
+				<BlockTerminal
+					transport={transport}
+					sessionId={handleId ?? "no-session"}
+					historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
+					agentTui={terminalTarget?.kind === "worker"}
+					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
+					fontSize={fontSize}
+				/>
+				<TerminalAttachment onReady={handleReady} />
 				{showEmptyState && (
 					<div className="terminal-pane-surface absolute inset-0 grid place-items-center font-mono text-control">
 						<div className="text-center">

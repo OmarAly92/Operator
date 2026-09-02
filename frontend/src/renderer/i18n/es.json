@@ -889,7 +889,6 @@
 	"terminal.scrollTabsRight": "Desplazar pestañas a la derecha",
 	"terminal.ended": "Terminal finalizado",
 	"terminal.error": "Error del terminal: {{error}}",
-	"terminal.initFailed": "El terminal no pudo inicializarse en esta GPU/controlador. Reinicia la aplicación para reintentarlo.",
 	"terminal.loadingOutput": "Cargando la salida más reciente…",
 	"terminal.noSessionSelected": "No hay sesión seleccionada. Elige un worker para adjuntar su terminal.",
 	"terminal.preparingOrchestrator": "Preparando el terminal del orquestador. Puede tardar un momento mientras Operator crea el espacio de trabajo e inicia el agente.",

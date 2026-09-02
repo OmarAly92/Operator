@@ -889,7 +889,6 @@
 	"terminal.scrollTabsRight": "Faire défiler les onglets vers la droite",
 	"terminal.ended": "Terminal terminé",
 	"terminal.error": "Erreur du terminal : {{error}}",
-	"terminal.initFailed": "Le terminal n'a pas pu s'initialiser sur ce GPU/pilote. Redémarrez l'application pour réessayer.",
 	"terminal.loadingOutput": "Chargement de la dernière sortie…",
 	"terminal.noSessionSelected": "Aucune session sélectionnée. Choisissez un worker pour attacher son terminal.",
 	"terminal.preparingOrchestrator": "Préparation du terminal de l'orchestrateur. Cela peut prendre un moment pendant qu'Operator crée l'espace de travail et démarre l'agent.",

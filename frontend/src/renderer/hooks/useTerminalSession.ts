@@ -140,7 +140,6 @@ const REPLAY_MAX_BYTES = 1024 * 1024;
 // copyOut, so the first byte is imminent but not instant, and a value near
 // QUIET_MS would uncover panes that were about to draw.
 const REPLAY_FIRST_BYTE_MS = 250;
-const mirrorsOutputToTerminal = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
 function defaultCreateMux(): TerminalMux {
 	// Resolved per connect, not per hook: a daemon restart can change the port.
@@ -480,18 +479,11 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 						len: bytes.length,
 						total: muxBytes,
 						listeners: r.byteListeners.size,
-						hasXterm: Boolean(r.terminal),
+						hasTerminal: Boolean(r.terminal),
 						buffering: r.replayBuffering,
 					});
 				}
 				for (const listener of [...r.byteListeners]) listener(bytes);
-				if (mirrorsOutputToTerminal) {
-					try {
-						r.terminal?.write(bytes);
-					} catch (error) {
-						terminalDebug("mux", "xterm write FAILED", { error: String(error) });
-					}
-				}
 				if (r.replayBuffering) {
 					r.replayChunks.push(bytes);
 					r.replayBytes += bytes.length;
