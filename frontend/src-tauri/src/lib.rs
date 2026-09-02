@@ -1241,6 +1241,42 @@ mod tests {
     use super::updater_temp_dir;
     use super::StateProfile;
 
+    // The benchmark window runs under its own capability, so a command being
+    // registered in the terminal-benchmark builder branch is not enough — it
+    // must also be permitted for that window. cpu-time and active-memory read
+    // the daemon's process id off the run file it writes on start, and the
+    // harness asks for that start explicitly (startTauriDaemonForScenario);
+    // without this permission the invoke is denied and both scenarios time out
+    // waiting on a running.json that never appears.
+    #[test]
+    fn terminal_benchmark_window_may_start_the_daemon() {
+        let raw = include_str!("../capabilities/terminal-benchmark.json");
+        let capability: serde_json::Value =
+            serde_json::from_str(raw).expect("terminal-benchmark capability must be valid JSON");
+        let windows: Vec<&str> = capability["windows"]
+            .as_array()
+            .expect("capability must scope windows")
+            .iter()
+            .map(|value| value.as_str().expect("window labels are strings"))
+            .collect();
+        assert_eq!(windows, vec!["terminal-benchmark"]);
+
+        let permissions: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("capability must list permissions")
+            .iter()
+            .map(|value| value.as_str().expect("permissions are strings"))
+            .collect();
+        assert!(
+            permissions.contains(&"allow-daemon-start"),
+            "cpu-time/active-memory cannot start the daemon without allow-daemon-start; got {permissions:?}"
+        );
+        assert!(
+            permissions.contains(&"allow-terminal-benchmark-runtime-identity"),
+            "the harness still needs the runtime identity command; got {permissions:?}"
+        );
+    }
+
     fn test_root() -> PathBuf {
         if cfg!(target_os = "windows") {
             PathBuf::from(r"C:\operator-test")

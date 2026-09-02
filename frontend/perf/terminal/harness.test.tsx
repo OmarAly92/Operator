@@ -526,6 +526,38 @@ describe("terminal benchmark harness", () => {
 		expect(acknowledgements.some(({ name }) => name === "reconnect")).toBe(true);
 	});
 
+	// The test above emits "closed" straight onto the mux, which is what the
+	// harness listens for — but the real forced disconnect goes through
+	// dispose(), and the real dispose() clears its connection listeners before
+	// closing the socket, so that transition never arrives. Driving the actual
+	// benchmark event (as the runner does) is the only way to catch a reconnect
+	// that never re-attaches; fakeMux's dispose is silent for the same reason.
+	it("re-attaches after the benchmark's forced disconnect", async () => {
+		const muxes = [fakeMux(), fakeMux()];
+		const acknowledgements: TerminalAcknowledgement[] = [];
+		const createMux = vi.fn(() => muxes.shift()!);
+		render(
+			<SkinProvider>
+				<TerminalBenchmarkHarness
+					configuration={configuration()}
+					createMux={createMux}
+					onAcknowledgement={(acknowledgement) => acknowledgements.push(acknowledgement)}
+				/>
+			</SkinProvider>,
+		);
+		await waitFor(() => expect(createMux).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			window.dispatchEvent(new Event("operator:terminal-benchmark-reconnect"));
+		});
+
+		await waitFor(() => expect(createMux).toHaveBeenCalledTimes(2));
+		expect(createMux.mock.results[0].value.dispose).toHaveBeenCalled();
+		expect(createMux.mock.results[1].value.open).toHaveBeenCalledWith("terminal-1", 120, 40);
+		act(() => createMux.mock.results[1].value.emitOpened());
+		expect(acknowledgements.some(({ name }) => name === "reconnect")).toBe(true);
+	});
+
 	it("closes the attachment and disposes the production terminal", async () => {
 		const mux = fakeMux();
 		const acknowledgements: TerminalAcknowledgement[] = [];

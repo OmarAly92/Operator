@@ -411,7 +411,15 @@ export function TerminalBenchmarkHarness({
 		const forceDisconnect = () => {
 			const mux = muxRef.current;
 			if (!mux) return;
+			// dispose() drops the socket without a graceful close frame, which is
+			// the abrupt drop this scenario measures recovery from. It is
+			// deliberately silent, though: it clears the connection listeners
+			// before closing the socket, so the "closed" transition that would
+			// normally bump the generation never reaches onConnectionChange.
+			// Bump it here, or the effect never re-runs, nothing re-attaches, and
+			// the run stalls at the first sample with the terminal still open.
 			mux.dispose();
+			setAttachmentGeneration((generation) => generation + 1);
 		};
 		window.addEventListener("operator:terminal-benchmark-run", runWorkload);
 		window.addEventListener("operator:terminal-benchmark-input", sendInputProbe);

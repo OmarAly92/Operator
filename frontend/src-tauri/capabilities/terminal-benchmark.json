@@ -1,6 +1,6 @@
 {
 	"identifier": "terminal-benchmark",
-	"description": "Native runtime identity for the isolated terminal benchmark window",
+	"description": "Native runtime identity for the isolated terminal benchmark window, plus the explicit daemon start the cpu-time and active-memory scenarios need",
 	"windows": ["terminal-benchmark"],
-	"permissions": ["allow-terminal-benchmark-runtime-identity"]
+	"permissions": ["allow-terminal-benchmark-runtime-identity", "allow-daemon-start"]
 }
