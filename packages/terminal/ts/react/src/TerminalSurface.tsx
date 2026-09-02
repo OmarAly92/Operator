@@ -12,6 +12,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
+import { createCompositionTarget } from "./composition-target.js";
 import { encodeMouseReport, type MouseReportKind } from "./mouse-report.js";
 
 export interface TerminalSurfaceProps {
@@ -196,7 +197,14 @@ export function TerminalSurface({
 			return;
 		}
 		const appCursor = () => core.snapshot().applicationCursorKeys;
+		const composition = createCompositionTarget({
+			parent: blockHost,
+			onCommit: (text) => onSendRaw(text),
+		});
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
+				return;
+			}
 			const data = encodeKey(event, appCursor());
 			if (data === null) {
 				return;
@@ -219,10 +227,11 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
-		blockHost.focus();
+		composition.focus();
 		return () => {
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
+			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
 

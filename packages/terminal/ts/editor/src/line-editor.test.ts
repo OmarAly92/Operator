@@ -275,7 +275,7 @@ describe("LineEditor chrome while the child owns the line", () => {
 		const { editor, host, container } = mount();
 		document.body.append(container);
 		editor.focus();
-		expect(container.ownerDocument.activeElement).toBe(container.querySelector(".terminal-editor"));
+		expect(container.ownerDocument.activeElement).toBe(container.querySelector(".terminal-editor textarea"));
 		editor.handleKey(key({ key: "a" }));
 		expect(host.raw.join("")).toBe("a");
 	});

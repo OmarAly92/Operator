@@ -1,5 +1,6 @@
 export { TerminalSurface, type TerminalSurfaceProps } from "./TerminalSurface.js";
 export { AltScreenSlot, type AltScreenSlotProps } from "./AltScreenSlot.js";
+export { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
 export {
 	encodeMouseReport,
 	type MouseModifiers,

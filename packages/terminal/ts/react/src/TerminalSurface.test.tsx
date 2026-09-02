@@ -185,10 +185,11 @@ describe("TerminalSurface", () => {
 		);
 		const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
 		const editor = container.querySelector<HTMLElement>(".terminal-editor")!;
-		expect(document.activeElement).not.toBe(editor);
+		const composition = editor.querySelector("textarea")!;
+		expect(document.activeElement).not.toBe(composition);
 
 		fireEvent.click(host);
-		expect(document.activeElement).toBe(editor);
+		expect(document.activeElement).toBe(composition);
 	});
 
 	it("does not steal focus into the editor while text is selected in the block list", () => {
@@ -366,7 +367,8 @@ describe("TerminalSurface", () => {
 		act(() => {
 			feed(core, "\x1b[?1049h");
 		});
-		expect(document.activeElement).toBe(container.querySelector(".terminal-host"));
+		const host = container.querySelector(".terminal-host") as HTMLElement;
+		expect(document.activeElement).toBe(host.querySelector("textarea"));
 		act(() => {
 			feed(core, "\x1b[?1049l");
 		});
@@ -386,5 +388,20 @@ describe("TerminalSurface", () => {
 		await flushRepaint();
 		const surface = container.querySelector("[data-terminal-alt-surface]") as HTMLElement | null;
 		expect(surface === null || surface.hidden).toBe(true);
+	});
+
+	it("sends composed text once and swallows the composing keydown", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const host = container.querySelector(".terminal-host") as HTMLElement;
+		const textarea = host.querySelector("textarea");
+		expect(textarea).not.toBeNull();
+		host.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", keyCode: 229, bubbles: true }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+		textarea!.dispatchEvent(new CompositionEvent("compositionend", { data: "日本" }));
+		expect(onSendRaw).toHaveBeenCalledExactlyOnceWith("日本");
 	});
 });

@@ -8,6 +8,7 @@ import {
 } from "@operator/terminal-core";
 import { EditorBuffer } from "./buffer.js";
 import { CompletionsDropdown } from "./completions-dropdown.js";
+import { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { encodeKey } from "./encode-key.js";
@@ -38,6 +39,7 @@ export class LineEditor {
 	private core: TerminalCore | null = null;
 	private host: EditorHost | null = null;
 	private root: HTMLElement | null = null;
+	private composition: CompositionTarget | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private unsubscribeCompletions: (() => void) | null = null;
 
@@ -65,6 +67,10 @@ export class LineEditor {
 		root.addEventListener("paste", this.onPaste);
 		container.append(root);
 		this.root = root;
+		this.composition = createCompositionTarget({
+			parent: root,
+			onCommit: (text) => this.commitComposedText(text),
+		});
 		this.dropdown.mount(root);
 		this.unsubscribe = core.onChange(() => {
 			this.ingestHistory();
@@ -114,7 +120,7 @@ export class LineEditor {
 	}
 
 	focus(): void {
-		this.root?.focus();
+		this.composition?.focus();
 	}
 
 	dispose(): void {
@@ -124,6 +130,8 @@ export class LineEditor {
 		this.unsubscribeCompletions = null;
 		this.dropdown.dispose();
 		this.dropdownOpen = false;
+		this.composition?.dispose();
+		this.composition = null;
 		if (this.root) {
 			this.root.removeEventListener("keydown", this.onKeyDown);
 			this.root.remove();
@@ -131,6 +139,14 @@ export class LineEditor {
 		this.root = null;
 		this.core = null;
 		this.host = null;
+	}
+
+	private commitComposedText(text: string): void {
+		if (this.core?.lineEditorState() !== "owned") {
+			this.host?.sendRaw(text);
+			return;
+		}
+		this.apply({ kind: "insert", text });
 	}
 
 	handleKey(event: KeyboardEvent): void {
@@ -142,6 +158,9 @@ export class LineEditor {
 	}
 
 	private readonly onKeyDown = (event: KeyboardEvent): void => {
+		if (this.composition?.isComposing() || event.isComposing || event.keyCode === 229) {
+			return;
+		}
 		if (this.handleSearchKey(event)) {
 			event.preventDefault();
 			return;
@@ -344,7 +363,7 @@ export class LineEditor {
 		// that does not track what the user is typing. The root stays in the DOM
 		// and focusable -- it is still what receives the keys.
 		if (state !== "owned") {
-			root.replaceChildren();
+			root.replaceChildren(...compositionNodes(this.composition));
 			return;
 		}
 		const cursor = this.buffer.cursor;
@@ -401,7 +420,7 @@ export class LineEditor {
 				this.strings,
 			),
 		);
-		root.replaceChildren(...nodes);
+		root.replaceChildren(...nodes, ...compositionNodes(this.composition));
 	}
 
 	private handleSearchKey(event: KeyboardEvent): boolean {
@@ -449,6 +468,10 @@ export class LineEditor {
 		this.promptExitCode = newest?.exitCode ?? null;
 		this.promptDurationMs = newest?.durationMs ?? null;
 	}
+}
+
+function compositionNodes(composition: CompositionTarget | null): HTMLElement[] {
+	return composition ? [composition.element] : [];
 }
 
 function appendRange(
