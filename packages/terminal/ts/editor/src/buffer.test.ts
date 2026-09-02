@@ -24,6 +24,30 @@ describe("EditorBuffer", () => {
 		expect(buffer.text).toBe("git commit ");
 	});
 
+	it("deletes back to the start of the line the cursor is on", () => {
+		const buffer = new EditorBuffer();
+		buffer.setText("git commit --amend", 11);
+		buffer.deleteToLineStart();
+		expect(buffer.text).toBe("--amend");
+		expect(buffer.cursor).toBe(0);
+	});
+
+	it("keeps the lines above the one it kills", () => {
+		const buffer = new EditorBuffer();
+		buffer.setText("one\ntwo three", 11);
+		buffer.deleteToLineStart();
+		expect(buffer.text).toBe("one\nee");
+		expect(buffer.cursor).toBe(4);
+	});
+
+	it("deletes forward to the end of the line only", () => {
+		const buffer = new EditorBuffer();
+		buffer.setText("one two\nthree", 3);
+		buffer.deleteToLineEnd();
+		expect(buffer.text).toBe("one\nthree");
+		expect(buffer.cursor).toBe(3);
+	});
+
 	it("treats a newline as a line break for line motion", () => {
 		const buffer = new EditorBuffer();
 		buffer.setText("one\ntwo\nthree", 9);

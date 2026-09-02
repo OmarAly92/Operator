@@ -252,6 +252,16 @@ export class LineEditor {
 				this.historyPrefix = null;
 				this.cancelDropdownIfOpen();
 				break;
+			case "delete-line-backward":
+				this.buffer.deleteToLineStart();
+				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
+				break;
+			case "delete-line-forward":
+				this.buffer.deleteToLineEnd();
+				this.historyPrefix = null;
+				this.cancelDropdownIfOpen();
+				break;
 			case "move":
 				this.buffer.moveBy(command.delta);
 				break;

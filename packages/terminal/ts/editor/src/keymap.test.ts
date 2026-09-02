@@ -17,6 +17,25 @@ describe("mapKey", () => {
 		expect(mapKey(key({ key: "r", ctrlKey: true }))).toEqual({ kind: "reverse-search" });
 	});
 
+	// Warp binds cmd-backspace to kill_to_line_start and ctrl-u alongside it
+	// (warp_tui/editor_interaction.rs); ctrl-u already killed the word here, so
+	// it moves to the line to match, and cmd-delete kills forward.
+	it("kills the line on Command+Backspace, and to the end on Command+Delete", () => {
+		expect(mapKey(key({ key: "Backspace", metaKey: true }))).toEqual({
+			kind: "delete-line-backward",
+		});
+		expect(mapKey(key({ key: "u", ctrlKey: true }))).toEqual({ kind: "delete-line-backward" });
+		expect(mapKey(key({ key: "Delete", metaKey: true }))).toEqual({ kind: "delete-line-forward" });
+		expect(mapKey(key({ key: "k", ctrlKey: true }))).toEqual({ kind: "delete-line-forward" });
+	});
+
+	it("leaves the word chords alone", () => {
+		expect(mapKey(key({ key: "Backspace", altKey: true }))).toEqual({
+			kind: "delete-word-backward",
+		});
+		expect(mapKey(key({ key: "w", ctrlKey: true }))).toEqual({ kind: "delete-word-backward" });
+	});
+
 	it("gives Tab to completions and ArrowRight to ghost-text acceptance", () => {
 		expect(mapKey(key({ key: "Tab" }))).toEqual({ kind: "complete" });
 		expect(mapKey(key({ key: "ArrowRight" }))).toEqual({ kind: "accept-suggestion" });

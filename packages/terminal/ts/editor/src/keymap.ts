@@ -5,6 +5,8 @@ export type EditorCommand =
 	| { kind: "delete-backward" }
 	| { kind: "delete-forward" }
 	| { kind: "delete-word-backward" }
+	| { kind: "delete-line-backward" }
+	| { kind: "delete-line-forward" }
 	| { kind: "move"; delta: -1 | 1 }
 	| { kind: "move-word"; direction: -1 | 1 }
 	| { kind: "move-line"; direction: -1 | 1 }
@@ -37,8 +39,11 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 			case "e":
 				return { kind: "accept-suggestion" };
 			case "w":
-			case "u":
 				return { kind: "delete-word-backward" };
+			case "u":
+				return { kind: "delete-line-backward" };
+			case "k":
+				return { kind: "delete-line-forward" };
 			case "r":
 				return { kind: "reverse-search" };
 		}
@@ -52,9 +57,10 @@ export function mapKey(event: KeyboardEvent): EditorCommand | null {
 		case "Enter":
 			return shiftKey ? { kind: "newline" } : { kind: "submit" };
 		case "Backspace":
+			if (metaKey) return { kind: "delete-line-backward" };
 			return altKey ? { kind: "delete-word-backward" } : { kind: "delete-backward" };
 		case "Delete":
-			return { kind: "delete-forward" };
+			return metaKey ? { kind: "delete-line-forward" } : { kind: "delete-forward" };
 		case "ArrowLeft":
 			return altKey ? { kind: "move-word", direction: -1 } : { kind: "move", delta: -1 };
 		case "ArrowRight":

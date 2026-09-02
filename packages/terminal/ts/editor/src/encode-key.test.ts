@@ -53,6 +53,19 @@ describe("encodeKey", () => {
 		expect(encodeKey(key({ key: "Backspace", altKey: true }))).toBe("\x1b\x7f");
 	});
 
+	// Warp's own bindings for a running command: cmd-backspace is NAK and
+	// cmd-delete is VT (terminal/view/init.rs), the kill-line pair every
+	// readline-style input already implements.
+	it("kills to the line start on Command+Backspace and to the end on Command+Delete", () => {
+		expect(encodeKey(key({ key: "Backspace", metaKey: true }))).toBe("\x15");
+		expect(encodeKey(key({ key: "Delete", metaKey: true }))).toBe("\x0b");
+	});
+
+	it("still leaves every other Command chord to the application", () => {
+		expect(encodeKey(key({ key: "c", metaKey: true }))).toBeNull();
+		expect(encodeKey(key({ key: "ArrowLeft", metaKey: true }))).toBeNull();
+	});
+
 	it("sends Escape-Return for the newline chord and a bare Return for submit", () => {
 		expect(encodeKey(key({ key: "Enter" }))).toBe("\r");
 		expect(encodeKey(key({ key: "Enter", shiftKey: true }))).toBe("\x1b\r");

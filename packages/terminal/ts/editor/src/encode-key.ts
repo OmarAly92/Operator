@@ -58,8 +58,15 @@ function controlCode(key: string): string | null {
 export function encodeKey(event: KeyboardEvent, applicationCursorKeys = false): string | null {
 	const { key, ctrlKey, altKey, metaKey, shiftKey } = event;
 	if (key === "Shift" || key === "Control" || key === "Alt" || key === "Meta") return null;
-	// Command belongs to the application's own shortcuts, never to the child.
-	if (metaKey) return null;
+	// Command belongs to the application's own shortcuts, never to the child --
+	// with the two exceptions Warp also carves out for a running command
+	// (terminal/view/init.rs): the kill-line chords, which no application
+	// shortcut claims and which every readline-style input understands.
+	if (metaKey) {
+		if (key === "Backspace") return "\x15";
+		if (key === "Delete") return "\x0b";
+		return null;
+	}
 
 	const modifier = modifierParameter(event);
 

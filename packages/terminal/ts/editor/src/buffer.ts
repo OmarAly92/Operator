@@ -48,6 +48,24 @@ export class EditorBuffer {
 		this.caret = index;
 	}
 
+	deleteToLineStart(): void {
+		const { column } = this.cursorLineColumn();
+		if (column === 0) return;
+		const start = this.caret - column;
+		this.value = this.value.slice(0, start) + this.value.slice(this.caret);
+		this.caret = start;
+	}
+
+	deleteToLineEnd(): void {
+		const { line } = this.cursorLineColumn();
+		const lines = this.lines();
+		let end = 0;
+		for (let index = 0; index < line; index += 1) end += lines[index]!.length + 1;
+		end += lines[line]!.length;
+		if (end === this.caret) return;
+		this.value = this.value.slice(0, this.caret) + this.value.slice(end);
+	}
+
 	moveTo(index: number): void {
 		this.caret = clamp(index, 0, this.value.length);
 	}
