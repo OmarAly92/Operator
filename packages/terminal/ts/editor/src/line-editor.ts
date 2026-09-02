@@ -306,6 +306,14 @@ export class LineEditor {
 		const state = this.core?.lineEditorState() ?? "unknown";
 		root.dataset.ownership = state;
 		root.setAttribute("aria-readonly", String(state !== "owned"));
+		// The child draws its own prompt and cursor while it owns the line. Drawing
+		// ours underneath it leaves a second, dead caret at the bottom of the pane
+		// that does not track what the user is typing. The root stays in the DOM
+		// and focusable -- it is still what receives the keys.
+		if (state !== "owned") {
+			root.replaceChildren();
+			return;
+		}
 		const cursor = this.buffer.cursor;
 		const lines = this.buffer.lines();
 		const tokens = tokenize(this.buffer.text);

@@ -48,7 +48,8 @@ describe("LineEditor ownership", () => {
 	});
 
 	it("renders command syntax tokens without changing the buffer text", () => {
-		const { editor, container } = mount();
+		const { editor, container, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
 		editor.setText("git status");
 		const tokens = [...container.querySelectorAll<HTMLElement>(".terminal-editor-token")];
 		expect(tokens.map((token) => [token.dataset.tokenKind, token.textContent])).toEqual([
@@ -249,5 +250,38 @@ describe("LineEditor passthrough encoding", () => {
 		editor.handleKey(key({ key: "PageUp" }));
 		editor.handleKey(key({ key: "F5" }));
 		expect(host.raw.join("")).toBe("\x1b[5~\x1b[15~");
+	});
+});
+
+describe("LineEditor chrome while the child owns the line", () => {
+	it("draws no prompt marker or caret when the line is Released", () => {
+		const { container, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-released=1\x07"));
+		const editor = container.querySelector(".terminal-editor")!;
+		expect(editor.querySelector(".terminal-editor-prompt")).toBeNull();
+		expect(editor.querySelector(".terminal-editor-caret")).toBeNull();
+		expect(editor.textContent).toBe("");
+	});
+
+	it("draws no prompt marker or caret while ownership is Unknown", () => {
+		const { container } = mount();
+		const editor = container.querySelector(".terminal-editor")!;
+		expect(editor.querySelector(".terminal-editor-prompt")).toBeNull();
+		expect(editor.textContent).toBe("");
+	});
+
+	it("still takes focus and forwards keys with no chrome drawn", () => {
+		const { editor, host, container } = mount();
+		document.body.append(container);
+		editor.focus();
+		expect(container.ownerDocument.activeElement).toBe(container.querySelector(".terminal-editor"));
+		editor.handleKey(key({ key: "a" }));
+		expect(host.raw.join("")).toBe("a");
+	});
+
+	it("restores the prompt once ownership comes back", () => {
+		const { container, core } = mount();
+		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
+		expect(container.querySelector(".terminal-editor-prompt")).not.toBeNull();
 	});
 });

@@ -15,8 +15,13 @@ export const editorStyles = `.terminal-editor {
 	outline: none;
 }
 
+/* Empty while the child owns the line, so it must not reserve a row's worth of
+   space at the bottom of the pane. It stays focusable: zero height still takes
+   focus, where display:none or visibility:hidden would refuse it and the
+   keystrokes would go nowhere. */
 .terminal-editor[aria-readonly="true"] {
-	opacity: 0.72;
+	min-height: 0;
+	padding: 0;
 }
 
 .terminal-editor-line {
