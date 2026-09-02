@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-function filesMatching(pattern: string, pathspec: string): string {
+function filesMatching(pattern: string, pathspecs: string[]): string {
 	try {
-		return execFileSync("git", ["grep", "-l", pattern, "--", pathspec], {
+		return execFileSync("git", ["grep", "-l", pattern, "--", ...pathspecs], {
 			encoding: "utf8",
 			cwd: process.cwd(),
 			stdio: "pipe",
@@ -22,6 +22,6 @@ describe("xterm is gone from the renderer", () => {
 	});
 
 	it("has no @xterm import in renderer source", () => {
-		expect(filesMatching("@xterm", "src/renderer")).toBe("");
+		expect(filesMatching("@xterm", ["src/renderer", ":!src/renderer/test/no-xterm.test.ts"])).toBe("");
 	});
 });
