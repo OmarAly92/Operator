@@ -3,12 +3,10 @@ package daemon
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/OmarAly92/operator/backend/internal/config"
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	projectsvc "github.com/OmarAly92/operator/backend/internal/service/project"
-	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	shelltermsvc "github.com/OmarAly92/operator/backend/internal/service/shellterm"
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
@@ -26,7 +24,6 @@ func startShellTerminals(
 	runtime shelltermsvc.ShellRuntime,
 	store *sqlite.Store,
 	projects projectsvc.Manager,
-	sessions *sessionsvc.Service,
 	captureSup *capturesvc.Supervisor,
 	log *slog.Logger,
 ) *shelltermsvc.Service {
@@ -38,7 +35,6 @@ func startShellTerminals(
 		runtime,
 		store,
 		&projectRootLocator{projects: projects},
-		&sessionWorkspaceLocator{sessions: sessions},
 		capture,
 		cfg.DataDir,
 		cfg.AppRunID,
@@ -87,47 +83,4 @@ func (l *projectRootLocator) ProjectRoot(ctx context.Context, id domain.ProjectI
 	default:
 		return "", nil
 	}
-}
-
-// sessionGetter is the narrow slice of the session service the workspace
-// locator needs. *sessionsvc.Service satisfies it; tests substitute a fake so
-// this adapter's validation logic doesn't need a real session stack.
-type sessionGetter interface {
-	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
-}
-
-// sessionWorkspaceLocator adapts the session service to the narrow lookup the
-// shell terminal service needs: a session id in, its live workspace path and
-// owning project id out.
-type sessionWorkspaceLocator struct {
-	sessions sessionGetter
-}
-
-// SessionWorkspace returns the session's current workspace path (its
-// worktree) and project id. An unknown session propagates the session
-// service's own NotFound apierr unchanged, so the shell terminal open request
-// answers the same 404 shape an unknown project does.
-//
-// Kill and Cleanup can remove a session's worktree without clearing its
-// durable Metadata.WorkspacePath — that field doubles as "what to recreate on
-// restore", so it deliberately survives a clean teardown and only a dirty,
-// preserved worktree keeps a directory that still exists. A recorded path
-// that no longer exists on disk is therefore treated as no workspace, so the
-// caller falls back to the project root instead of trying to chdir into a
-// directory that is gone.
-func (l *sessionWorkspaceLocator) SessionWorkspace(ctx context.Context, id domain.SessionID) (string, domain.ProjectID, error) {
-	if l.sessions == nil {
-		return "", "", nil
-	}
-	sess, err := l.sessions.Get(ctx, id)
-	if err != nil {
-		return "", "", err
-	}
-	path := sess.Metadata.WorkspacePath
-	if path != "" {
-		if _, statErr := os.Stat(path); statErr != nil {
-			path = ""
-		}
-	}
-	return path, sess.ProjectID, nil
 }

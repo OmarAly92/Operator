@@ -22,6 +22,7 @@ pub(crate) struct Parser {
     app_cursor: bool,
     sgr_mouse: bool,
     bracketed_paste: bool,
+    focus_reporting: bool,
     mouse_tracking: u8,
 }
 
@@ -42,6 +43,7 @@ impl Parser {
             app_cursor: false,
             sgr_mouse: false,
             bracketed_paste: false,
+            focus_reporting: false,
             mouse_tracking: 0,
         }
     }
@@ -125,8 +127,16 @@ impl Parser {
         self.bracketed_paste
     }
 
+    pub fn focus_reporting(&self) -> bool {
+        self.focus_reporting
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.mouse_tracking != 0
+    }
+
+    pub fn mouse_tracking_level(&self) -> u8 {
+        self.mouse_tracking
     }
 
     /// Records the DEC private modes that decide how a wheel event must be
@@ -144,6 +154,10 @@ impl Parser {
             // that asked runs every newline in it as a command.
             2004 => {
                 self.bracketed_paste = set;
+                return;
+            }
+            1004 => {
+                self.focus_reporting = set;
                 return;
             }
             1000 => 0b001,
@@ -382,5 +396,42 @@ impl Perform for Parser {
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
         self.active_screen_mut().esc(byte);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vte::Parser as VteParser;
+
+    #[test]
+    fn mouse_tracking_level_distinguishes_the_three_modes() {
+        let mut p = Parser::new(80, 100);
+        let mut vte = VteParser::new();
+        assert_eq!(p.mouse_tracking_level(), 0);
+        vte.advance(&mut p, b"\x1b[?1000h");
+        assert_eq!(p.mouse_tracking_level(), 0b001);
+        vte.advance(&mut p, b"\x1b[?1002h");
+        assert_eq!(p.mouse_tracking_level(), 0b011);
+        vte.advance(&mut p, b"\x1b[?1003h");
+        assert_eq!(p.mouse_tracking_level(), 0b111);
+        vte.advance(&mut p, b"\x1b[?1002l");
+        assert_eq!(p.mouse_tracking_level(), 0b101);
+        assert!(p.mouse_tracking());
+        vte.advance(&mut p, b"\x1b[?1000l");
+        vte.advance(&mut p, b"\x1b[?1003l");
+        assert_eq!(p.mouse_tracking_level(), 0);
+        assert!(!p.mouse_tracking());
+    }
+
+    #[test]
+    fn focus_reporting_mode_is_tracked() {
+        let mut p = Parser::new(80, 100);
+        let mut vte = VteParser::new();
+        assert!(!p.focus_reporting());
+        vte.advance(&mut p, b"\x1b[?1004h");
+        assert!(p.focus_reporting());
+        vte.advance(&mut p, b"\x1b[?1004l");
+        assert!(!p.focus_reporting());
     }
 }

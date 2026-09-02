@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
@@ -16,12 +16,6 @@ import {
 import { ShellTopbar } from "./ShellTopbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
 import { useExternalPreview } from "../hooks/useExternalPreview";
-import {
-	useCloseShellTerminal,
-	useOpenShellTerminal,
-	useRenameShellTerminal,
-	useShellTerminals,
-} from "../hooks/useShellTerminals";
 import {
 	interfaceTransitionIsActive,
 	useSessionInterfaceTransition,
@@ -122,144 +116,16 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const availableReviewerTerminal = reviewerTerminalFromReviews(reviewerQuery.data);
 	const reviewerTerminal = session && sessionIsActive(session) ? availableReviewerTerminal : undefined;
 
-	// Shell terminals opened inside a session live beside its pane as extra tabs,
-	// scoped to the session on screen so each session has its own shell set.
-	const allShellTerminals = useShellTerminals().data ?? [];
-	const shellTerminals = useMemo(
-		() => allShellTerminals.filter((shell) => shell.sessionId === sessionId),
-		[allShellTerminals, sessionId],
-	);
-	const openShellTerminal = useOpenShellTerminal();
-	const closeShellTerminal = useCloseShellTerminal();
-	const renameShellTerminal = useRenameShellTerminal();
-	const activeShellTerminalHandleId = useUiStore((state) => state.activeShellTerminalHandleId);
-	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
 	const setVisibleTerminalKind = useUiStore((state) => state.setVisibleTerminalKind);
 	const clearVisibleTerminalKind = useUiStore((state) => state.clearVisibleTerminalKind);
-	const renameShellTerminalByHandle = useCallback(
-		(handleId: string, title: string) => renameShellTerminal.mutate({ handleId, title }),
-		[renameShellTerminal],
-	);
 
-	// Scoped to the session on screen so the daemon roots the shell in that
-	// session's worktree (the project id is only the fallback when the session's
-	// workspace can no longer be resolved).
-	const addShellTerminal = useCallback(() => {
-		openShellTerminal.mutate(
-			{ projectId: session?.workspaceId, sessionId },
-			{
-				onSuccess: (shell) => {
-					setActiveShellTerminal(shell.handleId);
-					setTerminalTarget({
-						generation: shell.createdAt,
-						kind: "shell",
-						handleId: shell.handleId,
-						sessionId,
-						title: shell.title,
-					});
-				},
-			},
-		);
-	}, [openShellTerminal, sessionId, session?.workspaceId, setActiveShellTerminal]);
-
-	const selectShellTerminal = useCallback(
-		(handleId: string) => {
-			const shell = shellTerminals.find((s) => s.handleId === handleId);
-			if (!shell) return;
-			setActiveShellTerminal(shell.handleId);
-			setTerminalTarget({
-				generation: shell.createdAt,
-				kind: "shell",
-				handleId: shell.handleId,
-				sessionId,
-				title: shell.title,
-			});
-		},
-		[shellTerminals, setActiveShellTerminal],
-	);
-
-	const closeShellTerminalByHandle = useCallback(
-		(handleId: string) => {
-			if (terminalTarget.kind === "shell" && terminalTarget.handleId === handleId) {
-				const closingIndex = shellTerminals.findIndex((shell) => shell.handleId === handleId);
-				// Match browser-tab ergonomics: closing the selected auxiliary terminal
-				// reveals its nearest predecessor, then the next tab when the first one
-				// closes. The permanent agent terminal is only the final fallback.
-				const nextShell = shellTerminals[closingIndex - 1] ?? shellTerminals[closingIndex + 1];
-				if (nextShell) {
-					setActiveShellTerminal(nextShell.handleId);
-					setTerminalTarget({
-						generation: nextShell.createdAt,
-						kind: "shell",
-						handleId: nextShell.handleId,
-						sessionId,
-						title: nextShell.title,
-					});
-				} else {
-					setActiveShellTerminal(null);
-					setTerminalTarget({ kind: "worker" });
-				}
-			} else if (activeShellTerminalHandleId === handleId) {
-				setActiveShellTerminal(null);
-			}
-			closeShellTerminal.mutate(handleId);
-		},
-		[
-			activeShellTerminalHandleId,
-			closeShellTerminal,
-			setActiveShellTerminal,
-			sessionId,
-			shellTerminals,
-			terminalTarget,
-		],
-	);
-
-	// Selecting the session's own pane also drops the active shell, so the effect
-	// above does not immediately pull the view back to that shell.
 	const selectSessionTerminal = useCallback(() => {
-		setActiveShellTerminal(null);
 		setTerminalTarget({ kind: "worker" });
-	}, [setActiveShellTerminal]);
+	}, []);
 	const selectReviewerTerminal = useCallback((target: ReviewerTerminalTarget) => {
-		setActiveShellTerminal(null);
 		setTerminalTarget({ kind: "reviewer", handleId: target.handleId, harness: target.harness, sessionId });
-	}, [sessionId, setActiveShellTerminal]);
+	}, [sessionId]);
 
-	// The shell layout owns opening (it is mounted on every route, so the button
-	// and ⌘T / Ctrl+T work everywhere); this view only follows the result. When a new
-	// shell becomes active while a session is on screen, switch the pane to it —
-	// that is what makes the shortcut feel like it opened a terminal *here*.
-	useEffect(() => {
-		if (!activeShellTerminalHandleId) return;
-		const shell = shellTerminals.find((s) => s.handleId === activeShellTerminalHandleId);
-		if (!shell) return;
-		setTerminalTarget((current) =>
-			current.kind === "shell" &&
-			current.handleId === shell.handleId &&
-			current.generation === shell.createdAt &&
-			current.title === shell.title
-				? current
-				: {
-						generation: shell.createdAt,
-						kind: "shell",
-						handleId: shell.handleId,
-						sessionId,
-						title: shell.title,
-					},
-		);
-	}, [activeShellTerminalHandleId, sessionId, shellTerminals]);
-
-	// If the pane is pointed at a shell that is not in THIS session's strip — e.g.
-	// after navigating to a different session whose globally-active shell belongs
-	// elsewhere — fall back to the session's own pane rather than render a tab
-	// that isn't shown here.
-	useEffect(() => {
-		setTerminalTarget((current) =>
-			current.kind === "shell" && !shellTerminals.some((s) => s.handleId === current.handleId)
-				? { kind: "worker" }
-				: current,
-		);
-	}, [shellTerminals]);
 	useEffect(() => {
 		setTerminalTarget((current) =>
 			current.kind === "reviewer" &&
@@ -507,15 +373,10 @@ export function SessionView({ sessionId }: SessionViewProps) {
 									(interfaceSwitch.starting || activeInterfaceTransition) && session?.mode === "tui"
 								}
 								daemonReady={daemonStatus.state === "ready"}
-								onCloseShellTerminal={closeShellTerminalByHandle}
-								onNewShellTerminal={addShellTerminal}
-								onRenameShellTerminal={renameShellTerminalByHandle}
 								onSelectSessionTerminal={selectSessionTerminal}
 								onSelectReviewerTerminal={selectReviewerTerminal}
-								onSelectShellTerminal={selectShellTerminal}
 								reviewerTerminal={reviewerTerminal}
 								session={session}
-								shellTerminals={shellTerminals}
 								terminalTarget={routedTerminalTarget}
 								theme={theme}
 								topbarActions={sessionHeaderActions}

@@ -26,6 +26,7 @@ import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
 import { BLOCK_PADDING_X_PX, blockPaddingY } from "./block-metrics.js";
 import { trimTrailingBlankRows } from "./block-rows.js";
+import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
@@ -165,6 +166,15 @@ export class DomBlockRenderer implements BlockRenderer {
 		const { cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		return { x: BLOCK_PADDING_X_PX * 2, y: blockPaddingY(rowHeight) };
+	}
+
+	rowOrigin(row: number): RowOrigin | null {
+		return paintedRowOrigin(
+			this.filteredBlocks,
+			this.blockElements,
+			row,
+			this.cellMetrics().cellHeight,
+		);
 	}
 
 	scrollToBlock(id: BlockId, align: "start" | "center" | "end"): void {

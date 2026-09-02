@@ -41,6 +41,14 @@ describe("TerminalCore", () => {
 		expect(core.lineEditorState()).toBe("released");
 		core.dispose();
 	});
+
+	it("publishes the mouse tracking level on the snapshot", () => {
+		const core = createTerminalCore({ columns: 80, scrollback: 100 });
+		expect(core.snapshot().mouseTrackingLevel).toBe(0);
+		core.feed(new TextEncoder().encode("\x1b[?1002h"));
+		expect(core.snapshot().mouseTrackingLevel).toBe(0b010);
+		expect(core.snapshot().mouseTracking).toBe(true);
+	});
 });
 
 describe("TerminalCore.onChange failure isolation", () => {

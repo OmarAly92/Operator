@@ -1085,7 +1085,6 @@ type ShellTerminalHandleIDParam struct {
 // OpenShellTerminalRequest is the body of POST /api/v1/shell-terminals.
 type OpenShellTerminalRequest struct {
 	ProjectID string `json:"projectId,omitempty" description:"Project whose root the shell starts in. Omitted opens the shell in the daemon data dir."`
-	SessionID string `json:"sessionId,omitempty" description:"Agent session the shell is scoped to, so it appears only in that session's tab strip. Omitted makes it a standalone shell."`
 }
 
 // UpdateShellTerminalRequest is the body of PATCH /api/v1/shell-terminals/{handleId}.
@@ -1098,7 +1097,6 @@ type UpdateShellTerminalRequest struct {
 type ShellTerminalResponse struct {
 	HandleID      string    `json:"handleId"`
 	ProjectID     string    `json:"projectId,omitempty"`
-	SessionID     string    `json:"sessionId,omitempty"`
 	WorkingDir    string    `json:"workingDir"`
 	Title         string    `json:"title"`
 	CreatedAt     time.Time `json:"createdAt"`

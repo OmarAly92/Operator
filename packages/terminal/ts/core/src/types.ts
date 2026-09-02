@@ -82,7 +82,9 @@ export type TerminalSnapshot = Readonly<{
 	applicationCursorKeys: boolean;
 	sgrMouse: boolean;
 	bracketedPaste: boolean;
+	focusReporting: boolean;
 	mouseTracking: boolean;
+	mouseTrackingLevel: number;
 }>;
 
 export type AltScreenView = Readonly<{

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CancelledError } from "@tanstack/react-query";
 import { Suspense, type ComponentType, type PropsWithChildren } from "react";
+import { createCompositionTarget } from "@operator/terminal-react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KeybindingOverrides } from "../../shared/shortcuts";
 import { useUiStore } from "../stores/ui-store";
@@ -477,39 +478,48 @@ describe("shell new-shell-terminal shortcut subscription", () => {
 
 		pressNewShellTerminal();
 
-		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith(
-			expect.objectContaining({ projectId: "proj-1" }),
-			expect.anything(),
-		);
+		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith({ projectId: "proj-1" }, expect.anything());
 	});
 
-	// Regression: a terminal opened from a session view must carry the session
-	// id, not just its owning project's, so the daemon can resolve the
-	// session's own worktree instead of the registered project root.
-	it("scopes the terminal to the session in scope", async () => {
+	// Regression: a terminal opened while a session is on screen must still
+	// carry only the project id — the daemon roots it in the project, and the
+	// shell always opens on the standalone terminals screen, never the session
+	// pane, so there is no worktree to scope it to.
+	it("never carries the session id, even from a session route", async () => {
 		shellMocks.state.routeParams = { sessionId: "sess-1" };
 		await renderShell();
 
 		pressNewShellTerminal();
 
-		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith(
-			expect.objectContaining({ projectId: "proj-1", sessionId: "sess-1" }),
-			expect.anything(),
-		);
+		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith({ projectId: "proj-1" }, expect.anything());
 	});
 
-	// Session terminals always belong to the session on screen — there is no
-	// longer an "owner" session whose worktree could be borrowed here (#3208).
-	it("scopes the terminal to the session on screen, not the route's project alone", async () => {
+	// The project in scope still resolves from the session on screen — there is
+	// no longer an "owner" session whose worktree could be borrowed here (#3208).
+	it("resolves the project owning the session on screen, not the route's project alone", async () => {
 		shellMocks.state.routeParams = { projectId: "proj-2", sessionId: "sess-cross" };
 		await renderShell();
 
 		pressNewShellTerminal();
 
-		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith(
-			expect.objectContaining({ projectId: "proj-2", sessionId: "sess-cross" }),
-			expect.anything(),
-		);
+		expect(shellMocks.openShellTerminal).toHaveBeenCalledWith({ projectId: "proj-2" }, expect.anything());
+	});
+
+	// Cmd+T always lands on the standalone terminals screen, even when the
+	// shortcut fired while a session was on screen.
+	it("navigates to the standalone terminals screen even from inside a session", async () => {
+		shellMocks.state.routeParams = { sessionId: "sess-1" };
+		await renderShell();
+
+		pressNewShellTerminal();
+
+		const [, options] = shellMocks.openShellTerminal.mock.calls[0] as [
+			unknown,
+			{ onSuccess: (shell: { handleId: string }) => void },
+		];
+		act(() => options.onSuccess({ handleId: "shell-1" }));
+
+		expect(shellMocks.navigate).toHaveBeenCalledWith({ to: "/terminals" });
 	});
 
 	it("re-fires on a repeat press so a second terminal can be opened", async () => {
@@ -599,25 +609,31 @@ describe("shell application shortcut subscriptions", () => {
 		});
 	});
 
-	it("focuses the active terminal without targeting an earlier parked xterm", async () => {
-		const parked = document.createElement("div");
-		parked.dataset.terminalActivationPhase = "parked";
-		parked.inert = true;
-		const parkedInput = document.createElement("textarea");
-		parkedInput.className = "xterm-helper-textarea";
-		parked.appendChild(parkedInput);
-		const active = document.createElement("div");
-		active.dataset.terminalActivationPhase = "visible";
-		const activeInput = document.createElement("textarea");
-		activeInput.className = "xterm-helper-textarea";
-		active.appendChild(activeInput);
-		document.body.append(parked, active);
+	it("focuses the visible terminal's own input, not an earlier parked surface", async () => {
+		const mountSurface = (phase: string) => {
+			const container = document.createElement("div");
+			container.dataset.terminalActivationPhase = phase;
+			const surface = document.createElement("div");
+			surface.className = "terminal-surface";
+			const editorHost = document.createElement("div");
+			editorHost.className = "terminal-editor-host";
+			surface.append(editorHost);
+			container.append(surface);
+			document.body.append(container);
+			return {
+				container,
+				input: createCompositionTarget({ parent: editorHost, onCommit: () => undefined }).element,
+			};
+		};
+		const parked = mountSurface("parked");
+		parked.container.inert = true;
+		const active = mountSurface("visible");
 		await renderShell();
 
 		act(() => shellMocks.state.focusTerminalListener?.());
 
-		expect(document.activeElement).toBe(activeInput);
-		parked.remove();
-		active.remove();
+		expect(document.activeElement).toBe(active.input);
+		parked.container.remove();
+		active.container.remove();
 	});
 });

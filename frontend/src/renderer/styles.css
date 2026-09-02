@@ -1306,23 +1306,6 @@ textarea,
 	cursor: not-allowed;
 }
 
-.xterm {
-	height: 100%;
-}
-
-/* Normal-buffer panes (codex, a plain shell) now keep scrollback (scrollback:5000
-   in XtermTerminal), so the viewport becomes scrollable. Hide the scrollbar so it
-   doesn't reserve width and shift the cell grid; the wheel still scrolls via the
-   terminal's wheel handler. */
-.xterm .xterm-viewport {
-	scrollbar-width: none;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar {
-	width: 0;
-	height: 0;
-}
-
 /* Scrollable region that must not show a scrollbar — the wheel/trackpad still
    scrolls, but no track is painted and none reserves width. */
 .scrollbar-none {
@@ -1435,13 +1418,6 @@ textarea,
 
 .terminal-pane-surface {
 	background-color: var(--terminal-background);
-}
-
-.terminal-pane-surface .xterm,
-.terminal-pane-surface .xterm-viewport,
-.terminal-pane-surface .xterm-screen,
-.terminal-pane-surface .xterm-helpers {
-	background-color: var(--terminal-background) !important;
 }
 
 @keyframes status-pulse {
@@ -2472,7 +2448,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	color: var(--fg);
 }
 
-/* Do not animate the inspector's flex-grow. The sibling is a live xterm WebGL
+/* Do not animate the inspector's flex-grow. The sibling is a live terminal
  * surface: interpolating this value makes ResizeObserver fit the terminal at
  * every intermediate width, reallocating the renderer and eventually causing
  * a PTY/SIGWINCH repaint. The inspector still opens and closes atomically, and

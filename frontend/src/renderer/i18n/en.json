@@ -869,7 +869,6 @@
 	"terminal.scrollTabsRight": "Scroll tabs right",
 	"terminal.ended": "Terminal ended",
 	"terminal.error": "Terminal error: {{error}}",
-	"terminal.initFailed": "Terminal failed to initialize on this GPU/driver. Restart the app to retry.",
 	"terminal.loadingOutput": "Loading latest output…",
 	"terminal.noSessionSelected": "No session selected. Pick a worker to attach its terminal.",
 	"terminal.preparingOrchestrator": "Preparing the orchestrator terminal. This can take a moment while Operator creates the workspace and starts the agent.",

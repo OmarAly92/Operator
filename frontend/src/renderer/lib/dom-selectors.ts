@@ -12,3 +12,26 @@ export function isDialogOrMenuOpen(): boolean {
 	if (typeof document === "undefined") return false;
 	return document.querySelector(OPEN_DIALOG_OR_MENU_SELECTOR) !== null;
 }
+
+export const TERMINAL_SURFACE_SELECTOR = ".terminal-surface";
+
+export const TERMINAL_INPUT_SELECTOR = "[data-terminal-input]";
+
+const VISIBLE_TERMINAL_HOST_SELECTOR =
+	"[data-terminal-activation-phase='visible'], [data-testid='session-terminal-slot']";
+
+export function activeTerminalInput(): HTMLElement | null {
+	if (typeof document === "undefined") return null;
+	for (const host of document.querySelectorAll<HTMLElement>(VISIBLE_TERMINAL_HOST_SELECTOR)) {
+		for (const input of host.querySelectorAll<HTMLElement>(TERMINAL_INPUT_SELECTOR)) {
+			if (input.closest("[hidden]") === null) return input;
+		}
+	}
+	return null;
+}
+
+export function terminalHasFocus(): boolean {
+	if (typeof document === "undefined") return false;
+	const active = document.activeElement;
+	return active instanceof Element && active.closest(TERMINAL_SURFACE_SELECTOR) !== null;
+}

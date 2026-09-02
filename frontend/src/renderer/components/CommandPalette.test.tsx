@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSummary } from "../types/workspace";
+import { createCompositionTarget } from "@operator/terminal-react";
 import { useUiStore } from "../stores/ui-store";
 
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -179,13 +180,16 @@ function pressEscape(init: KeyboardEventInit = {}): KeyboardEvent {
 }
 
 function focusTerminal() {
-	const xterm = document.createElement("div");
-	xterm.className = "xterm";
-	const input = document.createElement("textarea");
-	xterm.appendChild(input);
-	document.body.appendChild(xterm);
-	input.focus();
-	return xterm;
+	const surface = document.createElement("div");
+	surface.className = "terminal-surface";
+	surface.setAttribute("data-fake-terminal", "");
+	const host = document.createElement("div");
+	host.className = "terminal-host";
+	const input = createCompositionTarget({ parent: host, onCommit: () => undefined });
+	surface.appendChild(host);
+	document.body.appendChild(surface);
+	input.element.focus();
+	return surface;
 }
 
 const paletteInput = () => screen.queryByPlaceholderText(/search projects/i);
@@ -212,7 +216,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	document.querySelectorAll(".xterm, [data-fake-modal]").forEach((node) => node.remove());
+	document.querySelectorAll("[data-fake-terminal], [data-fake-modal]").forEach((node) => node.remove());
 });
 
 describe("CommandPalette gating", () => {

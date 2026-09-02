@@ -136,7 +136,9 @@ export class TerminalCore {
 			applicationCursorKeys: this.inner.application_cursor_keys(),
 			sgrMouse: this.inner.sgr_mouse(),
 			bracketedPaste: this.inner.bracketed_paste(),
+			focusReporting: this.inner.focus_reporting(),
 			mouseTracking: this.inner.mouse_tracking(),
+			mouseTrackingLevel: this.inner.mouse_tracking_level(),
 		};
 	}
 

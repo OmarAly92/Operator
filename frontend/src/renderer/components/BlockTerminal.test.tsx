@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type RenderedBlock = { id: string; command: string; output: string; exitCode: number | null };
@@ -217,21 +217,7 @@ vi.mock("../theme/skin-context", () => ({
 }));
 
 
-vi.mock("./XtermTerminal", () => ({
-	XtermTerminal: () => {
-		const ref = useRef<HTMLDivElement | null>(null);
-		useEffect(() => {
-			if (ref.current) ref.current.setAttribute("data-mounted", "true");
-		}, []);
-		return <div ref={ref} data-testid="xterm-surface" />;
-	},
-}));
-
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
-
-function XtermTerminalLite() {
-	return <div data-testid="xterm-surface" />;
-}
 
 function harness(overrides: Partial<Parameters<typeof BlockTerminal>[0]> = {}) {
 	const listeners: Array<(bytes: Uint8Array) => void> = [];
@@ -337,8 +323,8 @@ describe("BlockTerminal", () => {
 	});
 
 	it("publishes the terminal background to :root so the surround tracks one colour", async () => {
-		// Everything behind the grid -- pane surface, retained xterm slot, overlays
-		// -- reads --terminal-background. Without this the surround stayed on the
+		// Everything behind the grid -- pane surface, retained terminal slot,
+		// overlays -- reads --terminal-background. Without this the surround stayed on the
 		// skin's own terminal colour and drifted from the terminal itself.
 		document.documentElement.style.removeProperty("--terminal-background");
 		const { transport } = harness();
@@ -379,33 +365,11 @@ describe("BlockTerminal", () => {
 		expect(transport.write).toHaveBeenNthCalledWith(2, new TextEncoder().encode("\x03"));
 	});
 
-	it("keeps the package renderer on the alternate screen by default", async () => {
+	it("keeps the package renderer on the alternate screen", async () => {
 		const { transport, emit } = harness();
-		render(
-			<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]}>
-				<XtermTerminalLite />
-			</BlockTerminal>,
-		);
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
 		emit("\x1b[?1049h");
-		// The default is the package's own surface even in the alternate screen;
-		// handing it to xterm is opt-in via VITE_ALT_SCREEN_SURFACE=xterm.
 		await waitFor(() => expect(mockState.altScreenActive).toBe(false));
-	});
-
-	it("still hands XtermTerminal to the surface so the opt-in path has something to show", async () => {
-		const { transport, emit } = harness();
-		render(
-			<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]}>
-				<XtermTerminalLite />
-			</BlockTerminal>,
-		);
-		emit("\x1b[?1049h");
-		// This asserted visibility before the package renderer became the default
-		// alt-screen surface, at which point it started passing only because the
-		// loading branch also renders children. What matters now is that the
-		// surface still receives it, so VITE_ALT_SCREEN_SURFACE=xterm has a
-		// surface to hand the alternate screen back to.
-		await waitFor(() => expect(mockState.altScreenSurfaceProvided).toBe(true));
 	});
 
 	it("routes copy actions through Operator's clipboard bridge", async () => {
@@ -538,33 +502,24 @@ describe("BlockTerminal", () => {
 		expect(mockState.altScreenActive).toBe(false);
 	});
 
-	it("still hands the alternate screen to xterm when the flag says so", async () => {
-		vi.stubEnv("VITE_ALT_SCREEN_SURFACE", "xterm");
-		vi.resetModules();
-		try {
-			const reloaded = await import("./BlockTerminal");
-			const localListeners: Array<(bytes: Uint8Array) => void> = [];
-			activeListeners = localListeners;
-			const transport = {
-				write: vi.fn(),
-				onData: (cb: (bytes: Uint8Array) => void) => {
-					localListeners.push(cb);
-					return () => {};
-				},
-				resize: vi.fn(),
-				dispose: vi.fn(),
-			};
-			render(
-				<reloaded.BlockTerminal transport={transport} sessionId="s-xterm" historyBlocks={[]}>
-					<div data-testid="xterm-fallback" />
-				</reloaded.BlockTerminal>,
-			);
-			emit(encode("\x1b[?1049h"));
-			await waitFor(() => expect(mockState.altScreenActive).toBe(true));
-			expect(mockState.altScreenSurfaceProvided).toBe(true);
-		} finally {
-			vi.unstubAllEnvs();
-			vi.resetModules();
-		}
+	it("opens web links from the surface in the system browser", async () => {
+		const { openLinkInSystemBrowser } = await import("../lib/external-link-policy");
+		vi.mocked(openLinkInSystemBrowser).mockClear();
+		renderTerminal();
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		await mockState.host?.openLink("http://localhost:3000/simple");
+		expect(openLinkInSystemBrowser).toHaveBeenCalledWith("http://localhost:3000/simple");
+		await mockState.host?.openLink("https://example.com/pull/42");
+		expect(openLinkInSystemBrowser).toHaveBeenCalledWith("https://example.com/pull/42");
 	});
+
+	it("does not open a non-web (mailto:) link externally", async () => {
+		const { openLinkInSystemBrowser } = await import("../lib/external-link-policy");
+		vi.mocked(openLinkInSystemBrowser).mockClear();
+		renderTerminal();
+		await waitFor(() => expect(mockState.host).toBeDefined());
+		await mockState.host?.openLink("mailto:dev@example.com");
+		expect(openLinkInSystemBrowser).not.toHaveBeenCalled();
+	});
+
 });

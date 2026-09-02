@@ -27,7 +27,12 @@ exactly **17.000 ms** — one 60 Hz frame, identical to its own input-latency, w
 zero variance. Even with tmux measurable, the instrument can show tmux worse but
 cannot resolve how much better ptyhost is.
 
-**To actually settle it:** redefine the scroll acknowledgement as *wheel
+**Confirmed good in real use, 2026-09-02.** The user, using the terminal daily after
+the cutover, reports the scroll is good. That is the thing this benchmark was a proxy
+for, so what remains below is a **missing measurement, not a suspected regression** —
+nobody should read this section as an open scroll bug.
+
+**To actually settle it numerically:** redefine the scroll acknowledgement as *wheel
 dispatched → next frame painted* rather than waiting for an application-level
 marker. That is what a user perceives as jank, and both runtimes can produce it.
 Doing so requires a tmux to compare against, which this cutover deleted — so it
@@ -269,3 +274,43 @@ fire-and-forget resize, `TestAttachWithScrollbackAndSizeDoesNotDeadlock` fails i
 
 Five GUI/manual verification steps in the plan (lines 785, 1119, 1689, 1831,
 1840) were deferred for want of a display session and remain unchecked.
+
+## 10. The `input-latency` gate has not caught up with the §9.5 decision
+
+**Decided 2026-09-02, not yet implemented.** Spec §9.5's open trade — the 60Hz paint
+cap fixed the agent-pane jank and cost `input-latency` its gate — was ruled on by the
+user in favour of **option 2, amend the contract**, on the evidence that typing feels
+fine in real use. The cap stays. What changes is what the gate asks for.
+
+The new contract, now written into §9.4: `input-latency` p95 must be **≤ the recorded
+xterm baseline + one 60Hz frame + 3.3ms tolerance**, i.e. `baseline + 20.0ms`. Against
+the 9.00ms baseline that is a 29.00ms ceiling, and the measured 24.80ms sits 4.2ms
+inside it. The allowance is not slack: with the cap, an echoed byte waits for the next
+frame like any other PTY byte, so exactly one frame is the structural cost, and the
+measured +15.8ms delta is consistent with one.
+
+**Why the code does not yet do this.** `packages/terminal/bench/gate.mjs:39` is
+
+```js
+{ scenario: "input-latency", compare: "at-most", factor: 1 },
+```
+
+and the comparison at `:74` computes `threshold = theirs * rule.factor` — multiplicative.
+The new rule is additive, so a factor cannot express it. Multiplying instead would need
+`factor: 3.22`, which encodes nothing meaningful and would silently scale with any future
+baseline change.
+
+**The work:**
+
+1. Add an optional `allowance` (milliseconds) beside `factor` in `RULES`, and make the
+   threshold `theirs * (rule.factor ?? 1) + (rule.allowance ?? 0)`.
+2. Set `{ scenario: "input-latency", compare: "at-most", factor: 1, allowance: 20 }`.
+3. Make the printed row show the allowance, so a reader sees `<= 29.00 (xterm 9.00 + 20.00)`
+   rather than an unexplained ceiling.
+4. Re-run `npm --prefix packages/terminal run bench:gate` and confirm the suite is
+   **fully green** — this is the first time it will be since phase 4, so check every
+   scenario, not just this one.
+
+**Do not** use this as a template for widening other gates. The 3.3ms is measurement
+noise and the 16.7ms is the cost of one named mechanism. If something later adds a second
+frame, remove the frame; do not widen the allowance.

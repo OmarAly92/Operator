@@ -210,8 +210,16 @@ impl TerminalCore {
         self.parser.bracketed_paste()
     }
 
+    pub fn focus_reporting(&self) -> bool {
+        self.parser.focus_reporting()
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.parser.mouse_tracking()
+    }
+
+    pub fn mouse_tracking_level(&self) -> u8 {
+        self.parser.mouse_tracking_level()
     }
 }
 

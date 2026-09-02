@@ -889,7 +889,6 @@
 	"terminal.scrollTabsRight": "Rolar abas para a direita",
 	"terminal.ended": "Terminal encerrado",
 	"terminal.error": "Erro do terminal: {{error}}",
-	"terminal.initFailed": "O terminal falhou opr inicializar nesta GPU/driver. Reinicie o app para tentar novamente.",
 	"terminal.loadingOutput": "Carregando a saída mais recente…",
 	"terminal.noSessionSelected": "Nenhuma sessão selecionada. Escolha um worker para anexar o terminal.",
 	"terminal.preparingOrchestrator": "Preparando o terminal do orchestrator. Isso pode levar um momento enquanto o Operator cria o workspace e inicia o agente.",

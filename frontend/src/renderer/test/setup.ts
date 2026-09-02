@@ -28,6 +28,19 @@ vi.mock("@operator/terminal-react", () => {
 	};
 	return {
 		TerminalSurface: Surface,
+		createCompositionTarget: ({ parent }: { parent: HTMLElement }) => {
+			const element = document.createElement("textarea");
+			element.setAttribute("aria-hidden", "true");
+			element.setAttribute("data-terminal-input", "");
+			element.tabIndex = -1;
+			parent.append(element);
+			return {
+				element,
+				focus: () => element.focus(),
+				isComposing: () => false,
+				dispose: () => element.remove(),
+			};
+		},
 		warpDarkTheme: {
 			ansi: new Array(16).fill("#000000"),
 			foreground: "#ffffff",

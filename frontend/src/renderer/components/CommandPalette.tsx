@@ -17,7 +17,7 @@ import {
 	type NavigateTarget,
 } from "../lib/command-palette";
 import { iconForCommand } from "../lib/command-palette-icons";
-import { isDialogOrMenuOpen } from "../lib/dom-selectors";
+import { isDialogOrMenuOpen, terminalHasFocus } from "../lib/dom-selectors";
 import { isMacPlatform } from "../lib/platform";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { useShell } from "../lib/shell-context";
@@ -34,12 +34,6 @@ type PaletteView =
 	| { mode: "session-actions"; sessionId: string }
 	| { mode: "new-task"; projectId: string };
 
-
-function terminalHasFocus(): boolean {
-	if (typeof document === "undefined") return false;
-	const active = document.activeElement;
-	return active instanceof Element && active.closest(".xterm") !== null;
-}
 
 export function CommandPalette() {
 	const { i18n, t } = useTranslation();

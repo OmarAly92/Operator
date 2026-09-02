@@ -2,15 +2,19 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
+	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
+	type CompositionTarget,
 	type FontConfig,
 	type HostCapabilities,
 	type TerminalCore,
+	type TerminalSnapshot,
 	type TerminalStrings,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
+import { encodeMouseReport, type MouseReportKind } from "./mouse-report.js";
 
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
@@ -70,6 +74,9 @@ export function TerminalSurface({
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
 	const findBarRef = useRef<FindBar | null>(null);
+	const gridColumnsRef = useRef(0);
+	const gridRowsRef = useRef(0);
+	const compositionRef = useRef<CompositionTarget | null>(null);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -160,6 +167,8 @@ export function TerminalSurface({
 			const inset = renderer.blockContentInset();
 			const columns = Math.max(1, Math.floor((blockHost.clientWidth - inset.x) / cellWidth));
 			const rows = Math.max(1, Math.floor((blockHost.clientHeight - inset.y) / cellHeight));
+			gridColumnsRef.current = columns;
+			gridRowsRef.current = rows;
 			if (columns === lastColumns && rows === lastRows) {
 				return;
 			}
@@ -189,61 +198,21 @@ export function TerminalSurface({
 		if (!blockHost || !altActive) {
 			return;
 		}
-		let pendingWheelLines = 0;
-		let velocityPxPerSec = 0;
-		let lastWheelAt = 0;
 		const appCursor = () => core.snapshot().applicationCursorKeys;
+		const composition = createCompositionTarget({
+			parent: blockHost,
+			onCommit: (text) => onSendRaw(text),
+		});
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
+				return;
+			}
 			const data = encodeKey(event, appCursor());
 			if (data === null) {
 				return;
 			}
 			event.preventDefault();
 			onSendRaw(data);
-		};
-		const sampleVelocity = (deltaY: number): number => {
-			const now = performance.now();
-			const elapsed = now - lastWheelAt;
-			if (elapsed > GESTURE_IDLE_MS) {
-				lastWheelAt = now;
-				velocityPxPerSec = 0;
-				return 0;
-			}
-			if (elapsed < MIN_VELOCITY_SAMPLE_MS) {
-				return velocityPxPerSec;
-			}
-			lastWheelAt = now;
-			const sample = (Math.abs(deltaY) / elapsed) * 1000;
-			velocityPxPerSec += (sample - velocityPxPerSec) * VELOCITY_SMOOTHING;
-			return velocityPxPerSec;
-		};
-		const onWheel = (event: WheelEvent) => {
-			event.preventDefault();
-			const snapshot = core.snapshot();
-			const measuredCellHeight = rendererRef.current?.measure().cellHeight ?? 0;
-			const deltaLines =
-				event.deltaMode === WheelEvent.DOM_DELTA_LINE
-					? event.deltaY
-					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
-						: measuredCellHeight > 0
-							? (event.deltaY * accelerationGain(sampleVelocity(event.deltaY))) / measuredCellHeight
-							: 0;
-			if (!Number.isFinite(deltaLines)) return;
-			pendingWheelLines += deltaLines;
-			const lines = Math.trunc(pendingWheelLines);
-			pendingWheelLines -= lines;
-			if (lines === 0) return;
-			const count = Math.abs(lines);
-			if (snapshot.sgrMouse && snapshot.mouseTracking) {
-				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
-				const button = lines > 0 ? 65 : 64;
-				onSendRaw(`\x1b[<${button};${column};${row}M`.repeat(count));
-				return;
-			}
-			const prefix = appCursor() ? "\x1bO" : "\x1b[";
-			const key = lines > 0 ? "B" : "A";
-			onSendRaw(`${prefix}${key}`.repeat(count));
 		};
 		// The alt screen has no line editor to hold the line, so every paste
 		// belongs to the child.
@@ -260,14 +229,163 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
-		blockHost.addEventListener("wheel", onWheel, { passive: false });
-		blockHost.focus();
+		compositionRef.current = composition;
+		composition.focus();
 		return () => {
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
-			blockHost.removeEventListener("wheel", onWheel);
+			compositionRef.current = null;
+			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useLayoutEffect(() => {
+		const blockHost = hostRef.current;
+		if (!blockHost) return;
+		let pendingWheelLines = 0;
+		let velocityPxPerSec = 0;
+		let lastWheelAt = 0;
+		let dragButton: 0 | 1 | 2 | null = null;
+		const sampleVelocity = (deltaY: number): number => {
+			const now = performance.now();
+			const elapsed = now - lastWheelAt;
+			if (elapsed > GESTURE_IDLE_MS) {
+				lastWheelAt = now;
+				velocityPxPerSec = 0;
+				return 0;
+			}
+			if (elapsed < MIN_VELOCITY_SAMPLE_MS) {
+				return velocityPxPerSec;
+			}
+			lastWheelAt = now;
+			const sample = (Math.abs(deltaY) / elapsed) * 1000;
+			velocityPxPerSec += (sample - velocityPxPerSec) * VELOCITY_SMOOTHING;
+			return velocityPxPerSec;
+		};
+		const modifiersOf = (event: MouseEvent) => ({
+			shift: event.shiftKey,
+			alt: event.altKey,
+			ctrl: event.ctrlKey,
+		});
+		const buttonOf = (event: MouseEvent): 0 | 1 | 2 | null =>
+			event.button === 0 ? 0 : event.button === 1 ? 1 : event.button === 2 ? 2 : null;
+		const reportFor = (kind: MouseReportKind, button: 0 | 1 | 2, event: MouseEvent) => {
+			const snapshot = core.snapshot();
+			if (event.shiftKey || !snapshot.sgrMouse) return null;
+			const { column, row } = pointerCell(blockHost, event, rendererRef.current, snapshot, {
+				columns: gridColumnsRef.current,
+				rows: gridRowsRef.current,
+			});
+			return encodeMouseReport({
+				kind,
+				button,
+				column,
+				row,
+				sgrMouse: snapshot.sgrMouse,
+				trackingLevel: snapshot.mouseTrackingLevel,
+				modifiers: modifiersOf(event),
+				altScreen: snapshot.altScreen !== null,
+			});
+		};
+		const onMouseDown = (event: MouseEvent) => {
+			compositionRef.current?.focus();
+			const button = buttonOf(event);
+			if (button === null) return;
+			const data = reportFor("press", button, event);
+			if (data === null) return;
+			event.preventDefault();
+			dragButton = button;
+			onSendRaw(data);
+		};
+		const onMouseMove = (event: MouseEvent) => {
+			const data =
+				dragButton === null ? reportFor("move", 0, event) : reportFor("drag", dragButton, event);
+			if (data === null) return;
+			onSendRaw(data);
+		};
+		const onMouseUp = (event: MouseEvent) => {
+			const button = buttonOf(event);
+			if (button === null) return;
+			const target = event.target;
+			const inside = target instanceof Node && blockHost.contains(target);
+			if (dragButton === null && !inside) return;
+			dragButton = null;
+			const data = reportFor("release", button, event);
+			if (data === null) return;
+			if (inside) event.preventDefault();
+			onSendRaw(data);
+		};
+		const onWheel = (event: WheelEvent) => {
+			const snapshot = core.snapshot();
+			const altScreen = snapshot.altScreen !== null;
+			const reports = !event.shiftKey && snapshot.sgrMouse && snapshot.mouseTrackingLevel !== 0;
+			if (!reports && !altScreen) return;
+			event.preventDefault();
+			const measuredCellHeight = rendererRef.current?.measure().cellHeight ?? 0;
+			const deltaLines =
+				event.deltaMode === WheelEvent.DOM_DELTA_LINE
+					? event.deltaY
+					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
+						: measuredCellHeight > 0
+							? (event.deltaY * accelerationGain(sampleVelocity(event.deltaY))) / measuredCellHeight
+							: 0;
+			if (!Number.isFinite(deltaLines)) return;
+			pendingWheelLines += deltaLines;
+			const lines = Math.trunc(pendingWheelLines);
+			pendingWheelLines -= lines;
+			if (lines === 0) return;
+			const count = Math.abs(lines);
+			if (reports) {
+				const { column, row } = pointerCell(blockHost, event, rendererRef.current, snapshot, {
+					columns: gridColumnsRef.current,
+					rows: gridRowsRef.current,
+				});
+				const data = encodeMouseReport({
+					kind: lines > 0 ? "wheelDown" : "wheelUp",
+					button: 0,
+					column,
+					row,
+					sgrMouse: snapshot.sgrMouse,
+					trackingLevel: snapshot.mouseTrackingLevel,
+					modifiers: { shift: event.shiftKey, alt: event.altKey, ctrl: event.ctrlKey },
+					altScreen,
+				});
+				if (data !== null) onSendRaw(data.repeat(count));
+				return;
+			}
+			const prefix = snapshot.applicationCursorKeys ? "\x1bO" : "\x1b[";
+			onSendRaw(`${prefix}${lines > 0 ? "B" : "A"}`.repeat(count));
+		};
+		const staysInside = (event: FocusEvent) => {
+			const related = event.relatedTarget;
+			return related instanceof Node && blockHost.contains(related);
+		};
+		const onFocusIn = (event: FocusEvent) => {
+			if (staysInside(event)) return;
+			if (!core.snapshot().focusReporting) return;
+			onSendRaw("\x1b[I");
+		};
+		const onFocusOut = (event: FocusEvent) => {
+			if (staysInside(event)) return;
+			if (!core.snapshot().focusReporting) return;
+			onSendRaw("\x1b[O");
+		};
+		blockHost.addEventListener("mousedown", onMouseDown);
+		blockHost.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+		blockHost.addEventListener("wheel", onWheel, { passive: false });
+		blockHost.addEventListener("focusin", onFocusIn);
+		blockHost.addEventListener("focusout", onFocusOut);
+		return () => {
+			blockHost.removeEventListener("mousedown", onMouseDown);
+			blockHost.removeEventListener("mousemove", onMouseMove);
+			window.removeEventListener("mouseup", onMouseUp);
+			blockHost.removeEventListener("wheel", onWheel);
+			blockHost.removeEventListener("focusin", onFocusIn);
+			blockHost.removeEventListener("focusout", onFocusOut);
+		};
+	}, [core, onSendRaw]);
 
 	useLayoutEffect(() => {
 		const findBar = findBarRef.current;
@@ -287,9 +405,12 @@ export function TerminalSurface({
 	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
 	// not mousedown, so a drag-select is left alone.
 	const focusEditorFromHost = useCallback(() => {
-		if (altActive) return;
 		const selection = document.getSelection();
 		if (selection && !selection.isCollapsed) return;
+		if (altActive) {
+			compositionRef.current?.focus();
+			return;
+		}
 		editorRef.current?.focus();
 	}, [altActive]);
 
@@ -321,15 +442,41 @@ export function TerminalSurface({
 
 function pointerCell(
 	host: HTMLElement,
-	event: WheelEvent,
+	event: MouseEvent | WheelEvent,
 	renderer: DomBlockRenderer | null,
+	snapshot: TerminalSnapshot,
+	grid: { columns: number; rows: number },
 ): { column: number; row: number } {
-	const metrics = renderer?.measure();
-	if (!metrics || metrics.cellWidth <= 0 || metrics.cellHeight <= 0) {
+	if (!renderer) {
+		return { column: 1, row: 1 };
+	}
+	const metrics = renderer.measure();
+	if (metrics.cellWidth <= 0 || metrics.cellHeight <= 0) {
 		return { column: 1, row: 1 };
 	}
 	const bounds = host.getBoundingClientRect();
-	const column = Math.floor((event.clientX - bounds.left) / metrics.cellWidth) + 1;
-	const row = Math.floor((event.clientY - bounds.top) / metrics.cellHeight) + 1;
-	return { column: Math.max(1, column), row: Math.max(1, row) };
+	const painted =
+		snapshot.altScreen === null
+			? renderer.rowOrigin(firstScreenRow(snapshot, grid.rows))
+			: null;
+	const left = painted?.left ?? bounds.left;
+	const top = painted?.top ?? bounds.top;
+	const column = Math.floor((event.clientX - left) / metrics.cellWidth) + 1;
+	const row = Math.floor((event.clientY - top) / metrics.cellHeight) + 1;
+	const columnLimit = snapshot.altScreen?.columns ?? grid.columns;
+	const rowLimit = snapshot.altScreen?.rows ?? grid.rows;
+	return {
+		column: clampCell(column, columnLimit),
+		row: clampCell(row, rowLimit),
+	};
+}
+
+function clampCell(value: number, limit: number): number {
+	if (limit > 0) return Math.min(Math.max(1, value), limit);
+	return Math.max(1, value);
+}
+
+function firstScreenRow(snapshot: TerminalSnapshot, rows: number): number {
+	if (rows <= 0) return 0;
+	return Math.max(0, snapshot.rows.length / 2 - rows);
 }

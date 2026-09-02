@@ -7,7 +7,6 @@ package gen
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -41,15 +40,14 @@ func (q *Queries) DeleteShellTerminalsFromPreviousAppRuns(ctx context.Context, a
 
 const insertShellTerminal = `-- name: InsertShellTerminal :one
 INSERT INTO shell_terminals (
-    handle_id, project_id, session_id, working_dir, title, app_run_id, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
+    handle_id, project_id, working_dir, title, app_run_id, created_at
+) VALUES (?, ?, ?, ?, ?, ?)
+RETURNING handle_id, project_id, working_dir, title, app_run_id, created_at
 `
 
 type InsertShellTerminalParams struct {
 	HandleID   string
 	ProjectID  *domain.ProjectID
-	SessionID  sql.NullString
 	WorkingDir string
 	Title      string
 	AppRunID   string
@@ -60,7 +58,6 @@ func (q *Queries) InsertShellTerminal(ctx context.Context, arg InsertShellTermin
 	row := q.db.QueryRowContext(ctx, insertShellTerminal,
 		arg.HandleID,
 		arg.ProjectID,
-		arg.SessionID,
 		arg.WorkingDir,
 		arg.Title,
 		arg.AppRunID,
@@ -74,13 +71,12 @@ func (q *Queries) InsertShellTerminal(ctx context.Context, arg InsertShellTermin
 		&i.Title,
 		&i.AppRunID,
 		&i.CreatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }
 
 const selectShellTerminalByHandleID = `-- name: SelectShellTerminalByHandleID :one
-SELECT handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
+SELECT handle_id, project_id, working_dir, title, app_run_id, created_at
 FROM shell_terminals
 WHERE handle_id = ?
 `
@@ -95,13 +91,12 @@ func (q *Queries) SelectShellTerminalByHandleID(ctx context.Context, handleID st
 		&i.Title,
 		&i.AppRunID,
 		&i.CreatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }
 
 const selectShellTerminalsByAppRunID = `-- name: SelectShellTerminalsByAppRunID :many
-SELECT handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
+SELECT handle_id, project_id, working_dir, title, app_run_id, created_at
 FROM shell_terminals
 WHERE app_run_id = ?
 ORDER BY created_at
@@ -123,45 +118,6 @@ func (q *Queries) SelectShellTerminalsByAppRunID(ctx context.Context, appRunID s
 			&i.Title,
 			&i.AppRunID,
 			&i.CreatedAt,
-			&i.SessionID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const selectShellTerminalsBySessionID = `-- name: SelectShellTerminalsBySessionID :many
-SELECT handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
-FROM shell_terminals
-WHERE session_id = ?
-ORDER BY created_at
-`
-
-func (q *Queries) SelectShellTerminalsBySessionID(ctx context.Context, sessionID sql.NullString) ([]ShellTerminal, error) {
-	rows, err := q.db.QueryContext(ctx, selectShellTerminalsBySessionID, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ShellTerminal{}
-	for rows.Next() {
-		var i ShellTerminal
-		if err := rows.Scan(
-			&i.HandleID,
-			&i.ProjectID,
-			&i.WorkingDir,
-			&i.Title,
-			&i.AppRunID,
-			&i.CreatedAt,
-			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -177,7 +133,7 @@ func (q *Queries) SelectShellTerminalsBySessionID(ctx context.Context, sessionID
 }
 
 const selectShellTerminalsFromPreviousAppRuns = `-- name: SelectShellTerminalsFromPreviousAppRuns :many
-SELECT handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
+SELECT handle_id, project_id, working_dir, title, app_run_id, created_at
 FROM shell_terminals
 WHERE app_run_id <> ?
 ORDER BY created_at
@@ -199,7 +155,6 @@ func (q *Queries) SelectShellTerminalsFromPreviousAppRuns(ctx context.Context, a
 			&i.Title,
 			&i.AppRunID,
 			&i.CreatedAt,
-			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -218,7 +173,7 @@ const updateShellTerminalTitle = `-- name: UpdateShellTerminalTitle :one
 UPDATE shell_terminals
 SET title = ?
 WHERE handle_id = ?
-RETURNING handle_id, project_id, working_dir, title, app_run_id, created_at, session_id
+RETURNING handle_id, project_id, working_dir, title, app_run_id, created_at
 `
 
 type UpdateShellTerminalTitleParams struct {
@@ -236,7 +191,6 @@ func (q *Queries) UpdateShellTerminalTitle(ctx context.Context, arg UpdateShellT
 		&i.Title,
 		&i.AppRunID,
 		&i.CreatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }

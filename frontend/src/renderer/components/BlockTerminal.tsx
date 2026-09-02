@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	TerminalSurface,
@@ -13,7 +13,7 @@ import {
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
-import { openLinkInSystemBrowser } from "../lib/external-link-policy";
+import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -40,20 +40,12 @@ export type BlockTerminalProps = {
 	ariaLabel?: string;
 	fontSize?: number;
 	agentTui?: boolean;
-	children?: ReactNode;
 };
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_SCROLLBACK = 5000;
 const SOURCE_ID_MARKER = new TextEncoder().encode("\x1b]7000;v=1;id=");
 const BEL = 0x07;
-
-// Which surface owns the alternate screen. The package's own renderer is the
-// default so the pane is ours end to end; the phase-3 alternate-screen grid
-// now handles full-screen TUIs end to end, so the package surface is the
-// primary one. `VITE_ALT_SCREEN_SURFACE=xterm` is the spec-required escape
-// hatch for any regression we cannot fix in the grid.
-const handsAltScreenToXterm = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
 // The block terminal renders in Warp's own bundled dark theme, fixed, rather
 // than following the app skin (user decision 2026-09-02). DESIGN.md's carve-out
@@ -148,7 +140,6 @@ export function BlockTerminal({
 	ariaLabel,
 	fontSize,
 	agentTui,
-	children,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -321,6 +312,7 @@ export function BlockTerminal({
 				return operatorBridge.clipboard.readText();
 			},
 			openLink: async (url: string) => {
+				if (!isWebLink(url)) return;
 				await openLinkInSystemBrowser(url);
 			},
 		}),
@@ -376,26 +368,16 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
-	const handOffAltScreen = altScreenActive && handsAltScreenToXterm;
-
 	terminalDebug("block-terminal", "render", {
-		surface: coreError
-			? "error"
-			: !core
-				? "loading"
-				: handOffAltScreen
-					? "xterm(alt)"
-					: altScreenActive
-						? "block-list(alt)"
-						: "block-list",
+		surface: coreError ? "error" : !core ? "loading" : altScreenActive ? "block-list(alt)" : "block-list",
 	});
 
 	if (coreError || !core) {
 		// Until the core exists -- and permanently if it fails to load -- the
-		// pane shows the raw surface the host handed us. A terminal that cannot
-		// render blocks is still a terminal; replacing it with an error box, or
-		// letting the failure reach the app's error boundary, turns a degraded
-		// feature into a dead window.
+		// pane shows an inert surface. A terminal that cannot render blocks is
+		// still a terminal; replacing it with an error box, or letting the
+		// failure reach the app's error boundary, turns a degraded feature into
+		// a dead window.
 		return (
 			<div
 				aria-label={ariaLabel}
@@ -404,9 +386,7 @@ export function BlockTerminal({
 				data-block-core={coreError ? "failed" : "loading"}
 				data-block-core-error={coreError ? coreError.message : undefined}
 				className="block-terminal-root h-full w-full"
-			>
-				{children}
-			</div>
+			/>
 		);
 	}
 
@@ -414,8 +394,7 @@ export function BlockTerminal({
 		core,
 		theme: resolvedTheme,
 		font,
-		altScreenActive: handOffAltScreen,
-		altScreenSurface: children,
+		altScreenActive: false,
 		host,
 		strings,
 		onSend,
