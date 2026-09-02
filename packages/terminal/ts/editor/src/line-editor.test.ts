@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createTerminalCore, initTerminalCore } from "@operator/terminal-core";
 import { LineEditor, type EditorHost } from "./line-editor";
+import { editorStyles } from "./styles";
 
 const encode = (text: string) => new TextEncoder().encode(text);
 const key = (init: Partial<KeyboardEvent> & { key: string }) =>
@@ -283,5 +284,18 @@ describe("LineEditor chrome while the child owns the line", () => {
 		const { container, core } = mount();
 		core.feed(encode("\x1b]7000;v=1;input-ready=1\x07"));
 		expect(container.querySelector(".terminal-editor-prompt")).not.toBeNull();
+	});
+});
+
+describe("package stylesheet", () => {
+	it("refreshes a stale style tag instead of leaving the old rules live", () => {
+		document.getElementById("operator-terminal-editor-styles")?.remove();
+		const stale = document.createElement("style");
+		stale.id = "operator-terminal-editor-styles";
+		stale.textContent = ".terminal-editor { min-height: 999px }";
+		document.head.append(stale);
+		mount();
+		const tag = document.getElementById("operator-terminal-editor-styles");
+		expect(tag?.textContent).toBe(editorStyles);
 	});
 });

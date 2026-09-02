@@ -497,6 +497,11 @@ function defaultFont(): FontConfig {
 function ensurePackageStyleTag(): HTMLStyleElement {
 	const existing = document.head.querySelector<HTMLStyleElement>("style[data-terminal-package]");
 	if (existing) {
+		// Refresh rather than skip: under HMR the module re-evaluates with new CSS
+		// while the previous version's tag survives, leaving current markup styled
+		// by a stale stylesheet.
+		const current = terminalStylesForDocument();
+		if (existing.textContent !== current) existing.textContent = current;
 		return existing;
 	}
 	const tag = document.createElement("style");

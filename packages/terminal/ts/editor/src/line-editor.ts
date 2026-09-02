@@ -449,7 +449,15 @@ function createCaret(character = "\u00a0"): HTMLElement {
 }
 
 function ensurePackageStyleTag(): void {
-	if (document.getElementById("operator-terminal-editor-styles")) return;
+	// Refresh the tag rather than skipping it when one is already there. Under
+	// HMR the module re-evaluates with new CSS while the tag from the previous
+	// version survives, so the new rules never land and the DOM ends up running
+	// current markup against a stale stylesheet.
+	const existing = document.getElementById("operator-terminal-editor-styles");
+	if (existing) {
+		if (existing.textContent !== editorStyles) existing.textContent = editorStyles;
+		return;
+	}
 	const tag = document.createElement("style");
 	tag.id = "operator-terminal-editor-styles";
 	tag.textContent = editorStyles;
