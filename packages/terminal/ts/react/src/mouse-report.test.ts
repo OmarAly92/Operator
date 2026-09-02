@@ -55,6 +55,25 @@ describe("encodeMouseReport", () => {
 		);
 	});
 
+	it("does not report buttonless motion in the alt screen unless 1003 is set", () => {
+		expect(
+			encodeMouseReport({ ...base, altScreen: true, trackingLevel: 0b001, kind: "move", button: 0 }),
+		).toBeNull();
+		expect(
+			encodeMouseReport({ ...base, altScreen: true, trackingLevel: 0b010, kind: "move", button: 0 }),
+		).toBeNull();
+		expect(
+			encodeMouseReport({ ...base, altScreen: true, trackingLevel: 0b100, kind: "move", button: 0 }),
+		).toBe("\x1b[<35;5;3M");
+	});
+
+	it("still reports alt-screen press, release and drag with no tracking mode set", () => {
+		const alt = { ...base, altScreen: true, trackingLevel: 0 } as const;
+		expect(encodeMouseReport({ ...alt, kind: "press", button: 0 })).toBe("\x1b[<0;5;3M");
+		expect(encodeMouseReport({ ...alt, kind: "release", button: 0 })).toBe("\x1b[<0;5;3m");
+		expect(encodeMouseReport({ ...alt, kind: "drag", button: 0 })).toBe("\x1b[<32;5;3M");
+	});
+
 	it("reports in the normal buffer when the program asked, with no alt screen", () => {
 		expect(encodeMouseReport({ ...base, altScreen: false, kind: "press", button: 0 })).toBe(
 			"\x1b[<0;5;3M",

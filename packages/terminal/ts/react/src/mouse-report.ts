@@ -31,9 +31,7 @@ export function encodeMouseReport(input: MouseReportInput): string | null {
 	if (input.modifiers.shift) return null;
 	if (!input.sgrMouse) return null;
 	const { kind, button, trackingLevel, altScreen } = input;
-	const tracking = altScreen
-		? trackingLevel | TRACK_CLICK | TRACK_DRAG | TRACK_MOTION
-		: trackingLevel;
+	const tracking = altScreen ? trackingLevel | TRACK_CLICK | TRACK_DRAG : trackingLevel;
 	if (tracking === 0) return null;
 	let code: number;
 	switch (kind) {
