@@ -1,88 +1,19 @@
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import {
-	createTerminalCore,
-	initTerminalCore,
-	type FontConfig,
-	type TerminalCore,
-	type TerminalTheme,
-} from "@operator/terminal-core";
+import { createTerminalCore } from "@operator/terminal-core";
 import { DomBlockRenderer, terminalStyles } from "@operator/terminal-renderer-dom";
-import { TerminalSurface, warpDarkTheme } from "./index";
-
-const wasmPath = join(
-	dirname(fileURLToPath(import.meta.url)),
-	"..",
-	"..",
-	"core",
-	"wasm",
-	"vt_core_bg.wasm",
-);
-
-const font: FontConfig = {
-	family: "ui-monospace, monospace",
-	sizePx: 14,
-	lineHeight: 1.2,
-	weight: 400,
-	letterSpacingPx: 0,
-	ligatures: false,
-};
-
-const theme: TerminalTheme = warpDarkTheme;
-const ignoreSend = () => undefined;
-const ignoreRaw = () => undefined;
-
-async function loadWasm(): Promise<void> {
-	const bytes = await readFile(wasmPath);
-	const wasmBytes = bytes.buffer.slice(
-		bytes.byteOffset,
-		bytes.byteOffset + bytes.byteLength,
-	) as ArrayBuffer;
-	await initTerminalCore(wasmBytes);
-}
-
-function feed(core: TerminalCore, text: string): void {
-	core.feed(new TextEncoder().encode(text));
-}
-
-function flushRepaint(): Promise<void> {
-	return new Promise((resolve) => {
-		requestAnimationFrame(() => resolve());
-	});
-}
-
-function renderSurface(
-	overrides: {
-		onGeometry?: (columns: number, rows: number) => void;
-		onSend?: (text: string) => void;
-		onSendRaw?: (data: string) => void;
-	} = {},
-) {
-	const core = createTerminalCore({ columns: 16, scrollback: 100 });
-	const result = render(
-		<TerminalSurface
-			core={core}
-			theme={theme}
-			font={font}
-			altScreenActive={false}
-			onSend={overrides.onSend ?? ignoreSend}
-			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
-			onGeometry={overrides.onGeometry}
-		/>,
-	);
-	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
-	const surface = host.parentElement as HTMLElement;
-	return { core, host, surface, ...result };
-}
-
-function setHostSize(host: HTMLElement, width: number, height: number): void {
-	Object.defineProperty(host, "clientWidth", { value: width, configurable: true });
-	Object.defineProperty(host, "clientHeight", { value: height, configurable: true });
-	host.dispatchEvent(new Event("resize"));
-}
+import { TerminalSurface } from "./index";
+import {
+	feed,
+	flushRepaint,
+	font,
+	ignoreRaw,
+	ignoreSend,
+	loadWasm,
+	renderSurface,
+	setHostSize,
+	theme,
+} from "./surface-harness";
 
 describe("TerminalSurface", () => {
 	beforeAll(loadWasm);
@@ -429,124 +360,6 @@ describe("TerminalSurface", () => {
 		expect(onSendRaw).toHaveBeenCalledWith("\x1bOD");
 	});
 
-	it("turns the wheel into arrow keys instead of scrolling nothing", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-		expect(onSendRaw).toHaveBeenCalled();
-		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
-	});
-
-	it("accumulates precise trackpad pixels using the measured cell height", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h\x1b[?1h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 8, bubbles: true, cancelable: true }));
-		expect(onSendRaw).not.toHaveBeenCalled();
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 9, bubbles: true, cancelable: true }));
-		expect(onSendRaw).toHaveBeenCalledOnce();
-		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
-	});
-
-	it("accelerates a flick so it travels further than the same pixels crept", () => {
-		const cellHeight = font.lineHeight * font.sizePx;
-		let now = 1000;
-		const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
-		const countRows = (onSendRaw: ReturnType<typeof vi.fn>) =>
-			onSendRaw.mock.calls.reduce(
-				(total, call) => total + ((call[0] as string).match(/\x1bOB|\x1b\[B/g)?.length ?? 0),
-				0,
-			);
-		const drip = (events: number, deltaY: number, gapMs: number) => {
-			cleanup();
-			const onSendRaw = vi.fn();
-			const { container, core } = renderSurface({ onSendRaw });
-			act(() => {
-				feed(core, "\x1b[?1049h\x1b[?1h");
-			});
-			const surface = container.querySelector(".terminal-host") as HTMLElement;
-			for (let i = 0; i < events; i += 1) {
-				now += gapMs;
-				surface.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true }));
-			}
-			return countRows(onSendRaw);
-		};
-
-		// Identical pixel travel -- 60px either way -- delivered at ~17px/s over
-		// 3.6s versus ~375px/s over 160ms.
-		const crept = drip(60, 1, 60);
-		now += 1000;
-		const flicked = drip(20, 3, 8);
-
-		expect(crept).toBe(Math.trunc(60 / cellHeight));
-		expect(flicked).toBeGreaterThan(crept * 2);
-		clock.mockRestore();
-	});
-
-	it("treats line-mode wheel deltas as terminal lines", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h\x1b[?1h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", {
-			deltaY: 1,
-			deltaMode: WheelEvent.DOM_DELTA_LINE,
-			bubbles: true,
-			cancelable: true,
-		}));
-		expect(onSendRaw).toHaveBeenCalledWith("\x1bOB");
-	});
-
-	it("sends sgr wheel reports when the program tracks the mouse", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h\x1b[?1006h\x1b[?1000h\x1b[?1002h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-		expect(onSendRaw).toHaveBeenCalled();
-		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1b\[<65;\d+;\d+M)+$/);
-	});
-
-	it("reports wheel up with button 64", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h\x1b[?1006h\x1b[?1002h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true, cancelable: true }));
-		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1b\[<64;\d+;\d+M)+$/);
-	});
-
-	it("falls back to arrow keys when only sgr mouse is enabled", () => {
-		const onSendRaw = vi.fn();
-		const { container, core } = renderSurface({ onSendRaw });
-		act(() => {
-			feed(core, "\x1b[?1049h\x1b[?1006h");
-		});
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^(\x1bOB|\x1b\[B)+$/);
-	});
-
-	it("does not turn the wheel into keys outside the alternate screen", () => {
-		const onSendRaw = vi.fn();
-		const { container } = renderSurface({ onSendRaw });
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-		expect(onSendRaw).not.toHaveBeenCalled();
-	});
 
 	it("takes focus when the alternate screen opens and gives it back on leave", () => {
 		const { container, core } = renderSurface();

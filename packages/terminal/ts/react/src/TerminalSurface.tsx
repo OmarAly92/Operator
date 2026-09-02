@@ -11,6 +11,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { AltScreenSlot } from "./AltScreenSlot.js";
+import { encodeMouseReport, type MouseReportKind } from "./mouse-report.js";
 
 export interface TerminalSurfaceProps {
 	core: TerminalCore;
@@ -189,9 +190,6 @@ export function TerminalSurface({
 		if (!blockHost || !altActive) {
 			return;
 		}
-		let pendingWheelLines = 0;
-		let velocityPxPerSec = 0;
-		let lastWheelAt = 0;
 		const appCursor = () => core.snapshot().applicationCursorKeys;
 		const onKeyDown = (event: KeyboardEvent) => {
 			const data = encodeKey(event, appCursor());
@@ -200,50 +198,6 @@ export function TerminalSurface({
 			}
 			event.preventDefault();
 			onSendRaw(data);
-		};
-		const sampleVelocity = (deltaY: number): number => {
-			const now = performance.now();
-			const elapsed = now - lastWheelAt;
-			if (elapsed > GESTURE_IDLE_MS) {
-				lastWheelAt = now;
-				velocityPxPerSec = 0;
-				return 0;
-			}
-			if (elapsed < MIN_VELOCITY_SAMPLE_MS) {
-				return velocityPxPerSec;
-			}
-			lastWheelAt = now;
-			const sample = (Math.abs(deltaY) / elapsed) * 1000;
-			velocityPxPerSec += (sample - velocityPxPerSec) * VELOCITY_SMOOTHING;
-			return velocityPxPerSec;
-		};
-		const onWheel = (event: WheelEvent) => {
-			event.preventDefault();
-			const snapshot = core.snapshot();
-			const measuredCellHeight = rendererRef.current?.measure().cellHeight ?? 0;
-			const deltaLines =
-				event.deltaMode === WheelEvent.DOM_DELTA_LINE
-					? event.deltaY
-					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
-						: measuredCellHeight > 0
-							? (event.deltaY * accelerationGain(sampleVelocity(event.deltaY))) / measuredCellHeight
-							: 0;
-			if (!Number.isFinite(deltaLines)) return;
-			pendingWheelLines += deltaLines;
-			const lines = Math.trunc(pendingWheelLines);
-			pendingWheelLines -= lines;
-			if (lines === 0) return;
-			const count = Math.abs(lines);
-			if (snapshot.sgrMouse && snapshot.mouseTracking) {
-				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
-				const button = lines > 0 ? 65 : 64;
-				onSendRaw(`\x1b[<${button};${column};${row}M`.repeat(count));
-				return;
-			}
-			const prefix = appCursor() ? "\x1bO" : "\x1b[";
-			const key = lines > 0 ? "B" : "A";
-			onSendRaw(`${prefix}${key}`.repeat(count));
 		};
 		// The alt screen has no line editor to hold the line, so every paste
 		// belongs to the child.
@@ -260,14 +214,132 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
-		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.focus();
 		return () => {
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
-			blockHost.removeEventListener("wheel", onWheel);
 		};
 	}, [altActive, core, onSendRaw]);
+
+	useLayoutEffect(() => {
+		const blockHost = hostRef.current;
+		if (!blockHost) return;
+		let pendingWheelLines = 0;
+		let velocityPxPerSec = 0;
+		let lastWheelAt = 0;
+		let dragButton: 0 | 1 | 2 | null = null;
+		const sampleVelocity = (deltaY: number): number => {
+			const now = performance.now();
+			const elapsed = now - lastWheelAt;
+			if (elapsed > GESTURE_IDLE_MS) {
+				lastWheelAt = now;
+				velocityPxPerSec = 0;
+				return 0;
+			}
+			if (elapsed < MIN_VELOCITY_SAMPLE_MS) {
+				return velocityPxPerSec;
+			}
+			lastWheelAt = now;
+			const sample = (Math.abs(deltaY) / elapsed) * 1000;
+			velocityPxPerSec += (sample - velocityPxPerSec) * VELOCITY_SMOOTHING;
+			return velocityPxPerSec;
+		};
+		const modifiersOf = (event: MouseEvent) => ({
+			shift: event.shiftKey,
+			alt: event.altKey,
+			ctrl: event.ctrlKey,
+		});
+		const buttonOf = (event: MouseEvent): 0 | 1 | 2 | null =>
+			event.button === 0 ? 0 : event.button === 1 ? 1 : event.button === 2 ? 2 : null;
+		const reportFor = (kind: MouseReportKind, button: 0 | 1 | 2, event: MouseEvent) => {
+			const snapshot = core.snapshot();
+			if (event.shiftKey || !snapshot.sgrMouse) return null;
+			const { column, row } = pointerCell(blockHost, event, rendererRef.current);
+			return encodeMouseReport({
+				kind,
+				button,
+				column,
+				row,
+				sgrMouse: snapshot.sgrMouse,
+				trackingLevel: snapshot.mouseTrackingLevel,
+				modifiers: modifiersOf(event),
+				altScreen: snapshot.altScreen !== null,
+			});
+		};
+		const onMouseDown = (event: MouseEvent) => {
+			const button = buttonOf(event);
+			if (button === null) return;
+			const data = reportFor("press", button, event);
+			if (data === null) return;
+			event.preventDefault();
+			dragButton = button;
+			onSendRaw(data);
+		};
+		const onMouseMove = (event: MouseEvent) => {
+			const data =
+				dragButton === null ? reportFor("move", 0, event) : reportFor("drag", dragButton, event);
+			if (data === null) return;
+			onSendRaw(data);
+		};
+		const onMouseUp = (event: MouseEvent) => {
+			const button = buttonOf(event);
+			if (button === null) return;
+			dragButton = null;
+			const data = reportFor("release", button, event);
+			if (data === null) return;
+			event.preventDefault();
+			onSendRaw(data);
+		};
+		const onWheel = (event: WheelEvent) => {
+			const snapshot = core.snapshot();
+			const altScreen = snapshot.altScreen !== null;
+			const reports = !event.shiftKey && snapshot.sgrMouse && snapshot.mouseTrackingLevel !== 0;
+			if (!reports && !altScreen) return;
+			event.preventDefault();
+			const measuredCellHeight = rendererRef.current?.measure().cellHeight ?? 0;
+			const deltaLines =
+				event.deltaMode === WheelEvent.DOM_DELTA_LINE
+					? event.deltaY
+					: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+						? event.deltaY * (snapshot.altScreen?.rows ?? 1)
+						: measuredCellHeight > 0
+							? (event.deltaY * accelerationGain(sampleVelocity(event.deltaY))) / measuredCellHeight
+							: 0;
+			if (!Number.isFinite(deltaLines)) return;
+			pendingWheelLines += deltaLines;
+			const lines = Math.trunc(pendingWheelLines);
+			pendingWheelLines -= lines;
+			if (lines === 0) return;
+			const count = Math.abs(lines);
+			if (reports) {
+				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
+				const data = encodeMouseReport({
+					kind: lines > 0 ? "wheelDown" : "wheelUp",
+					button: 0,
+					column,
+					row,
+					sgrMouse: snapshot.sgrMouse,
+					trackingLevel: snapshot.mouseTrackingLevel,
+					modifiers: { shift: event.shiftKey, alt: event.altKey, ctrl: event.ctrlKey },
+					altScreen,
+				});
+				if (data !== null) onSendRaw(data.repeat(count));
+				return;
+			}
+			const prefix = snapshot.applicationCursorKeys ? "\x1bO" : "\x1b[";
+			onSendRaw(`${prefix}${lines > 0 ? "B" : "A"}`.repeat(count));
+		};
+		blockHost.addEventListener("mousedown", onMouseDown);
+		blockHost.addEventListener("mousemove", onMouseMove);
+		blockHost.addEventListener("mouseup", onMouseUp);
+		blockHost.addEventListener("wheel", onWheel, { passive: false });
+		return () => {
+			blockHost.removeEventListener("mousedown", onMouseDown);
+			blockHost.removeEventListener("mousemove", onMouseMove);
+			blockHost.removeEventListener("mouseup", onMouseUp);
+			blockHost.removeEventListener("wheel", onWheel);
+		};
+	}, [core, onSendRaw]);
 
 	useLayoutEffect(() => {
 		const findBar = findBarRef.current;
@@ -321,7 +393,7 @@ export function TerminalSurface({
 
 function pointerCell(
 	host: HTMLElement,
-	event: WheelEvent,
+	event: MouseEvent | WheelEvent,
 	renderer: DomBlockRenderer | null,
 ): { column: number; row: number } {
 	const metrics = renderer?.measure();
