@@ -1132,10 +1132,11 @@ alt-screen session leaves a single collapsed block recording what ran.
 
 Phase 3 lands the package's own alternate-screen grid as the default raw surface
 (`renderer-dom`'s `alt-surface.ts`, painted through the existing `BlockRenderer` seam).
-`XtermTerminal.tsx` stays in the tree as a host-flagged fallback
-(`VITE_ALT_SCREEN_SURFACE=xterm`) so a regression in the package grid is one flag away
-from a working pane. Phase 7 deletes it outright — component, dependencies, theme bridge
-and flag — per §13.4.2, which also lists the input work that must land before it can go.
+`XtermTerminal.tsx` stayed in the tree as a host-flagged fallback
+(`VITE_ALT_SCREEN_SURFACE=xterm`) through phases 3-6, so a regression in the package grid
+was one flag away from a working pane. **Phase 7 deleted it outright** — component,
+`@xterm/*` dependencies, theme bridge and flag — in `f72cdffa0`, once §13.4.2's input
+prerequisites had landed. See §14 Phase 7 for the deviations execution surfaced.
 
 *Why this is not optional.* An agent session — Claude Code, or any TUI harness — enters
 the alternate screen on the first chunk of output and never leaves it. Measured on a
@@ -1166,16 +1167,29 @@ is true only of a plain shell. §2.8.
   single full-height region with no block chrome.
 - Input in the alternate screen is raw passthrough, exactly as the phase-2 editor
   already does in `Released` (§10.2). The editor is hidden, not disabled-in-place.
-- **The wheel goes to the program when the program asked for it.** `vt-core` tracks
-  `1006` (SGR encoding) and `1000`/`1002`/`1003` (tracking level) as private-mode state
-  and publishes both on the snapshot. When SGR encoding and any tracking level are both
-  on — which is what a full-screen TUI with a scrollable pane sets — a wheel event is
-  reported as `CSI < 64 ; col ; row M` (up) or `65` (down) at the cell under the pointer,
-  so the program scrolls its own pane. Only when the program has *not* asked does the
-  surface synthesize arrow keys (`CSI A`/`B`, or `SS3 A`/`B` under application cursor
-  keys). Getting this backwards is the shape of a real bug we shipped: an agent CLI read
-  the synthesized `CSI A` as "up arrow" and walked its prompt history every time the user
-  tried to scroll.
+- **The wheel is gated on the program's tracking modes, not on the alternate screen —
+  and the rule is three-way, matching `should_intercept_scroll`
+  (`app/src/terminal/alt_screen/mod.rs:29-34`).** `vt-core` tracks `1006` (SGR encoding)
+  and `1000`/`1002`/`1003` (tracking level) as private-mode state and publishes both on
+  the snapshot.
+  1. **Report when the program asked.** When SGR encoding and any tracking level are
+     both on — which is what a full-screen TUI with a scrollable pane sets — a wheel
+     event is reported as `CSI < 64 ; col ; row M` (up) or `65` (down) at the cell under
+     the pointer, so the program scrolls its own pane.
+  2. **Synthesize arrows in the alternate screen when it did not ask.** The surface
+     synthesizes arrow keys (`CSI A`/`B`, or `SS3 A`/`B` under application cursor keys).
+     Getting this backwards is the shape of a real bug we shipped: an agent CLI read
+     the synthesized `CSI A` as "up arrow" and walked its prompt history every time the
+     user tried to scroll.
+  3. **Leave the event alone in the normal buffer when the program did not ask**, so
+     the block list scrolls. This branch did not exist when this paragraph was first
+     written, because it assumed the alternate screen was the only place a wheel event
+     could land — since the tmux removal (§0.7) agent panes run in the normal buffer,
+     so without this branch every agent pane would swallow the wheel instead of
+     scrolling the block list. This is what preserves the scroll the user confirmed
+     good on 2026-09-02, and it has a named regression test because no benchmark can
+     catch it (`todo_without_tmux.md` §1).
+  See §14 Phase 7 deviation 5.
 - **Wheel deltas are normalized against the measured cell height, and the remainder is
   kept.** `deltaMode` is one of pixels, lines or pages; pixels are divided by
   `renderer.measure().cellHeight` and pages by the grid height. The fractional remainder
@@ -1386,7 +1400,7 @@ then as a flagged fallback (§11). Phase 7 deletes it. What goes:
 | Artefact | Note |
 | --- | --- |
 | `frontend/src/renderer/components/XtermTerminal.tsx` (1058 lines) and its test | the component |
-| `frontend/src/renderer/theme/bridge/xterm-theme.ts` | `skinToTerminalTheme` maps through it today and must map directly instead |
+| `frontend/src/renderer/theme/bridge/xterm-theme.ts` | superseded before phase 7 started: `a83e29013` deleted `skinToTerminalTheme` and fixed `BlockTerminal.tsx` to `warpDarkTheme` directly; this file was deleted as a Task 9 side effect once its last consumer (`XtermTerminal.tsx`) went — see §14 Phase 7 deviation 10 |
 | `import "@xterm/xterm/css/xterm.css"` in `main.tsx`, and the `.xterm*` rules in `styles.css` | |
 | the seven `@xterm/*` entries in `frontend/package.json` | |
 | `VITE_ALT_SCREEN_SURFACE` and `handsAltScreenToXterm` in `BlockTerminal.tsx` | the escape hatch has nothing left to escape to |
@@ -1428,8 +1442,8 @@ scopes against the tree rather than against this paragraph as first written:
 | --- | --- |
 | key→bytes encoder | ✅ `ts/editor/src/encode-key.ts` with its test — `4b31952aa`, "encode the key the user pressed for a child process". `DECKPAM` coverage still to be confirmed against the encoder's table. |
 | bracketed paste `?2004` | ✅ tracked in `vt-core` (`parser.rs:145`, surfaced on the snapshot as `bracketedPaste`, `terminal-core.ts:138`) and consumed by `ts/editor/src/paste.ts` — `7b36b82c9`, "make Cmd+V paste reach the terminal again". |
-| mouse reporting `?1000`/`?1002`/`?1003`/`?1006` | 🟡 wheel reporting is complete (§11, phase 3). Click and drag reporting are not; that is what "cannot be clicked in" still means. |
-| IME composition | ⬜ untouched. |
+| mouse reporting `?1000`/`?1002`/`?1003`/`?1006` | ✅ wheel reporting landed in phase 3 (§11); click and drag reporting landed phase 7 Task 5 (`aca616fc1`, `f64e0ae9d`) with focus reporting (`?1004`) added alongside them (Task 6, `803abd3ac` — see §14 Phase 7 deviation 7). |
+| IME composition | ✅ landed phase 7 Task 7 (`f614dcbff`, `4b55ee4f1`) — inline preedit painting is deferred, see §14 Phase 7 deviation 8. |
 
 Selection came along with them and is not on this list because xterm never supplied it:
 `4bf497c9d` and `fbe04f719` paint selection per row the way Warp does, and `90d06f15c`
@@ -1874,7 +1888,20 @@ reader should look for it here. Scroll smoothness was fixed by the tmux removal 
 confirmed good in real use by the user on 2026-09-02. `todo_without_tmux.md` §1 carries
 the remaining benchmark gap, which is a missing number, not a suspected regression.
 
-### Phase 7 — Retirement
+### Phase 7 — Retirement — **landed 2026-09-02**
+
+**Landed.** All ten tasks of the 2026-09-02 plan
+(`docs/superpowers/plans/2026-09-02-warp-terminal-phase-7-retirement.md`), `5fa6a2fa6`
+through `a65d35ec6` (commit range `317d07840..HEAD` for `backend`, `frontend` and
+`packages/terminal`): `5fa6a2fa6` (Task 1, one session is one terminal plus chat),
+`e9e6d9deb`/`4651e91b2` (Task 2, drop session scoping), `e85fdf985`/`2c03ef90c` (Task 3,
+mouse tracking level on the snapshot), `aca616fc1`/`f64e0ae9d` (Task 5, mouse reporting),
+`803abd3ac` (Task 6, focus/blur reporting), `f614dcbff`/`4b55ee4f1` (Task 7, composition
+target), `9e02f8d78`/`f72cdffa0`/`a65d35ec6` (Task 9, deleting xterm from the renderer).
+Task 8 (see deviation 10 below) produced no commits of its own. This section records
+the nine deviations the plan's authors anticipated needing to record, plus nine more
+that execution surfaced and the authors could not have anticipated — all eighteen listed
+under "Deviations from the plan" below.
 
 **Deliver:** §13.4 — both the shell-terminal tabs (§13.4.1) and xterm itself (§13.4.2),
 including the input prerequisites §13.4.2 names. **Plus scrollback persistence and
@@ -1924,6 +1951,151 @@ Steps 3 and 4 are the only irreversible ones and they are last by construction. 
 own closing line — *"This is last so a revert costs nothing before it"* — is the rule
 this ordering implements.
 
+**Deviations from the plan, recorded plainly so the next reader does not re-open them.**
+
+1. **The deletion target was the in-session shell tabs, not the standalone
+   `/terminals` screen.** §13.4's *"one session has exactly one terminal surface"* is
+   about the session pane; §17.5's artefact list named the standalone screen, which has
+   its own UX justification and stays. §13.4 and §17.5 are amended below.
+2. **There was no history migration.** `daemon/shellterm_wiring.go:57` is the only
+   `Adopt` call site, so session panes never had durable capture. Removing session
+   scoping (Task 2, `e9e6d9deb`) satisfied §13.4.1 by construction — there was no
+   handle-keyed bridge to migrate.
+3. **`ShellTerminalTab.tsx` and `useShellTerminals.ts` were not deleted** despite
+   §17.5 listing them. Both serve the surviving standalone `/terminals` screen.
+4. **IME was not an xterm-supplied capability being replaced.** Neither the line
+   editor nor the alt surface had a composition path; `line-editor.ts:59` builds a
+   `div`. The composition target (Task 7, `f614dcbff`/`4b55ee4f1`) is new capability,
+   not a port.
+5. **Mouse and wheel reporting are gated on the program's tracking modes, not on the
+   alternate screen** — matching `should_intercept_mouse` (`app/src/terminal/alt_screen/mod.rs:18-21`)
+   and `should_intercept_scroll` (`:29-34`), and required because agent panes are in
+   the normal buffer since the tmux removal (§0.7). §11's wheel paragraph is rewritten
+   below rather than annotated: the rule is now three-way — report when the program
+   asked, synthesize arrows in the alt screen when it did not, and leave the event
+   alone in the normal buffer so the block list scrolls. That third branch is what
+   preserves the scroll the user confirmed good on 2026-09-02, and it has a named
+   regression test because no benchmark can catch it (`todo_without_tmux.md` §1).
+6. **Modifier bits are encoded where Warp encodes none**, and **shift suppresses
+   reporting entirely** so the user can always select. Both belong in §3 as named
+   departures — the first is the "Warp carries `modifiers` and never reads them" case
+   at `model/escape_sequences.rs:327-364`; the second is copied from
+   `alt_screen/mod.rs:14-16`.
+7. **Focus reporting (`?1004`) was added** (Task 6, `803abd3ac`), unlisted in the
+   phase. `vt-core` did not parse it, so a program that enabled it waited forever. It
+   belongs in §11 beside the mouse modes.
+8. **Inline IME preedit is deferred, explicitly.** Warp paints the composing text in
+   the editor via `set_marked_text` with the IME's selection range
+   (`app/src/editor/view/mod.rs:8234`, state at `view/model/selections.rs:350-358`).
+   We commit on `compositionend` and on focus loss; the composing text shows only in
+   the OS candidate window. Recorded as a gap with that citation so the next reader
+   has the reference rather than the discovery.
+9. **No reporting settings were added.** Warp exposes `terminal.mouse_reporting_enabled`,
+   `scroll_reporting_enabled` and `focus_reporting_enabled`, all defaulting true
+   (`app/src/terminal/alt_screen_reporting.rs:5-33`). A settings surface is deferred
+   phase 6 work; "always report when the program asks" is the right default and the
+   only behaviour a terminal without a preferences pane can have.
+10. **Task 8 turned out to be a complete no-op.** Its premise — rewriting
+    `skinToTerminalTheme` to build `TerminalTheme` directly from the skin instead of
+    hopping through `xterm-theme.ts` — was already invalidated before this plan was
+    written: `skinToTerminalTheme` and its plumbing were entirely deleted three commits
+    earlier, same day, by `a83e29013 feat(terminal): restyle the block terminal to
+    match Warp`, whose own message states "The terminal takes Warp's palette as a fixed
+    theme rather than following the app skin (user decision) … skinToTerminalTheme and
+    its plumbing are gone." `BlockTerminal.tsx` now hardcodes `warpDarkTheme`. Task 8
+    produced zero commits; the one surviving piece of real work it would have done —
+    deleting `xterm-theme.ts` and its test — was folded into Task 9 instead, since
+    `xterm-theme.ts`'s only remaining consumer was `XtermTerminal.tsx` itself.
+11. **A second, wholly undocumented xterm benchmark harness existed and had to be
+    deleted as part of Task 9.** `frontend/perf/terminal/` (8 files, ~1357 lines, built
+    directly on `XtermTerminal` and `@xterm/xterm`) was served by
+    `frontend/vite.terminal-perf.config.ts` and exercised by
+    `.github/workflows/tauri-phase0.yml`. Neither this plan, this spec, nor any prior
+    planning document ever mentioned it. It was safe to delete: `tauri-phase0.yml` has
+    no `on:` trigger key at all (cannot run in CI under any circumstance) and its own
+    header comment says "RETIRED with Task 21 (Electron deletion) … Delete this file
+    once its evidence scripts are archived or ported"; the harness was legacy,
+    pre-Phase-0 infrastructure explicitly superseded by `packages/terminal/bench/` per
+    §9.4 ("Phase 0 moves an equivalent harness into packages/terminal/bench/ so the
+    package owns its own gate"). `frontend/perf/terminal/` and
+    `vite.terminal-perf.config.ts` were deleted (`9e02f8d78`);
+    `frontend/scripts/benchmark-terminal.mjs` and its `bench:terminal` npm script were
+    deliberately **kept** despite initially being slated for deletion too, because they
+    are exercised by 10 live test cases in `frontend/scripts/benchmark-result.test.mjs`
+    and contain zero xterm references — an unrelated, real, currently-used piece of
+    infrastructure that happened to share a name pattern with the dead harness.
+12. **`XtermTerminal.tsx`'s `<XtermTerminal headless>` mount was not a pure deletion
+    target, as the brief assumed — it had to be extracted, not removed.**
+    `HeadlessTerminalAttachment`, a small xterm-free stub inside `XtermTerminal.tsx`,
+    was the only producer of `AttachableTerminal` in the entire tree — the only path
+    into `attach()` (which opens the PTY over the mux) and `prepareForActivation()`
+    (which advances the retained-pane cache through its activation phases). It was
+    extracted verbatim into a new
+    `frontend/src/renderer/components/TerminalAttachment.tsx` and mounted as a sibling
+    of `BlockTerminal`, rather than deleted outright. Behavior is preserved and
+    arguably improved (no longer behind a `lazy()`/`Suspense` chunk-load boundary, no
+    longer coupled to WASM core load success/failure).
+13. **The "fatal path" (`initFailed`, `onFatal`, `markFatal`, `discardOnDeactivate`,
+    and a `t("terminal.initFailed")` i18n key across 8 locale files) became genuinely
+    dead code once xterm's `onError`/`handleInitError` — its only producer — was
+    deleted, and was removed rather than rewired.** An interim attempt wired
+    `BlockTerminal`'s existing `coreError` (WASM core load failure) through a new
+    `onCoreError` prop as a replacement error-surfacing path; this was reverted as out
+    of this task's scope (it would have turned a previously silent core failure into a
+    new full-pane error card, a deliberate behavior change nobody asked for). The dead
+    fatal-path plumbing was deleted outright instead, in `f72cdffa0`.
+14. **A real, pre-existing latent bug was found and fixed as an unavoidable
+    consequence of the deletion: `BlockTerminal`'s `openLink` was missing an
+    `isWebLink` guard that the deleted `TerminalPane.handleLinkOpen` had.** Without the
+    fix, link-opening protection against non-web schemes (e.g. `mailto:`) would have
+    been silently dropped once `TerminalPane.handleLinkOpen` (which had the guard) was
+    deleted and `BlockTerminal.openLink` (which didn't) became the sole remaining path.
+    Fixed in `f72cdffa0`; tests moved to `BlockTerminal.test.tsx` and updated to
+    exercise the guard directly.
+15. **`frontend/e2e/terminal-viewport-retention.spec.ts` (5 test cases) could not be
+    reworked and is a known, disclosed gap, not a regression from this phase.** It
+    asserts against xterm's buffer model (`viewportY`/`baseY`,
+    `getLine().translateToString()`, `getSelection()`/`selectLines()`) via a
+    `__aoXtermForTest` handle that only `XtermTerminal` published; the package surface
+    (`packages/terminal`) publishes no equivalent introspection hook — only
+    `data-testid="terminal-block-list"` and `terminal-pinned-header`, neither carrying
+    scroll-position or selection state. A controlled before/after comparison (isolated
+    dev server; stash + reinstall `@xterm` + rerun at the pre-Task-9 commit) proved
+    this spec — along with ~21 other, unrelated specs — was already failing before
+    Task 9's changes, tracing to Tasks 5-8 moving the pane onto the package surface and
+    to unrelated recent commits (blocks-view removal, history-arrow removal, titlebar
+    changes). A faithful rework needs a new test-introspection hook designed into
+    `packages/terminal`, out of this plan's scope. Recorded as follow-up work for
+    whoever next touches e2e coverage of scroll/selection retention.
+16. **`frontend/src/landing/` — a separate npm package (its own `package.json`, own
+    lockfile) containing the marketing/docs site — still depends on `@xterm/xterm` and
+    its `.mdx` docs still describe an "xterm-based terminal surface".** This is
+    technically inside `frontend/src`, so the literal Phase 7 acceptance criterion
+    below ("`grep -rn "@xterm" frontend/src frontend/package.json` returns nothing")
+    does not hold against it literally. Deliberately left untouched — out of this
+    plan's scope (never mentioned in the plan, spec, or File Structure section; a
+    separate package with its own dependency lifecycle; accurately rewriting marketing
+    docs is a content decision, not a mechanical dependency deletion). Recorded as a
+    known, disclosed gap in the literal acceptance criterion.
+17. **Several now-dead props/exports that `tsc` cannot flag were left in place, not
+    cleaned up, because the brief's "let tsc decide" instruction gave a false all-clear
+    for them:** `TerminalPaneProps.theme` and `TerminalPaneProps.focusRequested` (still
+    passed and compared but consumed by nothing since the headless variant that used to
+    read them is gone — `focusRequested` was already effectively inert in production
+    before this phase, so this is not a new regression), `providerScrollsByKeyboard`
+    (now exported solely for its own test), and `useTerminalSession`'s
+    `syncVisibleSize` (no production consumer left, only its own test). None are
+    harmful; flagged as minor follow-up cleanup for whoever next touches these files.
+18. **Step 7 (by-hand GUI verification) and the by-hand verification steps in Tasks 5
+    and 7 could not be performed anywhere in this plan's execution — there was no
+    display session available in the environment that ran this plan.** Phase 7's own
+    accept criteria explicitly require typing, pasting, mouse clicks and IME
+    composition be "verified by running them, not by unit tests alone." A human still
+    needs to perform these checks — clicking a column header in `htop`, drag-selecting
+    in `vim`, typing/pasting/CJK-IME-composing in an agent CLI, confirming the block
+    list still scrolls natively with no program asking for tracking — before Phase 7
+    can be considered fully accepted, not just code-complete.
+
 ### Phase 8 — Mobile
 
 **Deliver:** the block renderer and input editor in Flutter against the same daemon
@@ -1956,9 +2128,10 @@ broken.
 10. **Importing across the package boundary by relative path.** §4.2.
 11. **Adding a canvas fast-path inside a DOM block.** §9.3. The escape hatch is a whole
     renderer, not a hybrid.
-12. **Deleting `XtermTerminal.tsx` before phase 7.** It is the alt-screen surface for
-    phases 1 and 2, and phase 3's own surface must prove itself before the fallback goes.
-    §11, §13.4.
+12. **Deleting `XtermTerminal.tsx` before phase 7.** It was the alt-screen surface for
+    phases 1 and 2 and then a flagged fallback through phase 6, and phase 3's own
+    surface had to prove itself before the fallback could go. Phase 7 deleted it in
+    `f72cdffa0`, once §13.4.2's input prerequisites had landed. §11, §13.4.
 13. **Reading the user's shell history file.** §10.4.
 14. **Adding a second extension encoding.** §7.3. Unknown keys are ignored; that is the
     versioning story.
@@ -2112,14 +2285,14 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 5 | the single vite alias | `frontend/vite.renderer.config.ts:78-80` |
 | 5.2 | the only Cargo package, standalone, Rust 1.96 | `frontend/src-tauri/Cargo.toml` |
 | 9.4 | existing perf scenarios and runner | `frontend/perf/scenarios.json`, `frontend/scripts/benchmark-terminal.mjs` |
-| 11, 13.3 | the alt-screen bridge for phases 1–2, replaced in phase 3, deleted in phase 7 | `frontend/src/renderer/components/XtermTerminal.tsx` (1,117 lines on 2026-09-02; 1,057 when first cited) |
+| 11, 13.3 | the alt-screen bridge for phases 1–2, replaced in phase 3, flagged fallback through phase 6, deleted in phase 7 | `frontend/src/renderer/components/XtermTerminal.tsx` — 1,117 lines on 2026-09-02 (1,057 when first cited); deleted `f72cdffa0`, with `frontend/src/renderer/components/TerminalAttachment.tsx` extracted from its headless mount as the sole surviving path into `attach()` |
 | 12.2 | the eight locale files | `frontend/src/renderer/i18n/{en,zh-CN,ja,ko,es,fr,de,pt-BR}.json` |
 | 13.1 | per-client attach makes in-band parsing wrong | `backend/internal/terminal/manager.go:448`, `backend/internal/terminal/doc.go:11` |
 | 13.1 | `SourceID` was always meant to carry a shell mark's counter | `backend/internal/service/blockevent/types.go:11-17` |
 | 13.1 | `ActivitySignal` is hook-shaped and must not be overloaded | `backend/internal/ports/runtime_observations.go:41` |
 | 13.2 | the existing `blocks` mux channel and its frames | `frontend/src/renderer/lib/terminal-mux.ts:12`, `:75-80` |
 | 13.3 | host link policy Operator already has | `frontend/src/renderer/lib/external-link-policy.ts` |
-| 13.4 | what phase 7 retires | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` (194) · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` · `XtermTerminal.tsx` (1,057) · the `@xterm/*` dependencies — **not** `bench/adapters/xterm.ts`, which the §9.4 gate measures against |
+| 13.4 | what phase 7 actually retired | `XtermTerminal.tsx` (1,057→1,117) and its test · `theme/bridge/xterm-theme.ts` and its test · the seven `@xterm/*` dependencies in `frontend/package.json` · `VITE_ALT_SCREEN_SURFACE` and `handsAltScreenToXterm` · the fatal-path plumbing (`initFailed`/`onFatal`/`markFatal`/`discardOnDeactivate`, 8 locale files) · the undocumented second benchmark harness `frontend/perf/terminal/` and `vite.terminal-perf.config.ts` — **not** `bench/adapters/xterm.ts`, which the §9.4 gate measures against, and **not** `ShellTerminalsView.tsx` · `ShellTerminalTab.tsx` · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts`, which serve the standalone `/terminals` screen and were never the deletion target (§14 Phase 7 deviation 1) |
 | 6.5 | find bench and chosen block budget (Phase 5, Task 1) | `packages/terminal/bench/find.bench.ts`, `packages/terminal/ts/core/src/terminal-core.ts:29` (`FIND_STEP_BUDGET = 1000`) |
 | 14 Phase 5 | find bar UI is renderer-owned, inert in alt screen | `packages/terminal/ts/renderer-dom/src/find-bar.ts`, `find-bar.test.ts` |
 | 14 Phase 5 | pinned command header is the first child of the host, `position: sticky; top: 0` | `packages/terminal/ts/renderer-dom/src/pinned-header.ts`, `pinned-header.ts:1-49` |
@@ -2137,5 +2310,5 @@ Every Warp citation used in the body of this spec, in one place, for checking.
 | 0.7, 14 Phase 6 | the font stepper, pane fullscreen and Cmd+wheel zoom are deleted | commit `c9c7f71d9`; `frontend/src/renderer/components/CenterPane.tsx`, `TitlebarNav.tsx` |
 | 12.1, 14 Phase 6 | the four §12.1 look gaps are closed | `frontend/src/renderer/components/BlockTerminal.tsx:369,371`, `packages/terminal/ts/renderer-dom/src/styles.css:47-49,97-100`, `packages/terminal/ts/renderer-dom/src/fonts/`, commits `a83e29013` … `fbe04f719` |
 | 13.4.2 | three of the four xterm prerequisites landed early | `packages/terminal/ts/editor/src/encode-key.ts`, `paste.ts`, `packages/terminal/crates/vt-core/src/parser.rs:145`, `packages/terminal/ts/core/src/terminal-core.ts:138` |
-| 13.4.1 | the shell-terminal tabs are still in the tree | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` |
+| 13.4.1 | the standalone `/terminals` screen is not a phase 7 deletion target and stays permanently | `ShellTerminalsView.tsx` (180) · `ShellTerminalTab.tsx` · `useShellTerminals.ts` · `routes/_shell.terminals.tsx` · `frontend/e2e/shell-terminal-tabs.spec.ts` — §14 Phase 7 deviations 1 and 3 |
 | 5.5 | `vt-core` runs in the daemon as a C-ABI wasm module under `wazero`, passive and resized with the PTY | `packages/terminal/crates/vt-host/` (cdylib), `backend/internal/adapters/runtime/ptyhost/vtwasm/vtwasm.go`, `backend/go.mod:21`, `packages/build-binaries.sh:20-26` |
