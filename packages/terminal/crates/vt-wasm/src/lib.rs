@@ -39,6 +39,9 @@ pub struct ExportBuffers {
     blocks: Vec<u32>,
     block_text: Vec<u8>,
     line_editor_state: u32,
+    cursor_row: u32,
+    cursor_col: u32,
+    cursor_visible: bool,
     alt_active: bool,
     alt_rows: u32,
     alt_cols: u32,
@@ -60,6 +63,9 @@ impl ExportBuffers {
         self.blocks.clear();
         self.block_text.clear();
         self.line_editor_state = snapshot.line_editor_state;
+        self.cursor_row = snapshot.cursor_row;
+        self.cursor_col = snapshot.cursor_col;
+        self.cursor_visible = snapshot.cursor_visible;
         self.alt_active = false;
         self.alt_rows = 0;
         self.alt_cols = 0;
@@ -181,6 +187,18 @@ impl ExportBuffers {
 
     pub fn line_editor_state(&self) -> u32 {
         self.line_editor_state
+    }
+
+    pub fn cursor_row(&self) -> u32 {
+        self.cursor_row
+    }
+
+    pub fn cursor_col(&self) -> u32 {
+        self.cursor_col
+    }
+
+    pub fn cursor_visible(&self) -> bool {
+        self.cursor_visible
     }
 
     pub fn alt_active(&self) -> bool {
@@ -347,6 +365,18 @@ impl WasmTerminalCore {
 
     pub fn line_editor_state(&self) -> u32 {
         self.export.line_editor_state()
+    }
+
+    pub fn cursor_row(&self) -> u32 {
+        self.export.cursor_row()
+    }
+
+    pub fn cursor_col(&self) -> u32 {
+        self.export.cursor_col()
+    }
+
+    pub fn cursor_visible(&self) -> bool {
+        self.export.cursor_visible()
     }
 
     pub fn application_cursor_keys(&self) -> bool {

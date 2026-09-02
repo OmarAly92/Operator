@@ -75,6 +75,9 @@ export type TerminalSnapshot = Readonly<{
 	blocks: Uint32Array;
 	blockText: Uint8Array;
 	lineEditorState: number;
+	cursorRow: number;
+	cursorColumn: number;
+	cursorVisible: boolean;
 	altScreen: AltScreenView | null;
 	applicationCursorKeys: boolean;
 	sgrMouse: boolean;

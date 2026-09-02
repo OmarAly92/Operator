@@ -177,8 +177,27 @@ export const terminalStyles = `@font-face {
 }
 
 .terminal-row {
+	position: relative;
+	z-index: 0;
 	display: block;
 	min-height: var(--terminal-line-height);
+}
+
+/* Warp fills the cursor cell with the theme cursor colour -- the accent, unless
+   a theme overrides it -- behind the glyph, then lifts the glyph's contrast
+   against it (grid_renderer.rs, cell_colors). Painting the block on top of the
+   glyph instead hides the character the user is about to overwrite, which is
+   the whole point of the cursor. The row is a stacking context so the negative
+   z-index goes behind its own text without falling behind the block's
+   background. */
+.terminal-cursor {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: -1;
+	height: var(--terminal-line-height);
+	background: var(--terminal-cursor);
+	pointer-events: none;
 }
 
 .terminal-run {

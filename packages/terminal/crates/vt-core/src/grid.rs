@@ -25,6 +25,9 @@ pub struct GridSnapshot {
     pub blocks: Vec<BlockRecord>,
     pub block_text: Vec<u8>,
     pub line_editor_state: u32,
+    pub cursor_row: u32,
+    pub cursor_col: u32,
+    pub cursor_visible: bool,
     pub alt: Option<crate::alt::AltSnapshot>,
 }
 
@@ -86,9 +89,17 @@ pub(crate) fn build_snapshot(
         append_row(&mut ctx, content, styles, row.start, row.end)?;
     }
 
+    let first_screen_row = ctx.row_ranges.len();
     for row in 0..screen.content_rows() {
         append_screen_row(&mut ctx, screen, row)?;
     }
+
+    // The screen's own cursor row is relative to the top of the screen; the
+    // renderer indexes the flat row list, which starts in the scrollback.
+    let (screen_cursor_row, screen_cursor_col) = screen.cursor();
+    let cursor_row = checked_u32(first_screen_row + screen_cursor_row)?;
+    let cursor_col = checked_u32(screen_cursor_col)?;
+    let cursor_visible = screen.cursor_visible();
 
     let mut block_text: Vec<u8> = Vec::new();
     let blocks: Vec<BlockRecord> = if grid.is_empty() {
@@ -151,6 +162,9 @@ pub(crate) fn build_snapshot(
         blocks,
         block_text,
         line_editor_state: line_editor_state.wire(),
+        cursor_row,
+        cursor_col,
+        cursor_visible,
         alt: alt.map(|grid| grid.snapshot()),
     })
 }

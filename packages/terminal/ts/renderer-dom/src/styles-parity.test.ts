@@ -43,6 +43,24 @@ describe("terminalStyles", () => {
 		expect(terminalStyles).toContain("--terminal-padding-y: 0px");
 	});
 
+	it("paints the cursor behind the glyph, in the cursor colour, the way Warp does", () => {
+		const cursor = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-cursor {"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-cursor {")),
+		);
+		expect(cursor).toContain("background: var(--terminal-cursor)");
+		expect(cursor).toContain("z-index: -1");
+		expect(cursor).not.toContain("opacity");
+		const row = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-row {"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-row {")),
+		);
+		// Without a stacking context of its own the row lets the cursor fall
+		// behind the block's background, where nothing can see it.
+		expect(row).toContain("position: relative");
+		expect(row).toContain("z-index: 0");
+	});
+
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});

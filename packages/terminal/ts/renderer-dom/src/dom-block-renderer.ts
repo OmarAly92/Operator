@@ -12,14 +12,14 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
+import { type BlockTextSource } from "./block-actions.js";
+import { populateBlock } from "./block-body.js";
+import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
 import { bindActionEvents } from "./action-events.js";
-import { renderBlockHeader } from "./block-header.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
 import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
-import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
 import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
@@ -28,7 +28,7 @@ import { trimTrailingBlankRows } from "./block-rows.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
-import { computeWindow, type RowWindow } from "./viewport.js";
+import { computeWindow } from "./viewport.js";
 
 const CLASS_BLOCK = "terminal-block";
 const CLASS_LEADING_SPACER = "terminal-spacer";
@@ -348,10 +348,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.latestBlocks = blocks;
 		// Trimmed for layout only. latestBlocks keeps the untrimmed rows so copying
 		// a block still yields exactly what the command wrote.
+		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
 		this.filteredBlocks = applyFilter(blocks, this.currentFilter).map((block) =>
 			trimTrailingBlankRows(snapshot, block),
 		);
-		const { cellHeight } = this.measure();
+		const { cellWidth, cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const anchorScrollTop = container.scrollTop;
 		const scrollTop = this.stickToBottom ? Number.MAX_SAFE_INTEGER : anchorScrollTop;
@@ -380,16 +381,17 @@ export class DomBlockRenderer implements BlockRenderer {
 				visibleIds.add(block.id);
 				const element = this.ensureBlockElement(block);
 				const rowWindow = windowResult.rowWindows.get(i) ?? null;
-				populateBlock(
-					element,
+				populateBlock(element, {
 					block,
 					snapshot,
 					rowWindow,
 					rowHeight,
-					this.decoder,
-					this.host,
+					cellWidth,
+					cursor,
+					decoder: this.decoder,
+					host: this.host,
 					textSource,
-				);
+				});
 			}
 		}
 
@@ -515,54 +517,6 @@ function ensurePackageStyleTag(): HTMLStyleElement {
 	tag.textContent = terminalStylesForDocument();
 	document.head.append(tag);
 	return tag;
-}
-
-function populateBlock(
-	section: HTMLElement,
-	block: BlockView,
-	snapshot: {
-		content: Uint8Array;
-		rows: Uint32Array;
-		runRanges: Uint32Array;
-		stylePairs: Uint32Array;
-	},
-	rowWindow: RowWindow | null,
-	rowHeight: number,
-	decoder: TextDecoder,
-	host: HostCapabilities | null,
-	textSource: BlockTextSource,
-): void {
-	const fragment = document.createDocumentFragment();
-	fragment.append(renderBlockHeader(block, defaultStrings));
-	if (host) {
-		fragment.append(renderBlockActions(block, host, defaultStrings, textSource));
-	}
-	const source: RowSource = snapshot;
-	const blockFirstRow = block.firstRow;
-	const firstRow = rowWindow ? rowWindow.firstRow : 0;
-	const lastRow = rowWindow ? rowWindow.lastRow : block.rowCount - 1;
-	if (rowWindow && firstRow > 0) {
-		fragment.append(spacerOf(firstRow * rowHeight));
-	}
-	for (let rowOffset = firstRow; rowOffset <= lastRow; rowOffset += 1) {
-		const rowNode = buildRowNode(source, blockFirstRow + rowOffset, rowOffset, decoder);
-		fragment.append(rowNode);
-	}
-	if (rowWindow) {
-		const trailingRows = block.rowCount - 1 - lastRow;
-		if (trailingRows > 0) {
-			fragment.append(spacerOf(trailingRows * rowHeight));
-		}
-	}
-	section.replaceChildren(fragment);
-}
-
-function spacerOf(height: number): HTMLElement {
-	const spacer = document.createElement("div");
-	spacer.className = CLASS_LEADING_SPACER;
-	spacer.dataset.terminalRowSpacer = "true";
-	spacer.style.height = `${height}px`;
-	return spacer;
 }
 
 function readBlockOutput(
