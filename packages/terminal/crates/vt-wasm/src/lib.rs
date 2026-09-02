@@ -387,6 +387,10 @@ impl WasmTerminalCore {
         self.core.sgr_mouse()
     }
 
+    pub fn bracketed_paste(&self) -> bool {
+        self.core.bracketed_paste()
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.core.mouse_tracking()
     }

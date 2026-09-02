@@ -11,6 +11,7 @@ import { CompletionsDropdown } from "./completions-dropdown.js";
 import { tokenize, type TokenKind } from "./highlight.js";
 import { HistoryModel } from "./history.js";
 import { encodeKey } from "./encode-key.js";
+import { clipboardHasImage, planPaste } from "./paste.js";
 import { mapKey, type EditorCommand } from "./keymap.js";
 import { renderPromptRow } from "./prompt-row.js";
 import { ReverseSearch } from "./reverse-search.js";
@@ -61,6 +62,7 @@ export class LineEditor {
 		root.setAttribute("role", "textbox");
 		root.setAttribute("aria-multiline", "true");
 		root.addEventListener("keydown", this.onKeyDown);
+		root.addEventListener("paste", this.onPaste);
 		container.append(root);
 		this.root = root;
 		this.dropdown.mount(root);
@@ -157,6 +159,27 @@ export class LineEditor {
 		if (!command) return;
 		event.preventDefault();
 		this.apply(command);
+	};
+
+	// The browser has nowhere to put a paste on a div that is not editable, so
+	// without this the clipboard reaches neither the buffer nor the child and
+	// the key looks dead.
+	private readonly onPaste = (event: ClipboardEvent): void => {
+		event.preventDefault();
+		const core = this.core;
+		if (!core) return;
+		const data = event.clipboardData;
+		const plan = planPaste({
+			text: data?.getData("text/plain") ?? "",
+			hasImage: clipboardHasImage(data),
+			owned: core.lineEditorState() === "owned",
+			bracketedPaste: core.snapshot().bracketedPaste,
+		});
+		if (plan.kind === "insert") {
+			this.apply({ kind: "insert", text: plan.text });
+			return;
+		}
+		if (plan.kind === "send") this.host?.sendRaw(plan.data);
 	};
 
 	// Returns null when the editor owns the line and should edit locally, and

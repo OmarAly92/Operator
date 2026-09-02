@@ -206,6 +206,10 @@ impl TerminalCore {
         self.parser.sgr_mouse()
     }
 
+    pub fn bracketed_paste(&self) -> bool {
+        self.parser.bracketed_paste()
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.parser.mouse_tracking()
     }

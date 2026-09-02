@@ -13,6 +13,7 @@ pub enum MenuItemKind {
     Separator,
     NativeAbout,
     NativeQuit,
+    NativePaste,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +60,15 @@ fn edit_submenu(is_mac: bool) -> MenuTemplateSubmenu {
             MenuTemplateItem::separator(),
             MenuTemplateItem::action("edit.cut", "Cut", "CmdOrCtrl+X"),
             MenuTemplateItem::action("edit.copy", "Copy", "CmdOrCtrl+C"),
-            MenuTemplateItem::action("edit.paste", "Paste", "CmdOrCtrl+V"),
+            // The platform's own paste, not a scripted one: a webview refuses
+            // `document.execCommand('paste')` from page content, so a custom
+            // Cmd+V item would swallow the keystroke and paste nothing.
+            MenuTemplateItem {
+                kind: MenuItemKind::NativePaste,
+                action: None,
+                label: "Paste",
+                accelerator: "",
+            },
             MenuTemplateItem::action("edit.selectAll", "Select All", "CmdOrCtrl+A"),
         ],
     }
@@ -131,7 +140,6 @@ pub enum EditCommand {
     Redo,
     Cut,
     Copy,
-    Paste,
     SelectAll,
 }
 
@@ -142,7 +150,6 @@ impl EditCommand {
             EditCommand::Redo => "document.execCommand('redo')",
             EditCommand::Cut => "document.execCommand('cut')",
             EditCommand::Copy => "document.execCommand('copy')",
-            EditCommand::Paste => "document.execCommand('paste')",
             EditCommand::SelectAll => "document.execCommand('selectAll')",
         }
     }
@@ -171,7 +178,6 @@ pub fn resolve_menu_action(action: &str) -> Option<MenuAction> {
         "edit.redo" => MenuAction::Edit(EditCommand::Redo),
         "edit.cut" => MenuAction::Edit(EditCommand::Cut),
         "edit.copy" => MenuAction::Edit(EditCommand::Copy),
-        "edit.paste" => MenuAction::Edit(EditCommand::Paste),
         "edit.selectAll" => MenuAction::Edit(EditCommand::SelectAll),
         "view.reload" => MenuAction::Reload,
         "view.devtools" => MenuAction::DevTools,

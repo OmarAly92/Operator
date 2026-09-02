@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
-import { encodeKey, LineEditor } from "@operator/terminal-editor";
+import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
 import {
 	decodeBlocks,
@@ -245,11 +245,26 @@ export function TerminalSurface({
 			const key = lines > 0 ? "B" : "A";
 			onSendRaw(`${prefix}${key}`.repeat(count));
 		};
+		// The alt screen has no line editor to hold the line, so every paste
+		// belongs to the child.
+		const onPaste = (event: ClipboardEvent) => {
+			event.preventDefault();
+			const data = event.clipboardData;
+			const plan = planPaste({
+				text: data?.getData("text/plain") ?? "",
+				hasImage: clipboardHasImage(data),
+				owned: false,
+				bracketedPaste: core.snapshot().bracketedPaste,
+			});
+			if (plan.kind === "send") onSendRaw(plan.data);
+		};
 		blockHost.addEventListener("keydown", onKeyDown);
+		blockHost.addEventListener("paste", onPaste);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.focus();
 		return () => {
 			blockHost.removeEventListener("keydown", onKeyDown);
+			blockHost.removeEventListener("paste", onPaste);
 			blockHost.removeEventListener("wheel", onWheel);
 		};
 	}, [altActive, core, onSendRaw]);

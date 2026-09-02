@@ -570,6 +570,9 @@ fn install_app_menu(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
                 menu::MenuItemKind::NativeQuit => {
                     submenu.item(&tauri::menu::PredefinedMenuItem::quit(app, None)?)
                 }
+                menu::MenuItemKind::NativePaste => {
+                    submenu.item(&tauri::menu::PredefinedMenuItem::paste(app, Some(item.label))?)
+                }
             };
         }
         menu_builder = menu_builder.item(&submenu.build()?);

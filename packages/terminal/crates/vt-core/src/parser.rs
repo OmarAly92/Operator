@@ -21,6 +21,7 @@ pub(crate) struct Parser {
     saved_style: StyleCode,
     app_cursor: bool,
     sgr_mouse: bool,
+    bracketed_paste: bool,
     mouse_tracking: u8,
 }
 
@@ -40,6 +41,7 @@ impl Parser {
             saved_style: StyleCode::DEFAULT,
             app_cursor: false,
             sgr_mouse: false,
+            bracketed_paste: false,
             mouse_tracking: 0,
         }
     }
@@ -119,6 +121,10 @@ impl Parser {
         self.sgr_mouse
     }
 
+    pub fn bracketed_paste(&self) -> bool {
+        self.bracketed_paste
+    }
+
     pub fn mouse_tracking(&self) -> bool {
         self.mouse_tracking != 0
     }
@@ -131,6 +137,13 @@ impl Parser {
         let bit = match mode {
             1006 => {
                 self.sgr_mouse = set;
+                return;
+            }
+            // A program that asks for bracketed paste is telling us it can tell
+            // pasted bytes from typed ones. Sending a paste unwrapped to one
+            // that asked runs every newline in it as a command.
+            2004 => {
+                self.bracketed_paste = set;
                 return;
             }
             1000 => 0b001,

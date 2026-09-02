@@ -379,6 +379,33 @@ fn theme_preferences_accept_only_electron_values() {
     assert_eq!(theme_preference(""), None);
 }
 
+// Paste is the one edit command a webview will not run from script: Chromium
+// and WebKit both refuse `document.execCommand('paste')` from page content. A
+// custom Cmd+V item swallows the keystroke and hands it to that no-op, so the
+// terminal never sees a paste event at all. Only the platform's own paste item
+// puts the clipboard back in the responder chain.
+#[test]
+fn paste_is_a_native_menu_item_rather_than_a_scripted_action() {
+    assert_eq!(crate::menu::resolve_menu_action("edit.paste"), None);
+    for platform in [
+        crate::menu::MenuPlatform::Macos,
+        crate::menu::MenuPlatform::Windows,
+        crate::menu::MenuPlatform::Linux,
+    ] {
+        let template = crate::menu::app_menu_template(platform);
+        let edit = template
+            .iter()
+            .find(|submenu| submenu.label == "Edit")
+            .expect("edit submenu");
+        let paste = edit
+            .items
+            .iter()
+            .find(|item| item.kind == crate::menu::MenuItemKind::NativePaste)
+            .expect("native paste item");
+        assert_eq!(paste.action, None);
+    }
+}
+
 #[test]
 fn every_window_titlebar_menu_action_resolves() {
     let actions = [
@@ -386,7 +413,6 @@ fn every_window_titlebar_menu_action_resolves() {
         ("edit.redo", Some(MenuAction::Edit(EditCommand::Redo))),
         ("edit.cut", Some(MenuAction::Edit(EditCommand::Cut))),
         ("edit.copy", Some(MenuAction::Edit(EditCommand::Copy))),
-        ("edit.paste", Some(MenuAction::Edit(EditCommand::Paste))),
         (
             "edit.selectAll",
             Some(MenuAction::Edit(EditCommand::SelectAll)),
@@ -478,7 +504,7 @@ fn menu_dispatch_routes_every_action_to_its_host_call() {
     let mut host = FakeMenuHost::default();
 
     assert!(dispatch_menu_action("edit.undo", &zoom, &mut host));
-    assert!(dispatch_menu_action("edit.paste", &zoom, &mut host));
+    assert!(dispatch_menu_action("edit.copy", &zoom, &mut host));
     assert!(dispatch_menu_action("view.reload", &zoom, &mut host));
     assert!(dispatch_menu_action("view.devtools", &zoom, &mut host));
     assert!(dispatch_menu_action("view.zoomIn", &zoom, &mut host));
@@ -494,7 +520,7 @@ fn menu_dispatch_routes_every_action_to_its_host_call() {
     assert!(dispatch_menu_action("help.about", &zoom, &mut host));
     assert!(!dispatch_menu_action("edit.unknown", &zoom, &mut host));
 
-    assert_eq!(host.edits, vec![EditCommand::Undo, EditCommand::Paste]);
+    assert_eq!(host.edits, vec![EditCommand::Undo, EditCommand::Copy]);
     assert_eq!(host.reloads, 1);
     assert_eq!(host.devtools_toggles, 1);
     let half_step = 1.2f64.powf(0.5);
@@ -533,7 +559,6 @@ fn windows_and_linux_install_the_same_hidden_role_menu_template() {
             "edit.redo",
             "edit.cut",
             "edit.copy",
-            "edit.paste",
             "edit.selectAll"
         ]
     );

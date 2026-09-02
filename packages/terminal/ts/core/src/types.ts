@@ -81,6 +81,7 @@ export type TerminalSnapshot = Readonly<{
 	altScreen: AltScreenView | null;
 	applicationCursorKeys: boolean;
 	sgrMouse: boolean;
+	bracketedPaste: boolean;
 	mouseTracking: boolean;
 }>;
 

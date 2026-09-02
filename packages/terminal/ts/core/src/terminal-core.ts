@@ -135,6 +135,7 @@ export class TerminalCore {
 			altScreen,
 			applicationCursorKeys: this.inner.application_cursor_keys(),
 			sgrMouse: this.inner.sgr_mouse(),
+			bracketedPaste: this.inner.bracketed_paste(),
 			mouseTracking: this.inner.mouse_tracking(),
 		};
 	}
