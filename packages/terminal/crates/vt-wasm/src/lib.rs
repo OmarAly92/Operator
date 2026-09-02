@@ -395,6 +395,10 @@ impl WasmTerminalCore {
         self.core.mouse_tracking()
     }
 
+    pub fn mouse_tracking_level(&self) -> u8 {
+        self.core.mouse_tracking_level()
+    }
+
     pub fn alt_active(&self) -> bool {
         self.export.alt_active()
     }
