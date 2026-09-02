@@ -174,7 +174,50 @@ path. Recorded in
   output with no newlines is invisible to a fresh attach. Worth revisiting if a
   user ever reports a blank pane on attach under a long-running progress line.
 
-## 8. Plan steps still unchecked
+## 8. OPEN: the attach and capture queues are unbounded
+
+**Status: known regression, not yet fixed. This is the highest-value item in
+this file.**
+
+Fixing the attach deadlock (see below) replaced two direct, blocking writes with
+unbounded in-memory queues, and that silently removed end-to-end back-pressure
+from the terminal hot path.
+
+The chain used to be load-bearing. `pump` wrote each payload straight into an
+unbuffered `io.Pipe`; that write blocked until `Read` drained it, so `pump`
+stopped reading the socket, the TCP receive buffer filled, the host's
+`broadcastLocked` blocked on `conn.Write`, `deliver` blocked behind it, the host
+stopped reading the PTY, and the child process finally blocked on write. A
+`yes`-style flood throttled itself all the way back to the process producing it.
+
+Now `pump` never stops reading: it copies every `MsgTerminalData` payload onto
+`loopbackStream.dataQ`, which has no bound. A client that stalls — a suspended
+laptop, a slow network, a wedged renderer — makes the daemon accumulate the
+entire output stream in memory. `captureSink.write` has the identical shape one
+level up: `deliver()` no longer blocks, so a stalled `opr pane-capture`
+subprocess grows `captureSink.queue` without limit.
+
+The comment on `pump` currently claims the design "still blocks until Read drains
+it, preserving back-pressure and order." Ordering is preserved. Back-pressure
+toward the *host* is not, and that was the half that bounded memory.
+
+**The fix is structural and cheaper than bounding the queues.** Do the
+resize/status round-trip synchronously on the connection *before* starting
+`pump`. The pipe is then not involved during the handshake at all, `pump` keeps
+its blocking direct write and full back-pressure, and the only thing needing a
+buffer is the ring snapshot — already capped at `MaxOutputLines = 1000`. That
+also removes the reason `forwardData` exists. `TestAttachWithScrollbackAndSizeDoesNotDeadlock`
+already covers the deadlock any replacement has to keep fixing; it was verified
+to fail without the current fix, so it is a real guard.
+
+Root cause worth recording: the deadlock itself was introduced earlier in the
+same cutover by `awaitApplied`, added to close a genuine resize race. It blocks
+`Attach` on a status reply that can only arrive after the snapshot has been
+drained by a reader that does not exist until `Attach` returns. Every real attach
+passes a birth size, so every session with prior output hung. The parity suite
+missed it because those sessions start with an empty ring.
+
+## 9. Plan steps still unchecked
 
 Five GUI/manual verification steps in the plan (lines 785, 1119, 1689, 1831,
 1840) were deferred for want of a display session and remain unchecked.
