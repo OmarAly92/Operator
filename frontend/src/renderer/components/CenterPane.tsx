@@ -1,8 +1,7 @@
-import { ArrowRight, ChevronLeft, ChevronRight, Plus, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { defaultShortcutBindings, shortcutBindingLabel } from "../../shared/shortcuts";
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import {
 	findActiveAgentSwitch,
@@ -11,7 +10,6 @@ import {
 } from "../hooks/useAgentSwitches";
 import { useSwitchAgentState } from "../hooks/useSwitchAgent";
 import { useTruncatedText } from "../hooks/useTruncatedText";
-import type { ShellTerminal } from "../hooks/useShellTerminals";
 import { TERMINAL_FONT_SIZE_DEFAULT, TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from "../lib/design-tokens";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { agentLabel } from "../lib/agent-options";
@@ -30,7 +28,6 @@ import {
 } from "../types/conversation";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
-import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalPane } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
@@ -56,7 +53,6 @@ import type { TurnGroup } from "../lib/block-turns";
 import type { BlockAction, BlockActionContext } from "../lib/block-actions";
 import { MAX_SUGGESTIONS, rankFiles, rankSkills, type Suggestion } from "./chat/composerSuggest";
 import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import {
 	Dialog,
 	DialogContent,
@@ -73,14 +69,7 @@ type CenterPaneProps = {
 	terminalTarget?: TerminalTarget;
 	reviewerTerminal?: { handleId: string; harness: string };
 	onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
-	/** Standalone shells to render as tabs beside the session's own pane. */
-	shellTerminals?: ShellTerminal[];
 	onSelectSessionTerminal?: () => void;
-	onSelectShellTerminal?: (handleId: string) => void;
-	onCloseShellTerminal?: (handleId: string) => void;
-	onRenameShellTerminal?: (handleId: string, title: string) => void;
-	/** Opens a new shell tab in this session's worktree (the button at the end of the tab bar). */
-	onNewShellTerminal?: () => void;
 	/** Session actions consolidated into the terminal bar by SessionView. */
 	topbarActions?: ReactNode;
 	/** Stop forwarding the agent pane's keystrokes while its controller drains. */
@@ -90,7 +79,6 @@ type CenterPaneProps = {
 const terminalFontSizeStorageKey = "opr.terminal.fontSize";
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
-const newTerminalShortcutLabel = shortcutBindingLabel(defaultShortcutBindings("new-shell-terminal", isMac)[0], isMac);
 
 function initialTerminalFontSize(): number {
 	if (typeof window === "undefined") return TERMINAL_FONT_SIZE_DEFAULT;
@@ -107,12 +95,7 @@ export function CenterPane({
 	terminalTarget,
 	reviewerTerminal,
 	onSelectReviewerTerminal,
-	shellTerminals = [],
 	onSelectSessionTerminal,
-	onSelectShellTerminal,
-	onCloseShellTerminal,
-	onRenameShellTerminal,
-	onNewShellTerminal,
 	topbarActions,
 	agentInputDisabled = false,
 }: CenterPaneProps) {
@@ -121,8 +104,7 @@ export function CenterPane({
 	const [fontSize] = useState(initialTerminalFontSize);
 	const [terminalBounds, setTerminalBounds] = useState({ leftInset: 0, rightInset: 0, width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
-	const tabOverflowWatch = `${session?.id ?? ""}|${shellTerminals.map((terminal) => terminal.handleId).join("|")}`;
-	const tabsOverflow = useOverflowScroll<HTMLDivElement>(tabOverflowWatch);
+	const tabsOverflow = useOverflowScroll<HTMLDivElement>(session?.id ?? "");
 	const agentSwitchesQuery = useAgentSwitches(session?.id ?? "");
 	const agentSwitches = agentSwitchesQuery.data ?? [];
 	const activeAgentSwitch = findActiveAgentSwitch(agentSwitches);
@@ -147,27 +129,7 @@ export function CenterPane({
 			: session.title
 		: t("terminal.noSession");
 	const activeTerminalLabel =
-		target.kind === "shell"
-			? (shellTerminals.find((shell) => shell.handleId === target.handleId)?.title ?? target.title)
-			: target.kind === "reviewer"
-				? `${t("terminal.reviewer")} · ${target.harness}`
-				: sessionTabLabel;
-	const selectAdjacentTab = useCallback(
-		(direction: -1 | 1) => {
-			const activeIndex =
-				target.kind === "shell"
-					? shellTerminals.findIndex((shell) => shell.handleId === target.handleId) + 1
-					: 0;
-			const nextIndex = (activeIndex + direction + shellTerminals.length + 1) % (shellTerminals.length + 1);
-			if (nextIndex === 0) {
-				onSelectSessionTerminal?.();
-				return;
-			}
-			const nextShell = shellTerminals[nextIndex - 1];
-			if (nextShell) onSelectShellTerminal?.(nextShell.handleId);
-		},
-		[onSelectSessionTerminal, onSelectShellTerminal, shellTerminals, target],
-	);
+		target.kind === "reviewer" ? `${t("terminal.reviewer")} · ${target.harness}` : sessionTabLabel;
 
 	useEffect(() => {
 		if (!switchMutation.isPending || activeAgentSwitch || recoveryAgentSwitch) return;
@@ -175,30 +137,6 @@ export function CenterPane({
 		const timer = window.setInterval(() => void agentSwitchesQuery.refetch(), 500);
 		return () => window.clearInterval(timer);
 	}, [activeAgentSwitch, agentSwitchesQuery.refetch, recoveryAgentSwitch, switchMutation.isPending]);
-
-	useEffect(
-		() =>
-			operatorBridge.app.onCloseShellTerminalShortcut(() => {
-				if (target.kind === "shell") onCloseShellTerminal?.(target.handleId);
-			}),
-		[target, onCloseShellTerminal],
-	);
-
-	useEffect(() => {
-		const disposePrevious = operatorBridge.app.onPreviousTabShortcut(() => selectAdjacentTab(-1));
-		const disposeNext = operatorBridge.app.onNextTabShortcut(() => selectAdjacentTab(1));
-		return () => {
-			disposePrevious();
-			disposeNext();
-		};
-	}, [selectAdjacentTab]);
-
-	useEffect(() => {
-		operatorBridge.app.setCloseShellTerminalShortcutEnabled(
-			target.kind === "shell" && Boolean(onCloseShellTerminal),
-		);
-		return () => operatorBridge.app.setCloseShellTerminalShortcutEnabled(false);
-	}, [target.kind, onCloseShellTerminal]);
 
 	useEffect(() => {
 		const pane = paneRef.current;
@@ -254,9 +192,6 @@ export function CenterPane({
 								<ChevronLeft aria-hidden="true" className="size-icon-md" />
 							</button>
 						) : null}
-						{/* The permanent agent tab plus shells opened in this session's worktree.
-						    It hugs its tabs rather than growing, so the + that follows sits against
-						    the last tab; it still shrinks and scrolls once the tabs outgrow the row. */}
 						<div
 							ref={tabsOverflow.ref}
 							aria-label={t("terminal.tabsAria")}
@@ -283,17 +218,6 @@ export function CenterPane({
 									title={reviewerTerminal.harness}
 								/>
 							) : null}
-							{shellTerminals.map((shell) => (
-								<ShellTerminalTab
-									key={shell.handleId}
-									appearance="connected"
-									isActive={target.kind === "shell" && target.handleId === shell.handleId}
-									onClose={() => onCloseShellTerminal?.(shell.handleId)}
-									onRename={onRenameShellTerminal ? (title) => onRenameShellTerminal(shell.handleId, title) : undefined}
-									onSelect={() => onSelectShellTerminal?.(shell.handleId)}
-									shell={shell}
-								/>
-							))}
 						</div>
 						{tabsOverflow.canScrollRight ? (
 							<button
@@ -305,24 +229,6 @@ export function CenterPane({
 							>
 								<ChevronRight aria-hidden="true" className="size-icon-md" />
 							</button>
-						) : null}
-						{!session || !isOrchestratorSession(session) ? (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										aria-label={t("shortcut.new-shell-terminal")}
-										className="ml-2 shrink-0 text-muted-foreground"
-										disabled={!onNewShellTerminal}
-										onClick={onNewShellTerminal}
-										size="icon-sm"
-										type="button"
-										variant="outline"
-									>
-										<Plus aria-hidden="true" className="size-icon-md" />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>{t("terminal.newWithShortcut", { shortcut: newTerminalShortcutLabel })}</TooltipContent>
-							</Tooltip>
 						) : null}
 					</div>
 				</div>

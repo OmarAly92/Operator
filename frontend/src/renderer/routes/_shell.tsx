@@ -594,38 +594,19 @@ function ShellLayout() {
 	// tab-strip + button so the two cannot drift apart.
 	useEffect(() => operatorBridge.app.onNewShellTerminalShortcut(() => requestNewShellTerminal()), [requestNewShellTerminal]);
 
-	// The shell layout is the single consumer of that signal, because it is the
-	// only component mounted on EVERY route. Owning it here is what lets the
-	// button and the keyboard shortcut work from the board, a project page, or a session alike
-	// — when the session view owned it, both silently did nothing outside a
-	// session, since nothing was listening.
-	//
-	// Where the new shell becomes visible depends on where the user is: inside a
-	// session it joins that pane's tab strip, anywhere else it gets the
-	// standalone /terminals view. Either way the store records it as active, and
-	// whichever view is on screen selects it.
 	useEffect(() => {
 		if (handledShellNonceRef.current === newShellTerminalNonce) return;
 		handledShellNonceRef.current = newShellTerminalNonce;
 		openShellTerminal.mutate(
-			{ projectId: scopedProjectId, sessionId: routeParams.sessionId },
+			{ projectId: scopedProjectId },
 			{
 				onSuccess: (shell) => {
 					setActiveShellTerminal(shell.handleId);
-					if (!routeParams.sessionId) {
-						void navigate({ to: "/terminals" });
-					}
+					void navigate({ to: "/terminals" });
 				},
 			},
 		);
-	}, [
-		newShellTerminalNonce,
-		openShellTerminal,
-		scopedProjectId,
-		routeParams.sessionId,
-		navigate,
-		setActiveShellTerminal,
-	]);
+	}, [newShellTerminalNonce, openShellTerminal, scopedProjectId, navigate, setActiveShellTerminal]);
 
 	useEffect(
 		() => operatorBridge.app.onOpenSettingsShortcut(() => useUiStore.getState().openGlobalSettings()),

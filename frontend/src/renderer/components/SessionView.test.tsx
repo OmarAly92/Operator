@@ -7,8 +7,6 @@ import { useUiStore } from "../stores/ui-store";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 
 const navigateMock = vi.hoisted(() => vi.fn());
-const openShellTerminalMock = vi.hoisted(() => vi.fn());
-const closeShellTerminalMock = vi.hoisted(() => vi.fn());
 const nativeFullScreenMock = vi.hoisted(() => vi.fn(() => false));
 const interfaceTransitionMock = vi.hoisted(() => ({
 	start: vi.fn(),
@@ -72,7 +70,7 @@ type PanelEntry = {
 	onResize?: (size: { asPercentage: number; inPixels: number }) => void;
 };
 
-const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hoisted(() => {
+const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 	const worker = {
 		id: "sess-1",
 		workspaceId: "proj-1",
@@ -113,19 +111,7 @@ const { workspaces, workspaceQueryState, panels, shellTerminalsState } = vi.hois
 		data: workspaces,
 		isLoading: false,
 	};
-	const shellTerminalsState: {
-		data: Array<{
-			handleId: string;
-			projectId?: string;
-			sessionId?: string;
-			title: string;
-			workingDir: string;
-			createdAt: string;
-		}>;
-	} = {
-		data: [],
-	};
-	return { workspaces, workspaceQueryState, panels: new Map<string, PanelEntry>(), shellTerminalsState };
+	return { workspaces, workspaceQueryState, panels: new Map<string, PanelEntry>() };
 });
 
 // The terminal and inspector body pull in xterm/SSE machinery irrelevant to
@@ -141,28 +127,20 @@ vi.mock("./CenterPane", () => ({
 	),
 	CenterPane: ({
 		session,
-		shellTerminals = [],
-		onCloseShellTerminal,
-		onSelectShellTerminal,
 		onSelectSessionTerminal,
 		onSelectReviewerTerminal,
-		onNewShellTerminal,
 		topbarActions,
 		reviewerTerminal,
 		terminalTarget,
 	}: {
 		session?: WorkspaceSession;
-		shellTerminals?: Array<{ handleId: string; title: string }>;
-		onCloseShellTerminal?: (handleId: string) => void;
-		onSelectShellTerminal?: (handleId: string) => void;
 		onSelectSessionTerminal?: () => void;
 		onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
-		onNewShellTerminal?: () => void;
 		topbarActions?: ReactNode;
 		reviewerTerminal?: { handleId: string; harness: string };
 		terminalTarget?: { kind: string; handleId?: string };
 	}) => (
-		<div>
+		<div data-testid="terminal-pane">
 			terminal center
 			{topbarActions}
 			<div data-testid="terminal-target">
@@ -175,22 +153,8 @@ vi.mock("./CenterPane", () => ({
 					select reviewer tab
 				</button>
 			) : null}
-			<div data-testid="shell-tabs">{shellTerminals.map((s) => s.title).join(",")}</div>
-			{shellTerminals.map((s) => (
-				<button key={s.handleId} type="button" onClick={() => onSelectShellTerminal?.(s.handleId)}>
-					select {s.title}
-				</button>
-			))}
-			{shellTerminals.map((s) => (
-				<button key={`close-${s.handleId}`} type="button" onClick={() => onCloseShellTerminal?.(s.handleId)}>
-					close {s.title}
-				</button>
-			))}
 			<button type="button" onClick={() => onSelectSessionTerminal?.()}>
 				select agent tab
-			</button>
-			<button type="button" onClick={() => onNewShellTerminal?.()}>
-				new terminal
 			</button>
 		</div>
 	),
@@ -266,13 +230,24 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 		isLoading: workspaceQueryState.isLoading,
 	}),
 }));
-// Standalone shell terminals are orthogonal to the split under test, and their
-// real hooks would need a QueryClientProvider this suite deliberately omits.
 vi.mock("../hooks/useShellTerminals", () => ({
-	useShellTerminals: () => ({ data: shellTerminalsState.data, isLoading: false }),
-	useOpenShellTerminal: () => ({ mutate: openShellTerminalMock }),
-	useCloseShellTerminal: () => ({ mutate: closeShellTerminalMock }),
+	useShellTerminals: () => ({
+		data: [
+			{
+				handleId: "shell-in-session",
+				sessionId: "sess-1",
+				workingDir: "/tmp",
+				title: "shell",
+				createdAt: new Date().toISOString(),
+				durableBlocks: true,
+			},
+		],
+		isSuccess: true,
+	}),
+	useOpenShellTerminal: () => ({ mutate: vi.fn() }),
+	useCloseShellTerminal: () => ({ mutate: vi.fn() }),
 	useRenameShellTerminal: () => ({ mutate: vi.fn() }),
+	shellTerminalsQueryKey: ["shell-terminals"],
 }));
 
 // jsdom has no layout engine, so the real react-resizable-panels would never
@@ -394,10 +369,7 @@ describe("SessionView", () => {
 		panels.clear();
 		externalPreviewOptions.current = undefined;
 		externalPreviewState.error = "";
-		shellTerminalsState.data = [];
 	navigateMock.mockReset();
-	openShellTerminalMock.mockReset();
-	closeShellTerminalMock.mockReset();
 	interfaceTransitionMock.start.mockReset();
 		interfaceTransitionMock.resetStartError.mockReset();
 		interfaceTransitionMock.cancel.mockReset();
@@ -406,85 +378,10 @@ describe("SessionView", () => {
 		reviewGetMock.mockResolvedValue({ data: { reviewerHandleId: "", reviews: [], runs: [] }, error: undefined });
 	});
 
-	// Regression: shell terminals are an app-wide list, so without a per-session
-	// filter a shell opened in another session would show up as a tab in this
-	// session's strip. Only this session's shells (not another session's, and no
-	// session-less ones) should reach the terminal pane.
-	it("shows only the current session's shell terminals as tabs", () => {
-		shellTerminalsState.data = [
-			{
-				handleId: "sh-a",
-				sessionId: "sess-1",
-				title: "sess-1-shell",
-				workingDir: "/p",
-				createdAt: "2026-07-24T00:00:00Z",
-			},
-			{
-				handleId: "sh-b",
-				sessionId: "sess-2",
-				title: "sess-2-shell",
-				workingDir: "/q",
-				createdAt: "2026-07-24T00:00:00Z",
-			},
-			{ handleId: "sh-c", title: "loose-shell", workingDir: "/r", createdAt: "2026-07-24T00:00:00Z" },
-		];
+	it("renders no shell tab for a session-scoped shell", async () => {
 		render(<SessionView sessionId="sess-1" />);
-		const tabs = screen.getByTestId("shell-tabs");
-		expect(tabs).toHaveTextContent("sess-1-shell");
-		expect(tabs).not.toHaveTextContent("sess-2-shell");
-		expect(tabs).not.toHaveTextContent("loose-shell");
-	});
-
-	// The pane shows one terminal at a time, so selecting a shell takes the
-	// agent's terminal off screen while the route still points at this session.
-	// The notification runtime lives outside this subtree and reads the published
-	// kind to decide whether the user can actually see a needs_input prompt.
-	it("publishes which terminal the session pane is showing", () => {
-		shellTerminalsState.data = [
-			{
-				handleId: "sh-a",
-				sessionId: "sess-1",
-				title: "sess-1-shell",
-				workingDir: "/p",
-				createdAt: "2026-07-24T00:00:00Z",
-			},
-		];
-		const view = render(<SessionView sessionId="sess-1" />);
-		expect(useUiStore.getState().visibleTerminalKindBySession["sess-1"]).toBe("worker");
-
-		fireEvent.click(screen.getByRole("button", { name: "select sess-1-shell" }));
-		expect(useUiStore.getState().visibleTerminalKindBySession["sess-1"]).toBe("shell");
-
-		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-		expect(useUiStore.getState().visibleTerminalKindBySession["sess-1"]).toBe("worker");
-
-		// Leaving the session drops the entry rather than leaving a stale "worker"
-		// behind for a pane that is no longer mounted.
-		view.unmount();
-		expect(useUiStore.getState().visibleTerminalKindBySession["sess-1"]).toBeUndefined();
-	});
-
-	it("keeps a session-scoped shell reachable from a Chat session", () => {
-		workspaces[0].sessions[0].mode = "chat";
-		shellTerminalsState.data = [
-			{
-				handleId: "chat-shell",
-				sessionId: "sess-1",
-				title: "chat worktree shell",
-				workingDir: "/p",
-				createdAt: "2026-08-04T00:00:00Z",
-			},
-		];
-
-		render(<SessionView sessionId="sess-1" />);
-		expect(screen.getByTestId("blocks-pane")).toBeInTheDocument();
-
-		act(() => useUiStore.getState().setActiveShellTerminal("chat-shell"));
-		expect(screen.getByText("terminal center")).toBeInTheDocument();
-		expect(screen.queryByTestId("blocks-pane")).not.toBeInTheDocument();
-
-		fireEvent.click(screen.getByRole("button", { name: "select agent tab" }));
-		expect(screen.getByTestId("blocks-pane")).toBeInTheDocument();
+		expect(await screen.findByTestId("terminal-pane")).toBeInTheDocument();
+		expect(screen.queryByRole("tab", { name: /shell/i })).not.toBeInTheDocument();
 	});
 
 	// The strip only ever shows the session on screen — pinning another session's
@@ -495,35 +392,6 @@ describe("SessionView", () => {
 		expect(screen.getByTestId("session-tab")).toHaveTextContent("do the thing");
 		expect(screen.getByTestId("session-tab")).not.toHaveTextContent("do the other thing");
 		expect(screen.queryByRole("button", { name: /^Add / })).not.toBeInTheDocument();
-	});
-
-	// The daemon roots a shell in the session's worktree when it is given that
-	// session's id, so a new terminal must name the session actually on screen.
-	it("opens new terminals in the on-screen session's worktree", () => {
-		render(<SessionView sessionId="sess-2" />);
-
-		fireEvent.click(screen.getByRole("button", { name: "new terminal" }));
-		expect(openShellTerminalMock).toHaveBeenCalledWith({ projectId: "proj-1", sessionId: "sess-2" }, expect.anything());
-	});
-
-	it("shows a shell opened from chat and returns to the chat agent tab", () => {
-		const session = workspaces[0]!.sessions.find((candidate) => candidate.id === "sess-1")!;
-		session.mode = "chat";
-		const shell = {
-			handleId: "sh-chat",
-			projectId: "proj-1",
-			sessionId: "sess-1",
-			title: "chat shell",
-			workingDir: "/p",
-			createdAt: "2026-08-04T00:00:00Z",
-		};
-		openShellTerminalMock.mockImplementation((_input, options) => {
-			shellTerminalsState.data = [shell];
-			options.onSuccess(shell);
-		});
-
-		render(<SessionView sessionId="sess-1" />);
-		expect(screen.getByText("blocks pane")).toBeInTheDocument();
 	});
 
 	it.each([
@@ -598,41 +466,6 @@ describe("SessionView", () => {
 
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(interfaceTransitionMock.start).toHaveBeenCalledWith({ targetMode: "chat", policy: "drain" });
-	});
-
-	it("walks backward through auxiliary terminals before returning to the permanent terminal", () => {
-		shellTerminalsState.data = [
-			{
-				handleId: "sh-a",
-				sessionId: "sess-1",
-				title: "first shell",
-				workingDir: "/p",
-				createdAt: "2026-07-24T00:00:00Z",
-			},
-			{
-				handleId: "sh-b",
-				sessionId: "sess-1",
-				title: "second shell",
-				workingDir: "/p",
-				createdAt: "2026-07-24T00:01:00Z",
-			},
-		];
-		const view = render(<SessionView sessionId="sess-1" />);
-
-		fireEvent.click(screen.getByRole("button", { name: "select second shell" }));
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("sh-b");
-
-		fireEvent.click(screen.getByRole("button", { name: "close second shell" }));
-		expect(closeShellTerminalMock).toHaveBeenCalledWith("sh-b");
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("sh-a");
-		expect(useUiStore.getState().activeShellTerminalHandleId).toBe("sh-a");
-
-		shellTerminalsState.data = shellTerminalsState.data.filter((shell) => shell.handleId !== "sh-b");
-		view.rerender(<SessionView sessionId="sess-1" />);
-		fireEvent.click(screen.getByRole("button", { name: "close first shell" }));
-		expect(closeShellTerminalMock).toHaveBeenCalledWith("sh-a");
-		expect(screen.getByTestId("terminal-target")).toHaveTextContent("worker");
-		expect(useUiStore.getState().activeShellTerminalHandleId).toBeNull();
 	});
 
 	it("uses the stored reviewer harness for the reviewer tab icon when no latest run is current", async () => {
