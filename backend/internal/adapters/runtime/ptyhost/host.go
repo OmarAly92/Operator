@@ -74,6 +74,125 @@ func Serve(ctx context.Context, cfg ServeConfig) error {
 type clientState struct {
 	cols, rows int
 	sized      bool
+
+	// out is this client's outbound queue, drained by a dedicated writer
+	// goroutine (runWriter). Every frame the host sends a client -- the
+	// scrollback snapshot, live broadcast, per-connection replies -- is queued
+	// here instead of being written inline.
+	//
+	// Writing inline is what handleConn used to do, and it did it while holding
+	// h.mu, before starting its own read loop. Once the snapshot outgrew the
+	// socket buffer that write blocked, which froze h.mu for the whole session
+	// AND meant the read loop that would have parsed this connection's own
+	// input frame never started -- so a one-shot RPC (SendMessage, SendInput,
+	// Interrupt, ...), which writes its frame and never reads a reply, had its
+	// input silently dropped rather than delayed.
+	//
+	// Queueing under h.mu keeps the snapshot-then-register ordering exactly as
+	// it was: the snapshot is queued first, and any batch broadcast afterwards
+	// is queued behind it, so a client still cannot see a batch twice or miss
+	// one. Only the blocking write moved off the lock.
+	//
+	// Lock order is h.mu -> outMu, never the reverse: enqueue is called with
+	// h.mu held, while awaitCapacity and runWriter take outMu alone.
+	outMu    sync.Mutex
+	outCond  *sync.Cond
+	out      [][]byte
+	outBytes int
+	outDone  bool
+}
+
+func newClientState() *clientState {
+	cs := &clientState{}
+	cs.outCond = sync.NewCond(&cs.outMu)
+	return cs
+}
+
+// enqueue appends frame to the client's outbound queue. It never blocks:
+// callers hold h.mu, and blocking under h.mu is the defect this queue exists to
+// remove. Back-pressure is applied afterwards, off the lock, by awaitCapacity.
+func (cs *clientState) enqueue(frame []byte) {
+	cs.outMu.Lock()
+	if !cs.outDone {
+		cs.out = append(cs.out, frame)
+		cs.outBytes += len(frame)
+		cs.outCond.Broadcast()
+	}
+	cs.outMu.Unlock()
+}
+
+// awaitCapacity blocks until this client's backlog falls back under
+// maxQueuedClientBytes, or the client goes away. Called by deliver after it has
+// released h.mu, so a client that stops reading throttles the PTY pump -- and
+// through it the child process -- exactly as the old inline write did, but
+// without holding the lock or starving any connection's read loop.
+func (cs *clientState) awaitCapacity() {
+	cs.outMu.Lock()
+	for cs.outBytes > maxQueuedClientBytes && !cs.outDone {
+		cs.outCond.Wait()
+	}
+	cs.outMu.Unlock()
+}
+
+// closeOut marks the queue finished and wakes runWriter plus anyone parked in
+// awaitCapacity. Idempotent: both the read loop's defer and shutdown call it.
+func (cs *clientState) closeOut() {
+	cs.outMu.Lock()
+	cs.outDone = true
+	cs.out = nil
+	cs.outBytes = 0
+	cs.outCond.Broadcast()
+	cs.outMu.Unlock()
+}
+
+// maxQueuedClientBytes caps the output buffered for a client that is not
+// keeping up. Four read buffers matches maxQueuedCaptureBytes: enough to ride
+// out a renderer hiccup, small enough that a wedged client costs a bounded
+// amount of memory rather than the whole session.
+const maxQueuedClientBytes = 4 * readBufferSize
+
+// runWriter drains one client's outbound queue, blocking on each conn.Write
+// exactly as the inline writes used to -- but on its own goroutine, so a client
+// that has stopped reading never blocks h.mu, the PTY pump, or its own read
+// loop.
+func (h *host) runWriter(conn net.Conn, cs *clientState) {
+	for {
+		cs.outMu.Lock()
+		for len(cs.out) == 0 && !cs.outDone {
+			cs.outCond.Wait()
+		}
+		if cs.outDone {
+			cs.outMu.Unlock()
+			return
+		}
+		frame := cs.out[0]
+		cs.out = cs.out[1:]
+		cs.outBytes -= len(frame)
+		cs.outCond.Broadcast() // deliver may be parked in awaitCapacity
+		cs.outMu.Unlock()
+
+		if _, err := conn.Write(frame); err != nil {
+			h.dropClient(conn)
+			return
+		}
+	}
+}
+
+// dropClient removes a client whose write failed. It is the single place the
+// write path retires a connection, replacing the inline removal that
+// broadcastLocked and sendTo used to do on error.
+func (h *host) dropClient(conn net.Conn) {
+	h.mu.Lock()
+	cs := h.clients[conn]
+	delete(h.clients, conn)
+	// A dropped client may have been the largest viewer; recompute the shared
+	// grid so it follows the remaining clients.
+	h.applyLargestLocked()
+	h.mu.Unlock()
+	if cs != nil {
+		cs.closeOut()
+	}
+	_ = conn.Close()
 }
 
 // host holds the mutable state for a single pty-host session.
@@ -221,11 +340,18 @@ func (h *host) shutdown() {
 
 		// 3. Close all client connections.
 		h.mu.Lock()
-		for c := range h.clients {
+		states := make([]*clientState, 0, len(h.clients))
+		for c, cs := range h.clients {
 			_ = c.Close()
+			states = append(states, cs)
 		}
 		h.clients = make(map[net.Conn]*clientState)
 		h.mu.Unlock()
+		// Closing a conn does not wake a writer parked on an empty queue, and
+		// a deliver parked in awaitCapacity would never be signalled either.
+		for _, cs := range states {
+			cs.closeOut()
+		}
 
 		// 4. Close the listener to unblock Accept.
 		_ = h.cfg.Listener.Close()
@@ -335,10 +461,19 @@ func (h *host) deliver(batch []byte) {
 	// moment it attaches.
 	h.mu.Lock()
 	h.cfg.Ring.Append(batch)
+	var states []*clientState
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
-		h.broadcastLocked(frame)
+		states = h.broadcastLocked(frame)
 	}
 	h.mu.Unlock()
+
+	// Back-pressure, off the lock. Queueing above cannot block, so a batch can
+	// overshoot the cap by at most itself; parking here before the next batch
+	// stalls pumpPTY, stops the PTY being read, and lets the child throttle
+	// itself -- the chain the inline write provided, minus the frozen lock.
+	for _, cs := range states {
+		cs.awaitCapacity()
+	}
 
 	h.feedParser(batch)
 	h.capture.write(batch)
@@ -373,72 +508,66 @@ func (h *host) finishPump(pty ptyConn, done chan struct{}) {
 	close(done)
 }
 
-// broadcast sends msg to all connected clients, removing any that error.
+// broadcast queues msg to all connected clients.
 func (h *host) broadcast(msg []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.broadcastLocked(msg)
 }
 
-// broadcastLocked is broadcast's body for callers already holding h.mu.
-func (h *host) broadcastLocked(msg []byte) {
-	removed := false
-	for c := range h.clients {
-		if _, err := c.Write(msg); err != nil {
-			_ = c.Close()
-			delete(h.clients, c)
-			removed = true
-		}
+// broadcastLocked is broadcast's body for callers already holding h.mu. It
+// returns the clients it queued to so the caller can apply back-pressure after
+// releasing the lock; a write failure retires the client from runWriter
+// instead of here.
+func (h *host) broadcastLocked(msg []byte) []*clientState {
+	states := make([]*clientState, 0, len(h.clients))
+	for _, cs := range h.clients {
+		cs.enqueue(msg)
+		states = append(states, cs)
 	}
-	// A dropped client may have been the largest viewer; recompute the shared
-	// grid so it follows the remaining clients.
-	if removed {
-		h.applyLargestLocked()
-	}
+	return states
 }
 
 func (h *host) logf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "pty-host [%s]: "+format+"\n", append([]any{h.cfg.SessionID}, args...)...)
 }
 
-// sendTo sends msg to a single conn (best-effort; removes on error).
+// sendTo queues msg to a single conn (best-effort; a conn already retired from
+// the client set is a no-op, and a failing write retires it from runWriter).
 func (h *host) sendTo(conn net.Conn, msg []byte) {
-	if _, err := conn.Write(msg); err != nil {
-		h.mu.Lock()
-		_ = conn.Close()
-		delete(h.clients, conn)
-		h.applyLargestLocked()
-		h.mu.Unlock()
+	h.mu.Lock()
+	if cs := h.clients[conn]; cs != nil {
+		cs.enqueue(msg)
 	}
+	h.mu.Unlock()
 }
 
 // handleConn manages the lifecycle of a single client connection.
 func (h *host) handleConn(conn net.Conn) {
-	// Scrollback replay: take the ring snapshot, write it to the conn, and add
-	// the conn to the broadcast set all under a SINGLE h.mu hold. broadcast()
-	// also takes h.mu, so it cannot interleave: any PTY chunk that arrives is
-	// either already in this snapshot, or is broadcast strictly after the conn
-	// joins the set. Doing this in two separate locks would let a chunk slip
-	// into the gap (in neither the snapshot nor this client's broadcast) and be
-	// silently dropped.
-	// ponytail: the snapshot write happens while holding h.mu. It is bounded by
-	// MaxOutputLines (the ring cap), so the lock hold is bounded; upgrade path
-	// is a per-client send queue if a slow client ever stalls broadcast.
+	// Scrollback replay: take the ring snapshot, queue it, and add the conn to
+	// the broadcast set all under a SINGLE h.mu hold. deliver() also takes
+	// h.mu, so it cannot interleave: any PTY chunk that arrives is either
+	// already in this snapshot, or is queued strictly after the conn joins the
+	// set. Doing this in two separate locks would let a chunk slip into the gap
+	// (in neither the snapshot nor this client's broadcast) and be silently
+	// dropped.
+	//
+	// The snapshot is queued, never written inline. It runs to MaxOutputLines
+	// of output, which overruns the socket buffer; writing it here blocked
+	// h.mu for the whole session and starved this connection's own read loop,
+	// silently dropping the input of any client that writes without reading.
+	// See clientState's out fields.
+	cs := newClientState()
 	h.mu.Lock()
-	snap := h.cfg.Ring.Snapshot()
-	if len(snap) > 0 {
-		snapFrame, err := EncodeMessage(MsgTerminalData, snap)
-		if err == nil {
-			_, err = conn.Write(snapFrame)
-		}
-		if err != nil {
-			h.mu.Unlock()
-			_ = conn.Close()
-			return
+	if snap := h.cfg.Ring.Snapshot(); len(snap) > 0 {
+		if snapFrame, err := EncodeMessage(MsgTerminalData, snap); err == nil {
+			cs.enqueue(snapFrame)
 		}
 	}
-	h.clients[conn] = &clientState{}
+	h.clients[conn] = cs
 	h.mu.Unlock()
+
+	go h.runWriter(conn, cs)
 
 	defer func() {
 		h.mu.Lock()
@@ -447,6 +576,7 @@ func (h *host) handleConn(conn net.Conn) {
 		// the remaining largest client.
 		h.applyLargestLocked()
 		h.mu.Unlock()
+		cs.closeOut()
 		_ = conn.Close()
 	}()
 

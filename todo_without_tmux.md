@@ -77,8 +77,9 @@ a new shared helper, `backend/internal/testsupport/realpty/`, that factors the
 build-once/spawn/READY-handshake shape out of parity's `realHostSpawner` so it
 doesn't require the `parity` build tag or tmux. Porting them surfaced three
 real bugs, not test-harness artifacts — each reproduced deterministically,
-verified failing without its fix, and (for the first two) fixed and verified
-passing:
+verified failing without its fix, then fixed and verified passing. The fourth,
+found while fixing the third, was left open at the time and was fixed on
+2026-09-02:
 
 1. **`defaultSpawnHost`/`realHostSpawner` never reaped the detached pty-host
    process.** `cmd.Start()` with no `cmd.Wait()` anywhere leaves a zombie for
@@ -111,26 +112,57 @@ passing:
    regression `TestCaptureBackpressureDoesNotStallDelivery`
    (`ptyhost/capture_test.go`). This measurably improved (from 150s+ hang to
    a clean, fast failure) but did not fully resolve the fourth bug below.
-4. **UNRESOLVED — `handleConn` writes the ring snapshot to every new
-   connection, under `h.mu`, before its own read loop ever runs.** Every
+4. **RESOLVED (2026-09-02) — `handleConn` wrote the ring snapshot to every new
+   connection, under `h.mu`, before its own read loop ever ran.** Every
    one-shot client RPC (`SendMessage`, `SendInput`, `Interrupt`, ...) dials,
    writes its own frame, and closes without ever reading a reply. Once the
-   ring snapshot exceeds the OS socket buffer, the server's write blocks —
-   which blocks `h.mu` for the whole session, and means this connection's own
-   read loop, which would have parsed its input frame, never starts. The
-   input is silently dropped, not delayed. Reproduced deterministically with
-   ~4MB of ring content and no shell involved:
-   `TestSnapshotWriteOnOneShotConnDoesNotDropInput`
-   (`ptyhost/host_test.go`, `t.Skip`'d, verified failing when un-skipped).
-   `TestShellBlocksBoundedJournalRecordsGapAndRecovers`
-   (`integration/shell_blocks_tmux_test.go`) hits this for real with a 10MB
-   fill and is `t.Skip`'d with the same explanation; the other six
-   `TestShellBlocks*` tests pass. Left unfixed: the correct fix has to stop
-   serializing an unbounded write ahead of a connection's own reads without
-   reintroducing the duplicate-replay race `handleConn`'s current locking was
-   already written to prevent (see its own comment) — a genuine concurrency
-   change to hot-path connection handling that needs dedicated review, not a
-   fix bundled into an unrelated task.
+   ring snapshot exceeded the OS socket buffer the server's write blocked —
+   which blocked `h.mu` for the whole session, and meant this connection's own
+   read loop, which would have parsed its input frame, never started. The
+   input was silently dropped, not delayed. Confirmed from a goroutine dump,
+   both halves at once: `handleConn` parked in `conn.Write` at `host.go:432`
+   with ~3.9MB pending while holding `h.mu`, and `deliver` parked on
+   `sync.Mutex.Lock` at `host.go:336`.
+
+   **Fix: a per-client outbound queue drained by a dedicated writer
+   goroutine** — the upgrade path the old `ponytail:` comment on `handleConn`
+   already named. Every frame the host sends a client (snapshot, live
+   broadcast, per-connection replies) is queued by `clientState.enqueue`
+   instead of written inline; `runWriter` does the blocking `conn.Write` on
+   its own goroutine, and `dropClient` is now the single place the write path
+   retires a connection. `handleConn` reaches its read loop immediately.
+
+   The duplicate-replay race that the old locking existed to prevent is
+   intact: the ring snapshot is still taken, queued, and the conn still
+   registered under a **single** `h.mu` hold, and `deliver` still appends to
+   the ring and queues to every client under that same hold. Ordering is
+   unchanged because the queue is per-client FIFO — the snapshot is queued
+   first, anything broadcast afterwards lands behind it — so a client can
+   still neither see a batch twice nor miss one. Only the blocking write moved
+   off the lock. `TestScrollbackLiveOrdering_NoDrop` still covers this.
+
+   Back-pressure is preserved rather than traded away, which is the mistake
+   §8 records. `enqueue` cannot block (it runs under `h.mu`), so `deliver`
+   parks in `awaitCapacity` *after* releasing the lock, once a client's
+   backlog passes `maxQueuedClientBytes` (four read buffers, matching
+   `maxQueuedCaptureBytes`). That stalls `pumpPTY`, stops the PTY being read,
+   and lets the child throttle itself — the same chain, minus the frozen lock.
+   A batch can overshoot the cap by one batch, and that is the asserted bound.
+
+   Three tests, each verified to fail without the fix:
+   `TestSnapshotWriteOnOneShotConnDoesNotDropInput` (un-skipped; fails if the
+   snapshot is written inline again), `TestWedgedClientDoesNotBlockOtherClients`
+   (a client that never reads must not block another client's status RPC,
+   which goes through `currentPTY()` and so takes `h.mu`), and
+   `TestClientQueueIsBounded` (with the cap disabled the queue reached 16MB
+   against a 1.25MB limit). `TestShellBlocksBoundedJournalRecordsGapAndRecovers`
+   (`integration/shell_blocks_tmux_test.go`) is **un-skipped and passing** —
+   it was the real-world 10MB-fill case that surfaced this.
+
+   Not changed, and worth knowing: a wedged client still eventually stalls
+   session output, now after a bounded 1.25MB instead of immediately. That is
+   the intended back-pressure semantics, not a defect. Bounding *how long*
+   deliver waits on a dead client would be a behaviour change beyond this fix.
 
 `internal/daemon/session_id_claim_integration_test.go` was **ported**, not
 deleted — see below.

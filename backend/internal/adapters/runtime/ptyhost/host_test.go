@@ -809,25 +809,24 @@ func TestGetStyledOutputPreservesSGR(t *testing.T) {
 	}
 }
 
-// TestSnapshotWriteOnOneShotConnDoesNotDropInput reproduces a known,
-// unresolved bug: handleConn writes the full ring snapshot to every new
-// connection, while holding h.mu, before it ever reaches its own read loop.
-// Every one-shot RPC (SendMessage, SendInput, Interrupt, ...) dials, writes
-// its frame, and closes without ever reading a reply — see clientSendMessage.
-// Once the snapshot exceeds the OS socket buffer, that write blocks (nothing
-// drains it), which blocks h.mu for the whole session AND means the read loop
-// that would have parsed this connection's own input frame never starts —
-// the input is silently dropped, not just delayed. Surfaced by
+// TestSnapshotWriteOnOneShotConnDoesNotDropInput is a regression test for a
+// fixed bug: handleConn wrote the full ring snapshot to every new connection,
+// while holding h.mu, before it ever reached its own read loop. Every one-shot
+// RPC (SendMessage, SendInput, Interrupt, ...) dials, writes its frame, and
+// closes without ever reading a reply — see clientSendMessage. Once the
+// snapshot exceeded the OS socket buffer that write blocked (nothing drains
+// it), which blocked h.mu for the whole session AND meant the read loop that
+// would have parsed this connection's own input frame never started — the
+// input was silently dropped, not just delayed. Surfaced by
 // TestShellBlocksBoundedJournalRecordsGapAndRecovers
 // (internal/integration/shell_blocks_tmux_test.go), whose recovery command
-// never reached the shell after a ~10MB fill. Skipped rather than fixed here:
-// the fix needs to stop serializing an unbounded write ahead of a
-// connection's own reads without reintroducing the duplicate-replay race this
-// same locking was already bitten by once (see the comment on handleConn) —
-// a genuine concurrency change to hot-path connection handling that deserves
-// dedicated review, not a rushed fix bundled into this task.
+// never reached the shell after a ~10MB fill.
+//
+// Fixed by queueing every outbound frame on a per-client queue drained by a
+// dedicated writer goroutine, so the read loop starts immediately and the
+// blocking write never holds h.mu. Fails if handleConn writes the snapshot
+// inline again. See clientState's out fields.
 func TestSnapshotWriteOnOneShotConnDoesNotDropInput(t *testing.T) {
-	t.Skip("known issue: handleConn's snapshot write blocks h.mu and starves its own read loop on a large ring, dropping input sent over a one-shot connection — see comment above")
 
 	f, c := newTestHostWithParser(t)
 	defer f.cancel()
@@ -902,5 +901,134 @@ func TestShutdownViaCtxCancel(t *testing.T) {
 	f.pty.closeMu.Unlock()
 	if !closed {
 		t.Fatal("expected pty.Close() on ctx cancel")
+	}
+}
+
+// TestWedgedClientDoesNotBlockOtherClients is the other half of the snapshot
+// bug: handleConn wrote the scrollback snapshot while holding h.mu, so a
+// connection that never read froze every other client too — currentPTY(),
+// resize and deliver all take the same lock. Queueing the snapshot means the
+// wedged connection parks in its own writer goroutine and nothing else waits
+// on it. Fails if the snapshot write moves back under h.mu.
+func TestWedgedClientDoesNotBlockOtherClients(t *testing.T) {
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	// Fill the ring so a fresh connection's snapshot overruns the socket buffer.
+	big := strings.Repeat("y", 4096) + "\n"
+	for i := 0; i < 1000; i++ {
+		f.feedPTY(t, big)
+	}
+
+	// A connection that never reads: its snapshot cannot drain.
+	wedged, err := net.DialTimeout("tcp", f.addr, 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer wedged.Close()
+
+	// The existing client must still get answered. syncClientRegistered goes
+	// through currentPTY(), which takes h.mu, so it can only complete if the
+	// wedged connection is not holding it.
+	if err := c.send(MsgStatusReq, nil); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Drains c's own frames directly rather than via readFrame, whose
+		// t.Fatal is only legal on the test goroutine.
+		for f := range c.frameC {
+			if f.typ == MsgStatusRes {
+				return
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("a client that never reads blocked another client's status RPC: the snapshot write is holding h.mu")
+	}
+}
+
+// TestClientQueueIsBounded pins the back-pressure the per-client queue must
+// keep. Replacing a blocking write with a queue is exactly how the attach path
+// lost end-to-end back-pressure once before (see the queue notes on
+// captureSink): unbounded, a stalled client makes the daemon accumulate the
+// whole session in memory. Past the cap awaitCapacity parks, which stalls
+// deliver, then pumpPTY, and finally the child process. Fails if the cap is
+// removed.
+func TestClientQueueIsBounded(t *testing.T) {
+	// clientConn is never read, so serverConn.Write parks and nothing drains.
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+	defer clientConn.Close()
+
+	h := &host{clients: make(map[net.Conn]*clientState)}
+	cs := newClientState()
+	h.clients[serverConn] = cs
+	go h.runWriter(serverConn, cs)
+
+	batch := make([]byte, readBufferSize)
+	const batches = 64 // 16MB unbounded, vs a 1MB cap
+
+	// Exactly what deliver does: queue under the lock, then park off it.
+	produced := make(chan int)
+	go func() {
+		for i := 0; i < batches; i++ {
+			cs.enqueue(batch)
+			cs.awaitCapacity()
+			select {
+			case produced <- i + 1:
+			default:
+			}
+		}
+		close(produced)
+	}()
+
+	// The producer must stall against a wedged client rather than run to
+	// completion buffering the whole session in memory.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	peak := 0
+	for time.Now().Before(deadline) {
+		cs.outMu.Lock()
+		queued := cs.outBytes
+		cs.outMu.Unlock()
+		if queued > peak {
+			peak = queued
+		}
+		// runWriter holds one dequeued frame in flight, and enqueue runs before
+		// awaitCapacity parks, so the queue may exceed the cap by one batch.
+		if limit := maxQueuedClientBytes + len(batch); queued > limit {
+			t.Fatalf("queue grew past its cap: queued=%d limit=%d", queued, limit)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	select {
+	case _, ok := <-produced:
+		if !ok {
+			t.Fatal("producer completed every batch against a client that never read: back-pressure is gone")
+		}
+	default:
+	}
+	if peak == 0 {
+		t.Fatal("queue never filled; the test did not exercise the cap")
+	}
+
+	// Retiring the client must release the producer rather than wedge it forever.
+	cs.closeOut()
+	drained := make(chan struct{})
+	go func() {
+		for range produced {
+		}
+		close(drained)
+	}()
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("producer did not wake when the client was retired")
 	}
 }

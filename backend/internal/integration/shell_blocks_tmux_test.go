@@ -408,27 +408,15 @@ func TestShellBlocksAlternateScreenAtCaptureStartExcludesRepaint(t *testing.T) {
 }
 
 func TestShellBlocksBoundedJournalRecordsGapAndRecovers(t *testing.T) {
-	// KNOWN FAILURE under ptyhost, root-caused but not yet fixed: this
-	// scenario builds up several MB of ring content, then sends a short
-	// recovery command over a fresh one-shot connection (SendMessage dials,
-	// writes, and closes without ever reading — see clientSendMessage).
-	// handleConn (host.go) writes the full ring snapshot to every new
-	// connection before it ever reaches its own read loop, and does so while
-	// holding h.mu. A connection that never reads that snapshot back (every
-	// one-shot RPC: SendMessage, SendInput, Interrupt, ...) blocks that write
-	// once the snapshot exceeds the OS socket buffer — which also blocks h.mu
-	// for the whole session, and the connection's own input frame is never
-	// read at all, so it is silently dropped. Reproduced minimally and
-	// deterministically in ptyhost's own package
-	// (TestSnapshotWriteBlocksHMuRepro, not committed — see the session
-	// report) with ~4MB of ring content and no shell involved. The fix needs
-	// to stop holding h.mu across the write and stop serializing an
-	// unbounded snapshot write ahead of a connection's own read loop, without
-	// reintroducing the duplicate-replay race this same locking was already
-	// bitten by once (see the comment on handleConn). That is a genuine
-	// concurrency change to hot-path connection handling, not a safe one to
-	// make without dedicated review, so it is left unfixed here.
-	t.Skip("known issue: handleConn's snapshot write blocks h.mu and starves its own read loop on a large ring, dropping input sent over a one-shot connection (SendMessage) — see comment above")
+	// Regression coverage for the handleConn snapshot bug: this scenario builds
+	// up several MB of ring content, then sends a short recovery command over a
+	// fresh one-shot connection (SendMessage dials, writes, and closes without
+	// ever reading — see clientSendMessage). handleConn used to write the full
+	// ring snapshot to every new connection, while holding h.mu, before it ever
+	// reached its own read loop, so that write blocked once the snapshot
+	// exceeded the OS socket buffer and the recovery command was silently
+	// dropped. Every outbound frame is now queued on a per-client queue drained
+	// by its own writer goroutine; see clientState's out fields in ptyhost.
 	h := newShellBlocksHarness(t, "shell-blocks-journal-gap")
 	if err := h.supervisor.DrainAndDetach(context.Background()); err != nil {
 		t.Fatalf("stop daemon reader: %v", err)
