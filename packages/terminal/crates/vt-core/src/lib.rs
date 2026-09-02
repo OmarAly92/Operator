@@ -213,6 +213,10 @@ impl TerminalCore {
     pub fn mouse_tracking(&self) -> bool {
         self.parser.mouse_tracking()
     }
+
+    pub fn mouse_tracking_level(&self) -> u8 {
+        self.parser.mouse_tracking_level()
+    }
 }
 
 pub use grid::GridSnapshot;

@@ -129,6 +129,10 @@ impl Parser {
         self.mouse_tracking != 0
     }
 
+    pub fn mouse_tracking_level(&self) -> u8 {
+        self.mouse_tracking
+    }
+
     /// Records the DEC private modes that decide how a wheel event must be
     /// encoded. Warp gates the same decision on `SGR_MOUSE` plus any of the
     /// tracking modes (`alt_screen/mod.rs:11-25`); without both, a wheel falls
@@ -382,5 +386,31 @@ impl Perform for Parser {
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
         self.active_screen_mut().esc(byte);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vte::Parser as VteParser;
+
+    #[test]
+    fn mouse_tracking_level_distinguishes_the_three_modes() {
+        let mut p = Parser::new(80, 100);
+        let mut vte = VteParser::new();
+        assert_eq!(p.mouse_tracking_level(), 0);
+        vte.advance(&mut p, b"\x1b[?1000h");
+        assert_eq!(p.mouse_tracking_level(), 0b001);
+        vte.advance(&mut p, b"\x1b[?1002h");
+        assert_eq!(p.mouse_tracking_level(), 0b011);
+        vte.advance(&mut p, b"\x1b[?1003h");
+        assert_eq!(p.mouse_tracking_level(), 0b111);
+        vte.advance(&mut p, b"\x1b[?1002l");
+        assert_eq!(p.mouse_tracking_level(), 0b101);
+        assert!(p.mouse_tracking());
+        vte.advance(&mut p, b"\x1b[?1000l");
+        vte.advance(&mut p, b"\x1b[?1003l");
+        assert_eq!(p.mouse_tracking_level(), 0);
+        assert!(!p.mouse_tracking());
     }
 }
