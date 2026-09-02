@@ -315,9 +315,9 @@ func (s *Service) ReapShellTerminalsFromPreviousAppRuns(ctx context.Context) (in
 
 // destroyConfirmed is the one place a shell terminal's row is allowed to
 // disappear: it destroys the runtime behind handleID and deletes the row only
-// once death is confirmed, so CloseShellTerminal, ReapShellTerminalsFromPreviousAppRuns,
-// and BeginSessionTeardown can't each independently forget a shell that
-// actually survived.
+// once death is confirmed, so CloseShellTerminal and
+// ReapShellTerminalsFromPreviousAppRuns can't each independently forget a
+// shell that actually survived.
 //
 //   - A clean Destroy is confirmed dead.
 //   - A Destroy error is followed by an IsAlive check; an IsAlive error is
