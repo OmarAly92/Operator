@@ -1039,7 +1039,7 @@ function AttachedTerminal({
 
 	if (initFailed) {
 		return (
-			<div className="terminal-surface grid h-full place-items-center p-4 font-mono text-xs text-muted-foreground">
+			<div className="terminal-pane-surface grid h-full place-items-center p-4 font-mono text-xs text-muted-foreground">
 				{t("terminal.initFailed")}
 			</div>
 		);
@@ -1070,7 +1070,7 @@ function AttachedTerminal({
 		: t("terminal.noSessionSelected");
 
 	return (
-		<div className="terminal-surface flex h-full min-h-0 flex-col" data-testid="session-terminal">
+		<div className="terminal-pane-surface flex h-full min-h-0 flex-col" data-testid="session-terminal">
 			{showEndedState && (
 				<TerminalEndedStrip
 					canRestore={canRestoreSession}
@@ -1114,7 +1114,7 @@ function AttachedTerminal({
 					</BlockTerminal>
 				</Suspense>
 				{showEmptyState && (
-					<div className="terminal-surface absolute inset-0 grid place-items-center font-mono text-control">
+					<div className="terminal-pane-surface absolute inset-0 grid place-items-center font-mono text-control">
 						<div className="text-center">
 							<div className="text-terminal">{emptyStateTitle}</div>
 							<div className="mt-2 text-terminal-dim">{emptyStateMessage}</div>
@@ -1176,7 +1176,7 @@ function ReplayCover() {
 		// live the whole time, so clicks, selection and wheel must pass through
 		// rather than being swallowed for the length of the gate.
 		<div
-			className="terminal-surface pointer-events-none absolute inset-0 grid place-items-center"
+			className="terminal-pane-surface pointer-events-none absolute inset-0 grid place-items-center"
 			data-testid="terminal-replay-cover"
 		>
 			{showLabel && <div className="font-mono text-caption text-terminal-dim">{t("terminal.loadingOutput")}</div>}

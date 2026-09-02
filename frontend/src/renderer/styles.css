@@ -1419,14 +1419,18 @@ textarea,
 /* Paint the pane with the opaque RGB of --color-bg-terminal only. The e7 alpha
    on the token composites against app chrome and left a #111316 fringe in the
    p-2 gutter / FitAddon leftover strips. */
-.terminal-surface {
+/* Not .terminal-surface: @operator/terminal-renderer-dom injects a rule for that
+   name into document.head, and it owns the terminal-* namespace. Sharing it
+   applied the package's own surface padding to this wrapper too, doubling the
+   inset, and forced height/width:100% onto the absolutely positioned overlays. */
+.terminal-pane-surface {
 	background-color: var(--color-bg-terminal-opaque);
 }
 
-.terminal-surface .xterm,
-.terminal-surface .xterm-viewport,
-.terminal-surface .xterm-screen,
-.terminal-surface .xterm-helpers {
+.terminal-pane-surface .xterm,
+.terminal-pane-surface .xterm-viewport,
+.terminal-pane-surface .xterm-screen,
+.terminal-pane-surface .xterm-helpers {
 	background-color: var(--color-bg-terminal-opaque) !important;
 }
 
