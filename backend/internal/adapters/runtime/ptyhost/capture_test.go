@@ -93,6 +93,56 @@ func TestStartCaptureTeesOutputToArgv(t *testing.T) {
 	}
 }
 
+// TestCaptureBackpressureDoesNotStallDelivery pins the fix for a hot-path
+// stall: write() used to write straight into the capture subprocess's stdin
+// pipe from inside deliver(), the same call that appends to the ring and
+// broadcasts to clients. A capture consumer that doesn't drain fast enough
+// (slow disk, or here a subprocess that never reads stdin at all) fills the
+// OS pipe buffer and blocks that write — and since it ran inside deliver(),
+// it blocked pumpPTY itself, freezing ring append and client broadcast for
+// every byte after it, for reasons having nothing to do with capture.
+func TestCaptureBackpressureDoesNotStallDelivery(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shells out to /bin/sh")
+	}
+	prevExecutable := captureExecutablePath
+	captureExecutablePath = func() (string, error) { return "/bin/sh", nil }
+	defer func() { captureExecutablePath = prevExecutable }()
+
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+
+	syncClientRegistered(t, c)
+
+	// A subprocess that never reads stdin: any write past the OS pipe's
+	// buffer (typically 64KiB) blocks forever.
+	if err := c.startCapture(t, []string{"-c", "sleep 30"}); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+
+	// Feed well past a pipe buffer's worth of output, which used to be
+	// enough to wedge deliver() on the capture write.
+	filler := strings.Repeat("x", 4096) + "\n"
+	for i := 0; i < 64; i++ {
+		f.feedPTY(t, filler)
+	}
+
+	f.feedPTY(t, "AFTER-BACKPRESSURE-MARKER\n")
+
+	// Read the ring directly rather than round-tripping GetOutput: c is a
+	// registered client under a flood of broadcasts, and this only needs to
+	// know deliver()'s ring-append side (not the wire protocol) kept moving.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(f.ring.Tail(5), "AFTER-BACKPRESSURE-MARKER") {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("marker fed after filling the capture pipe never reached the ring; deliver() is stalled on the capture write")
+}
+
 func TestCaptureStateReportsAlternateScreen(t *testing.T) {
 	f, c := newTestHostWithParser(t)
 	defer f.cancel()

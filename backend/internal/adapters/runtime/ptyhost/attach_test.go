@@ -165,6 +165,42 @@ func TestAttachAppliesResizeBeforeReturning(t *testing.T) {
 	}
 }
 
+// TestAttachWithScrollbackAndSizeDoesNotDeadlock pins a fix for a deadlock:
+// the host sends the ring snapshot as the first MsgTerminalData on connect,
+// before it ever answers a resize (Task 7 Step 6's status round-trip). If
+// pump wrote that snapshot straight into the Stream's pipe, the write would
+// block forever — nothing reads the pipe until Attach returns it — and pump
+// could never get to parsing the status reply, so any attach to a session
+// with existing scrollback would hang for attachResizeAckTimeout and then
+// fail. Every real attach passes a birth size, so this was the common case,
+// not an edge case.
+func TestAttachWithScrollbackAndSizeDoesNotDeadlock(t *testing.T) {
+	f := startServe(t, 304)
+	defer f.cancel()
+	for i := 0; i < 200; i++ {
+		f.ring.Append([]byte("scrollback filler line to build up a real replay backlog\n"))
+	}
+
+	r := runtimeForFixture("sess", f)
+	done := make(chan error, 1)
+	go func() {
+		s, err := r.Attach(context.Background(), nameHandle("sess"), 30, 100)
+		if err == nil {
+			defer s.Close()
+		}
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Attach: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Attach deadlocked on scrollback replay instead of returning")
+	}
+}
+
 // TestAttachUnknownSession: Attach to a session with no resolvable addr errors.
 func TestAttachUnknownSession(t *testing.T) {
 	r := New(Options{})

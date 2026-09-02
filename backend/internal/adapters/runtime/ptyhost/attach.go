@@ -33,11 +33,21 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 
 	pr, pw := io.Pipe()
 	s := &loopbackStream{conn: conn, pr: pr, pw: pw, applied: make(chan struct{}, 1)}
+	s.dataCond = sync.NewCond(&s.dataMu)
 
-	// Pump host frames: MsgTerminalData payloads go into the pipe that Read
-	// drains. The first such frame is the scrollback snapshot, so the replay
-	// arrives before any live output.
+	// Pump host frames: MsgTerminalData payloads are hard onto forwardData's
+	// queue, then to the pipe that Read drains. The first such frame is the
+	// scrollback snapshot, so the replay arrives before any live output.
+	//
+	// Forwarding is decoupled from the pump loop (rather than pump writing to
+	// pw directly) because the pipe has no buffer: a Write blocks until Read
+	// drains it, and nothing reads the pipe until Attach returns the Stream.
+	// A pump that wrote directly would block on the scrollback snapshot —
+	// which the host always sends first, before it ever answers the resize
+	// status request below — and could never get to parsing that reply,
+	// deadlocking Attach for any session with existing scrollback.
 	go s.pump()
+	go s.forwardData()
 
 	// ctx cancellation must terminate the stream (mirrors the unix/windows
 	// spawn paths closing the PTY on ctx.Done).
@@ -77,7 +87,49 @@ type loopbackStream struct {
 	// Attach reads it, so the pump never blocks on it.
 	applied chan struct{}
 
+	// dataQ/dataCond/dataDone queue MsgTerminalData payloads for forwardData,
+	// so pump's Read/parse loop never blocks on the pipe (see the comment on
+	// Attach above).
+	dataMu   sync.Mutex
+	dataCond *sync.Cond
+	dataQ    [][]byte
+	dataDone bool
+
 	closeOnce sync.Once
+}
+
+// enqueueData hands a MsgTerminalData payload to forwardData. payload aliases
+// pump's read buffer, so it must be copied before pump's next Read overwrites
+// it.
+func (s *loopbackStream) enqueueData(payload []byte) {
+	cp := append([]byte(nil), payload...)
+	s.dataMu.Lock()
+	s.dataQ = append(s.dataQ, cp)
+	s.dataCond.Signal()
+	s.dataMu.Unlock()
+}
+
+// forwardData drains the queue into the pipe, one batch at a time, blocking
+// on each Write exactly as a direct pump write would have — but without
+// blocking pump itself, which must stay free to parse the frames that follow
+// a not-yet-drained batch (chiefly the attach status reply).
+func (s *loopbackStream) forwardData() {
+	for {
+		s.dataMu.Lock()
+		for len(s.dataQ) == 0 && !s.dataDone {
+			s.dataCond.Wait()
+		}
+		if len(s.dataQ) == 0 {
+			s.dataMu.Unlock()
+			return
+		}
+		batch := s.dataQ[0]
+		s.dataQ = s.dataQ[1:]
+		s.dataMu.Unlock()
+		if _, err := s.pw.Write(batch); err != nil {
+			return
+		}
+	}
 }
 
 // pump reads framed host messages and writes MsgTerminalData payloads into the
@@ -86,8 +138,11 @@ func (s *loopbackStream) pump() {
 	parser := NewMessageParser(func(msgType byte, payload []byte) {
 		switch msgType {
 		case MsgTerminalData:
-			// Write blocks until Read drains, preserving back-pressure and order.
-			_, _ = s.pw.Write(payload)
+			// Queued for forwardData rather than written here; see the comment
+			// on Attach for why. forwardData's Write still blocks until Read
+			// drains it, preserving back-pressure and order for the data
+			// itself — only pump's parsing is decoupled from that block.
+			s.enqueueData(payload)
 		case MsgStatusRes:
 			select {
 			case s.applied <- struct{}{}:
@@ -151,15 +206,21 @@ func (s *loopbackStream) Resize(rows, cols uint16) error {
 	return err
 }
 
-// Close closes the conn and the pipe. Idempotent. Closing the conn unblocks
-// pump's Read, which then closes the pipe-writer too; closing both here makes
-// Close safe to call directly (e.g. on ctx cancel) without waiting for pump.
+// Close closes the conn and the pipe, and wakes forwardData so it exits
+// instead of leaking on an empty, never-signaled queue. Idempotent. Closing
+// the conn unblocks pump's Read, which then closes the pipe-writer too;
+// closing both here makes Close safe to call directly (e.g. on ctx cancel)
+// without waiting for pump.
 func (s *loopbackStream) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		err = s.conn.Close()
 		_ = s.pw.Close()
 		_ = s.pr.Close()
+		s.dataMu.Lock()
+		s.dataDone = true
+		s.dataCond.Broadcast()
+		s.dataMu.Unlock()
 	})
 	return err
 }

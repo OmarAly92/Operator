@@ -809,6 +809,81 @@ func TestGetStyledOutputPreservesSGR(t *testing.T) {
 	}
 }
 
+// TestSnapshotWriteOnOneShotConnDoesNotDropInput reproduces a known,
+// unresolved bug: handleConn writes the full ring snapshot to every new
+// connection, while holding h.mu, before it ever reaches its own read loop.
+// Every one-shot RPC (SendMessage, SendInput, Interrupt, ...) dials, writes
+// its frame, and closes without ever reading a reply — see clientSendMessage.
+// Once the snapshot exceeds the OS socket buffer, that write blocks (nothing
+// drains it), which blocks h.mu for the whole session AND means the read loop
+// that would have parsed this connection's own input frame never starts —
+// the input is silently dropped, not just delayed. Surfaced by
+// TestShellBlocksBoundedJournalRecordsGapAndRecovers
+// (internal/integration/shell_blocks_tmux_test.go), whose recovery command
+// never reached the shell after a ~10MB fill. Skipped rather than fixed here:
+// the fix needs to stop serializing an unbounded write ahead of a
+// connection's own reads without reintroducing the duplicate-replay race this
+// same locking was already bitten by once (see the comment on handleConn) —
+// a genuine concurrency change to hot-path connection handling that deserves
+// dedicated review, not a rushed fix bundled into this task.
+func TestSnapshotWriteOnOneShotConnDoesNotDropInput(t *testing.T) {
+	t.Skip("known issue: handleConn's snapshot write blocks h.mu and starves its own read loop on a large ring, dropping input sent over a one-shot connection — see comment above")
+
+	f, c := newTestHostWithParser(t)
+	defer f.cancel()
+	defer c.close()
+	syncClientRegistered(t, c)
+
+	var mu sync.Mutex
+	var gotInput []byte
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := f.pty.ReadInput(buf)
+			if n > 0 {
+				mu.Lock()
+				gotInput = append(gotInput, buf[:n]...)
+				mu.Unlock()
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	big := strings.Repeat("y", 4096) + "\n"
+	for i := 0; i < 1000; i++ { // ~4MB, comfortably past a default OS socket buffer
+		f.feedPTY(t, big)
+	}
+
+	conn, err := net.DialTimeout("tcp", f.addr, 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Mimics clientSendMessage: write one input frame, never read a reply.
+	frame, err := EncodeMessage(MsgTerminalInput, []byte("PING-INPUT\r"))
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if _, err := conn.Write(frame); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		got := string(gotInput)
+		mu.Unlock()
+		if strings.Contains(got, "PING-INPUT") {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("PING-INPUT never reached the PTY within 5s: handleConn's snapshot write blocked before its read loop started")
+}
+
 // TestShutdownViaCtxCancel: cancelling the context triggers graceful shutdown.
 func TestShutdownViaCtxCancel(t *testing.T) {
 	f := startServe(t, 107)

@@ -72,6 +72,66 @@ Porting them means spawning a real `opr pty-host` binary, which
 live coverage is the parity package (`TestCaptureSupervisorAgainstPtyHost`) and
 the ptyhost unit suite.
 
+**PORTED (2026-09-02).** All three restored against a real `opr pty-host`, using
+a new shared helper, `backend/internal/testsupport/realpty/`, that factors the
+build-once/spawn/READY-handshake shape out of parity's `realHostSpawner` so it
+doesn't require the `parity` build tag or tmux. Porting them surfaced three
+real bugs, not test-harness artifacts — each reproduced deterministically,
+verified failing without its fix, and (for the first two) fixed and verified
+passing:
+
+1. **`defaultSpawnHost`/`realHostSpawner` never reaped the detached pty-host
+   process.** `cmd.Start()` with no `cmd.Wait()` anywhere leaves a zombie for
+   the daemon's lifetime once the process exits, and `pidAlive`'s `kill(pid,
+   0)` still reports a zombie as alive — so `Destroy` could spuriously report
+   `"pty-host pid %d is still alive after teardown"` for a process that had
+   already exited. Fixed in `ptyhost/spawn_unix.go` (and the test-only
+   spawner in `realpty`) by reaping in a background goroutine right after
+   `Start()`. Regression: `TestDefaultSpawnHostReapsExitedProcess`
+   (`ptyhost/spawn_unix_test.go`).
+2. **`Attach` deadlocked on any session with existing scrollback.** The host
+   always sends the ring snapshot as the first `MsgTerminalData` frame before
+   answering anything else, and `loopbackStream.pump()` wrote that frame
+   straight into an unbuffered `io.Pipe` — which blocks until `Read` drains
+   it, and nothing reads the returned `Stream` until `Attach` itself returns.
+   Any real attach (every one passes a birth size) to a session that had
+   already produced output hung for `attachResizeAckTimeout` (5s) and then
+   failed. This is plausibly part of what this file's §2 called "reconnect
+   stalls." Fixed in `ptyhost/attach.go` by decoupling pump's parsing from
+   the pipe write via an internal queue + forwarder goroutine, so a pending
+   large write never blocks pump from processing the status reply behind it.
+   Regression: `TestAttachWithScrollbackAndSizeDoesNotDeadlock`
+   (`ptyhost/attach_test.go`).
+3. **`captureSink.write` blocked `deliver()`, the pump loop's own hot path,
+   whenever the capture subprocess didn't drain fast enough.** Same shape as
+   #2, one level up: `write()` wrote straight to the capture tee's stdin pipe
+   from inside `deliver()`, so a stalled or slow consumer stalled ring
+   append and client broadcast for the entire session, not just capture.
+   Fixed the same way (queue + forwarder goroutine in `ptyhost/capture.go`);
+   regression `TestCaptureBackpressureDoesNotStallDelivery`
+   (`ptyhost/capture_test.go`). This measurably improved (from 150s+ hang to
+   a clean, fast failure) but did not fully resolve the fourth bug below.
+4. **UNRESOLVED — `handleConn` writes the ring snapshot to every new
+   connection, under `h.mu`, before its own read loop ever runs.** Every
+   one-shot client RPC (`SendMessage`, `SendInput`, `Interrupt`, ...) dials,
+   writes its own frame, and closes without ever reading a reply. Once the
+   ring snapshot exceeds the OS socket buffer, the server's write blocks —
+   which blocks `h.mu` for the whole session, and means this connection's own
+   read loop, which would have parsed its input frame, never starts. The
+   input is silently dropped, not delayed. Reproduced deterministically with
+   ~4MB of ring content and no shell involved:
+   `TestSnapshotWriteOnOneShotConnDoesNotDropInput`
+   (`ptyhost/host_test.go`, `t.Skip`'d, verified failing when un-skipped).
+   `TestShellBlocksBoundedJournalRecordsGapAndRecovers`
+   (`integration/shell_blocks_tmux_test.go`) hits this for real with a 10MB
+   fill and is `t.Skip`'d with the same explanation; the other six
+   `TestShellBlocks*` tests pass. Left unfixed: the correct fix has to stop
+   serializing an unbounded write ahead of a connection's own reads without
+   reintroducing the duplicate-replay race `handleConn`'s current locking was
+   already written to prevent (see its own comment) — a genuine concurrency
+   change to hot-path connection handling that needs dedicated review, not a
+   fix bundled into an unrelated task.
+
 `internal/daemon/session_id_claim_integration_test.go` was **ported**, not
 deleted — see below.
 

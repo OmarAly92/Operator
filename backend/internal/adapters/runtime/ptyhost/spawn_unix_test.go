@@ -71,3 +71,33 @@ func TestDefaultSpawnHostDetachesAndReportsAddress(t *testing.T) {
 		t.Fatalf("addr = %q, want a 127.0.0.1 address", addr)
 	}
 }
+
+// TestDefaultSpawnHostReapsExitedProcess pins the fix for a zombie leak:
+// defaultSpawnHost detaches the pty-host (Setsid) and returns without ever
+// waiting on it, so nothing else in the daemon collects its exit status.
+// pidAlive uses kill(pid, 0), which still succeeds against an unreaped
+// zombie, so without a background Wait() the pty-host process leaks a zombie
+// table entry for the daemon's lifetime and Destroy can spuriously report
+// "still alive after teardown" for a process that has actually exited.
+func TestDefaultSpawnHostReapsExitedProcess(t *testing.T) {
+	_, pid, err := defaultSpawnHost(
+		context.Background(),
+		"spawn-reap-test",
+		t.TempDir(),
+		[]string{"/bin/sh", "-c", "sleep 5"},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("defaultSpawnHost: %v", err)
+	}
+	stopHostProcess(pid) // SIGTERM the detached pty-host
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !pidAlive(pid) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("pid %d still reports alive 2s after SIGTERM; defaultSpawnHost must reap its detached child or it zombies and pidAlive never goes false", pid)
+}

@@ -38,6 +38,13 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 	if err := cmd.Start(); err != nil {
 		return "", 0, fmt.Errorf("ptyhost spawn: start: %w", err)
 	}
+	// The pty-host runs detached (Setsid) and outlives this call, so nothing
+	// else will ever collect its exit status. Without this, every destroyed
+	// session leaves a zombie behind for the life of the daemon process: the
+	// exited pty-host stays reapable-but-unreaped, so pidAlive (kill(pid, 0))
+	// keeps reporting it alive and Destroy can spuriously time out waiting for
+	// a PID that already exited.
+	go func() { _ = cmd.Wait() }()
 
 	type readyLine struct {
 		port int
