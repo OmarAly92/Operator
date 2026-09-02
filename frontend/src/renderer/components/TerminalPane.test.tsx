@@ -241,14 +241,16 @@ function activeXterm(): HTMLElement {
 }
 
 describe("TerminalPane empty states", () => {
-	it("uses the full top, right, and bottom extent for the terminal grid", async () => {
+	it("uses the full extent for the terminal grid, with no inset on any side", async () => {
+		// Flush on every side, matching Warp, whose BlockPadding is vertical-only
+		// and pads nothing horizontally. This previously asserted a pl-2 gutter,
+		// which stacked with the surface's own inset for 24px of dead space.
 		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
 		try {
 			await screen.findByTestId("xterm");
-			const host = screen.getByTestId("xterm").closest(".pl-2");
+			const host = screen.getByTestId("xterm").closest(".relative.min-h-0.flex-1");
 			expect(host).not.toBeNull();
-			expect(host).toHaveClass("pl-2");
-			expect(host).not.toHaveClass("pt-2", "pr-2", "pb-2", "p-2");
+			expect(host).not.toHaveClass("pl-2", "pt-2", "pr-2", "pb-2", "p-2");
 		} finally {
 			view.restore();
 		}

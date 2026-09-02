@@ -396,7 +396,8 @@ export function TerminalCacheProvider({
 				// terminal host must be opaque, though: during route/cache hand-off an
 				// older frame can still be composited beneath it for a paint, which would
 				// otherwise produce a visible double terminal.
-				container.className = "h-full min-h-0 w-full overflow-hidden bg-terminal-opaque";
+				container.className = "h-full min-h-0 w-full overflow-hidden";
+				container.style.backgroundColor = "var(--terminal-background)";
 				container.style.position = "relative";
 				container.dataset.terminalCacheKey = descriptor.cacheKey;
 				entry = {
@@ -1082,19 +1083,20 @@ function AttachedTerminal({
 					}
 				/>
 			)}
-			{/* Keep a small gutter where terminal output starts, but let the block list
-			    (or alt-screen xterm) use the full top/right/bottom extent. The block
-			    list host fills the remaining content box; FitAddon still measures
-			    correctly inside the alt-screen xterm, and the absolute overlays
-			    (empty state, banner) keep covering the full padding box. */}
-			<div className="relative min-h-0 flex-1 pl-2">
+			{/* No gutter: the block list runs flush to the full extent, matching Warp,
+			    whose BlockPadding (app/src/terminal/mod.rs) is vertical-only and pads
+			    nothing horizontally. The earlier 8px left gutter stacked with the
+			    surface's own 16px inset for 24px of dead space and cost a noticeable
+			    number of columns per line. The block list host fills the content box;
+			    FitAddon still measures correctly inside the alt-screen xterm, and the
+			    absolute overlays (empty state, banner) still cover the full box. */}
+			<div className="relative min-h-0 flex-1">
 				<Suspense fallback={null}>
 					<BlockTerminal
 						transport={transport}
 						sessionId={handleId ?? "no-session"}
 						historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
 						agentTui={terminalTarget?.kind === "worker"}
-						theme={theme}
 						ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 						fontSize={fontSize}
 					>

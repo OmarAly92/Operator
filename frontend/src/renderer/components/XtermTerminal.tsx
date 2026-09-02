@@ -1048,7 +1048,7 @@ function RenderedXtermTerminal(props: XtermTerminalProps) {
 				className={props.className}
 				data-testid="xterm-surface"
 				style={{
-					backgroundColor: "var(--color-bg-terminal-opaque)",
+					backgroundColor: "var(--terminal-background)",
 					height: "100%",
 					overflow: "hidden",
 					width: "100%",

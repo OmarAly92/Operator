@@ -41,12 +41,19 @@ export const warpDarkTheme: TerminalTheme = {
 		"#8e8e8e", "#ffc4bd", "#d6fcb9", "#fefdd5",
 		"#c1e3fe", "#ffb1fe", "#e5e6fe", "#feffff",
 	],
+	// Chrome taken from Warp's own bundled dark theme, warp/app/src/themes/
+	// default_themes.rs dark_theme(): background 0x050505, foreground 0xffffff,
+	// accent 0x19AAD8. The ansi rows above are already byte-identical to Warp's
+	// DARK_MODE_NORMAL_COLORS / DARK_MODE_BRIGHT_COLORS.
 	foreground: "#ffffff",
-	background: "#000000",
-	cursor: "#00c2ff",
-	selection: "rgb(0 194 255 / 0.35)",
-	blockBackground: "#000000",
-	blockBorder: "#616161",
+	background: "#050505",
+	cursor: "#19aad8",
+	selection: "rgb(25 170 216 / 0.35)",
+	blockBackground: "#050505",
+	// Warp's outline(), which is what draw_border_between_blocks paints, is
+	// fg_overlay_2 -- the foreground at 10% opacity. It must stay translucent:
+	// at full opacity this is a white box around every block.
+	blockBorder: "rgb(255 255 255 / 0.1)",
 	blockHeaderForeground: "#f1f1f1",
 };
 
@@ -267,6 +274,13 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	private applyStyleVars(): void {
 		const style = this.styleVarsString();
+		// The host gets them too, so the surface behind and between the blocks can
+		// paint the theme's own background. Without this the gaps between blocks
+		// fall through to whatever the embedding app painted, which seams against
+		// the blocks whenever the terminal's palette is not the app's.
+		if (this.container) {
+			this.container.setAttribute("style", style);
+		}
 		for (const element of this.blockElements.values()) {
 			element.setAttribute("style", style);
 		}

@@ -34,14 +34,19 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
-	--terminal-padding-x: 16px;
-	--terminal-padding-y: 8px;
+	/* A 4px hairline left and right so glyphs do not touch the pane edge, and
+	   nothing vertically -- the first and last lines sit flush against the pane.
+	   Warp's own BlockPadding pads nothing horizontally, and the 16px this
+	   replaced cost ~3 columns a line. */
+	--terminal-padding-x: 4px;
+	--terminal-padding-y: 0px;
 	padding: var(--terminal-padding-y) var(--terminal-padding-x);
 }
 
 .terminal-host {
 	height: 100%;
 	width: 100%;
+	background: var(--terminal-background);
 }
 
 /* The host carries tabindex=0 only while the alt-screen key handler is bound.
@@ -62,8 +67,10 @@
 .terminal-block {
 	background: var(--terminal-block-background);
 	color: var(--terminal-foreground);
-	border: 1px solid var(--terminal-block-border);
-	border-radius: 4px;
+	/* A rule between blocks, not a box around each one -- this mirrors Warp's
+	   draw_border_between_blocks (gated on show_block_dividers, default true).
+	   A full border plus a radius is what made the pane read as boxy. */
+	border-top: 1px solid var(--terminal-block-border);
 	font-family: var(--terminal-font-family);
 	font-size: var(--terminal-font-size);
 	font-weight: var(--terminal-font-weight);

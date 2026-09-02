@@ -216,30 +216,6 @@ vi.mock("../theme/skin-context", () => ({
 	}),
 }));
 
-vi.mock("../theme/bridge/xterm-theme", () => ({
-	skinToXtermTheme: () => ({
-		black: "#000",
-		red: "#f00",
-		green: "#0f0",
-		yellow: "#ff0",
-		blue: "#00f",
-		magenta: "#f0f",
-		cyan: "#0ff",
-		white: "#fff",
-		brightBlack: "#888",
-		brightRed: "#f88",
-		brightGreen: "#8f8",
-		brightYellow: "#ff8",
-		brightBlue: "#88f",
-		brightMagenta: "#f8f",
-		brightCyan: "#8ff",
-		brightWhite: "#fff",
-		foreground: "#fff",
-		background: "#000",
-		cursor: "#0ff",
-		selectionBackground: "rgba(0,0,0,0)",
-	}),
-}));
 
 vi.mock("./XtermTerminal", () => ({
 	XtermTerminal: () => {
@@ -358,6 +334,18 @@ describe("BlockTerminal", () => {
 		const setAgentTuiMode = vi.fn();
 		renderTerminal({ agentTui: false, coreOverrides: { setAgentTuiMode } });
 		await waitFor(() => expect(setAgentTuiMode).toHaveBeenCalledWith(false));
+	});
+
+	it("publishes the terminal background to :root so the surround tracks one colour", async () => {
+		// Everything behind the grid -- pane surface, retained xterm slot, overlays
+		// -- reads --terminal-background. Without this the surround stayed on the
+		// skin's own terminal colour and drifted from the terminal itself.
+		document.documentElement.style.removeProperty("--terminal-background");
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() =>
+			expect(document.documentElement.style.getPropertyValue("--terminal-background")).toBe("#000000"),
+		);
 	});
 
 	it("uses Warp's line-height ratio", async () => {

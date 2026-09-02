@@ -321,22 +321,28 @@ describe("TerminalSurface", () => {
 		expect(rows).toBeGreaterThan(0);
 	});
 
-	it("defines the surface padding the way Warp does", () => {
+	it("keeps the horizontal inset to a hairline, the way Warp does", () => {
+		// Warp's BlockPadding (warp/app/src/terminal/mod.rs) carries padding_top,
+		// command_padding_top, middle and bottom -- no horizontal field -- so its
+		// blocks run flush to the grid width. This previously asserted a 16px
+		// horizontal inset as "the way Warp does", which Warp has no equivalent of;
+		// 4px is a deliberate hairline so glyphs do not touch the pane edge.
 		const { surface } = renderSurface();
 		expect(surface).toHaveClass("terminal-surface");
-		expect(terminalStyles).toContain("--terminal-padding-x: 16px;");
-		expect(terminalStyles).toContain("--terminal-padding-y: 8px;");
+		expect(terminalStyles).toContain("--terminal-padding-x: 4px;");
+		expect(terminalStyles).toContain("--terminal-padding-y: 0px;");
 	});
 
 	it("resizes from the inner grid inside the Warp padding", () => {
+		// The host loses only the 4px inset on each side; nothing vertically.
 		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockReturnValue({ cellWidth: 8, cellHeight: 16 });
 		const { core, host, surface } = renderSurface();
 		Object.defineProperty(surface, "clientWidth", { value: 816, configurable: true });
 		Object.defineProperty(surface, "clientHeight", { value: 408, configurable: true });
 		const resize = vi.spyOn(core, "resize");
-		setHostSize(host, 784, 400);
-		expect(host.clientWidth).toBe(784);
-		expect(resize).toHaveBeenLastCalledWith(98, 25);
+		setHostSize(host, 808, 408);
+		expect(host.clientWidth).toBe(808);
+		expect(resize).toHaveBeenLastCalledWith(101, 25);
 		measure.mockRestore();
 	});
 

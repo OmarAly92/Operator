@@ -14,9 +14,6 @@ import {
 import { operatorBridge } from "../lib/bridge";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { openLinkInSystemBrowser } from "../lib/external-link-policy";
-import { useSkin } from "../theme/skin-context";
-import { skinToXtermTheme } from "../theme/bridge/xterm-theme";
-import type { Theme } from "../stores/ui-store";
 
 export type BlockTerminalClipboard = {
 	writeText: (text: string) => Promise<void>;
@@ -39,7 +36,6 @@ export type BlockTerminalProps = {
 	transport: BlockTerminalTransport;
 	sessionId: string;
 	historyBlocks: BlockTerminalHistoryBlock[];
-	theme?: Theme;
 	clipboard?: BlockTerminalClipboard;
 	ariaLabel?: string;
 	fontSize?: number;
@@ -59,41 +55,18 @@ const BEL = 0x07;
 // hatch for any regression we cannot fix in the grid.
 const handsAltScreenToXterm = import.meta.env.VITE_ALT_SCREEN_SURFACE === "xterm";
 
-function skinToTerminalTheme(skin: ReturnType<typeof useSkin>, theme: Theme | undefined): TerminalTheme {
-	if (!theme || !skin) return warpDarkTheme;
-	const xterm = skinToXtermTheme(skin, theme);
-	// The package's own palette is the fallback, never a literal: the skin is
-	// the single source of colour, and inlining one here would be a second
-	// source that drifts silently. Order is the ANSI 0-15 order the renderer
-	// indexes by style code.
-	const ansi = [
-		xterm.black,
-		xterm.red,
-		xterm.green,
-		xterm.yellow,
-		xterm.blue,
-		xterm.magenta,
-		xterm.cyan,
-		xterm.white,
-		xterm.brightBlack,
-		xterm.brightRed,
-		xterm.brightGreen,
-		xterm.brightYellow,
-		xterm.brightBlue,
-		xterm.brightMagenta,
-		xterm.brightCyan,
-		xterm.brightWhite,
-	].map((colour, index) => colour ?? warpDarkTheme.ansi[index]) as unknown as TerminalTheme["ansi"];
-	return {
-		ansi,
-		foreground: xterm.foreground ?? warpDarkTheme.foreground,
-		background: xterm.background ?? warpDarkTheme.background,
-		cursor: xterm.cursor ?? warpDarkTheme.cursor,
-		selection: xterm.selectionBackground ?? warpDarkTheme.selection,
-		blockBackground: xterm.background ?? warpDarkTheme.blockBackground,
-		blockBorder: xterm.foreground ?? warpDarkTheme.blockBorder,
-		blockHeaderForeground: xterm.foreground ?? warpDarkTheme.blockHeaderForeground,
-	};
+// The block terminal renders in Warp's own bundled dark theme, fixed, rather
+// than following the app skin (user decision 2026-09-02). DESIGN.md's carve-out
+// -- "the terminal keeps its own palette" -- is what permits this; the terminal
+// therefore stays Warp-dark in light mode too, which is intended.
+//
+// This replaces an earlier skin bridge whose comment argued the skin must be the
+// single source of colour. That still holds for the app chrome; the terminal is
+// now deliberately outside it, and warpDarkTheme is its single source. Keeping
+// the bridge was also what produced the white box around every block: it mapped
+// blockBorder to the terminal foreground, where Warp uses the foreground at 10%.
+function terminalTheme(): TerminalTheme {
+	return warpDarkTheme;
 }
 
 function isSourceIdByte(byte: number): boolean {
@@ -171,7 +144,6 @@ export function BlockTerminal({
 	transport,
 	sessionId,
 	historyBlocks,
-	theme,
 	clipboard,
 	ariaLabel,
 	fontSize,
@@ -179,7 +151,6 @@ export function BlockTerminal({
 	children,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
-	const skin = useSkin();
 	const coreRef = useRef<TerminalCore | null>(null);
 	const [core, setCore] = useState<TerminalCore | null>(null);
 	const [altScreenActive, setAltScreenActive] = useState(false);
@@ -325,10 +296,16 @@ export function BlockTerminal({
 		return () => transport.dispose?.();
 	}, [transport]);
 
-	const resolvedTheme = useMemo<TerminalTheme>(
-		() => skinToTerminalTheme(skin, theme),
-		[skin, theme],
-	);
+	const resolvedTheme = useMemo<TerminalTheme>(() => terminalTheme(), []);
+
+	// Publish the terminal's background to :root so everything behind and around
+	// the grid -- the pane surface, the retained xterm slot, the overlays -- paints
+	// the same colour. styles.css declares the property with a skin-owned fallback
+	// for first paint; this is what makes the terminal theme the one place to
+	// change it. Idempotent, so concurrent sessions cannot fight over it.
+	useEffect(() => {
+		document.documentElement.style.setProperty("--terminal-background", resolvedTheme.background);
+	}, [resolvedTheme.background]);
 
 	const host = useMemo<HostCapabilities>(
 		() => ({

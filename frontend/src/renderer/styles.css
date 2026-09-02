@@ -1422,16 +1422,26 @@ textarea,
 /* Not .terminal-surface: @operator/terminal-renderer-dom injects a rule for that
    name into document.head, and it owns the terminal-* namespace. Sharing it
    applied the package's own surface padding to this wrapper too, doubling the
-   inset, and forced height/width:100% onto the absolutely positioned overlays. */
+   inset (16px top instead of 8px) and forcing height/width:100% onto the
+   absolutely positioned overlays below. */
+/* Everything behind and around the grid tracks the terminal's own background, so
+   there is one colour to change. BlockTerminal publishes the live terminal theme
+   to this property on :root (see publishSurfaceColour); the declaration below is
+   the pre-paint fallback, and keeps the property derived from a skin-owned slot
+   so it stays themeable rather than a literal. */
+:root {
+	--terminal-background: var(--color-bg-terminal-opaque);
+}
+
 .terminal-pane-surface {
-	background-color: var(--color-bg-terminal-opaque);
+	background-color: var(--terminal-background);
 }
 
 .terminal-pane-surface .xterm,
 .terminal-pane-surface .xterm-viewport,
 .terminal-pane-surface .xterm-screen,
 .terminal-pane-surface .xterm-helpers {
-	background-color: var(--color-bg-terminal-opaque) !important;
+	background-color: var(--terminal-background) !important;
 }
 
 @keyframes status-pulse {
