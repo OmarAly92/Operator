@@ -1,8 +1,8 @@
 // attach.go - Attach: a loopback Stream over the B3 pty-host. No attach CLI is
 // spawned; this dials the session's loopback host and speaks the B1 framing
-// protocol directly. The host replays
-// the scrollback Snapshot as the first MsgTerminalData on connect, so a fresh
-// Read naturally yields the repaint first.
+// protocol directly. The host replays the scrollback Snapshot as the first
+// MsgTerminalData on connect, so a fresh Read naturally yields the repaint
+// first.
 package ptyhost
 
 import (
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 	"time"
 
@@ -31,23 +32,37 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 		return nil, fmt.Errorf("ptyhost: dial host for %q: %w", handle.ID, err)
 	}
 
-	pr, pw := io.Pipe()
-	s := &loopbackStream{conn: conn, pr: pr, pw: pw, applied: make(chan struct{}, 1)}
-	s.dataCond = sync.NewCond(&s.dataMu)
-
-	// Pump host frames: MsgTerminalData payloads are hard onto forwardData's
-	// queue, then to the pipe that Read drains. The first such frame is the
-	// scrollback snapshot, so the replay arrives before any live output.
+	// The birth resize is handshaken synchronously, on the bare conn, before
+	// any pipe exists. Returning without it lets the child's first output be
+	// parsed at the pre-attach grid, which renders GetOutput at the wrong
+	// width and height until the race resolves; doing it *after* starting the
+	// pump deadlocks instead, because the host always sends the scrollback
+	// snapshot before it answers, and a pump writing that snapshot into the
+	// unbuffered pipe blocks before it can ever parse the reply — nothing
+	// reads the pipe until Attach returns.
 	//
-	// Forwarding is decoupled from the pump loop (rather than pump writing to
-	// pw directly) because the pipe has no buffer: a Write blocks until Read
-	// drains it, and nothing reads the pipe until Attach returns the Stream.
-	// A pump that wrote directly would block on the scrollback snapshot —
-	// which the host always sends first, before it ever answers the resize
-	// status request below — and could never get to parsing that reply,
-	// deadlocking Attach for any session with existing scrollback.
-	go s.pump()
-	go s.forwardData()
+	// Frames that arrive during the handshake are handed to the pump to replay
+	// first, so ordering is unchanged. They are bounded: the snapshot is capped
+	// at MaxOutputLines, and live output can only accumulate for the one
+	// loopback round-trip the status reply takes.
+	var replay [][]byte
+	if rows > 0 && cols > 0 {
+		if replay, err = attachHandshake(conn, rows, cols); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+	}
+
+	pr, pw := io.Pipe()
+	s := &loopbackStream{conn: conn, pr: pr, pw: pw}
+
+	// Pump host frames: MsgTerminalData payloads go into the pipe that Read
+	// drains, writing directly so a Write blocks until Read drains it. That
+	// block is load-bearing back-pressure: it stops the pump reading the
+	// socket, which fills the host's send buffer, which stops the host reading
+	// the PTY, which finally blocks the child. Queueing here instead would let
+	// a stalled client accumulate the whole session in memory.
+	go s.pump(replay)
 
 	// ctx cancellation must terminate the stream (mirrors the unix/windows
 	// spawn paths closing the PTY on ctx.Done).
@@ -56,22 +71,59 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 		_ = s.Close()
 	}()
 
-	if rows > 0 && cols > 0 {
-		if err := s.Resize(rows, cols); err != nil {
-			_ = s.Close()
-			return nil, err
+	return s, nil
+}
+
+const attachResizeAckTimeout = 5 * time.Second
+
+// attachHandshake sends the birth resize and a status request, then reads the
+// conn directly until the host answers. The host dispatches one connection's
+// messages in order, so the reply proves the resize landed. Terminal data seen
+// while waiting (the scrollback snapshot, and anything the child emitted in the
+// same window) is returned for the pump to replay ahead of live output.
+func attachHandshake(conn net.Conn, rows, cols uint16) ([][]byte, error) {
+	if err := writeResize(conn, rows, cols); err != nil {
+		return nil, err
+	}
+	statusReq, err := EncodeMessage(MsgStatusReq, nil)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := conn.Write(statusReq); err != nil {
+		return nil, err
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(attachResizeAckTimeout)); err != nil {
+		return nil, err
+	}
+	// Clear the deadline before handing the conn to the pump, which must block
+	// indefinitely on an idle session.
+	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
+
+	var (
+		replay  [][]byte
+		applied bool
+	)
+	parser := NewMessageParser(func(msgType byte, payload []byte) {
+		switch msgType {
+		case MsgTerminalData:
+			// payload aliases buf, which the next Read overwrites.
+			replay = append(replay, append([]byte(nil), payload...))
+		case MsgStatusRes:
+			applied = true
 		}
-		// Wait for the host to have applied it before handing back the stream.
-		// The host dispatches one connection's messages in order, so a status
-		// reply proves the resize landed. Returning early instead lets the
-		// child's first output be parsed at the pre-attach grid, which renders
-		// GetOutput at the wrong width and height until the race resolves.
-		if err := s.awaitApplied(); err != nil {
-			_ = s.Close()
-			return nil, err
+	})
+	buf := make([]byte, 4096)
+	for !applied {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		if err != nil {
+			return nil, fmt.Errorf("ptyhost: host did not acknowledge the attach resize within %s: %w", attachResizeAckTimeout, err)
 		}
 	}
-	return s, nil
+	return replay, nil
 }
 
 // loopbackStream is a ports.Stream backed by a single loopback connection to the
@@ -82,72 +134,22 @@ type loopbackStream struct {
 	pr   *io.PipeReader
 	pw   *io.PipeWriter
 
-	// applied carries host status replies, which Attach uses to confirm its
-	// initial resize took effect. Buffered and best-effort: nothing after
-	// Attach reads it, so the pump never blocks on it.
-	applied chan struct{}
-
-	// dataQ/dataCond/dataDone queue MsgTerminalData payloads for forwardData,
-	// so pump's Read/parse loop never blocks on the pipe (see the comment on
-	// Attach above).
-	dataMu   sync.Mutex
-	dataCond *sync.Cond
-	dataQ    [][]byte
-	dataDone bool
-
 	closeOnce sync.Once
 }
 
-// enqueueData hands a MsgTerminalData payload to forwardData. payload aliases
-// pump's read buffer, so it must be copied before pump's next Read overwrites
-// it.
-func (s *loopbackStream) enqueueData(payload []byte) {
-	cp := append([]byte(nil), payload...)
-	s.dataMu.Lock()
-	s.dataQ = append(s.dataQ, cp)
-	s.dataCond.Signal()
-	s.dataMu.Unlock()
-}
-
-// forwardData drains the queue into the pipe, one batch at a time, blocking
-// on each Write exactly as a direct pump write would have — but without
-// blocking pump itself, which must stay free to parse the frames that follow
-// a not-yet-drained batch (chiefly the attach status reply).
-func (s *loopbackStream) forwardData() {
-	for {
-		s.dataMu.Lock()
-		for len(s.dataQ) == 0 && !s.dataDone {
-			s.dataCond.Wait()
-		}
-		if len(s.dataQ) == 0 {
-			s.dataMu.Unlock()
-			return
-		}
-		batch := s.dataQ[0]
-		s.dataQ = s.dataQ[1:]
-		s.dataMu.Unlock()
+// pump replays any frames the attach handshake consumed, then reads framed host
+// messages and writes MsgTerminalData payloads into the pipe. It closes the pipe
+// when the connection ends so Read returns EOF.
+func (s *loopbackStream) pump(replay [][]byte) {
+	for _, batch := range replay {
 		if _, err := s.pw.Write(batch); err != nil {
 			return
 		}
 	}
-}
-
-// pump reads framed host messages and writes MsgTerminalData payloads into the
-// pipe. It closes the pipe when the connection ends so Read returns EOF.
-func (s *loopbackStream) pump() {
 	parser := NewMessageParser(func(msgType byte, payload []byte) {
-		switch msgType {
-		case MsgTerminalData:
-			// Queued for forwardData rather than written here; see the comment
-			// on Attach for why. forwardData's Write still blocks until Read
-			// drains it, preserving back-pressure and order for the data
-			// itself — only pump's parsing is decoupled from that block.
-			s.enqueueData(payload)
-		case MsgStatusRes:
-			select {
-			case s.applied <- struct{}{}:
-			default:
-			}
+		if msgType == MsgTerminalData {
+			// Write blocks until Read drains, preserving back-pressure and order.
+			_, _ = s.pw.Write(payload)
 		}
 	})
 	buf := make([]byte, 4096)
@@ -176,51 +178,31 @@ func (s *loopbackStream) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-const attachResizeAckTimeout = 5 * time.Second
-
-// awaitApplied round-trips a status request so the caller knows every frame
-// written before it has been handled.
-func (s *loopbackStream) awaitApplied() error {
-	frame, err := EncodeMessage(MsgStatusReq, nil)
-	if err != nil {
-		return err
-	}
-	if _, err := s.conn.Write(frame); err != nil {
-		return err
-	}
-	select {
-	case <-s.applied:
-		return nil
-	case <-time.After(attachResizeAckTimeout):
-		return fmt.Errorf("ptyhost: host did not acknowledge the attach resize in %s", attachResizeAckTimeout)
-	}
+func (s *loopbackStream) Resize(rows, cols uint16) error {
+	return writeResize(s.conn, rows, cols)
 }
 
-func (s *loopbackStream) Resize(rows, cols uint16) error {
+// writeResize encodes and sends one MsgResize frame.
+func writeResize(w io.Writer, rows, cols uint16) error {
 	payload, _ := json.Marshal(ResizePayload{Cols: int(cols), Rows: int(rows)})
 	frame, err := EncodeMessage(MsgResize, payload) // small JSON payload, never overflows uint32
 	if err != nil {
 		return err
 	}
-	_, err = s.conn.Write(frame)
+	_, err = w.Write(frame)
 	return err
 }
 
-// Close closes the conn and the pipe, and wakes forwardData so it exits
-// instead of leaking on an empty, never-signaled queue. Idempotent. Closing
-// the conn unblocks pump's Read, which then closes the pipe-writer too;
-// closing both here makes Close safe to call directly (e.g. on ctx cancel)
-// without waiting for pump.
+// Close closes the conn and the pipe. Idempotent. Closing the conn unblocks
+// pump's Read, which then closes the pipe-writer too; closing both here makes
+// Close safe to call directly (e.g. on ctx cancel) without waiting for pump.
+// Closing the pipe also unblocks a pump parked on a Write nothing is draining.
 func (s *loopbackStream) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		err = s.conn.Close()
 		_ = s.pw.Close()
 		_ = s.pr.Close()
-		s.dataMu.Lock()
-		s.dataDone = true
-		s.dataCond.Broadcast()
-		s.dataMu.Unlock()
 	})
 	return err
 }

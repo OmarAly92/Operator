@@ -174,48 +174,51 @@ path. Recorded in
   output with no newlines is invisible to a fresh attach. Worth revisiting if a
   user ever reports a blank pane on attach under a long-running progress line.
 
-## 8. OPEN: the attach and capture queues are unbounded
+## 8. RESOLVED: the attach and capture queues are no longer unbounded
 
-**Status: known regression, not yet fixed. This is the highest-value item in
-this file.**
+**Fixed 2026-09-02.** Kept here because the reasoning is the reason the code
+looks the way it does.
 
-Fixing the attach deadlock (see below) replaced two direct, blocking writes with
-unbounded in-memory queues, and that silently removed end-to-end back-pressure
-from the terminal hot path.
+The attach deadlock fix had replaced two direct, blocking writes with unbounded
+in-memory queues, and that silently removed end-to-end back-pressure from the
+terminal hot path. The chain is load-bearing: `pump` writes each payload into an
+unbuffered `io.Pipe`, that write blocks until `Read` drains it, so `pump` stops
+reading the socket, the host's send buffer fills, the host stops reading the
+PTY, and the child finally blocks on write. A `yes`-style flood throttles itself
+all the way back to the process producing it. With an unbounded queue in the
+middle, `pump` never stops reading and a stalled client — a suspended laptop, a
+wedged renderer — would make the daemon accumulate the entire session in memory.
 
-The chain used to be load-bearing. `pump` wrote each payload straight into an
-unbuffered `io.Pipe`; that write blocked until `Read` drained it, so `pump`
-stopped reading the socket, the TCP receive buffer filled, the host's
-`broadcastLocked` blocked on `conn.Write`, `deliver` blocked behind it, the host
-stopped reading the PTY, and the child process finally blocked on write. A
-`yes`-style flood throttled itself all the way back to the process producing it.
+**Attach: the queue is gone entirely.** The birth resize is now handshaken
+synchronously on the bare conn, in `attachHandshake`, *before* any pipe exists —
+send `MsgResize`, send `MsgStatusReq`, then read the conn directly under a
+5s deadline until `MsgStatusRes` arrives. Frames seen while waiting (the
+scrollback snapshot, plus anything the child emitted in that window) are handed
+to `pump` to replay ahead of live output, so ordering is unchanged, and they are
+bounded: the snapshot is capped at `MaxOutputLines` and live output can only
+accumulate for one loopback round-trip. `pump` is back to a direct blocking
+write, so back-pressure is whole again, and `forwardData` no longer exists.
 
-Now `pump` never stops reading: it copies every `MsgTerminalData` payload onto
-`loopbackStream.dataQ`, which has no bound. A client that stalls — a suspended
-laptop, a slow network, a wedged renderer — makes the daemon accumulate the
-entire output stream in memory. `captureSink.write` has the identical shape one
-level up: `deliver()` no longer blocks, so a stalled `opr pane-capture`
-subprocess grows `captureSink.queue` without limit.
+Root cause worth recording: the deadlock was introduced earlier in the same
+cutover by `awaitApplied`, added to close a genuine resize race. It blocked
+`Attach` on a status reply that could only arrive after the snapshot had been
+drained by a reader that did not exist until `Attach` returned. Every real
+attach passes a birth size, so every session with prior output hung. The parity
+suite missed it because those sessions start with an empty ring.
 
-The comment on `pump` currently claims the design "still blocks until Read drains
-it, preserving back-pressure and order." Ordering is preserved. Back-pressure
-toward the *host* is not, and that was the half that bounded memory.
+**Capture: the queue stays, but bounded.** `captureSink.write` cannot simply go
+back to a direct write — a slow `opr pane-capture` (disk stall, segment
+rotation) would stall `pumpPTY` itself, freezing ring append and client
+broadcast for the whole session. So the forwarder goroutine remains, capped at
+`maxQueuedCaptureBytes` (four read buffers); past the cap `write` blocks. That
+absorbs a hiccup but makes a *stopped* consumer apply back-pressure at a fixed
+memory cost instead of growing without limit.
 
-**The fix is structural and cheaper than bounding the queues.** Do the
-resize/status round-trip synchronously on the connection *before* starting
-`pump`. The pipe is then not involved during the handshake at all, `pump` keeps
-its blocking direct write and full back-pressure, and the only thing needing a
-buffer is the ring snapshot — already capped at `MaxOutputLines = 1000`. That
-also removes the reason `forwardData` exists. `TestAttachWithScrollbackAndSizeDoesNotDeadlock`
-already covers the deadlock any replacement has to keep fixing; it was verified
-to fail without the current fix, so it is a real guard.
-
-Root cause worth recording: the deadlock itself was introduced earlier in the
-same cutover by `awaitApplied`, added to close a genuine resize race. It blocks
-`Attach` on a status reply that can only arrive after the snapshot has been
-drained by a reader that does not exist until `Attach` returns. Every real attach
-passes a birth size, so every session with prior output hung. The parity suite
-missed it because those sessions start with an empty ring.
+Both fixes are pinned by tests verified to fail without them:
+`TestAttachAppliesResizeBeforeReturning` fails if the handshake is reduced to a
+fire-and-forget resize, `TestAttachWithScrollbackAndSizeDoesNotDeadlock` fails if
+`pump` writes the snapshot before the handshake runs, and
+`TestCaptureQueueIsBounded` fails if the cap is removed.
 
 ## 9. Plan steps still unchecked
 

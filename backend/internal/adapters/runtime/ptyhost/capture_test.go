@@ -3,9 +3,11 @@ package ptyhost
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -155,3 +157,80 @@ func TestCaptureStateReportsAlternateScreen(t *testing.T) {
 		t.Fatal("AlternateOn = false after entering the alternate screen")
 	}
 }
+
+// TestCaptureQueueIsBounded pins the memory ceiling on a stalled capture
+// consumer. Decoupling write() from stdin keeps a slow consumer from stalling
+// the pump, but an unbounded queue would trade that stall for the daemon
+// buffering the entire session: a consumer that is stopped rather than slow
+// never drains, and deliver() would keep appending. Past the cap, write() must
+// block instead — back-pressure at a fixed cost.
+func TestCaptureQueueIsBounded(t *testing.T) {
+	block := make(chan struct{})
+	c := &captureSink{}
+	c.queueCond = sync.NewCond(&c.queueMu)
+	c.stdin = blockingWriteCloser{block}
+	c.cmd = &exec.Cmd{}
+	c.drained = make(chan struct{})
+	go c.forward(c.stdin, c.drained)
+	var unblockOnce sync.Once
+	unblock := func() { unblockOnce.Do(func() { close(block) }) }
+	defer unblock()
+
+	batch := make([]byte, readBufferSize)
+
+	// Fill past the cap. forward() parks on the first Write, so nothing drains.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		c.queueMu.Lock()
+		queued := c.queueBytes
+		c.queueMu.Unlock()
+		if queued >= maxQueuedCaptureBytes {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("queue never reached the cap; queued=%d cap=%d", queued, maxQueuedCaptureBytes)
+		}
+		c.write(batch)
+	}
+
+	// Further writes must park rather than grow the queue. forward() always
+	// holds one already-dequeued batch in flight, so a single write can still
+	// land; what must hold is that the queue never exceeds the cap and that a
+	// run of writes cannot all complete while the consumer is stopped.
+	done := make(chan struct{})
+	go func() {
+		for range 8 {
+			c.write(batch)
+		}
+		close(done)
+	}()
+
+	deadline = time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		c.queueMu.Lock()
+		queued := c.queueBytes
+		c.queueMu.Unlock()
+		if queued > maxQueuedCaptureBytes {
+			t.Fatalf("queue grew past the cap: queued=%d cap=%d", queued, maxQueuedCaptureBytes)
+		}
+		select {
+		case <-done:
+			t.Fatalf("8 writes all completed against a stopped consumer; the cap is not applying back-pressure")
+		default:
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Unblocking the consumer must let the parked writers through.
+	unblock()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parked writers never resumed after the consumer drained")
+	}
+}
+
+type blockingWriteCloser struct{ block chan struct{} }
+
+func (b blockingWriteCloser) Write(p []byte) (int, error) { <-b.block; return len(p), nil }
+func (b blockingWriteCloser) Close() error                { return nil }
