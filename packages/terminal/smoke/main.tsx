@@ -405,10 +405,13 @@ function PaddingApp(): ReactElement | null {
 				// command you run appears at the bottom edge and earlier output
 				// scrolls up off the top. Content shorter than the viewport must
 				// therefore sit against the bottom, not the top.
-				const rows = main.querySelectorAll<HTMLElement>("[data-terminal-row]");
-				const lastRow = rows[rows.length - 1];
+				// Measured against the block's own edge, not its last row: the block
+				// reserves a line of padding below its output, so the row legitimately
+				// stops short of the pane bottom.
+				const blocks = main.querySelectorAll<HTMLElement>("[data-terminal-block-id]");
+				const lastBlock = blocks[blocks.length - 1];
 				main.dataset.terminalPaddingBottomGap = String(
-					lastRow ? Math.round(hostRect.bottom - lastRow.getBoundingClientRect().bottom) : -1,
+					lastBlock ? Math.round(hostRect.bottom - lastBlock.getBoundingClientRect().bottom) : -1,
 				);
 				main.dataset.terminalPaddingHostHeight = String(Math.round(hostRect.height));
 				main.dataset.terminalPaddingSurfaceHeight = String(Math.round(surfaceRect.height));

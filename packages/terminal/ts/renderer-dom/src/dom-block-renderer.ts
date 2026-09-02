@@ -22,6 +22,7 @@ import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.j
 import { buildRowNode, type RowSource } from "./row-builder.js";
 import { selectionToBlockRange } from "./selection.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
+import { blockPaddingY } from "./block-metrics.js";
 import { styleVarEntries, styleVarsString } from "./style-vars.js";
 import { terminalStylesForDocument } from "./styles.js";
 import { warpDarkTheme } from "./theme-warp.js";
@@ -348,6 +349,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			rowHeight,
 			headerHeight: DEFAULT_HEADER_HEIGHT,
 			overscanRows: OVERSCAN_ROWS,
+			blockPaddingY: blockPaddingY(rowHeight),
 		});
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;

@@ -92,6 +92,12 @@
 .terminal-block {
 	background: var(--terminal-block-background);
 	color: var(--terminal-foreground);
+	/* Warp's BlockPadding in grid cells (app/src/settings/mod.rs,
+	   TerminalSpacing::normal: 1.1 lines above, 1 line below) and the terminal
+	   view's 16px horizontal inset (app/src/terminal/view.rs, PADDING_LEFT).
+	   block-metrics.ts carries the same numbers so the virtualiser reserves the
+	   height this reserves -- change them together. */
+	padding: calc(var(--terminal-line-height) * 1.1) 16px calc(var(--terminal-line-height) * 1);
 	/* A rule between blocks, not a box around each one -- this mirrors Warp's
 	   draw_border_between_blocks (gated on show_block_dividers, default true).
 	   A full border plus a radius is what made the pane read as boxy. */
@@ -111,7 +117,10 @@
 	align-items: center;
 	gap: 8px;
 	height: 24px;
-	padding: 0 8px;
+	/* The block's own padding supplies the inset now. Warp's middle padding is the
+	   0.5-line gap between the command and its output. */
+	padding: 0;
+	margin-bottom: calc(var(--terminal-line-height) * 0.5);
 	border-bottom: 1px solid var(--terminal-block-border);
 	color: var(--terminal-block-header-foreground);
 	font-size: 12px;

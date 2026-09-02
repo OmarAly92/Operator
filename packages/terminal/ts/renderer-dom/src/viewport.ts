@@ -1,4 +1,5 @@
 import type { BlockView } from "@operator/terminal-core";
+import { BLOCK_PADDING_BOTTOM_LINES, BLOCK_PADDING_TOP_LINES } from "./block-metrics.js";
 
 export type WindowInput = Readonly<{
 	blocks: readonly BlockView[];
@@ -7,6 +8,7 @@ export type WindowInput = Readonly<{
 	rowHeight: number;
 	headerHeight: number;
 	overscanRows: number;
+	blockPaddingY?: number;
 }>;
 
 export type RowWindow = Readonly<{ firstRow: number; lastRow: number }>;
@@ -33,8 +35,13 @@ function headerHeightFor(block: BlockView, headerHeight: number): number {
 	return block.source === "synthetic" ? 0 : headerHeight;
 }
 
-function blockHeight(block: BlockView, rowHeight: number, headerHeight: number): number {
-	return block.rowCount * rowHeight + headerHeightFor(block, headerHeight);
+function blockHeight(
+	block: BlockView,
+	rowHeight: number,
+	headerHeight: number,
+	paddingY: number,
+): number {
+	return block.rowCount * rowHeight + headerHeightFor(block, headerHeight) + paddingY;
 }
 
 function clampScrollTop(scrollTop: number, total: number, viewport: number): number {
@@ -45,11 +52,14 @@ function clampScrollTop(scrollTop: number, total: number, viewport: number): num
 
 export function computeWindow(input: WindowInput): WindowResult {
 	const { blocks, rowHeight, headerHeight, viewportHeight, overscanRows } = input;
+	const paddingY = input.blockPaddingY ?? 0;
+	const paddingTop =
+		paddingY * (BLOCK_PADDING_TOP_LINES / (BLOCK_PADDING_TOP_LINES + BLOCK_PADDING_BOTTOM_LINES));
 	if (blocks.length === 0) return EMPTY_WINDOW;
 
 	let total = 0;
 	for (let i = 0; i < blocks.length; i += 1) {
-		total += blockHeight(blocks[i], rowHeight, headerHeight);
+		total += blockHeight(blocks[i], rowHeight, headerHeight, paddingY);
 	}
 	const scrollTop = clampScrollTop(input.scrollTop, total, viewportHeight);
 
@@ -64,7 +74,7 @@ export function computeWindow(input: WindowInput): WindowResult {
 	for (let i = 0; i < blocks.length; i += 1) {
 		const block = blocks[i];
 		const blockStart = accumulated;
-		const blockEnd = accumulated + blockHeight(block, rowHeight, headerHeight);
+		const blockEnd = accumulated + blockHeight(block, rowHeight, headerHeight, paddingY);
 		const isIntersecting = blockEnd > firstRowInWindow && blockStart < lastRowInWindow;
 		if (isIntersecting) {
 			if (firstBlock === -1) {
@@ -73,7 +83,7 @@ export function computeWindow(input: WindowInput): WindowResult {
 			}
 			lastBlock = i;
 			if (block.rowCount * rowHeight > viewportHeight) {
-				const headerOffset = headerHeightFor(block, headerHeight);
+				const headerOffset = headerHeightFor(block, headerHeight) + paddingTop;
 				const firstVisibleRow = Math.max(
 					0,
 					Math.floor((firstRowInWindow - blockStart - headerOffset) / rowHeight) - overscanRows,
@@ -92,7 +102,7 @@ export function computeWindow(input: WindowInput): WindowResult {
 
 	if (firstBlock === -1) {
 		const last = blocks.length - 1;
-		const tail = blockHeight(blocks[last], rowHeight, headerHeight);
+		const tail = blockHeight(blocks[last], rowHeight, headerHeight, paddingY);
 		return Object.freeze({
 			firstBlock: last,
 			lastBlock: last,
@@ -104,7 +114,7 @@ export function computeWindow(input: WindowInput): WindowResult {
 	}
 
 	const trailing = total - accumulated;
-	const pinnedBlockIndex = computePinnedBlockIndex(blocks, rowHeight, headerHeight, scrollTop, viewportHeight);
+	const pinnedBlockIndex = computePinnedBlockIndex(blocks, rowHeight, headerHeight, paddingY, scrollTop, viewportHeight);
 	return Object.freeze({
 		firstBlock,
 		lastBlock,
@@ -119,6 +129,7 @@ function computePinnedBlockIndex(
 	blocks: readonly BlockView[],
 	rowHeight: number,
 	headerHeight: number,
+	paddingY: number,
 	scrollTop: number,
 	viewportHeight: number,
 ): number {
@@ -126,7 +137,7 @@ function computePinnedBlockIndex(
 	let accumulated = 0;
 	for (let i = 0; i < blocks.length; i += 1) {
 		const block = blocks[i];
-		const blockEnd = accumulated + blockHeight(block, rowHeight, headerHeight);
+		const blockEnd = accumulated + blockHeight(block, rowHeight, headerHeight, paddingY);
 		if (center < blockEnd) {
 			return i;
 		}
