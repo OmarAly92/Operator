@@ -248,19 +248,81 @@ describe("TerminalSurface mouse and wheel", () => {
 		expect(onSendRaw).not.toHaveBeenCalled();
 	});
 
-	it("reports focus and blur only when the program asked", () => {
+	it("reports real focus and blur only when the program asked", () => {
 		const onSendRaw = vi.fn();
 		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
 		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		surface.dispatchEvent(new FocusEvent("focus"));
+		const input = surface.querySelector("[data-terminal-input]") as HTMLTextAreaElement;
+		input.blur();
+		input.focus();
 		expect(onSendRaw).not.toHaveBeenCalled();
 		act(() => {
 			feed(core, "\x1b[?1004h");
 		});
-		surface.dispatchEvent(new FocusEvent("focus"));
-		expect(onSendRaw).toHaveBeenCalledWith("\x1b[I");
-		surface.dispatchEvent(new FocusEvent("blur"));
+		input.blur();
 		expect(onSendRaw).toHaveBeenCalledWith("\x1b[O");
+		input.focus();
+		expect(onSendRaw).toHaveBeenCalledWith("\x1b[I");
+	});
+
+	it("stays quiet when focus only moves between the host and its own input", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1004h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const input = surface.querySelector("[data-terminal-input]") as HTMLTextAreaElement;
+		onSendRaw.mockClear();
+		surface.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: surface }));
+		surface.dispatchEvent(new FocusEvent("focusin", { bubbles: true, relatedTarget: input }));
+		expect(onSendRaw).not.toHaveBeenCalled();
+	});
+
+	it("keeps the alt-screen keyboard on the composition input when a reported click lands", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h\x1b[?1006h\x1b[?1000h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const input = surface.querySelector("[data-terminal-input]") as HTMLTextAreaElement;
+		input.blur();
+		expect(document.activeElement).not.toBe(input);
+		const event = new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true });
+		surface.dispatchEvent(event);
+		expect(event.defaultPrevented).toBe(true);
+		expect(document.activeElement).toBe(input);
+	});
+
+	it("keeps the alt-screen keyboard on the composition input when nothing reports", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const input = surface.querySelector("[data-terminal-input]") as HTMLTextAreaElement;
+		surface.focus();
+		expect(document.activeElement).toBe(surface);
+		surface.dispatchEvent(new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true }));
+		expect(document.activeElement).toBe(input);
+		expect(onSendRaw).not.toHaveBeenCalled();
+	});
+
+	it("hands an alt-screen click back to the composition input, not the host", () => {
+		const { container, core } = renderSurface({});
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const input = surface.querySelector("[data-terminal-input]") as HTMLTextAreaElement;
+		surface.focus();
+		surface.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+		expect(document.activeElement).toBe(input);
 	});
 
 	it("reports a drag under 1002 and never takes the default on motion", () => {

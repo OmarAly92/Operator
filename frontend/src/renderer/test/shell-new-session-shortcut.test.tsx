@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CancelledError } from "@tanstack/react-query";
 import { Suspense, type ComponentType, type PropsWithChildren } from "react";
+import { createCompositionTarget } from "@operator/terminal-react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KeybindingOverrides } from "../../shared/shortcuts";
 import { useUiStore } from "../stores/ui-store";
@@ -608,25 +609,31 @@ describe("shell application shortcut subscriptions", () => {
 		});
 	});
 
-	it("focuses the active terminal without targeting an earlier parked xterm", async () => {
-		const parked = document.createElement("div");
-		parked.dataset.terminalActivationPhase = "parked";
-		parked.inert = true;
-		const parkedInput = document.createElement("textarea");
-		parkedInput.className = "xterm-helper-textarea";
-		parked.appendChild(parkedInput);
-		const active = document.createElement("div");
-		active.dataset.terminalActivationPhase = "visible";
-		const activeInput = document.createElement("textarea");
-		activeInput.className = "xterm-helper-textarea";
-		active.appendChild(activeInput);
-		document.body.append(parked, active);
+	it("focuses the visible terminal's own input, not an earlier parked surface", async () => {
+		const mountSurface = (phase: string) => {
+			const container = document.createElement("div");
+			container.dataset.terminalActivationPhase = phase;
+			const surface = document.createElement("div");
+			surface.className = "terminal-surface";
+			const editorHost = document.createElement("div");
+			editorHost.className = "terminal-editor-host";
+			surface.append(editorHost);
+			container.append(surface);
+			document.body.append(container);
+			return {
+				container,
+				input: createCompositionTarget({ parent: editorHost, onCommit: () => undefined }).element,
+			};
+		};
+		const parked = mountSurface("parked");
+		parked.container.inert = true;
+		const active = mountSurface("visible");
 		await renderShell();
 
 		act(() => shellMocks.state.focusTerminalListener?.());
 
-		expect(document.activeElement).toBe(activeInput);
-		parked.remove();
-		active.remove();
+		expect(document.activeElement).toBe(active.input);
+		parked.container.remove();
+		active.container.remove();
 	});
 });

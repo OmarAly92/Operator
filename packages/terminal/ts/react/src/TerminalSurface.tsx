@@ -5,6 +5,7 @@ import {
 	createCompositionTarget,
 	decodeBlocks,
 	defaultStrings,
+	type CompositionTarget,
 	type FontConfig,
 	type HostCapabilities,
 	type TerminalCore,
@@ -75,6 +76,7 @@ export function TerminalSurface({
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
+	const compositionRef = useRef<CompositionTarget | null>(null);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -227,10 +229,12 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener("keydown", onKeyDown);
 		blockHost.addEventListener("paste", onPaste);
+		compositionRef.current = composition;
 		composition.focus();
 		return () => {
 			blockHost.removeEventListener("keydown", onKeyDown);
 			blockHost.removeEventListener("paste", onPaste);
+			compositionRef.current = null;
 			composition.dispose();
 		};
 	}, [altActive, core, onSendRaw]);
@@ -284,6 +288,7 @@ export function TerminalSurface({
 			});
 		};
 		const onMouseDown = (event: MouseEvent) => {
+			compositionRef.current?.focus();
 			const button = buttonOf(event);
 			if (button === null) return;
 			const data = reportFor("press", button, event);
@@ -352,11 +357,17 @@ export function TerminalSurface({
 			const prefix = snapshot.applicationCursorKeys ? "\x1bO" : "\x1b[";
 			onSendRaw(`${prefix}${lines > 0 ? "B" : "A"}`.repeat(count));
 		};
-		const onFocus = () => {
+		const staysInside = (event: FocusEvent) => {
+			const related = event.relatedTarget;
+			return related instanceof Node && blockHost.contains(related);
+		};
+		const onFocusIn = (event: FocusEvent) => {
+			if (staysInside(event)) return;
 			if (!core.snapshot().focusReporting) return;
 			onSendRaw("\x1b[I");
 		};
-		const onBlur = () => {
+		const onFocusOut = (event: FocusEvent) => {
+			if (staysInside(event)) return;
 			if (!core.snapshot().focusReporting) return;
 			onSendRaw("\x1b[O");
 		};
@@ -364,15 +375,15 @@ export function TerminalSurface({
 		blockHost.addEventListener("mousemove", onMouseMove);
 		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
-		blockHost.addEventListener("focus", onFocus);
-		blockHost.addEventListener("blur", onBlur);
+		blockHost.addEventListener("focusin", onFocusIn);
+		blockHost.addEventListener("focusout", onFocusOut);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
 			window.removeEventListener("mouseup", onMouseUp);
 			blockHost.removeEventListener("wheel", onWheel);
-			blockHost.removeEventListener("focus", onFocus);
-			blockHost.removeEventListener("blur", onBlur);
+			blockHost.removeEventListener("focusin", onFocusIn);
+			blockHost.removeEventListener("focusout", onFocusOut);
 		};
 	}, [core, onSendRaw]);
 
@@ -394,9 +405,12 @@ export function TerminalSurface({
 	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
 	// not mousedown, so a drag-select is left alone.
 	const focusEditorFromHost = useCallback(() => {
-		if (altActive) return;
 		const selection = document.getSelection();
 		if (selection && !selection.isCollapsed) return;
+		if (altActive) {
+			compositionRef.current?.focus();
+			return;
+		}
 		editorRef.current?.focus();
 	}, [altActive]);
 

@@ -11,6 +11,7 @@ export function createCompositionTarget(opts: {
 }): CompositionTarget {
 	const element = document.createElement("textarea");
 	element.setAttribute("aria-hidden", "true");
+	element.setAttribute("data-terminal-input", "");
 	element.setAttribute("autocorrect", "off");
 	element.setAttribute("autocapitalize", "off");
 	element.setAttribute("spellcheck", "false");

@@ -27,6 +27,7 @@ import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { refreshDaemonStatus } from "../lib/daemon-status";
+import { activeTerminalInput } from "../lib/dom-selectors";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { ShellProvider } from "../lib/shell-context";
@@ -625,12 +626,7 @@ function ShellLayout() {
 	useEffect(
 		() =>
 			operatorBridge.app.onFocusTerminalShortcut(() => {
-				document
-					.querySelector<HTMLElement>(
-						"[data-terminal-activation-phase='visible'] .xterm-helper-textarea, " +
-							"[data-testid='session-terminal-slot'] .xterm-helper-textarea",
-					)
-					?.focus();
+				activeTerminalInput()?.focus();
 			}),
 		[],
 	);

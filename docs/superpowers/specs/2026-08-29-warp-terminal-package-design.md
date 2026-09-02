@@ -1899,8 +1899,8 @@ mouse tracking level on the snapshot), `aca616fc1`/`f64e0ae9d` (Task 5, mouse re
 `803abd3ac` (Task 6, focus/blur reporting), `f614dcbff`/`4b55ee4f1` (Task 7, composition
 target), `9e02f8d78`/`f72cdffa0`/`a65d35ec6` (Task 9, deleting xterm from the renderer).
 Task 8 (see deviation 10 below) produced no commits of its own. This section records
-the nine deviations the plan's authors anticipated needing to record, plus nine more
-that execution surfaced and the authors could not have anticipated — all eighteen listed
+the nine deviations the plan's authors anticipated needing to record, plus ten more
+that execution surfaced and the authors could not have anticipated — all nineteen listed
 under "Deviations from the plan" below.
 
 **Deliver:** §13.4 — both the shell-terminal tabs (§13.4.1) and xterm itself (§13.4.2),
@@ -1925,9 +1925,12 @@ why it belongs here rather than there.
   an agent CLI with no xterm in the tree, verified by running them, not by unit tests
   alone — **still outstanding**: no display session existed anywhere in this plan's
   execution, so this by-hand check has not actually been performed yet (Deviation 18);
-- bracketed paste and mouse reporting are covered by `vt-core` tests and by at least one
-  recorded vector each — the vectors live in `packages/terminal/protocol/alt-vectors`
-  and `redraw-vectors`, which is also what the pty-host parity harness replays;
+- bracketed paste and mouse reporting are covered by `vt-core` tests and by the
+  surface's own unit tests — **the recorded-vector half is not met**: neither
+  `packages/terminal/protocol/alt-vectors` nor `redraw-vectors` holds a paste or mouse
+  vector, and the vector format cannot express one, because a vector replays input
+  bytes and compares rendered rows while both of these are replies the terminal sends
+  back to the program (Deviation 19);
 - the full e2e suite passes, except `terminal-viewport-retention.spec.ts`'s 5 cases, a
   known, disclosed pre-existing gap traced to Tasks 5-8 and unrelated commits, not a
   Task 9 regression (Deviation 15).
@@ -2103,6 +2106,18 @@ this ordering implements.
     in `vim`, typing/pasting/CJK-IME-composing in an agent CLI, confirming the block
     list still scrolls natively with no program asking for tracking — before Phase 7
     can be considered fully accepted, not just code-complete.
+19. **No recorded vector covers bracketed paste or mouse reporting, and the vector
+    format cannot carry one.** `packages/terminal/protocol/alt-vectors` holds
+    `htop-frame`, `less-back`, `less-page` and `vim-open`; `redraw-vectors` holds no
+    input vectors either. A vector is `{inputBase64, expectedRows}` replayed by
+    `crates/vt-core/tests/alt_conformance.rs`: it feeds bytes to the terminal and
+    compares the painted grid. Bracketed paste and mouse reporting are the opposite
+    direction — bytes the terminal *emits* to the program — so a vector can record the
+    mode-set that arms them but never the report they produce. Both are covered instead
+    by `vt-core` unit tests and by `TerminalSurface.mouse.test.tsx` /
+    `TerminalSurface.paste.test.tsx`. Closing this honestly needs a second harness that
+    asserts on emitted bytes, which is out of phase 7's scope; the accept-when bullet
+    above is amended to disclose the gap rather than claim it met.
 
 ### Phase 8 — Mobile
 

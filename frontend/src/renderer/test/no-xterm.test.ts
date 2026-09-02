@@ -24,4 +24,8 @@ describe("xterm is gone from the renderer", () => {
 	it("has no @xterm import in renderer source", () => {
 		expect(filesMatching("@xterm", ["src/renderer", ":!src/renderer/test/no-xterm.test.ts"])).toBe("");
 	});
+
+	it("has no xterm class selector left behind in renderer source", () => {
+		expect(filesMatching("\\.xterm", ["src/renderer", ":!src/renderer/test/no-xterm.test.ts"])).toBe("");
+	});
 });

@@ -22,6 +22,20 @@ describe("TerminalSurface", () => {
 	});
 	afterAll(() => undefined);
 
+	it("exposes the surface root and the focusable input a host has to find", () => {
+		const { container, core } = renderSurface({});
+		const surface = container.querySelector(".terminal-surface") as HTMLElement;
+		expect(surface).not.toBeNull();
+		const editorInput = surface.querySelector(".terminal-editor-host [data-terminal-input]");
+		expect(editorInput).toBeInstanceOf(HTMLTextAreaElement);
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const altInput = surface.querySelector(".terminal-host [data-terminal-input]");
+		expect(altInput).toBeInstanceOf(HTMLTextAreaElement);
+		expect((altInput as HTMLElement).closest(".terminal-surface")).toBe(surface);
+	});
+
 	it("mounts a synthetic block, repaints on feed, and stops touching the host after unmount", async () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "first");
