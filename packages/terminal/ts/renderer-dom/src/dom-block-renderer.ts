@@ -15,6 +15,7 @@ import { renderAltSurface } from "./alt-surface.js";
 import { type BlockTextSource } from "./block-actions.js";
 import { populateBlock } from "./block-body.js";
 import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
+import { selectionFillRects } from "./selection-fill.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -74,6 +75,8 @@ export class DomBlockRenderer implements BlockRenderer {
 	private pinnedHeader: HTMLElement | null = null;
 	private blockNav: BlockNavHandle | null = null;
 	private jumpToBottom: JumpToBottom | null = null;
+	private selectionFill: HTMLElement | null = null;
+	private selectionUnsubscribe: (() => void) | null = null;
 
 	mount(container: HTMLElement, core: TerminalCore): void {
 		this.dispose();
@@ -96,6 +99,15 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.list = list;
 		this.leadingSpacer = leading;
 		this.trailingSpacer = trailing;
+		const fill = document.createElement("div");
+		fill.className = "terminal-selection-fill";
+		fill.setAttribute("aria-hidden", "true");
+		list.append(fill);
+		this.selectionFill = fill;
+		const onSelectionChange = () => this.paintSelectionFill();
+		document.addEventListener("selectionchange", onSelectionChange);
+		this.selectionUnsubscribe = () =>
+			document.removeEventListener("selectionchange", onSelectionChange);
 		const pinned = createPinnedHeaderElement();
 		container.insertBefore(pinned, list);
 		this.pinnedHeader = pinned;
@@ -195,6 +207,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.blockNav?.dispose(), (this.blockNav = null);
 		if (this.unsubscribe) this.unsubscribe(), (this.unsubscribe = null);
 		if (this.scrollUnsubscribe) this.scrollUnsubscribe(), (this.scrollUnsubscribe = null);
+		if (this.selectionUnsubscribe) this.selectionUnsubscribe(), (this.selectionUnsubscribe = null);
 		if (this.rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.rafHandle);
 		this.rafHandle = null;
 		this.paintListeners.clear();
@@ -210,6 +223,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.altRoot = null;
 		this.leadingSpacer = null;
 		this.trailingSpacer = null;
+		this.selectionFill = null;
 		this.pinnedHeader = null;
 		this.blockElements.clear();
 		this.measureNode = null;
@@ -403,6 +417,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 		const fragment = document.createDocumentFragment();
 		fragment.append(leading, ...orderedVisible, trailing);
+		if (this.selectionFill) fragment.append(this.selectionFill);
 		list.replaceChildren(fragment);
 
 		for (const [id, element] of this.blockElements) {
@@ -416,8 +431,31 @@ export class DomBlockRenderer implements BlockRenderer {
 		} else if (Math.abs(container.scrollTop - anchorScrollTop) > 0.5) {
 			container.scrollTop = anchorScrollTop;
 		}
+		this.paintSelectionFill();
 		if (paintedAt !== undefined) this.lastPaintAt = paintedAt;
 		this.notifyPainted();
+	}
+
+	// Rebuilt from the live selection rather than tracked, because the rows it
+	// measures are replaced on every repaint and by the row window as the pane
+	// scrolls.
+	private paintSelectionFill(): void {
+		const fill = this.selectionFill;
+		const list = this.list;
+		if (!fill || !list) return;
+		const doc = list.ownerDocument;
+		const rects = selectionFillRects(list, doc.getSelection ? doc.getSelection() : null);
+		const nodes: HTMLElement[] = [];
+		for (const rect of rects) {
+			const node = document.createElement("div");
+			node.className = "terminal-selection-fill-rect";
+			node.style.top = `${rect.top}px`;
+			node.style.left = `${rect.left}px`;
+			node.style.width = `${rect.width}px`;
+			node.style.height = `${rect.height}px`;
+			nodes.push(node);
+		}
+		fill.replaceChildren(...nodes);
 	}
 
 	private updateStickiness(): void {

@@ -185,7 +185,17 @@ export const terminalStyles = `@font-face {
 .terminal-alt-surface {
 	-webkit-user-select: text;
 	user-select: text;
-	cursor: text;
+}
+
+/* Warp paints the selection rectangle behind the glyph in a fixed periwinkle
+   (text_selection_color) and leaves the text its own colour; the browser's
+   default selection colour belongs to no theme. Only the background is set, so
+   the glyph reads exactly as it did unselected. */
+.terminal-block ::selection,
+.terminal-block::selection,
+.terminal-alt-surface ::selection,
+.terminal-alt-surface::selection {
+	background-color: var(--terminal-selection);
 }
 
 /* Chrome stays unselectable, so dragging across a block picks up its output and
@@ -199,6 +209,23 @@ export const terminalStyles = `@font-face {
 	-webkit-user-select: none;
 	user-select: none;
 	cursor: default;
+}
+
+/* The rows the browser under-fills, painted in the same colour so a multi-row
+   selection reads as one column the way Warp's does. Pointer-transparent and
+   never over a glyph -- each rectangle starts where the row's text ends. */
+.terminal-selection-fill {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+}
+
+.terminal-selection-fill-rect {
+	position: absolute;
+	background-color: var(--terminal-selection);
 }
 
 .terminal-row {

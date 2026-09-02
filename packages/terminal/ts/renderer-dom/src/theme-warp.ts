@@ -14,7 +14,10 @@ export const warpDarkTheme: TerminalTheme = {
 	foreground: "#ffffff",
 	background: "#050505",
 	cursor: "#19aad8",
-	selection: "rgb(25 170 216 / 0.35)",
+	// Warp's text_selection_color() is this fixed periwinkle at 40%, not an
+	// accent derivative -- it is the same in every Warp theme
+	// (warp_core/src/ui/theme/color.rs:300).
+	selection: "rgb(118 167 250 / 0.4)",
 	blockBackground: "#050505",
 	// Warp's outline(), which is what draw_border_between_blocks paints, is
 	// fg_overlay_2 -- the foreground at 10% opacity. It must stay translucent:

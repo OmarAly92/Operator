@@ -92,6 +92,28 @@ describe("terminalStyles", () => {
 		expect(chrome).toContain("user-select: none");
 	});
 
+	// Warp paints the selection in a fixed periwinkle of its own; the browser's
+	// default belongs to no theme and changes with the OS.
+	it("paints the selection in the terminal's own colour", () => {
+		expect(terminalStyles).toContain(".terminal-block ::selection");
+		expect(terminalStyles).toContain(".terminal-alt-surface ::selection");
+		const rule = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-block ::selection"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block ::selection")),
+		);
+		expect(rule).toContain("background-color: var(--terminal-selection)");
+		// Warp draws the rectangle behind the glyph and leaves its colour alone.
+		expect(rule).not.toMatch(/\n\tcolor:/);
+	});
+
+	it("gives the transcript no cursor of its own, the way Warp's grid has none", () => {
+		const block = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-block,"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")),
+		);
+		expect(block).not.toContain("cursor:");
+	});
+
 	it("resolves bundled font URLs before injecting the stylesheet", () => {
 		expect(terminalStylesForDocument()).not.toContain('url("./fonts/');
 	});
