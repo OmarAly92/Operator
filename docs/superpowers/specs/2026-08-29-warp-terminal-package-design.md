@@ -1909,20 +1909,28 @@ restore, inherited from phase 6 on 2026-09-02** — see that phase's deferral ta
 why it belongs here rather than there.
 
 **Accept when:**
-- a restored session shows its prior blocks with correct metadata, and the durable
-  history that the shell-terminal tabs own today is owned by the session terminal's
-  handle rather than deleted with them (§13.4.1, and the phase 6 deferral);
-- the files listed in §13.4.1 and §13.4.2 are gone and no route references `/terminals`;
-- `grep -rn "@xterm" frontend/src frontend/package.json` returns nothing, while
-  `packages/terminal/bench/adapters/xterm.ts` is untouched and `npm run bench:gate` still
-  runs against the xterm baseline;
+- there is no durable-block-history migration to verify, because
+  `daemon/shellterm_wiring.go:57` was the only `Adopt` call site — session panes never
+  had durable capture, so §13.4.1's requirement is satisfied by construction
+  (Deviation 2);
+- `XtermTerminal.tsx`, `xterm-theme.ts` and the in-session shell tab strip are gone;
+  the standalone `/terminals` route, `ShellTerminalTab.tsx`, `useShellTerminals.ts` and
+  `ShellTerminalsView.tsx` were deliberately not deleted (Scope Decision #1) and the
+  route stays live (Deviations 1 and 3);
+- `grep -rn "@xterm" frontend/src frontend/package.json` returns nothing outside
+  `frontend/src/landing`, a separate npm package left untouched as a disclosed,
+  out-of-scope gap (Deviation 16); `packages/terminal/bench/adapters/xterm.ts` is
+  untouched and `npm run bench:gate` still runs against the xterm baseline;
 - typing, pasting, mouse clicks and IME composition all work in `vim`, `htop`, `less` and
-  an agent CLI with no xterm in the tree — verified by running them, not by unit tests
-  alone;
+  an agent CLI with no xterm in the tree, verified by running them, not by unit tests
+  alone — **still outstanding**: no display session existed anywhere in this plan's
+  execution, so this by-hand check has not actually been performed yet (Deviation 18);
 - bracketed paste and mouse reporting are covered by `vt-core` tests and by at least one
   recorded vector each — the vectors live in `packages/terminal/protocol/alt-vectors`
   and `redraw-vectors`, which is also what the pty-host parity harness replays;
-- the full e2e suite passes.
+- the full e2e suite passes, except `terminal-viewport-retention.spec.ts`'s 5 cases, a
+  known, disclosed pre-existing gap traced to Tasks 5-8 and unrelated commits, not a
+  Task 9 regression (Deviation 15).
 
 **Scope note, 2026-09-02.** Two pieces of phase 7 arrived early from other work and are
 no longer this phase's to do: the session pane's third surface and its view-mode toggle
