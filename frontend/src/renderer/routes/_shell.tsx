@@ -794,7 +794,7 @@ function ShellLayout() {
 								"fixed top-0 left-0 z-chrome w-(--opr-sidebar-w,var(--size-sidebar-default)) transition-[height] duration-200 ease-out motion-reduce:transition-none",
 								isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
 							)}
-							style={trafficLightDragActive ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined}
+							data-tauri-drag-region={trafficLightDragActive ? "deep" : undefined}
 						/>
 					) : null}
 					{/* Fixed macOS titlebar cluster beside the traffic lights — rendered

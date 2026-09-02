@@ -433,6 +433,17 @@ fn build_main_window(
                 }
             }
         });
+    // macOS: the window is the app, the way Warp's is. The title bar becomes a
+    // transparent overlay over the content, the title text is hidden, and the
+    // traffic lights move to the position the renderer's chrome is measured
+    // against (--size-titlebar-cluster-left clears them at 72px).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(20.0, 12.0));
+    }
     if let Some(script) = audit_script {
         builder = builder.initialization_script(script);
     }

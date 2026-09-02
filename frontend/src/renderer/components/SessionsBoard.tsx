@@ -59,7 +59,7 @@ import { formatTokenCount } from "../lib/format-token-count";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
-import { isLinuxPlatform, isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
+import { isLinuxPlatform, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -83,9 +83,7 @@ function isArchivedSession(session: WorkspaceSession): boolean {
 	return session.isTerminated === true || session.status === "terminated";
 }
 
-const isMac = isMacPlatform();
-const dragStyle = isMac ? ({ WebkitAppRegion: "drag" } as React.CSSProperties) : undefined;
-const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined;
+const dragRegion = windowDragRegion();
 
 export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const { t } = useTranslation();
@@ -328,12 +326,12 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 			{!showWelcome && !showStartup && boardActionsInPanel && (boardLabel || actions) ? (
 				<div
 					className="center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-4"
-					style={dragStyle}
+					data-tauri-drag-region={dragRegion}
 				>
 					{boardLabel ? <span className={topbarProjectLabelClass}>{boardLabel}</span> : null}
 					<div className="min-w-0 flex-1" />
 					{actions ? (
-						<div className="flex shrink-0 items-center gap-2" style={noDragStyle}>
+						<div className="flex shrink-0 items-center gap-2">
 							{actions}
 						</div>
 					) : null}

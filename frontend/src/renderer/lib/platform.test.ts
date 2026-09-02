@@ -6,6 +6,7 @@ import {
 	usesFramedAppTopbar,
 	hidesShellTopbar,
 	usesBoardActionsInPanel,
+	windowDragRegion,
 } from "./platform";
 
 const originalPlatform = Object.getOwnPropertyDescriptor(window.navigator, "platform");
@@ -70,5 +71,22 @@ describe("renderer platform behavior", () => {
 		expect(usesFramedAppTopbar()).toBe(true);
 		expect(hidesShellTopbar()).toBe(false);
 		expect(usesBoardActionsInPanel()).toBe(false);
+	});
+});
+
+// macOS hides the native title bar, so the app's own chrome is the only thing
+// left to drag the window by. Losing the region means a window that cannot be
+// moved.
+describe("windowDragRegion", () => {
+	it("marks the chrome as a deep drag region on macOS", () => {
+		spoofPlatform("MacIntel", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+		expect(windowDragRegion()).toBe("deep");
+	});
+
+	it("leaves Windows and Linux to their own title bars", () => {
+		spoofPlatform("Win32");
+		expect(windowDragRegion()).toBeUndefined();
+		spoofPlatform("Linux x86_64");
+		expect(windowDragRegion()).toBeUndefined();
 	});
 });

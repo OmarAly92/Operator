@@ -5,7 +5,6 @@ import { useUiStore } from "../stores/ui-store";
 
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
-const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined;
 
 // Sidebar chrome cluster. It stays fixed while the sidebar expands, collapses,
 // or appears as a hover preview. macOS pins it beside the traffic lights; Linux
@@ -50,7 +49,6 @@ export function TitlebarNav({
 		<div
 			className={`fixed ${topClass} ${leftClass} z-titlebar flex ${heightClass} items-center gap-1`}
 			data-slot="titlebar-nav"
-			style={noDragStyle}
 		>
 			<TitlebarButton
 				label={isSidebarOpen ? t("shell.collapseSidebar") : t("shell.expandSidebar")}
@@ -89,7 +87,6 @@ function TitlebarButton({
 			disabled={disabled}
 			onClick={onClick}
 			onPointerEnter={onPointerEnter}
-			style={noDragStyle}
 			tabIndex={tabIndex}
 			title={title}
 			type="button"

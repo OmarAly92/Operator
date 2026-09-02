@@ -31,10 +31,20 @@ export function usesFramedAppTopbar(): boolean {
 }
 
 /**
+ * macOS has no native title bar to grab: the window is dragged by the app's own
+ * chrome, which is what `data-tauri-drag-region` marks. "deep" covers the whole
+ * subtree; Tauri excludes buttons, inputs, links and anything else clickable
+ * from the region itself, so controls inside a strip still take their clicks.
+ * Win/Linux keep their system title bars and want no region at all.
+ */
+export function windowDragRegion(): "deep" | undefined {
+	return isMacPlatform() ? "deep" : undefined;
+}
+
+/**
  * macOS only: shell does not mount ShellTopbar (full-height inset panel).
- * The sidebar toggle + history arrows live in the fixed TitlebarNav cluster and
- * board/session actions mount in-panel, with a traffic-light drag strip for
- * window movement. Win/Linux keep the ShellTopbar spanning the window, with the
+ * The sidebar toggle lives in the fixed TitlebarNav cluster and board/session
+ * actions mount in-panel, with a traffic-light drag strip for window movement. Win/Linux keep the ShellTopbar spanning the window, with the
  * sidebar hanging below it — two different ways of creating the top gap.
  *
  * Note: Linux previously returned true here (taking the macOS path), which was

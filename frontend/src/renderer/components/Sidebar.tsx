@@ -81,7 +81,6 @@ import { isMacPlatform } from "../lib/platform";
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
 // under its custom titlebar.
 const isMac = isMacPlatform();
-const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined;
 
 // Shared styling for the per-project hover action buttons (orchestrator, kebab):
 // a 20px square icon button that tints on hover, matching the old
@@ -456,7 +455,6 @@ export function Sidebar({
 				onDoubleClick={onResizeDoubleClick}
 				onPointerDown={onResizePointerDown}
 				side="right"
-				style={noDragStyle}
 			/>
 			<SidebarRail
 				aria-label={t("shell.expandSidebar")}

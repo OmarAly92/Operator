@@ -25,7 +25,7 @@ import { useUiStore } from "../stores/ui-store";
 import { OrchestratorIcon } from "./icons";
 import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { getAgentActivityView } from "../lib/session-presentation";
-import { isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
+import { isMacPlatform, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { StatusPill } from "./StatusPill";
@@ -34,8 +34,7 @@ import { SessionTerminationPopover } from "./SessionTerminationPopover";
 
 const isMac = isMacPlatform();
 const boardActionsInPanel = usesBoardActionsInPanel();
-const dragStyle = isMac ? ({ WebkitAppRegion: "drag" } as React.CSSProperties) : undefined;
-const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined;
+const dragRegion = windowDragRegion();
 
 // The one app topbar (.dashboard-app-header). On Win/Linux the shell mounts it
 // inside the framed center panel; when the platform hides the shell topbar
@@ -176,14 +175,15 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 		<LayoutGroup id="shell-topbar">
 		<motion.header
 			className={embedded ? "contents" : topbarHeaderClass}
-			style={embedded ? undefined : { ...dragStyle, paddingLeft }}
+			data-tauri-drag-region={embedded ? undefined : dragRegion}
+			style={embedded ? undefined : { paddingLeft }}
 		>
 			{!embedded ? (
 				<div className="flex min-w-0 items-center gap-3">
 				{isSessionRoute && isOrchestrator ? (
 					<div className="inline-flex min-w-0 items-center gap-2">
 						<div className="inline-flex min-w-0 items-center gap-1.5">
-							<ProjectBoardLabelButton label={projectLabel} onOpen={openBoard} style={noDragStyle} />
+							<ProjectBoardLabelButton label={projectLabel} onOpen={openBoard} />
 								<span aria-hidden="true" className="text-xs leading-none text-passive">
 									·
 								</span>
@@ -232,7 +232,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 						<TopbarButton
 							aria-label={t("shortcut.new-shell-terminal")}
 							onClick={requestNewShellTerminal}
-							style={noDragStyle}
 						>
 							<SquareTerminal className="size-icon-lg" aria-hidden="true" />
 							{t("shortcut.new-shell-terminal")}
@@ -241,7 +240,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 							aria-label={t("shell.newTask")}
 							disabled={isProjectRestarting}
 							onClick={openNewTask}
-							style={noDragStyle}
 							variant="accent"
 						>
 							<Plus className="size-icon-lg" aria-hidden="true" />
@@ -255,7 +253,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 							}
 							disabled={isSpawning || isProjectRestarting}
 							onClick={() => void openOrchestrator()}
-							style={noDragStyle}
 							variant="primary"
 						>
 							<OrchestratorIcon className="size-icon-lg" aria-hidden="true" />
@@ -281,7 +278,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 										className="mr-1"
 										label={projectLabel}
 										onOpen={openBoard}
-										style={noDragStyle}
 									/>
 								) : null}
 								<ProjectTerminationFeedback projectId={projectId} />
@@ -289,7 +285,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 									aria-label={t("shell.newTask")}
 									disabled={isProjectRestarting}
 									onClick={openNewTask}
-									style={noDragStyle}
 									variant="accent"
 								>
 									<Plus className="size-icon-lg" aria-hidden="true" />
@@ -321,7 +316,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 								aria-label={t("shell.openOrchestrator")}
 								disabled={isSpawning || isProjectRestarting}
 								onClick={() => void openOrchestrator()}
-								style={noDragStyle}
 								variant="primary"
 							>
 								<OrchestratorIcon className="size-icon-lg" aria-hidden="true" />
@@ -338,7 +332,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 								aria-label={isInspectorOpen ? t("shell.closeInspector") : t("shell.openInspector")}
 								aria-pressed={isInspectorOpen}
 								onClick={handleToggleInspector}
-								style={noDragStyle}
 								title={isInspectorOpen ? t("shell.closeInspectorTitle") : t("shell.openInspectorTitle")}
 								variant="icon"
 							>
@@ -352,7 +345,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 					</>
 				) : null}
 				{/* The bell always trails the actions row, on every platform. */}
-				<NotificationCenter style={noDragStyle} />
+				<NotificationCenter />
 			</div>
 		</motion.header>
 	</LayoutGroup>
@@ -365,12 +358,10 @@ const projectBoardLabelTransition = { type: "spring" as const, stiffness: 400, d
 function ProjectBoardLabelButton({
 	label,
 	onOpen,
-	style,
 	className,
 }: {
 	label: string;
 	onOpen: () => void;
-	style?: React.CSSProperties;
 	className?: string;
 }) {
 	const { t } = useTranslation();
@@ -379,7 +370,6 @@ function ProjectBoardLabelButton({
 			aria-label={t("shell.openKanban")}
 			className={cn("min-w-0 rounded-sm text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
 			onClick={onOpen}
-			style={style}
 			type="button"
 		>
 			<motion.span
@@ -420,7 +410,7 @@ export function TopbarKillButton({
 	};
 
 	return (
-		<div className="inline-flex items-center gap-1.5" style={noDragStyle}>
+		<div className="inline-flex items-center gap-1.5">
 			<SessionTerminationPopover
 				onConfirm={confirmKill}
 				onOpenChange={setConfirmOpen}
