@@ -187,15 +187,17 @@
 	user-select: text;
 }
 
-/* Warp paints the selection rectangle behind the glyph in a fixed periwinkle
-   (text_selection_color) and leaves the text its own colour; the browser's
-   default selection colour belongs to no theme. Only the background is set, so
-   the glyph reads exactly as it did unselected. */
+/* Warp paints the selection as a rectangle per row, the full height of the row
+   and out to its end, behind the glyph and leaving the text its own colour. The
+   browser instead paints the glyph box: narrower than the row and shorter than
+   the line, so rows come out ragged with gaps between them. The renderer paints
+   the row backgrounds itself (selection-fill.ts) and the browser's own highlight
+   is turned off so the two cannot disagree. */
 .terminal-block ::selection,
 .terminal-block::selection,
 .terminal-alt-surface ::selection,
 .terminal-alt-surface::selection {
-	background-color: var(--terminal-selection);
+	background-color: transparent;
 }
 
 /* Chrome stays unselectable, so dragging across a block picks up its output and
@@ -209,23 +211,6 @@
 	-webkit-user-select: none;
 	user-select: none;
 	cursor: default;
-}
-
-/* The rows the browser under-fills, painted in the same colour so a multi-row
-   selection reads as one column the way Warp's does. Pointer-transparent and
-   never over a glyph -- each rectangle starts where the row's text ends. */
-.terminal-selection-fill {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 0;
-	height: 0;
-	pointer-events: none;
-}
-
-.terminal-selection-fill-rect {
-	position: absolute;
-	background-color: var(--terminal-selection);
 }
 
 .terminal-row {

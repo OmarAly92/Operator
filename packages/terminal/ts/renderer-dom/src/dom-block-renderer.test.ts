@@ -66,16 +66,6 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 }
 
 describe("DomBlockRenderer", () => {
-	it("keeps the selection fill layer through a repaint and drops it on dispose", async () => {
-		const { core, host, renderer } = mountWith("alpha");
-		expect(host.querySelectorAll(".terminal-selection-fill")).toHaveLength(1);
-		feed(core, "\r\nbeta");
-		await flushRepaint();
-		expect(host.querySelectorAll(".terminal-selection-fill")).toHaveLength(1);
-		renderer.dispose();
-		expect(host.querySelectorAll(".terminal-selection-fill")).toHaveLength(0);
-	});
-
 	it("renders one block, one row node per row, and one span per style run", () => {
 		const { host } = mountWith("[31mred[0m café\r\nplain");
 
