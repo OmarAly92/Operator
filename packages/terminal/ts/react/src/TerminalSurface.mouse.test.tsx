@@ -1,6 +1,14 @@
 import { act, cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { feed, font, loadWasm, renderSurface } from "./surface-harness";
+import { feed, flushRepaint, font, loadWasm, renderSurface } from "./surface-harness";
+
+const cellWidth = font.sizePx * 0.6;
+const cellHeight = font.lineHeight * font.sizePx;
+
+function stubRect(element: Element, left: number, top: number): void {
+	element.getBoundingClientRect = () =>
+		({ left, top, right: left, bottom: top, width: 0, height: 0, x: left, y: top }) as DOMRect;
+}
 
 describe("TerminalSurface mouse and wheel", () => {
 	beforeAll(loadWasm);
@@ -192,6 +200,52 @@ describe("TerminalSurface mouse and wheel", () => {
 		surface.dispatchEvent(event);
 		expect(onSendRaw).not.toHaveBeenCalled();
 		expect(event.defaultPrevented).toBe(false);
+	});
+
+	it("measures a normal-buffer click from the painted row, not the host box", async () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1006h\x1b[?1000hone\r\ntwo\r\nthree\r\n");
+		});
+		await act(async () => {
+			await flushRepaint();
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		stubRect(surface, 0, 0);
+		const rows = [...container.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+		expect(rows.length).toBeGreaterThan(0);
+		for (const row of rows) {
+			stubRect(row, 40, 100 + Number(row.dataset.terminalRow) * cellHeight);
+		}
+		surface.dispatchEvent(
+			new MouseEvent("mousedown", {
+				button: 0,
+				clientX: 40 + 2.5 * cellWidth,
+				clientY: 100 + 1.5 * cellHeight,
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+		expect(onSendRaw).toHaveBeenCalledWith("\x1b[<0;3;2M");
+	});
+
+	it("clears the drag when the button is released outside the host", () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => {
+			feed(core, "\x1b[?1006h\x1b[?1002h");
+		});
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true }));
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^\x1b\[<0;\d+;\d+M$/);
+		document.body.dispatchEvent(
+			new MouseEvent("mouseup", { button: 0, bubbles: true, cancelable: true }),
+		);
+		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^\x1b\[<0;\d+;\d+m$/);
+		onSendRaw.mockClear();
+		surface.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true }));
+		expect(onSendRaw).not.toHaveBeenCalled();
 	});
 
 	it("reports a drag under 1002 and never takes the default on motion", () => {

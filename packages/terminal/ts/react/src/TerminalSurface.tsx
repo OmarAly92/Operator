@@ -7,6 +7,7 @@ import {
 	type FontConfig,
 	type HostCapabilities,
 	type TerminalCore,
+	type TerminalSnapshot,
 	type TerminalStrings,
 	type TerminalTheme,
 } from "@operator/terminal-core";
@@ -71,6 +72,8 @@ export function TerminalSurface({
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
 	const findBarRef = useRef<FindBar | null>(null);
+	const gridColumnsRef = useRef(0);
+	const gridRowsRef = useRef(0);
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -161,6 +164,8 @@ export function TerminalSurface({
 			const inset = renderer.blockContentInset();
 			const columns = Math.max(1, Math.floor((blockHost.clientWidth - inset.x) / cellWidth));
 			const rows = Math.max(1, Math.floor((blockHost.clientHeight - inset.y) / cellHeight));
+			gridColumnsRef.current = columns;
+			gridRowsRef.current = rows;
 			if (columns === lastColumns && rows === lastRows) {
 				return;
 			}
@@ -254,7 +259,10 @@ export function TerminalSurface({
 		const reportFor = (kind: MouseReportKind, button: 0 | 1 | 2, event: MouseEvent) => {
 			const snapshot = core.snapshot();
 			if (event.shiftKey || !snapshot.sgrMouse) return null;
-			const { column, row } = pointerCell(blockHost, event, rendererRef.current);
+			const { column, row } = pointerCell(blockHost, event, rendererRef.current, snapshot, {
+				columns: gridColumnsRef.current,
+				rows: gridRowsRef.current,
+			});
 			return encodeMouseReport({
 				kind,
 				button,
@@ -284,10 +292,13 @@ export function TerminalSurface({
 		const onMouseUp = (event: MouseEvent) => {
 			const button = buttonOf(event);
 			if (button === null) return;
+			const target = event.target;
+			const inside = target instanceof Node && blockHost.contains(target);
+			if (dragButton === null && !inside) return;
 			dragButton = null;
 			const data = reportFor("release", button, event);
 			if (data === null) return;
-			event.preventDefault();
+			if (inside) event.preventDefault();
 			onSendRaw(data);
 		};
 		const onWheel = (event: WheelEvent) => {
@@ -312,7 +323,10 @@ export function TerminalSurface({
 			if (lines === 0) return;
 			const count = Math.abs(lines);
 			if (reports) {
-				const { column, row } = pointerCell(blockHost, event, rendererRef.current);
+				const { column, row } = pointerCell(blockHost, event, rendererRef.current, snapshot, {
+					columns: gridColumnsRef.current,
+					rows: gridRowsRef.current,
+				});
 				const data = encodeMouseReport({
 					kind: lines > 0 ? "wheelDown" : "wheelUp",
 					button: 0,
@@ -331,12 +345,12 @@ export function TerminalSurface({
 		};
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
-		blockHost.addEventListener("mouseup", onMouseUp);
+		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
-			blockHost.removeEventListener("mouseup", onMouseUp);
+			window.removeEventListener("mouseup", onMouseUp);
 			blockHost.removeEventListener("wheel", onWheel);
 		};
 	}, [core, onSendRaw]);
@@ -395,13 +409,39 @@ function pointerCell(
 	host: HTMLElement,
 	event: MouseEvent | WheelEvent,
 	renderer: DomBlockRenderer | null,
+	snapshot: TerminalSnapshot,
+	grid: { columns: number; rows: number },
 ): { column: number; row: number } {
-	const metrics = renderer?.measure();
-	if (!metrics || metrics.cellWidth <= 0 || metrics.cellHeight <= 0) {
+	if (!renderer) {
+		return { column: 1, row: 1 };
+	}
+	const metrics = renderer.measure();
+	if (metrics.cellWidth <= 0 || metrics.cellHeight <= 0) {
 		return { column: 1, row: 1 };
 	}
 	const bounds = host.getBoundingClientRect();
-	const column = Math.floor((event.clientX - bounds.left) / metrics.cellWidth) + 1;
-	const row = Math.floor((event.clientY - bounds.top) / metrics.cellHeight) + 1;
-	return { column: Math.max(1, column), row: Math.max(1, row) };
+	const painted =
+		snapshot.altScreen === null
+			? renderer.rowOrigin(firstScreenRow(snapshot, grid.rows))
+			: null;
+	const left = painted?.left ?? bounds.left;
+	const top = painted?.top ?? bounds.top;
+	const column = Math.floor((event.clientX - left) / metrics.cellWidth) + 1;
+	const row = Math.floor((event.clientY - top) / metrics.cellHeight) + 1;
+	const columnLimit = snapshot.altScreen?.columns ?? grid.columns;
+	const rowLimit = snapshot.altScreen?.rows ?? grid.rows;
+	return {
+		column: clampCell(column, columnLimit),
+		row: clampCell(row, rowLimit),
+	};
+}
+
+function clampCell(value: number, limit: number): number {
+	if (limit > 0) return Math.min(Math.max(1, value), limit);
+	return Math.max(1, value);
+}
+
+function firstScreenRow(snapshot: TerminalSnapshot, rows: number): number {
+	if (rows <= 0) return 0;
+	return Math.max(0, snapshot.rows.length / 2 - rows);
 }
