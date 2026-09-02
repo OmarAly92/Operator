@@ -48,9 +48,16 @@ export class EditorBuffer {
 		this.caret = index;
 	}
 
+	// At the start of a line this deletes the newline above instead of doing
+	// nothing, so the line joins the one before it. Warp does the same
+	// (editor/view/mod.rs delete_all: "if the line was empty, move to the
+	// previous one"); stopping dead there is what reads as a broken key.
 	deleteToLineStart(): void {
 		const { column } = this.cursorLineColumn();
-		if (column === 0) return;
+		if (column === 0) {
+			this.deleteBackward();
+			return;
+		}
 		const start = this.caret - column;
 		this.value = this.value.slice(0, start) + this.value.slice(this.caret);
 		this.caret = start;

@@ -414,7 +414,10 @@ export class LineEditor {
 		if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "r") {
 			this.search.next();
 		} else if (event.key === "Backspace") {
-			this.search.backspace();
+			// The same chord kills the whole line in the buffer, so it clears the
+			// whole query here rather than one character of it.
+			if (event.metaKey) this.search.clearQuery();
+			else this.search.backspace();
 		} else if (event.key === "ArrowDown") {
 			this.search.next();
 		} else if (event.key === "ArrowUp") {

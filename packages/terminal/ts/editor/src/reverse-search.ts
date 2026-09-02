@@ -34,6 +34,12 @@ export class ReverseSearch {
 		this.refresh();
 	}
 
+	clearQuery(): void {
+		if (!this.active || this.query.length === 0) return;
+		this.query = "";
+		this.refresh();
+	}
+
 	next(): void {
 		if (!this.active || this.matches.length === 0) return;
 		this.index = Math.min(this.matches.length - 1, this.index + 1);

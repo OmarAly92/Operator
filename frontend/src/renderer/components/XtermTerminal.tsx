@@ -168,7 +168,16 @@ function consumeTerminalShortcut(event: KeyboardEvent): void {
 }
 
 function normalizedTerminalShortcut(event: KeyboardEvent): string | null {
-	if (event.metaKey || event.shiftKey) return null;
+	if (event.shiftKey) return null;
+
+	// The kill-line chords are the two Command bindings Warp gives a running
+	// command; every other Command chord stays with the application.
+	if (event.metaKey) {
+		if (event.ctrlKey || event.altKey) return null;
+		if (event.key === "Backspace") return "\x15";
+		if (event.key === "Delete") return "\x0b";
+		return null;
+	}
 
 	if (event.altKey && !event.ctrlKey) {
 		switch (event.key) {

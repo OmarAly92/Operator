@@ -40,6 +40,22 @@ describe("EditorBuffer", () => {
 		expect(buffer.cursor).toBe(4);
 	});
 
+	it("joins with the line above when there is nothing left to kill", () => {
+		const buffer = new EditorBuffer();
+		buffer.setText("one\ntwo", 4);
+		buffer.deleteToLineStart();
+		expect(buffer.text).toBe("onetwo");
+		expect(buffer.cursor).toBe(3);
+	});
+
+	it("stops at the start of the buffer", () => {
+		const buffer = new EditorBuffer();
+		buffer.setText("one", 0);
+		buffer.deleteToLineStart();
+		expect(buffer.text).toBe("one");
+		expect(buffer.cursor).toBe(0);
+	});
+
 	it("deletes forward to the end of the line only", () => {
 		const buffer = new EditorBuffer();
 		buffer.setText("one two\nthree", 3);

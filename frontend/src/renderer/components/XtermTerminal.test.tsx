@@ -596,6 +596,8 @@ describe("XtermTerminal", () => {
 		["Ctrl+Right", { key: "ArrowRight", ctrlKey: true }, "\x1b[1;5C"],
 		["Ctrl+Backspace", { key: "Backspace", ctrlKey: true }, "\x1b\x7f"],
 		["Ctrl+Delete", { key: "Delete", ctrlKey: true }, "\x1bd"],
+		["Cmd+Backspace", { key: "Backspace", metaKey: true }, "\x15"],
+		["Cmd+Delete", { key: "Delete", metaKey: true }, "\x0b"],
 	])("normalizes %s into terminal input", (_name, init, expected) => {
 		const onInput = vi.fn();
 		render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
