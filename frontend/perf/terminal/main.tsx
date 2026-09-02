@@ -9,7 +9,7 @@ import {
 	terminalHarnessConfiguration,
 	type TerminalAcknowledgement,
 } from "./harness";
-import { nativeTerminalRuntimeIdentity } from "./runtime";
+import { nativeTerminalRuntimeIdentity, startTauriDaemonForScenario } from "./runtime";
 import { createOrderedReporter } from "./reporter";
 
 type ReporterMessage =
@@ -112,6 +112,7 @@ function scenarioController(
 async function renderHarness() {
 	const parameters = new URLSearchParams(window.location.search);
 	const report = reporter(reporterUrl(parameters));
+	await startTauriDaemonForScenario(parameters.get("scenario"));
 	const webviewRuntimeVersion = await nativeTerminalRuntimeIdentity();
 	const root = createRoot(document.getElementById("root") as HTMLElement);
 	const onAcknowledgement = scenarioController(parameters, report, () => root.unmount());

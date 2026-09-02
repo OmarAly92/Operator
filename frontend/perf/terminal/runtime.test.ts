@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { nativeTerminalRuntimeIdentity } from "./runtime";
+import { nativeTerminalRuntimeIdentity, startTauriDaemonForScenario } from "./runtime";
 
 const invokeState = vi.hoisted(() => ({
 	invoke: vi.fn<(command: string) => Promise<unknown>>(),
@@ -26,4 +26,25 @@ describe("terminal benchmark native runtime identity", () => {
 
 		await expect(nativeTerminalRuntimeIdentity()).rejects.toThrow(/unavailable/);
 	});
+});
+
+describe("startTauriDaemonForScenario", () => {
+	beforeEach(() => invokeState.invoke.mockReset());
+
+	it.each(["cpu-time", "active-memory"])("starts the daemon for %s", async (scenario) => {
+		invokeState.invoke.mockResolvedValue(undefined);
+
+		await startTauriDaemonForScenario(scenario);
+
+		expect(invokeState.invoke).toHaveBeenCalledWith("daemon_start");
+	});
+
+	it.each(["vtebench", "large-output", "input-latency", "scroll-latency", "reconnect", "disposal", null])(
+		"does not start the daemon for %s",
+		async (scenario) => {
+			await startTauriDaemonForScenario(scenario);
+
+			expect(invokeState.invoke).not.toHaveBeenCalled();
+		},
+	);
 });
