@@ -40,11 +40,11 @@
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	/* A 4px hairline left and right so glyphs do not touch the pane edge, and
-	   nothing vertically -- the first and last lines sit flush against the pane.
-	   Warp's own BlockPadding pads nothing horizontally, and the 16px this
-	   replaced cost ~3 columns a line. */
-	--terminal-padding-x: 4px;
+	/* Nothing here: the whole horizontal inset is Warp's PADDING_LEFT
+	   (app/src/terminal/view.rs = 16), and .terminal-block carries it. A hairline
+	   here as well would stack on top of that and put the content at 20px.
+	   Vertically the pane stays flush; the block's own padding does that work. */
+	--terminal-padding-x: 0px;
 	--terminal-padding-y: 0px;
 	padding: var(--terminal-padding-y) var(--terminal-padding-x);
 }

@@ -34,12 +34,12 @@ describe("terminalStyles", () => {
 		expect(block).not.toMatch(/\n\tborder: /);
 	});
 
-	it("keeps the horizontal inset to a hairline", () => {
-		// Warp's BlockPadding is vertical-only, so blocks span the full width. We
-		// keep 4px so glyphs do not touch the pane edge; the old 16px stacked with
-		// the pane's own gutter for 24px of dead space, costing ~3 columns a line.
-		expect(terminalStyles).toContain("--terminal-padding-x: 4px");
-		// Flush top and bottom: only the sides are inset.
+	it("leaves the horizontal inset to the block, so it totals Warp's 16px", () => {
+		// Warp insets the terminal view by PADDING_LEFT = 16 and gives blocks no
+		// horizontal padding of their own. We do the reverse -- the block carries
+		// the 16px so the dividers still span the full pane -- but the content must
+		// land at the same 16px, which means nothing extra here.
+		expect(terminalStyles).toContain("--terminal-padding-x: 0px");
 		expect(terminalStyles).toContain("--terminal-padding-y: 0px");
 	});
 

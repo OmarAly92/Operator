@@ -360,10 +360,11 @@ async function main() {
 				bottomGap: Number(main?.dataset.terminalPaddingBottomGap ?? "-1"),
 			};
 		});
-		if (padding.left !== 4 || padding.right !== 4) {
+		if (padding.left !== 0 || padding.right !== 0) {
 			fail(
-				`the grid is not inset by the 4px hairline horizontally: left=${padding.left} right=${padding.right}. ` +
-					"Padding belongs on .terminal-surface, never on the measured .terminal-host.",
+				`the surface adds ${padding.left}px/${padding.right}px horizontally on top of the ` +
+					"block's own 16px, which is Warp's whole inset (PADDING_LEFT). The content " +
+					"must land at 16px from the pane edge, not more.",
 			);
 		}
 		if (padding.top !== 0) {

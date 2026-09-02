@@ -321,23 +321,26 @@ describe("TerminalSurface", () => {
 		expect(rows).toBeGreaterThan(0);
 	});
 
-	it("keeps the horizontal inset to a hairline, the way Warp does", () => {
+	it("leaves the whole horizontal inset to the block, the way Warp does", () => {
 		// Warp's BlockPadding (warp/app/src/terminal/mod.rs) carries padding_top,
-		// command_padding_top, middle and bottom -- no horizontal field -- so its
-		// blocks run flush to the grid width. This previously asserted a 16px
-		// horizontal inset as "the way Warp does", which Warp has no equivalent of;
-		// 4px is a deliberate hairline so glyphs do not touch the pane edge.
+		// command_padding_top, middle and bottom and has no horizontal field -- but
+		// that does not mean Warp runs flush to the edge, which is what an earlier
+		// reading of this concluded. The inset lives one level up, in the terminal
+		// view: app/src/terminal/view.rs, PADDING_LEFT = 16. .terminal-block carries
+		// that 16px, so the surface must add nothing or the content lands at 20.
 		const { surface } = renderSurface();
 		expect(surface).toHaveClass("terminal-surface");
-		expect(terminalStyles).toContain("--terminal-padding-x: 4px;");
+		expect(terminalStyles).toContain("--terminal-padding-x: 0px;");
 		expect(terminalStyles).toContain("--terminal-padding-y: 0px;");
 	});
 
-	it("resizes from the inner grid inside the Warp padding", () => {
-		// The host loses only the 4px inset on each side; nothing vertically.
+	it("resizes from the host box, not the surface around it", () => {
+		// Geometry comes from the host the renderer measures. The surface adds no
+		// inset of its own now, so the two agree; the point of the test is that the
+		// columns follow the host.
 		const measure = vi.spyOn(DomBlockRenderer.prototype, "measure").mockReturnValue({ cellWidth: 8, cellHeight: 16 });
 		const { core, host, surface } = renderSurface();
-		Object.defineProperty(surface, "clientWidth", { value: 816, configurable: true });
+		Object.defineProperty(surface, "clientWidth", { value: 808, configurable: true });
 		Object.defineProperty(surface, "clientHeight", { value: 408, configurable: true });
 		const resize = vi.spyOn(core, "resize");
 		setHostSize(host, 808, 408);
