@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
@@ -91,6 +92,9 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<MuxClient>(
       () => MuxClient(sl<ServerConfigStore>()),
+    );
+    sl.registerLazySingleton<ConversationEventBus>(
+      () => ConversationEventBus(sl<ChatEventDataSource>()),
     );
 
     sl.registerLazySingleton<GlobalKey<NavigatorState>>(() => GlobalKey<NavigatorState>());
