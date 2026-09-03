@@ -88,6 +88,28 @@ void main() {
     await cubit.close();
   });
 
+  test(
+    'subscribes from the CDC log head, never from the conversation snapshot',
+    () async {
+      final snapshot = _snapshot(latest: 400);
+      when(
+        () => repository.getConversationPage(any(), beforeSequence: any(named: 'beforeSequence')),
+      ).thenAnswer((_) async => Result.success(_ok(snapshot)));
+
+      final cubit = build();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(
+        () => eventDataSource.stream(
+          after: const CdcCursor.latest(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).called(1);
+      await cubit.close();
+    },
+  );
+
   test('a new event invalidates and re-fetches the snapshot', () async {
     final firstSnapshot = _snapshot(latest: 1);
     final secondSnapshot = _snapshot(latest: 3);

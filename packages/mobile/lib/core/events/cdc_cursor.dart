@@ -22,6 +22,12 @@ final class CdcCursorAt extends CdcCursor {
 
   @override
   Map<String, dynamic> get queryParameters => {'after': seq < 0 ? 0 : seq};
+
+  @override
+  bool operator ==(Object other) => other is CdcCursorAt && other.seq == seq;
+
+  @override
+  int get hashCode => seq.hashCode;
 }
 
 final class CdcCursorLatest extends CdcCursor {
@@ -29,4 +35,10 @@ final class CdcCursorLatest extends CdcCursor {
 
   @override
   Map<String, dynamic> get queryParameters => const {'fromLatest': true};
+
+  @override
+  bool operator ==(Object other) => other is CdcCursorLatest;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
 }

@@ -166,7 +166,7 @@ void main() {
     act: (cubit) => Future<void>.delayed(const Duration(milliseconds: 10)),
     verify: (_) => verify(
       () => repository.events(
-        after: any(named: 'after'),
+        after: const CdcCursor.at(41),
         cancelToken: any(named: 'cancelToken'),
       ),
     ).called(1),
