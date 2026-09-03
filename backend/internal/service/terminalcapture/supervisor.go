@@ -223,12 +223,15 @@ func (s *Supervisor) DrainAndDetach(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 
+	for _, e := range entries {
+		e.h.cancel()
+	}
+
 	var errs []error
 	for _, e := range entries {
 		if err := e.h.worker.Drain(ctx, false); err != nil {
 			errs = append(errs, err)
 		}
-		e.h.cancel()
 	}
 	for _, e := range entries {
 		select {
