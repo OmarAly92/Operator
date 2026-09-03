@@ -15,6 +15,7 @@ impl<A: Copy + Eq> AttributeMap<A> {
         }
     }
 
+    #[cfg(test)]
     pub fn tail(&self) -> A {
         self.tail
     }

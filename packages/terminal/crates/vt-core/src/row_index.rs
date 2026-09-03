@@ -28,6 +28,7 @@ impl RowIndex {
         }
     }
 
+    #[cfg(test)]
     pub fn open_start(&self) -> u64 {
         self.open_start
     }

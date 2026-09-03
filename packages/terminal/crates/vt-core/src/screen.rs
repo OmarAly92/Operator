@@ -30,6 +30,7 @@ pub const MAX_GRAPHEME_BYTES: usize = 256;
 pub struct Cell {
     pub ch: char,
     pub style: StyleCode,
+    #[allow(clippy::box_collection)]
     extra: Option<Box<String>>,
 }
 
@@ -324,7 +325,10 @@ impl ScreenGrid {
         if !self.pending_wrap {
             col = col.saturating_sub(1);
         }
-        if self.cell_ref(self.row, col).is_some_and(|cell| cell.ch == '\0') {
+        if self
+            .cell_ref(self.row, col)
+            .is_some_and(|cell| cell.ch == '\0')
+        {
             col = col.saturating_sub(1);
         }
         let row = self.row;

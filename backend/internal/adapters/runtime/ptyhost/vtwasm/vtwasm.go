@@ -50,7 +50,7 @@ func (p *Parser) Feed(bytes []byte) error {
 		return fmt.Errorf("vtwasm: alloc: %w", err)
 	}
 	ptr := uint32(res[0])
-	defer p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(ptr), uint64(len(bytes)))
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(ptr), uint64(len(bytes))) }()
 
 	if !p.module.Memory().Write(ptr, bytes) {
 		return fmt.Errorf("vtwasm: write %d bytes at %d out of range", len(bytes), ptr)
@@ -71,7 +71,7 @@ const (
 // the caller must never treat one as "fall back to the raw ring", or the
 // platform-divergence bug this parser exists to kill comes back through the
 // side door.
-func (p *Parser) RenderTail(lines int) (string, error) {
+func (p *Parser) renderWith(fn, label string, lines int) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
@@ -79,20 +79,20 @@ func (p *Parser) RenderTail(lines int) (string, error) {
 		return "", fmt.Errorf("vtwasm: alloc render buffer: %w", err)
 	}
 	out := uint32(res[0])
-	defer p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes)
+	defer func() { _, _ = p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes) }()
 
-	res, err = p.module.ExportedFunction("vt_render").
+	res, err = p.module.ExportedFunction(fn).
 		Call(p.ctx, uint64(p.handle), uint64(lines), uint64(out), renderBufferBytes)
 	if err != nil {
-		return "", fmt.Errorf("vtwasm: render: %w", err)
+		return "", fmt.Errorf("vtwasm: %s: %w", label, err)
 	}
 	switch written := uint32(res[0]); written {
 	case 0:
 		return "", nil
 	case renderErr:
-		return "", fmt.Errorf("vtwasm: render failed for handle %d", p.handle)
+		return "", fmt.Errorf("vtwasm: %s failed for handle %d", label, p.handle)
 	case renderTooBig:
-		return "", fmt.Errorf("vtwasm: rendered screen exceeds %d bytes", renderBufferBytes)
+		return "", fmt.Errorf("vtwasm: %s exceeds %d bytes", label, renderBufferBytes)
 	default:
 		bytes, ok := p.module.Memory().Read(out, written)
 		if !ok {
@@ -102,37 +102,14 @@ func (p *Parser) RenderTail(lines int) (string, error) {
 	}
 }
 
+func (p *Parser) RenderTail(lines int) (string, error) {
+	return p.renderWith("vt_render", "render", lines)
+}
+
 // RenderStyledTail mirrors RenderTail but calls vt_render_styled, which
 // re-emits SGR escapes at each style-run boundary.
 func (p *Parser) RenderStyledTail(lines int) (string, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	res, err := p.module.ExportedFunction("vt_alloc").Call(p.ctx, renderBufferBytes)
-	if err != nil {
-		return "", fmt.Errorf("vtwasm: alloc render buffer: %w", err)
-	}
-	out := uint32(res[0])
-	defer p.module.ExportedFunction("vt_free").Call(p.ctx, uint64(out), renderBufferBytes)
-
-	res, err = p.module.ExportedFunction("vt_render_styled").
-		Call(p.ctx, uint64(p.handle), uint64(lines), uint64(out), renderBufferBytes)
-	if err != nil {
-		return "", fmt.Errorf("vtwasm: render_styled: %w", err)
-	}
-	switch written := uint32(res[0]); written {
-	case 0:
-		return "", nil
-	case renderErr:
-		return "", fmt.Errorf("vtwasm: styled render failed for handle %d", p.handle)
-	case renderTooBig:
-		return "", fmt.Errorf("vtwasm: styled rendered screen exceeds %d bytes", renderBufferBytes)
-	default:
-		bytes, ok := p.module.Memory().Read(out, written)
-		if !ok {
-			return "", fmt.Errorf("vtwasm: read %d bytes at %d out of range", written, out)
-		}
-		return string(bytes), nil
-	}
+	return p.renderWith("vt_render_styled", "render_styled", lines)
 }
 
 func (p *Parser) Resize(cols, rows uint32) error {

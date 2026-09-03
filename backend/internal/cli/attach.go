@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -140,7 +141,7 @@ func attachPipe(conn net.Conn, in io.Reader, out io.Writer) error {
 	}()
 
 	cause := <-winner
-	if cause != nil && cause != io.EOF {
+	if cause != nil && !errors.Is(cause, io.EOF) {
 		return fmt.Errorf("attach: session ended: %w", cause)
 	}
 	return nil

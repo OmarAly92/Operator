@@ -293,14 +293,19 @@ impl WasmTerminalCore {
         self.core.set_agent_tui_mode(on);
     }
 
-    pub fn set_block_bookmarked(&mut self, id_lo: u32, id_hi: u32, bookmarked: bool) -> Result<(), JsError> {
+    pub fn set_block_bookmarked(
+        &mut self,
+        id_lo: u32,
+        id_hi: u32,
+        bookmarked: bool,
+    ) -> Result<(), JsError> {
         let id = ((id_hi as u64) << 32) | (id_lo as u64);
         self.core.set_block_bookmarked(id, bookmarked);
         self.refresh_after_mutation()
     }
 
     pub fn block_bookmarked(&self, id_lo: u32, id_hi: u32) -> bool {
-        let id = ((id_hi as u64) << 32) | (id_lo as u32 as u64);
+        let id = ((id_hi as u64) << 32) | (id_lo as u64);
         self.core.block_bookmarked(id)
     }
 
@@ -461,8 +466,7 @@ impl WasmTerminalCore {
 
     pub fn find_open(&mut self, query: &str, is_regex: bool) -> Result<u32, JsError> {
         let parsed = if is_regex {
-            FindQuery::regex(query)
-                .map_err(|err| JsError::new(&format!("invalid regex: {err}")))?
+            FindQuery::regex(query).map_err(|err| JsError::new(&format!("invalid regex: {err}")))?
         } else {
             FindQuery::literal(query)
         };
@@ -473,8 +477,7 @@ impl WasmTerminalCore {
             self.find_next_id = self.find_next_id.wrapping_add(1).max(1);
             id
         };
-        self.find_sessions
-            .insert(id, FindSession::open(parsed));
+        self.find_sessions.insert(id, FindSession::open(parsed));
         self.find_results.clear();
         Ok(id)
     }
@@ -496,9 +499,9 @@ impl WasmTerminalCore {
                 session.complete,
             )
         };
-        let mut cursor: FindCursor<'_> =
-            self.core
-                .find_with_state(query, next_block, results, complete);
+        let mut cursor: FindCursor<'_> = self
+            .core
+            .find_with_state(query, next_block, results, complete);
         cursor.step(budget);
         let (next_block, results, complete) = cursor.into_parts();
         let session = self

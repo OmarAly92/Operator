@@ -149,7 +149,9 @@ impl BlockTree {
     }
 
     pub fn set_meta(&mut self, id: BlockId, update: impl FnOnce(&mut BlockMeta)) -> bool {
-        let leaf_with_id = self.nodes.iter().position(|node| matches!(node, Node::Leaf { blocks, .. } if blocks.iter().any(|b| b.id == id)));
+        let leaf_with_id = self.nodes.iter().position(
+            |node| matches!(node, Node::Leaf { blocks, .. } if blocks.iter().any(|b| b.id == id)),
+        );
         if let Some(leaf_idx) = leaf_with_id {
             if let Node::Leaf { blocks, .. } = &mut self.nodes[leaf_idx] {
                 if let Some(block) = blocks.iter_mut().find(|b| b.id == id) {

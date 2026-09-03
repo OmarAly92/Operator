@@ -113,6 +113,22 @@ linters:
       # Spawning git/agent subprocesses with computed args is the point.
       - linters: [gosec]
         text: "G204"
+      # The pty-host talks to a wasm module and to a pty across fixed-width
+      # ABIs: wasm is a 32-bit address space, so a pointer returned as uint64
+      # cannot exceed uint32, and a terminal grid's cols/rows are bounded by the
+      # protocol long before they reach uint16/uint32. The conversions are the
+      # boundary, not a defect.
+      - path: internal/adapters/runtime/ptyhost/
+        linters: [gosec]
+        text: "G115"
+      # opr's own path, resolved from the run file, is what the host spawns.
+      - path: internal/adapters/runtime/ptyhost/host_pty_unix\.go
+        linters: [gosec]
+        text: "G702"
+      # Draining a channel is what the empty body is for.
+      - path: _test\.go
+        linters: [revive]
+        text: "empty-block"
 
 formatters:
   enable:

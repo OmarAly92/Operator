@@ -6,6 +6,7 @@
 package ptyhost
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"sync"
@@ -40,7 +41,8 @@ func (p *unixPTY) wait() {
 	err := p.cmd.Wait()
 	p.mu.Lock()
 	p.exited = true
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		p.exitCode = exitErr.ExitCode()
 	}
 	p.mu.Unlock()

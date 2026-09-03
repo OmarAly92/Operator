@@ -3841,7 +3841,7 @@ func normalizeNodeVersion(version string) string {
 // the binary can locate itself.
 func (m *Manager) validateRuntimePrerequisites() error {
 	if _, err := m.executable(); err != nil {
-		return fmt.Errorf("%w: cannot resolve the opr executable to launch a pty-host: %v", ports.ErrRuntimePrerequisite, err)
+		return fmt.Errorf("%w: cannot resolve the opr executable to launch a pty-host: %w", ports.ErrRuntimePrerequisite, err)
 	}
 	return nil
 }

@@ -32,9 +32,15 @@ fn tracking_follows_1000_1002_and_1003() {
         on.push(b'h');
         off.push(b'l');
         core.feed(&on);
-        assert!(core.mouse_tracking(), "mode {mode:?} did not enable tracking");
+        assert!(
+            core.mouse_tracking(),
+            "mode {mode:?} did not enable tracking"
+        );
         core.feed(&off);
-        assert!(!core.mouse_tracking(), "mode {mode:?} did not disable tracking");
+        assert!(
+            !core.mouse_tracking(),
+            "mode {mode:?} did not disable tracking"
+        );
     }
 }
 
@@ -51,7 +57,10 @@ fn the_real_tmux_attach_prologue_enables_both() {
     let mut core = core();
     core.feed(b"\x1b[?1049h\x1b[22;0;0t\x1b[?1h\x1b=\x1b[H\x1b[2J\x1b[?12l\x1b[?25h");
     core.feed(b"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1005l");
-    assert!(!core.sgr_mouse(), "tmux resets the modes before enabling them");
+    assert!(
+        !core.sgr_mouse(),
+        "tmux resets the modes before enabling them"
+    );
     core.feed(b"\x1b[?2004h\x1b[?2031h\x1b[?1006h\x1b[?1000h\x1b[?1002h");
     assert!(core.sgr_mouse());
     assert!(core.mouse_tracking());

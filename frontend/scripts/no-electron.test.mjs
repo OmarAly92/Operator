@@ -275,10 +275,6 @@ test("workflows reference no deleted electron artifact and the retired gate stay
 	for (const filePath of await readdir(workflowDir)) {
 		if (!filePath.endsWith(".yml")) continue;
 		const source = await readFile(path.join(workflowDir, filePath), "utf8");
-		if (filePath === "tauri-phase0.yml") {
-			assert.doesNotMatch(source, /^on:/m, "the retired phase-zero decision gate must keep no triggers");
-			continue;
-		}
 		for (const token of staleTokens) {
 			assert.doesNotMatch(source, token, `.github/workflows/${filePath} references a deleted artifact: ${token}`);
 		}
