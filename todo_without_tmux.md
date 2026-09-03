@@ -342,3 +342,67 @@ baseline change.
 **Do not** use this as a template for widening other gates. The 3.3ms is measurement
 noise and the 16.7ms is the cost of one named mechanism. If something later adds a second
 frame, remove the frame; do not widen the allowance.
+
+## 11. Open after Phase 7 and the harness restore (2026-09-03)
+
+Three things carried out of the 2026-09-02/03 work. None blocks anything; all
+three are cases where the only remaining proof needs a machine, not a change.
+
+### 11.1 Phase 7's GUI verification was never done
+
+Every by-hand step in
+`docs/superpowers/plans/2026-09-02-warp-terminal-phase-7-retirement.md` (Tasks 5,
+7 and 9) is still unchecked: the executor had no display session, and neither did
+the review. Phase 7's accept criteria require these explicitly — *"verified by
+running them, not by unit tests alone."*
+
+This is not paperwork. **Two of the three bugs found after the suites were green
+were ones only a GUI pass catches**, and one of them — every line-editor render
+blurring the composition textarea, so five keystrokes reached the editor once
+(`27ef88c90`) — was reported by the user as "so slow to write anything", not by
+any test.
+
+What to run:
+
+- **htop** — click a column header to sort, then move the mouse around *without*
+  clicking. The second half specifically exercises `4b5acf7ec`, which stopped
+  reporting buttonless motion to programs that never set `?1003`.
+- **vim** — drag to select.
+- **A plain shell, nothing running** — scroll, and confirm the block list still
+  scrolls natively. Pinned by a unit test, but that test is the only guard and the
+  benchmark cannot see it (§1).
+- **CJK through an IME** — the composition target moved in the DOM twice.
+- **The Focus Terminal shortcut**, and **Ctrl+K** reaching the shell rather than
+  opening the palette.
+
+### 11.2 `bench:terminal` has still never run
+
+The harness is rebuilt and the runner's dead path is gone, but nothing has driven
+it end to end. It now reaches `OPERATOR_BENCH_DAEMON_URL is required`, which is
+the expected next gate — progress, not proof. Until someone runs it against a live
+paired daemon and a desktop session, §2's `reconnect` fix and its
+`cpu-time`/`active-memory` fix stay unverified, exactly as §2 says.
+
+```bash
+npm --prefix frontend run bench:terminal -- --shell tauri --scenario reconnect
+```
+
+`--shell tauri` is mandatory; the electron path attaches to an already-running
+daemon and cannot select a runtime.
+
+**Decide one thing before recording numbers.** The harness mounts
+`createTerminalCore` + `DomBlockRenderer` directly rather than `TerminalSurface`,
+because at the time the surface did not expose `onPaint`. It does now
+(`8edaf829c`). Switching the harness would start including React and the line
+editor in the measurement, which is closer to what users run but moves the numbers
+and breaks comparability with anything recorded before. Switch and re-baseline in
+the same run, or stay put deliberately — but do not switch after recording.
+
+### 11.3 `find-500k` has never been measured
+
+`bench:gate` exits non-zero on it — `MISSING`, not `FAIL`. The scenario and its
+budget arrived with Phase 5; no result file in `packages/terminal/bench/results/`
+has ever carried it, so this predates the tmux work and is not the gate change in
+§10. It needs a real browser bench run. Until then `bench:gate` reports 4 of 5
+green and one unmeasured, which is worth knowing before reading a red exit code as
+a regression.
