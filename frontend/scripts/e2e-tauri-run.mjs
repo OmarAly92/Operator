@@ -33,10 +33,13 @@ export function resolveBinaryPath(frontendRootDir, platform, override) {
 	return path.join(frontendRootDir, "src-tauri", "target", "debug", `operator${suffix}`);
 }
 
+export function resolveWdioCli(frontendRootDir) {
+	return path.join(frontendRootDir, "node_modules", "@wdio", "cli", "bin", "wdio.js");
+}
+
 function main() {
 	const options = parseArgs(process.argv.slice(2));
 	const binaryPath = resolveBinaryPath(frontendRoot, process.platform, options.binary);
-	const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 	if (!options.skipBuild) {
 		const build = spawnSync(
@@ -44,6 +47,10 @@ function main() {
 			["build", "--manifest-path", path.join("src-tauri", "Cargo.toml"), "--features", "e2e"],
 			{ cwd: frontendRoot, stdio: "inherit" },
 		);
+		if (build.error) {
+			process.stderr.write(`e2e-tauri: could not run cargo: ${build.error.message}\n`);
+			process.exit(1);
+		}
 		if (build.status !== 0) {
 			process.stderr.write(`e2e-tauri: cargo build --features e2e failed\n`);
 			process.exit(build.status ?? 1);
@@ -54,12 +61,30 @@ function main() {
 		process.exit(1);
 	}
 
-	const run = spawnSync(npx, ["wdio", "run", "e2e-tauri/wdio.conf.ts", ...options.wdioArgs], {
-		cwd: frontendRoot,
-		stdio: "inherit",
-		env: { ...process.env, OPERATOR_TAURI_E2E_BINARY: binaryPath },
-	});
-	process.exit(run.status ?? 1);
+	const wdioCli = resolveWdioCli(frontendRoot);
+	if (!existsSync(wdioCli)) {
+		process.stderr.write(`e2e-tauri: no wdio cli at ${wdioCli}\n`);
+		process.exit(1);
+	}
+
+	const run = spawnSync(
+		process.execPath,
+		[wdioCli, "run", "e2e-tauri/wdio.conf.ts", ...options.wdioArgs],
+		{
+			cwd: frontendRoot,
+			stdio: "inherit",
+			env: { ...process.env, OPERATOR_TAURI_E2E_BINARY: binaryPath },
+		},
+	);
+	if (run.error) {
+		process.stderr.write(`e2e-tauri: could not run wdio: ${run.error.message}\n`);
+		process.exit(1);
+	}
+	if (run.status === null) {
+		process.stderr.write(`e2e-tauri: wdio terminated by signal ${run.signal ?? "unknown"}\n`);
+		process.exit(1);
+	}
+	process.exit(run.status);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
