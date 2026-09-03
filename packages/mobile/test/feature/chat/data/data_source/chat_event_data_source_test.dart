@@ -197,4 +197,42 @@ void main() {
     await chunks.close();
     await done.future.timeout(const Duration(seconds: 1));
   });
+
+  test('errors and closes when the server stops sending anything', () async {
+    final source = ChatEventDataSourceImp(
+      apiConsumer,
+      staleAfter: const Duration(milliseconds: 40),
+    );
+    final errors = <Object>[];
+    var closed = false;
+
+    source.stream(after: 0, cancelToken: CancelToken()).listen(
+      (_) {},
+      onError: errors.add,
+      onDone: () => closed = true,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(errors.single, isA<StaleEventStreamException>());
+    expect(closed, isTrue);
+  });
+
+  test('a keepalive comment frame keeps the stream alive', () async {
+    final source = ChatEventDataSourceImp(
+      apiConsumer,
+      staleAfter: const Duration(milliseconds: 60),
+    );
+    final errors = <Object>[];
+
+    source
+        .stream(after: 0, cancelToken: CancelToken())
+        .listen((_) {}, onError: errors.add);
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    chunks.add(bytes(': keepalive\n\n'));
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(errors, isEmpty);
+  });
 }
