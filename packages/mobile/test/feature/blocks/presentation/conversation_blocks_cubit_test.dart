@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
@@ -64,8 +65,11 @@ void main() {
     await events.close();
   });
 
-  ConversationBlocksCubit build() =>
-      ConversationBlocksCubit(repository, eventDataSource, 's-1');
+  ConversationBlocksCubit build() => ConversationBlocksCubit(
+    repository,
+    ConversationEventBus(eventDataSource),
+    's-1',
+  );
 
   test('initial fetch emits a Ready state with blocksFromConversation(snapshot)', () async {
     final snapshot = _snapshot(latest: 5);

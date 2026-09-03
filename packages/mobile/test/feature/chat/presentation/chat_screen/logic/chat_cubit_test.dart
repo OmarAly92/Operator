@@ -6,12 +6,12 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
-import 'package:operator_mobile/core/api/server_config.dart';
-import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -23,7 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
-class _MockConfigStore extends Mock implements ServerConfigStore {}
+class _MockChatEventDataSource extends Mock implements ChatEventDataSource {}
 
 class _FakeCancelToken extends Fake implements CancelToken {}
 
@@ -53,7 +53,7 @@ ConversationMessageModel message(String id, int sequence) =>
 
 void main() {
   late _MockChatRepository repository;
-  late _MockConfigStore configStore;
+  late _MockChatEventDataSource eventSource;
   late StreamController<ConversationEventModel> events;
   late Completer<_ConversationPageResult> olderPageResponse;
   late Completer<_ConversationPageResult> firstRefreshResponse;
@@ -86,7 +86,7 @@ void main() {
   ChatCubit build() => ChatCubit(
     repository,
     'w-1',
-    configStore: configStore,
+    eventBus: ConversationEventBus(eventSource),
     configPoll: const Duration(milliseconds: 20),
     skillPoll: const Duration(milliseconds: 40),
     workspacePoll: const Duration(milliseconds: 60),
@@ -97,18 +97,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     repository = _MockChatRepository();
-    configStore = _MockConfigStore();
+    eventSource = _MockChatEventDataSource();
     events = StreamController<ConversationEventModel>.broadcast();
-    when(() => configStore.current).thenReturn(
-      const ServerConfig(
-        host: 'opr.test',
-        httpPort: '3011',
-        secure: false,
-        password: 'secret12',
-      ),
-    );
     when(
-      () => repository.events(
+      () => eventSource.stream(
         after: any(named: 'after'),
         cancelToken: any(named: 'cancelToken'),
       ),
@@ -627,7 +619,7 @@ void main() {
       final cubit = ChatCubit(
         repository,
         'w-1',
-        configStore: configStore,
+        eventBus: ConversationEventBus(eventSource),
         skillPoll: const Duration(milliseconds: 10),
         workspacePoll: const Duration(milliseconds: 10),
       );

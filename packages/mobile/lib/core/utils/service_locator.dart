@@ -198,14 +198,13 @@ class ServiceLocator {
       (sessionId, _) => ChatCubit(
         sl<ChatRepository>(),
         sessionId,
-        configStore: sl<ServerConfigStore>(),
+        eventBus: sl<ConversationEventBus>(),
       ),
     );
 
     sl.registerLazySingleton<ChatRepository>(
       () => ChatRepositoryImp(
         sl<ChatRemoteDataSource>(),
-        sl<ChatEventDataSource>(),
         sl<NetworkStatus>(),
       ),
     );
@@ -250,7 +249,7 @@ class ServiceLocator {
     sl.registerFactoryParam<ConversationBlocksCubit, String, void>(
       (sessionId, _) => ConversationBlocksCubit(
         sl<ChatRepository>(),
-        sl<ChatEventDataSource>(),
+        sl<ConversationEventBus>(),
         sessionId,
       ),
     );

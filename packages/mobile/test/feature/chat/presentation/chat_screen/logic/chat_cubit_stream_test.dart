@@ -5,53 +5,39 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
-import 'package:operator_mobile/core/api/server_config.dart';
-import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/events/cdc_cursor.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
-class _MockConfigStore extends Mock implements ServerConfigStore {}
+class _MockChatEventDataSource extends Mock implements ChatEventDataSource {}
 
 class _FakeCancelToken extends Fake implements CancelToken {}
 
 void main() {
   late _MockChatRepository repository;
-  late _MockConfigStore configStore;
+  late _MockChatEventDataSource eventSource;
   late StreamController<ConversationEventModel> events;
-
-  const config = ServerConfig(
-    host: 'opr.test',
-    httpPort: '3011',
-    secure: false,
-    password: 'secret12',
-  );
 
   setUpAll(() {
     registerFallbackValue(_FakeCancelToken());
     registerFallbackValue(const CdcCursor.latest());
   });
 
-  setUp(() async {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    SharedPreferences.setMockInitialValues({});
-    await CacheHelper.init();
-
+  setUp(() {
     repository = _MockChatRepository();
-    configStore = _MockConfigStore();
+    eventSource = _MockChatEventDataSource();
     events = StreamController<ConversationEventModel>.broadcast();
 
-    when(() => configStore.current).thenReturn(config);
     when(
       () => repository.getConversationPage('w-1', beforeSequence: null),
     ).thenAnswer(
@@ -81,7 +67,7 @@ void main() {
       (_) async => Result.success(GlobalResponse(data: WorkspacePathsModel())),
     );
     when(
-      () => repository.events(
+      () => eventSource.stream(
         after: any(named: 'after'),
         cancelToken: any(named: 'cancelToken'),
       ),
@@ -93,10 +79,12 @@ void main() {
   ChatCubit build() => ChatCubit(
     repository,
     'w-1',
-    configStore: configStore,
+    eventBus: ConversationEventBus(
+      eventSource,
+      reconnectMin: const Duration(milliseconds: 10),
+      reconnectMax: const Duration(milliseconds: 20),
+    ),
     refreshDebounce: const Duration(milliseconds: 10),
-    reconnectMin: const Duration(milliseconds: 10),
-    reconnectMax: const Duration(milliseconds: 20),
   );
 
   blocTest<ChatCubit, ChatState>(
@@ -141,38 +129,6 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
-    'persists the cursor so a reconnect resumes where it stopped',
-    build: build,
-    act: (cubit) async {
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      events.add(const ConversationEventModel(seq: 12, sessionId: 'w-1'));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    },
-    verify: (_) => expect(
-      CacheHelper.get(CacheKeys.chatEventCursor('opr.test', '3011', 'w-1')),
-      12,
-    ),
-  );
-
-  blocTest<ChatCubit, ChatState>(
-    'resumes the stream from the persisted cursor on a later mount',
-    setUp: () async {
-      await CacheHelper.save(
-        CacheKeys.chatEventCursor('opr.test', '3011', 'w-1'),
-        41,
-      );
-    },
-    build: build,
-    act: (cubit) => Future<void>.delayed(const Duration(milliseconds: 10)),
-    verify: (_) => verify(
-      () => repository.events(
-        after: const CdcCursor.at(41),
-        cancelToken: any(named: 'cancelToken'),
-      ),
-    ).called(1),
-  );
-
-  blocTest<ChatCubit, ChatState>(
     'reconnects after the stream drops',
     build: build,
     act: (cubit) async {
@@ -183,7 +139,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 60));
     },
     verify: (_) => verify(
-      () => repository.events(
+      () => eventSource.stream(
         after: any(named: 'after'),
         cancelToken: any(named: 'cancelToken'),
       ),
@@ -196,10 +152,11 @@ void main() {
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
       await cubit.onResumed();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
     },
     verify: (_) => verify(
       () => repository.getConversationPage('w-1', beforeSequence: null),
-    ).called(2),
+    ).called(3),
   );
 
   blocTest<ChatCubit, ChatState>(
@@ -220,7 +177,7 @@ void main() {
     },
     act: (cubit) => Future<void>.delayed(const Duration(milliseconds: 40)),
     verify: (_) => verifyNever(
-      () => repository.events(
+      () => eventSource.stream(
         after: any(named: 'after'),
         cancelToken: any(named: 'cancelToken'),
       ),
@@ -228,7 +185,7 @@ void main() {
   );
 
   blocTest<ChatCubit, ChatState>(
-    'stops an active stream when the conversation becomes permanently unavailable',
+    'stops refreshing when the conversation becomes permanently unavailable',
     build: () {
       var calls = 0;
       when(
@@ -267,10 +224,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 60));
     },
     verify: (_) => verify(
-      () => repository.events(
-        after: any(named: 'after'),
-        cancelToken: any(named: 'cancelToken'),
-      ),
-    ).called(1),
+      () => repository.getConversationPage('w-1', beforeSequence: null),
+    ).called(2),
   );
 }

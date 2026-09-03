@@ -1,14 +1,12 @@
 // ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
@@ -19,14 +17,10 @@ import 'package:operator_mobile/feature/chat/logic/conversation_errors.dart';
 class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   ConversationBlocksCubit(
     this._repository,
-    this._eventDataSource,
+    this._eventBus,
     this.sessionId, {
     Duration refreshDebounce = const Duration(milliseconds: 120),
-    Duration reconnectMin = const Duration(seconds: 1),
-    Duration reconnectMax = const Duration(seconds: 15),
   }) : _refreshDebounce = refreshDebounce,
-       _reconnectMin = reconnectMin,
-       _reconnectMax = reconnectMax,
        super(const ConversationBlocksInitialState()) {
     unawaited(_initialFetch());
   }
@@ -34,24 +28,19 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   final ChatRepository _repository;
 
   ChatRepository get repository => _repository;
-  final ChatEventDataSource _eventDataSource;
+  final ConversationEventBus _eventBus;
   final String sessionId;
   final Duration _refreshDebounce;
-  final Duration _reconnectMin;
-  final Duration _reconnectMax;
 
   ConversationSnapshotModel? get snapshot => _snapshot;
 
-  CancelToken? _eventCancel;
   StreamSubscription<ConversationEventModel>? _eventSub;
+  StreamSubscription<void>? _reconnectSub;
   ConversationSnapshotModel? _snapshot;
   int _revision = 0;
-  int? _cdcSeq;
   bool _disposed = false;
 
   Timer? _refreshTimer;
-  Timer? _reconnectTimer;
-  Duration _reconnectDelay = Duration.zero;
   int _fetchGeneration = 0;
 
   Future<void> _initialFetch() async {
@@ -237,58 +226,22 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
 
   void _subscribe() {
     if (_disposed) return;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    unawaited(_eventSub?.cancel());
-    _eventCancel?.cancel('resubscribing');
-
-    final cancelToken = CancelToken();
-    _eventCancel = cancelToken;
-    _eventSub = _eventDataSource
-        .stream(after: _streamCursor(), cancelToken: cancelToken)
-        .listen(
-          _onEvent,
-          onError: (Object _, StackTrace _) => _scheduleReconnect(),
-          onDone: _scheduleReconnect,
-          cancelOnError: true,
-        );
+    _eventBus.connect();
+    _eventSub ??= _eventBus.eventsFor(sessionId).listen(_onEvent);
+    // Events emitted while the stream was down were never delivered; refetch
+    // once on every (re)connection to cover the gap.
+    _reconnectSub ??= _eventBus.reconnects.listen((_) => unawaited(_fetch()));
   }
 
-  void _scheduleReconnect() {
+  void _onEvent(ConversationEventModel _) {
     if (_disposed) return;
-    unawaited(_eventSub?.cancel());
-    _eventSub = null;
-    if (_reconnectDelay == Duration.zero) _reconnectDelay = _reconnectMin;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(_reconnectDelay, _subscribe);
-    final next = _reconnectDelay * 2;
-    _reconnectDelay = next > _reconnectMax ? _reconnectMax : next;
-  }
-
-  // The conversation's latestSequence is not a CDC sequence. This cubit refetches
-  // the whole snapshot on every event, so it wants live events and no replay;
-  // after a reconnect it resumes from the last CDC seq it actually saw.
-  CdcCursor _streamCursor() =>
-      _cdcSeq == null ? const CdcCursor.latest() : CdcCursor.at(_cdcSeq!);
-
-  void _onEvent(ConversationEventModel event) {
-    if (_disposed) return;
-    _reconnectDelay = _reconnectMin;
-    final seq = event.seq;
-    if (_cdcSeq == null || seq > _cdcSeq!) _cdcSeq = seq;
-    if (event.sessionId != sessionId || !event.touchesConversation) return;
-
     _refreshTimer?.cancel();
     _refreshTimer = Timer(_refreshDebounce, () => unawaited(_fetch()));
   }
 
-  // Both platforms suspend the isolate while backgrounded and the socket does
-  // not survive it, so resume must rebuild the stream, not only refetch. No
-  // loading flag: the timeline already has content worth keeping on screen.
   Future<void> onResumed() async {
     if (_disposed) return;
-    _reconnectDelay = _reconnectMin;
-    _subscribe();
+    _eventBus.onResumed();
     await _fetch();
   }
 
@@ -338,12 +291,10 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     _disposed = true;
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
     unawaited(_eventSub?.cancel());
     _eventSub = null;
-    _eventCancel?.cancel('cubit closed');
-    _eventCancel = null;
+    unawaited(_reconnectSub?.cancel());
+    _reconnectSub = null;
     return super.close();
   }
 }

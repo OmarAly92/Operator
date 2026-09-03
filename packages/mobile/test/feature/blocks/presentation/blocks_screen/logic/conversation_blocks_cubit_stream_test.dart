@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -67,11 +68,13 @@ void main() {
 
   ConversationBlocksCubit build() => ConversationBlocksCubit(
     repository,
-    eventSource,
+    ConversationEventBus(
+      eventSource,
+      reconnectMin: const Duration(milliseconds: 10),
+      reconnectMax: const Duration(milliseconds: 20),
+    ),
     'w-1',
     refreshDebounce: const Duration(milliseconds: 10),
-    reconnectMin: const Duration(milliseconds: 10),
-    reconnectMax: const Duration(milliseconds: 20),
   );
 
   ConversationEventModel event(int seq, String sessionId) =>
