@@ -460,3 +460,33 @@ up: restore `windows-latest` to the matrix in `tauri-webdriver.yml` and start by
 getting `tauri-plugin-wdio-webdriver`'s server to report its port on Windows —
 run the built `operator.exe` with the `e2e` feature by hand and check whether it
 is listening at all before touching the wdio side.
+
+## 14. The update opt-in dialog hides before the choice is persisted
+
+Found 2026-09-03 while fixing the macOS e2e failure in §13's neighbourhood.
+`frontend/src/renderer/components/UpdateOptInPrompt.tsx`'s `answer` runs:
+
+```ts
+setAnswered(true);                              // dialog disappears now
+await operatorBridge.updateSettings.set(...);   // async round trip
+window.localStorage.setItem(UPDATE_OPT_IN_ASKED_KEY, "1");
+```
+
+The dialog is dismissed on the first line, but the "we already asked" flag is
+only written after the settings round trip resolves. If the app is closed or
+reloaded inside that window, the answer is lost and the prompt returns on the
+next launch even though the user answered it.
+
+Withholding the flag when `set` **fails** is deliberate — the component's own
+comment calls the re-ask "the honest fallback for an unrecorded answer" — and
+that should stay. What is not obviously intended is dismissing the dialog
+before the persistence it is gated on has completed, which is what turns a
+slow round trip into a lost answer rather than a brief wait.
+
+Not fixed: it is a real but small user-visible edge, and the e2e test that
+exposed it now waits for the recorded answer rather than racing it, so nothing
+is red on account of it. Options if picked up: keep the dialog up (disabled, or
+with a pending affordance) until `set` resolves, or write the flag optimistically
+and clear it if `set` rejects. The first keeps the current failure semantics
+exactly; the second is snappier but re-asks only after a rejection rather than
+after a loss.

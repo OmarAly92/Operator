@@ -96,6 +96,20 @@ async function invokeUntil(command: string, args: Record<string, unknown> | unde
 	}
 }
 
+async function waitForOptInAsked(timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		const asked = await browser.execute(
+			"return localStorage.getItem(\"operator-update-opt-in-asked\")",
+		);
+		if (asked === "1") return;
+		if (Date.now() >= deadline) {
+			assert.fail("the renderer never recorded the opt-in answer in localStorage");
+		}
+		await sleep(250);
+	}
+}
+
 async function waitForDom(testid: string, timeoutMs = 60_000): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	for (;;) {
@@ -423,7 +437,9 @@ describe("Operator Tauri desktop parity", () => {
 		const settings = await rest("GET", "/api/v1/settings");
 		assert.equal(settings.updates?.enabled, false, "declining opt-in must persist disabled updates");
 
+		await waitForOptInAsked(30_000);
 		await browser.execute("location.reload(); return true;").catch(() => undefined);
+		await waitForDom("app-shell-ready", 90_000);
 		await waitForDomGone("updates-opt-in", 45_000);
 		const asked = await browser.execute("return localStorage.getItem(\"operator-update-opt-in-asked\")");
 		assert.equal(asked, "1", "opt-in decision was not remembered across reloads");
