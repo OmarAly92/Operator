@@ -424,6 +424,7 @@ describe("Operator Tauri desktop parity", () => {
 		assert.equal(settings.updates?.enabled, false, "declining opt-in must persist disabled updates");
 
 		await browser.execute("location.reload(); return true;").catch(() => undefined);
+		await waitForDom("app-shell-ready", 90_000);
 		await waitForDomGone("updates-opt-in", 45_000);
 		const asked = await browser.execute("return localStorage.getItem(\"operator-update-opt-in-asked\")");
 		assert.equal(asked, "1", "opt-in decision was not remembered across reloads");
