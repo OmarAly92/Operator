@@ -21,6 +21,11 @@ const (
 	eventsLiveBuffer  = 1024
 )
 
+// eventsKeepAlive is how often an otherwise idle stream writes a comment frame.
+// Without it the socket carries zero bytes between CDC events, which cellular
+// NAT and Tailscale reap silently — the client cannot use a receive timeout on
+// a long-lived stream, so server traffic is the only liveness signal it has.
+// Overridden in tests.
 var eventsKeepAlive = 15 * time.Second
 
 type cdcSubscriber interface {
