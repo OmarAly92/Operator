@@ -130,4 +130,60 @@ void main() {
     expect(reconnects, 2);
     await bus.disconnect();
   });
+
+  test('connect() during a pending backoff does not reopen or reset the delay', () async {
+    final bus = ConversationEventBus(
+      source,
+      reconnectMin: const Duration(milliseconds: 60),
+      reconnectMax: const Duration(milliseconds: 200),
+    );
+    var reconnects = 0;
+    bus.reconnects.listen((_) => reconnects += 1);
+    bus.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(opened, hasLength(1));
+    expect(reconnects, 1);
+
+    await opened.first.close();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(opened, hasLength(1));
+
+    bus.connect();
+    expect(
+      opened,
+      hasLength(1),
+      reason: 'connect() while backoff is pending must not reopen early',
+    );
+    expect(reconnects, 1);
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(
+      opened,
+      hasLength(1),
+      reason: 'connect() while backoff is pending must not reset the delay',
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(opened, hasLength(2));
+    expect(reconnects, 2);
+    await bus.disconnect();
+  });
+
+  test('onResumed() called twice in quick succession only reopens once', () async {
+    final bus = build();
+    var reconnects = 0;
+    bus.reconnects.listen((_) => reconnects += 1);
+    bus.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(opened, hasLength(1));
+    expect(reconnects, 1);
+
+    bus.onResumed();
+    bus.onResumed();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(opened, hasLength(2));
+    expect(reconnects, 2);
+    await bus.disconnect();
+  });
 }

@@ -45,6 +45,8 @@ class ConversationEventBus {
   Duration _reconnectDelay = Duration.zero;
   int? _cdcSeq;
   bool _wanted = false;
+  DateTime? _lastResumedAt;
+  static const _resumeDebounce = Duration(milliseconds: 500);
 
   Stream<ConversationEventModel> eventsFor(String sessionId) => _eventsController
       .stream
@@ -53,7 +55,7 @@ class ConversationEventBus {
       );
 
   void connect() {
-    if (_wanted && _sub != null) return;
+    if (_wanted) return;
     _wanted = true;
     _reconnectDelay = _reconnectMin;
     _open();
@@ -61,12 +63,19 @@ class ConversationEventBus {
 
   void onResumed() {
     if (!_wanted) return connect();
+    final now = DateTime.now();
+    if (_lastResumedAt != null &&
+        now.difference(_lastResumedAt!) < _resumeDebounce) {
+      return;
+    }
+    _lastResumedAt = now;
     _reconnectDelay = _reconnectMin;
     _open();
   }
 
   Future<void> disconnect() async {
     _wanted = false;
+    _lastResumedAt = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     await _sub?.cancel();
