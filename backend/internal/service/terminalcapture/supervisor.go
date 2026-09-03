@@ -227,20 +227,34 @@ func (s *Supervisor) DrainAndDetach(ctx context.Context) error {
 		e.h.cancel()
 	}
 
+	// Run() treats its own ctx.Done() as a cue to drain once and exit, using
+	// an uncancellable context — so an explicit Drain here must wait for that
+	// to finish (or time out) first. Racing the two for the worker's mutex
+	// would let Run()'s unbounded drain win and ignore this call's deadline,
+	// exactly the failure mode StopAndDrain already avoids the same way.
+	//
+	// Unlike StopAndDrain, a context-canceled runErr here is not swallowed:
+	// it means Run() was cancelled mid-pump, after pumpLocked had already
+	// advanced the read cursor past a block whose Record call was the one
+	// that got interrupted, so that block never made it to the recorder and
+	// the later Drain call has nothing left to replay it from. That is
+	// exactly the "drain cannot complete" case this method must report.
 	var errs []error
 	for _, e := range entries {
-		if err := e.h.worker.Drain(ctx, false); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	for _, e := range entries {
 		select {
-		case <-e.h.done:
+		case runErr := <-e.h.done:
 			s.mu.Lock()
 			delete(s.workers, e.id)
 			s.mu.Unlock()
+			if runErr != nil {
+				errs = append(errs, fmt.Errorf("capture worker: %w", runErr))
+			}
 		case <-ctx.Done():
 			errs = append(errs, ctx.Err())
+			continue
+		}
+		if err := e.h.worker.Drain(ctx, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
