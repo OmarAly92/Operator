@@ -177,7 +177,8 @@ impl BlockGrid {
                 return;
             }
         }
-        self.closed.set_meta(id, |meta| meta.bookmarked = bookmarked);
+        self.closed
+            .set_meta(id, |meta| meta.bookmarked = bookmarked);
     }
 
     pub fn block_bookmarked(&self, id: BlockId) -> bool {

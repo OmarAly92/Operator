@@ -37,7 +37,10 @@ fn resizing_a_shell_reflows_the_frame_into_scrollback() {
     let copies = (0..snapshot.row_count())
         .filter(|row| snapshot.row_text(*row).trim_end() == "frame one")
         .count();
-    assert_eq!(copies, 1, "a resize moves the frame to scrollback, it does not copy it");
+    assert_eq!(
+        copies, 1,
+        "a resize moves the frame to scrollback, it does not copy it"
+    );
 }
 
 #[test]

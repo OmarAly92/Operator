@@ -12,7 +12,9 @@
 FROM golang:1.25-bookworm AS build
 WORKDIR /src
 
-# Cache modules first.
+# Cache modules first. backend/go.mod `replace`s two modules that live outside
+# backend/, so they have to be present before `go mod download` can resolve them.
+COPY packages/terminal/go ./packages/terminal/go
 COPY backend/go.mod backend/go.sum ./backend/
 RUN cd backend && go mod download
 

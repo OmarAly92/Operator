@@ -27,8 +27,8 @@ import (
 	capturesvc "github.com/OmarAly92/operator/backend/internal/service/terminalcapture"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
-	"github.com/OmarAly92/operator/backend/internal/testsupport/realpty"
 	journal "github.com/OmarAly92/operator/backend/internal/terminalcapture"
+	"github.com/OmarAly92/operator/backend/internal/testsupport/realpty"
 )
 
 func TestMain(m *testing.M) {

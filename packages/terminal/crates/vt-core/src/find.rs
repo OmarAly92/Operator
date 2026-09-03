@@ -253,7 +253,11 @@ mod tests {
     #[test]
     fn with_state_resumes_at_saved_offset() {
         let (grid, rows, content) = grid_with_blocks();
-        let prior = vec![FindMatch { block: 7, row: 0, byte_range: 0..1 }];
+        let prior = vec![FindMatch {
+            block: 7,
+            row: 0,
+            byte_range: 0..1,
+        }];
         let cursor = FindCursor::with_state(
             &grid,
             &rows,

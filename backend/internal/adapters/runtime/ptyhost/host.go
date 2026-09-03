@@ -151,6 +151,41 @@ func (cs *clientState) closeOut() {
 // amount of memory rather than the whole session.
 const maxQueuedClientBytes = 4 * readBufferSize
 
+// host holds the mutable state for a single pty-host session.
+type host struct {
+	cfg     ServeConfig
+	ctx     context.Context
+	mu      sync.Mutex
+	clients map[net.Conn]*clientState
+
+	// pty/parser are the live child process and its passive parser. Both start
+	// out as cfg.PTY/cfg.Parser and are replaced in place by respawn (see
+	// respawn.go), which is the only writer besides Serve's construction.
+	// Every other reader goes through currentPTY()/currentParser() (or, inside
+	// a function that already holds mu, the field directly) so a respawn swap
+	// is never observed as a torn read.
+	pty    ptyConn
+	parser *vtwasm.Parser
+
+	// curCols/curRows are the grid the host last applied to the shared PTY (0,0
+	// = none applied yet). Guarded by mu; used to skip redundant resizes.
+	curCols, curRows int
+
+	shutdownOnce sync.Once
+	shutdownC    chan struct{} // closed when Shutdown is called
+
+	// pumpDone is closed when the current pumpPTY generation's reader hits EOF.
+	// Recreated before each `go h.pumpPTY()` (initial start and every respawn).
+	// Guarded by mu.
+	pumpDone chan struct{}
+
+	// respawnMu serializes concurrent MsgRespawnReq handling so two respawns
+	// never race the pty/parser swap.
+	respawnMu sync.Mutex
+
+	capture *captureSink
+}
+
 // runWriter drains one client's outbound queue, blocking on each conn.Write
 // exactly as the inline writes used to -- but on its own goroutine, so a client
 // that has stopped reading never blocks h.mu, the PTY pump, or its own read
@@ -193,41 +228,6 @@ func (h *host) dropClient(conn net.Conn) {
 		cs.closeOut()
 	}
 	_ = conn.Close()
-}
-
-// host holds the mutable state for a single pty-host session.
-type host struct {
-	cfg     ServeConfig
-	ctx     context.Context
-	mu      sync.Mutex
-	clients map[net.Conn]*clientState
-
-	// pty/parser are the live child process and its passive parser. Both start
-	// out as cfg.PTY/cfg.Parser and are replaced in place by respawn (see
-	// respawn.go), which is the only writer besides Serve's construction.
-	// Every other reader goes through currentPTY()/currentParser() (or, inside
-	// a function that already holds mu, the field directly) so a respawn swap
-	// is never observed as a torn read.
-	pty    ptyConn
-	parser *vtwasm.Parser
-
-	// curCols/curRows are the grid the host last applied to the shared PTY (0,0
-	// = none applied yet). Guarded by mu; used to skip redundant resizes.
-	curCols, curRows int
-
-	shutdownOnce sync.Once
-	shutdownC    chan struct{} // closed when Shutdown is called
-
-	// pumpDone is closed when the current pumpPTY generation's reader hits EOF.
-	// Recreated before each `go h.pumpPTY()` (initial start and every respawn).
-	// Guarded by mu.
-	pumpDone chan struct{}
-
-	// respawnMu serializes concurrent MsgRespawnReq handling so two respawns
-	// never race the pty/parser swap.
-	respawnMu sync.Mutex
-
-	capture *captureSink
 }
 
 // currentPTY returns the live child PTY connection. Safe to call from any

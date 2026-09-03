@@ -76,8 +76,12 @@ pub const RENDER_TOO_BIG: u32 = u32::MAX - 1;
 pub extern "C" fn vt_render(handle: u32, lines: u32, out_ptr: u32, out_cap: u32) -> u32 {
     CORES.with(|c| {
         let cores = c.borrow();
-        let Some(core) = cores.get(&handle) else { return RENDER_ERR };
-        let Ok(snapshot) = core.snapshot() else { return RENDER_ERR };
+        let Some(core) = cores.get(&handle) else {
+            return RENDER_ERR;
+        };
+        let Ok(snapshot) = core.snapshot() else {
+            return RENDER_ERR;
+        };
 
         let mut text = String::new();
         if let Some(alt) = &snapshot.alt {
@@ -113,8 +117,12 @@ pub extern "C" fn vt_render(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
 pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_cap: u32) -> u32 {
     CORES.with(|c| {
         let cores = c.borrow();
-        let Some(core) = cores.get(&handle) else { return RENDER_ERR };
-        let Ok(snapshot) = core.snapshot() else { return RENDER_ERR };
+        let Some(core) = cores.get(&handle) else {
+            return RENDER_ERR;
+        };
+        let Ok(snapshot) = core.snapshot() else {
+            return RENDER_ERR;
+        };
 
         let mut text = String::new();
         if let Some(alt) = &snapshot.alt {

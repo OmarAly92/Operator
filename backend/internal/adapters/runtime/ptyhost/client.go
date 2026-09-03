@@ -91,27 +91,28 @@ func clientSendInput(addr, input string) error {
 	return err
 }
 
-// clientGetOutput sends MsgGetOutputReq and reads frames until MsgGetOutputRes.
-// Returns "" on timeout or connection failure (no error), matching the TS.
-// lines <= 0 is handled by the caller (runtime.go rejects it before calling).
-func clientGetOutput(addr string, lines int) (string, error) {
+// clientRequestText sends reqType and reads frames until resType arrives.
+// Returns "" on timeout or connection failure (no error), which is what the
+// callers below rely on: a host that is gone reads as "no output", not as a
+// failure of the call.
+func clientRequestText(addr string, lines int, reqType, resType byte) (string, error) {
 	conn, err := dialHost(addr, getOutputTimeout)
 	if err != nil {
-		return "", nil // ponytail: connect failure -> "" like the TS
+		return "", nil
 	}
 	defer func() { _ = conn.Close() }()
 
 	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
 
 	req, _ := json.Marshal(GetOutputReq{Lines: lines})
-	reqFrame, _ := EncodeMessage(MsgGetOutputReq, req) // req is small JSON, never overflows uint32
+	reqFrame, _ := EncodeMessage(reqType, req)
 	if _, err := conn.Write(reqFrame); err != nil {
 		return "", nil
 	}
 
 	resultC := make(chan string, 1)
 	parser := NewMessageParser(func(msgType byte, payload []byte) {
-		if msgType == MsgGetOutputRes {
+		if msgType == resType {
 			select {
 			case resultC <- string(payload):
 			default:
@@ -134,64 +135,20 @@ func clientGetOutput(addr string, lines int) (string, error) {
 			break
 		}
 	}
-	// Drain the channel one last time after the read loop ends.
 	select {
 	case text := <-resultC:
 		return text, nil
 	default:
-		return "", nil // timeout or EOF before response
+		return "", nil
 	}
 }
 
-// clientGetStyledOutput sends MsgStyledOutputReq and reads frames until
-// MsgStyledOutputRes. Returns "" on timeout or connection failure (no error),
-// matching clientGetOutput.
+func clientGetOutput(addr string, lines int) (string, error) {
+	return clientRequestText(addr, lines, MsgGetOutputReq, MsgGetOutputRes)
+}
+
 func clientGetStyledOutput(addr string, lines int) (string, error) {
-	conn, err := dialHost(addr, getOutputTimeout)
-	if err != nil {
-		return "", nil
-	}
-	defer func() { _ = conn.Close() }()
-
-	_ = conn.SetDeadline(time.Now().Add(getOutputTimeout))
-
-	req, _ := json.Marshal(GetOutputReq{Lines: lines})
-	reqFrame, _ := EncodeMessage(MsgStyledOutputReq, req) // req is small JSON, never overflows uint32
-	if _, err := conn.Write(reqFrame); err != nil {
-		return "", nil
-	}
-
-	resultC := make(chan string, 1)
-	parser := NewMessageParser(func(msgType byte, payload []byte) {
-		if msgType == MsgStyledOutputRes {
-			select {
-			case resultC <- string(payload):
-			default:
-			}
-		}
-	})
-
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		if n > 0 {
-			parser.Feed(buf[:n])
-		}
-		select {
-		case text := <-resultC:
-			return text, nil
-		default:
-		}
-		if err != nil {
-			break
-		}
-	}
-	select {
-	case text := <-resultC:
-		return text, nil
-	default:
-		return "", nil
-	}
+	return clientRequestText(addr, lines, MsgStyledOutputReq, MsgStyledOutputRes)
 }
 
 func clientStartCapture(addr string, argv []string) error {
