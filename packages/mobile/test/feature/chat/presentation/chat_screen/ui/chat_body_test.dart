@@ -12,12 +12,14 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
@@ -46,6 +48,8 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockTerminalRepository extends Mock implements TerminalRepository {}
+
+class _MockChatEventDataSource extends Mock implements ChatEventDataSource {}
 
 class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
     implements InterfaceSwitchCubit {}
@@ -156,6 +160,9 @@ void main() {
     sessionsCubit = SessionsCubit(sessionsRepository, mux);
     sl.registerLazySingleton<SessionsCubit>(() => sessionsCubit);
     sl.registerLazySingleton<TerminalRepository>(() => terminalRepository);
+    sl.registerLazySingleton<ConversationEventBus>(
+      () => ConversationEventBus(_MockChatEventDataSource()),
+    );
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) =>
           VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
