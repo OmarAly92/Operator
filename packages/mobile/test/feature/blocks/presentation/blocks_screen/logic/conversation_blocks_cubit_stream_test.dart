@@ -23,7 +23,7 @@ class _FakeCancelToken extends Fake implements CancelToken {}
 void main() {
   late _MockChatRepository repository;
   late _MockEventDataSource eventSource;
-  late List<StreamController<ConversationEventModel>> opened;
+  late List<StreamController<ConversationStreamFrame>> opened;
   late int fetches;
 
   setUpAll(() {
@@ -60,7 +60,7 @@ void main() {
         cancelToken: any(named: 'cancelToken'),
       ),
     ).thenAnswer((_) {
-      final controller = StreamController<ConversationEventModel>();
+      final controller = StreamController<ConversationStreamFrame>();
       opened.add(controller);
       return controller.stream;
     });
@@ -115,7 +115,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 20));
     final before = fetches;
 
-    opened.first.add(event(500, 'w-2'));
+    opened.first.add(ConversationStreamEvent(event(500, 'w-2')));
     await Future<void>.delayed(const Duration(milliseconds: 40));
 
     expect(fetches, before);
@@ -128,7 +128,7 @@ void main() {
     final before = fetches;
 
     for (var seq = 500; seq < 510; seq++) {
-      opened.first.add(event(seq, 'w-1'));
+      opened.first.add(ConversationStreamEvent(event(seq, 'w-1')));
     }
     await Future<void>.delayed(const Duration(milliseconds: 60));
 

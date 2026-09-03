@@ -1,4 +1,3 @@
-// ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,9 +18,8 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     this._repository,
     this._eventBus,
     this.sessionId, {
-    Duration refreshDebounce = const Duration(milliseconds: 120),
-  }) : _refreshDebounce = refreshDebounce,
-       super(const ConversationBlocksInitialState()) {
+    this._refreshDebounce = const Duration(milliseconds: 120),
+  }) : super(const ConversationBlocksInitialState()) {
     unawaited(_initialFetch());
   }
 

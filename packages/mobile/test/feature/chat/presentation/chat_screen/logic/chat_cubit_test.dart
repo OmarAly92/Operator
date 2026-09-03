@@ -17,7 +17,6 @@ import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,7 +53,7 @@ ConversationMessageModel message(String id, int sequence) =>
 void main() {
   late _MockChatRepository repository;
   late _MockChatEventDataSource eventSource;
-  late StreamController<ConversationEventModel> events;
+  late StreamController<ConversationStreamFrame> events;
   late Completer<_ConversationPageResult> olderPageResponse;
   late Completer<_ConversationPageResult> firstRefreshResponse;
   late Completer<_ConversationPageResult> secondRefreshResponse;
@@ -98,7 +97,7 @@ void main() {
     await CacheHelper.init();
     repository = _MockChatRepository();
     eventSource = _MockChatEventDataSource();
-    events = StreamController<ConversationEventModel>.broadcast();
+    events = StreamController<ConversationStreamFrame>.broadcast();
     when(
       () => eventSource.stream(
         after: any(named: 'after'),

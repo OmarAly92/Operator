@@ -8,6 +8,18 @@ The reported symptom is real, reproducible from the code, and **deterministic
 rather than flaky**. It is caused by C1 below. Everything else is what the same
 audit turned up in the surrounding lifecycle.
 
+> **Status, 2026-09-03.** Branch `fix/mobile-chat-stream-lifecycle` closes
+> **C1, C2, C3, C4, H1, H2, H3, H4, H5, M4 and M5**, per
+> [`docs/superpowers/plans/2026-09-03-mobile-chat-stream-lifecycle-fixes.md`](superpowers/plans/2026-09-03-mobile-chat-stream-lifecycle-fixes.md).
+> Still open: **H6, M1, M2, M3**. M6 is moot — the repository `events` method it
+> described no longer exists. Nothing here has been verified against a running
+> daemon; the plan's manual checklist is still outstanding.
+>
+> H6 deserves a promotion. It was scoped out as a nicety, but the shared event
+> bus is now the *only* liveness path for chat, and the bus is started by a
+> successful conversation fetch — so an app launched while the daemon is
+> unreachable never connects the stream and nothing retries but an app resume.
+
 Severity is "what does the user lose", not "how hard is the fix":
 
 - **Critical** — the timeline stops updating; the session appears hung.
@@ -97,7 +109,7 @@ nothing — correct for a client that refetches its own snapshot on every event.
 
 **Guard against regression.** The two sequence spaces are both bare `int`/`int64`
 and so are mutually assignable, which is what let this through. Give the CDC
-cursor its own type (an extension type over `int` in Dart) so the compiler
+cursor its own type (a `sealed class` in Dart) so the compiler
 rejects passing a conversation sequence where a CDC sequence is required. Without
 that, this bug class comes back.
 

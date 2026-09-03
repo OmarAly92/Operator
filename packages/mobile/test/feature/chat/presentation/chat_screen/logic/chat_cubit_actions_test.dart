@@ -25,7 +25,6 @@ import 'package:operator_mobile/feature/chat/data/model/params/stage_attachments
 import 'package:operator_mobile/feature/chat/data/model/params/steer_conversation_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
@@ -60,7 +59,7 @@ class _FakeSettings extends Fake implements TurnSettingsModel {}
 void main() {
   late _MockChatRepository repository;
   late _MockChatEventDataSource eventSource;
-  late StreamController<ConversationEventModel> events;
+  late StreamController<ConversationStreamFrame> events;
   late Completer<Result<bool, Failure>> compactResponse;
   late Completer<Result<bool, Failure>> interruptResponse;
   late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
@@ -132,7 +131,7 @@ void main() {
     await CacheHelper.init();
     repository = _MockChatRepository();
     eventSource = _MockChatEventDataSource();
-    events = StreamController<ConversationEventModel>.broadcast();
+    events = StreamController<ConversationStreamFrame>.broadcast();
     when(
       () => eventSource.stream(
         after: any(named: 'after'),

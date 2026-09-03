@@ -42,7 +42,7 @@ class _CancelTokenFake extends Fake implements CancelToken {
 void main() {
   late _MockChatRepository repository;
   late _MockChatEventDataSource eventDataSource;
-  late StreamController<ConversationEventModel> events;
+  late StreamController<ConversationStreamFrame> events;
 
   setUpAll(() {
     registerFallbackValue(_CancelTokenFake());
@@ -52,7 +52,7 @@ void main() {
   setUp(() {
     repository = _MockChatRepository();
     eventDataSource = _MockChatEventDataSource();
-    events = StreamController<ConversationEventModel>.broadcast();
+    events = StreamController<ConversationStreamFrame>.broadcast();
     when(
       () => eventDataSource.stream(
         after: any(named: 'after'),
@@ -60,6 +60,10 @@ void main() {
       ),
     ).thenAnswer((_) => events.stream);
   });
+
+  void pushEvent(ConversationEventModel event) =>
+      events.add(ConversationStreamEvent(event));
+
 
   tearDown(() async {
     await events.close();
@@ -132,7 +136,7 @@ void main() {
     final first = cubit.state as ConversationBlocksReadyState;
     expect(first.blocks, equals(blocksFromConversation(firstSnapshot)));
 
-    events.add(_event(seq: 2));
+    pushEvent(_event(seq: 2));
     await Future<void>.delayed(const Duration(milliseconds: 150));
     await Future<void>.delayed(Duration.zero);
 
@@ -203,7 +207,7 @@ void main() {
     clearInteractions(repository);
     await cubit.close();
 
-    events.add(_event(seq: 99));
+    pushEvent(_event(seq: 99));
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 

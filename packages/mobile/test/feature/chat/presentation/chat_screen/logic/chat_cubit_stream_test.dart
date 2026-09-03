@@ -26,7 +26,7 @@ class _FakeCancelToken extends Fake implements CancelToken {}
 void main() {
   late _MockChatRepository repository;
   late _MockChatEventDataSource eventSource;
-  late StreamController<ConversationEventModel> events;
+  late StreamController<ConversationStreamFrame> events;
 
   setUpAll(() {
     registerFallbackValue(_FakeCancelToken());
@@ -36,7 +36,7 @@ void main() {
   setUp(() {
     repository = _MockChatRepository();
     eventSource = _MockChatEventDataSource();
-    events = StreamController<ConversationEventModel>.broadcast();
+    events = StreamController<ConversationStreamFrame>.broadcast();
 
     when(
       () => repository.getConversationPage('w-1', beforeSequence: null),
@@ -74,6 +74,12 @@ void main() {
     ).thenAnswer((_) => events.stream);
   });
 
+  void pushEvent(ConversationEventModel event) =>
+      events.add(ConversationStreamEvent(event));
+
+  void daemonAnswers() => events.add(const ConversationStreamOpened());
+
+
   tearDown(() => events.close());
 
   ChatCubit build() => ChatCubit(
@@ -93,7 +99,7 @@ void main() {
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
       for (var seq = 1; seq <= 4; seq++) {
-        events.add(
+        pushEvent(
           ConversationEventModel(
             seq: seq,
             sessionId: 'w-1',
@@ -113,14 +119,14 @@ void main() {
     build: build,
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
-      events.add(
+      pushEvent(
         const ConversationEventModel(
           seq: 2,
           sessionId: 'other',
           payload: {'conversationId': 'c-9'},
         ),
       );
-      events.add(const ConversationEventModel(seq: 3, sessionId: 'w-1'));
+      pushEvent(const ConversationEventModel(seq: 3, sessionId: 'w-1'));
       await Future<void>.delayed(const Duration(milliseconds: 60));
     },
     verify: (_) => verify(
@@ -152,6 +158,10 @@ void main() {
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
       await cubit.onResumed();
+      // The reopened stream only covers the gap once the daemon actually
+      // answers; firing that refetch on subscription would hammer a daemon
+      // that is down.
+      daemonAnswers();
       await Future<void>.delayed(const Duration(milliseconds: 20));
     },
     verify: (_) => verify(

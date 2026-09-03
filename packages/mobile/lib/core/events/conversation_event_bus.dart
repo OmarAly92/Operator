@@ -39,7 +39,7 @@ class ConversationEventBus {
   EventStreamStatus _currentStatus = EventStreamStatus.connecting;
   EventStreamStatus get currentStatus => _currentStatus;
 
-  StreamSubscription<ConversationEventModel>? _sub;
+  StreamSubscription<ConversationStreamFrame>? _sub;
   CancelToken? _cancel;
   Timer? _reconnectTimer;
   Duration _reconnectDelay = Duration.zero;
@@ -85,6 +85,7 @@ class ConversationEventBus {
   }
 
   void _setStatus(EventStreamStatus next) {
+    if (next == _currentStatus) return;
     _currentStatus = next;
     if (!_statusController.isClosed) _statusController.add(next);
   }
@@ -97,19 +98,36 @@ class ConversationEventBus {
     _sub = null;
     _cancel?.cancel('reopening');
 
-    _setStatus(EventStreamStatus.connecting);
+    // Only a live stream going down is "connecting" again. A retry while
+    // already reconnecting must keep that status, or the banner blinks off for
+    // the length of every failed attempt.
+    if (_currentStatus == EventStreamStatus.connected) {
+      _setStatus(EventStreamStatus.connecting);
+    }
     final cancelToken = CancelToken();
     _cancel = cancelToken;
     _sub = _source
         .stream(after: _cursor(), cancelToken: cancelToken)
         .listen(
-          _onEvent,
+          _onFrame,
           onError: (Object _, StackTrace _) => _scheduleReconnect(),
           onDone: _scheduleReconnect,
           cancelOnError: true,
         );
-    _setStatus(EventStreamStatus.connected);
-    if (!_reconnectsController.isClosed) _reconnectsController.add(null);
+  }
+
+  void _onFrame(ConversationStreamFrame frame) {
+    switch (frame) {
+      // Connection is only proven when the daemon answers. Firing this on
+      // subscription instead would refetch the conversation once per failed
+      // attempt, and would clear the offline banner during every retry.
+      case ConversationStreamOpened():
+        _reconnectDelay = _reconnectMin;
+        _setStatus(EventStreamStatus.connected);
+        if (!_reconnectsController.isClosed) _reconnectsController.add(null);
+      case ConversationStreamEvent(:final event):
+        _onEvent(event);
+    }
   }
 
   CdcCursor _cursor() =>

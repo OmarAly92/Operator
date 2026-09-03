@@ -19,8 +19,29 @@ class StaleEventStreamException implements Exception {
       'StaleEventStreamException: no server traffic for $silentFor';
 }
 
+/// One item from the live event stream.
+///
+/// The stream carries a connection signal as well as events because
+/// `.listen()` returning proves nothing: the HTTP request is only issued on
+/// first listen, so a subscriber that treats subscription as connection reports
+/// "connected" against an unreachable daemon until the connect timeout expires.
+sealed class ConversationStreamFrame {
+  const ConversationStreamFrame();
+}
+
+/// The daemon answered and the body is streaming. Proof of connection.
+final class ConversationStreamOpened extends ConversationStreamFrame {
+  const ConversationStreamOpened();
+}
+
+final class ConversationStreamEvent extends ConversationStreamFrame {
+  const ConversationStreamEvent(this.event);
+
+  final ConversationEventModel event;
+}
+
 abstract class ChatEventDataSource {
-  Stream<ConversationEventModel> stream({
+  Stream<ConversationStreamFrame> stream({
     required CdcCursor after,
     required CancelToken cancelToken,
   });
@@ -36,11 +57,11 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
   final Duration _staleAfter;
 
   @override
-  Stream<ConversationEventModel> stream({
+  Stream<ConversationStreamFrame> stream({
     required CdcCursor after,
     required CancelToken cancelToken,
   }) {
-    late StreamController<ConversationEventModel> controller;
+    late StreamController<ConversationStreamFrame> controller;
     StreamSubscription<String>? subscription;
     var canceled = false;
     var paused = false;
@@ -82,6 +103,9 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
         );
 
         final body = response.data as ResponseBody;
+        if (!canceled && !controller.isClosed) {
+          controller.add(const ConversationStreamOpened());
+        }
         var buffer = '';
         subscription = const Utf8Decoder(allowMalformed: true)
             .bind(body.stream)
@@ -93,7 +117,9 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
                 buffer = split.remainder;
                 for (final frame in split.frames) {
                   final event = parseSseFrame(frame);
-                  if (event != null) controller.add(event);
+                  if (event != null) {
+                    controller.add(ConversationStreamEvent(event));
+                  }
                 }
               },
               onError: (Object error, StackTrace stackTrace) {
@@ -121,7 +147,7 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
       }
     }
 
-    controller = StreamController<ConversationEventModel>(
+    controller = StreamController<ConversationStreamFrame>(
       onListen: start,
       onPause: () {
         paused = true;

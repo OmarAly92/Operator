@@ -104,11 +104,33 @@ void main() {
     await bodyCanceled.future.timeout(const Duration(seconds: 1));
   });
 
+  test('announces the open stream before any event', () async {
+    final frames = <ConversationStreamFrame>[];
+    final events = dataSource
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
+        .listen(frames.add);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      frames.single,
+      isA<ConversationStreamOpened>(),
+      reason: 'the daemon answering is the only proof of connection',
+    );
+
+    chunks.add(bytes('id: 1\ndata: {"seq":1,"sessionId":"w-1"}\n\n'));
+    await Future<void>.delayed(Duration.zero);
+    expect(frames.last, isA<ConversationStreamEvent>());
+
+    await events.cancel();
+  });
+
   test('emits parsed events and survives a chunk split mid-frame', () async {
     final received = <int>[];
     final events = dataSource
         .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
-        .listen((event) => received.add(event.seq));
+        .listen((frame) {
+          if (frame is ConversationStreamEvent) received.add(frame.event.seq);
+        });
     await Future<void>.delayed(Duration.zero);
 
     chunks.add(
@@ -132,7 +154,9 @@ void main() {
     final received = <ConversationEventModel>[];
     final events = dataSource
         .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
-        .listen(received.add);
+        .listen((frame) {
+          if (frame is ConversationStreamEvent) received.add(frame.event);
+        });
     await Future<void>.delayed(Duration.zero);
 
     final prefix = utf8.encode('id: 1\ndata: {"seq":1,"payload":{"message":"');
