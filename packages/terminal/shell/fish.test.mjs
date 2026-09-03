@@ -17,6 +17,10 @@ const fishCheck = haveFish
 	? execFileSync("fish", ["--version"], { encoding: "utf8" }).trim()
 	: "fish not found";
 const fishSkip = haveFish ? false : `fish is not installed (${fishCheck})`;
+const fishMajor = Number(fishCheck.match(/version (\d+)\./)?.[1] ?? 0);
+const nativeOsc133Skip = fishMajor >= 4
+	? false
+	: `fish emits OSC 133 itself only from 4.0 (${fishCheck}); fish.fish adds OSC 7000 on top and is asserted above`;
 
 console.log(`fish executable check: ${fishCheck}`);
 
@@ -31,11 +35,15 @@ function runFishScript(script) {
 	return execFileSync("fish", ["--no-config", "-c", script], { encoding: "latin1" });
 }
 
-test("produces two command records with fish OSC 133 enabled", { skip: fishSkip }, () => {
+test("produces two command records", { skip: fishSkip }, () => {
 	const out = runFish(["echo one", "echo two"]);
-	assert.ok((out.match(/\x1b\]133;A/g) ?? []).length >= 2);
 	assert.match(out, /cmd=echo%20one/);
 	assert.match(out, /cmd=echo%20two/);
+});
+
+test("interleaves fish's own OSC 133 prompt marks", { skip: nativeOsc133Skip || fishSkip }, () => {
+	const out = runFish(["echo one", "echo two"]);
+	assert.ok((out.match(/\x1b\]133;A/g) ?? []).length >= 2);
 });
 
 test("emits line-editor ownership marks from real fish events", { skip: fishSkip }, () => {
@@ -80,8 +88,6 @@ test("emits fish lifecycle records for success and failure, records nothing for 
 		{ id: "terminal-1-1", cmd: "true" },
 		{ id: "terminal-1-2", cmd: "false" },
 	]);
-	const ends = records.filter((record) => record.payload.startsWith("133;D;")).map((record) => record.payload);
-	assert.deepEqual(ends, ["133;D;0", "133;D;0", "133;D;1"]);
 	const exitRecords = records.filter(
 		(record) => field(record.payload, "id") !== undefined && field(record.payload, "exit") !== undefined,
 	);
@@ -93,6 +99,7 @@ test("emits fish lifecycle records for success and failure, records nothing for 
 			(record, index) => index < exitIndex && field(record.payload, "cmd") !== undefined,
 		);
 		assert.ok(previousCommandIndex >= 0, `OSC 7000 exit=${code} must follow a command record`);
+		if (nativeOsc133Skip) continue;
 		const endIndex = records.findLastIndex(
 			(record, index) =>
 				index > previousCommandIndex && index < exitIndex && record.payload === `133;D;${code}`,
@@ -102,6 +109,9 @@ test("emits fish lifecycle records for success and failure, records nothing for 
 			`OSC 7000 exit=${code} must close the same lifecycle as its OSC 133 D`,
 		);
 	}
+	if (nativeOsc133Skip) return;
+	const ends = records.filter((record) => record.payload.startsWith("133;D;")).map((record) => record.payload);
+	assert.deepEqual(ends, ["133;D;0", "133;D;0", "133;D;1"]);
 	const openPrompt = records.slice(-2).map((record) => record.payload);
 	assert.deepEqual(openPrompt, ["133;A;click_events=1", "133;B"]);
 });
