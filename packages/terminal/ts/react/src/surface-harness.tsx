@@ -55,6 +55,7 @@ export function flushRepaint(): Promise<void> {
 export function renderSurface(
 	overrides: {
 		onGeometry?: (columns: number, rows: number) => void;
+		onPaint?: () => void;
 		onSend?: (text: string) => void;
 		onSendRaw?: (data: string) => void;
 	} = {},
@@ -69,11 +70,25 @@ export function renderSurface(
 			onSend={overrides.onSend ?? ignoreSend}
 			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
 			onGeometry={overrides.onGeometry}
+			onPaint={overrides.onPaint}
 		/>,
 	);
 	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
 	const surface = host.parentElement as HTMLElement;
-	return { core, host, surface, ...result };
+	const rerenderWithPaint = (onPaint: () => void) =>
+		result.rerender(
+			<TerminalSurface
+				core={core}
+				theme={theme}
+				font={font}
+				altScreenActive={false}
+				onSend={overrides.onSend ?? ignoreSend}
+				onSendRaw={overrides.onSendRaw ?? ignoreRaw}
+				onGeometry={overrides.onGeometry}
+				onPaint={onPaint}
+			/>,
+		);
+	return { core, host, surface, rerenderWithPaint, ...result };
 }
 
 export function setHostSize(host: HTMLElement, width: number, height: number): void {
