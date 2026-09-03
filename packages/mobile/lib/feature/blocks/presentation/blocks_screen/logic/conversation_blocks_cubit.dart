@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
@@ -35,7 +36,7 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   StreamSubscription<ConversationEventModel>? _eventSub;
   ConversationSnapshotModel? _snapshot;
   int _revision = 0;
-  int _latestSeq = 0;
+  int? _cdcSeq;
   bool _disposed = false;
 
   Future<void> _initialFetch() async {
@@ -75,8 +76,6 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     int? beforeSequence,
   }) {
     if (_disposed) return;
-    final latest = snapshot.latestSequence;
-    if (latest > _latestSeq) _latestSeq = latest;
     if (beforeSequence == null) {
       _snapshot = snapshot;
       _emitReady(
@@ -222,7 +221,7 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     final cancelToken = CancelToken();
     _eventCancel = cancelToken;
     _eventSub = _eventDataSource
-        .stream(after: _latestSeq, cancelToken: cancelToken)
+        .stream(after: _streamCursor(), cancelToken: cancelToken)
         .listen(
           _onEvent,
           onError: (Object _, StackTrace _) {},
@@ -230,11 +229,17 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
         );
   }
 
+  // The conversation's latestSequence is not a CDC sequence. This cubit refetches
+  // the whole snapshot on every event, so it wants live events and no replay;
+  // after a reconnect it resumes from the last CDC seq it actually saw.
+  CdcCursor _streamCursor() =>
+      _cdcSeq == null ? const CdcCursor.latest() : CdcCursor.at(_cdcSeq!);
+
   Future<void> _onEvent(ConversationEventModel event) async {
     if (_disposed) return;
-    if (!event.touchesConversation) return;
     final seq = event.seq;
-    if (seq > _latestSeq) _latestSeq = seq;
+    if (_cdcSeq == null || seq > _cdcSeq!) _cdcSeq = seq;
+    if (!event.touchesConversation) return;
     await _fetch();
   }
 

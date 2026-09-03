@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
 
 const Duration kEventStreamStaleAfter = Duration(seconds: 35);
@@ -21,7 +21,7 @@ class StaleEventStreamException implements Exception {
 
 abstract class ChatEventDataSource {
   Stream<ConversationEventModel> stream({
-    required int after,
+    required CdcCursor after,
     required CancelToken cancelToken,
   });
 }
@@ -37,7 +37,7 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
 
   @override
   Stream<ConversationEventModel> stream({
-    required int after,
+    required CdcCursor after,
     required CancelToken cancelToken,
   }) {
     late StreamController<ConversationEventModel> controller;
@@ -72,7 +72,7 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
       try {
         final response = await _apiConsumer.get(
           EndPoints.events,
-          queryParameters: {'after': max(0, after)},
+          queryParameters: after.queryParameters,
           options: Options(
             responseType: ResponseType.stream,
             receiveTimeout: Duration.zero,

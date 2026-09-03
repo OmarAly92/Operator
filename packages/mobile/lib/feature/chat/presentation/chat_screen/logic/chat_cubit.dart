@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
@@ -398,7 +399,7 @@ class ChatCubit extends Cubit<ChatState> {
     final cancelToken = CancelToken();
     _eventCancel = cancelToken;
     _eventSub = _repository
-        .events(after: _cursor, cancelToken: cancelToken)
+        .events(after: CdcCursor.at(_cursor), cancelToken: cancelToken)
         .listen(
           _onEvent,
           onError: (Object _) => _scheduleReconnect(),

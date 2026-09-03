@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
@@ -60,6 +61,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_FakeCancelToken());
+    registerFallbackValue(const CdcCursor.latest());
   });
 
   void stubIdleCatalogs() {

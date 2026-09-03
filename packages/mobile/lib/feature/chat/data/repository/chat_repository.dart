@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
@@ -61,7 +62,7 @@ abstract class ChatRepository {
   );
   FutureResult<bool> resumeAgent(String sessionId);
   Stream<ConversationEventModel> events({
-    required int after,
+    required CdcCursor after,
     required CancelToken cancelToken,
   });
 }
@@ -174,7 +175,7 @@ class ChatRepositoryImp implements ChatRepository {
 
   @override
   Stream<ConversationEventModel> events({
-    required int after,
+    required CdcCursor after,
     required CancelToken cancelToken,
   }) => _eventDataSource.stream(after: after, cancelToken: cancelToken);
 

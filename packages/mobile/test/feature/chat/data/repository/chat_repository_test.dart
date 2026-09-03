@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
@@ -105,12 +106,15 @@ void main() {
 
   test('passes the event stream through without a network gate', () async {
     when(
-      () => events.stream(after: 3, cancelToken: any(named: 'cancelToken')),
+      () => events.stream(
+        after: const CdcCursor.at(3),
+        cancelToken: any(named: 'cancelToken'),
+      ),
     ).thenAnswer((_) => Stream.value(const ConversationEventModel(seq: 4)));
     when(() => network.isConnected).thenAnswer((_) async => false);
 
     final received = await repository
-        .events(after: 3, cancelToken: CancelToken())
+        .events(after: const CdcCursor.at(3), cancelToken: CancelToken())
         .toList();
     expect(received.single.seq, 4);
     verifyNever(() => network.isConnected);

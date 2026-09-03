@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
 
@@ -51,7 +52,7 @@ void main() {
     'asks the daemon to replay from the cursor with no receive timeout',
     () async {
       final events = dataSource
-          .stream(after: 7, cancelToken: CancelToken())
+          .stream(after: const CdcCursor.at(7), cancelToken: CancelToken())
           .listen((_) {});
       await Future<void>.delayed(Duration.zero);
 
@@ -75,7 +76,7 @@ void main() {
 
   test('never asks for a negative cursor', () async {
     final events = dataSource
-        .stream(after: -4, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(-4), cancelToken: CancelToken())
         .listen((_) {});
     await Future<void>.delayed(Duration.zero);
 
@@ -95,7 +96,7 @@ void main() {
 
   test('cancels the idle response body subscription promptly', () async {
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {});
     await Future<void>.delayed(Duration.zero);
 
@@ -106,7 +107,7 @@ void main() {
   test('emits parsed events and survives a chunk split mid-frame', () async {
     final received = <int>[];
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((event) => received.add(event.seq));
     await Future<void>.delayed(Duration.zero);
 
@@ -130,7 +131,7 @@ void main() {
   test('preserves a UTF-8 character split across transport chunks', () async {
     final received = <ConversationEventModel>[];
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen(received.add);
     await Future<void>.delayed(Duration.zero);
 
@@ -151,7 +152,7 @@ void main() {
     final receivedErrors = <Object>[];
     final done = Completer<void>();
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onError: receivedErrors.add, onDone: done.complete);
     await Future<void>.delayed(Duration.zero);
 
@@ -177,7 +178,7 @@ void main() {
     ).thenAnswer((_) async => throw requestError);
 
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onError: receivedErrors.add, onDone: done.complete);
     await done.future.timeout(const Duration(seconds: 1));
 
@@ -190,7 +191,7 @@ void main() {
   test('closes when the daemon ends the stream', () async {
     final done = Completer<void>();
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onDone: done.complete);
     await Future<void>.delayed(Duration.zero);
 
@@ -206,7 +207,7 @@ void main() {
     final errors = <Object>[];
     var closed = false;
 
-    source.stream(after: 0, cancelToken: CancelToken()).listen(
+    source.stream(after: const CdcCursor.at(0), cancelToken: CancelToken()).listen(
       (_) {},
       onError: errors.add,
       onDone: () => closed = true,
@@ -226,7 +227,7 @@ void main() {
     final errors = <Object>[];
 
     source
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onError: errors.add);
 
     await Future<void>.delayed(const Duration(milliseconds: 40));

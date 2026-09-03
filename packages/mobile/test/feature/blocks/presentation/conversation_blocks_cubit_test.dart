@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
@@ -44,6 +45,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_CancelTokenFake());
+    registerFallbackValue(const CdcCursor.latest());
   });
 
   setUp(() {
