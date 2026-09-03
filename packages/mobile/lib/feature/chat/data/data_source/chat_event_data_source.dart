@@ -51,6 +51,9 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
       staleTimer = null;
     }
 
+    // The server guarantees a comment frame every 15s (see events.go), so
+    // silence past this window means the socket is dead. Dio cannot tell us:
+    // receiveTimeout must stay disabled on a long-lived stream.
     void markAlive() {
       staleTimer?.cancel();
       staleTimer = Timer(_staleAfter, () {
@@ -104,6 +107,7 @@ class ChatEventDataSourceImp implements ChatEventDataSource {
             );
         markAlive();
         if (canceled) {
+          stopStaleTimer();
           await subscription!.cancel();
         } else if (paused) {
           subscription!.pause();
