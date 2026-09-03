@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(scriptDir, "..");
 const repositoryRoot = resolve(packageRoot, "..", "..");
 const frontendRoot = resolve(repositoryRoot, "frontend");
+const smokeDistDir = resolve(packageRoot, "smoke", "dist");
 const maxBodyBytes = 16 * 1024;
 const expectedReport = { status: "ready", text: "red caféplain", rows: 2, runs: 3 };
+const staticContentTypes = {
+	".html": "text/html; charset=utf-8",
+	".js": "text/javascript; charset=utf-8",
+	".map": "application/json; charset=utf-8",
+	".wasm": "application/wasm",
+	".woff2": "font/woff2",
+};
 
 function run(command, args, options = {}) {
 	return new Promise((resolveRun, rejectRun) => {
@@ -123,6 +131,41 @@ export async function startReporter(reportPath) {
 	return { server, report, url: `http://127.0.0.1:${address.port}${reportPath}` };
 }
 
+export async function startStaticServer(rootDir) {
+	const server = createServer((request, response) => {
+		void (async () => {
+			const requestPath = new URL(request.url, "http://localhost").pathname;
+			const relativePath = requestPath === "/" ? "index.html" : requestPath.replace(/^\/+/, "");
+			const filePath = join(rootDir, relativePath);
+			if (!filePath.startsWith(rootDir)) {
+				send(response, 403);
+				return;
+			}
+			try {
+				const body = await readFile(filePath);
+				const contentType = staticContentTypes[extname(filePath)] ?? "application/octet-stream";
+				response.writeHead(200, { "Content-Type": contentType });
+				response.end(body);
+			} catch {
+				send(response, 404);
+			}
+		})();
+	});
+	await new Promise((resolveListen, rejectListen) => {
+		server.once("error", rejectListen);
+		server.listen({ host: "127.0.0.1", port: 0 }, () => {
+			server.off("error", rejectListen);
+			resolveListen();
+		});
+	});
+	const address = server.address();
+	if (!address || typeof address === "string") {
+		await new Promise((resolveClose) => server.close(resolveClose));
+		throw new Error("terminal smoke static server did not bind a numeric port");
+	}
+	return { server, url: `http://127.0.0.1:${address.port}` };
+}
+
 function processExit(child) {
 	return new Promise((resolveExit, rejectExit) => {
 		child.once("error", rejectExit);
@@ -193,6 +236,7 @@ async function main() {
 	const stateDirectory = resolve(homedir(), ".operator", "terminal-smoke", runId);
 	const reportPath = `/${randomBytes(24).toString("hex")}`;
 	let reporter;
+	let staticServer;
 	let child;
 	let processGroupId;
 	try {
@@ -214,6 +258,7 @@ async function main() {
 		await run("npm", ["--prefix", "frontend", "run", "tauri:build", "--", "--no-bundle", "--ci", "--config", config], {
 			cwd: repositoryRoot,
 		});
+		staticServer = await startStaticServer(smokeDistDir);
 		const executable = resolve(frontendRoot, "src-tauri", "target", "release", process.platform === "win32" ? "operator.exe" : "operator");
 		child = spawn(executable, [], {
 			cwd: repositoryRoot,
@@ -223,6 +268,7 @@ async function main() {
 				OPERATOR_DATA_DIR: resolve(stateDirectory, "data"),
 				OPERATOR_RUN_FILE: resolve(stateDirectory, "running.json"),
 				OPERATOR_TAURI_TERMINAL_BENCHMARK: "1",
+				OPERATOR_TAURI_TERMINAL_BENCHMARK_URL: staticServer.url,
 			},
 			stdio: "ignore",
 		});
@@ -235,6 +281,9 @@ async function main() {
 		}
 		if (reporter) {
 			await new Promise((resolveClose) => reporter.server.close(resolveClose));
+		}
+		if (staticServer) {
+			await new Promise((resolveClose) => staticServer.server.close(resolveClose));
 		}
 		await rm(stateDirectory, { recursive: true, force: true });
 	}
