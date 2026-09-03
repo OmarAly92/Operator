@@ -502,7 +502,6 @@ describe("TerminalCacheProvider", () => {
 	it("disposes a parked shell when the shell lifecycle removes its handle", async () => {
 		const shell: ShellTerminal = {
 			handleId: "shell-handle",
-			sessionId: sessionA.id,
 			workingDir: "/repo/my-app",
 			title: "scratch",
 			createdAt: "2026-07-30T00:00:00Z",
@@ -675,7 +674,6 @@ describe("shell block history", () => {
 	function shellDto(over: Partial<ShellTerminal> = {}): ShellTerminal {
 		return {
 			handleId: "shell-h",
-			sessionId: sessionA.id,
 			workingDir: "/repo/my-app",
 			title: "scratch",
 			createdAt: shellCreatedAt,

@@ -27,9 +27,7 @@ export function ShellTerminalsView() {
 	const { t } = useTranslation();
 	const { daemonStatus } = useShell();
 	const theme = useResolvedTheme();
-	// The standalone screen shows only session-less shells; a session's own
-	// shells belong to that session's tab strip, not this global list.
-	const shellTerminals = (useShellTerminals().data ?? []).filter((s) => !s.sessionId);
+	const shellTerminals = useShellTerminals().data ?? [];
 	const closeShellTerminal = useCloseShellTerminal();
 	const renameShellTerminal = useRenameShellTerminal();
 	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
@@ -155,7 +153,6 @@ export function ShellTerminalsView() {
 							generation: active.createdAt,
 							kind: "shell",
 							handleId: active.handleId,
-							sessionId: active.sessionId,
 							title: active.title,
 						}}
 						theme={theme}

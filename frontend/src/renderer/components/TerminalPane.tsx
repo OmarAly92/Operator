@@ -540,11 +540,7 @@ export function TerminalCacheProvider({
 		for (const entry of entriesRef.current.values()) {
 			if (entry.kind !== "shell") continue;
 			const shell = shells.get(entry.handleId);
-			if (
-				!shell ||
-				shell.createdAt !== entry.generation ||
-				shell.sessionId !== entry.sessionId
-			) {
+			if (!shell || shell.createdAt !== entry.generation) {
 				removeEntry(entry.cacheKey);
 				continue;
 			}

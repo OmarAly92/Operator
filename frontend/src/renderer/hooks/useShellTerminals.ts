@@ -12,8 +12,6 @@ export type ShellTerminal = {
 	/** Runtime handle the terminal mux attaches to, exactly like a session pane's. */
 	handleId: string;
 	projectId?: string;
-	/** Agent session this shell is scoped to; absent for standalone shells. */
-	sessionId?: string;
 	workingDir: string;
 	title: string;
 	createdAt: string;
@@ -27,7 +25,6 @@ function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): She
 	return {
 		handleId: t.handleId,
 		projectId: t.projectId,
-		sessionId: t.sessionId,
 		workingDir: t.workingDir,
 		title: t.title,
 		createdAt: t.createdAt,
@@ -67,23 +64,21 @@ export function useShellTerminals() {
 	return useQuery(shellTerminalsQueryOptions);
 }
 
-export type OpenShellTerminalInput = { projectId?: string; sessionId?: string };
+export type OpenShellTerminalInput = { projectId?: string };
 
 /**
  * Opens a shell in the given project's root (or the daemon data dir when
- * omitted). When sessionId is set the shell is scoped to that session and only
- * appears in its tab strip; otherwise it is a standalone shell on /terminals.
+ * omitted). Every shell is standalone and appears on /terminals.
  */
 export function useOpenShellTerminal() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async ({ projectId, sessionId }: OpenShellTerminalInput = {}): Promise<ShellTerminal> => {
+		mutationFn: async ({ projectId }: OpenShellTerminalInput = {}): Promise<ShellTerminal> => {
 			if (usePreviewData) {
 				previewShellSeq += 1;
 				const shell: ShellTerminal = {
 					handleId: `shellterm-preview-${previewShellSeq}`,
 					projectId,
-					sessionId,
 					workingDir: `/Users/demo/Projects/${projectId ?? "opr"}`,
 					title: projectId ?? "shell",
 					createdAt: new Date().toISOString(),
@@ -93,7 +88,6 @@ export function useOpenShellTerminal() {
 			}
 			const body: OpenShellTerminalInput = {};
 			if (projectId) body.projectId = projectId;
-			if (sessionId) body.sessionId = sessionId;
 			const { data, error } = await apiClient.POST("/api/v1/shell-terminals", { body });
 			if (error) throw error;
 			if (!data) throw new Error("Daemon returned no shell terminal");
