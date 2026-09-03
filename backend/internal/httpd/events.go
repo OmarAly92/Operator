@@ -57,6 +57,20 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// change_log is never trimmed, so after=0 means replaying the daemon's whole
+	// history. A client that refetches its own snapshot on every event wants
+	// live events only; fromLatest lets it start at the head and skip the
+	// replay. An explicit after is a real resume point, so it always wins.
+	if r.URL.Query().Get("after") == "" && r.URL.Query().Get("fromLatest") == "true" {
+		head, headErr := c.Source.LatestSeq(r.Context())
+		if headErr != nil {
+			envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "EVENTS_HEAD_UNAVAILABLE",
+				"Could not resolve the current event log head", nil)
+			return
+		}
+		after = head
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "SSE_UNSUPPORTED",

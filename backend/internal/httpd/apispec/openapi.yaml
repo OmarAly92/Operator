@@ -494,6 +494,16 @@ paths:
           type:
           - "null"
           - integer
+      - description: Start at the current log head and replay nothing. Ignored when
+          after is present.
+        in: query
+        name: fromLatest
+        schema:
+          description: Start at the current log head and replay nothing. Ignored when
+            after is present.
+          type:
+          - "null"
+          - boolean
       responses:
         "200":
           content:

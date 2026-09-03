@@ -90,8 +90,10 @@ at all, so the daemon starts it at 0.
 
 **Best approach.** Delete the cursor from this cubit rather than fixing its
 value. It should not own a cursor at all — see the recommended architecture.
-As an isolated fix, subscribe with `after: 0` and let the shared transport own
-the real CDC cursor. Never derive a CDC cursor from conversation data.
+Because `change_log` is never trimmed, `after=0` is **not** an acceptable
+substitute: it replays the daemon's entire history on every connect. Subscribe
+with `fromLatest=true` instead, which starts at the log head and replays
+nothing — correct for a client that refetches its own snapshot on every event.
 
 **Guard against regression.** The two sequence spaces are both bare `int`/`int64`
 and so are mutually assignable, which is what let this through. Give the CDC
