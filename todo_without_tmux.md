@@ -406,3 +406,37 @@ has ever carried it, so this predates the tmux work and is not the gate change i
 §10. It needs a real browser bench run. Until then `bench:gate` reports 4 of 5
 green and one unmeasured, which is worth knowing before reading a red exit code as
 a regression.
+
+## 12. `fish.test.mjs`'s two OSC 133 assertions fail on CI's fish, unrelated to tmux
+
+Found 2026-09-03 while repairing six unrelated red CI jobs (Tauri Phase 0
+retirement, Terminal rustfmt/clippy + tauri-smoke, CLI E2E, Go, Frontend,
+gitleaks — none of them this). `.github/workflows/terminal.yml` installs
+`fish` via `apt-get`, which puts Ubuntu's packaged **3.7.0** on the runner.
+`fish.test.mjs`'s `"produces two command records with fish OSC 133 enabled"`
+and `"emits fish lifecycle records for success and failure…"` both assert on
+`\x1b]133;A` / `133;D;<code>` sequences that `fish.fish` never emits itself —
+per `8b1fe7ff6`'s message, fish keeps its own native OSC 133 support and this
+package's bootstrap only adds OSC 7000 on top of it. Verified locally: passes
+clean with Homebrew's fish 4.8.1 (`node --test packages/terminal/shell/fish.test.mjs`,
+4/4, with or without `TERM` set), the two lifecycle-only assertions come back
+empty on the CI runner's 3.7.0. Not a TERM/PTY environment difference — ruled
+that out locally with `env -u TERM`.
+
+This was masked until now: the same CI job (`package`) always failed earlier,
+on the rustfmt/clippy component-install bug, before its steps ever reached
+`node --test … fish.test.mjs`. Fixing that (this pass) is what exposed it.
+
+Not fixed here — flagged to the user, who deferred it rather than picking
+one of the two live options:
+
+1. **Skip the two assertions on fish too old to have working OSC 133**,
+   mirroring this file's existing `zsh`/`tmux`-absent skip in the same test
+   file. No CI infra change, no product code change; documents the gap.
+2. **Install a newer fish in CI** (e.g. the fish-shell PPA) so
+   `terminal.yml`'s runner matches contributors' dev machines. Touches CI
+   infrastructure; keeps the assertions live everywhere instead of skipping
+   on old fish.
+
+Whichever is picked, exact minimum-working fish version was not determined —
+only that 3.7.0 fails and 4.8.1 passes under identical harness conditions.
