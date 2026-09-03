@@ -1,7 +1,8 @@
 # Session blocks — one screen, two sources
 
-Status: proposed
+Status: partially landed — read *Where this stands* before anything else
 Date: 2026-08-27
+Last synced: 2026-09-03, against `master` at `277d1686e`
 Supersedes: the mobile-only and desktop-parity drafts of this file, 2026-08-27
 Scope: `packages/mobile`, `frontend/src/renderer`, `backend/internal` hook,
 shell and stream paths
@@ -10,12 +11,80 @@ A session is shown as a **list of blocks**, on one screen, on both clients. What
 varies underneath is where the blocks come from, and that is decided by the
 session's mode. Both modes survive; both clients get the same screen.
 
+## Where this stands, 2026-09-03
+
+Everything below this section is the design as written on 2026-08-27 and amended on
+2026-08-28, with stale citations corrected in place. This section and the plan table
+are the parts that track what actually happened.
+
+**Seven of the nine plans landed, between 2026-08-27 and 2026-09-01.** Plans 1 through
+6 are on `master` — plan 5 merged at `36afacbd1`, plan 6 at `504ae8ecb`. Step 9's shell
+blocks landed too, but not from plan 7: that plan was superseded before it ran and
+[`2026-08-31-shell-blocks-daemon.md`](../plans/2026-08-31-shell-blocks-daemon.md)
+shipped in its place (`fd70c510c`). Step 10, transcript enrichment, was never written.
+Plan 9, the mobile replica cache, is written and unimplemented — `packages/mobile/lib/core/cache/`
+does not exist and mobile is still a thin client.
+
+**Three things changed underneath this spec after it was written**, none of them from
+this spec's own plans. They come from
+[`2026-08-29-warp-terminal-package-design.md`](2026-08-29-warp-terminal-package-design.md)
+(phases 0-7 landed) and
+[`2026-09-01-tmux-free-pty-runtime-design.md`](2026-09-01-tmux-free-pty-runtime-design.md).
+
+- **tmux is gone.** `ba5fd58a1` replaced it with the in-repo pty-host on every platform.
+  Wherever the text below says tmux — the agent's TUI running "under tmux", `pipe-pane`
+  capture, SGR reports to tmux copy-mode — read pty-host. Pane capture is now behind
+  `ports.PaneCapturer`, driven by `service/terminalcapture`.
+- **xterm.js is gone from the desktop** (`f72cdffa0`). The Raw grid is now
+  `packages/terminal`'s own renderer, and that renderer is itself a block terminal: it
+  segments the shell's real bytes into blocks with its own viewport, selection and find.
+  So the desktop has two block timelines — agent blocks in the chat pane, shell blocks in
+  the terminal — and reconciling them is the terminal spec's business, not this one's.
+  Mobile still runs the vendored `xterm` Dart fork;
+  [`2026-09-03-mobile-warp-terminal-design.md`](2026-09-03-mobile-warp-terminal-design.md)
+  is the spec that replaces it.
+- **The desktop's Blocks/Raw toggle is gone** (`e246a1470`, 2026-09-02). The desktop
+  surface follows the session's mode with no toggle at all: `chat` renders
+  `SessionBlocksPane`, `tui` renders the terminal. Mobile keeps the toggle
+  (`SessionViewMode.blocks | raw`, defaulting per `BlockHarnesses.covers`).
+
+**One consequence is a decision, not a documentation gap.** `TuiSessionBlocksPane` and
+`useSessionBlocks` — the desktop half of plans 1 through 4b — are still in the tree and
+still unit-tested, but nothing renders them: `SessionView` reaches `SessionBlocksPane`
+only when `session.mode === "chat"` (`SessionView.tsx:232`). The hook-derived block list
+for `tui` sessions is therefore unreachable from the desktop app. The two browser e2e
+specs written for it, `frontend/e2e/blocks-find.spec.ts` and `blocks-viewport.spec.ts`,
+still click a "Show blocks" button that no longer exists, and they do not run in CI,
+which greps for `@T0|@P0`. Either that path comes back or it is deleted; leaving it
+tested-but-dead is the worst of the three.
+
+**What of the 2026-08-28 paseo amendments actually landed.** Of the eighteen:
+
+- **Landed** — the `reasoning`, `todo` and `compaction` kinds and the structured
+  `ToolCallDetail` with its `unknown` fallback (`frontend/src/renderer/lib/session-block.ts`,
+  `block-assembly.ts`); turn grouping and the boundary fallback (`block-turns.ts`,
+  `turn_grouping.dart`); nested subagent children; threshold virtualization
+  (`BlockList.tsx`); the load-generating replay source (`service/blockevent/replay.go`,
+  `controllers/dev.go`); capability-gated actions and one shared ranked find
+  (`block-actions.ts`, `block-find.ts` and their Dart twins); hooks composing with the
+  structured stream (plan 5); and daemon-side redaction (`backend/internal/redact/`).
+  Canonical rows landed in shape — `blockevent` appends one immutable row per event and
+  both clients project blocks from a window — without the envelope below.
+- **Not landed** — the `epoch`/cursor fetch envelope (`blockevent.History` still takes a
+  bare `afterSeq` and returns a bare slice); daemon-side coalescing; the whole-session
+  prompt index; context-window metering; the `claim`/`update` intent on resize; and the
+  three Claude Code hooks the spec calls out, which still fall through to
+  `BlockEventUnknown` in `blockdispatch/dispatch.go` — `pre-tool-use` among them, so a
+  running tool still produces no block until it finishes. The fourth pass's
+  client-presence protocol, scroll-to-dismiss gesture and replica cache are all
+  unimplemented.
+
 ## Problem
 
 Three problems, one shape.
 
 **Mobile is unusable.** The phone renders the same character grid the desktop
-renders. `largestGrid` (`backend/internal/terminal/manager.go:307`) picks one
+renders. `largestGrid` (`backend/internal/terminal/manager.go:310`) picks one
 client's `cols` and `rows` as a pair, skipping non-primaries whenever a primary
 has reported. The desktop is primary, so its grid is pushed to the phone and the
 phone renders a desktop-shaped screen on a phone-shaped display. A 120-column
@@ -45,8 +114,9 @@ is cheap to avoid only while neither block view exists.
 > agent.
 
 `tui` and `chat` are two ways of **running** the agent, not two ways of showing
-it. In `tui` the agent runs as its native TUI under tmux and no ACP driver
-exists. In `chat` the agent runs as an ACP server and no agent terminal exists.
+it. In `tui` the agent runs as its native TUI in a pty-host runtime — tmux until
+2026-09-02 — and no ACP driver exists. In `chat` the agent runs as an ACP server and
+no agent terminal exists.
 Switching is a real transition with a handoff (`ports.AgentInterfaceHandoff`,
 `NativeConversationID`), not a view toggle.
 
@@ -67,7 +137,7 @@ mattering in `chat` mode, and an earlier reading of this section — that hooks
 belong to `tui` and the structured stream belongs to `chat` — was wrong about the
 code as well as the design.
 
-`prepareWorkspace` (`session_manager/manager.go:3476`) calls `GetAgentHooks`
+`prepareWorkspace` (`session_manager/manager.go:3351`) calls `GetAgentHooks`
 before every launch, shared by Spawn and Restore, **with no branch on session
 mode**. A chat session's workspace already has Operator's hooks installed and
 already emits `opr hooks` events while the ACP driver owns the conversation. The
@@ -203,8 +273,11 @@ kanban board, sidebar, PR review, settings — for one pane.
 
 **Replacing the emulators.** `alacritty_terminal` is a grid model with no
 renderer, living in the Tauri Rust host rather than where the UI is; adopting it
-means bridging every frame or writing a Rust-side renderer. xterm.js stays on
-desktop, xterm.dart on mobile, and both matter only in Raw mode.
+means bridging every frame or writing a Rust-side renderer. This held for the desktop
+until 2026-09-02: `packages/terminal` now owns the desktop grid and xterm.js was
+deleted (`f72cdffa0`), for the reasons in the Warp terminal spec rather than any in
+this one. Mobile still runs the vendored `xterm` Dart fork, and it matters only in Raw
+mode.
 
 ## Design
 
@@ -510,19 +583,31 @@ diffs. Per-harness parsers added one at a time. This is what narrows the fidelit
 gap between `tui` blocks and `chat` blocks, and it is the difference between a
 block list that summarizes and one that shows the work.
 
-**Shell blocks.** A bootstrap injected into the shell emits marks at prompt,
-command start, and command end with exit code — the role of Warp's `Preexec`,
-`Precmd`, `CommandFinished`. `service/shellterm/loginshell.go` returns a bare
-`[$SHELL]` argv today, so this adds the injection point. Bash, zsh and fish;
-an unrecognized shell gets no marks and stays Raw, visibly.
+**Shell blocks — landed 2026-09-01, from a different plan.** A bootstrap injected
+into the shell emits marks at prompt, command start, and command end with exit code —
+the role of Warp's `Preexec`, `Precmd`, `CommandFinished`. Bash, zsh and fish; an
+unrecognized shell gets no marks and stays Raw, visibly.
 
-Marks arrive **in-band** on the PTY, unlike `opr hooks`. The daemon parses them
-out of the terminal stream and republishes on the `blocks` channel, so clients
-consume one uniform stream and never learn two mechanisms produced it. Parsing
-server-side also keeps marks from reaching a client's emulator as stray output.
+What shipped differs from the paragraphs this section originally carried, and the
+differences are the terminal spec's decisions, not revisions of this one:
+
+- The injection point is not in `service/shellterm/loginshell.go`. That function still
+  returns a bare `[$SHELL]` argv; `shellterm/service.go:384` wraps it through
+  `packages/terminal/go/bootstrap.Recipe`, so one manifest serves Go and TypeScript
+  and the marks are additive OSC 133 plus OSC 7000.
+- The daemon does parse marks server-side, as described — but through a capture path
+  this spec did not anticipate: a hidden `opr pane-capture` helper owns a bounded
+  segmented journal, `service/terminalcapture` tails it, assembles blocks and upserts
+  them into a dedicated `terminal_blocks` store. That path was written against tmux's
+  `pipe-pane` and now runs on the pty-host behind `ports.PaneCapturer`.
+- They do share the `blocks` channel, but not the frame. A shell block arrives as
+  `terminalBlockFrame` (`terminal/protocol.go:103`) carrying raw ANSI for *committed*
+  blocks only, so it is history and durability rather than rendering — a live terminal
+  still parses its own stream client-side. Clients therefore do learn that two
+  mechanisms exist, which is the opposite of what this paragraph promised.
 
 **A shell block carries the real bytes between its marks**, not a description of
-them. Anything less is not what Warp does and not worth building.
+them. Anything less is not what Warp does and not worth building. That part held.
 
 ### Raw grid
 
@@ -530,6 +615,13 @@ Kept, in `tui` mode, reachable by a toggle, unchanged. It is the only way to see
 the agent's real interface, the only fallback for harnesses with no hook
 coverage, and the only correct answer for a full-screen TUI. `chat` mode has no
 raw grid because there is no agent terminal to show.
+
+**Half of that is no longer true, as of 2026-09-02.** It holds on mobile, where the
+toggle is `SessionViewCubit` and the grid is the vendored xterm fork. On the desktop
+the toggle was deleted (`e246a1470`): the surface follows `session.mode`, and the grid
+is no longer "unchanged" either — it is `packages/terminal`'s renderer, which is a
+block terminal in its own right. The arbitration rules below are written for a client
+that can be in Blocks or in Raw, and on the desktop that choice no longer exists.
 
 **Grid arbitration.** In Blocks the client does not join the terminal channel, so
 it reports no size and appears in no `members` map. One consequence needs a test:
@@ -875,6 +967,12 @@ no production code branches on being under test. Append anchoring, prepend
 stability and the sticky-header exception are asserted there against a real layout
 engine; the jsdom tests keep their value as fast checks of the numeric model.
 
+**Both mechanics were built and both specs are now stale.** `blocks-find.spec.ts` and
+`blocks-viewport.spec.ts` landed with plan 6, with the threshold override and the fake
+socket (`e2e/support/fake-blocks-mux.ts`). Neither runs in CI — `test:e2e:renderer`
+greps for `@T0|@P0` and the blocks specs carry no tag — and both drive a "Show blocks"
+toggle deleted on 2026-09-02. They assert nothing today.
+
 Native code is covered by none of these gates; nothing here touches `ios/`,
 `android/`, or a vendored package's platform code.
 
@@ -913,6 +1011,11 @@ Limits, so this is not oversold:
   to tmux copy-mode, page keys for keyboard-scroll harnesses — remain correct on
   both clients. Warp has the identical limitation in its alt-screen element,
   which is the proof that no renderer or emulator choice removes it.
+  **One of those three paths did not survive the tmux removal.** Nothing in the
+  backend implements copy-mode any more, while mobile still reports the wheel for it
+  (`feature/terminal/logic/terminal_scroll.dart`, whose comment still quotes the tmux
+  binding). Whether the pty-host reproduces that scroll is unverified here; assume it
+  does not until a device says otherwise.
 - **Desktop scroll preservation is narrower than "preserved across the
   correction" suggests.** Established while implementing plan 4b, against
   `@tanstack/virtual-core` 3.17.7. A block re-measured taller only has the scroll
@@ -931,14 +1034,19 @@ Limits, so this is not oversold:
 - **The chat migration is real work.** ~38 desktop components and a large mobile
   presentation layer are retired or rewritten. This is cheap now and expensive
   after both block views exist, which is the argument for doing it in this order.
-- **Unverified against a running system.** The design is reasoning from source,
-  and plans 1 through 4 are pinned by unit, widget and component tests only.
-  Nothing here has been exercised against a live daemon, from a phone, or from
-  the desktop app. The desktop's browser e2e suite (`frontend/e2e/`) is the one
-  place a real layout engine would test the viewport, and it does not yet cover
-  blocks.
+- **Unverified against a running system.** Written when plans 1 through 4 were pinned
+  by unit, widget and component tests only. Partly closed since: plan 6 added browser
+  e2e coverage of the viewport, and the shell-block path has integration tests against
+  a real pty-host. Still open, and now more so: nothing in the *agent*-block path has
+  been exercised from a phone or the desktop app against a live daemon, and the two
+  browser specs that covered the desktop viewport no longer run.
 
 ## Sequencing
+
+Steps 1 through 9 are done; step 10 was never started and step 11 is still deferred.
+Step 9 shipped from the terminal spec's plan rather than this one's, and steps 3 and 5
+were partly undone on the desktop on 2026-09-02 — see *Where this stands*. The
+numbering is kept as written because every plan file references it.
 
 1. Backend agent-event capture, vocabulary and persistence. No UI change.
 2. `blocks` channel on the mux and in both mux clients. Shared fixtures land here.
@@ -986,18 +1094,24 @@ it withholds the one path with full fidelity.
 This spec is delivered as **nine plans**, each producing working, testable
 software on its own. Plans live in `docs/superpowers/plans/`.
 
+Status as of 2026-09-03.
+
 | # | Plan | Spec steps | File | Status |
 | --- | --- | --- | --- | --- |
-| 1 | Backend block pipeline | 1, 2 (daemon), fixtures | `2026-08-27-block-pipeline-backend.md` | written |
-| 2 | Mobile block screen | 2 (mobile mux), 3, 4 | `2026-08-27-mobile-block-screen.md` | written |
-| 3 | Desktop block screen | 2 (desktop mux), 3, 5 | `2026-08-27-desktop-block-screen.md` | written |
-| 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | written |
-| 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | written |
-| 5 | ACP adapter, chat presentation retires | 7 | `2026-08-28-acp-block-adapter.md` | written |
-| 6 | Block actions, selection, find | 8 | `2026-08-28-block-actions-find-selection.md` | written |
-| 7 | Shell blocks | 9 | `2026-08-28-shell-blocks.md` | written |
-| 8 | Transcript enrichment | 10 | — | |
-| 9 | Mobile replica cache | — (new) | `2026-08-28-mobile-replica-cache.md` | written |
+| 1 | Backend block pipeline | 1, 2 (daemon), fixtures | `2026-08-27-block-pipeline-backend.md` | **landed** 2026-08-27 (`0a84b7f49`) |
+| 2 | Mobile block screen | 2 (mobile mux), 3, 4 | `2026-08-27-mobile-block-screen.md` | **landed** 2026-08-27 (`47c791e80`) |
+| 3 | Desktop block screen | 2 (desktop mux), 3, 5 | `2026-08-27-desktop-block-screen.md` | **landed** 2026-08-27 (`58eb713de`); its UI entry point was removed 2026-09-02 |
+| 4a | Viewport, mobile | 6 | `2026-08-27-mobile-block-viewport.md` | **landed** 2026-08-28 (`010565ccd`) |
+| 4b | Viewport, desktop | 6 | `2026-08-27-desktop-block-viewport.md` | **landed** 2026-08-28 (`f09787db0`) |
+| 5 | ACP adapter, chat presentation retires | 7 | `2026-08-28-acp-block-adapter.md` | **landed** 2026-08-28 (`36afacbd1`) |
+| 6 | Block actions, selection, find | 8 | `2026-08-28-block-actions-find-selection.md` | **landed** 2026-08-28 (`504ae8ecb`) |
+| 7 | Shell blocks | 9 | `2026-08-28-shell-blocks.md` | **superseded** before it ran; step 9 landed 2026-09-01 (`fd70c510c`) from `2026-08-31-shell-blocks-daemon.md` |
+| 8 | Transcript enrichment | 10 | — | **not written** |
+| 9 | Mobile replica cache | — (new) | `2026-08-28-mobile-replica-cache.md` | written, **not implemented** |
+
+The plan files still carry unticked checkboxes — plan 1 shows 51 open steps, plan 2
+shows 117 — because the executing agents tracked progress elsewhere. Read this table,
+not the boxes.
 
 Step 11, actionable permissions, is deferred Phase B. It gets its own spec before
 it gets a plan and is not counted here.
@@ -1029,6 +1143,11 @@ after the table say what each pass was looking at.
 | Capability-gated actions; rewind is three | *Block actions* | 6 |
 | One shared ranked text matcher for find | *Block actions* | 6 |
 | `claim`/`update` intent on resize | *Grid arbitration* | 2, 3 |
+
+**Only half of it was subsequently built** — see *Where this stands* for the split.
+The claim below was true when written and remains the right reading of the amendments;
+what changed is that the epoch envelope, coalescing, the prompt index and the metering
+were never picked up, and plan 5 landed without them.
 
 **None of it invalidates landed work.** Plans 1 through 4 shipped a per-event log,
 a `blocks` mux channel, client assembly and two viewports; every change above is an
@@ -1191,8 +1310,11 @@ how is a plan failure, not a shortcut.
 
 ## Open questions
 
-- Whether Blocks becomes the default on desktop once parity lands, or stays
-  opt-in while Raw remains familiar.
+- ~~Whether Blocks becomes the default on desktop once parity lands, or stays
+  opt-in while Raw remains familiar.~~ **Answered sideways, 2026-09-02.** The toggle
+  was deleted and the desktop surface follows `session.mode`, so `tui` sessions get no
+  agent-block list at all. What replaced the question: whether the desktop TUI block
+  path is restored under some other entry point or deleted with its tests.
 - **Whether `chat` becomes the default mode for the four harnesses that support
   it.** `DefaultSessionMode = SessionModeTUI` is a compatibility default, chosen
   so an upgrade never changes existing behaviour, and it is why a new Claude Code
