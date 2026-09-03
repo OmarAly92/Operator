@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import React from "react";
-import { vi } from "vitest";
+import { afterAll, vi } from "vitest";
 import "../i18n";
 
 vi.mock("@operator/terminal-react", () => {
@@ -71,6 +71,38 @@ vi.mock("@operator/terminal-react", () => {
 // Guard: node-environment vitest projects (no DOM) still route this setup file,
 // so only install the DOM stubs when a DOM exists.
 if (typeof window !== "undefined") {
+	const pendingTimeouts = new Set<number>();
+	const nativeSetTimeout = window.setTimeout.bind(window) as (
+		handler: TimerHandler,
+		timeout?: number,
+		...args: unknown[]
+	) => number;
+	const nativeClearTimeout = window.clearTimeout.bind(window) as (id?: number) => void;
+
+	window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]): number => {
+		let id = 0;
+		const wrapped =
+			typeof handler === "function"
+				? (...called: unknown[]) => {
+						pendingTimeouts.delete(id);
+						(handler as (...a: unknown[]) => void)(...called);
+					}
+				: handler;
+		id = nativeSetTimeout(wrapped, timeout, ...args);
+		pendingTimeouts.add(id);
+		return id;
+	}) as typeof window.setTimeout;
+
+	window.clearTimeout = ((id?: number): void => {
+		if (typeof id === "number") pendingTimeouts.delete(id);
+		nativeClearTimeout(id);
+	}) as typeof window.clearTimeout;
+
+	afterAll(() => {
+		for (const id of pendingTimeouts) nativeClearTimeout(id);
+		pendingTimeouts.clear();
+	});
+
 	class ResizeObserverStub {
 		observe() {}
 		unobserve() {}

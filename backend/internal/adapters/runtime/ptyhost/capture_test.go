@@ -153,8 +153,12 @@ func TestCaptureStateReportsAlternateScreen(t *testing.T) {
 	syncClientRegistered(t, c)
 	f.feedPTY(t, "\x1b[?1049h")
 
-	if !c.captureState(t).AlternateOn {
-		t.Fatal("AlternateOn = false after entering the alternate screen")
+	deadline := time.Now().Add(2 * time.Second)
+	for !c.captureState(t).AlternateOn {
+		if time.Now().After(deadline) {
+			t.Fatal("AlternateOn = false after entering the alternate screen")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

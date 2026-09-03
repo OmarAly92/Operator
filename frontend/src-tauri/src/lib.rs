@@ -737,7 +737,7 @@ fn set_title_bar_overlay_colors(
     colors: window::OverlayColors,
 ) -> Result<(), String> {
     let hwnd = window.hwnd().map_err(|error| error.to_string())?;
-    let hwnd = windows_sys::Win32::Foundation::HWND(hwnd.0);
+    let hwnd: windows_sys::Win32::Foundation::HWND = hwnd.0;
     for (attribute, value) in [
         (
             windows_sys::Win32::Graphics::Dwm::DWMWA_CAPTION_COLOR,
@@ -1212,6 +1212,7 @@ void (async () => {
                 api.prevent_exit();
             }
         }
+        #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen {
             has_visible_windows,
             ..

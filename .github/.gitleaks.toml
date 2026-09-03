@@ -201,4 +201,20 @@ title = "gitleaks config"
         "2a0c8a0f3e27ae78612b9896f07e0a79b181a431",
         "d1d4092df1adfe6f9581b03484845485dfb91b76",
         "423f0de6fa12d55785f2cc254e033edb94773a84",
+        # Historical false positives from the session-blocks redaction feature
+        # (docs/superpowers/specs/2026-08-27-session-blocks-design.md). All
+        # offenders are the canonical AWS documentation placeholder
+        # AKIAIOSFODNN7EXAMPLE (contains the literal word EXAMPLE, designated
+        # non-functional by AWS) and the sequential-alphabet placeholder
+        # ghp_0123456789abcdefghijklmnopqrstuvwxyz, both used as fixtures in
+        # the redact package's own tests, its implementation-plan docs, and
+        # one testdata file. No real credential in any of these commits.
+        "0a84b7f4947dd28d89bb68b45cb3567720bd1de0",
+        "0b810910ebe2af5c94eed07a929a2a7e3b34bdbb",
+        "343273744aeeaf57abc7f9fefb6bc3a74c7af69c",
+        "47c791e8086a1949de72ab2e9df4b330fb3e2105",
+        "af37c8e60e2a7c8b63ced1871df2ba72b6f792da",
+        "b7deeb87c897fe6a722359bd7af7f974b45e731d",
+        "d557a1058d797d395fb36e151369467d359399af",
+        "e209fd4639d46e9bef3c86caeb7440166ccc55df",
     ]

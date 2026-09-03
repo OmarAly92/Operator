@@ -59,7 +59,7 @@ pub struct FindCursor<'a> {
 }
 
 enum PreparedSearch {
-    Literal(Finder<'static>),
+    Literal(Box<Finder<'static>>),
     Regex,
 }
 
@@ -85,7 +85,7 @@ impl<'a> FindCursor<'a> {
         let (regex, prepared) = match query {
             FindQuery::Literal(needle) => {
                 let finder = Finder::new(needle.as_bytes()).into_owned();
-                (None, PreparedSearch::Literal(finder))
+                (None, PreparedSearch::Literal(Box::new(finder)))
             }
             FindQuery::Regex(re) => (Some(re), PreparedSearch::Regex),
         };

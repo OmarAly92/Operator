@@ -86,10 +86,9 @@ describe("BlockList", () => {
 		growSpec = { id: "", lines: 0 };
 		teardown = installVirtualLayout({ heights: () => current.map(heightOfBlock) });
 	});
-	afterEach(async () => {
+	afterEach(() => {
 		teardown();
 		cleanup();
-		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
 	it("renders one card per block for a short session", async () => {

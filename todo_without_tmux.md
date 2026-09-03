@@ -406,3 +406,57 @@ has ever carried it, so this predates the tmux work and is not the gate change i
 §10. It needs a real browser bench run. Until then `bench:gate` reports 4 of 5
 green and one unmeasured, which is worth knowing before reading a red exit code as
 a regression.
+
+## 12. `fish.test.mjs` over-asserted on fish's own OSC 133 — fixed 2026-09-03
+
+Found while repairing six unrelated red CI jobs. `.github/workflows/terminal.yml`
+installs `fish` via `apt-get`, giving Ubuntu's packaged **3.7.0**; two tests
+asserted on `\x1b]133;A` / `133;D;<code>` / `133;A;click_events=1`, which
+`fish.fish` never emits — those come from fish's *own* native OSC 133, a 4.0
+feature. Operator's protocol is OSC 7000 and works fine on 3.7.0, which the
+failing test itself proved by passing its `cmd=` assertions before reaching the
+133 ones.
+
+Resolved by gating only the fish-4-only assertions behind a parsed major
+version, leaving every OSC 7000 assertion live on all versions, and splitting
+the native-133 prompt-mark check into its own test that skips on old fish. No
+CI infra change, no product change, no loss of coverage of our own code.
+Verified 5/5 with nothing skipped on Homebrew fish 4.8.1.
+
+This was masked until now: the same CI job (`package`) always failed earlier on
+the rustfmt/clippy component-install bug, before its steps ever reached
+`node --test … fish.test.mjs`.
+
+## 13. The Tauri WebDriver e2e suite is parked on Windows
+
+Found 2026-09-03 while repairing CI. `.github/workflows/tauri-webdriver.yml`
+ran a three-OS matrix, but its `build.rs` panicked on every platform before
+compiling anything (`resource path ../agent-browser doesn't exist` — the
+workflow never ran `browser-runtime:prepare`), so **the Windows leg had never
+once executed**. Fixing that exposed the real state of Windows support, in
+three layers:
+
+1. **The shell did not compile on Windows or Linux.** `RunEvent::Reopen` is a
+   macOS-only variant matched without a `cfg` guard, and windows-sys 0.61 turned
+   `HWND` from a tuple struct into a type alias. Both fixed; all three platforms
+   compile. This was a *product* bug — `frontend-release.yml` builds all three
+   and `tauri.conf.json` bundles nsis/deb/rpm/appimage, so the release pipeline
+   was broken too, not just this gate.
+2. **The runner died silently on Windows.** `e2e-tauri-run.mjs` spawned
+   `npx.cmd`, which Node's CVE-2024-27980 fix rejects; `spawnSync` returned a
+   null status that fell through `run.status ?? 1`, exiting 1 with no output.
+   Fixed by spawning `@wdio/cli`'s bin through node. The same defect in
+   `wdio.conf.ts`'s `onPrepare` (vite dev server) is fixed too.
+3. **Still open — the embedded WebDriver never yields a session on Windows.**
+   Both specs fail immediately with `No "browserName" defined in capabilities
+   nor hostname or port found!` even though `wdio.conf.ts:98` sets
+   `browserName: "tauri"`. That message means `@wdio/tauri-service` never
+   rewrote the capabilities into a hostname/port, i.e. the driver inside the app
+   did not come up. Not diagnosed further.
+
+macOS and Linux are green and prove the same contract, so the matrix now runs
+those two and Windows is dropped rather than left permanently red. To pick this
+up: restore `windows-latest` to the matrix in `tauri-webdriver.yml` and start by
+getting `tauri-plugin-wdio-webdriver`'s server to report its port on Windows —
+run the built `operator.exe` with the `e2e` feature by hand and check whether it
+is listening at all before touching the wdio side.

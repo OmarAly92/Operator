@@ -134,8 +134,17 @@ export const config = {
 		const existing = process.env.OPERATOR_E2E_RENDERER_URL;
 		if (!existing) {
 			rendererProcess = spawn(
-				process.platform === "win32" ? "npx.cmd" : "npx",
-				["vite", "--config", "vite.renderer.config.ts", "--host", "127.0.0.1", "--port", String(rendererPort), "--strictPort"],
+				process.execPath,
+				[
+					path.join(frontendRoot, "node_modules", "vite", "bin", "vite.js"),
+					"--config",
+					"vite.renderer.config.ts",
+					"--host",
+					"127.0.0.1",
+					"--port",
+					String(rendererPort),
+					"--strictPort",
+				],
 				{ cwd: frontendRoot, stdio: "inherit" },
 			);
 		}
