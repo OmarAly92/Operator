@@ -129,7 +129,7 @@ void main() {
     expect(first.blocks, equals(blocksFromConversation(firstSnapshot)));
 
     events.add(_event(seq: 2));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
     await Future<void>.delayed(Duration.zero);
 
     final second = cubit.state as ConversationBlocksReadyState;

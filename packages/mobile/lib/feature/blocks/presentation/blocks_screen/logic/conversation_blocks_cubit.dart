@@ -1,3 +1,7 @@
+// Constructor params (refreshDebounce/reconnectMin/reconnectMax) must stay
+// public for callers to pass by name, so they can't be `this._field`
+// initializing formals for the private fields they set.
+// ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -19,8 +23,14 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   ConversationBlocksCubit(
     this._repository,
     this._eventDataSource,
-    this.sessionId,
-  ) : super(const ConversationBlocksInitialState()) {
+    this.sessionId, {
+    Duration refreshDebounce = const Duration(milliseconds: 120),
+    Duration reconnectMin = const Duration(seconds: 1),
+    Duration reconnectMax = const Duration(seconds: 15),
+  }) : _refreshDebounce = refreshDebounce,
+       _reconnectMin = reconnectMin,
+       _reconnectMax = reconnectMax,
+       super(const ConversationBlocksInitialState()) {
     unawaited(_initialFetch());
   }
 
@@ -29,6 +39,9 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   ChatRepository get repository => _repository;
   final ChatEventDataSource _eventDataSource;
   final String sessionId;
+  final Duration _refreshDebounce;
+  final Duration _reconnectMin;
+  final Duration _reconnectMax;
 
   ConversationSnapshotModel? get snapshot => _snapshot;
 
@@ -38,6 +51,11 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   int _revision = 0;
   int? _cdcSeq;
   bool _disposed = false;
+
+  Timer? _refreshTimer;
+  Timer? _reconnectTimer;
+  Duration _reconnectDelay = Duration.zero;
+  int _fetchGeneration = 0;
 
   Future<void> _initialFetch() async {
     if (_disposed) return;
@@ -52,11 +70,15 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   }
 
   Future<void> _fetch({int? beforeSequence}) async {
+    final generation = ++_fetchGeneration;
     final result = await _repository.getConversationPage(
       sessionId,
       beforeSequence: beforeSequence,
     );
     if (_disposed) return;
+    // A burst of events can leave several page requests in flight. Applying a
+    // response that is no longer the newest would move the timeline backwards.
+    if (beforeSequence == null && generation != _fetchGeneration) return;
     result.when(
       onSuccess: (response) {
         final data = response.data;
@@ -218,15 +240,32 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
 
   void _subscribe() {
     if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    unawaited(_eventSub?.cancel());
+    _eventCancel?.cancel('resubscribing');
+
     final cancelToken = CancelToken();
     _eventCancel = cancelToken;
     _eventSub = _eventDataSource
         .stream(after: _streamCursor(), cancelToken: cancelToken)
         .listen(
           _onEvent,
-          onError: (Object _, StackTrace _) {},
-          cancelOnError: false,
+          onError: (Object _, StackTrace _) => _scheduleReconnect(),
+          onDone: _scheduleReconnect,
+          cancelOnError: true,
         );
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    unawaited(_eventSub?.cancel());
+    _eventSub = null;
+    if (_reconnectDelay == Duration.zero) _reconnectDelay = _reconnectMin;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(_reconnectDelay, _subscribe);
+    final next = _reconnectDelay * 2;
+    _reconnectDelay = next > _reconnectMax ? _reconnectMax : next;
   }
 
   // The conversation's latestSequence is not a CDC sequence. This cubit refetches
@@ -235,12 +274,15 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   CdcCursor _streamCursor() =>
       _cdcSeq == null ? const CdcCursor.latest() : CdcCursor.at(_cdcSeq!);
 
-  Future<void> _onEvent(ConversationEventModel event) async {
+  void _onEvent(ConversationEventModel event) {
     if (_disposed) return;
+    _reconnectDelay = _reconnectMin;
     final seq = event.seq;
     if (_cdcSeq == null || seq > _cdcSeq!) _cdcSeq = seq;
-    if (!event.touchesConversation) return;
-    await _fetch();
+    if (event.sessionId != sessionId || !event.touchesConversation) return;
+
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(_refreshDebounce, () => unawaited(_fetch()));
   }
 
   Future<void> loadOlder() async {
@@ -287,6 +329,10 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   @override
   Future<void> close() {
     _disposed = true;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     unawaited(_eventSub?.cancel());
     _eventSub = null;
     _eventCancel?.cancel('cubit closed');
