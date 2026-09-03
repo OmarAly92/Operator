@@ -11,6 +11,7 @@ import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_mo
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
@@ -129,6 +130,25 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 60));
 
     expect(fetches, before + 1);
+    await cubit.close();
+  });
+
+  test('resuming reopens the stream and refetches without a loading flash', () async {
+    final cubit = build();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final before = fetches;
+    final loadingStates = <bool>[];
+    final sub = cubit.stream.listen((state) {
+      if (state is ConversationBlocksReadyState) loadingStates.add(state.isLoading);
+    });
+
+    await cubit.onResumed();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(opened.length, greaterThan(1));
+    expect(fetches, greaterThan(before));
+    expect(loadingStates, isNot(contains(true)));
+    await sub.cancel();
     await cubit.close();
   });
 }

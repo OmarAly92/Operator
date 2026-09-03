@@ -113,11 +113,13 @@ ConversationBlocksCubit _blocksCubit() {
   final cubit = _MockConversationBlocksCubit();
   when(() => cubit.state).thenReturn(const ConversationBlocksInitialState());
   when(() => cubit.snapshot).thenReturn(null);
+  when(() => cubit.onResumed()).thenAnswer((_) async {});
   return cubit;
 }
 
 void main() {
   late _MockChatCubit cubit;
+  late ConversationBlocksCubit blocksCubit;
   late SessionsCubit sessionsCubit;
   late _MockTerminalRepository terminalRepository;
   late _MockInterfaceSwitchCubit switchCubit;
@@ -137,6 +139,7 @@ void main() {
     HomeShell.selectedTab.value = 0;
     routeObserver = _RouteCapturingObserver();
 
+    blocksCubit = _blocksCubit();
     cubit = _MockChatCubit();
     final sessionsRepository = _MockSessionsRepository();
     final mux = _MockMuxClient();
@@ -220,13 +223,7 @@ void main() {
                 providers: [
                   BlocProvider<ChatCubit>.value(value: cubit),
                   BlocProvider<ConversationBlocksCubit>.value(
-                    value: _blocksCubit(),
-                  ),
-                  BlocProvider<ConversationBlocksCubit>.value(
-                    value: _blocksCubit(),
-                  ),
-                  BlocProvider<ConversationBlocksCubit>.value(
-                    value: _blocksCubit(),
+                    value: blocksCubit,
                   ),
                   BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
                 ],
@@ -435,6 +432,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
 
     verify(() => cubit.onResumed()).called(1);
+    verify(() => blocksCubit.onResumed()).called(1);
   });
 
   testWidgets('stacks every applicable banner in priority order', (
@@ -538,7 +536,7 @@ void main() {
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
                 BlocProvider<ConversationBlocksCubit>.value(
-                  value: _blocksCubit(),
+                  value: blocksCubit,
                 ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
@@ -579,7 +577,7 @@ void main() {
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
                 BlocProvider<ConversationBlocksCubit>.value(
-                  value: _blocksCubit(),
+                  value: blocksCubit,
                 ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
@@ -613,7 +611,7 @@ void main() {
               providers: [
                 BlocProvider<ChatCubit>.value(value: cubit),
                 BlocProvider<ConversationBlocksCubit>.value(
-                  value: _blocksCubit(),
+                  value: blocksCubit,
                 ),
                 BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],

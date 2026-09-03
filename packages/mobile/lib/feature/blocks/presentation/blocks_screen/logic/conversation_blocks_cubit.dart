@@ -282,6 +282,16 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     _refreshTimer = Timer(_refreshDebounce, () => unawaited(_fetch()));
   }
 
+  // Both platforms suspend the isolate while backgrounded and the socket does
+  // not survive it, so resume must rebuild the stream, not only refetch. No
+  // loading flag: the timeline already has content worth keeping on screen.
+  Future<void> onResumed() async {
+    if (_disposed) return;
+    _reconnectDelay = _reconnectMin;
+    _subscribe();
+    await _fetch();
+  }
+
   Future<void> loadOlder() async {
     final current = state;
     if (current is! ConversationBlocksReadyState) return;
