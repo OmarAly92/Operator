@@ -28,6 +28,7 @@ export interface TerminalSurfaceProps {
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
 	onGeometry?: (columns: number, rows: number) => void;
+	onPaint?: () => void;
 }
 
 // macOS hands a native app an already-accelerated scroll delta: a flick reports
@@ -68,11 +69,14 @@ export function TerminalSurface({
 	onSend,
 	onSendRaw,
 	onGeometry,
+	onPaint,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
 	const rendererRef = useRef<DomBlockRenderer | null>(null);
 	const editorRef = useRef<LineEditor | null>(null);
+	const onPaintRef = useRef(onPaint);
+	onPaintRef.current = onPaint;
 	const findBarRef = useRef<FindBar | null>(null);
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
@@ -114,11 +118,13 @@ export function TerminalSurface({
 			editor.focus();
 		};
 		blockHost.addEventListener(RERUN_EVENT, onRerun);
+		const offPaint = renderer.onPaint(() => onPaintRef.current?.());
 		rendererRef.current = renderer;
 		editorRef.current = editor;
 		findBarRef.current = findBar;
 		return () => {
 			blockHost.removeEventListener(RERUN_EVENT, onRerun);
+			offPaint();
 			findBar.dispose();
 			editor.dispose();
 			renderer.dispose();
