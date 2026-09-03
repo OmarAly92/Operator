@@ -57,17 +57,32 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            packages/terminal/package-lock.json
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - run: rustup toolchain install 1.96.0 --profile minimal
+      - run: rustup target add wasm32-unknown-unknown
+      - uses: actions/cache@v4
+        id: wasm-bindgen-cli
+        with:
+          path: |
+            ~/.cargo/bin/wasm-bindgen
+            ~/.cargo/bin/wasm-bindgen.exe
+          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}
+      - if: steps.wasm-bindgen-cli.outputs.cache-hit != 'true'
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+      - run: npm ci --prefix ../packages/terminal
       - run: npm ci
       - name: Prepare pinned agent-browser runtime
         run: npm run browser-runtime:prepare -- --quiet
+      - name: Build the terminal package the renderer imports
+        run: npm run terminal:build
       - run: npm run build:daemon
       - run: npm run build:acp-runtime
       - name: unit-test the build-contract helpers
