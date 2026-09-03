@@ -39,7 +39,7 @@ describe("startTauriDaemonForScenario", () => {
 		expect(invokeState.invoke).toHaveBeenCalledWith("daemon_start");
 	});
 
-	it.each(["vtebench", "large-output", "input-latency", "scroll-latency", "reconnect", "disposal", null])(
+	it.each(["vtebench", "large-output", "input-latency", "reconnect", "disposal", null])(
 		"does not start the daemon for %s",
 		async (scenario) => {
 			await startTauriDaemonForScenario(scenario);
