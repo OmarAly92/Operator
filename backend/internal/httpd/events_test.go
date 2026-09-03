@@ -271,3 +271,46 @@ func testCDCEvent(seq int64) cdc.Event {
 		CreatedAt: time.Unix(seq, 0).UTC(),
 	}
 }
+
+type idleEventSource struct{ head int64 }
+
+func (*idleEventSource) EventsAfter(context.Context, int64, int) ([]cdc.Event, error) {
+	return nil, nil
+}
+
+func (s *idleEventSource) LatestSeq(context.Context) (int64, error) { return s.head, nil }
+
+func TestEventsStreamWritesKeepAliveWhenIdle(t *testing.T) {
+	previous := eventsKeepAlive
+	eventsKeepAlive = 20 * time.Millisecond
+	t.Cleanup(func() { eventsKeepAlive = previous })
+
+	live := &fakeEventSubscriber{}
+	router := NewRouterWithControl(config.Config{}, discardLogger(), nil, APIDeps{
+		CDC:    &idleEventSource{},
+		Events: live,
+	}, ControlDeps{})
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/v1/events?after=0", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/v1/events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read keepalive: %v", err)
+	}
+	if line != ": keepalive\n" {
+		t.Fatalf("first line = %q, want %q", line, ": keepalive\n")
+	}
+}

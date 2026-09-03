@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -19,6 +20,8 @@ const (
 	eventsReplayBatch = 512
 	eventsLiveBuffer  = 1024
 )
+
+var eventsKeepAlive = 15 * time.Second
 
 type cdcSubscriber interface {
 	Subscribe(func(cdc.Event)) (unsubscribe func())
@@ -84,6 +87,9 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	keepAlive := time.NewTicker(eventsKeepAlive)
+	defer keepAlive.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -92,6 +98,11 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 			if err := writeSSEEvent(w, flusher, e, &sentSeq); err != nil {
 				return
 			}
+		case <-keepAlive.C:
+			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }
