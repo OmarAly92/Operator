@@ -1,6 +1,3 @@
-// Constructor params (refreshDebounce/reconnectMin/reconnectMax) must stay
-// public for callers to pass by name, so they can't be `this._field`
-// initializing formals for the private fields they set.
 // ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 
