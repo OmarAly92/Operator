@@ -1,11 +1,14 @@
 name: Tauri WebDriver e2e
 
-# Native three-platform gate for the Tauri shell (task 20). The @wdio/tauri-service
-# embedded provider runs the WebDriver server INSIDE the app (tauri-plugin-wdio-webdriver,
-# compiled only under src-tauri's `e2` Cargo feature — the `e2e` feature), so no
-# external platform driver is needed on any runner: no tauri-driver, no msedgedriver,
-# no WebKitWebDriver package. Linux still needs Xvfb for a display and the WebKitGTK
-# runtime the app itself renders with.
+# Native gate for the Tauri shell (task 20), on macOS and Linux. The Windows leg
+# is parked — the shell compiles and builds there, but @wdio/tauri-service's
+# embedded driver never hands wdio a session; see todo_without_tmux.md section 13.
+#
+# The @wdio/tauri-service embedded provider runs the WebDriver server INSIDE the
+# app (tauri-plugin-wdio-webdriver, compiled only under src-tauri's `e2` Cargo
+# feature — the `e2e` feature), so no external platform driver is needed on any
+# runner: no tauri-driver, no WebKitWebDriver package. Linux still needs Xvfb for
+# a display and the WebKitGTK runtime the app itself renders with.
 #
 # Every run is state-isolated: the suite hands the app a fresh temp state dir via
 # OPERATOR_RUN_FILE / OPERATOR_DATA_DIR (mirroring scripts/e2e-mac-update.mjs), so
@@ -43,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest, ubuntu-latest]
+        os: [macos-14, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:
