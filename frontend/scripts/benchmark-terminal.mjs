@@ -26,7 +26,7 @@ const scenariosPath = fileURLToPath(new URL("../perf/scenarios.json", import.met
 const terminalHarnessPath = fileURLToPath(new URL("../perf/terminal/index.html", import.meta.url));
 const terminalViteConfigPath = fileURLToPath(new URL("../vite.terminal-perf.config.ts", import.meta.url));
 const tauriCliPath = fileURLToPath(new URL("../node_modules/@tauri-apps/cli/tauri.js", import.meta.url));
-const terminalScenarios = new Set(["vtebench", "large-output", "input-latency", "reconnect", "cpu-time", "active-memory", "scroll-latency"]);
+const terminalScenarios = new Set(["vtebench", "large-output", "input-latency", "reconnect", "cpu-time", "active-memory"]);
 const launchDrivenScenarios = new Set(["active-memory", "cpu-time"]);
 const compositingModes = new Set(["enabled", "disabled"]);
 const execFileAsync = promisify(execFile);
@@ -34,12 +34,9 @@ const terminalAcknowledgementNames = new Set([
 	"first-paint",
 	"workload-start",
 	"workload",
-	"resize",
 	"reconnect",
-	"renderer-recovery",
 	"disposal",
 	"input-echo",
-	"scroll",
 ]);
 const primaryAcknowledgementNames = Object.freeze({
 	vtebench: "workload",
@@ -48,7 +45,6 @@ const primaryAcknowledgementNames = Object.freeze({
 	reconnect: "reconnect",
 	"cpu-time": "workload",
 	"active-memory": "workload",
-	"scroll-latency": "scroll",
 });
 
 export function parseTerminalArguments(argv) {
@@ -78,7 +74,6 @@ function scenarioMeasurementPlan(scenario) {
 	if (scenario === "reconnect") return { eventName: "operator:terminal-benchmark-reconnect", markName: "operator:terminal-reconnect", primaryName: "reconnect", reportsBytes: false };
 	if (scenario === "cpu-time") return { eventName: "operator:terminal-benchmark-run", markName: "operator:terminal-ready", primaryName: "workload", reportsBytes: true };
 	if (scenario === "active-memory") return { eventName: "operator:terminal-benchmark-run", markName: "operator:terminal-ready", primaryName: "workload", reportsBytes: true };
-	if (scenario === "scroll-latency") return { eventName: "operator:terminal-benchmark-scroll", markName: "operator:terminal-scroll-echo", primaryName: "scroll", reportsBytes: false };
 	throw new Error(`unsupported terminal scenario: ${scenario}`);
 }
 
@@ -87,7 +82,7 @@ export function terminalThroughputSample(scenario, durationMilliseconds, configu
 	const seconds = durationMilliseconds / 1000;
 	if (scenario === "vtebench") return 1 / seconds;
 	if (scenario === "large-output") return configuration.outputBytes / seconds;
-	if (scenario === "input-latency" || scenario === "reconnect" || scenario === "scroll-latency") return durationMilliseconds;
+	if (scenario === "input-latency" || scenario === "reconnect") return durationMilliseconds;
 	throw new Error(`unsupported terminal scenario: ${scenario}`);
 }
 
@@ -331,7 +326,7 @@ async function terminalRendererMetadata(application, page) {
 	const rendererKind = await page.evaluate(
 		() => document.querySelector("[data-terminal-renderer-kind]")?.getAttribute("data-terminal-renderer-kind"),
 	);
-	if (rendererKind !== "webgl" && rendererKind !== "canvas") throw new Error("terminal harness did not report webgl|canvas renderer kind");
+	if (rendererKind !== "dom") throw new Error("terminal harness did not report the dom renderer kind");
 	return {
 		webviewRuntimeVersion: `Electron ${versions.electron} / Chromium ${versions.chromium}`,
 		rendererKind,
@@ -369,7 +364,7 @@ function assertRendererMessage(message) {
 		Array.isArray(message) ||
 		Object.keys(message).sort().join(",") !== "displayScale,name,rendererKind,webviewRuntimeVersion" ||
 		message.name !== "renderer" ||
-		!["webgl", "canvas"].includes(message.rendererKind) ||
+		message.rendererKind !== "dom" ||
 		typeof message.webviewRuntimeVersion !== "string" ||
 		message.webviewRuntimeVersion.trim() === "" ||
 		!Number.isFinite(message.displayScale) ||
@@ -1057,7 +1052,7 @@ async function waitForTauriDaemon(stateRoot, dependencies = {}) {
 
 async function main() {
 	if (process.argv.includes("--help")) {
-		process.stdout.write("node scripts/benchmark-terminal.mjs --shell electron|tauri --scenario vtebench|large-output|input-latency|reconnect|cpu-time|active-memory|scroll-latency [--compositing enabled|disabled]\n");
+		process.stdout.write("node scripts/benchmark-terminal.mjs --shell electron|tauri --scenario vtebench|large-output|input-latency|reconnect|cpu-time|active-memory [--compositing enabled|disabled]\n");
 		return;
 	}
 	await runTerminalBenchmark();

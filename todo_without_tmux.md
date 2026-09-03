@@ -8,6 +8,19 @@ record of what was not proven and what was given up.
 
 ## 1. The scroll A/B was never run against tmux
 
+**RETIRED (2026-09-03).** `scroll-latency` has been removed from the benchmark suite
+entirely — the scenario, the harness's alternate-screen responder machinery, the
+`REQUIRED_SAMPLES`/`REQUIRED_WARMUPS` entries, and the CLI's scenario set. Two reasons,
+both already recorded below: the metric is vsync-quantized at its floor (ptyhost
+measured p50 = p95 = exactly 17.000ms, one 60Hz frame, zero variance), so the
+instrument could show a runtime worse but could never resolve how much better ptyhost
+is; and the only thing it would have been compared against, tmux, no longer exists in
+this codebase. What stands in its place is the user's confirmation, 2026-09-02, that
+scroll is good in real use — the thing this benchmark was a proxy for. The historical
+record below (why it was never run, what the numbers meant) is kept as-is; the
+`darwin-arm64-tauri-scroll-latency-runtime-ptyhost.json` result file is kept too, as
+recorded evidence, not a live fixture.
+
 `scroll-latency` is the benchmark that represents the original complaint, and it
 has no tmux number. Two independent reasons, and fixing the first does not fix
 the second.
@@ -40,9 +53,18 @@ would mean benchmarking against a tagged pre-cutover commit.
 
 ## 2. Benchmark scenarios that never ran
 
+**Harness runnable again (2026-09-03).** Phase 7 deleted `frontend/perf/terminal/`
+and `frontend/vite.terminal-perf.config.ts` along with xterm, which left
+`benchmark-terminal.mjs` pointing at paths that no longer existed — the runner could
+not execute at all, regardless of the fixes below. The harness has been rebuilt
+against the package renderer (`@operator/terminal-core` + `@operator/terminal-renderer-dom`'s
+`DomBlockRenderer`, not xterm), so the pipeline runs again. That is a necessary
+precondition for re-running these scenarios, not the re-run itself — the fixes below
+still need actual measured evidence, which this pass did not collect.
+
 | Scenario | Status | Cause |
 |---|---|---|
-| `vtebench` | not run, both runtimes | the workload shells out to a `vtebench` binary (`frontend/perf/terminal/harness.tsx:149`) that is not installed and has no brew formula |
+| `vtebench` | not run, both runtimes | the workload shells out to a `vtebench` binary (`frontend/perf/terminal/harness.tsx`) that is not installed and has no brew formula |
 | `reconnect` | **fixed 2026-09-02**, not yet re-run | `forceDisconnect` called `mux.dispose()`, which is deliberately silent: it clears `connectionListeners` before closing the socket, so `setConnectionState` early-returns and the `"closed"` transition never arrives. That transition is what bumps `attachmentGeneration`, so the attach effect never re-ran, nothing re-attached, and the run stalled at the first sample — matching the observed "one `/mux` upgrade, then zero attached clients". `forceDisconnect` now bumps the generation itself. The pre-existing unit test missed it because it emitted `"closed"` straight onto a fake mux, bypassing `dispose()`; the new test drives the real `operator:terminal-benchmark-reconnect` event and fails without the fix. Still leaves the spec's open question about a rendered ring snapshot unanswered until the scenario is actually run |
 | `cpu-time`, `active-memory` | **fix completed 2026-09-02**, not end-to-end verified | Two defects, both now fixed. (1) Benchmark mode deliberately skips the daemon auto-start (`if audit_mode.is_none() && !terminal_benchmark`) and registers `daemon_start` as an invokable command instead, but the harness page never called it — `frontend/perf/terminal/main.tsx` now calls `startTauriDaemonForScenario`, gated to exactly these two scenarios. (2) That fix could not have worked on its own: the benchmark window runs under the `terminal-benchmark` capability, which granted only `allow-terminal-benchmark-runtime-identity`, so the `daemon_start` invoke would have been denied by Tauri's capability system — `allow-daemon-start` is granted to the `main` window only, in `phase0.json`. The capability now grants it, pinned by a Rust test that fails when the permission is removed. Still needs a desktop session to confirm `running.json` appears end to end. A port collision was ruled out earlier by re-running on `OPERATOR_PORT=3055` |
 
@@ -276,6 +298,12 @@ Five GUI/manual verification steps in the plan (lines 785, 1119, 1689, 1831,
 1840) were deferred for want of a display session and remain unchecked.
 
 ## 10. The `input-latency` gate has not caught up with the §9.5 decision
+
+**Done 2026-09-03.** `gate.mjs` now takes an optional `allowance` field alongside
+`factor`; `input-latency`'s rule is `{ scenario: "input-latency", compare: "at-most",
+factor: 1, allowance: 20 }` and the threshold computes as `theirs * (rule.factor ?? 1)
++ (rule.allowance ?? 0)`. The printed row shows the allowance breakdown, e.g.
+`<= 29.00 (xterm 9.00 + 20.00)`.
 
 **Decided 2026-09-02, not yet implemented.** Spec §9.5's open trade — the 60Hz paint
 cap fixed the agent-pane jank and cost `input-latency` its gate — was ruled on by the

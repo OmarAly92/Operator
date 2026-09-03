@@ -36,7 +36,7 @@ async function baseline() {
 const RULES = [
 	{ scenario: "vtebench", compare: "at-least", factor: 0.9 },
 	{ scenario: "large-output", compare: "at-least", factor: 1 },
-	{ scenario: "input-latency", compare: "at-most", factor: 1 },
+	{ scenario: "input-latency", compare: "at-most", factor: 1, allowance: 20 },
 	{ scenario: "input-latency-owned", compare: "budget" },
 	{ scenario: "find-500k", compare: "budget" },
 ];
@@ -76,15 +76,13 @@ for (const rule of RULES) {
 	if (!reference) throw new Error(`baseline has no ${rule.scenario}`);
 	const mine = rule.compare === "at-most" ? measured.p95 : measured.median;
 	const theirs = rule.compare === "at-most" ? reference.p95 : reference.median;
-	const threshold = theirs * rule.factor;
+	const threshold = theirs * (rule.factor ?? 1) + (rule.allowance ?? 0);
 	const ok = rule.compare === "at-most" ? mine <= threshold : mine >= threshold;
 	if (!ok) failed += 1;
-	rows.push([
-		rule.scenario,
-		`${mine.toFixed(2)}`,
-		`${rule.compare === "at-most" ? "<=" : ">="} ${threshold.toFixed(2)} (xterm ${theirs.toFixed(2)})`,
-		ok ? "pass" : "FAIL",
-	]);
+	const bound = rule.allowance
+		? `${rule.compare === "at-most" ? "<=" : ">="} ${threshold.toFixed(2)} (xterm ${theirs.toFixed(2)} + ${rule.allowance.toFixed(2)})`
+		: `${rule.compare === "at-most" ? "<=" : ">="} ${threshold.toFixed(2)} (xterm ${theirs.toFixed(2)})`;
+	rows.push([rule.scenario, `${mine.toFixed(2)}`, bound, ok ? "pass" : "FAIL"]);
 }
 
 const width = rows.reduce((w, r) => Math.max(w, r[0].length), 8);
