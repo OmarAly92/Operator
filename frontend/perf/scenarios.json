@@ -95,17 +95,5 @@
 		"steadyStateWorkloads": 5,
 		"accounting": "launched-application-full-process-tree-at-idle-stability",
 		"workloadIterations": 50000
-	},
-	"scroll-latency": {
-		"kind": "terminal",
-		"warmups": 3,
-		"samples": 20,
-		"unit": "milliseconds",
-		"completionMark": "operator:terminal-ready",
-		"transport": "daemon-terminal-mux",
-		"columns": 120,
-		"rows": 40,
-		"scrollback": 5000,
-		"alternateScreen": true
 	}
 }

@@ -1447,11 +1447,11 @@ test("large-output results fail closed unless every observed workload carried th
 
 test("terminal benchmark accepts the resource and latency scenarios with their sampling contracts", async () => {
 	const { parseTerminalArguments, runTerminalBenchmark, tauriHarnessConfig, tauriHarnessProxyConfig } = await import("./benchmark-terminal.mjs");
-	for (const scenario of ["input-latency", "reconnect", "cpu-time", "scroll-latency"]) {
+	for (const scenario of ["input-latency", "reconnect", "cpu-time"]) {
 		assert.deepEqual(parseTerminalArguments(["--shell", "tauri", "--scenario", scenario]), { shell: "tauri", scenario });
 	}
 	await assert.rejects(
-		runTerminalBenchmark(["--shell", "tauri", "--scenario", "scroll-latency"], { OPERATOR_RUNTIME: "ptyhost" }),
+		runTerminalBenchmark(["--shell", "tauri", "--scenario", "reconnect"], { OPERATOR_RUNTIME: "ptyhost" }),
 		/OPERATOR_RUNTIME selects the benchmark shell's unused daemon, not OPERATOR_BENCH_DAEMON_URL/,
 	);
 	assert.deepEqual(JSON.parse(tauriHarnessConfig("http://127.0.0.1:5173")), {
@@ -1484,11 +1484,9 @@ test("terminal benchmark accepts the resource and latency scenarios with their s
 	assert.equal(REQUIRED_SAMPLES.reconnect, 10);
 	assert.equal(REQUIRED_SAMPLES["cpu-time"], 10);
 	assert.equal(REQUIRED_SAMPLES["active-memory"], 5);
-	assert.equal(REQUIRED_SAMPLES["scroll-latency"], 20);
 	assert.equal(REQUIRED_WARMUPS["input-latency"], 3);
 	assert.equal(REQUIRED_WARMUPS.reconnect, 3);
 	assert.equal(REQUIRED_WARMUPS["cpu-time"], 3);
-	assert.equal(REQUIRED_WARMUPS["scroll-latency"], 3);
 });
 
 test("compositing mode is recorded in terminal results and only pairs on linux", async () => {
