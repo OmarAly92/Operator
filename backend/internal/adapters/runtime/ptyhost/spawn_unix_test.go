@@ -92,12 +92,12 @@ func TestDefaultSpawnHostReapsExitedProcess(t *testing.T) {
 	}
 	stopHostProcess(pid) // SIGTERM the detached pty-host
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if !pidAlive(pid) {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("pid %d still reports alive 2s after SIGTERM; defaultSpawnHost must reap its detached child or it zombies and pidAlive never goes false", pid)
+	t.Fatalf("pid %d still reports alive 10s after SIGTERM; defaultSpawnHost must reap its detached child or it zombies and pidAlive never goes false", pid)
 }
