@@ -8,16 +8,6 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 
 const navigateMock = vi.hoisted(() => vi.fn());
 const nativeFullScreenMock = vi.hoisted(() => vi.fn(() => false));
-const interfaceTransitionMock = vi.hoisted(() => ({
-	start: vi.fn(),
-	resetStartError: vi.fn(),
-	cancel: vi.fn(),
-}));
-const interfaceTransitionState = vi.hoisted(() => ({
-	status: undefined as
-		| { supported: boolean; targetMode?: "chat" | "tui"; reason?: string }
-		| undefined,
-}));
 const reviewGetMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
@@ -32,22 +22,6 @@ vi.mock("../lib/platform", () => ({
 }));
 vi.mock("../hooks/useWindowFullScreen", () => ({
 	useWindowFullScreen: () => nativeFullScreenMock(),
-}));
-vi.mock("../hooks/useSessionInterfaceTransition", () => ({
-	interfaceTransitionIsActive: () => false,
-	useSessionInterfaceTransition: () => ({
-		status: interfaceTransitionState.status,
-		transition: undefined,
-		isLoading: false,
-		statusError: undefined,
-		start: interfaceTransitionMock.start,
-		starting: false,
-		startError: undefined,
-		resetStartError: interfaceTransitionMock.resetStartError,
-		cancel: interfaceTransitionMock.cancel,
-		cancelling: false,
-		cancelError: undefined,
-	}),
 }));
 
 vi.mock("../lib/api-client", () => ({
@@ -370,10 +344,6 @@ describe("SessionView", () => {
 		externalPreviewOptions.current = undefined;
 		externalPreviewState.error = "";
 	navigateMock.mockReset();
-	interfaceTransitionMock.start.mockReset();
-		interfaceTransitionMock.resetStartError.mockReset();
-		interfaceTransitionMock.cancel.mockReset();
-		interfaceTransitionState.status = undefined;
 		reviewGetMock.mockReset();
 		reviewGetMock.mockResolvedValue({ data: { reviewerHandleId: "", reviews: [], runs: [] }, error: undefined });
 	});
@@ -392,80 +362,6 @@ describe("SessionView", () => {
 		expect(screen.getByTestId("session-tab")).toHaveTextContent("do the thing");
 		expect(screen.getByTestId("session-tab")).not.toHaveTextContent("do the other thing");
 		expect(screen.queryByRole("button", { name: /^Add / })).not.toBeInTheDocument();
-	});
-
-	it.each([
-		["Terminal UI worker", "sess-1", "tui", "chat", "Switch to chat UI"],
-		["Terminal UI orchestrator", "sess-orch", "tui", "chat", "Switch to chat UI"],
-		["Chat worker", "sess-1", "chat", "tui", "Switch to terminal UI"],
-		["Chat orchestrator", "sess-orch", "chat", "tui", "Switch to terminal UI"],
-	] as const)("switches an idle %s directly with drain", (_label, sessionId, mode, targetMode, buttonName) => {
-		interfaceTransitionState.status = { supported: true, targetMode };
-		const session = workerSession(sessionId);
-		session.mode = mode;
-		session.status = "idle";
-		session.activity = { state: "idle", lastActivityAt: "2026-08-06T00:00:00Z" };
-
-		render(<SessionView sessionId={sessionId} />);
-
-		fireEvent.click(screen.getByRole("button", { name: buttonName }));
-
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		expect(interfaceTransitionMock.start).toHaveBeenCalledWith({ targetMode, policy: "drain" });
-	});
-
-	it("keeps the policy dialog closed when an idle direct switch fails", async () => {
-		interfaceTransitionState.status = { supported: true, targetMode: "chat" };
-		const session = workerSession("sess-1");
-		session.status = "idle";
-		session.activity = { state: "idle", lastActivityAt: "2026-08-06T00:00:00Z" };
-		interfaceTransitionMock.start.mockRejectedValueOnce(new Error("switch failed"));
-
-		render(<SessionView sessionId="sess-1" />);
-
-		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: "Switch to chat UI" }));
-		});
-
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-	});
-
-	it.each([
-		["working status", "sess-1", "tui", "chat", "Switch to chat UI", "working", "idle"],
-		["needs-input status", "sess-orch", "tui", "chat", "Switch to chat UI", "needs_input", "idle"],
-		["active activity", "sess-1", "chat", "tui", "Switch to terminal UI", "idle", "active"],
-		["waiting-input activity", "sess-orch", "chat", "tui", "Switch to terminal UI", "idle", "waiting_input"],
-		["blocked activity", "sess-1", "tui", "chat", "Switch to chat UI", "idle", "blocked"],
-	] as const)("opens the switch policy dialog for %s", (_label, sessionId, mode, targetMode, buttonName, status, activityState) => {
-		interfaceTransitionState.status = { supported: true, targetMode };
-		const session = workerSession(sessionId);
-		session.mode = mode;
-		session.status = status;
-		session.activity = { state: activityState, lastActivityAt: "2026-08-06T00:00:00Z" };
-
-		render(<SessionView sessionId={sessionId} />);
-
-		fireEvent.click(screen.getByRole("button", { name: buttonName }));
-
-		expect(screen.getByRole("dialog")).toBeInTheDocument();
-		expect(interfaceTransitionMock.start).not.toHaveBeenCalled();
-	});
-
-	it("checks only the selected session when deciding whether to show the policy dialog", () => {
-		interfaceTransitionState.status = { supported: true, targetMode: "chat" };
-		const selected = workerSession("sess-1");
-		selected.status = "idle";
-		selected.activity = { state: "idle", lastActivityAt: "2026-08-06T00:00:00Z" };
-		const other = workerSession("sess-2");
-		other.status = "working";
-		other.activity = { state: "active", lastActivityAt: "2026-08-06T00:00:00Z" };
-
-		render(<SessionView sessionId="sess-1" />);
-
-		fireEvent.click(screen.getByRole("button", { name: "Switch to chat UI" }));
-
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		expect(interfaceTransitionMock.start).toHaveBeenCalledWith({ targetMode: "chat", policy: "drain" });
 	});
 
 	it("uses the stored reviewer harness for the reviewer tab icon when no latest run is current", async () => {

@@ -7,19 +7,9 @@ import type { components } from "../../api/schema";
 import { CenterPane, SessionBlocksPane } from "./CenterPane";
 import { SessionFilesView } from "./SessionFilesView";
 import { SessionInspector } from "./SessionInspector";
-import {
-	SessionInterfaceActionGroup,
-	SessionInterfaceSwitchButton,
-	SessionInterfaceSwitchDialog,
-	SessionInterfaceTransitionNotice,
-} from "./SessionInterfaceSwitch";
 import { ShellTopbar } from "./ShellTopbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
 import { useExternalPreview } from "../hooks/useExternalPreview";
-import {
-	interfaceTransitionIsActive,
-	useSessionInterfaceTransition,
-} from "../hooks/useSessionInterfaceTransition";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
@@ -90,12 +80,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const inspectorSeparatorRef = useRef<HTMLDivElement | null>(null);
 	const [terminalTarget, setTerminalTarget] = useState<TerminalTarget>({ kind: "worker" });
 	const [filesPoppedOut, setFilesPoppedOut] = useState(false);
-	const [interfaceSwitchDialogOpen, setInterfaceSwitchDialogOpen] = useState(false);
-	const [dismissedTransitionID, setDismissedTransitionID] = useState("");
 	const isNativeFullScreen = useWindowFullScreen();
 
 	const session = workspaces.flatMap((workspace) => workspace.sessions).find((s) => s.id === sessionId);
-	const interfaceSwitch = useSessionInterfaceTransition(session?.id);
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
@@ -137,72 +124,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const isOrchestrator = session ? isOrchestratorSession(session) : false;
 	// Orchestrators get the full workspace width; only workers need the inspector rail.
 	const hasInspector = Boolean(session && !isOrchestrator);
-	const activeInterfaceTransition = interfaceTransitionIsActive(interfaceSwitch.transition);
-	const interfaceTarget =
-		(activeInterfaceTransition ? interfaceSwitch.transition?.targetMode : interfaceSwitch.status?.targetMode) ??
-		(session?.mode === "chat" ? "tui" : "chat");
-	const interfaceBusy = Boolean(
-		session &&
-		(session.status === "working" ||
-			session.status === "needs_input" ||
-			session.activity?.state === "active" ||
-			session.activity?.state === "waiting_input" ||
-			session.activity?.state === "blocked"),
-	);
-	const interfaceWaitingForInput = Boolean(
-		session &&
-		(session.status === "needs_input" ||
-			session.activity?.state === "waiting_input" ||
-			session.activity?.state === "blocked"),
-	);
-	const beginInterfaceSwitch = useCallback(
-		async (policy: "drain" | "interrupt") => {
-			try {
-				await interfaceSwitch.start({ targetMode: interfaceTarget, policy });
-				setInterfaceSwitchDialogOpen(false);
-			} catch {
-				// The mutation owns the typed error. A policy dialog that was already
-				// open stays open; a direct idle switch must not open one on failure.
-			}
-		},
-		[interfaceSwitch, interfaceTarget],
-	);
-	const requestInterfaceSwitch = useCallback(() => {
-		interfaceSwitch.resetStartError();
-		if (!interfaceBusy) {
-			void beginInterfaceSwitch("drain");
-			return;
-		}
-		setInterfaceSwitchDialogOpen(true);
-	}, [beginInterfaceSwitch, interfaceBusy, interfaceSwitch]);
-	const showInterfaceSwitchAction = Boolean(
-		interfaceSwitch.status || interfaceSwitch.isLoading || interfaceSwitch.statusError,
-	);
-	const interfaceSwitchAction = session && showInterfaceSwitchAction ? (
-		<SessionInterfaceSwitchButton
-			target={interfaceTarget}
-			supported={Boolean(interfaceSwitch.status?.supported) && !activeInterfaceTransition}
-			disabledReason={
-				interfaceSwitch.isLoading
-					? "Checking whether this agent can switch interfaces…"
-					: interfaceSwitch.status?.reason || interfaceSwitch.statusError
-			}
-			pending={interfaceSwitch.starting || activeInterfaceTransition}
-			transition={interfaceSwitch.transition}
-			cancelling={interfaceSwitch.cancelling}
-			cancelError={interfaceSwitch.cancelError}
-			onClick={requestInterfaceSwitch}
-			onCancel={() => {
-				void interfaceSwitch.cancel().catch(() => {});
-			}}
-		/>
-	) : null;
-	const sessionHeaderActions = (
-		<SessionInterfaceActionGroup>
-			{interfaceSwitchAction}
-			<ShellTopbar embedded />
-		</SessionInterfaceActionGroup>
-	);
+	const sessionHeaderActions = <ShellTopbar embedded />;
 	const previewUrl = session?.previewUrl?.trim() || undefined;
 	const previewRevision = session?.previewRevision;
 	const terminated = session ? !sessionIsActive(session) : false;
@@ -369,9 +291,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 							<SessionBlocksPane session={session} headerActions={sessionHeaderActions} />
 						) : (
 							<CenterPane
-								agentInputDisabled={
-									(interfaceSwitch.starting || activeInterfaceTransition) && session?.mode === "tui"
-								}
 								daemonReady={daemonStatus.state === "ready"}
 								onSelectSessionTerminal={selectSessionTerminal}
 								onSelectReviewerTerminal={selectReviewerTerminal}
@@ -382,12 +301,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 								topbarActions={sessionHeaderActions}
 							/>
 						)}
-						{interfaceSwitch.transition?.id !== dismissedTransitionID ? (
-							<SessionInterfaceTransitionNotice
-								transition={interfaceSwitch.transition}
-								onDismiss={() => setDismissedTransitionID(interfaceSwitch.transition?.id ?? "")}
-							/>
-						) : null}
 					</div>
 				</ResizablePanel>
 				{hasInspector ? (
@@ -433,15 +346,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 					</>
 				) : null}
 			</ResizablePanelGroup>
-			<SessionInterfaceSwitchDialog
-				open={interfaceSwitchDialogOpen}
-				target={interfaceTarget}
-				waitingForInput={interfaceWaitingForInput}
-				busy={interfaceSwitch.starting}
-				error={interfaceSwitch.startError}
-				onOpenChange={setInterfaceSwitchDialogOpen}
-				onChoose={(policy) => void beginInterfaceSwitch(policy)}
-			/>
 			{filesPoppedOut && session
 				? createPortal(
 						<div
