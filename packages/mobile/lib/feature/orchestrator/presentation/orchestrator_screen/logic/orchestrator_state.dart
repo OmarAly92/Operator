@@ -33,11 +33,10 @@ class LaunchSuccessState extends OrchestratorLaunchState {
 }
 
 class LaunchFailureState extends OrchestratorLaunchState {
-  const LaunchFailureState(this.failure, {required this.chatUnavailable});
+  const LaunchFailureState(this.failure);
 
   final Failure failure;
-  final bool chatUnavailable;
 
   @override
-  List<Object?> get props => [failure, chatUnavailable];
+  List<Object?> get props => [failure];
 }

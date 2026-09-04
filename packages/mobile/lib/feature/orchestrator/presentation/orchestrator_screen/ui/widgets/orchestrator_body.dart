@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/app_routes/home_shell.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
-import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
@@ -35,19 +34,12 @@ class OrchestratorBody extends StatefulWidget {
 }
 
 class _OrchestratorBodyState extends State<OrchestratorBody> {
-  String? _launchingProjectId;
-  bool _launchingClean = false;
-
   @override
   Widget build(BuildContext context) {
     final sessionsCubit = context.read<SessionsCubit>();
 
     return BlocListener<OrchestratorCubit, OrchestratorLaunchState>(
       listener: (context, state) {
-        if (state is LaunchLoadingState) {
-          _launchingProjectId = state.projectId;
-          _launchingClean = state.clean;
-        }
         if (state is LaunchSuccessState) {
           sessionsCubit.refresh();
           context.showSnackBar('Orchestrator started');
@@ -58,26 +50,10 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
         }
         if (state is LaunchFailureState) {
           Haptics.error();
-          if (state.chatUnavailable) {
-            final projectId = _launchingProjectId;
-            final clean = _launchingClean;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(chatErrorCopy(state.failure)),
-                action: SnackBarAction(
-                  label: 'Start Terminal UI',
-                  onPressed: projectId == null
-                      ? () {}
-                      : () => context.read<OrchestratorCubit>().launch(projectId, clean: clean, mode: 'tui'),
-                ),
-              ),
-            );
-          } else {
-            final copy = _connectionCopy(context, state.failure);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${copy.title} ${copy.message}')),
-            );
-          }
+          final copy = _connectionCopy(context, state.failure);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${copy.title} ${copy.message}')),
+          );
         }
       },
       child: BlocBuilder<SessionsCubit, SessionsState>(

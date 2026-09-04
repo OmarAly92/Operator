@@ -53,32 +53,15 @@ void main() {
     verify(() => apiConsumer.post(EndPoints.agentsRefresh)).called(1);
   });
 
-  test('defaults the session mode to chat and keeps only string harnesses', () async {
-    when(() => apiConsumer.get(EndPoints.settings)).thenAnswer(
-      (_) async => jsonResponse({'chatHarnesses': ['claude-code', 7, null, 'codex']}),
-    );
-
-    final settings = (await dataSource.getSettings()).data!;
-    expect(settings.defaultSessionMode, 'chat');
-    expect(settings.chatHarnesses, ['claude-code', 'codex']);
-  });
-
-  test('honours an explicit tui default', () async {
-    when(() => apiConsumer.get(EndPoints.settings))
-        .thenAnswer((_) async => jsonResponse({'defaultSessionMode': 'tui'}));
-
-    expect((await dataSource.getSettings()).data!.defaultSessionMode, 'tui');
-  });
-
   test('omits the optional spawn fields it was not given', () async {
     when(() => apiConsumer.post(any(), body: any(named: 'body')))
         .thenAnswer((_) async => jsonResponse({'session': {'id': 's1', 'projectId': 'p'}}));
 
-    await dataSource.spawn(const SpawnSessionParams(projectId: 'p', mode: 'chat'));
+    await dataSource.spawn(const SpawnSessionParams(projectId: 'p'));
 
     final body = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body')))
         .captured.single as Map<String, dynamic>;
-    expect(body, {'projectId': 'p', 'mode': 'chat', 'kind': 'worker'});
+    expect(body, {'projectId': 'p', 'kind': 'worker'});
   });
 
   test('sends every field it was given', () async {
@@ -90,7 +73,6 @@ void main() {
       prompt: 'fix the test',
       issueId: 'flaky login',
       harness: 'codex',
-      mode: 'tui',
     ));
 
     final body = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body')))
@@ -100,7 +82,6 @@ void main() {
       'prompt': 'fix the test',
       'issueId': 'flaky login',
       'harness': 'codex',
-      'mode': 'tui',
       'kind': 'worker',
     });
   });
@@ -108,10 +89,10 @@ void main() {
   test('reads the spawned session out of either envelope', () async {
     when(() => apiConsumer.post(any(), body: any(named: 'body')))
         .thenAnswer((_) async => jsonResponse({'session': {'id': 's1', 'projectId': 'p'}}));
-    expect((await dataSource.spawn(const SpawnSessionParams(projectId: 'p', mode: 'chat'))).data!.id, 's1');
+    expect((await dataSource.spawn(const SpawnSessionParams(projectId: 'p'))).data!.id, 's1');
 
     when(() => apiConsumer.post(any(), body: any(named: 'body')))
         .thenAnswer((_) async => jsonResponse({'id': 's2', 'projectId': 'p'}));
-    expect((await dataSource.spawn(const SpawnSessionParams(projectId: 'p', mode: 'chat'))).data!.id, 's2');
+    expect((await dataSource.spawn(const SpawnSessionParams(projectId: 'p'))).data!.id, 's2');
   });
 }

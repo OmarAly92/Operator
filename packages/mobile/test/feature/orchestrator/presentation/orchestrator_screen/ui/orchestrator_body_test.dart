@@ -153,45 +153,4 @@ void main() {
     expect(find.text('No projects'), findsOneWidget);
   });
 
-  testWidgets('Start Terminal UI retries with the original clean flag instead of hardcoding false', (tester) async {
-    when(() => sessionsRepository.getBoard()).thenAnswer(
-      (_) async => Result.success(
-        GlobalResponse(
-          data: const BoardSnapshot(
-            sessions: [SessionModel(id: 's1', projectId: 'p1', status: 'working')],
-            projects: [ProjectModel(id: 'p1', name: 'One')],
-            orchestrators: [OrchestratorModel(id: 'o1', projectId: 'p1')],
-          ),
-        ),
-      ),
-    );
-    var callCount = 0;
-    when(() => orchestratorRepository.launch(any())).thenAnswer((_) async {
-      callCount++;
-      if (callCount == 1) {
-        return Result.failure(
-          ServerFailure(error: 'x', message: 'no chat driver', apiStatus: 'CHAT_DRIVER_UNAVAILABLE'),
-        );
-      }
-      return Result.success(GlobalResponse(data: const OrchestratorModel(id: 'o2')));
-    });
-    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
-
-    await pumpBody(tester, sessionsCubit);
-
-    await tester.tap(find.byTooltip('Restart orchestrator'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Restart'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Start Terminal UI'));
-    await tester.pumpAndSettle();
-
-    final captured = verify(() => orchestratorRepository.launch(captureAny())).captured;
-    expect(captured, hasLength(2));
-    expect((captured[0] as LaunchOrchestratorParams).clean, isTrue);
-    expect((captured[1] as LaunchOrchestratorParams).clean, isTrue);
-    expect((captured[1] as LaunchOrchestratorParams).mode, 'tui');
-    expect(find.text('o2'), findsOneWidget);
-  });
 }

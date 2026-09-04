@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/orchestrator/data/model/params/launch_orchestrator_params.dart';
@@ -20,8 +19,7 @@ class OrchestratorCubit extends Cubit<OrchestratorLaunchState> {
     TelemetryRuntime.featureUsed('conductor', succeeded: result.isSuccess);
     result.when(
       onSuccess: (response) => emit(LaunchSuccessState(response.data ?? const OrchestratorModel())),
-      onFailure: (failure) =>
-          emit(LaunchFailureState(failure, chatUnavailable: isChatPreflightFailure(failure))),
+      onFailure: (failure) => emit(LaunchFailureState(failure)),
     );
   }
 }

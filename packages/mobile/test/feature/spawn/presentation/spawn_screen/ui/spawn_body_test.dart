@@ -6,7 +6,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -17,7 +16,6 @@ import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/spawn/data/model/operator_settings_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
@@ -38,7 +36,7 @@ void main() {
   late _MockSessionsRepository sessionsRepository;
   late _MockMuxClient mux;
 
-  setUpAll(() => registerFallbackValue(const SpawnSessionParams(projectId: 'p1', mode: 'chat')));
+  setUpAll(() => registerFallbackValue(const SpawnSessionParams(projectId: 'p1')));
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -95,57 +93,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  void stubChatOnlyCatalog() {
+  void stubCatalog() {
     when(() => spawnRepository.getAgents()).thenAnswer(
       (_) async => Result.success(
         GlobalResponse(data: AgentCatalog(supported: [_agent('amp'), _agent('claude-code')], installed: [_agent('amp'), _agent('claude-code')], authorized: [_agent('amp'), _agent('claude-code')])),
       ),
     );
-    when(() => spawnRepository.getSettings()).thenAnswer(
-      (_) async => Result.success(GlobalResponse(data: const OperatorSettingsModel(chatHarnesses: ['amp']))),
-    );
   }
-
-  void stubEmptyChatCatalog() {
-    when(() => spawnRepository.getAgents()).thenAnswer(
-      (_) async => Result.success(
-        GlobalResponse(data: AgentCatalog(supported: [_agent('claude-code')], installed: [_agent('claude-code')], authorized: [_agent('claude-code')])),
-      ),
-    );
-    when(() => spawnRepository.getSettings()).thenAnswer(
-      (_) async => Result.success(GlobalResponse(data: const OperatorSettingsModel(chatHarnesses: []))),
-    );
-  }
-
-  testWidgets('both mode choices render, Chat starts selected, and its hint copy is shown', (tester) async {
-    stubChatOnlyCatalog();
-    buildSessionsCubit();
-    final spawnCubit = SpawnCubit(spawnRepository);
-
-    await pumpBody(tester, spawnCubit);
-
-    expect(find.text('Chat'), findsOneWidget);
-    expect(find.text('Terminal UI'), findsOneWidget);
-    expect(spawnCubit.mode, 'chat');
-    expect(find.text('Chat opens a conversation with the agent inside Operator.'), findsOneWidget);
-  });
-
-  testWidgets("with a chat-only catalog and tui selected, the agent row's value changes to the tui default", (
-    tester,
-  ) async {
-    stubChatOnlyCatalog();
-    buildSessionsCubit();
-    final spawnCubit = SpawnCubit(spawnRepository)..setMode('tui');
-
-    await pumpBody(tester, spawnCubit);
-
-    expect(find.text('Terminal UI'), findsOneWidget);
-    expect(find.text('claude-code'), findsOneWidget);
-    expect(find.text('amp'), findsNothing);
-  });
 
   testWidgets('submitting with an empty name shows the required message and calls no repository', (tester) async {
-    stubChatOnlyCatalog();
+    stubCatalog();
     buildSessionsCubit();
     final spawnCubit = SpawnCubit(spawnRepository);
 
@@ -159,7 +116,7 @@ void main() {
   });
 
   testWidgets('a filled form calls repository.spawn once', (tester) async {
-    stubChatOnlyCatalog();
+    stubCatalog();
     when(() => spawnRepository.spawn(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse(data: const SessionModel(id: 's1', displayName: 'flaky login'))),
     );
@@ -168,6 +125,9 @@ void main() {
 
     await pumpBody(tester, spawnCubit);
 
+    expect(find.text('INTERFACE'), findsNothing);
+    expect(find.text('Chat'), findsNothing);
+
     await tester.enterText(find.byType(TextField).at(0), 'flaky login');
     await tester.enterText(find.byType(TextField).at(1), 'fix the flake');
     await tester.tap(find.text('Spawn agent'));
@@ -175,47 +135,5 @@ void main() {
 
     verify(() => spawnRepository.spawn(any())).called(1);
     expect(find.text('s1'), findsOneWidget);
-  });
-
-  testWidgets(
-    "a CHAT_DRIVER_UNAVAILABLE failure renders the daemon's detail plus a Create as Terminal UI instead action, "
-    'and tapping it flips the mode to tui',
-    (tester) async {
-      stubChatOnlyCatalog();
-      when(() => spawnRepository.spawn(any())).thenAnswer(
-        (_) async => Result.failure(
-          ServerFailure(error: 'x', message: 'no chat driver available right now', apiStatus: 'CHAT_DRIVER_UNAVAILABLE'),
-        ),
-      );
-      buildSessionsCubit();
-      final spawnCubit = SpawnCubit(spawnRepository);
-
-      await pumpBody(tester, spawnCubit);
-
-      await tester.enterText(find.byType(TextField).at(0), 'flaky login');
-      await tester.enterText(find.byType(TextField).at(1), 'fix the flake');
-      await tester.tap(find.text('Spawn agent'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('no chat driver available right now'), findsOneWidget);
-      expect(find.text('Create as Terminal UI instead'), findsOneWidget);
-
-      await tester.tap(find.text('Create as Terminal UI instead'));
-      await tester.pumpAndSettle();
-
-      expect(spawnCubit.mode, 'tui');
-    },
-  );
-
-  testWidgets('when chat mode has no capable agents, the amber warning about installing a Chat-capable agent is shown', (
-    tester,
-  ) async {
-    stubEmptyChatCatalog();
-    buildSessionsCubit();
-    final spawnCubit = SpawnCubit(spawnRepository);
-
-    await pumpBody(tester, spawnCubit);
-
-    expect(find.textContaining('Chat-capable'), findsOneWidget);
   });
 }

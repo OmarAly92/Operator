@@ -53,24 +53,7 @@ void main() {
   );
 
   blocTest<OrchestratorCubit, OrchestratorLaunchState>(
-    'flags a chat-preflight refusal so the screen can offer Terminal UI',
-    build: () {
-      when(() => repository.launch(any())).thenAnswer(
-        (_) async => Result.failure(
-          ServerFailure(error: 'x', message: 'no chat driver', apiStatus: 'CHAT_DRIVER_UNAVAILABLE'),
-        ),
-      );
-      return OrchestratorCubit(repository);
-    },
-    act: (cubit) => cubit.launch('p', clean: false),
-    expect: () => [
-      isA<LaunchLoadingState>(),
-      isA<LaunchFailureState>().having((s) => s.chatUnavailable, 'chatUnavailable', isTrue),
-    ],
-  );
-
-  blocTest<OrchestratorCubit, OrchestratorLaunchState>(
-    'does not offer Terminal UI for an ordinary failure',
+    'reports a launch failure',
     build: () {
       when(() => repository.launch(any()))
           .thenAnswer((_) async => Result.failure(ServerFailure(error: 'x', message: 'boom')));
@@ -79,7 +62,7 @@ void main() {
     act: (cubit) => cubit.launch('p', clean: false),
     expect: () => [
       isA<LaunchLoadingState>(),
-      isA<LaunchFailureState>().having((s) => s.chatUnavailable, 'chatUnavailable', isFalse),
+      isA<LaunchFailureState>().having((s) => s.failure.message, 'failure.message', 'boom'),
     ],
   );
 

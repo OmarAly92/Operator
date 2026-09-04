@@ -3,10 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
-import 'package:operator_mobile/core/error_handling/chat_preflight.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text_field.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
@@ -19,11 +17,6 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/lo
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
-
-const String _chatModeHint = 'Chat opens a conversation with the agent inside Operator.';
-const String _tuiModeHint = "Terminal UI runs the agent's own interface inside a session tab.";
-const String _noChatAgentWarning =
-    'No agent supports Chat mode yet. Install or authorize a Chat-capable agent, or switch to Terminal UI.';
 
 ProjectModel? _projectById(List<ProjectModel> projects, String? id) {
   if (id == null) return null;
@@ -138,7 +131,6 @@ class _SpawnBodyState extends State<SpawnBody> {
         }
       },
       builder: (context, state) {
-        final catalogLoaded = state is! CatalogLoadingState && state is! SpawnInitialState;
         final project = _projectById(_sessionsCubit.projects, _cubit.projectId);
         final selectedAgent = _agentById(_cubit.agents, _cubit.harness);
 
@@ -151,13 +143,9 @@ class _SpawnBodyState extends State<SpawnBody> {
           agentValue = 'Choose an agent';
         }
 
-        final showNoChatAgentWarning = _cubit.mode == 'chat' && _cubit.agents.isEmpty && catalogLoaded;
-
         String? errorText;
         if (state is SpawnValidationFailureState) errorText = state.message;
-        if (state is SpawnFailureState) {
-          errorText = state.chatUnavailable ? chatErrorCopy(state.failure) : state.failure.message;
-        }
+        if (state is SpawnFailureState) errorText = state.failure.message;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -188,50 +176,6 @@ class _SpawnBodyState extends State<SpawnBody> {
                 ],
               ),
               const VerticalSpace(20),
-              AppText(
-                'INTERFACE',
-                style: AppTextStyle.style11Bold.copyWith(color: skin.textTertiary, letterSpacing: 1.2),
-              ),
-              const VerticalSpace(8),
-              Semantics(
-                container: true,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _ModeOption(
-                        title: 'Chat',
-                        subtitle: 'Native conversation',
-                        selected: _cubit.mode == 'chat',
-                        onTap: () => setState(() => _cubit.setMode('chat')),
-                      ),
-                    ),
-                    const HorizontalSpace(10),
-                    Expanded(
-                      child: _ModeOption(
-                        title: 'Terminal UI',
-                        subtitle: "Agent's own TUI",
-                        selected: _cubit.mode == 'tui',
-                        onTap: () => setState(() => _cubit.setMode('tui')),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const VerticalSpace(8),
-              AppText(
-                _cubit.mode == 'chat' ? _chatModeHint : _tuiModeHint,
-                style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary),
-                maxLines: 2,
-              ),
-              if (showNoChatAgentWarning) ...[
-                const VerticalSpace(8),
-                AppText(
-                  _noChatAgentWarning,
-                  style: AppTextStyle.style12Regular.copyWith(color: skin.amber),
-                  maxLines: 3,
-                ),
-              ],
-              const VerticalSpace(20),
               AppTextField(
                 controller: _nameController,
                 label: 'NAME',
@@ -248,16 +192,6 @@ class _SpawnBodyState extends State<SpawnBody> {
               if (errorText != null) ...[
                 const VerticalSpace(12),
                 AppText(errorText, style: AppTextStyle.style13Regular.copyWith(color: skin.red), maxLines: 3),
-              ],
-              if (state is SpawnFailureState && state.chatUnavailable) ...[
-                const VerticalSpace(8),
-                TextButton(
-                  onPressed: () => setState(() => _cubit.setMode('tui')),
-                  child: AppText(
-                    'Create as Terminal UI instead',
-                    style: AppTextStyle.style13SemiBold.copyWith(color: skin.blue),
-                  ),
-                ),
               ],
               const VerticalSpace(16),
               PrimaryButton.expand(
@@ -276,46 +210,6 @@ class _SpawnBodyState extends State<SpawnBody> {
           ),
         );
       },
-    );
-  }
-}
-
-class _ModeOption extends StatelessWidget {
-  const _ModeOption({required this.title, required this.subtitle, required this.selected, required this.onTap});
-
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final void Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final skin = context.skin;
-    return AppInkWell(
-      onTap: () {
-        Haptics.select();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? skin.tintBlue : skin.bgSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? skin.blue : skin.borderSubtle),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppText(
-              title,
-              style: AppTextStyle.style15SemiBold.copyWith(color: selected ? skin.blue : skin.textPrimary),
-            ),
-            const VerticalSpace(2),
-            AppText(subtitle, style: AppTextStyle.style12Regular.copyWith(color: skin.textTertiary), maxLines: 2),
-          ],
-        ),
-      ),
     );
   }
 }

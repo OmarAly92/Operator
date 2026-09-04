@@ -5,7 +5,6 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
-import 'package:operator_mobile/feature/spawn/data/model/operator_settings_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -21,7 +20,7 @@ void main() {
   late SpawnRepositoryImp repository;
 
   setUpAll(() {
-    registerFallbackValue(const SpawnSessionParams(projectId: 'p', mode: 'chat'));
+    registerFallbackValue(const SpawnSessionParams(projectId: 'p'));
   });
 
   setUp(() {
@@ -104,45 +103,8 @@ void main() {
     });
   });
 
-  group('getSettings', () {
-    test('fails fast with noNetwork when the daemon is unreachable', () async {
-      when(() => network.isConnected).thenAnswer((_) async => false);
-
-      final result = await repository.getSettings();
-
-      expect(result.isFailure, isTrue);
-      verifyNever(() => dataSource.getSettings());
-    });
-
-    test('returns the operator settings on success', () async {
-      when(() => network.isConnected).thenAnswer((_) async => true);
-      when(() => dataSource.getSettings()).thenAnswer(
-        (_) async => const GlobalResponse<OperatorSettingsModel>(
-          data: OperatorSettingsModel(defaultSessionMode: 'tui', chatHarnesses: ['codex']),
-        ),
-      );
-
-      final result = await repository.getSettings();
-
-      expect(result.isSuccess, isTrue);
-      result.when(
-        onSuccess: (r) => expect(r.data!.defaultSessionMode, 'tui'),
-        onFailure: (_) => fail('expected success'),
-      );
-    });
-
-    test('propagates a Failure', () async {
-      when(() => network.isConnected).thenAnswer((_) async => true);
-      when(() => dataSource.getSettings()).thenThrow(ServerFailure.noNetwork());
-
-      final result = await repository.getSettings();
-
-      expect(result.isFailure, isTrue);
-    });
-  });
-
   group('spawn', () {
-    const params = SpawnSessionParams(projectId: 'p', mode: 'chat');
+    const params = SpawnSessionParams(projectId: 'p');
 
     test('fails fast with noNetwork when the daemon is unreachable', () async {
       when(() => network.isConnected).thenAnswer((_) async => false);

@@ -4,14 +4,12 @@ import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/spawn/data/data_source/spawn_remote_data_source.dart';
-import 'package:operator_mobile/feature/spawn/data/model/operator_settings_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
 abstract class SpawnRepository {
   FutureResult<GlobalResponse<AgentCatalog>> getAgents();
   FutureResult<GlobalResponse<AgentCatalog>> refreshAgents();
-  FutureResult<GlobalResponse<OperatorSettingsModel>> getSettings();
   FutureResult<GlobalResponse<SessionModel>> spawn(SpawnSessionParams params);
 }
 
@@ -38,18 +36,6 @@ class SpawnRepositoryImp implements SpawnRepository {
     if (await _network.isConnected) {
       try {
         return Result.success(await _remoteDataSource.refreshAgents());
-      } on Failure catch (error) {
-        return Result.failure(error);
-      }
-    }
-    return Result.failure(ServerFailure.noNetwork());
-  }
-
-  @override
-  FutureResult<GlobalResponse<OperatorSettingsModel>> getSettings() async {
-    if (await _network.isConnected) {
-      try {
-        return Result.success(await _remoteDataSource.getSettings());
       } on Failure catch (error) {
         return Result.failure(error);
       }

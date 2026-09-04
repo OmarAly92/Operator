@@ -47,13 +47,12 @@ final class SpawnSuccessState extends SpawnState {
 }
 
 final class SpawnFailureState extends SpawnState {
-  const SpawnFailureState(this.failure, {required this.chatUnavailable});
+  const SpawnFailureState(this.failure);
 
   final Failure failure;
-  final bool chatUnavailable;
 
   @override
-  List<Object?> get props => [failure, chatUnavailable];
+  List<Object?> get props => [failure];
 }
 
 final class SpawnValidationFailureState extends SpawnState {
