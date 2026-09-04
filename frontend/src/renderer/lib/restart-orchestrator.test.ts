@@ -47,7 +47,7 @@ describe("restartProjectOrchestrator", () => {
 			onError,
 		});
 
-		expect(spawnMock).toHaveBeenCalledWith("proj-1", "restart", true, undefined);
+		expect(spawnMock).toHaveBeenCalledWith("proj-1", "restart", true);
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
 		expect(setOrchestratorReplacementError).toHaveBeenNthCalledWith(1, "proj-1", null);
 		expect(setOrchestratorReplacementError).toHaveBeenNthCalledWith(2, "proj-1", {
@@ -86,17 +86,12 @@ describe("restartProjectOrchestrator", () => {
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
-	it("preserves typed preflight details and retries with an explicit TUI mode", async () => {
+	it("preserves typed spawn failure details", async () => {
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
 		const setOrchestratorReplacementError = vi.fn();
 		spawnMock.mockRejectedValue(
-			new OrchestratorSpawnError(
-				"Claude Code is unavailable",
-				"CHAT_DRIVER_UNAVAILABLE",
-				"request-42",
-				400,
-			),
+			new OrchestratorSpawnError("Claude Code is unavailable", "AGENT_UNAVAILABLE", "request-42", 400),
 		);
 
 		await restartProjectOrchestrator({
@@ -105,13 +100,12 @@ describe("restartProjectOrchestrator", () => {
 			navigate: vi.fn(),
 			setProjectRestarting: vi.fn(),
 			setOrchestratorReplacementError,
-			mode: "tui",
 		});
 
-		expect(spawnMock).toHaveBeenCalledWith("proj-1", "restart", true, "tui");
+		expect(spawnMock).toHaveBeenCalledWith("proj-1", "restart", true);
 		expect(setOrchestratorReplacementError).toHaveBeenLastCalledWith("proj-1", {
 			message: "Claude Code is unavailable",
-			code: "CHAT_DRIVER_UNAVAILABLE",
+			code: "AGENT_UNAVAILABLE",
 			requestId: "request-42",
 		});
 	});

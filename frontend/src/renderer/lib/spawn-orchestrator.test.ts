@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { isChatPreflightError, OrchestratorSpawnError, spawnOrchestrator } from "./spawn-orchestrator";
+import { OrchestratorSpawnError, spawnOrchestrator } from "./spawn-orchestrator";
 import { apiClient } from "./api-client";
 import { captureRendererEvent } from "./telemetry";
 
@@ -59,18 +59,6 @@ describe("spawnOrchestrator", () => {
 		});
 	});
 
-	it("sends mode only when the user explicitly chooses it", async () => {
-		(apiClient.POST as ReturnType<typeof vi.fn>).mockResolvedValue({
-			data: { orchestrator: { id: "proj-2" } },
-			error: undefined,
-			response: { status: 201 },
-		});
-		await spawnOrchestrator("proj", "board", false, "tui");
-		expect(apiClient.POST).toHaveBeenCalledWith("/api/v1/orchestrators", {
-			body: { projectId: "proj", clean: false, mode: "tui" },
-		});
-	});
-
 	it("emits the requested + succeeded triad keyed by source", async () => {
 		(apiClient.POST as ReturnType<typeof vi.fn>).mockResolvedValue({
 			data: { orchestrator: { id: "proj-7" } },
@@ -121,6 +109,5 @@ describe("spawnOrchestrator", () => {
 			status: 400,
 		});
 		expect((error as Error).message).toBe("chat driver is unavailable (CHAT_DRIVER_UNAVAILABLE)");
-		expect(isChatPreflightError(error)).toBe(true);
 	});
 });

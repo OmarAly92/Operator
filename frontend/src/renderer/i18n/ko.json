@@ -343,7 +343,6 @@
 	"newTask.cancel": "취소",
 	"newTask.close": "새 작업 대화상자 닫기",
 	"newTask.configUnavailable": "프로젝트 구성을 사용할 수 없습니다.",
-	"newTask.createAsTui": "터미널 UI로 만들기",
 	"newTask.description": "이 프로젝트에서 워커를 직접 시작합니다.",
 	"newTask.image": "이미지 {{number}}",
 	"newTask.noSession": "작업 생성에서 세션이 반환되지 않았습니다",

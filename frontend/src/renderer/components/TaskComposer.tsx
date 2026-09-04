@@ -15,7 +15,7 @@ import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
 import type { components } from "../../api/schema";
-import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
+import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
 import { agentsQueryKey, agentsQueryOptions, refreshAgentsIfStale } from "../hooks/useAgentsQuery";
 import { type FileAttachmentPayload, useFileAttachments } from "../hooks/useFileAttachments";
@@ -36,26 +36,8 @@ type CreateTaskInput = {
 	brief: string;
 	agent?: DelegateAgent;
 	model?: string;
-	mode?: "tui";
 	attachments?: FileAttachmentPayload[];
 };
-
-const CHAT_PREFLIGHT_CODES = new Set([
-	"SESSION_MODE_UNSUPPORTED",
-	"CHAT_DRIVER_UNAVAILABLE",
-	"CHAT_DRIVER_INCOMPATIBLE",
-	"CHAT_AUTH_REQUIRED",
-]);
-
-class TaskCreateError extends Error {
-	constructor(
-		message: string,
-		readonly code?: string,
-	) {
-		super(message);
-		this.name = "TaskCreateError";
-	}
-}
 
 export type TaskComposerProps = {
 	projectId?: string;
@@ -87,7 +69,6 @@ export function TaskComposer({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | undefined>();
 	const [modelWarning, setModelWarning] = useState<string | undefined>();
-	const [canCreateAsTUI, setCanCreateAsTUI] = useState(false);
 	const [isDragging, setIsDragging] = useState(false);
 	const {
 		attachments,
@@ -107,15 +88,11 @@ export function TaskComposer({
 						brief: input.brief,
 						agent: input.agent,
 						model: input.model,
-						...(input.mode ? { mode: input.mode } : {}),
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
 				});
 				if (error) {
-					throw new TaskCreateError(
-						apiErrorMessage(error, t("newTask.unableToStart")),
-						apiErrorCode(error),
-					);
+					throw new Error(apiErrorMessage(error, t("newTask.unableToStart")));
 				}
 				if (!data?.workerId) throw new Error(t("newTask.noSession"));
 				void captureRendererEvent("opr.renderer.task_create_succeeded", { project_id: input.projectId });
@@ -197,7 +174,7 @@ export function TaskComposer({
 	useEffect(() => () => onSubmittingChange?.(false), [onSubmittingChange]);
 	useEffect(() => () => clearAttachments(), [clearAttachments]);
 
-	const submitTask = async (interfaceMode?: "tui") => {
+	const submitTask = async () => {
 		if (!projectId || isSubmitting) return;
 
 		const cleanModel = model.trim();
@@ -209,7 +186,6 @@ export function TaskComposer({
 
 		setIsSubmitting(true);
 		setError(undefined);
-		setCanCreateAsTUI(false);
 		try {
 			const attachmentPayloads = await toSettledPayload();
 			const sessionId = await createTask({
@@ -219,16 +195,10 @@ export function TaskComposer({
 				// or the resolved default, so spawning names it explicitly.
 				agent: selectedAgent ? (selectedAgent as CreateTaskInput["agent"]) : undefined,
 				model: requestedModel,
-				mode: interfaceMode,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 			});
 			onCreated(sessionId);
 		} catch (err) {
-			setCanCreateAsTUI(
-				interfaceMode !== "tui" &&
-					err instanceof TaskCreateError &&
-					Boolean(err.code && CHAT_PREFLIGHT_CODES.has(err.code)),
-			);
 			setError(err instanceof Error ? err.message : t("newTask.unableToStart"));
 		} finally {
 			setIsSubmitting(false);
@@ -341,20 +311,6 @@ export function TaskComposer({
 					{error && (
 						<div className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
 							<span>{error}</span>
-							{/* Chat preflight failed for this agent: offer the terminal interface
-							    rather than making the user rediscover the task. */}
-							{canCreateAsTUI ? (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									disabled={isSubmitting}
-									onClick={() => void submitTask("tui")}
-									className="shrink-0"
-								>
-									{t("newTask.createAsTui")}
-								</Button>
-							) : null}
 						</div>
 					)}
 					{!error && modelWarning && <p className="text-caption text-warning">{modelWarning}</p>}

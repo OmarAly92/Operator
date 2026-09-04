@@ -343,7 +343,6 @@
 	"newTask.cancel": "Abbrechen",
 	"newTask.close": "Dialog „Neue Aufgabe“ schließen",
 	"newTask.configUnavailable": "Projektkonfiguration ist nicht verfügbar.",
-	"newTask.createAsTui": "Als Terminal-UI erstellen",
 	"newTask.description": "Starten Sie einen Worker direkt aus diesem Projekt.",
 	"newTask.image": "Bild {{number}}",
 	"newTask.noSession": "Aufgabenerstellung hat keine Sitzung zurückgegeben",

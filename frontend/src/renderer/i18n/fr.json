@@ -345,7 +345,6 @@
 	"newTask.cancel": "Annuler",
 	"newTask.close": "Fermer la boîte de dialogue de nouvelle tâche",
 	"newTask.configUnavailable": "La configuration du projet n'est pas disponible.",
-	"newTask.createAsTui": "Créer en mode terminal",
 	"newTask.description": "Démarrez un worker directement depuis ce projet.",
 	"newTask.image": "Image {{number}}",
 	"newTask.noSession": "La création de la tâche n'a renvoyé aucune session",

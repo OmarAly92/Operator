@@ -1,7 +1,6 @@
 import { apiClient, apiErrorCode, apiErrorMessage, apiErrorRequestId } from "./api-client";
 import type { OrchestratorSpawnSource } from "./orchestrator-spawn-sources";
 import { captureRendererEvent } from "./telemetry";
-import type { SessionMode } from "../types/conversation";
 
 // Every UI entry point that spawns an orchestrator: the board CTA, the topbar
 // and sidebar launchers, the restore-unavailable dialog, and the auto-spawn
@@ -9,13 +8,6 @@ import type { SessionMode } from "../types/conversation";
 // spawnOrchestrator (keyed by source) guarantees each path reports, instead of
 // each call site remembering to instrument itself.
 export type { OrchestratorSpawnSource };
-
-const CHAT_PREFLIGHT_CODES = new Set([
-	"SESSION_MODE_UNSUPPORTED",
-	"CHAT_DRIVER_UNAVAILABLE",
-	"CHAT_DRIVER_INCOMPATIBLE",
-	"CHAT_AUTH_REQUIRED",
-]);
 
 /** A rejected orchestrator spawn without flattening the daemon's error envelope. */
 export class OrchestratorSpawnError extends Error {
@@ -30,14 +22,6 @@ export class OrchestratorSpawnError extends Error {
 	}
 }
 
-export function isChatPreflightCode(code?: string): boolean {
-	return Boolean(code && CHAT_PREFLIGHT_CODES.has(code));
-}
-
-export function isChatPreflightError(error: unknown): error is OrchestratorSpawnError {
-	return error instanceof OrchestratorSpawnError && isChatPreflightCode(error.code);
-}
-
 /** Spawn the project's orchestrator session via the daemon API. When clean is
  *  true the daemon first tears down any active orchestrator for the project, then
  *  re-spawns one on the canonical branch (reattaching the existing branch). */
@@ -45,12 +29,11 @@ export async function spawnOrchestrator(
 	projectId: string,
 	source: OrchestratorSpawnSource,
 	clean = false,
-	mode?: SessionMode,
 ): Promise<string> {
 	void captureRendererEvent("opr.renderer.orchestrator_spawn_requested", { project_id: projectId, source });
 	try {
 		const { data, error, response } = await apiClient.POST("/api/v1/orchestrators", {
-			body: { projectId, clean, ...(mode ? { mode } : {}) },
+			body: { projectId, clean },
 		});
 
 		if (error || !data?.orchestrator?.id) {
