@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -23,7 +22,6 @@ import 'package:operator_mobile/feature/preview/data/repository/preview_reposito
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 class MockMuxClient extends Mock implements MuxClient {}
@@ -33,9 +31,6 @@ class MockTerminalRepository extends Mock implements TerminalRepository {}
 class MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class MockPreviewRepository extends Mock implements PreviewRepository {}
-
-class MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
-    implements InterfaceSwitchCubit {}
 
 class MockBlocksRepository extends Mock implements BlocksRepository {}
 
@@ -63,7 +58,6 @@ class TerminalHarness {
   final MockMuxClient mux = MockMuxClient();
   final MockTerminalRepository terminalRepository = MockTerminalRepository();
   final MockSessionsRepository sessionsRepository = MockSessionsRepository();
-  final MockInterfaceSwitchCubit switchCubit = MockInterfaceSwitchCubit();
   final StreamController<MuxStatus> statuses = StreamController<MuxStatus>.broadcast();
   final StreamController<TerminalEvent> events = StreamController<TerminalEvent>.broadcast();
   final StreamController<BlockEventEnvelope> blockEvents =
@@ -107,16 +101,6 @@ class TerminalHarness {
     when(() => mux.sessionPatches).thenAnswer((_) => sessionPatches.stream);
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
     when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
-    when(() => switchCubit.state).thenReturn(const InterfaceSwitchInitialState());
-    when(() => switchCubit.supported).thenReturn(true);
-    when(() => switchCubit.reason).thenReturn(null);
-    when(() => switchCubit.error).thenReturn(null);
-    when(() => switchCubit.active).thenReturn(false);
-    when(() => switchCubit.cancellable).thenReturn(false);
-    when(() => switchCubit.cancelling).thenReturn(false);
-    when(() => switchCubit.phase).thenReturn(null);
-    when(() => switchCubit.start(any(), any())).thenAnswer((_) async {});
-    when(() => switchCubit.cancel()).thenAnswer((_) async {});
 
     cubit = TerminalCubit(
       mux,
@@ -153,7 +137,6 @@ class TerminalHarness {
                   BlocProvider<TerminalCubit>.value(value: cubit),
                   BlocProvider<SessionViewCubit>.value(value: viewCubit),
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
-                  BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(param1: cubit.args.sessionId, param2: null),
                   ),

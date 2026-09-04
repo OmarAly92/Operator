@@ -1,4 +1,3 @@
-import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -26,7 +25,6 @@ import 'package:operator_mobile/feature/sessions/data/repository/sessions_reposi
 import 'package:operator_mobile/feature/sessions/presentation/session_route/ui/session_route_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,9 +34,6 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockTerminalRepository extends Mock implements TerminalRepository {}
-
-class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
-    implements InterfaceSwitchCubit {}
 
 class _MockPreviewRepository extends Mock implements PreviewRepository {}
 
@@ -68,7 +63,6 @@ void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
   late _MockTerminalRepository terminalRepository;
-  late _MockInterfaceSwitchCubit switchCubit;
 
   setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -79,7 +73,6 @@ void main() {
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     terminalRepository = _MockTerminalRepository();
-    switchCubit = _MockInterfaceSwitchCubit();
     when(
       () => mux.sessionPatches,
     ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
@@ -97,17 +90,6 @@ void main() {
     when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
     when(() => mux.resize(any(), any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
-
-    when(() => switchCubit.state).thenReturn(const InterfaceSwitchInitialState());
-    when(() => switchCubit.supported).thenReturn(true);
-    when(() => switchCubit.reason).thenReturn(null);
-    when(() => switchCubit.error).thenReturn(null);
-    when(() => switchCubit.active).thenReturn(false);
-    when(() => switchCubit.cancellable).thenReturn(false);
-    when(() => switchCubit.cancelling).thenReturn(false);
-    when(() => switchCubit.phase).thenReturn(null);
-    when(() => switchCubit.start(any(), any())).thenAnswer((_) async {});
-    when(() => switchCubit.cancel()).thenAnswer((_) async {});
 
     await sl.reset();
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
@@ -163,7 +145,6 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux)),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const SessionRouteScreen(sessionId: 'w-1'),
             ),
@@ -200,7 +181,6 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>.value(value: cubit),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const SessionRouteScreen(sessionId: 'w-1'),
             ),

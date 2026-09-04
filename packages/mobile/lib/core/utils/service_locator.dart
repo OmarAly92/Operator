@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -51,7 +50,6 @@ import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.d
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -225,14 +223,6 @@ class ServiceLocator {
         args,
       ),
     );
-    sl.registerFactoryParam<InterfaceSwitchCubit, String, void>(
-      (sessionId, _) => InterfaceSwitchCubit(
-        sl<TerminalRepository>(),
-        sessionId,
-        onSettled: () => unawaited(sl<SessionsCubit>().refresh()),
-      ),
-    );
-
     sl.registerLazySingleton<TerminalRepository>(
       () => TerminalRepositoryImp(sl<TerminalRemoteDataSource>(), sl<NetworkStatus>()),
     );

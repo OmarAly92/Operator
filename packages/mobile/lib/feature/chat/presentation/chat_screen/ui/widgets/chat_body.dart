@@ -29,10 +29,7 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_overlay.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_sheet.dart';
 
 class ChatBody extends StatefulWidget {
   const ChatBody({super.key, this.projectId, this.previewUrl});
@@ -123,7 +120,6 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
       compacting: cubit.pendingActions.contains(ConversationAction.compact),
       mcpReloading: cubit.pendingActions.contains(ConversationAction.mcp),
       openingShell: _openingShell,
-      interfaceSupported: context.read<InterfaceSwitchCubit>().supported,
     );
     if (!mounted || result == null) return;
 
@@ -151,8 +147,6 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
         if (title != null) await cubit.rename(title);
       case ConversationMenuAction.worktreeShell:
         await _openShell();
-      case ConversationMenuAction.terminalUi:
-        await _switchToTerminal();
       case ConversationMenuAction.preview:
         Navigator.of(context).pushNamed(
           RoutesStrings.preview,
@@ -206,29 +200,6 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
       },
       onFailure: (failure) =>
           context.showSnackBar('Could not open shell: ${failure.message}'),
-    );
-  }
-
-  Future<void> _switchToTerminal() async {
-    final switchCubit = context.read<InterfaceSwitchCubit>();
-    if (!switchCubit.supported) {
-      context.showSnackBar(
-        switchCubit.reason ??
-            'This agent has not declared a compatible native conversation handoff.',
-      );
-      return;
-    }
-    final choice = await showInterfaceSwitchSheet(
-      context,
-      targetLabel: 'Terminal UI',
-      waitingOnInput:
-          context.read<ChatCubit>().snapshot?.hasTurnInFlight ?? false,
-      sourceLabel: 'Chat',
-    );
-    if (choice == null || !mounted) return;
-    await switchCubit.start(
-      'tui',
-      choice == InterfaceSwitchChoice.drain ? 'drain' : 'interrupt',
     );
   }
 
@@ -419,19 +390,6 @@ class ChatBodyState extends State<ChatBody> with WidgetsBindingObserver {
                   ),
                 ],
               ),
-            ),
-            BlocBuilder<InterfaceSwitchCubit, InterfaceSwitchState>(
-              buildWhen: (previous, current) =>
-                  current is InterfaceSwitchReadyState,
-              builder: (context, _) =>
-                  context.read<InterfaceSwitchCubit>().active
-                  ? const Positioned.fill(
-                      child: InterfaceSwitchOverlay(
-                        sourceLabel: 'chat',
-                        targetLabel: 'Terminal UI',
-                      ),
-                    )
-                  : const Positioned.fill(child: SizedBox.shrink()),
             ),
           ],
         );

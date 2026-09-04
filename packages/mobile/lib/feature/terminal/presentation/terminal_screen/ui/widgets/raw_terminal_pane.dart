@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/interface_switch_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_dead_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_surface.dart';
 
@@ -38,12 +36,6 @@ class _RawTerminalPaneState extends State<RawTerminalPane> {
         children: [
           const Positioned.fill(child: TerminalSurface()),
           if (cubit.notFound) const Positioned.fill(child: TerminalDeadOverlay()),
-          BlocBuilder<InterfaceSwitchCubit, InterfaceSwitchState>(
-            buildWhen: (previous, current) => current is InterfaceSwitchReadyState,
-            builder: (context, _) => context.read<InterfaceSwitchCubit>().active
-                ? const Positioned.fill(child: InterfaceSwitchOverlay())
-                : const Positioned.fill(child: SizedBox.shrink()),
-          ),
         ],
       );
     },

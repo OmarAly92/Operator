@@ -3,25 +3,14 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
-import 'package:operator_mobile/feature/terminal/data/model/interface_transition_model.dart';
-import 'package:operator_mobile/feature/terminal/data/model/interface_transition_status_model.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/params/send_session_message_params.dart';
-import 'package:operator_mobile/feature/terminal/data/model/params/start_interface_transition_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
 
 abstract class TerminalRepository {
   FutureResult<GlobalResponse<ShellTerminalModel>> openSessionShell(OpenSessionShellParams params);
   FutureResult<bool> closeShellTerminal(String handleId);
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params);
-  FutureResult<GlobalResponse<InterfaceTransitionStatusModel>> getInterfaceTransition(
-    String sessionId,
-  );
-  FutureResult<GlobalResponse<InterfaceTransitionModel>> startInterfaceTransition(
-    String sessionId,
-    StartInterfaceTransitionParams params,
-  );
-  FutureResult<bool> cancelInterfaceTransition(String sessionId);
 }
 
 class TerminalRepositoryImp implements TerminalRepository {
@@ -60,21 +49,6 @@ class TerminalRepositoryImp implements TerminalRepository {
   @override
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params) =>
       _run(() => _remoteDataSource.sendSessionMessage(sessionId, params));
-
-  @override
-  FutureResult<GlobalResponse<InterfaceTransitionStatusModel>> getInterfaceTransition(
-    String sessionId,
-  ) => _guard(() => _remoteDataSource.getInterfaceTransition(sessionId));
-
-  @override
-  FutureResult<GlobalResponse<InterfaceTransitionModel>> startInterfaceTransition(
-    String sessionId,
-    StartInterfaceTransitionParams params,
-  ) => _guard(() => _remoteDataSource.startInterfaceTransition(sessionId, params));
-
-  @override
-  FutureResult<bool> cancelInterfaceTransition(String sessionId) =>
-      _run(() => _remoteDataSource.cancelInterfaceTransition(sessionId));
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

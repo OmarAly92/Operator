@@ -85,51 +85,6 @@ void main() {
     expect(find.text('Close shell?'), findsOneWidget);
   });
 
-  testWidgets('explains why Chat is unavailable instead of starting a handoff', (tester) async {
-    when(() => harness.switchCubit.supported).thenReturn(false);
-    when(() => harness.switchCubit.reason).thenReturn('This agent has no chat driver.');
-    await harness.pump(tester, const TerminalScreen());
-
-    await tester.tap(find.bySemanticsLabel('Open Chat interface'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('This agent has no chat driver.'), findsOneWidget);
-    verifyNever(() => harness.switchCubit.start(any(), any()));
-  });
-
-  testWidgets('asks how to hand off, then starts the chosen policy', (tester) async {
-    await harness.pump(tester, const TerminalScreen());
-
-    await tester.tap(find.bySemanticsLabel('Open Chat interface'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Finish, then switch'));
-    await tester.pumpAndSettle();
-
-    verify(() => harness.switchCubit.start('chat', 'drain')).called(1);
-  });
-
-  testWidgets('covers the terminal while a transition is in flight', (tester) async {
-    when(() => harness.switchCubit.active).thenReturn(true);
-    when(() => harness.switchCubit.cancellable).thenReturn(true);
-    when(() => harness.switchCubit.phase).thenReturn('draining');
-    await harness.pump(tester, const TerminalScreen());
-
-    expect(find.text('Switching to Chat'), findsOneWidget);
-    expect(find.textContaining('Waiting for the current terminal turn'), findsOneWidget);
-
-    await tester.tap(find.text('Cancel switch'));
-    await tester.pump();
-    verify(() => harness.switchCubit.cancel()).called(1);
-  });
-
-  testWidgets('a worktree shell has no Chat handoff at all', (tester) async {
-    await harness.dispose();
-    harness = TerminalHarness()..start(shellOnly: true);
-    await harness.pump(tester, const TerminalScreen());
-
-    expect(find.bySemanticsLabel('Open Chat interface'), findsNothing);
-  });
-
   testWidgets('a covered harness opens in blocks and never joins the terminal channel', (tester) async {
     await harness.dispose();
     harness = TerminalHarness()..start(harness: 'claude-code');

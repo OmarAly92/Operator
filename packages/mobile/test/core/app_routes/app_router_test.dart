@@ -10,7 +10,6 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 
 class _FakeBuildContext extends Fake implements BuildContext {}
@@ -20,9 +19,6 @@ class _MockSessionsCubit extends Mock implements SessionsCubit {}
 class _MockNotificationsCubit extends MockCubit<NotificationsState> implements NotificationsCubit {}
 
 class _MockTerminalCubit extends MockCubit<TerminalState> implements TerminalCubit {}
-
-class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
-    implements InterfaceSwitchCubit {}
 
 void main() {
   Widget builtWidgetFor(String routeName, {Object? arguments}) {
@@ -59,7 +55,6 @@ void main() {
     await sl.reset();
     sl.registerLazySingleton<SessionsCubit>(_MockSessionsCubit.new);
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>((_, _) => _MockTerminalCubit());
-    sl.registerFactoryParam<InterfaceSwitchCubit, String, void>((_, _) => _MockInterfaceSwitchCubit());
 
     expect(
       builtWidgetFor(

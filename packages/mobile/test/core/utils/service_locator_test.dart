@@ -19,7 +19,6 @@ import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.d
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/spawn_cubit.dart';
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -122,16 +121,6 @@ void main() {
 
     expect(first.args.sessionId, 'session-1');
     expect(second.args.sessionId, 'session-2');
-    expect(identical(first, second), isFalse);
-
-    await first.close();
-    await second.close();
-  });
-
-  test('creates a distinct interface switch cubit for each session parameter', () async {
-    final first = sl<InterfaceSwitchCubit>(param1: '');
-    final second = sl<InterfaceSwitchCubit>(param1: '');
-
     expect(identical(first, second), isFalse);
 
     await first.close();

@@ -41,10 +41,6 @@ void main() {
       expect(EndPoints.shellTerminals, '/api/v1/shell-terminals');
       expect(EndPoints.shellTerminal('handle 1'), '/api/v1/shell-terminals/handle%201');
       expect(EndPoints.sessionSend('sess-1'), '/api/v1/sessions/sess-1/send');
-      expect(
-        EndPoints.sessionInterfaceTransition('sess-1'),
-        '/api/v1/sessions/sess-1/interface-transition',
-      );
     });
 
     test('escape identifiers so a slash cannot forge a route', () {

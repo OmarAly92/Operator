@@ -35,7 +35,6 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/lo
 import 'package:operator_mobile/feature/terminal/data/model/params/open_session_shell_params.dart';
 import 'package:operator_mobile/feature/terminal/data/model/shell_terminal_model.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/interface_switch_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockChatCubit extends MockCubit<ChatState> implements ChatCubit {}
@@ -50,9 +49,6 @@ class _MockMuxClient extends Mock implements MuxClient {}
 class _MockTerminalRepository extends Mock implements TerminalRepository {}
 
 class _MockChatEventDataSource extends Mock implements ChatEventDataSource {}
-
-class _MockInterfaceSwitchCubit extends MockCubit<InterfaceSwitchState>
-    implements InterfaceSwitchCubit {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -126,7 +122,6 @@ void main() {
   late ConversationBlocksCubit blocksCubit;
   late SessionsCubit sessionsCubit;
   late _MockTerminalRepository terminalRepository;
-  late _MockInterfaceSwitchCubit switchCubit;
   late _RouteCapturingObserver routeObserver;
 
   setUpAll(() {
@@ -148,7 +143,6 @@ void main() {
     final sessionsRepository = _MockSessionsRepository();
     final mux = _MockMuxClient();
     terminalRepository = _MockTerminalRepository();
-    switchCubit = _MockInterfaceSwitchCubit();
     when(
       () => mux.sessionPatches,
     ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
@@ -167,18 +161,6 @@ void main() {
       (onTranscript, _) =>
           VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
     );
-    when(
-      () => switchCubit.state,
-    ).thenReturn(const InterfaceSwitchInitialState());
-    when(() => switchCubit.supported).thenReturn(true);
-    when(() => switchCubit.reason).thenReturn(null);
-    when(() => switchCubit.error).thenReturn(null);
-    when(() => switchCubit.active).thenReturn(false);
-    when(() => switchCubit.cancellable).thenReturn(false);
-    when(() => switchCubit.cancelling).thenReturn(false);
-    when(() => switchCubit.phase).thenReturn(null);
-    when(() => switchCubit.start(any(), any())).thenAnswer((_) async {});
-    when(() => switchCubit.cancel()).thenAnswer((_) async {});
     when(() => cubit.state).thenReturn(const ChatReadyState(1));
     when(() => cubit.sessionId).thenReturn('w-1');
     when(() => cubit.loading).thenReturn(false);
@@ -232,7 +214,6 @@ void main() {
                   BlocProvider<ConversationBlocksCubit>.value(
                     value: blocksCubit,
                   ),
-                  BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
                 ],
                 child: const ChatBody(projectId: 'p-1'),
               ),
@@ -545,7 +526,6 @@ void main() {
                 BlocProvider<ConversationBlocksCubit>.value(
                   value: blocksCubit,
                 ),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: ChatScreen(sessionId: 'w-1', title: 'Conversation'),
             ),
@@ -586,7 +566,6 @@ void main() {
                 BlocProvider<ConversationBlocksCubit>.value(
                   value: blocksCubit,
                 ),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const ChatScreen(
                 sessionId: 'w-1',
@@ -620,7 +599,6 @@ void main() {
                 BlocProvider<ConversationBlocksCubit>.value(
                   value: blocksCubit,
                 ),
-                BlocProvider<InterfaceSwitchCubit>.value(value: switchCubit),
               ],
               child: const ChatScreen(
                 sessionId: 'w-1',
@@ -675,17 +653,4 @@ void main() {
     },
   );
 
-  testWidgets('asks how to hand off before switching to the Terminal UI', (
-    tester,
-  ) async {
-    when(() => switchCubit.supported).thenReturn(true);
-    await pumpBody(tester);
-
-    await openMenuAndTap(tester, 'Open Terminal UI');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Stop and switch'));
-    await tester.pumpAndSettle();
-
-    verify(() => switchCubit.start('tui', 'interrupt')).called(1);
-  });
 }
