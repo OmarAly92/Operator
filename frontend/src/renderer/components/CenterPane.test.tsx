@@ -59,18 +59,6 @@ vi.mock("./TerminalPane", () => ({
 	}),
 }));
 
-vi.mock("../hooks/useSessionBlocks", () => ({
-	useSessionBlocks: () => ({
-		blocks: [],
-		isLoading: false,
-		isLoadingOlder: false,
-		hasOlder: false,
-		error: undefined,
-		loadOlder: vi.fn(),
-		refetch: vi.fn(),
-	}),
-}));
-
 const worker = {
 	id: "sess-1",
 	workspaceId: "proj-1",
@@ -351,7 +339,7 @@ describe("CenterPane toolbar session label", () => {
 });
 
 describe("CenterPane surfaces", () => {
-	const tuiWorker = { ...worker, mode: "tui" } satisfies WorkspaceSession;
+	const tuiWorker = worker;
 
 	// The pane is the raw terminal, full stop. Blocks were a third surface
 	// alongside it and the chat UI; the toggle and the mode it stored are gone.

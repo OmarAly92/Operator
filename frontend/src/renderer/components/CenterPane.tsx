@@ -1,7 +1,6 @@
 import { ArrowRight, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import {
 	findActiveAgentSwitch,
@@ -33,7 +32,6 @@ import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 import { BlockComposer, type BlockComposerSend } from "./blocks/BlockComposer";
 import { BlocksView } from "./blocks/BlocksView";
-import { useSessionBlocks } from "../hooks/useSessionBlocks";
 import {
 	useConversation,
 	useConversationCommands,
@@ -48,7 +46,6 @@ import { McpServerBanner, ReauthBanner, ThreadStateBanner } from "./chat/ChatSta
 import { TurnSettingsBar } from "./chat/TurnSettingsBar";
 import { blocksFromConversation } from "../lib/conversation-blocks";
 import type { SessionBlock } from "../lib/session-block";
-import { blocksCoverHarness } from "../lib/session-block";
 import type { TurnGroup } from "../lib/block-turns";
 import type { BlockAction, BlockActionContext } from "../lib/block-actions";
 import { MAX_SUGGESTIONS, rankFiles, rankSkills, type Suggestion } from "./chat/composerSuggest";
@@ -72,8 +69,6 @@ type CenterPaneProps = {
 	onSelectSessionTerminal?: () => void;
 	/** Session actions consolidated into the terminal bar by SessionView. */
 	topbarActions?: ReactNode;
-	/** Stop forwarding the agent pane's keystrokes while its controller drains. */
-	agentInputDisabled?: boolean;
 };
 
 const terminalFontSizeStorageKey = "opr.terminal.fontSize";
@@ -97,7 +92,6 @@ export function CenterPane({
 	onSelectReviewerTerminal,
 	onSelectSessionTerminal,
 	topbarActions,
-	agentInputDisabled = false,
 }: CenterPaneProps) {
 	const { t } = useTranslation();
 	const paneRef = useRef<HTMLDivElement | null>(null);
@@ -259,7 +253,6 @@ export function CenterPane({
 						daemonReady={daemonReady}
 						fontSize={fontSize}
 						focusRequested={switchPermissionRequired && target.kind === "worker"}
-						inputDisabled={agentInputDisabled && target.kind === "worker"}
 						session={session}
 						terminalTarget={target}
 						theme={theme}
@@ -440,79 +433,11 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 	);
 }
 
-export function SessionBlocksPane({ session, headerActions }: { session: WorkspaceSession | undefined; headerActions?: ReactNode }) {
-	const sessionId = session?.id ?? "";
-	const harness = session?.provider;
-	const isChat = session?.mode === "chat";
-
-	if (isChat) {
-		return (
-			<div className="flex h-full min-h-0 flex-col">
-				{headerActions}
-				<ChatSessionBlocksPane sessionId={sessionId} />
-			</div>
-		);
-	}
-
-	return (
-		<TuiSessionBlocksPane harness={harness} session={session} sessionId={sessionId} />
-	);
-}
-
-function TuiSessionBlocksPane({
-	harness,
-	session,
-	sessionId,
-}: {
-	harness: string | undefined;
-	session: WorkspaceSession | undefined;
-	sessionId: string;
-}) {
-	const blocks = useSessionBlocks(sessionId, {
-		enabled: sessionId !== "",
-		harness,
-		sessionEnded: session?.isTerminated === true || session?.activity?.state === "exited",
-	});
-	const send = useTuiSend(sessionId);
-	const [rerunRequest, setRerunRequest] = useState<{ text: string; revision: number }>();
-	const actionContext = useMemo<BlockActionContext>(
-		() => ({ mode: "tui", capabilities: [], canSend: sessionId !== "", turnInFlight: false, rollbackableTurnIds: [] }),
-		[sessionId],
-	);
-	const onAction = useCallback(async (_block: SessionBlock, action: BlockAction) => {
-		switch (action.kind) {
-			case "copy_block":
-			case "copy_command":
-			case "copy_output":
-				await copyActionPayload(action);
-				return;
-			case "rerun":
-				setRerunRequest((current) => ({ text: action.payload ?? "", revision: (current?.revision ?? 0) + 1 }));
-				return;
-			case "rewind":
-				return;
-		}
-	}, []);
-
+export function SessionBlocksPane({ sessionId, headerActions }: { sessionId: string; headerActions?: ReactNode }) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="min-h-0 flex-1">
-				<BlocksView
-					blocks={blocks.blocks}
-					error={blocks.error}
-					harness={harness}
-					hasOlder={blocks.hasOlder}
-					isLoading={blocks.isLoading}
-					isLoadingOlder={blocks.isLoadingOlder}
-					actionContext={actionContext}
-					onAction={onAction}
-					onLoadOlder={blocks.loadOlder}
-					onRetry={blocks.refetch}
-					sessionId={sessionId}
-					supported={blocksCoverHarness(harness)}
-				/>
-			</div>
-			{sessionId === "" ? null : <BlockComposer prefill={rerunRequest} send={send} sessionId={sessionId} />}
+			{headerActions}
+			<ChatSessionBlocksPane sessionId={sessionId} />
 		</div>
 	);
 }
@@ -803,18 +728,4 @@ function buildComposerSuggestions(
 		query: "",
 		items: [...rankSkills(skills, ""), ...rankFiles(filePaths, "")].slice(0, MAX_SUGGESTIONS),
 	};
-}
-
-function useTuiSend(sessionId: string): BlockComposerSend {
-	const { t } = useTranslation();
-	return useCallback(
-		async (input: { text: string }) => {
-			const { error: failure } = await apiClient.POST("/api/v1/sessions/{sessionId}/send", {
-				params: { path: { sessionId } },
-				body: { message: input.text },
-			});
-			if (failure) throw new Error(apiErrorMessage(failure, t("blocks.sendError")));
-		},
-		[sessionId, t],
-	);
 }

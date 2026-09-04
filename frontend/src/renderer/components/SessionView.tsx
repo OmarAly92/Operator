@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
 import type { components } from "../../api/schema";
-import { CenterPane, SessionBlocksPane } from "./CenterPane";
+import { CenterPane } from "./CenterPane";
 import { SessionFilesView } from "./SessionFilesView";
 import { SessionInspector } from "./SessionInspector";
 import { ShellTopbar } from "./ShellTopbar";
@@ -151,7 +151,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const routedTerminalTarget = terminalTargetBelongsToSession(terminalTarget, sessionId)
 		? terminalTarget
 		: ({ kind: "worker" } satisfies TerminalTarget);
-	const showChatSurface = session?.mode === "chat" && routedTerminalTarget.kind === "worker";
 
 	// The pane shows one terminal at a time, so selecting a shell or the reviewer
 	// takes the agent's terminal off screen while the route still points here.
@@ -285,22 +284,16 @@ export function SessionView({ sessionId }: SessionViewProps) {
 				    so clip the chat rail's active marker instead of creating a horizontal scrollbar. */}
 				<ResizablePanel defaultSize="72%" id="terminal" minSize="45%" style={{ overflow: "hidden" }}>
 					<div className="relative h-full min-h-0">
-						{/* The committed mode owns the agent surface. Auxiliary shell and
-						    reviewer targets remain terminal surfaces in either mode. */}
-						{showChatSurface ? (
-							<SessionBlocksPane session={session} headerActions={sessionHeaderActions} />
-						) : (
-							<CenterPane
-								daemonReady={daemonStatus.state === "ready"}
-								onSelectSessionTerminal={selectSessionTerminal}
-								onSelectReviewerTerminal={selectReviewerTerminal}
-								reviewerTerminal={reviewerTerminal}
-								session={session}
-								terminalTarget={routedTerminalTarget}
-								theme={theme}
-								topbarActions={sessionHeaderActions}
-							/>
-						)}
+						<CenterPane
+							daemonReady={daemonStatus.state === "ready"}
+							onSelectSessionTerminal={selectSessionTerminal}
+							onSelectReviewerTerminal={selectReviewerTerminal}
+							reviewerTerminal={reviewerTerminal}
+							session={session}
+							terminalTarget={routedTerminalTarget}
+							theme={theme}
+							topbarActions={sessionHeaderActions}
+						/>
 					</div>
 				</ResizablePanel>
 				{hasInspector ? (

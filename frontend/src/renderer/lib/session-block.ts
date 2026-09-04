@@ -85,7 +85,3 @@ function assertNever(value: never): never {
 // Raw and the toggle says so rather than showing an empty list. There is no
 // runtime handshake that discovers this set.
 export const BLOCK_HARNESSES: ReadonlySet<string> = new Set(["claude-code", "grok", "codex"]);
-
-export function blocksCoverHarness(harness: string | undefined): boolean {
-	return harness !== undefined && BLOCK_HARNESSES.has(harness);
-}

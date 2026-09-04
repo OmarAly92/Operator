@@ -93,12 +93,6 @@ const { workspaces, workspaceQueryState, panels } = vi.hoisted(() => {
 // platform hides the shell topbar, SessionView mounts it in-panel.)
 vi.mock("./ShellTopbar", () => ({ ShellTopbar: () => null }));
 vi.mock("./CenterPane", () => ({
-	SessionBlocksPane: ({ headerActions }: { headerActions?: ReactNode }) => (
-		<div data-testid="blocks-pane">
-			blocks pane
-			{headerActions}
-		</div>
-	),
 	CenterPane: ({
 		session,
 		onSelectSessionTerminal,
@@ -330,7 +324,6 @@ describe("SessionView", () => {
 			delete session.previewOpenedRevision;
 			delete session.isTerminated;
 			session.status = "working";
-			delete session.mode;
 			session.prs = [];
 		}
 		workspaceQueryState.data = workspaces;
