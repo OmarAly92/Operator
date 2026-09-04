@@ -17,20 +17,26 @@ void main() {
     dataSource = OrchestratorRemoteDataSourceImp(apiConsumer);
   });
 
-  test('posts the project, clean flag and mode', () async {
+  test('posts the project and clean flag', () async {
     when(() => apiConsumer.post(any(), body: any(named: 'body'))).thenAnswer(
       (_) async => Response<dynamic>(
         requestOptions: RequestOptions(path: '/'),
-        data: {'orchestrator': {'id': 'o1', 'projectId': 'p', 'mode': 'chat'}},
+        data: {'orchestrator': {'id': 'o1', 'projectId': 'p'}},
       ),
     );
 
-    await dataSource.launch(const LaunchOrchestratorParams(projectId: 'p', clean: true, mode: 'chat'));
+    await dataSource.launch(const LaunchOrchestratorParams(projectId: 'p', clean: true));
 
     final captured = verify(
       () => apiConsumer.post(EndPoints.orchestrators, body: captureAny(named: 'body')),
     ).captured.single as Map<String, dynamic>;
-    expect(captured, {'projectId': 'p', 'clean': true, 'mode': 'chat'});
+    expect(captured, {'projectId': 'p', 'clean': true});
+  });
+
+  test('never sends a session mode on the wire', () {
+    final params = const LaunchOrchestratorParams(projectId: 'p', clean: false);
+
+    expect(params.toJson().containsKey('mode'), isFalse);
   });
 
   test('reports the fresh orchestrator as live', () async {
@@ -42,7 +48,7 @@ void main() {
     );
 
     final link = (await dataSource.launch(
-      const LaunchOrchestratorParams(projectId: 'p', clean: false, mode: 'chat'),
+      const LaunchOrchestratorParams(projectId: 'p', clean: false),
     )).data!;
 
     expect(link.id, 'o1');

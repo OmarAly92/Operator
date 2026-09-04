@@ -270,9 +270,8 @@ type Manager struct {
 	// its Outcome; mutation-owned handoff/startup prompts use the explicit
 	// admitted path while ordinary input remains fenced out.
 	messenger *sessionguard.Guard
-	// chat launches the structured controller for a chat-mode session. Nil means
-	// this build cannot run chat sessions, and a chat spawn is refused rather
-	// than silently downgraded to a terminal.
+	// chat launches the structured controller for an existing chat-mode session
+	// on resume or relaunch. Nil means this build cannot run chat sessions.
 	chat                ChatLauncher
 	lcm                 lifecycleRecorder
 	preview             PreviewLifecycle
@@ -475,9 +474,8 @@ type Deps struct {
 	Workspace ports.Workspace
 	Store     Store
 	Messenger ports.AgentMessenger
-	// Chat launches the structured controller for a chat-mode session. Nil means
-	// chat mode is unavailable, and a chat spawn is refused rather than silently
-	// downgraded to a terminal.
+	// Chat launches the structured controller for an existing chat-mode session
+	// on resume or relaunch. Nil means chat mode is unavailable.
 	Chat                ChatLauncher
 	Lifecycle           lifecycleRecorder
 	Preview             PreviewLifecycle

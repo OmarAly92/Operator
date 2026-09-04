@@ -32,7 +32,7 @@ void main() {
   late _MockSessionsRepository sessionsRepository;
   late _MockMuxClient mux;
 
-  setUpAll(() => registerFallbackValue(const LaunchOrchestratorParams(projectId: 'p', clean: false, mode: 'chat')));
+  setUpAll(() => registerFallbackValue(const LaunchOrchestratorParams(projectId: 'p', clean: false)));
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});

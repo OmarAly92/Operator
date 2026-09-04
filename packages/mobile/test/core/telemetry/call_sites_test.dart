@@ -66,7 +66,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(const ServerConfig(host: '', httpPort: '', secure: false, password: ''));
-    registerFallbackValue(const LaunchOrchestratorParams(projectId: 'p', clean: false, mode: 'chat'));
+    registerFallbackValue(const LaunchOrchestratorParams(projectId: 'p', clean: false));
     registerFallbackValue(
       const SpawnSessionParams(projectId: 'p', prompt: 'x', issueId: 'y', harness: 'codex'),
     );

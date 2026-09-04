@@ -18,7 +18,7 @@ void main() {
   late _MockNetworkStatus network;
   late OrchestratorRepositoryImp repository;
 
-  const params = LaunchOrchestratorParams(projectId: 'p', clean: false, mode: 'chat');
+  const params = LaunchOrchestratorParams(projectId: 'p', clean: false);
 
   setUpAll(() => registerFallbackValue(params));
 

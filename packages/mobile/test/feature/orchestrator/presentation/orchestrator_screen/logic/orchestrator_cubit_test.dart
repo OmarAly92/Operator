@@ -16,7 +16,7 @@ void main() {
   late _MockOrchestratorRepository repository;
 
   setUpAll(() => registerFallbackValue(
-      const LaunchOrchestratorParams(projectId: 'p', clean: false, mode: 'chat')));
+      const LaunchOrchestratorParams(projectId: 'p', clean: false)));
 
   setUp(() {
     repository = _MockOrchestratorRepository();

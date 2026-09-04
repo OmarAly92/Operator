@@ -77,10 +77,6 @@ test("chat minimap does not make the session pane scroll horizontally", async ({
 			await route.fulfill({ json: { files: [], truncated: false } });
 			return;
 		}
-		if (path.endsWith("/interface-transition")) {
-			await route.fulfill({ json: { supported: true, targetMode: "tui" } });
-			return;
-		}
 		await route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "not found" } } });
 	});
 
