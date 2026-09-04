@@ -513,53 +513,6 @@ type ResumeAgentResponse struct {
 	Session    SessionView                `json:"session"`
 }
 
-// StartSessionInterfaceTransitionRequest is the body of POST
-// /api/v1/sessions/{sessionId}/interface-transition.
-type StartSessionInterfaceTransitionRequest struct {
-	TargetMode domain.SessionMode                      `json:"targetMode" enum:"chat,tui"`
-	Policy     domain.SessionInterfaceTransitionPolicy `json:"policy" enum:"drain,interrupt"`
-}
-
-// SessionInterfaceTransitionView is the client-facing progress record. The
-// provider-native conversation id is intentionally not exposed: clients need
-// controller state, not an adapter implementation detail.
-type SessionInterfaceTransitionView struct {
-	ID          string                                  `json:"id"`
-	SessionID   domain.SessionID                        `json:"sessionId"`
-	SourceMode  domain.SessionMode                      `json:"sourceMode" enum:"chat,tui"`
-	TargetMode  domain.SessionMode                      `json:"targetMode" enum:"chat,tui"`
-	Policy      domain.SessionInterfaceTransitionPolicy `json:"policy" enum:"drain,interrupt"`
-	Phase       domain.SessionInterfaceTransitionPhase  `json:"phase" enum:"requested,preflighting,draining,source_stopping,source_stopped,target_starting,activating,completed,failed,cancelled,recovery_required"`
-	ErrorCode   string                                  `json:"errorCode,omitempty"`
-	ErrorDetail string                                  `json:"errorDetail,omitempty"`
-	CreatedAt   time.Time                               `json:"createdAt"`
-	UpdatedAt   time.Time                               `json:"updatedAt"`
-	CompletedAt *time.Time                              `json:"completedAt,omitempty"`
-}
-
-// SessionInterfaceTransitionStatusResponse is the body of GET
-// /api/v1/sessions/{sessionId}/interface-transition.
-type SessionInterfaceTransitionStatusResponse struct {
-	Supported  bool                            `json:"supported"`
-	TargetMode domain.SessionMode              `json:"targetMode" enum:"chat,tui"`
-	ReasonCode string                          `json:"reasonCode,omitempty"`
-	Reason     string                          `json:"reason,omitempty"`
-	Transition *SessionInterfaceTransitionView `json:"transition,omitempty"`
-}
-
-// StartSessionInterfaceTransitionResponse acknowledges an asynchronous handoff.
-type StartSessionInterfaceTransitionResponse struct {
-	OK         bool                           `json:"ok"`
-	SessionID  domain.SessionID               `json:"sessionId"`
-	Transition SessionInterfaceTransitionView `json:"transition"`
-}
-
-// CancelSessionInterfaceTransitionResponse acknowledges cancellation.
-type CancelSessionInterfaceTransitionResponse struct {
-	OK        bool             `json:"ok"`
-	SessionID domain.SessionID `json:"sessionId"`
-}
-
 // KillSessionResponse is the body of POST /api/v1/sessions/{sessionId}/kill.
 type KillSessionResponse struct {
 	OK        bool             `json:"ok"`
