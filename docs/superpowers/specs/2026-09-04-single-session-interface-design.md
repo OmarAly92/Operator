@@ -75,10 +75,18 @@ Each client owns its own view preference, persisted locally:
 | desktop | raw pty | blocks |
 | mobile | blocks | raw pty |
 
-Both toggles already exist —
+Mobile's toggle already exists and works:
 [`SessionViewCubit`](../../../packages/mobile/lib/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart)
-on mobile, `TuiSessionBlocksPane` in
-[`CenterPane.tsx`](../../../frontend/src/renderer/components/CenterPane.tsx) on desktop.
+switches raw/blocks and `defaultViewMode` already picks blocks for a covered harness.
+
+**Desktop has no such toggle, and its blocks view is currently unreachable.**
+`TuiSessionBlocksPane` exists in
+[`CenterPane.tsx`](../../../frontend/src/renderer/components/CenterPane.tsx), but
+`SessionView` renders `SessionBlocksPane` only when `showChatSurface` is true, which
+requires `mode === "chat"` — so the TUI branch never executes outside
+`CenterPane.blocks.test.tsx`. Phase 1 must wire it up and build the toggle, not merely
+re-point an existing one. This is the single largest piece of new UI in the phase.
+
 Because the preference is local, the two clients can never disagree and there is
 nothing to transition.
 
