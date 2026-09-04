@@ -48,6 +48,7 @@ void _stubCubit(_MockBlocksCubit cubit, {List<SessionBlock> blocks = const []}) 
   when(() => cubit.harness).thenReturn('claude-code');
   when(() => cubit.blocks).thenReturn(blocks);
   when(() => cubit.loading).thenReturn(false);
+  when(() => cubit.active).thenReturn(false);
   when(() => cubit.loadingOlder).thenReturn(false);
   when(() => cubit.hasOlder).thenReturn(false);
   when(() => cubit.error).thenReturn(null);

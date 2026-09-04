@@ -84,6 +84,7 @@ void main() {
     when(() => cubit.harness).thenReturn('claude-code');
     when(() => cubit.blocks).thenReturn(const []);
     when(() => cubit.loading).thenReturn(false);
+    when(() => cubit.active).thenReturn(false);
     when(() => cubit.loadingOlder).thenReturn(false);
     when(() => cubit.hasOlder).thenReturn(false);
     when(() => cubit.error).thenReturn(null);
@@ -343,6 +344,7 @@ void main() {
         ),
       ]);
       when(() => cubitB.loading).thenReturn(false);
+      when(() => cubitB.active).thenReturn(false);
       when(() => cubitB.loadingOlder).thenReturn(false);
       when(() => cubitB.hasOlder).thenReturn(false);
       when(() => cubitB.error).thenReturn(null);
@@ -379,6 +381,7 @@ void main() {
         ),
       ]);
       when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.active).thenReturn(false);
       when(() => cubit.loadingOlder).thenReturn(false);
       when(() => cubit.hasOlder).thenReturn(false);
       when(() => cubit.error).thenReturn(null);
@@ -417,6 +420,7 @@ void main() {
         ),
       ]);
       when(() => cubit.loading).thenReturn(false);
+      when(() => cubit.active).thenReturn(false);
       when(() => cubit.loadingOlder).thenReturn(false);
       when(() => cubit.hasOlder).thenReturn(false);
       when(() => cubit.error).thenReturn(null);

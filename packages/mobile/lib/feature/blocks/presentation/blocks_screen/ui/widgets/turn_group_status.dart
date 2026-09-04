@@ -59,6 +59,8 @@ class _TurnGroupStatusState extends State<TurnGroupStatus> {
     final text = duration == null
         ? (group.running ? 'RUNNING' : 'FINISHED')
         : '${group.running ? 'RUNNING' : 'FINISHED'} · ${_formatDuration(duration)}';
+    final model = group.model;
+    final label = model == null || model.isEmpty ? text : '$text · $model';
     final turnId = group.turnId;
     final canRollback = widget.onRollback != null && turnId != null;
     return Padding(
@@ -71,7 +73,7 @@ class _TurnGroupStatusState extends State<TurnGroupStatus> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: AppText(
-              text,
+              label,
               style: AppTextStyle.mono10Regular.copyWith(
                 color: context.skin.textFaint,
               ),

@@ -263,6 +263,7 @@ class BlocksBodyState extends State<BlocksBody> {
                         key: _listKey,
                         sessionId: cubit.sessionId,
                         blocks: visibleBlocks,
+                        sessionActive: cubit.active,
                         header: _olderControl(context, cubit),
                         sticky: _sticky,
                         pinnedListenable: _pinned,

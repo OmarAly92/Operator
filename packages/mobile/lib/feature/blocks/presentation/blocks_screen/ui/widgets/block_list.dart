@@ -29,10 +29,12 @@ class BlockList extends StatefulWidget {
     this.selectionMode = false,
     this.onToggleSelect,
     this.onLongPressHeader,
+    this.sessionActive = false,
   });
 
   final String sessionId;
   final List<SessionBlock> blocks;
+  final bool sessionActive;
   final Widget? header;
   final ValueNotifier<StickyBlock?>? sticky;
   final ValueNotifier<bool>? pinnedListenable;
@@ -285,7 +287,7 @@ class BlockListState extends State<BlockList> {
     });
     final blocks = widget.blocks;
     final groupEndingByBlockId = <String, TurnGroup>{
-      for (final group in groupBlocksByTurn(blocks))
+      for (final group in groupBlocksByTurn(blocks, sessionActive: widget.sessionActive))
         group.blocks.last.id: group,
     };
     final pivot = BlockViewport.pivotIndex(blocks, _pivotSeq);

@@ -12,6 +12,7 @@ class TurnGroup extends Equatable {
     this.completedAt,
     this.durationMs,
     required this.running,
+    this.model,
   });
 
   final String? turnId;
@@ -20,6 +21,7 @@ class TurnGroup extends Equatable {
   final String? completedAt;
   final int? durationMs;
   final bool running;
+  final String? model;
 
   @override
   List<Object?> get props => [
@@ -29,6 +31,7 @@ class TurnGroup extends Equatable {
     completedAt,
     durationMs,
     running,
+    model,
   ];
 }
 
@@ -80,7 +83,7 @@ bool continuesTurn(SessionBlock previous, SessionBlock current) {
 bool continuesResponse(SessionBlock _, SessionBlock current) =>
     current.kind != BlockKind.prompt;
 
-List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
+List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks, {bool sessionActive = false}) {
   final groups = <TurnGroup>[];
   for (final block in blocks) {
     final group = groups.isEmpty ? null : groups.last;
@@ -98,7 +101,7 @@ List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
     );
   }
 
-  return groups.map((group) {
+  final result = groups.map((group) {
     final last = group.blocks.last;
     bool running = false;
     String? lastChildCreatedAt;
@@ -131,8 +134,28 @@ List<TurnGroup> groupBlocksByTurn(List<SessionBlock> blocks) {
       completedAt: completedAt,
       durationMs: _durationBetween(group.startedAt, completedAt),
       running: running,
+      model: _groupModel(group.blocks),
     );
   }).toList();
+
+  if (!sessionActive || result.isEmpty || result.last.running) return result;
+  final last = result.last;
+  result[result.length - 1] = TurnGroup(
+    turnId: last.turnId,
+    blocks: last.blocks,
+    startedAt: last.startedAt,
+    running: true,
+    model: last.model,
+  );
+  return result;
+}
+
+String? _groupModel(List<SessionBlock> blocks) {
+  for (final block in blocks) {
+    final model = block.model;
+    if (model != null && model.isNotEmpty) return model;
+  }
+  return null;
 }
 
 List<ConversationGroup> groupConversationByTurn(

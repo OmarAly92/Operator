@@ -406,4 +406,37 @@ void main() {
 
     verify(() => mux.unsubscribeBlocks('s-1')).called(1);
   });
+
+  test('tracks the session activity the hooks report', () async {
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.active, isFalse);
+
+    patches.add(const [
+      SessionPatch(
+        id: 's-1',
+        status: 'working',
+        activity: 'active',
+        attentionLevel: 'none',
+        lastActivityAt: '2026-09-04T00:00:00.000Z',
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.active, isTrue);
+
+    patches.add(const [
+      SessionPatch(
+        id: 's-1',
+        status: 'idle',
+        activity: 'idle',
+        attentionLevel: 'none',
+        lastActivityAt: '2026-09-04T00:00:01.000Z',
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.active, isFalse);
+
+    await cubit.close();
+  });
 }

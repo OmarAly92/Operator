@@ -47,6 +47,7 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   List<SessionBlock> blocks = const [];
   bool loading = false;
+  bool active = false;
   bool loadingOlder = false;
   bool hasOlder = true;
   String? error;
@@ -139,8 +140,10 @@ class BlocksCubit extends Cubit<BlocksState> {
     for (final patch in patches) {
       if (patch.id != sessionId) continue;
       final ended = patch.activity == 'exited' || patch.status == 'terminated';
-      if (ended != _ended) {
+      final busy = patch.activity == 'active';
+      if (ended != _ended || busy != active) {
         _ended = ended;
+        active = busy;
         _rebuild();
       }
       return;
