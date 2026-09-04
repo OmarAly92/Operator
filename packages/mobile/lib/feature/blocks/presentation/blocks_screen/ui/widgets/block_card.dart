@@ -335,6 +335,7 @@ class BlockCardHeader extends StatelessWidget {
     if (onLongPressHeader != null) {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: onToggleCollapse,
         onLongPress: onLongPressHeader,
         child: content,
       );

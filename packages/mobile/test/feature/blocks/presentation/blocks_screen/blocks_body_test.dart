@@ -436,4 +436,27 @@ void main() {
       expect(find.text('Re-run this prompt'), findsNothing);
     },
   );
+
+  testWidgets('reasoning starts collapsed and expands on tap', (
+    tester,
+  ) async {
+    when(() => cubit.blocks).thenReturn([
+      _block(id: 'seq-1', kind: BlockKind.prompt, title: 'Prompt', body: 'go'),
+      _block(
+        id: 'src-u-1',
+        kind: BlockKind.reasoning,
+        title: 'Reasoning',
+        body: 'thinking out loud',
+      ),
+    ]);
+
+    await _pump(tester, cubit);
+
+    expect(find.text('thinking out loud'), findsNothing);
+
+    await tester.tap(find.text('Reasoning'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('thinking out loud'), findsOneWidget);
+  });
 }

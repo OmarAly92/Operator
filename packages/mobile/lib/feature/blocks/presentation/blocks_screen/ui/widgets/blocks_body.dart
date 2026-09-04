@@ -31,6 +31,7 @@ class BlocksBodyState extends State<BlocksBody> {
   final ValueNotifier<bool> _pinned = ValueNotifier<bool>(true);
   final ValueNotifier<StickyBlock?> _sticky = ValueNotifier<StickyBlock?>(null);
   final Set<String> _collapsed = <String>{};
+  final Set<String> _expandedReasoning = <String>{};
   final Set<String> _selected = <String>{};
   bool _selectionMode = false;
   String? _lastSessionId;
@@ -51,6 +52,7 @@ class BlocksBodyState extends State<BlocksBody> {
   void _syncCollapsed(String sessionId) {
     if (_lastSessionId == sessionId) return;
     _collapsed.clear();
+    _expandedReasoning.clear();
     _selected.clear();
     _selectionMode = false;
     _findOpen = false;
@@ -208,6 +210,13 @@ class BlocksBodyState extends State<BlocksBody> {
                 hiddenCount: 0,
               );
         final visibleBlocks = _filtering ? filterResult.blocks : allBlocks;
+        final collapsedIds = <String>{
+          ..._collapsed,
+          for (final block in visibleBlocks)
+            if (block.kind == BlockKind.reasoning &&
+                !_expandedReasoning.contains(block.id))
+              block.id,
+        };
         final activeMatch = _activeMatchId == null
             ? null
             : matches.firstWhere(
@@ -269,8 +278,18 @@ class BlocksBodyState extends State<BlocksBody> {
                         pinnedListenable: _pinned,
                         actionContext: actionContext,
                         onAction: _onAction,
-                        collapsedIds: _collapsed,
+                        collapsedIds: collapsedIds,
                         onToggleCollapse: (id) => setState(() {
+                          final block = visibleBlocks.firstWhere(
+                            (candidate) => candidate.id == id,
+                            orElse: () => visibleBlocks.first,
+                          );
+                          if (block.kind == BlockKind.reasoning) {
+                            if (!_expandedReasoning.add(id)) {
+                              _expandedReasoning.remove(id);
+                            }
+                            return;
+                          }
                           if (!_collapsed.add(id)) _collapsed.remove(id);
                         }),
                         highlights: highlight == null
