@@ -196,6 +196,42 @@ func TestReconcileReResolvesWhenTheTrackedPathDisappears(t *testing.T) {
 	}
 }
 
+func TestReconcileSwitchesWhenTheHookReportsANewPathWhileTheOldOneStillStats(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	oldPath := writeTranscript(t, filepath.Join(configDir, "projects", "p"), "old.jsonl")
+	newPath := writeTranscript(t, filepath.Join(configDir, "projects", "p"), "new.jsonl")
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", oldPath, false)}}
+	sup := newSupervisor(t, sessions, &fakeSink{}, &fakeOffsets{}, newFakeWatcher(), configDir)
+
+	sup.reconcile(context.Background())
+	wantOld, _ := filepath.EvalSymlinks(oldPath)
+	if got := sup.tails["s-1"].path; got != wantOld {
+		t.Fatalf("path = %q want %q", got, wantOld)
+	}
+	sup.tails["s-1"].offset = 42
+	sup.tails["s-1"].lastModel = "gpt-5"
+
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Fatalf("old path should still stat fine: %v", err)
+	}
+	sessions.sessions[0].Metadata.NativeTranscriptPath = newPath
+
+	sup.reconcile(context.Background())
+
+	wantNew, _ := filepath.EvalSymlinks(newPath)
+	if got := sup.tails["s-1"].path; got != wantNew {
+		t.Fatalf("path = %q want %q, tail stuck on the stale hook-reported path", got, wantNew)
+	}
+	if got := sup.tails["s-1"].offset; got != 0 {
+		t.Fatalf("offset = %d want 0 after switching to the new path", got)
+	}
+	if got := sup.tails["s-1"].lastModel; got != "" {
+		t.Fatalf("lastModel = %q want reset after switching to the new path", got)
+	}
+}
+
 func TestPumpAllEmitsForEveryTail(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "config")

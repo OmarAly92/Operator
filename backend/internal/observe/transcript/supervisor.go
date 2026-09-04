@@ -139,7 +139,9 @@ func (s *Supervisor) reconcile(ctx context.Context) {
 		}
 		existing, tracked := s.tails[rec.ID]
 		var path string
-		if tracked && fileStillReadable(existing.path) {
+		hookPathChanged := tracked && rec.Metadata.NativeTranscriptPath != "" &&
+			rec.Metadata.NativeTranscriptPath != existing.path
+		if tracked && !hookPathChanged && fileStillReadable(existing.path) {
 			path = existing.path
 		} else {
 			path = s.deps.Resolver.Path(ctx, rec)
