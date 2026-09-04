@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../terminal/terminal_harness.dart';
 
@@ -35,6 +37,11 @@ void main() {
   });
 
   group('SessionViewCubit', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await CacheHelper.init();
+    });
+
     test('toggles between the two modes', () {
       final cubit = SessionViewCubit(SessionViewMode.blocks);
 
@@ -44,6 +51,31 @@ void main() {
       cubit.toggle();
       expect(cubit.mode, SessionViewMode.blocks);
       cubit.close();
+    });
+
+    test('remembers the toggled mode under its key', () async {
+      final cubit = SessionViewCubit(SessionViewMode.blocks, persistKey: 's-1');
+      cubit.toggle();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(persistedViewMode('s-1'), SessionViewMode.raw);
+      expect(persistedViewMode('s-2'), isNull);
+      cubit.close();
+    });
+
+    test('a shell keys its preference by handle so it never collides with its session', () {
+      expect(
+        sessionViewKey(const TerminalArgs(id: 'h-1', sessionId: 's-1', title: 'Shell', shellOnly: true)),
+        'h-1',
+      );
+      expect(sessionViewKey(const TerminalArgs(id: 's-1', sessionId: 's-1', title: 'S')), 's-1');
+    });
+
+    test('ignores an unknown saved value', () async {
+      SharedPreferences.setMockInitialValues({'opr.session.view.s-9': 'sideways'});
+      await CacheHelper.init();
+
+      expect(persistedViewMode('s-9'), isNull);
     });
   });
 

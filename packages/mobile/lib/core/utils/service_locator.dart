@@ -244,7 +244,10 @@ class ServiceLocator {
       ),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
-      (args, _) => SessionViewCubit(defaultViewMode(args)),
+      (args, _) => SessionViewCubit(
+        persistedViewMode(sessionViewKey(args)) ?? defaultViewMode(args),
+        persistKey: sessionViewKey(args),
+      ),
     );
     sl.registerLazySingleton<BlocksRepository>(
       () => BlocksRepositoryImp(sl<BlocksRemoteDataSource>(), sl<NetworkStatus>()),
