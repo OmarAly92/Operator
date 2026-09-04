@@ -30,6 +30,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
 	"github.com/OmarAly92/operator/backend/internal/notify"
+	transcriptsvc "github.com/OmarAly92/operator/backend/internal/observe/transcript"
 	usagepipeline "github.com/OmarAly92/operator/backend/internal/observe/usage"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	"github.com/OmarAly92/operator/backend/internal/preview"
@@ -462,6 +463,24 @@ func Run() error {
 	if usagePipeline != nil {
 		usageDone = usagePipeline.Start(ctx)
 	}
+	var transcriptDone <-chan struct{}
+	if roots, rootsErr := usagesvc.DefaultSourceRoots(ctx); rootsErr != nil {
+		log.Warn("transcript block projection disabled", "err", rootsErr)
+	} else if watcher, watchErr := usagepipeline.NewTranscriptWatcher(ctx, []string{
+		roots.ClaudeProjects,
+		roots.CodexSessions,
+	}); watchErr != nil {
+		log.Warn("transcript block projection disabled", "err", watchErr)
+	} else {
+		transcriptDone = transcriptsvc.NewSupervisor(transcriptsvc.Deps{
+			Sessions: store,
+			Offsets:  store,
+			Sink:     blockEvents,
+			Resolver: transcriptsvc.NewResolver(agents),
+			Watcher:  watcher,
+			Logger:   log,
+		}).Start(ctx)
+	}
 	// ponytail: 5s tolerates a brief frontend restart; tune if dev hot-reload trips it.
 	const supervisorGrace = 5 * time.Second
 
@@ -502,6 +521,9 @@ func Run() error {
 	chatCancel()
 	if usageDone != nil {
 		<-usageDone
+	}
+	if transcriptDone != nil {
+		<-transcriptDone
 	}
 	lcStack.Stop()
 	captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
