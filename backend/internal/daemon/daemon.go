@@ -463,24 +463,27 @@ func Run() error {
 	if usagePipeline != nil {
 		usageDone = usagePipeline.Start(ctx)
 	}
-	var transcriptDone <-chan struct{}
+	// A watcher that cannot be built costs latency, not blocks: the supervisor
+	// re-checks every tracked transcript on its own interval regardless.
+	var transcriptWatcher transcriptsvc.Watcher
 	if roots, rootsErr := usagesvc.DefaultSourceRoots(ctx); rootsErr != nil {
-		log.Warn("transcript block projection disabled", "err", rootsErr)
+		log.Warn("transcript block projection falls back to polling", "err", rootsErr)
 	} else if watcher, watchErr := usagepipeline.NewTranscriptWatcher(ctx, []string{
 		roots.ClaudeProjects,
 		roots.CodexSessions,
 	}); watchErr != nil {
-		log.Warn("transcript block projection disabled", "err", watchErr)
+		log.Warn("transcript block projection falls back to polling", "err", watchErr)
 	} else {
-		transcriptDone = transcriptsvc.NewSupervisor(transcriptsvc.Deps{
-			Sessions: store,
-			Offsets:  store,
-			Sink:     blockEvents,
-			Resolver: transcriptsvc.NewResolver(agents),
-			Watcher:  watcher,
-			Logger:   log,
-		}).Start(ctx)
+		transcriptWatcher = watcher
 	}
+	transcriptDone := transcriptsvc.NewSupervisor(transcriptsvc.Deps{
+		Sessions: store,
+		Offsets:  store,
+		Sink:     blockEvents,
+		Resolver: transcriptsvc.NewResolver(agents),
+		Watcher:  transcriptWatcher,
+		Logger:   log,
+	}).Start(ctx)
 	// ponytail: 5s tolerates a brief frontend restart; tune if dev hot-reload trips it.
 	const supervisorGrace = 5 * time.Second
 
@@ -522,9 +525,7 @@ func Run() error {
 	if usageDone != nil {
 		<-usageDone
 	}
-	if transcriptDone != nil {
-		<-transcriptDone
-	}
+	<-transcriptDone
 	lcStack.Stop()
 	captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	if err := captureSup.DrainAndDetach(captureStopCtx); err != nil {

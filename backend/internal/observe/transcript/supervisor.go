@@ -22,6 +22,16 @@ const DefaultInterval = 2 * time.Second
 // once per record.
 const unknownRecordLogEvery = 100
 
+// resolveGraceAttempts is how many consecutive reconcile ticks may pay full
+// resolution cost for a session with no readable transcript yet. A file that
+// has not appeared within the grace window is not about to appear two seconds
+// later either, and Codex's fallback resolution walks the whole sessions and
+// archived_sessions trees on every attempt.
+const resolveGraceAttempts = 5
+
+// resolveRetryInterval throttles resolution once the grace window is spent.
+const resolveRetryInterval = 30 * time.Second
+
 // SessionSource is the slice of the store the supervisor needs.
 type SessionSource interface {
 	ListAllSessions(ctx context.Context) ([]domain.SessionRecord, error)
@@ -53,8 +63,16 @@ type Deps struct {
 // Supervisor owns one tail per live session whose harness has a transcript
 // mapper.
 type Supervisor struct {
-	deps  Deps
-	tails map[domain.SessionID]*tail
+	deps    Deps
+	tails   map[domain.SessionID]*tail
+	backoff map[domain.SessionID]*resolveBackoff
+}
+
+// resolveBackoff throttles repeated full resolution for one session whose
+// transcript has not appeared yet.
+type resolveBackoff struct {
+	failures int
+	nextAt   time.Time
 }
 
 // NewSupervisor constructs the transcript projection supervisor.
@@ -68,7 +86,11 @@ func NewSupervisor(deps Deps) *Supervisor {
 	if deps.Clock == nil {
 		deps.Clock = func() time.Time { return time.Now().UTC() }
 	}
-	return &Supervisor{deps: deps, tails: map[domain.SessionID]*tail{}}
+	return &Supervisor{
+		deps:    deps,
+		tails:   map[domain.SessionID]*tail{},
+		backoff: map[domain.SessionID]*resolveBackoff{},
+	}
 }
 
 // Start runs until ctx is cancelled. The returned channel closes after the
@@ -115,40 +137,61 @@ func (s *Supervisor) Start(ctx context.Context) <-chan struct{} {
 }
 
 func (s *Supervisor) tick(ctx context.Context) {
-	s.reconcile(ctx)
+	for _, retired := range s.reconcile(ctx) {
+		if ctx.Err() != nil {
+			return
+		}
+		s.pump(ctx, retired)
+	}
 	s.pumpAll(ctx)
 }
 
-func (s *Supervisor) reconcile(ctx context.Context) {
+// reconcile syncs the tracked tail set with the live session set. It returns the
+// tails it retired because their session ended, so the caller can drain each one
+// a final time: the agent's last records are written moments before it exits,
+// and dropping the tail first would leave them unprojected forever.
+func (s *Supervisor) reconcile(ctx context.Context) []*tail {
 	if s.deps.Sessions == nil || s.deps.Resolver == nil {
-		return
+		return nil
 	}
 	sessions, err := s.deps.Sessions.ListAllSessions(ctx)
 	if err != nil {
 		s.deps.Logger.Warn("transcript projection could not list sessions", "err", err)
-		return
+		return nil
 	}
+	now := s.deps.Clock()
 	seen := make(map[domain.SessionID]struct{}, len(sessions))
+	alive := make(map[domain.SessionID]struct{}, len(sessions))
 	paths := make([]string, 0, len(sessions))
+	var ended []*tail
 	for _, rec := range sessions {
 		if ctx.Err() != nil {
-			return
+			return nil
 		}
+		alive[rec.ID] = struct{}{}
+		existing, tracked := s.tails[rec.ID]
 		if rec.IsTerminated || !blocktranscript.Supports(string(rec.Harness)) {
+			if tracked && rec.IsTerminated {
+				ended = append(ended, existing)
+			}
 			continue
 		}
-		existing, tracked := s.tails[rec.ID]
 		var path string
 		hookPathChanged := tracked && rec.Metadata.NativeTranscriptPath != "" &&
 			rec.Metadata.NativeTranscriptPath != existing.path
-		if tracked && !hookPathChanged && fileStillReadable(existing.path) {
+		switch {
+		case tracked && !hookPathChanged && fileStillReadable(existing.path):
 			path = existing.path
-		} else {
+		case s.throttled(rec.ID, now):
+			continue
+		default:
 			path = s.deps.Resolver.Path(ctx, rec)
 		}
 		if path == "" {
+			s.recordResolveFailure(rec.ID, now)
 			continue
 		}
+		delete(s.backoff, rec.ID)
 		seen[rec.ID] = struct{}{}
 		paths = append(paths, path)
 		if tracked && existing.path == path {
@@ -167,12 +210,38 @@ func (s *Supervisor) reconcile(ctx context.Context) {
 			delete(s.tails, id)
 		}
 	}
+	for id := range s.backoff {
+		if _, live := alive[id]; !live {
+			delete(s.backoff, id)
+		}
+	}
 	if s.deps.Watcher != nil {
 		sort.Strings(paths)
 		if err := s.deps.Watcher.Rebuild(ctx, paths); err != nil {
 			s.deps.Logger.Warn("transcript watch rebuild", "err", err)
 		}
 	}
+	return ended
+}
+
+// throttled reports whether a session with no readable transcript has spent its
+// grace window and is not due for another resolution attempt yet.
+func (s *Supervisor) throttled(id domain.SessionID, now time.Time) bool {
+	state, found := s.backoff[id]
+	if !found || state.failures < resolveGraceAttempts {
+		return false
+	}
+	return now.Before(state.nextAt)
+}
+
+func (s *Supervisor) recordResolveFailure(id domain.SessionID, now time.Time) {
+	state, found := s.backoff[id]
+	if !found {
+		state = &resolveBackoff{}
+		s.backoff[id] = state
+	}
+	state.failures++
+	state.nextAt = now.Add(resolveRetryInterval)
 }
 
 // fileStillReadable is a cheap check that a previously resolved transcript

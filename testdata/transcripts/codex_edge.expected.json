@@ -5,6 +5,8 @@
     { "known": true, "events": [ { "kind": "compaction", "sourceId": "compaction:2026-09-04T11:00:00", "text": "Conversation compacted" } ] },
     { "known": true, "events": [] },
     { "known": true, "events": [] },
+    { "known": true, "events": [ { "kind": "tool_result", "sourceId": "call_9", "toolUseId": "call_9", "text": "Script completed\nhello" } ] },
+    { "known": true, "events": [] },
     { "known": false, "events": [] },
     { "known": false, "events": [] },
     { "known": false, "events": [] }

@@ -155,6 +155,12 @@ func codexResponseItemEvents(rec codexRolloutRecord, line []byte) ([]domain.Bloc
 			ToolName:  payload.Name,
 			ToolInput: input,
 		}}, true
+	case "agent_message":
+		// Inter-agent traffic, paired with the ignored
+		// inter_agent_communication_metadata record. Nesting a subagent's work
+		// is deferred with Claude's sidechain records, so this is dropped
+		// deliberately rather than reported as an unrecognised shape.
+		return nil, true
 	case "function_call_output", "custom_tool_call_output":
 		return []domain.BlockTranscriptEvent{{
 			Kind:      domain.BlockEventToolResult,
@@ -192,6 +198,9 @@ func codexJoinText(parts []codexTextPart) string {
 	return strings.Join(texts, "\n")
 }
 
+// codexOutputText flattens a tool output. Newer Codex builds write it as the
+// same {type,text} part list the assistant's own content uses; older ones write
+// a bare string. Anything else is passed through raw rather than dropped.
 func codexOutputText(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -199,6 +208,12 @@ func codexOutputText(raw json.RawMessage) string {
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return text
+	}
+	var parts []codexTextPart
+	if err := json.Unmarshal(raw, &parts); err == nil {
+		if joined := codexJoinText(parts); joined != "" {
+			return joined
+		}
 	}
 	return string(raw)
 }

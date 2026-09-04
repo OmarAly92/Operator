@@ -292,3 +292,145 @@ func TestStartStopsWithTheContext(t *testing.T) {
 	}
 	_ = os.Remove(path)
 }
+
+func TestTickDrainsATerminatedSessionBeforeDroppingItsTail(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	path := writeTranscript(t, filepath.Join(configDir, "projects", "p"), "live.jsonl")
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", path, false)}}
+	sink := &fakeSink{}
+	sup := newSupervisor(t, sessions, sink, &fakeOffsets{}, newFakeWatcher(), configDir)
+
+	sup.tick(context.Background())
+	if len(sink.recorded()) != 0 {
+		t.Fatalf("recorded %d events before the agent wrote anything", len(sink.recorded()))
+	}
+
+	appendLines(t, path, assistantLine)
+	sessions.sessions[0].IsTerminated = true
+
+	sup.tick(context.Background())
+
+	if len(sink.recorded()) == 0 {
+		t.Fatal("the agent's last records were dropped when its session ended")
+	}
+	if _, tracked := sup.tails["s-1"]; tracked {
+		t.Fatal("the terminated session is still tracked after its final drain")
+	}
+
+	before := len(sink.recorded())
+	sup.tick(context.Background())
+	if len(sink.recorded()) != before {
+		t.Fatal("a terminated session was drained more than once")
+	}
+}
+
+func TestReconcileThrottlesResolutionForASessionWithNoTranscript(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	agent := &fakeAgent{configDir: configDir}
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "codex", "", false)}}
+	sessions.sessions[0].Metadata.AgentSessionID = "native-1"
+	now := time.Unix(0, 0).UTC()
+	sup := NewSupervisor(Deps{
+		Sessions: sessions,
+		Offsets:  &fakeOffsets{},
+		Sink:     &fakeSink{},
+		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Watcher:  newFakeWatcher(),
+		Clock:    func() time.Time { return now },
+	})
+
+	for range resolveGraceAttempts {
+		sup.reconcile(context.Background())
+	}
+	if agent.locateCall != resolveGraceAttempts {
+		t.Fatalf("locateCall = %d, want one attempt per grace tick (%d)", agent.locateCall, resolveGraceAttempts)
+	}
+
+	sup.reconcile(context.Background())
+	if agent.locateCall != resolveGraceAttempts {
+		t.Fatalf("locateCall = %d, want the attempt throttled after the grace window", agent.locateCall)
+	}
+
+	now = now.Add(resolveRetryInterval)
+	sup.reconcile(context.Background())
+	if agent.locateCall != resolveGraceAttempts+1 {
+		t.Fatalf("locateCall = %d, want one more attempt once the retry interval elapsed", agent.locateCall)
+	}
+
+	path := writeTranscript(t, filepath.Join(configDir, "sessions"), "rollout.jsonl")
+	agent.located, agent.found = path, true
+	now = now.Add(resolveRetryInterval)
+	sup.reconcile(context.Background())
+	if _, tracked := sup.tails["s-1"]; !tracked {
+		t.Fatal("the session was never tracked once its transcript appeared")
+	}
+	if _, throttled := sup.backoff["s-1"]; throttled {
+		t.Fatal("the backoff survived a successful resolution")
+	}
+}
+
+func TestReconcileForgetsTheBackoffForASessionThatIsGone(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "codex", "", false)}}
+	sessions.sessions[0].Metadata.AgentSessionID = "native-1"
+	sup := newSupervisor(t, sessions, &fakeSink{}, &fakeOffsets{}, newFakeWatcher(), configDir)
+
+	sup.reconcile(context.Background())
+	if _, found := sup.backoff["s-1"]; !found {
+		t.Fatal("a failed resolution did not arm the backoff")
+	}
+
+	sessions.sessions = nil
+	sup.reconcile(context.Background())
+	if len(sup.backoff) != 0 {
+		t.Fatalf("backoff = %+v, want empty once the session is gone", sup.backoff)
+	}
+}
+
+func TestStartProjectsWithoutAWatcher(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	path := writeTranscript(t, filepath.Join(configDir, "projects", "p"), "live.jsonl")
+	appendLines(t, path, assistantLine)
+
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "claude-code", path, false)}}
+	sink := &fakeSink{}
+	sup := NewSupervisor(Deps{
+		Sessions: sessions,
+		Offsets:  &fakeOffsets{},
+		Sink:     sink,
+		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}),
+		Interval: 10 * time.Millisecond,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := sup.Start(ctx)
+	deadline := time.After(2 * time.Second)
+	for len(sink.recorded()) == 0 {
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatal("a watcherless supervisor emitted nothing before the deadline")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a watcherless supervisor did not stop with its context")
+	}
+}

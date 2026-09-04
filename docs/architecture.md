@@ -34,12 +34,20 @@ flowchart LR
 
 ### Durable Session Facts
 
-The only persistent session state is:
+Display status is derived from exactly these facts and nothing else:
 
 - `activity_state` — What the agent last reported (`active`, `idle`, `waiting_input`, `blocked`, `exited`). `waiting_input` is an agent at an empty prompt awaiting its next instruction; `blocked` is an agent stopped on a pending permission/approval decision — automation must never inject input into a blocked session.
 - `is_terminated` — Whether the session should be treated as over
 - The runtime handle and launch generation for the session's terminal process
 - PR facts — `pr`, `pr_checks`, `pr_comment` tables
+
+The session row carries other durable facts that are *not* status inputs — the
+workspace and branch it owns, its diff base, its preview URL and revision, its
+native agent session id and transcript path, the last user prompt and assistant
+update, pinning, and cleanup generation. Observation output that a client
+replays rather than derives lives in its own tables: `block_events` (the blocks
+view), `transcript_offsets` (the tailer's cursor), `terminal_blocks` (durable
+shell replay), and the `usage_*` family (token accounting).
 
 The legacy `session_mode`, conversation, and interface-transition schema remains
 temporarily so the dormant ACP packages compile. New sessions are always `tui`,
@@ -192,32 +200,81 @@ flowchart LR
 backend/internal/
 ├── domain/              # Shared vocabulary and durable fact records
 ├── ports/               # Inbound/outbound interfaces
+├── config/              # Environment-based configuration
+├── daemon/              # Production wiring
+├── cli/                 # Cobra `opr` commands, thin HTTP clients
 ├── service/             # Controller-facing services
 │   ├── project/         # Project CRUD
 │   ├── session/         # Session read-model assembly
-│   ├── chat/            # Dormant until removal in Phase 4
 │   ├── pr/              # PR observation service
-│   └── review/          # Code review service
+│   ├── review/          # Code review service
+│   ├── blockevent/      # Normalized block-event log, hook and transcript
+│   ├── usage/           # Token and model usage accounting
+│   ├── terminalblock/   # Durable shell-block replay
+│   ├── terminalcapture/ # Capture supervisor
+│   ├── shellterm/       # Standalone and session-scoped shells
+│   ├── agent/           # Harness catalogue and model discovery
+│   ├── settings/        # App settings
+│   ├── notification/    # Desktop notification fan-out
+│   ├── browser/         # agent-browser capability issuance
+│   ├── importer/        # External session import
+│   ├── devimport/       # Development import helpers
+│   └── chat/            # Dormant until removal in Phase 4
 ├── session_manager/     # Internal session command engine
 ├── lifecycle/           # Durable session fact reducer
-├── observe/             # Observation loops
-│   ├── scm/             # SCM (GitHub) observer
-│   └── reaper/          # Runtime liveness observer
+├── observe/             # Observation loops, one package per lane
+│   ├── scm/             # GitHub PR, check and review observer
+│   ├── reaper/          # Runtime liveness observer
+│   ├── activity/        # Stale hook-activity reconciliation
+│   ├── trackerintake/   # Opt-in issue intake
+│   ├── usage/           # Provider transcript token accounting
+│   └── transcript/      # Provider transcript to block events
 ├── storage/             # SQLite persistence
-│   └── sqlite/          # DB, migrations, queries, stores
+│   └── sqlite/          # DB, migrations, queries, generated stores
 ├── cdc/                 # Change-log poller and broadcaster
-├── httpd/               # HTTP API, controllers, terminal mux
-├── terminal/            # Terminal session protocol
-├── adapters/            # Concrete adapter implementations
-│   ├── agent/           # 23+ agent harnesses
-│   ├── chatdriver/      # Dormant until removal in Phase 4
-│   ├── runtime/         # pty-host runtime
-│   ├── workspace/       # git worktree
-│   ├── scm/             # GitHub
-│   └── tracker/         # GitHub tracker
-├── daemon/              # Production wiring
-└── config/              # Environment-based configuration
+├── httpd/               # HTTP API, controllers, SSE, terminal mux
+├── terminal/            # Terminal session protocol and mux
+├── terminalcapture/     # pty-host capture journal
+├── mobilebridge/        # LAN listener pairing and auth state
+├── preview/             # Preview URL polling
+├── previewserver/       # Preview serving
+├── notify/              # Desktop notifications
+├── push/                # Push registration
+├── redact/              # Secret redaction, shared by every text channel
+├── review/              # Review orchestration
+├── reviewgateway/       # Reviewer process gateway
+├── agentlaunch/         # Launch command assembly
+├── process/             # Process spawning primitives
+├── processalive/        # Liveness probes
+├── sessionguard/        # Concurrency guards around session commands
+├── workspacewatch/      # Worktree change watching
+├── runfile/             # Daemon run-file and single-instance lock
+├── daemonmeta/          # Daemon build and version metadata
+├── telemetrymeta/       # Telemetry metadata
+├── skillassets/         # Packaged skill assets
+├── legacyimport/        # Legacy data import
+├── devimport/           # Development import
+├── integration/         # Cross-package integration tests
+├── testsupport/         # Test-only helpers, including a real pty
+└── adapters/            # Concrete adapter implementations
+    ├── agent/           # 26 registered harnesses plus shared hook helpers
+    ├── runtime/         # pty-host runtime
+    ├── workspace/       # git worktree
+    ├── scm/             # GitHub
+    ├── tracker/         # GitHub tracker
+    ├── agentbrowser/    # Packaged agent-browser runtime
+    ├── reviewer/        # Reviewer harnesses
+    ├── container/       # Container runtime
+    ├── projectscan/     # Project discovery
+    ├── telemetry/       # Telemetry sink
+    └── chatdriver/      # Dormant until removal in Phase 4
 ```
+
+The agent registry in `adapters/agent/registry/registry.go` is the single edit
+point for a new harness. Packages under `adapters/agent/` that are not harnesses
+— `blockdispatch`, `blocktranscript`, `activitydispatch`, `hookutil`,
+`hooksjson`, `nativeconfig`, `modelcatalog`, `terminalui` — are shared mapping
+tables the harness adapters consume.
 
 ### Core Data Flow
 
@@ -364,6 +421,7 @@ sequenceDiagram
 ```mermaid
 erDiagram
     projects ||--o{ sessions : owns
+    projects ||--o{ workspace_repos : registers
     projects ||--o| conversations : legacy_chat_schema
     sessions ||--o| conversations : legacy_chat_schema
     sessions ||--o{ session_interface_transitions : legacy_handoff_schema
@@ -371,14 +429,25 @@ erDiagram
     conversations ||--o{ conversation_turns : legacy_chat_schema
     conversations ||--o{ conversation_messages : legacy_chat_schema
     conversations ||--o{ conversation_activities : legacy_chat_schema
-    sessions ||--o{ pull_requests : owns
-    pull_requests ||--o{ pr_checks : has
-    pull_requests ||--o{ pr_review_threads : has
-    pull_requests ||--o{ pr_comments : has
+    sessions ||--o{ pr : owns
+    pr ||--o{ pr_checks : has
+    pr ||--o{ pr_review_threads : has
+    pr ||--o{ pr_comment : has
+    pr ||--o{ pr_reviews : has
     sessions ||--o{ notifications : has
+    sessions ||--o{ block_events : projects
+    sessions ||--o| transcript_offsets : cursor
+    sessions ||--o{ agent_switches : records
+    sessions ||--o| agent_native_sessions : binds
+    sessions ||--o{ session_worktrees : owns
+    sessions ||--o| session_cleanup_facts : has
+    sessions ||--o{ usage_bindings : accounts
+    usage_bindings ||--o{ usage_sources : has
+    usage_sources ||--o{ model_usage_events : has
+    shell_terminals ||--o{ terminal_blocks : replays
     change_log }|--|| projects : tracks
     change_log }|--|| sessions : tracks
-    change_log }|--|| pull_requests : tracks
+    change_log }|--|| pr : tracks
 
     projects {
         string id PK
@@ -409,7 +478,7 @@ erDiagram
         integer latest_sequence
     }
 
-    pull_requests {
+    pr {
         string id PK
         string session_id FK
         integer number
@@ -427,6 +496,23 @@ erDiagram
         string conclusion
     }
 
+    block_events {
+        bigint seq PK
+        string session_id
+        string source_id
+        string kind
+        string source
+        string harness
+        string tool_use_id
+        string text
+    }
+
+    transcript_offsets {
+        string session_id PK
+        string path
+        bigint byte_offset
+    }
+
     change_log {
         bigint seq PK
         string table_name
@@ -436,6 +522,11 @@ erDiagram
         jsonb new_data
     }
 ```
+
+The diagram shows the load-bearing tables, not every table. `app_settings`,
+`agent_model_catalog`, `review`/`review_run`, and `telemetry_event` are
+standalone; the `conversations*` and `session_interface_*` families are the
+dormant legacy schema Phase 4 deletes.
 
 ### CDC Pipeline
 
@@ -622,6 +713,22 @@ flowchart TD
 
 ## Observation Loops
 
+Six independent lanes observe external state and reduce it into durable facts.
+Each owns its own cadence and failure mode; none blocks another.
+
+| lane | package | cadence | observes |
+|---|---|---|---|
+| SCM observer | `observe/scm` | 30s (reviews 2m) | GitHub PRs, checks, review threads, comments |
+| Runtime reaper | `observe/reaper` | 5s | pty-host liveness for every non-terminated session |
+| Activity observer | `observe/activity` | 30s | terminal markers, reconciling hook activity that went stale |
+| Tracker intake | `observe/trackerintake` | opt-in per project | tracker issues eligible to start a worker session |
+| Usage pipeline | `observe/usage` | fsnotify, 30s watcher restart | provider transcripts, for token and model accounting |
+| Transcript projection | `observe/transcript` | fsnotify + 2s sweep | provider transcripts, for block-event body content |
+
+The last two read the same files for unrelated reasons and share no state, on
+purpose: usage accounting must not be able to break the blocks view, or the
+reverse.
+
 ### SCM Observer
 
 ```mermaid
@@ -689,16 +796,22 @@ flowchart LR
     subgraph External["External State"]
         GitHub[GitHub API]
         Runtimes[pty-host]
+        Transcripts[Provider transcripts]
     end
 
     subgraph Observers["Observation Layer"]
         SCM[SCM Observer]
         Reaper[Runtime Reaper]
+        Activity[Activity Observer]
+        Intake[Tracker Intake]
+        Usage[Usage Pipeline]
+        Tail[Transcript Projection]
     end
 
     subgraph Core["Core Processing"]
         LCM[Lifecycle Manager]
         PRMgr[PR Manager]
+        Blocks[Block Event Service]
     end
 
     subgraph Storage["Persistence"]
@@ -706,13 +819,22 @@ flowchart LR
     end
 
     GitHub --> SCM
+    GitHub --> Intake
     Runtimes --> Reaper
+    Runtimes --> Activity
+    Transcripts --> Usage
+    Transcripts --> Tail
 
     SCM --> PRMgr
     PRMgr --> SQLite
     PRMgr --> LCM
 
     Reaper --> LCM
+    Activity --> LCM
+    Intake --> LCM
+    Usage --> SQLite
+    Tail --> Blocks
+    Blocks --> SQLite
     LCM --> SQLite
 
 ```
@@ -734,10 +856,16 @@ flowchart TD
     end
 
     subgraph Controllers["Controllers"]
-        Sessions[Sessions Controller]
-        Projects[Projects Controller]
-        PRs[PRs Controller]
-        Reviews[Reviews Controller]
+        Sessions[Sessions]
+        Projects[Projects]
+        PRs[PRs]
+        Reviews[Reviews]
+        Agents[Agents]
+        Shells[Shell Terminals]
+        Usage[Usage]
+        Settings[Settings]
+        Mobile[Mobile pairing]
+        Others[Notifications, Push, Imports, Browser, Dev]
     end
 
     subgraph Services["Services"]
@@ -745,17 +873,27 @@ flowchart TD
         ProjectSvc[Project Service]
         PRSvc[PR Service]
         ReviewSvc[Review Service]
+        BlockSvc[Block Event Service]
+        UsageSvc[Usage Service]
     end
 
     API --> Sessions
     API --> Projects
     API --> PRs
     API --> Reviews
+    API --> Agents
+    API --> Shells
+    API --> Usage
+    API --> Settings
+    API --> Mobile
+    API --> Others
 
     Sessions --> SessionSvc
+    Sessions --> BlockSvc
     Projects --> ProjectSvc
     PRs --> PRSvc
     Reviews --> ReviewSvc
+    Usage --> UsageSvc
 
     Events -->|subscribe| CDC[CDC Broadcaster]
     Terminal --> TerminalMux[Terminal Manager]
@@ -820,15 +958,22 @@ shells. The agent terminal is the only live agent controller.
 
 `internal/observe/transcript` runs one tail per live session whose harness has a
 mapper in `adapters/agent/blocktranscript` (Claude Code and Codex today). It
-resolves the session's provider transcript through the adapter's own
-`AgentTranscriptLocator`, rejecting any path outside that provider's config
-directory, reads new complete JSONL lines from a cursor persisted in
-`transcript_offsets`, and records each mapped record through the same
-`blockevent.Service` a hook uses — same redaction, same caps, same mux publish —
-marked `source = transcript`. It shares no state with the usage observer, which
-reads the same files on its own cursor for unrelated reasons. An unrecognised
-record type produces nothing and is counted, so a harness upgrade degrades to
-fewer blocks rather than to a crash.
+resolves the session's provider transcript from the hook-reported path first and
+the adapter's own `AgentTranscriptLocator` as a fallback, rejecting any path
+outside that provider's config directory, reads new complete JSONL lines from a
+cursor persisted in `transcript_offsets`, and records each mapped record through
+the same `blockevent.Service` a hook uses — same redaction, same caps, same mux
+publish — marked `source = transcript`. It shares no state with the usage
+observer, which reads the same files on its own cursor for unrelated reasons. An
+unrecognised record type produces nothing and is counted, so a harness upgrade
+degrades to fewer blocks rather than to a crash.
+
+The filesystem watch is a latency optimisation, not a dependency: a watch that
+cannot be built costs a couple of seconds per record, never a block. A session
+that ends is drained once more before its tail is dropped, so the agent's last
+words are projected; a session whose transcript has not appeared yet is
+re-resolved on a backoff, because Codex's fallback resolution walks its whole
+sessions tree.
 
 ### Durable shell-block capture
 
@@ -947,7 +1092,7 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 2. **Never treat failed probes as death** — A failed probe is a fact, not a termination signal
 3. **Never force-delete dirty worktrees** — User data safety over cleanup convenience
 4. **All app state under ~/.operator** — No OS-default app-data locations
-5. **Daemon binds to 127.0.0.1 only** — No network exposure, ever
+5. **One loopback listener, one opt-in LAN listener, nothing else** — the primary listener stays bound to `127.0.0.1` and unauthenticated; the LAN listener binds `0.0.0.0` only while the user has explicitly enabled Connect Mobile, only behind the bearer-password middleware, and never serves the loopback-gated control routes. No other network-facing bind
 6. **CLI is thin** — All logic lives in the daemon, CLI is just an HTTP client
 7. **CDC is source-truth for events** — DB triggers write to change_log, poller fans out
 8. **Adapters are leaves** — Adapters never import core packages, only ports and domain
@@ -964,7 +1109,7 @@ Operator's architecture is designed around:
 - **Port-based design** — Core code depends on interfaces, not implementations
 - **Durable minimalism** — Store only facts, compute everything else
 - **Event-driven updates** — CDC broadcasts changes to all subscribers
-- **Isolation** — Each session owns a worktree and exactly one live mode-specific controller, including across handoffs
+- **Isolation** — Each session owns a worktree and exactly one live controller: its agent terminal
 - **Safety** — Conservative termination, path validation, gitignored hooks
 
 This architecture enables parallel AI agents to work safely while maintaining complete visibility and control.

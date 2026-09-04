@@ -33,6 +33,9 @@ BlockEventModel _event(
   source: source,
 );
 
+String _question(String question) =>
+    '{"questions":[{"question":"$question","header":"H","options":[{"label":"main"}]}]}';
+
 void main() {
   group('assembleBlocks', () {
     test('a prompt is running until its stop arrives', () {
@@ -271,7 +274,7 @@ void main() {
       expect(todos.single.body, 'new list');
     });
 
-    test('a transcript question sourceId replayed across turns does not leave questionIndex past the end', () {
+    test('a replayed transcript question updates in place while a distinct one appends', () {
       final blocks = assembleBlocks([
         _event(1, 'prompt_submit', text: 'go'),
         _event(2, 'question_asked', sourceId: 'q', text: 'Pick a branch?', source: 'transcript'),
@@ -281,8 +284,46 @@ void main() {
       ]);
 
       final questions = blocks.where((b) => b.status == BlockStatus.blocked).toList();
-      expect(questions, hasLength(1));
-      expect(questions.single.id, 'src-r');
+      expect(questions.map((question) => question.id).toList(), ['src-q', 'src-r']);
+    });
+
+    test('a second transcript question in one turn keeps the first', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'question_asked', sourceId: 'q1', toolUseId: 'q1', source: 'transcript', toolInput: _question('First?')),
+        _event(3, 'tool_result', sourceId: 'q1', toolUseId: 'q1', source: 'transcript', text: 'main'),
+        _event(4, 'question_asked', sourceId: 'q2', toolUseId: 'q2', source: 'transcript', toolInput: _question('Second?')),
+      ]);
+
+      expect(blocks.map((block) => block.title).toList(), ['Prompt', 'First?', 'Second?']);
+      expect(blocks[1].status, BlockStatus.ok);
+      expect(blocks[1].result, 'main');
+      expect(blocks[2].status, BlockStatus.blocked);
+    });
+
+    test('the hook notice is replaced in place and only once', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'question_asked', sourceId: 'native-1', source: 'hook', text: 'Waiting on you'),
+        _event(3, 'question_asked', sourceId: 'q1', toolUseId: 'q1', source: 'transcript', toolInput: _question('First?')),
+        _event(4, 'question_asked', sourceId: 'q2', toolUseId: 'q2', source: 'transcript', toolInput: _question('Second?')),
+      ]);
+
+      expect(blocks.map((block) => block.title).toList(), ['Prompt', 'First?', 'Second?']);
+    });
+
+    test('a later TodoWrite folds into the first todo block and its result is dropped', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'todo', sourceId: 't1', toolUseId: 't1', source: 'transcript', text: 'first list'),
+        _event(3, 'tool_result', sourceId: 't1', toolUseId: 't1', source: 'transcript', text: 'Todos have been modified'),
+        _event(4, 'todo', sourceId: 't2', toolUseId: 't2', source: 'transcript', text: 'second list'),
+        _event(5, 'tool_result', sourceId: 't2', toolUseId: 't2', source: 'transcript', text: 'Todos have been modified'),
+      ]);
+
+      expect(blocks.map((block) => block.kind).toList(), [BlockKind.prompt, BlockKind.todo]);
+      expect(blocks.last.body, 'second list');
+      expect(blocks.last.result, isNull);
     });
 
     test('the tool input is opaque text and is never parsed', () {

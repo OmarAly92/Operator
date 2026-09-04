@@ -14,6 +14,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   String? model;
   int? todoIndex;
   int? questionIndex;
+  int? hookQuestionIndex;
   var sawTranscriptAssistant = false;
 
   for (final event in ordered) {
@@ -35,6 +36,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
       case 'prompt_submit':
         todoIndex = null;
         questionIndex = null;
+        hookQuestionIndex = null;
         sawTranscriptAssistant = false;
         _upsert(blocks, indexById, _create(event, id, BlockKind.prompt, BlockStatus.running, 'Prompt', text, model));
 
@@ -55,6 +57,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
       case 'todo':
         if (todoIndex != null) {
           blocks[todoIndex] = blocks[todoIndex].copyWith(body: text, lastSeq: seq);
+          indexById[id] = todoIndex;
         } else {
           _upsert(blocks, indexById, _create(event, id, BlockKind.todo, BlockStatus.ok, 'Todo', text, model));
           todoIndex = indexById[id];
@@ -83,8 +86,9 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         final resolved = failed ? BlockStatus.failed : BlockStatus.ok;
         final at = indexById[id];
         if (at != null) {
-          blocks[at] = blocks[at].copyWith(
-            result: text,
+          final target = blocks[at];
+          blocks[at] = target.copyWith(
+            result: target.kind == BlockKind.todo ? null : text,
             lastSeq: seq,
             errorType: event.errorType,
             status: statusFromHook.contains(id) ? null : resolved,
@@ -153,13 +157,16 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         final title = questions?.questions.first.question ?? 'Waiting on you';
         final body = fromTranscript ? '' : text;
         final block = _create(event, id, BlockKind.notice, BlockStatus.blocked, title, body, model, detail: questions);
-        if (fromTranscript && questionIndex != null) {
-          indexById.remove(blocks[questionIndex].id);
-          blocks[questionIndex] = block;
-          indexById[block.id] = questionIndex;
+        if (fromTranscript && hookQuestionIndex != null) {
+          indexById.remove(blocks[hookQuestionIndex].id);
+          blocks[hookQuestionIndex] = block;
+          indexById[block.id] = hookQuestionIndex;
+          questionIndex = hookQuestionIndex;
+          hookQuestionIndex = null;
         } else {
           _upsert(blocks, indexById, block);
           questionIndex = indexById[block.id];
+          if (!fromTranscript) hookQuestionIndex = questionIndex;
         }
 
       case 'permission_replied':
@@ -171,6 +178,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
       case 'stop':
       case 'stop_failure':
         questionIndex = null;
+        hookQuestionIndex = null;
         final failed = event.kind == 'stop_failure';
         final at = _lastRunningPrompt(blocks);
         if (at != null) {

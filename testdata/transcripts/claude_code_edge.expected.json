@@ -16,6 +16,10 @@
       { "kind": "compaction", "sourceId": "u-13", "text": "Conversation compacted (manual)" }
     ] },
     { "known": true, "events": [] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [] },
     { "known": false, "events": [] },
     { "known": false, "events": [] }
   ]

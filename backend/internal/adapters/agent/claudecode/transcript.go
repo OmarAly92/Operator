@@ -44,6 +44,10 @@ var claudeIgnoredRecordTypes = map[string]struct{}{
 	"last-prompt":           {},
 	"queue-operation":       {},
 	"mode":                  {},
+	"permission-mode":       {},
+	"bridge-session":        {},
+	"atis-latch":            {},
+	"ai-title":              {},
 	"summary":               {},
 	"file-history-snapshot": {},
 }

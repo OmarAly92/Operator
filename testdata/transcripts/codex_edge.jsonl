@@ -2,6 +2,8 @@
 {"timestamp":"2026-09-04T11:00:00.082Z","type":"event_msg","payload":{"type":"context_compacted"}}
 {"timestamp":"2026-09-04T11:00:01.000Z","type":"response_item","payload":{"type":"reasoning","summary":[],"encrypted_content":"xxx","content":[]}}
 {"timestamp":"2026-09-04T11:00:02.000Z","type":"event_msg","payload":{"type":"sub_agent_activity","agent":"child"}}
+{"timestamp":"2026-09-04T11:00:02.500Z","type":"response_item","payload":{"type":"custom_tool_call_output","id":"ctco_1","call_id":"call_9","output":[{"type":"input_text","text":"Script completed"},{"type":"input_text","text":"hello"}]}}
+{"timestamp":"2026-09-04T11:00:02.600Z","type":"response_item","payload":{"type":"agent_message","id":"amsg_1","author":"/root/child","content":[{"type":"input_text","text":"inter-agent chatter"}]}}
 {"timestamp":"2026-09-04T11:00:03.000Z","type":"event_msg","payload":{"type":"future_event_kind"}}
 {"timestamp":"2026-09-04T11:00:04.000Z","type":"response_item","payload":{"type":"future_item_kind"}}
 {"timestamp":"2026-09-04T11:00:05.000Z","type":"future_record_kind","payload":{}}
