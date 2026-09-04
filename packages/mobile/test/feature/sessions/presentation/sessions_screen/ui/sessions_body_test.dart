@@ -12,6 +12,7 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
+import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -111,6 +112,11 @@ void main() {
         ),
       );
 
+      if (target.archived) {
+        await tester.tap(find.text('ARCHIVE'));
+        await tester.pumpAndSettle();
+      }
+
       await tester.tap(find.text(target.title));
       await tester.pumpAndSettle();
 
@@ -170,6 +176,68 @@ void main() {
       final after = tester.element(find.byType(SessionSectionHeader).first);
       expect(identical(before, after), isTrue,
           reason: 'a rebuilt GlobalKey re-inflates the section on every poll tick');
+    });
+  });
+
+  group('archive', () {
+    testWidgets('keeps terminated sessions collapsed until the header is tapped', (tester) async {
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [
+            SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
+            SessionModel(
+              id: 'b',
+              projectId: 'proj',
+              displayName: 'Dead one',
+              status: 'terminated',
+              isTerminated: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('ARCHIVE'), findsOneWidget);
+      expect(find.text('Dead one'), findsNothing);
+
+      await tester.tap(find.text('ARCHIVE'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dead one'), findsOneWidget);
+    });
+  });
+
+  group('project filter', () {
+    testWidgets('names the project a persisted filter is pinned to', (tester) async {
+      SharedPreferences.setMockInitialValues({'flutter.${CacheKeys.activeProjectId}': 'scratch'});
+      await CacheHelper.init();
+
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [
+            SessionModel(id: 'a', projectId: 'scratch', displayName: 'Scratch one', status: 'working'),
+            SessionModel(id: 'b', projectId: 'other', displayName: 'Other one', status: 'working'),
+          ],
+          projects: [ProjectModel(id: 'scratch', name: 'Scratch')],
+        ),
+      );
+
+      expect(find.text('Scratch'), findsOneWidget);
+      expect(find.text('Scratch one'), findsOneWidget);
+      expect(find.text('Other one'), findsNothing);
+    });
+
+    testWidgets('stays hidden on an unfiltered board with a single project', (tester) async {
+      await pumpBody(
+        tester,
+        const BoardSnapshot(
+          sessions: [SessionModel(id: 'a', projectId: 'scratch', displayName: 'Scratch one', status: 'working')],
+          projects: [ProjectModel(id: 'scratch', name: 'Scratch')],
+        ),
+      );
+
+      expect(find.text('PROJECTS'), findsNothing);
     });
   });
 }

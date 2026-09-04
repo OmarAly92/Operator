@@ -8,6 +8,7 @@ import 'package:operator_mobile/core/widgets/failure_widgets/app_error_widget.da
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
+import 'package:operator_mobile/core/widgets/pickers/project_switcher.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
@@ -31,6 +32,8 @@ class _SessionsBodyState extends State<SessionsBody> {
   final Map<BoardZone, GlobalKey> _sectionKeys = {
     for (final zone in BoardZone.values) zone: GlobalKey(),
   };
+
+  bool _archiveExpanded = false;
 
   void _jumpTo(BoardZone zone) {
     final sectionContext = _sectionKeys[zone]?.currentContext;
@@ -85,6 +88,7 @@ class _SessionsBodyState extends State<SessionsBody> {
             controller: HomeShell.controllerFor(0),
             padding: const EdgeInsets.only(bottom: 40),
             children: [
+              const ProjectSwitcher(),
               SessionsStatsRow(
                 working: working,
                 needsYou: needsYou,
@@ -113,20 +117,30 @@ class _SessionsBodyState extends State<SessionsBody> {
                   ),
               ],
               if (grouped.archived.isNotEmpty) ...[
-                SessionSectionHeader(label: 'Archive', color: skin.textFaint, count: grouped.archived.length),
-                for (final session in grouped.archived)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: SessionCard(
-                      session: session,
-                      showProject: true,
-                      onTap: () => Navigator.of(context).pushNamed(
-                        RoutesStrings.session,
-                        arguments: {'sessionId': session.id},
+                SessionSectionHeader(
+                  label: 'Archive',
+                  color: skin.textFaint,
+                  count: grouped.archived.length,
+                  expanded: _archiveExpanded,
+                  onTap: () {
+                    Haptics.tap();
+                    setState(() => _archiveExpanded = !_archiveExpanded);
+                  },
+                ),
+                if (_archiveExpanded)
+                  for (final session in grouped.archived)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: SessionCard(
+                        session: session,
+                        showProject: true,
+                        onTap: () => Navigator.of(context).pushNamed(
+                          RoutesStrings.session,
+                          arguments: {'sessionId': session.id},
+                        ),
+                        onLongPress: () => openActions(session),
                       ),
-                      onLongPress: () => openActions(session),
                     ),
-                  ),
               ],
               if (grouped.sections.isEmpty && grouped.archived.isEmpty)
                 Padding(

@@ -14,14 +14,20 @@ class ProjectSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.watch<SessionsCubit>();
-    if (cubit.projects.length <= 1) return const SizedBox.shrink();
+    // A narrowed filter always shows its control, even with one project: the
+    // filter is persisted, so hiding the control strands the board on a project
+    // the user cannot see or leave.
+    if (cubit.projects.length <= 1 && cubit.activeProjectId == kAllProjects) {
+      return const SizedBox.shrink();
+    }
 
     final skin = context.skin;
     String activeName = 'All projects';
     if (cubit.activeProjectId != kAllProjects) {
+      activeName = cubit.activeProjectId;
       for (final project in cubit.projects) {
         if (project.id == cubit.activeProjectId) {
-          activeName = project.name ?? project.id ?? 'All projects';
+          activeName = project.name ?? project.id ?? cubit.activeProjectId;
           break;
         }
       }
@@ -39,10 +45,7 @@ class ProjectSwitcher extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          AppText(
-            'PROJECTS',
-            style: AppTextStyle.style13Bold.copyWith(color: skin.textSecondary, letterSpacing: 0.8),
-          ),
+          AppText('PROJECTS', style: AppTextStyle.style13Bold.copyWith(color: skin.textSecondary, letterSpacing: 0.8)),
           AppInkWell(
             onTap: openPicker,
             child: Row(

@@ -12,7 +12,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/feature/pull_request/logic/pr_view.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/widgets/pr_card.dart';
-import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/ui/widgets/project_switcher.dart';
+import 'package:operator_mobile/core/widgets/pickers/project_switcher.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 
 bool _inBucket(PrFilter filter, PrLifecycle life) {
