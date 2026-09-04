@@ -1,0 +1,17 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "source": "hook", "text": "run it" },
+    { "seq": 2, "sessionId": "s-1", "kind": "turn_model", "source": "transcript", "sourceId": "h-1", "text": "gpt-5.4" },
+    { "seq": 3, "sessionId": "s-1", "kind": "assistant_text", "source": "transcript", "sourceId": "c-1", "rawEvent": "commentary", "text": "Running now." },
+    { "seq": 4, "sessionId": "s-1", "kind": "tool_start", "source": "transcript", "sourceId": "call_1", "toolUseId": "call_1", "toolName": "exec_command", "toolInput": "{\"cmd\":\"go test\"}" },
+    { "seq": 5, "sessionId": "s-1", "kind": "tool_result", "source": "transcript", "sourceId": "call_1", "toolUseId": "call_1", "text": "ok" },
+    { "seq": 6, "sessionId": "s-1", "kind": "assistant_text", "source": "transcript", "sourceId": "c-2", "rawEvent": "final_answer", "text": "All green." },
+    { "seq": 7, "sessionId": "s-1", "kind": "stop", "source": "hook", "text": "All green." }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "ok", "title": "Prompt", "body": "run it" },
+    { "id": "src-c-1", "kind": "assistant", "status": "ok", "title": "Assistant · note", "body": "Running now.", "model": "gpt-5.4" },
+    { "id": "src-call_1", "kind": "tool", "status": "ok", "title": "exec_command", "body": "{\"cmd\":\"go test\"}", "result": "ok", "model": "gpt-5.4" },
+    { "id": "src-c-2", "kind": "assistant", "status": "ok", "title": "Assistant", "body": "All green.", "model": "gpt-5.4" }
+  ]
+}

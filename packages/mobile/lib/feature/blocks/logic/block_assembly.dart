@@ -1,4 +1,5 @@
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
+import 'package:operator_mobile/feature/blocks/logic/block_question.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
 List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
@@ -7,81 +8,196 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   final blocks = <SessionBlock>[];
   final indexById = <String, int>{};
   final consumed = <int>{};
+  final bodyFromTranscript = <String>{};
+  final statusFromHook = <String>{};
+
+  String? model;
+  int? todoIndex;
+  int? questionIndex;
+  var sawTranscriptAssistant = false;
 
   for (final event in ordered) {
     final seq = event.seq!;
     if (!consumed.add(seq)) continue;
 
     final key = _correlationKey(event);
+    final id = _blockId(event, key);
     final text = event.text ?? '';
+    final fromTranscript = event.source == 'transcript';
 
     switch (event.kind) {
       case 'idle_prompt':
         continue;
 
       case 'session_start':
-        _append(blocks, indexById, _create(event, key, BlockKind.notice, BlockStatus.ok, 'Session started', text));
+        _upsert(blocks, indexById, _create(event, id, BlockKind.notice, BlockStatus.ok, 'Session started', text, model));
 
       case 'prompt_submit':
-        _append(blocks, indexById, _create(event, key, BlockKind.prompt, BlockStatus.running, 'Prompt', text));
+        todoIndex = null;
+        questionIndex = null;
+        sawTranscriptAssistant = false;
+        _upsert(blocks, indexById, _create(event, id, BlockKind.prompt, BlockStatus.running, 'Prompt', text, model));
+
+      case 'turn_model':
+        if (text.isNotEmpty) model = text;
+
+      case 'assistant_text':
+        sawTranscriptAssistant = true;
+        final title = event.rawEvent == 'commentary' ? 'Assistant · note' : 'Assistant';
+        _upsert(blocks, indexById, _create(event, id, BlockKind.assistant, BlockStatus.ok, title, text, model));
+
+      case 'reasoning':
+        _upsert(blocks, indexById, _create(event, id, BlockKind.reasoning, BlockStatus.ok, 'Reasoning', text, model));
+
+      case 'compaction':
+        _upsert(blocks, indexById, _create(event, id, BlockKind.compaction, BlockStatus.ok, 'Compaction', text, model));
+
+      case 'todo':
+        if (todoIndex != null) {
+          blocks[todoIndex] = blocks[todoIndex].copyWith(body: text, lastSeq: seq);
+        } else {
+          todoIndex = blocks.length;
+          _upsert(blocks, indexById, _create(event, id, BlockKind.todo, BlockStatus.ok, 'Todo', text, model));
+        }
+
+      case 'tool_start':
+        bodyFromTranscript.add(id);
+        final at = indexById[id];
+        final body = event.toolInput ?? '';
+        if (at != null) {
+          blocks[at] = blocks[at].copyWith(
+            body: body,
+            lastSeq: seq,
+            status: statusFromHook.contains(id) ? null : BlockStatus.running,
+          );
+        } else {
+          _upsert(
+            blocks,
+            indexById,
+            _create(event, id, BlockKind.tool, BlockStatus.running, event.toolName ?? 'Tool', body, model),
+          );
+        }
+
+      case 'tool_result':
+        final failed = (event.errorType ?? '').isNotEmpty;
+        final resolved = failed ? BlockStatus.failed : BlockStatus.ok;
+        final at = indexById[id];
+        if (at != null) {
+          blocks[at] = blocks[at].copyWith(
+            result: text,
+            lastSeq: seq,
+            errorType: event.errorType,
+            status: statusFromHook.contains(id) ? null : resolved,
+          );
+        } else {
+          _upsert(
+            blocks,
+            indexById,
+            _create(event, id, BlockKind.tool, resolved, event.toolName ?? 'Tool', '', model, result: text),
+          );
+        }
 
       case 'tool_complete':
+        statusFromHook.add(id);
         final failed = (event.errorType ?? '').isNotEmpty;
         final status = failed ? BlockStatus.failed : BlockStatus.ok;
-        final body = _join([event.toolInput ?? '', text], '\n\n');
-        final at = key == null ? null : indexById['src-$key'];
+        final hookBody = _join([event.toolInput ?? '', text], '\n\n');
+        final at = indexById[id];
         if (at != null) {
           blocks[at] = blocks[at].copyWith(
             status: status,
-            body: body,
+            body: bodyFromTranscript.contains(id) ? null : hookBody,
             lastSeq: seq,
             errorType: event.errorType,
             truncatedLines: event.truncatedLines ?? 0,
-            redacted: _isRedacted(event),
+            redacted: _isRedacted(event) || blocks[at].redacted,
           );
         } else {
-          _append(blocks, indexById, _create(event, key, BlockKind.tool, status, event.toolName ?? 'Tool', body));
+          _upsert(
+            blocks,
+            indexById,
+            _create(event, id, BlockKind.tool, status, event.toolName ?? 'Tool', hookBody, model),
+          );
         }
 
       case 'permission_request':
-        final detail = (event.toolInput ?? '').isNotEmpty ? event.toolInput! : text;
-        final body = _join([event.toolName ?? '', detail], '\n');
-        _append(
-          blocks,
-          indexById,
-          _create(event, key, BlockKind.permission, BlockStatus.blocked, 'Permission requested', body),
-        );
+        statusFromHook.add(id);
+        final at = indexById[id];
+        if (at != null) {
+          blocks[at] = blocks[at].copyWith(
+            kind: BlockKind.permission,
+            title: 'Permission requested',
+            status: BlockStatus.blocked,
+            lastSeq: seq,
+          );
+        } else {
+          final detail = (event.toolInput ?? '').isNotEmpty ? event.toolInput! : text;
+          _upsert(
+            blocks,
+            indexById,
+            _create(
+              event,
+              id,
+              BlockKind.permission,
+              BlockStatus.blocked,
+              'Permission requested',
+              _join([event.toolName ?? '', detail], '\n'),
+              model,
+            ),
+          );
+        }
 
       case 'question_asked':
-        _append(blocks, indexById, _create(event, key, BlockKind.notice, BlockStatus.blocked, 'Waiting on you', text));
+        final questions = fromTranscript ? parseQuestionDetail(event.toolInput ?? '') : null;
+        if (!fromTranscript && questionIndex != null) continue;
+        final title = questions?.questions.first.question ?? 'Waiting on you';
+        final body = fromTranscript ? '' : text;
+        final block = _create(event, id, BlockKind.notice, BlockStatus.blocked, title, body, model, detail: questions);
+        if (fromTranscript && questionIndex != null) {
+          indexById.remove(blocks[questionIndex].id);
+          blocks[questionIndex] = block;
+          indexById[block.id] = questionIndex;
+        } else {
+          questionIndex = blocks.length;
+          _upsert(blocks, indexById, block);
+        }
 
       case 'permission_replied':
-        final at = key == null ? null : indexById['src-$key'];
+        final at = indexById[id];
         if (at != null) {
           blocks[at] = blocks[at].copyWith(status: BlockStatus.ok, lastSeq: seq);
         }
 
       case 'stop':
       case 'stop_failure':
+        questionIndex = null;
         final failed = event.kind == 'stop_failure';
         final at = _lastRunningPrompt(blocks);
         if (at != null) {
           blocks[at] = blocks[at].copyWith(status: failed ? BlockStatus.failed : BlockStatus.ok, lastSeq: seq);
         }
-        if (text.isNotEmpty) {
-          _append(
+        if (text.isNotEmpty && !sawTranscriptAssistant) {
+          _upsert(
             blocks,
             indexById,
-            _create(event, key, BlockKind.assistant, failed ? BlockStatus.failed : BlockStatus.ok, 'Assistant', text),
+            _create(
+              event,
+              id,
+              BlockKind.assistant,
+              failed ? BlockStatus.failed : BlockStatus.ok,
+              'Assistant',
+              text,
+              model,
+            ),
           );
         }
 
       default:
         final raw = event.rawEvent ?? '';
-        _append(
+        _upsert(
           blocks,
           indexById,
-          _create(event, key, BlockKind.notice, BlockStatus.ok, raw.isNotEmpty ? raw : 'Event', text),
+          _create(event, id, BlockKind.notice, BlockStatus.ok, raw.isNotEmpty ? raw : 'Event', text, model),
         );
     }
   }
@@ -108,37 +224,59 @@ String? _correlationKey(BlockEventModel event) {
 
 bool _isRedacted(BlockEventModel event) => (event.redactedSpans ?? const []).isNotEmpty;
 
+String _blockId(BlockEventModel event, String? key) =>
+    key != null && _correlates(event.kind) ? 'src-$key' : 'seq-${event.seq}';
+
+const _correlatingKinds = {
+  'tool_complete',
+  'tool_start',
+  'tool_result',
+  'permission_request',
+  'permission_replied',
+  'question_asked',
+  'compaction',
+  'todo',
+  'assistant_text',
+  'reasoning',
+};
+
+bool _correlates(String? kind) => _correlatingKinds.contains(kind);
+
 SessionBlock _create(
   BlockEventModel event,
-  String? key,
+  String id,
   BlockKind kind,
   BlockStatus status,
   String title,
   String body,
-) {
-  final correlated = key != null && _correlates(event.kind);
-  return SessionBlock(
-    id: correlated ? 'src-$key' : 'seq-${event.seq}',
-    firstSeq: event.seq!,
-    lastSeq: event.seq!,
-    kind: kind,
-    status: status,
-    title: title,
-    body: body,
-    toolName: event.toolName,
-    errorType: event.errorType,
-    truncatedLines: event.truncatedLines ?? 0,
-    redacted: _isRedacted(event),
-    createdAt: event.createdAt,
-    turnId: null,
-    detail: UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
-  );
-}
+  String? model, {
+  String? result,
+  BlockDetail? detail,
+}) => SessionBlock(
+  id: id,
+  firstSeq: event.seq!,
+  lastSeq: event.seq!,
+  kind: kind,
+  status: status,
+  title: title,
+  body: body,
+  result: result,
+  model: model,
+  toolName: event.toolName,
+  errorType: event.errorType,
+  truncatedLines: event.truncatedLines ?? 0,
+  redacted: _isRedacted(event),
+  createdAt: event.createdAt,
+  turnId: null,
+  detail: detail ?? UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
+);
 
-bool _correlates(String? kind) =>
-    kind == 'tool_complete' || kind == 'permission_request' || kind == 'permission_replied';
-
-void _append(List<SessionBlock> blocks, Map<String, int> indexById, SessionBlock block) {
+void _upsert(List<SessionBlock> blocks, Map<String, int> indexById, SessionBlock block) {
+  final at = indexById[block.id];
+  if (at != null) {
+    blocks[at] = blocks[at].copyWith(body: block.body, status: block.status, lastSeq: block.lastSeq);
+    return;
+  }
   indexById[block.id] = blocks.length;
   blocks.add(block);
 }

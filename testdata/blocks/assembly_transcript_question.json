@@ -1,0 +1,17 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "source": "hook", "text": "which branch" },
+    { "seq": 2, "sessionId": "s-1", "kind": "question_asked", "source": "hook", "sourceId": "native-1", "text": "Waiting on you" },
+    { "seq": 3, "sessionId": "s-1", "kind": "question_asked", "source": "transcript", "sourceId": "toolu_9", "toolUseId": "toolu_9", "toolName": "AskUserQuestion", "toolInput": "{\"questions\":[{\"question\":\"Which branch?\",\"header\":\"Branch\",\"multiSelect\":false,\"options\":[{\"label\":\"main\",\"description\":\"the default branch\"},{\"label\":\"develop\",\"description\":\"the integration branch\"}]}]}" },
+    { "seq": 4, "sessionId": "s-1", "kind": "todo", "source": "transcript", "sourceId": "toolu_t1", "text": "{\"todos\":[{\"content\":\"Rename the branch\",\"status\":\"pending\"}]}" },
+    { "seq": 5, "sessionId": "s-1", "kind": "todo", "source": "transcript", "sourceId": "toolu_t2", "text": "{\"todos\":[{\"content\":\"Rename the branch\",\"status\":\"completed\"}]}" },
+    { "seq": 6, "sessionId": "s-1", "kind": "compaction", "source": "transcript", "sourceId": "compaction:2026-09-04T11:00:00", "text": "Conversation compacted" },
+    { "seq": 7, "sessionId": "s-1", "kind": "compaction", "source": "transcript", "sourceId": "compaction:2026-09-04T11:00:00", "text": "Conversation compacted" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "running", "title": "Prompt", "body": "which branch" },
+    { "id": "src-toolu_9", "kind": "notice", "status": "blocked", "title": "Which branch?", "body": "", "questions": [{ "question": "Which branch?", "options": ["main", "develop"] }] },
+    { "id": "src-toolu_t1", "kind": "todo", "status": "ok", "title": "Todo", "body": "{\"todos\":[{\"content\":\"Rename the branch\",\"status\":\"completed\"}]}" },
+    { "id": "src-compaction:2026-09-04T11:00:00", "kind": "compaction", "status": "ok", "title": "Compaction", "body": "Conversation compacted" }
+  ]
+}

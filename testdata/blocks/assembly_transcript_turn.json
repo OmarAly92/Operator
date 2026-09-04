@@ -1,0 +1,20 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "source": "hook", "text": "run the tests" },
+    { "seq": 2, "sessionId": "s-1", "kind": "turn_model", "source": "transcript", "sourceId": "u-1", "text": "claude-sonnet-5" },
+    { "seq": 3, "sessionId": "s-1", "kind": "reasoning", "source": "transcript", "sourceId": "u-1", "text": "Checking the suite." },
+    { "seq": 4, "sessionId": "s-1", "kind": "assistant_text", "source": "transcript", "sourceId": "u-2", "text": "Running the backend suite." },
+    { "seq": 5, "sessionId": "s-1", "kind": "tool_start", "source": "transcript", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Bash", "toolInput": "{\"command\":\"go test ./...\"}" },
+    { "seq": 6, "sessionId": "s-1", "kind": "tool_complete", "source": "hook", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Bash", "text": "exit 0" },
+    { "seq": 7, "sessionId": "s-1", "kind": "tool_result", "source": "transcript", "sourceId": "toolu_1", "toolUseId": "toolu_1", "text": "ok 42 tests" },
+    { "seq": 8, "sessionId": "s-1", "kind": "assistant_text", "source": "transcript", "sourceId": "u-3", "text": "All green." },
+    { "seq": 9, "sessionId": "s-1", "kind": "stop", "source": "hook", "text": "All green." }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "ok", "title": "Prompt", "body": "run the tests" },
+    { "id": "src-u-1", "kind": "reasoning", "status": "ok", "title": "Reasoning", "body": "Checking the suite.", "model": "claude-sonnet-5" },
+    { "id": "src-u-2", "kind": "assistant", "status": "ok", "title": "Assistant", "body": "Running the backend suite.", "model": "claude-sonnet-5" },
+    { "id": "src-toolu_1", "kind": "tool", "status": "ok", "title": "Bash", "body": "{\"command\":\"go test ./...\"}", "result": "ok 42 tests", "model": "claude-sonnet-5" },
+    { "id": "src-u-3", "kind": "assistant", "status": "ok", "title": "Assistant", "body": "All green.", "model": "claude-sonnet-5" }
+  ]
+}

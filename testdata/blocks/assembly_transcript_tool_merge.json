@@ -1,0 +1,13 @@
+{
+  "records": [
+    { "seq": 1, "sessionId": "s-1", "kind": "prompt_submit", "source": "hook", "text": "edit the file" },
+    { "seq": 2, "sessionId": "s-1", "kind": "tool_start", "source": "transcript", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Edit", "toolInput": "{\"file\":\"a.go\",\"new\":\"package main\"}" },
+    { "seq": 3, "sessionId": "s-1", "kind": "permission_request", "source": "hook", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Edit", "toolInput": "a.go" },
+    { "seq": 4, "sessionId": "s-1", "kind": "tool_result", "source": "transcript", "sourceId": "toolu_orphan", "toolUseId": "toolu_orphan", "text": "orphan output", "errorType": "tool_failed" }
+  ],
+  "expected": [
+    { "id": "seq-1", "kind": "prompt", "status": "running", "title": "Prompt", "body": "edit the file" },
+    { "id": "src-toolu_1", "kind": "permission", "status": "blocked", "title": "Permission requested", "body": "{\"file\":\"a.go\",\"new\":\"package main\"}" },
+    { "id": "src-toolu_orphan", "kind": "tool", "status": "failed", "title": "Tool", "body": "", "result": "orphan output", "errorType": "tool_failed" }
+  ]
+}
