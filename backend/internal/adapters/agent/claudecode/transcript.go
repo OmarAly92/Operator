@@ -91,7 +91,7 @@ func claudeAssistantEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptE
 			Text:     model,
 		})
 	}
-	counts := map[domain.BlockEventKind]int{}
+	position := 0
 	for _, block := range claudeContentBlocks(rec.Message.Content) {
 		switch block.Type {
 		case "text":
@@ -100,7 +100,7 @@ func claudeAssistantEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptE
 			}
 			events = append(events, domain.BlockTranscriptEvent{
 				Kind:     domain.BlockEventAssistantText,
-				SourceID: claudeContentSourceID(rec.UUID, domain.BlockEventAssistantText, counts),
+				SourceID: claudeContentSourceID(rec.UUID, &position),
 				Text:     block.Text,
 			})
 		case "thinking":
@@ -109,7 +109,7 @@ func claudeAssistantEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptE
 			}
 			events = append(events, domain.BlockTranscriptEvent{
 				Kind:     domain.BlockEventReasoning,
-				SourceID: claudeContentSourceID(rec.UUID, domain.BlockEventReasoning, counts),
+				SourceID: claudeContentSourceID(rec.UUID, &position),
 				Text:     block.Thinking,
 			})
 		case "tool_use":
@@ -119,9 +119,12 @@ func claudeAssistantEvents(rec claudeTranscriptRecord) []domain.BlockTranscriptE
 	return events
 }
 
-func claudeContentSourceID(uuid string, kind domain.BlockEventKind, counts map[domain.BlockEventKind]int) string {
-	index := counts[kind]
-	counts[kind] = index + 1
+// claudeContentSourceID disambiguates same-record content blocks by a single
+// position counter shared across kinds, so a thinking block and a text block
+// in the same assistant record never collide on the bare record UUID.
+func claudeContentSourceID(uuid string, position *int) string {
+	index := *position
+	*position++
 	if index == 0 {
 		return uuid
 	}

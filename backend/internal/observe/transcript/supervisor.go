@@ -3,6 +3,7 @@ package transcript
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sort"
 	"time"
 
@@ -79,7 +80,8 @@ func (s *Supervisor) Start(ctx context.Context) <-chan struct{} {
 		var events <-chan usagepipeline.TranscriptEvent
 		var errs <-chan error
 		if s.deps.Watcher != nil {
-			s.deps.Watcher.Start(ctx)
+			watcherDone := s.deps.Watcher.Start(ctx)
+			defer func() { <-watcherDone }()
 			events = s.deps.Watcher.Events()
 			errs = s.deps.Watcher.Errors()
 		}
@@ -135,13 +137,18 @@ func (s *Supervisor) reconcile(ctx context.Context) {
 		if rec.IsTerminated || !blocktranscript.Supports(string(rec.Harness)) {
 			continue
 		}
-		path := s.deps.Resolver.Path(ctx, rec)
+		existing, tracked := s.tails[rec.ID]
+		var path string
+		if tracked && fileStillReadable(existing.path) {
+			path = existing.path
+		} else {
+			path = s.deps.Resolver.Path(ctx, rec)
+		}
 		if path == "" {
 			continue
 		}
 		seen[rec.ID] = struct{}{}
 		paths = append(paths, path)
-		existing, tracked := s.tails[rec.ID]
 		if tracked && existing.path == path {
 			continue
 		}
@@ -164,6 +171,19 @@ func (s *Supervisor) reconcile(ctx context.Context) {
 			s.deps.Logger.Warn("transcript watch rebuild", "err", err)
 		}
 	}
+}
+
+// fileStillReadable is a cheap check that a previously resolved transcript
+// path still exists, letting reconcile skip the full hook/adapter resolution
+// for a session it already tracks. A Codex adapter's fallback resolution
+// walks the whole ~/.codex/sessions tree, which every-tick re-resolution
+// would otherwise pay for regardless of whether anything changed.
+func fileStillReadable(path string) bool {
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 func (s *Supervisor) newTail(ctx context.Context, rec domain.SessionRecord, path string) *tail {

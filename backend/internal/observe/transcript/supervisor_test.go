@@ -125,6 +125,77 @@ func TestReconcileResetsTheCursorWhenThePathChanges(t *testing.T) {
 	}
 }
 
+func TestReconcileSkipsResolutionForAnAlreadyTrackedLivePath(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	path := writeTranscript(t, filepath.Join(configDir, "sessions"), "rollout.jsonl")
+
+	agent := &fakeAgent{configDir: configDir, located: path, found: true}
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "codex", "", false)}}
+	sessions.sessions[0].Metadata.AgentSessionID = "native-1"
+	sup := NewSupervisor(Deps{
+		Sessions: sessions,
+		Offsets:  &fakeOffsets{},
+		Sink:     &fakeSink{},
+		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Watcher:  newFakeWatcher(),
+	})
+
+	sup.reconcile(context.Background())
+	if agent.pathCalls != 1 || agent.locateCall != 1 {
+		t.Fatalf("first reconcile: pathCalls=%d locateCall=%d, want 1 each", agent.pathCalls, agent.locateCall)
+	}
+
+	sup.reconcile(context.Background())
+	if agent.pathCalls != 1 || agent.locateCall != 1 {
+		t.Fatalf("second reconcile re-resolved an already-tracked live path: pathCalls=%d locateCall=%d, want unchanged at 1 each", agent.pathCalls, agent.locateCall)
+	}
+	if _, ok := sup.tails["s-1"]; !ok {
+		t.Fatalf("tails = %+v", sup.tails)
+	}
+}
+
+func TestReconcileReResolvesWhenTheTrackedPathDisappears(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	dir := filepath.Join(configDir, "sessions")
+	oldPath := writeTranscript(t, dir, "old.jsonl")
+	newPath := writeTranscript(t, dir, "new.jsonl")
+
+	agent := &fakeAgent{configDir: configDir, located: oldPath, found: true}
+	sessions := &fakeSessions{sessions: []domain.SessionRecord{session("s-1", "codex", "", false)}}
+	sessions.sessions[0].Metadata.AgentSessionID = "native-1"
+	sup := NewSupervisor(Deps{
+		Sessions: sessions,
+		Offsets:  &fakeOffsets{},
+		Sink:     &fakeSink{},
+		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Watcher:  newFakeWatcher(),
+	})
+
+	sup.reconcile(context.Background())
+	if agent.locateCall != 1 {
+		t.Fatalf("first reconcile: locateCall=%d, want 1", agent.locateCall)
+	}
+
+	if err := os.Remove(oldPath); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	agent.located = newPath
+
+	sup.reconcile(context.Background())
+	if agent.locateCall != 2 {
+		t.Fatalf("reconcile after path disappeared did not re-resolve: locateCall=%d, want 2", agent.locateCall)
+	}
+	want, _ := filepath.EvalSymlinks(newPath)
+	if got := sup.tails["s-1"].path; got != want {
+		t.Fatalf("path = %q want %q", got, want)
+	}
+	if got := sup.tails["s-1"].offset; got != 0 {
+		t.Fatalf("offset = %d want 0 after the path changed", got)
+	}
+}
+
 func TestPumpAllEmitsForEveryTail(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "config")

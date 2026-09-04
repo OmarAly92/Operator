@@ -12,16 +12,20 @@ import (
 
 type fakeAgent struct {
 	ports.Agent
-	configDir string
-	located   string
-	found     bool
+	configDir  string
+	located    string
+	found      bool
+	pathCalls  int
+	locateCall int
 }
 
 func (a *fakeAgent) NativeSessionConfigDir(context.Context, map[string]string) (string, error) {
+	a.pathCalls++
 	return a.configDir, nil
 }
 
 func (a *fakeAgent) LocateTranscript(context.Context, ports.NativeSessionRef) (string, bool, error) {
+	a.locateCall++
 	return a.located, a.found, nil
 }
 
