@@ -1,0 +1,8 @@
+{"type":"assistant","uuid":"u-10","isSidechain":true,"message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"subagent chatter"}]}}
+{"type":"queue-operation","operation":"enqueue","sessionId":"s-1","timestamp":"2026-09-04T00:00:00.000Z"}
+{"type":"assistant","uuid":"u-11","isSidechain":false,"message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"first"},{"type":"text","text":"second"}]}}
+{"type":"assistant","uuid":"u-12","isSidechain":false,"message":{"model":"claude-sonnet-5","content":[{"type":"tool_use","id":"toolu_9","name":"AskUserQuestion","input":{"questions":[{"question":"Which branch?","header":"Branch","multiSelect":false,"options":[{"label":"main","description":"the default branch"},{"label":"develop","description":"the integration branch"}]}]}}]}}
+{"type":"system","subtype":"compact_boundary","uuid":"u-13","isSidechain":false,"content":"Conversation compacted","compactMetadata":{"trigger":"manual","preTokens":278168}}
+{"type":"system","subtype":"stop_hook_summary","uuid":"u-14","isSidechain":false,"content":"hook ran"}
+{"type":"future-record-kind","uuid":"u-15"}
+not json at all

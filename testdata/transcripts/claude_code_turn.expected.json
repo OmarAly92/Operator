@@ -1,0 +1,28 @@
+{
+  "harness": "claude-code",
+  "lines": [
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-1", "text": "claude-sonnet-5" },
+      { "kind": "reasoning", "sourceId": "u-1", "text": "The tests live under backend." }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-2", "text": "claude-sonnet-5" },
+      { "kind": "assistant_text", "sourceId": "u-2", "text": "Running the backend suite." },
+      { "kind": "tool_start", "sourceId": "toolu_1", "toolUseId": "toolu_1", "toolName": "Bash", "toolInput": "{\"command\":\"go test ./...\"}" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "tool_result", "sourceId": "toolu_1", "toolUseId": "toolu_1", "text": "ok  operator/backend 1.2s" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-4", "text": "claude-sonnet-5" },
+      { "kind": "tool_start", "sourceId": "toolu_2", "toolUseId": "toolu_2", "toolName": "Read", "toolInput": "{\"file_path\":\"/repo/main.go\"}" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "tool_result", "sourceId": "toolu_2", "toolUseId": "toolu_2", "text": "File does not exist.", "errorType": "tool_failed" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-6", "text": "claude-sonnet-5" },
+      { "kind": "assistant_text", "sourceId": "u-6", "text": "Everything passes." }
+    ] }
+  ]
+}

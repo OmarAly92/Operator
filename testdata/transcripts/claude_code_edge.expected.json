@@ -1,0 +1,22 @@
+{
+  "harness": "claude-code",
+  "lines": [
+    { "known": true, "events": [] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-11", "text": "claude-sonnet-5" },
+      { "kind": "assistant_text", "sourceId": "u-11", "text": "first" },
+      { "kind": "assistant_text", "sourceId": "u-11#1", "text": "second" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "turn_model", "sourceId": "u-12", "text": "claude-sonnet-5" },
+      { "kind": "question_asked", "sourceId": "toolu_9", "toolUseId": "toolu_9", "toolName": "AskUserQuestion", "toolInput": "{\"questions\":[{\"question\":\"Which branch?\",\"header\":\"Branch\",\"multiSelect\":false,\"options\":[{\"label\":\"main\",\"description\":\"the default branch\"},{\"label\":\"develop\",\"description\":\"the integration branch\"}]}]}" }
+    ] },
+    { "known": true, "events": [
+      { "kind": "compaction", "sourceId": "u-13", "text": "Conversation compacted (manual)" }
+    ] },
+    { "known": true, "events": [] },
+    { "known": false, "events": [] },
+    { "known": false, "events": [] }
+  ]
+}
