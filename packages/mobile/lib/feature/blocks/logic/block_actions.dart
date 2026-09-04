@@ -60,6 +60,8 @@ sealed class BlockActions {
     }
     if (detail is ShellBlockDetail && detail.output != null && detail.output!.isNotEmpty) {
       actions.add(BlockAction(kind: BlockActionKind.copyOutput, payload: detail.output));
+    } else if (block.kind == BlockKind.tool && (block.result ?? '').isNotEmpty) {
+      actions.add(BlockAction(kind: BlockActionKind.copyOutput, payload: block.result));
     } else if (block.kind == BlockKind.tool && block.body.isNotEmpty) {
       actions.add(BlockAction(kind: BlockActionKind.copyOutput, payload: block.body));
     }
@@ -84,10 +86,12 @@ sealed class BlockActions {
         .where((part) => part.isNotEmpty)
         .join('\n')
         .trimRight();
+    final result = block.result ?? '';
+    final withResult = result.isEmpty ? rendered : '$rendered\n\n$result';
     final children = block.children ?? const <SessionBlock>[];
-    if (children.isEmpty) return rendered;
+    if (children.isEmpty) return withResult;
     return [
-      rendered,
+      withResult,
       ...children.map((child) => copyText(child).split('\n').map((line) => '  $line').join('\n')),
     ].join('\n\n');
   }

@@ -394,7 +394,11 @@ BlockDisplay blockDisplay(SessionBlock block) {
     ),
     UnknownBlockDetail(:final raw) => BlockDisplay(
       displayName: block.title,
-      summary: block.body.isEmpty ? jsonEncode(raw) : block.body,
+      summary: block.body.isNotEmpty
+          ? block.body
+          : raw is String
+          ? raw
+          : jsonEncode(raw),
     ),
   };
 }

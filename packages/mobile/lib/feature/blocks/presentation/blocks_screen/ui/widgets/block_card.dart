@@ -8,7 +8,10 @@ import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_question_options.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_result_section.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_todo_list.dart';
 
 class BlockCard extends StatelessWidget {
   const BlockCard({
@@ -50,7 +53,9 @@ class BlockCard extends StatelessWidget {
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (display.summary.isNotEmpty)
+        if (block.kind == BlockKind.todo)
+          BlockTodoList(body: block.body)
+        else if (display.summary.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: _highlightedField(
@@ -63,6 +68,9 @@ class BlockCard extends StatelessWidget {
               softWrap: true,
             ),
           ),
+        if (block.detail is QuestionBlockDetail)
+          BlockQuestionOptions(questions: (block.detail! as QuestionBlockDetail).questions),
+        if ((block.result ?? '').isNotEmpty) BlockResultSection(result: block.result!),
         if (block.children != null && block.children!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
