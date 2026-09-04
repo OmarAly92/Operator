@@ -926,25 +926,27 @@ func TestSessionsAPI_SpawnRejectsOversizedBody(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
 }
 
-func TestSessionsAPI_SpawnRejectsUnknownExplicitMode(t *testing.T) {
+func TestSessionsAPI_SpawnRejectsRemovedMode(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions",
-		`{"projectId":"opr","kind":"worker","harness":"codex","prompt":"fix","mode":"tuii"}`)
-	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_INVALID")
+	for _, mode := range []string{`"chat"`, `"tui"`, `null`} {
+		body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions",
+			`{"projectId":"opr","kind":"worker","harness":"codex","prompt":"fix","mode":`+mode+`}`)
+		assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
+	}
 	if len(svc.sessions) != 1 {
-		t.Fatalf("invalid mode created a session: %#v", svc.sessions)
+		t.Fatalf("a removed-mode request created a session: %#v", svc.sessions)
 	}
 }
 
-func TestSessionsAPI_OrchestratorRejectsUnknownExplicitMode(t *testing.T) {
+func TestSessionsAPI_OrchestratorRejectsRemovedMode(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators",
-		`{"projectId":"opr","mode":"chatt"}`)
-	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_INVALID")
+		`{"projectId":"opr","mode":"tui"}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
 func TestSessionsAPI_PreviewDiscoversAndServesStaticIndex(t *testing.T) {
@@ -2020,7 +2022,7 @@ func TestSessionsAPI_DelegateTask(t *testing.T) {
 	svc := newFakeSessionService()
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix\u0000 it","agent":"cursor","model":" sonnet-custom ","mode":"chat","attachments":[{"mimeType":"image/png","data":"AQID"}]}`)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix\u0000 it","agent":"cursor","model":" sonnet-custom ","attachments":[{"mimeType":"image/png","data":"AQID"}]}`)
 	if status != http.StatusAccepted {
 		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
 	}
@@ -2061,8 +2063,8 @@ func TestSessionsAPI_DelegateTaskValidationAndServiceError(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusBadRequest, "UNKNOWN_HARNESS")
 
 	svc.delegationErr = nil
-	body, status, _ = doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix it","mode":"tuii"}`)
-	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_SESSION_MODE")
+	body, status, _ = doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"opr","brief":"Fix it","mode":"tui"}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
 func TestSessionsAPI_DelegateTaskRejectsInvalidAttachments(t *testing.T) {

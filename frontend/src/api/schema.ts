@@ -2087,8 +2087,6 @@ export interface components {
             agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
             attachments?: components["schemas"]["AttachmentInput"][];
             brief: string;
-            /** @enum {string} */
-            mode?: "tui" | "chat";
             model?: string;
             projectId: string;
         };
@@ -2830,8 +2828,6 @@ export interface components {
         };
         SpawnOrchestratorRequest: {
             clean?: boolean;
-            /** @enum {string} */
-            mode?: "chat" | "tui";
             projectId: string;
         };
         SpawnOrchestratorResponse: {
@@ -2846,8 +2842,6 @@ export interface components {
             issueId?: string;
             /** @enum {string} */
             kind?: "worker" | "orchestrator";
-            /** @enum {string} */
-            mode?: "chat" | "tui";
             projectId: string;
             prompt?: string;
         };
@@ -3679,6 +3673,8 @@ export interface operations {
             query?: {
                 /** @description Replay events with seq greater than this cursor. When omitted, clients may send Last-Event-ID instead. */
                 after?: null | number;
+                /** @description Start at the current log head and replay nothing. Ignored when after is present. */
+                fromLatest?: null | boolean;
             };
             header?: never;
             path?: never;

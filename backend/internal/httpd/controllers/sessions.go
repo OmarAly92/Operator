@@ -238,6 +238,18 @@ func (c *SessionsController) list(w http.ResponseWriter, r *http.Request) {
 	envelope.WriteJSON(w, http.StatusOK, ListSessionsResponse{Sessions: sessionViews(sessions)})
 }
 
+func sessionModeRequested(body []byte) bool {
+	var probe struct {
+		Mode json.RawMessage `json:"mode"`
+	}
+	return json.Unmarshal(body, &probe) == nil && len(probe.Mode) > 0
+}
+
+func writeSessionModeRemoved(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_MODE_REMOVED",
+		"mode is no longer accepted: every session runs the agent's terminal interface", nil)
+}
+
 func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions")
@@ -248,21 +260,24 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 	// whole body is decoded. MaxBytesReader stops the read past the limit so an
 	// oversized base64 payload can't allocate in full first.
 	r.Body = http.MaxBytesReader(w, r.Body, maxSpawnBodyBytes)
-	var in SpawnSessionRequest
-	if err := decodeJSON(r, &in); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	var in SpawnSessionRequest
+	if err := json.Unmarshal(body, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if sessionModeRequested(body) {
+		writeSessionModeRemoved(w, r)
 		return
 	}
 	if in.ProjectID == "" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "PROJECT_ID_REQUIRED", "projectId is required", nil)
 		return
 	}
-	mode, err := domain.ParseSessionMode(string(in.Mode))
-	if err != nil {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_MODE_INVALID", err.Error(), nil)
-		return
-	}
-	in.Mode = mode
 	if len(in.Prompt) > maxPromptLen {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "PROMPT_TOO_LONG", "prompt is too long", nil)
 		return
@@ -1299,9 +1314,18 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxSpawnBodyBytes)
-	var in DelegateTaskRequest
-	if err := decodeJSON(r, &in); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	var in DelegateTaskRequest
+	if err := json.Unmarshal(body, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if sessionModeRequested(body) {
+		writeSessionModeRemoved(w, r)
 		return
 	}
 	if in.ProjectID == "" {
@@ -1315,14 +1339,6 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 	if utf8.RuneCountInString(strings.TrimSpace(in.Model)) > maxModelLen {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "MODEL_TOO_LONG", "Model must be 256 characters or fewer", nil)
 		return
-	}
-	if in.Mode != "" {
-		mode, err := domain.ParseSessionMode(string(in.Mode))
-		if err != nil {
-			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_SESSION_MODE", "mode must be chat or tui", nil)
-			return
-		}
-		in.Mode = mode
 	}
 	attachments, attachErr := decodeSpawnAttachments(in.Attachments)
 	if attachErr != nil {
@@ -1482,20 +1498,23 @@ func (c *SessionsController) spawnOrchestrator(w http.ResponseWriter, r *http.Re
 		apispec.NotImplemented(w, r, "POST", "/api/v1/orchestrators")
 		return
 	}
-	var in SpawnOrchestratorRequest
-	if err := decodeJSON(r, &in); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	var in SpawnOrchestratorRequest
+	if err := json.Unmarshal(body, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if sessionModeRequested(body) {
+		writeSessionModeRemoved(w, r)
 		return
 	}
 	if in.ProjectID == "" {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "PROJECT_ID_REQUIRED", "projectId is required", nil)
 		return
-	}
-	if in.Mode != "" {
-		if _, err := domain.ParseSessionMode(string(in.Mode)); err != nil {
-			envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_MODE_INVALID", err.Error(), nil)
-			return
-		}
 	}
 	sess, err := c.Svc.SpawnOrchestrator(r.Context(), in.ProjectID, in.Clean)
 	if err != nil {

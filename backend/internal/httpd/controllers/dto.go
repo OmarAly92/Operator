@@ -171,15 +171,7 @@ type SpawnSessionRequest struct {
 	Kind      domain.SessionKind  `json:"kind,omitempty" enum:"worker,orchestrator"`
 	Harness   domain.AgentHarness `json:"harness,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand"`
 	Branch    string              `json:"branch,omitempty"`
-	// Mode picks the conversation controller: chat talks to the agent over a
-	// structured connection, tui opens the agent's native terminal interface.
-	// Omitted resolves to the daemon default (tui), which is why an upgrade
-	// changes nothing. Compatible sessions may later switch through the durable
-	// interface-transition endpoint; the default never mutates existing sessions
-	// automatically. An unsupported explicit request fails rather than quietly
-	// producing the other kind of session.
-	Mode   domain.SessionMode `json:"mode,omitempty" enum:"chat,tui"`
-	Prompt string             `json:"prompt,omitempty" maxLength:"4096"`
+	Prompt    string              `json:"prompt,omitempty" maxLength:"4096"`
 	// DisplayName is the sidebar label for the session, capped at 20 characters.
 	// `opr spawn --name` always sets it; other clients (e.g. the desktop new-task
 	// dialog) may omit it and fall back to the session id in the read model.
@@ -623,9 +615,6 @@ type DelegateTaskRequest struct {
 	Brief     string              `json:"brief" maxLength:"4096"`
 	Agent     domain.AgentHarness `json:"agent,omitempty" enum:"claude-code,codex,aider,opencode,grok,droid,amp,agy,crush,cursor,qwen,copilot,goose,auggie,continue,devin,cline,kimi,muse,kiro,kilocode,vibe,pi,kimchi,prime-agent,autohand,fake"`
 	Model     string              `json:"model,omitempty" maxLength:"256"`
-	// Mode is omitted for the daemon-owned default. The UI sends tui only when
-	// the user explicitly accepts the fallback after Chat preflight fails.
-	Mode domain.SessionMode `json:"mode,omitempty" enum:"tui,chat"`
 	// Attachments are files pasted, dropped, or picked into the delegated task
 	// brief. Each carries bytes as standard base64 (no data: URL prefix). The
 	// daemon writes them into the spawned worker worktree and appends path
@@ -917,10 +906,6 @@ type ReviewSessionIDParam struct {
 type SpawnOrchestratorRequest struct {
 	ProjectID domain.ProjectID `json:"projectId"`
 	Clean     bool             `json:"clean,omitempty"`
-	// Mode applies only when this request creates a project orchestrator. An
-	// idempotent ensure returns the existing orchestrator unchanged, and a clean
-	// replacement inherits the existing orchestrator's currently committed mode.
-	Mode domain.SessionMode `json:"mode,omitempty" enum:"chat,tui"`
 }
 
 // SpawnOrchestratorResponse is the body of POST /api/v1/orchestrators.

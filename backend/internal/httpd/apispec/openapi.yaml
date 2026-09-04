@@ -6162,11 +6162,6 @@ components:
         brief:
           maxLength: 4096
           type: string
-        mode:
-          enum:
-          - tui
-          - chat
-          type: string
         model:
           maxLength: 256
           type: string
@@ -8074,11 +8069,6 @@ components:
       properties:
         clean:
           type: boolean
-        mode:
-          enum:
-          - chat
-          - tui
-          type: string
         projectId:
           type: string
       required:
@@ -8137,11 +8127,6 @@ components:
           enum:
           - worker
           - orchestrator
-          type: string
-        mode:
-          enum:
-          - chat
-          - tui
           type: string
         projectId:
           type: string
