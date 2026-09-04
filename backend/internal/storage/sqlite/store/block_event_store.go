@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/redact"
@@ -60,30 +61,24 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 	}
 	out := make([]blockeventsvc.Record, 0, len(rows))
 	for _, row := range rows {
-		rec := blockeventsvc.Record{
+		out = append(out, blockEventRecordFromRow(blockEventRowFields{
 			Seq:            row.Seq,
 			SessionID:      row.SessionID,
 			SourceID:       row.SourceID,
-			Kind:           domain.BlockEventKind(row.Kind),
+			Kind:           row.Kind,
 			RawEvent:       row.RawEvent,
 			Harness:        row.Harness,
 			ToolName:       row.ToolName,
 			ToolUseID:      row.ToolUseID,
 			ToolInput:      row.ToolInput,
 			Text:           row.Text,
+			RedactedSpans:  row.RedactedSpans,
 			ErrorType:      row.ErrorType,
 			HookVersion:    row.HookVersion,
-			TruncatedLines: int(row.TruncatedLines),
-			Source:         domain.BlockEventSource(row.Source),
+			TruncatedLines: row.TruncatedLines,
+			Source:         row.Source,
 			CreatedAt:      row.CreatedAt,
-		}
-		if row.RedactedSpans != "" {
-			var spans []redact.Span
-			if err := json.Unmarshal([]byte(row.RedactedSpans), &spans); err == nil {
-				rec.RedactedSpans = spans
-			}
-		}
-		out = append(out, rec)
+		}))
 	}
 	return out, nil
 }
@@ -102,32 +97,75 @@ func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string
 	}
 	out := make([]blockeventsvc.Record, 0, len(rows))
 	for _, row := range rows {
-		rec := blockeventsvc.Record{
+		out = append(out, blockEventRecordFromRow(blockEventRowFields{
 			Seq:            row.Seq,
 			SessionID:      row.SessionID,
 			SourceID:       row.SourceID,
-			Kind:           domain.BlockEventKind(row.Kind),
+			Kind:           row.Kind,
 			RawEvent:       row.RawEvent,
 			Harness:        row.Harness,
 			ToolName:       row.ToolName,
 			ToolUseID:      row.ToolUseID,
 			ToolInput:      row.ToolInput,
 			Text:           row.Text,
+			RedactedSpans:  row.RedactedSpans,
 			ErrorType:      row.ErrorType,
 			HookVersion:    row.HookVersion,
-			TruncatedLines: int(row.TruncatedLines),
-			Source:         domain.BlockEventSource(row.Source),
+			TruncatedLines: row.TruncatedLines,
+			Source:         row.Source,
 			CreatedAt:      row.CreatedAt,
-		}
-		if row.RedactedSpans != "" {
-			var spans []redact.Span
-			if err := json.Unmarshal([]byte(row.RedactedSpans), &spans); err == nil {
-				rec.RedactedSpans = spans
-			}
-		}
-		out = append(out, rec)
+		}))
 	}
 	return out, nil
+}
+
+// blockEventRowFields is the field set shared by the generated row types for
+// SelectBlockEventsBySession and SelectBlockEventsBeforeSeq, which sqlc emits
+// as distinct structs with differing field order.
+type blockEventRowFields struct {
+	Seq            int64
+	SessionID      string
+	SourceID       string
+	Kind           string
+	RawEvent       string
+	Harness        string
+	ToolName       string
+	ToolUseID      string
+	ToolInput      string
+	Text           string
+	RedactedSpans  string
+	ErrorType      string
+	HookVersion    string
+	TruncatedLines int64
+	Source         string
+	CreatedAt      time.Time
+}
+
+func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
+	rec := blockeventsvc.Record{
+		Seq:            f.Seq,
+		SessionID:      f.SessionID,
+		SourceID:       f.SourceID,
+		Kind:           domain.BlockEventKind(f.Kind),
+		RawEvent:       f.RawEvent,
+		Harness:        f.Harness,
+		ToolName:       f.ToolName,
+		ToolUseID:      f.ToolUseID,
+		ToolInput:      f.ToolInput,
+		Text:           f.Text,
+		ErrorType:      f.ErrorType,
+		HookVersion:    f.HookVersion,
+		TruncatedLines: int(f.TruncatedLines),
+		Source:         domain.BlockEventSource(f.Source),
+		CreatedAt:      f.CreatedAt,
+	}
+	if f.RedactedSpans != "" {
+		var spans []redact.Span
+		if err := json.Unmarshal([]byte(f.RedactedSpans), &spans); err == nil {
+			rec.RedactedSpans = spans
+		}
+	}
+	return rec
 }
 
 // TrimBlockEvents drops all but the newest keep rows for one session. Trimming
