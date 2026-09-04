@@ -1,0 +1,17 @@
+{
+  "harness": "codex",
+  "lines": [
+    { "known": true, "events": [] },
+    { "known": true, "events": [ { "kind": "turn_model", "sourceId": "*", "text": "gpt-5.4" } ] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [ { "kind": "reasoning", "sourceId": "*", "text": "**Planning the run**" } ] },
+    { "known": true, "events": [ { "kind": "assistant_text", "sourceId": "*", "text": "Running the suite now.", "rawEvent": "commentary" } ] },
+    { "known": true, "events": [ { "kind": "tool_start", "sourceId": "call_1", "toolUseId": "call_1", "toolName": "exec_command", "toolInput": "{\"cmd\":\"go test ./...\"}" } ] },
+    { "known": true, "events": [] },
+    { "known": true, "events": [ { "kind": "tool_result", "sourceId": "call_1", "toolUseId": "call_1", "text": "ok  operator/backend 1.2s" } ] },
+    { "known": true, "events": [ { "kind": "tool_start", "sourceId": "call_2", "toolUseId": "call_2", "toolName": "apply_patch", "toolInput": "*** Begin Patch" } ] },
+    { "known": true, "events": [ { "kind": "tool_result", "sourceId": "call_2", "toolUseId": "call_2", "text": "{\"output\":\"Success.\"}" } ] },
+    { "known": true, "events": [ { "kind": "assistant_text", "sourceId": "*", "text": "All green.", "rawEvent": "final_answer" } ] },
+    { "known": true, "events": [] }
+  ]
+}
