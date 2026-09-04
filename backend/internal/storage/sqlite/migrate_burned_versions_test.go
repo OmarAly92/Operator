@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"math"
 	"path/filepath"
 	"testing"
 	"time"
@@ -97,6 +98,7 @@ var shippedMigrations = map[int64]string{
 	91: "0091_block_event_tool_input.sql",
 	92: "0092_terminal_blocks.sql",
 	93: "0093_drop_shell_terminal_session_id.sql",
+	94: "0094_clear_pre_release_data.go",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -123,35 +125,32 @@ func burnedVersion(v int64) bool {
 // produces silently-skipped migrations and unexplainable 500s months later
 // (issue #3475).
 func TestMigrationVersionLedger(t *testing.T) {
-	entries, err := migrationsFS.ReadDir("migrations")
+	gooseMu.Lock()
+	defer gooseMu.Unlock()
+	goose.SetBaseFS(migrationsFS)
+	migrations, err := goose.CollectMigrations("migrations", 0, math.MaxInt64)
 	if err != nil {
-		t.Fatalf("read migrations dir: %v", err)
+		t.Fatalf("collect migrations: %v", err)
 	}
 
 	present := map[int64]string{}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		version, err := goose.NumericComponent(e.Name())
-		if err != nil {
-			t.Errorf("migration %q has no version goose can parse: %v", e.Name(), err)
-			continue
-		}
-		present[version] = e.Name()
+	for _, migration := range migrations {
+		name := filepath.Base(migration.Source)
+		version := migration.Version
+		present[version] = name
 
 		if burnedVersion(version) {
 			t.Errorf("migration %q claims burned version %d: that number is recorded as applied on real installs, so this file would be skipped silently there; use a fresh number",
-				e.Name(), version)
+				name, version)
 			continue
 		}
 		shipped, ok := shippedMigrations[version]
 		switch {
-		case ok && shipped != e.Name():
-			t.Errorf("migration version %d was renamed from %q to %q: installs that already applied it will never run the new file", version, shipped, e.Name())
+		case ok && shipped != name:
+			t.Errorf("migration version %d was renamed from %q to %q: installs that already applied it will never run the new file", version, shipped, name)
 		case !ok:
 			t.Errorf("migration %q (version %d) is not in the shippedMigrations ledger; append it in the same change so the claimed number is reviewed",
-				e.Name(), version)
+				name, version)
 		}
 	}
 

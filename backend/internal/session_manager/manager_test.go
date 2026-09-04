@@ -6110,6 +6110,37 @@ func newSendTestManager(t *testing.T, agent ports.Agent, messenger ports.AgentMe
 	return m
 }
 
+type getSessionErrorStore struct {
+	*fakeStore
+	readsBeforeError int
+	err              error
+}
+
+func (s *getSessionErrorStore) GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error) {
+	if s.readsBeforeError == 0 {
+		return domain.SessionRecord{}, false, s.err
+	}
+	s.readsBeforeError--
+	return s.fakeStore.GetSession(ctx, id)
+}
+
+func TestSendPropagatesConfirmationPollingError(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code", Activity: domain.Activity{State: domain.ActivityIdle}}
+	msg := &fakeMessenger{}
+	m := newSendTestManager(t, signalingAgent{}, msg, st)
+	wantErr := errors.New("read session")
+	m.store = &getSessionErrorStore{fakeStore: st, readsBeforeError: 3, err: wantErr}
+
+	err := m.Send(context.Background(), "s1", "do the thing", nil)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Send error = %v, want %v", err, wantErr)
+	}
+	if len(msg.msgs) != 1 {
+		t.Fatalf("Send calls = %d, want 1 before confirmation failed", len(msg.msgs))
+	}
+}
+
 func TestSend_SkipsConfirmForHooklessHarness(t *testing.T) {
 	// A harness whose adapter does NOT implement the activity-signal interfaces (plain
 	// fakeAgent) must skip confirmActive entirely: one Send, no nudges, and the

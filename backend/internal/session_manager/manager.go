@@ -2342,8 +2342,9 @@ func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []por
 // multiline prompt a single Enter may not submit (claude-code leaves it as an
 // unsubmitted draft). confirmActive observes the durable Activity.State
 // (flipped to active by the user-prompt-submit hook) and re-sends Enter until
-// the session is active or the budget is exhausted. Confirmation never fails
-// the send: it only decides whether to nudge again.
+// the session is active or the budget is exhausted. A polling failure or an
+// exhausted confirmation budget is returned so the caller does not report an
+// unconfirmed message as delivered.
 func (m *Manager) Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error {
 	if attachment != nil {
 		// Reuses StageAttachments rather than a bespoke writer: it already owns the
@@ -2513,9 +2514,7 @@ const (
 // attempt budget is exhausted. The initial delivery already submitted one
 // Enter; each additional attempt sends Enter again (an empty message is an
 // Enter-only nudge, see ports.AgentMessenger) after waiting for Activity.State
-// to flip. It is best-effort: on context cancellation, store failure, or budget
-// exhaustion it returns silently (the message was already delivered; the agent
-// may yet pick it up). Callers must capability-gate this loop because harnesses
+// to flip. Callers must capability-gate this loop because harnesses
 // without trustworthy submit and blocked signals cannot use it safely.
 //
 // Decision safety: a session observed in ActivityBlocked stops confirmation
@@ -2524,8 +2523,7 @@ const (
 // an idle-prompt session with an unsubmitted pasted draft is exactly the case
 // the nudge exists for.
 // confirmActive reports ErrAgentNotResponding when the budget runs out with the
-// session still inactive; every other stopping condition is best-effort and
-// returns nil.
+// session still inactive and propagates failures that prevent confirmation.
 func (m *Manager) confirmActive(ctx context.Context, guard *sessionguard.Guard, id domain.SessionID) error {
 	return m.confirmActiveWithNudge(ctx, id, nil, func(nudgeCtx context.Context) (sessionguard.Outcome, error) {
 		return guard.Deliver(nudgeCtx, id, "")
@@ -2555,7 +2553,10 @@ func (m *Manager) confirmActiveWithNudge(ctx context.Context, id domain.SessionI
 			return nil
 		}
 		outcome, err := m.waitForActive(ctx, id)
-		if err != nil || outcome == waitActive {
+		if err != nil {
+			return fmt.Errorf("confirm activity for %s: %w", id, err)
+		}
+		if outcome == waitActive {
 			return nil
 		}
 		// Blocked is not a lost message: the paste is sitting in the composer

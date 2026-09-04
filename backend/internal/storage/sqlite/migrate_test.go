@@ -40,7 +40,7 @@ func TestUsageTablesKeepOnlyDurableCollectionState(t *testing.T) {
 	}
 }
 
-func TestUsageSchemaUpgradePreservesEarlierPRData(t *testing.T) {
+func TestUsageSchemaUpgradeClearsEarlierPRDataAtPreReleaseReset(t *testing.T) {
 	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -104,14 +104,12 @@ VALUES (1, 1, 1, 'gpt-test', 120, 100, 20, 0, 30, 'event-1');
 			t.Errorf("%s columns = %v, want %v", table, got, wantColumns)
 		}
 	}
-	var inputTokens, outputTokens int
-	if err := db.QueryRow(
-		`SELECT input_tokens, output_tokens FROM model_usage_events WHERE source_event_key = 'event-1'`,
-	).Scan(&inputTokens, &outputTokens); err != nil {
-		t.Fatalf("read preserved usage event: %v", err)
+	var usageEvents int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM model_usage_events`).Scan(&usageEvents); err != nil {
+		t.Fatalf("count usage events: %v", err)
 	}
-	if inputTokens != 120 || outputTokens != 30 {
-		t.Fatalf("preserved usage = (%d, %d), want (120, 30)", inputTokens, outputTokens)
+	if usageEvents != 0 {
+		t.Fatalf("usage events after pre-release clear = %d, want 0", usageEvents)
 	}
 	var catalogTables int
 	if err := db.QueryRow(
@@ -332,12 +330,10 @@ WHERE type = 'table' AND name = 'sessions'`,
 	}
 }
 
-// TestMigrateRepairsKimchiConstraintWithPrimeAgentAndLegacyQM reproduces the
-// shared dev profile: the Kimchi migration is recorded as applied, while a
-// later checkout widened the physical constraint for Prime Agent and legacy QM
-// without retaining Kimchi. Startup must converge the known constraint without
-// dropping either existing harness or rejecting existing Prime Agent rows.
-func TestMigrateRepairsKimchiConstraintWithPrimeAgentAndLegacyQM(t *testing.T) {
+// TestMigrateRepairsKimchiConstraintBeforeClearingPrimeAgentSession reproduces
+// the shared dev profile where the physical harness constraint drifted. Startup
+// must repair the schema before the pre-release data reset runs.
+func TestMigrateRepairsKimchiConstraintBeforeClearingPrimeAgentSession(t *testing.T) {
 	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -397,8 +393,8 @@ VALUES ('operator-1', 'operator', 1, 'prime-agent', ?, ?, ?);
 	if err := db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE harness = 'prime-agent'`).Scan(&primeAgentSessions); err != nil {
 		t.Fatalf("count prime-agent sessions: %v", err)
 	}
-	if primeAgentSessions != 1 {
-		t.Fatalf("prime-agent session count = %d, want 1", primeAgentSessions)
+	if primeAgentSessions != 0 {
+		t.Fatalf("prime-agent sessions after pre-release clear = %d, want 0", primeAgentSessions)
 	}
 }
 

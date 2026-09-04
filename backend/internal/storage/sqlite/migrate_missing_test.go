@@ -12,7 +12,7 @@ import (
 // later added or renumbered. Goose rejects that history by default, which
 // prevents the daemon from starting even though the missing migrations can be
 // applied normally.
-func TestMigrateAppliesMissingMigrationsBeforeCurrentVersion(t *testing.T) {
+func TestMigrateAppliesMissingMigrationsBeforePreReleaseClear(t *testing.T) {
 	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -57,15 +57,12 @@ WHERE is_applied = 1 AND version_id IN (28, 29, 30, 31)
 		t.Fatalf("applied migrations 28-31 = %d, want 4", applied)
 	}
 
-	var path, displayName string
-	if err := db.QueryRow(
-		`SELECT path, display_name FROM projects WHERE id = ?`,
-		"project-1",
-	).Scan(&path, &displayName); err != nil {
-		t.Fatalf("query preserved project: %v", err)
+	var projects int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM projects`).Scan(&projects); err != nil {
+		t.Fatalf("count projects: %v", err)
 	}
-	if path != `C:\src\project-1` || displayName != "Project One" {
-		t.Fatalf("preserved project = (%q, %q), want Windows path and display name unchanged", path, displayName)
+	if projects != 0 {
+		t.Fatalf("projects after pre-release clear = %d, want 0", projects)
 	}
 
 	if err := migrate(db); err != nil {
