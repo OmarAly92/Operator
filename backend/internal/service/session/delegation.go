@@ -28,7 +28,6 @@ type DelegateTaskInput struct {
 	Brief          string
 	RequestedAgent domain.AgentHarness
 	Model          string
-	RequestedMode  domain.SessionMode
 	Attachments    []ports.SpawnAttachment
 }
 
@@ -51,23 +50,19 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	if in.RequestedAgent != "" && !in.RequestedAgent.IsKnown() {
 		return DelegateTaskOutcome{}, apierr.Invalid("UNKNOWN_HARNESS", "Unknown requested agent", nil)
 	}
-	if in.RequestedMode != "" && !in.RequestedMode.Valid() {
-		return DelegateTaskOutcome{}, apierr.Invalid("INVALID_SESSION_MODE", "mode must be chat or tui", nil)
-	}
 	prompt := in.Brief
 	if strings.TrimSpace(prompt) == "" {
 		prompt = ""
 	}
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
-		ProjectID:     in.ProjectID,
-		Kind:          domain.KindWorker,
-		Harness:       in.RequestedAgent,
-		Prompt:        prompt,
-		DisplayName:   delegatedTaskDisplayName(in.Brief),
-		AgentConfig:   ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
-		RequestedMode: in.RequestedMode,
-		Attachments:   in.Attachments,
+		ProjectID:   in.ProjectID,
+		Kind:        domain.KindWorker,
+		Harness:     in.RequestedAgent,
+		Prompt:      prompt,
+		DisplayName: delegatedTaskDisplayName(in.Brief),
+		AgentConfig: ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
+		Attachments: in.Attachments,
 	})
 	if err != nil {
 		return DelegateTaskOutcome{}, toAPIError(err)
@@ -150,7 +145,7 @@ func (s *Service) taskTitleOrchestrator(ctx context.Context, projectID domain.Pr
 	}
 	unlock()
 
-	orchestrator, err := s.SpawnOrchestrator(ctx, projectID, false, "")
+	orchestrator, err := s.SpawnOrchestrator(ctx, projectID, false)
 	if err != nil {
 		return "", fmt.Errorf("start project orchestrator: %w", err)
 	}
