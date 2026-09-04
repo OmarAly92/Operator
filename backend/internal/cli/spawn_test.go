@@ -185,6 +185,16 @@ func TestSpawnCommand_RejectsOverlongName(t *testing.T) {
 	}
 }
 
+func TestSpawnCommand_HasNoModeFlag(t *testing.T) {
+	var out, errb bytes.Buffer
+	root := NewRootCommand(Deps{Out: &out, Err: &errb})
+	root.SetArgs([]string{"spawn", "--name", "w", "--mode", "tui"})
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "unknown flag: --mode") {
+		t.Fatalf("err = %v, want unknown flag: --mode", err)
+	}
+}
+
 func TestSpawnResolvesProjectFromEnvAndDefaultAgent(t *testing.T) {
 	cfg := setConfigEnv(t)
 	var requests []string
