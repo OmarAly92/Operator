@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -19,6 +20,13 @@ const (
 	eventsReplayBatch = 512
 	eventsLiveBuffer  = 1024
 )
+
+// eventsKeepAlive is how often an otherwise idle stream writes a comment frame.
+// Without it the socket carries zero bytes between CDC events, which cellular
+// NAT and Tailscale reap silently — the client cannot use a receive timeout on
+// a long-lived stream, so server traffic is the only liveness signal it has.
+// Overridden in tests.
+var eventsKeepAlive = 15 * time.Second
 
 type cdcSubscriber interface {
 	Subscribe(func(cdc.Event)) (unsubscribe func())
@@ -47,6 +55,20 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_AFTER",
 			"after must be a non-negative integer", nil)
 		return
+	}
+
+	// change_log is never trimmed, so after=0 means replaying the daemon's whole
+	// history. A client that refetches its own snapshot on every event wants
+	// live events only; fromLatest lets it start at the head and skip the
+	// replay. An explicit after is a real resume point, so it always wins.
+	if r.URL.Query().Get("after") == "" && r.URL.Query().Get("fromLatest") == "true" {
+		head, headErr := c.Source.LatestSeq(r.Context())
+		if headErr != nil {
+			envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "EVENTS_HEAD_UNAVAILABLE",
+				"Could not resolve the current event log head", nil)
+			return
+		}
+		after = head
 	}
 
 	flusher, ok := w.(http.Flusher)
@@ -84,6 +106,9 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	keepAlive := time.NewTicker(eventsKeepAlive)
+	defer keepAlive.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -92,6 +117,11 @@ func (c *EventsController) stream(w http.ResponseWriter, r *http.Request) {
 			if err := writeSSEEvent(w, flusher, e, &sentSeq); err != nil {
 				return
 			}
+		case <-keepAlive.C:
+			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }

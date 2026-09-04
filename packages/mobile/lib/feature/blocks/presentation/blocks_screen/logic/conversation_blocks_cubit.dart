@@ -1,12 +1,11 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_state.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
@@ -17,26 +16,30 @@ import 'package:operator_mobile/feature/chat/logic/conversation_errors.dart';
 class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   ConversationBlocksCubit(
     this._repository,
-    this._eventDataSource,
-    this.sessionId,
-  ) : super(const ConversationBlocksInitialState()) {
+    this._eventBus,
+    this.sessionId, {
+    this._refreshDebounce = const Duration(milliseconds: 120),
+  }) : super(const ConversationBlocksInitialState()) {
     unawaited(_initialFetch());
   }
 
   final ChatRepository _repository;
 
   ChatRepository get repository => _repository;
-  final ChatEventDataSource _eventDataSource;
+  final ConversationEventBus _eventBus;
   final String sessionId;
+  final Duration _refreshDebounce;
 
   ConversationSnapshotModel? get snapshot => _snapshot;
 
-  CancelToken? _eventCancel;
   StreamSubscription<ConversationEventModel>? _eventSub;
+  StreamSubscription<void>? _reconnectSub;
   ConversationSnapshotModel? _snapshot;
   int _revision = 0;
-  int _latestSeq = 0;
   bool _disposed = false;
+
+  Timer? _refreshTimer;
+  int _fetchGeneration = 0;
 
   Future<void> _initialFetch() async {
     if (_disposed) return;
@@ -51,11 +54,15 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   }
 
   Future<void> _fetch({int? beforeSequence}) async {
+    final generation = ++_fetchGeneration;
     final result = await _repository.getConversationPage(
       sessionId,
       beforeSequence: beforeSequence,
     );
     if (_disposed) return;
+    // A burst of events can leave several page requests in flight. Applying a
+    // response that is no longer the newest would move the timeline backwards.
+    if (beforeSequence == null && generation != _fetchGeneration) return;
     result.when(
       onSuccess: (response) {
         final data = response.data;
@@ -75,8 +82,6 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
     int? beforeSequence,
   }) {
     if (_disposed) return;
-    final latest = snapshot.latestSequence;
-    if (latest > _latestSeq) _latestSeq = latest;
     if (beforeSequence == null) {
       _snapshot = snapshot;
       _emitReady(
@@ -219,22 +224,22 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
 
   void _subscribe() {
     if (_disposed) return;
-    final cancelToken = CancelToken();
-    _eventCancel = cancelToken;
-    _eventSub = _eventDataSource
-        .stream(after: _latestSeq, cancelToken: cancelToken)
-        .listen(
-          _onEvent,
-          onError: (Object _, StackTrace _) {},
-          cancelOnError: false,
-        );
+    _eventBus.connect();
+    _eventSub ??= _eventBus.eventsFor(sessionId).listen(_onEvent);
+    // Events emitted while the stream was down were never delivered; refetch
+    // once on every (re)connection to cover the gap.
+    _reconnectSub ??= _eventBus.reconnects.listen((_) => unawaited(_fetch()));
   }
 
-  Future<void> _onEvent(ConversationEventModel event) async {
+  void _onEvent(ConversationEventModel _) {
     if (_disposed) return;
-    if (!event.touchesConversation) return;
-    final seq = event.seq;
-    if (seq > _latestSeq) _latestSeq = seq;
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(_refreshDebounce, () => unawaited(_fetch()));
+  }
+
+  Future<void> onResumed() async {
+    if (_disposed) return;
+    _eventBus.onResumed();
     await _fetch();
   }
 
@@ -282,10 +287,12 @@ class ConversationBlocksCubit extends Cubit<ConversationBlocksState> {
   @override
   Future<void> close() {
     _disposed = true;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
     unawaited(_eventSub?.cancel());
     _eventSub = null;
-    _eventCancel?.cancel('cubit closed');
-    _eventCancel = null;
+    unawaited(_reconnectSub?.cancel());
+    _reconnectSub = null;
     return super.close();
   }
 }

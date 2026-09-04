@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/blocks/logic/conversation_blocks.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
@@ -40,16 +42,17 @@ class _CancelTokenFake extends Fake implements CancelToken {
 void main() {
   late _MockChatRepository repository;
   late _MockChatEventDataSource eventDataSource;
-  late StreamController<ConversationEventModel> events;
+  late StreamController<ConversationStreamFrame> events;
 
   setUpAll(() {
     registerFallbackValue(_CancelTokenFake());
+    registerFallbackValue(const CdcCursor.latest());
   });
 
   setUp(() {
     repository = _MockChatRepository();
     eventDataSource = _MockChatEventDataSource();
-    events = StreamController<ConversationEventModel>.broadcast();
+    events = StreamController<ConversationStreamFrame>.broadcast();
     when(
       () => eventDataSource.stream(
         after: any(named: 'after'),
@@ -58,12 +61,19 @@ void main() {
     ).thenAnswer((_) => events.stream);
   });
 
+  void pushEvent(ConversationEventModel event) =>
+      events.add(ConversationStreamEvent(event));
+
+
   tearDown(() async {
     await events.close();
   });
 
-  ConversationBlocksCubit build() =>
-      ConversationBlocksCubit(repository, eventDataSource, 's-1');
+  ConversationBlocksCubit build() => ConversationBlocksCubit(
+    repository,
+    ConversationEventBus(eventDataSource),
+    's-1',
+  );
 
   test('initial fetch emits a Ready state with blocksFromConversation(snapshot)', () async {
     final snapshot = _snapshot(latest: 5);
@@ -86,6 +96,28 @@ void main() {
     await cubit.close();
   });
 
+  test(
+    'subscribes from the CDC log head, never from the conversation snapshot',
+    () async {
+      final snapshot = _snapshot(latest: 400);
+      when(
+        () => repository.getConversationPage(any(), beforeSequence: any(named: 'beforeSequence')),
+      ).thenAnswer((_) async => Result.success(_ok(snapshot)));
+
+      final cubit = build();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(
+        () => eventDataSource.stream(
+          after: const CdcCursor.latest(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).called(1);
+      await cubit.close();
+    },
+  );
+
   test('a new event invalidates and re-fetches the snapshot', () async {
     final firstSnapshot = _snapshot(latest: 1);
     final secondSnapshot = _snapshot(latest: 3);
@@ -104,8 +136,8 @@ void main() {
     final first = cubit.state as ConversationBlocksReadyState;
     expect(first.blocks, equals(blocksFromConversation(firstSnapshot)));
 
-    events.add(_event(seq: 2));
-    await Future<void>.delayed(Duration.zero);
+    pushEvent(_event(seq: 2));
+    await Future<void>.delayed(const Duration(milliseconds: 150));
     await Future<void>.delayed(Duration.zero);
 
     final second = cubit.state as ConversationBlocksReadyState;
@@ -175,7 +207,7 @@ void main() {
     clearInteractions(repository);
     await cubit.close();
 
-    events.add(_event(seq: 99));
+    pushEvent(_event(seq: 99));
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 

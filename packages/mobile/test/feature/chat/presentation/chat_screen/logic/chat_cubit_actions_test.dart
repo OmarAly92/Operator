@@ -5,11 +5,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
-import 'package:operator_mobile/core/api/server_config.dart';
-import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
@@ -24,7 +25,6 @@ import 'package:operator_mobile/feature/chat/data/model/params/stage_attachments
 import 'package:operator_mobile/feature/chat/data/model/params/steer_conversation_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
@@ -34,7 +34,7 @@ import '../../../../../core/telemetry/telemetry_test.dart' show RecordingClient;
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
-class _MockConfigStore extends Mock implements ServerConfigStore {}
+class _MockChatEventDataSource extends Mock implements ChatEventDataSource {}
 
 class _FakeCancelToken extends Fake implements CancelToken {}
 
@@ -58,8 +58,8 @@ class _FakeSettings extends Fake implements TurnSettingsModel {}
 
 void main() {
   late _MockChatRepository repository;
-  late _MockConfigStore configStore;
-  late StreamController<ConversationEventModel> events;
+  late _MockChatEventDataSource eventSource;
+  late StreamController<ConversationStreamFrame> events;
   late Completer<Result<bool, Failure>> compactResponse;
   late Completer<Result<bool, Failure>> interruptResponse;
   late Completer<Result<GlobalResponse<ConversationSnapshotModel>, Failure>>
@@ -81,6 +81,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_FakeCancelToken());
+    registerFallbackValue(const CdcCursor.latest());
     registerFallbackValue(_FakeSendMessageParams());
     registerFallbackValue(_FakeSteerParams());
     registerFallbackValue(_FakeApprovalParams());
@@ -117,7 +118,11 @@ void main() {
         GlobalResponse(data: page(capabilities: capabilities)),
       ),
     );
-    return ChatCubit(repository, 'w-1', configStore: configStore);
+    return ChatCubit(
+      repository,
+      'w-1',
+      eventBus: ConversationEventBus(eventSource),
+    );
   }
 
   setUp(() async {
@@ -125,18 +130,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     repository = _MockChatRepository();
-    configStore = _MockConfigStore();
-    events = StreamController<ConversationEventModel>.broadcast();
-    when(() => configStore.current).thenReturn(
-      const ServerConfig(
-        host: 'opr.test',
-        httpPort: '3011',
-        secure: false,
-        password: 'secret12',
-      ),
-    );
+    eventSource = _MockChatEventDataSource();
+    events = StreamController<ConversationStreamFrame>.broadcast();
     when(
-      () => repository.events(
+      () => eventSource.stream(
         after: any(named: 'after'),
         cancelToken: any(named: 'cancelToken'),
       ),
@@ -539,7 +536,11 @@ void main() {
           ),
         ),
       );
-      return ChatCubit(repository, 'w-1', configStore: configStore);
+      return ChatCubit(
+        repository,
+        'w-1',
+        eventBus: ConversationEventBus(eventSource),
+      );
     },
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -618,7 +619,11 @@ void main() {
         if (liveCalls > 1) return actionRefreshResponse.future;
         return Future.value(Result.success(GlobalResponse(data: page())));
       });
-      return ChatCubit(repository, 'w-1', configStore: configStore);
+      return ChatCubit(
+        repository,
+        'w-1',
+        eventBus: ConversationEventBus(eventSource),
+      );
     },
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -648,7 +653,11 @@ void main() {
         if (liveCalls == 3) return supersedingRefreshResponse.future;
         return Future.value(Result.success(GlobalResponse(data: page())));
       });
-      return ChatCubit(repository, 'w-1', configStore: configStore);
+      return ChatCubit(
+        repository,
+        'w-1',
+        eventBus: ConversationEventBus(eventSource),
+      );
     },
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -701,7 +710,11 @@ void main() {
       when(
         () => repository.getConversationPage('w-1', beforeSequence: 2),
       ).thenAnswer((_) => rollbackOlderResponse.future);
-      return ChatCubit(repository, 'w-1', configStore: configStore);
+      return ChatCubit(
+        repository,
+        'w-1',
+        eventBus: ConversationEventBus(eventSource),
+      );
     },
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -836,7 +849,11 @@ void main() {
       when(
         () => repository.setConfigOption('w-1', any()),
       ).thenAnswer((_) => configResponse.future);
-      return ChatCubit(repository, 'w-1', configStore: configStore);
+      return ChatCubit(
+        repository,
+        'w-1',
+        eventBus: ConversationEventBus(eventSource),
+      );
     },
     act: (cubit) async {
       await Future<void>.delayed(const Duration(milliseconds: 5));

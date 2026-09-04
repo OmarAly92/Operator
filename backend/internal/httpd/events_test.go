@@ -271,3 +271,140 @@ func testCDCEvent(seq int64) cdc.Event {
 		CreatedAt: time.Unix(seq, 0).UTC(),
 	}
 }
+
+type idleEventSource struct{ head int64 }
+
+func (*idleEventSource) EventsAfter(context.Context, int64, int) ([]cdc.Event, error) {
+	return nil, nil
+}
+
+func (s *idleEventSource) LatestSeq(context.Context) (int64, error) { return s.head, nil }
+
+func TestEventsStreamWritesKeepAliveWhenIdle(t *testing.T) {
+	previous := eventsKeepAlive
+	eventsKeepAlive = 20 * time.Millisecond
+	t.Cleanup(func() { eventsKeepAlive = previous })
+
+	live := &fakeEventSubscriber{}
+	router := NewRouterWithControl(config.Config{}, discardLogger(), nil, APIDeps{
+		CDC:    &idleEventSource{},
+		Events: live,
+	}, ControlDeps{})
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/v1/events?after=0", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/v1/events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read keepalive: %v", err)
+	}
+	if line != ": keepalive\n" {
+		t.Fatalf("first line = %q, want %q", line, ": keepalive\n")
+	}
+}
+
+type headEventSource struct {
+	mu        sync.Mutex
+	askedFrom int64
+	head      int64
+}
+
+func (s *headEventSource) EventsAfter(_ context.Context, after int64, _ int) ([]cdc.Event, error) {
+	s.mu.Lock()
+	s.askedFrom = after
+	s.mu.Unlock()
+	return nil, nil
+}
+
+func (s *headEventSource) LatestSeq(context.Context) (int64, error) { return s.head, nil }
+
+func (s *headEventSource) replayCursor() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.askedFrom
+}
+
+func TestEventsStreamFromLatestStartsAtHead(t *testing.T) {
+	live := &fakeEventSubscriber{}
+	src := &headEventSource{head: 41}
+	router := NewRouterWithControl(config.Config{}, discardLogger(), nil, APIDeps{
+		CDC:    src,
+		Events: live,
+	}, ControlDeps{})
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/v1/events?fromLatest=true", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/v1/events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	go func() {
+		for i := 0; i < 50; i++ {
+			live.publish(testCDCEvent(42))
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	ids := readSSEIDs(t, resp.Body, 1)
+	if got, want := strings.Join(ids, ","), "42"; got != want {
+		t.Fatalf("ids = %s, want %s", got, want)
+	}
+	if got := src.replayCursor(); got != 41 {
+		t.Fatalf("replay cursor = %d, want 41 (the log head)", got)
+	}
+}
+
+func TestEventsStreamExplicitAfterBeatsFromLatest(t *testing.T) {
+	live := &fakeEventSubscriber{}
+	src := &headEventSource{head: 41}
+	router := NewRouterWithControl(config.Config{}, discardLogger(), nil, APIDeps{
+		CDC:    src,
+		Events: live,
+	}, ControlDeps{})
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/v1/events?after=7&fromLatest=true", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /api/v1/events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	go func() {
+		for i := 0; i < 50; i++ {
+			live.publish(testCDCEvent(42))
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	readSSEIDs(t, resp.Body, 1)
+	if got := src.replayCursor(); got != 7 {
+		t.Fatalf("replay cursor = %d, want 7 (the explicit after)", got)
+	}
+}

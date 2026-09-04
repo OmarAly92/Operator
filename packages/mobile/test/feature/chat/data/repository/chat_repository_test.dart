@@ -5,16 +5,12 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 
 class _MockRemote extends Mock implements ChatRemoteDataSource {}
-
-class _MockEvents extends Mock implements ChatEventDataSource {}
 
 class _MockNetwork extends Mock implements NetworkStatus {}
 
@@ -24,7 +20,6 @@ class _FakeRollbackParams extends Fake implements RollbackTurnParams {}
 
 void main() {
   late _MockRemote remote;
-  late _MockEvents events;
   late _MockNetwork network;
   late ChatRepository repository;
 
@@ -35,9 +30,8 @@ void main() {
 
   setUp(() {
     remote = _MockRemote();
-    events = _MockEvents();
     network = _MockNetwork();
-    repository = ChatRepositoryImp(remote, events, network);
+    repository = ChatRepositoryImp(remote, network);
     when(() => network.isConnected).thenAnswer((_) async => true);
   });
 
@@ -101,18 +95,5 @@ void main() {
   test('reports a void action as a success flag', () async {
     when(() => remote.interrupt('w-1')).thenAnswer((_) async {});
     expect((await repository.interrupt('w-1')).getOrDefault(false), isTrue);
-  });
-
-  test('passes the event stream through without a network gate', () async {
-    when(
-      () => events.stream(after: 3, cancelToken: any(named: 'cancelToken')),
-    ).thenAnswer((_) => Stream.value(const ConversationEventModel(seq: 4)));
-    when(() => network.isConnected).thenAnswer((_) async => false);
-
-    final received = await repository
-        .events(after: 3, cancelToken: CancelToken())
-        .toList();
-    expect(received.single.seq, 4);
-    verifyNever(() => network.isConnected);
   });
 }

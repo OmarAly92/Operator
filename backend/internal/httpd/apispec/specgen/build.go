@@ -1233,7 +1233,8 @@ func reviewOperations() []operation {
 }
 
 type eventsQuery struct {
-	After *int64 `query:"after,omitempty" minimum:"0" description:"Replay events with seq greater than this cursor. When omitted, clients may send Last-Event-ID instead."`
+	After      *int64 `query:"after,omitempty" minimum:"0" description:"Replay events with seq greater than this cursor. When omitted, clients may send Last-Event-ID instead."`
+	FromLatest *bool  `query:"fromLatest,omitempty" description:"Start at the current log head and replay nothing. Ignored when after is present."`
 }
 
 func eventOperations() []operation {

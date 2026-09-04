@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
+import 'package:operator_mobile/core/events/cdc_cursor.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/sse.dart';
 
@@ -51,7 +52,7 @@ void main() {
     'asks the daemon to replay from the cursor with no receive timeout',
     () async {
       final events = dataSource
-          .stream(after: 7, cancelToken: CancelToken())
+          .stream(after: const CdcCursor.at(7), cancelToken: CancelToken())
           .listen((_) {});
       await Future<void>.delayed(Duration.zero);
 
@@ -75,7 +76,7 @@ void main() {
 
   test('never asks for a negative cursor', () async {
     final events = dataSource
-        .stream(after: -4, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(-4), cancelToken: CancelToken())
         .listen((_) {});
     await Future<void>.delayed(Duration.zero);
 
@@ -95,7 +96,7 @@ void main() {
 
   test('cancels the idle response body subscription promptly', () async {
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {});
     await Future<void>.delayed(Duration.zero);
 
@@ -103,11 +104,33 @@ void main() {
     await bodyCanceled.future.timeout(const Duration(seconds: 1));
   });
 
+  test('announces the open stream before any event', () async {
+    final frames = <ConversationStreamFrame>[];
+    final events = dataSource
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
+        .listen(frames.add);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      frames.single,
+      isA<ConversationStreamOpened>(),
+      reason: 'the daemon answering is the only proof of connection',
+    );
+
+    chunks.add(bytes('id: 1\ndata: {"seq":1,"sessionId":"w-1"}\n\n'));
+    await Future<void>.delayed(Duration.zero);
+    expect(frames.last, isA<ConversationStreamEvent>());
+
+    await events.cancel();
+  });
+
   test('emits parsed events and survives a chunk split mid-frame', () async {
     final received = <int>[];
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
-        .listen((event) => received.add(event.seq));
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
+        .listen((frame) {
+          if (frame is ConversationStreamEvent) received.add(frame.event.seq);
+        });
     await Future<void>.delayed(Duration.zero);
 
     chunks.add(
@@ -130,8 +153,10 @@ void main() {
   test('preserves a UTF-8 character split across transport chunks', () async {
     final received = <ConversationEventModel>[];
     final events = dataSource
-        .stream(after: 0, cancelToken: CancelToken())
-        .listen(received.add);
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
+        .listen((frame) {
+          if (frame is ConversationStreamEvent) received.add(frame.event);
+        });
     await Future<void>.delayed(Duration.zero);
 
     final prefix = utf8.encode('id: 1\ndata: {"seq":1,"payload":{"message":"');
@@ -151,7 +176,7 @@ void main() {
     final receivedErrors = <Object>[];
     final done = Completer<void>();
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onError: receivedErrors.add, onDone: done.complete);
     await Future<void>.delayed(Duration.zero);
 
@@ -177,7 +202,7 @@ void main() {
     ).thenAnswer((_) async => throw requestError);
 
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onError: receivedErrors.add, onDone: done.complete);
     await done.future.timeout(const Duration(seconds: 1));
 
@@ -190,11 +215,49 @@ void main() {
   test('closes when the daemon ends the stream', () async {
     final done = Completer<void>();
     dataSource
-        .stream(after: 0, cancelToken: CancelToken())
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
         .listen((_) {}, onDone: done.complete);
     await Future<void>.delayed(Duration.zero);
 
     await chunks.close();
     await done.future.timeout(const Duration(seconds: 1));
+  });
+
+  test('errors and closes when the server stops sending anything', () async {
+    final source = ChatEventDataSourceImp(
+      apiConsumer,
+      staleAfter: const Duration(milliseconds: 40),
+    );
+    final errors = <Object>[];
+    var closed = false;
+
+    source.stream(after: const CdcCursor.at(0), cancelToken: CancelToken()).listen(
+      (_) {},
+      onError: errors.add,
+      onDone: () => closed = true,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(errors.single, isA<StaleEventStreamException>());
+    expect(closed, isTrue);
+  });
+
+  test('a keepalive comment frame keeps the stream alive', () async {
+    final source = ChatEventDataSourceImp(
+      apiConsumer,
+      staleAfter: const Duration(milliseconds: 60),
+    );
+    final errors = <Object>[];
+
+    source
+        .stream(after: const CdcCursor.at(0), cancelToken: CancelToken())
+        .listen((_) {}, onError: errors.add);
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    chunks.add(bytes(': keepalive\n\n'));
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(errors, isEmpty);
   });
 }

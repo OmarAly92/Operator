@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
+import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_attachment_model.dart';
@@ -97,48 +95,40 @@ class ChatCubit extends Cubit<ChatState> {
   factory ChatCubit(
     ChatRepository repository,
     String sessionId, {
-    required ServerConfigStore configStore,
+    required ConversationEventBus eventBus,
     Duration configPoll = const Duration(seconds: 5),
     Duration skillPoll = const Duration(seconds: 60),
     Duration workspacePoll = const Duration(seconds: 30),
     Duration refreshDebounce = const Duration(milliseconds: 120),
-    Duration reconnectMin = const Duration(seconds: 1),
-    Duration reconnectMax = const Duration(seconds: 15),
   }) => ChatCubit._(
     repository,
     sessionId,
-    configStore: configStore,
+    eventBus: eventBus,
     configPoll: configPoll,
     skillPoll: skillPoll,
     workspacePoll: workspacePoll,
     refreshDebounce: refreshDebounce,
-    reconnectMin: reconnectMin,
-    reconnectMax: reconnectMax,
   );
 
   ChatCubit._(
     this._repository,
     this.sessionId, {
-    required this._configStore,
+    required this._eventBus,
     required this._configPoll,
     required this._skillPoll,
     required this._workspacePoll,
     required this._refreshDebounce,
-    required this._reconnectMin,
-    required this._reconnectMax,
   }) : super(const ChatInitialState()) {
     scheduleMicrotask(() => unawaited(refresh()));
   }
 
   final ChatRepository _repository;
   final String sessionId;
-  final ServerConfigStore _configStore;
+  final ConversationEventBus _eventBus;
   final Duration _configPoll;
   final Duration _skillPoll;
   final Duration _workspacePoll;
   final Duration _refreshDebounce;
-  final Duration _reconnectMin;
-  final Duration _reconnectMax;
 
   final List<ConversationSnapshotModel> _pages = [];
 
@@ -161,13 +151,9 @@ class ChatCubit extends Cubit<ChatState> {
   Timer? _configTimer;
   Timer? _skillTimer;
   Timer? _workspaceTimer;
-  CancelToken? _eventCancel;
   StreamSubscription<ConversationEventModel>? _eventSub;
+  StreamSubscription<void>? _reconnectSub;
   Timer? _refreshTimer;
-  Timer? _reconnectTimer;
-  Duration _reconnectDelay = Duration.zero;
-  int _cursor = 0;
-  bool _streaming = false;
   bool _commonCatalogsStarted = false;
   bool? _providerOwnsConfig;
   String? _catalogConversationId;
@@ -180,7 +166,10 @@ class ChatCubit extends Cubit<ChatState> {
 
   bool get usesProviderConfig => snapshot?.can('config_options') ?? false;
 
-  Future<void> onResumed() => refresh();
+  Future<void> onResumed() async {
+    _eventBus.onResumed();
+    await refresh();
+  }
 
   Future<void> send(
     String text, {
@@ -386,69 +375,24 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void _startEvents() {
-    if (_streaming || unavailable != null || snapshot == null) return;
-    _streaming = true;
-    _reconnectDelay = _reconnectMin;
-    _cursor = (CacheHelper.get(_cursorKey) as int?) ?? 0;
-    _openEventStream();
+    if (unavailable != null || snapshot == null) return;
+    _eventBus.connect();
+    _eventSub ??= _eventBus.eventsFor(sessionId).listen(_onEvent);
+    _reconnectSub ??= _eventBus.reconnects.listen((_) => unawaited(refresh()));
   }
 
-  void _openEventStream() {
-    if (isClosed || !_streaming) return;
-    final cancelToken = CancelToken();
-    _eventCancel = cancelToken;
-    _eventSub = _repository
-        .events(after: _cursor, cancelToken: cancelToken)
-        .listen(
-          _onEvent,
-          onError: (Object _) => _scheduleReconnect(),
-          onDone: _scheduleReconnect,
-          cancelOnError: true,
-        );
-  }
-
-  void _onEvent(ConversationEventModel event) {
-    _reconnectDelay = _reconnectMin;
-    if (event.seq > _cursor) {
-      _cursor = event.seq;
-      unawaited(CacheHelper.save(_cursorKey, _cursor));
-    }
-    if (event.sessionId != sessionId || !event.touchesConversation) return;
-
+  void _onEvent(ConversationEventModel _) {
     _refreshTimer?.cancel();
     _refreshTimer = Timer(_refreshDebounce, () => unawaited(refresh()));
   }
 
-  void _scheduleReconnect() {
-    unawaited(_eventSub?.cancel());
-    _eventSub = null;
-    if (isClosed || !_streaming) return;
-
-    _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(_reconnectDelay, _openEventStream);
-    final next = _reconnectDelay * 2;
-    _reconnectDelay = next > _reconnectMax ? _reconnectMax : next;
-  }
-
   void _stopEvents() {
-    _streaming = false;
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _eventCancel?.cancel();
-    _eventCancel = null;
     unawaited(_eventSub?.cancel());
     _eventSub = null;
-  }
-
-  String get _cursorKey {
-    final config = _configStore.current;
-    return CacheKeys.chatEventCursor(
-      config?.host ?? '',
-      config?.httpPort ?? '',
-      sessionId,
-    );
+    unawaited(_reconnectSub?.cancel());
+    _reconnectSub = null;
   }
 
   Future<void> loadOlder() async {

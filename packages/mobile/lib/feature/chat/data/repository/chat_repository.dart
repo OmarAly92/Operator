@@ -1,9 +1,7 @@
-import 'package:dio/dio.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/model/chat_catalog_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
@@ -16,7 +14,6 @@ import 'package:operator_mobile/feature/chat/data/model/params/set_conversation_
 import 'package:operator_mobile/feature/chat/data/model/params/stage_attachments_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/steer_conversation_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/workspace_paths_model.dart';
-import 'package:operator_mobile/feature/chat/data/sse.dart';
 
 abstract class ChatRepository {
   FutureResult<GlobalResponse<ConversationSnapshotModel>> getConversationPage(
@@ -60,21 +57,15 @@ abstract class ChatRepository {
     String sessionId,
   );
   FutureResult<bool> resumeAgent(String sessionId);
-  Stream<ConversationEventModel> events({
-    required int after,
-    required CancelToken cancelToken,
-  });
 }
 
 class ChatRepositoryImp implements ChatRepository {
   ChatRepositoryImp(
     this._remoteDataSource,
-    this._eventDataSource,
     this._network,
   );
 
   final ChatRemoteDataSource _remoteDataSource;
-  final ChatEventDataSource _eventDataSource;
   final NetworkStatus _network;
 
   @override
@@ -171,12 +162,6 @@ class ChatRepositoryImp implements ChatRepository {
   @override
   FutureResult<bool> resumeAgent(String sessionId) =>
       _run(() => _remoteDataSource.resumeAgent(sessionId));
-
-  @override
-  Stream<ConversationEventModel> events({
-    required int after,
-    required CancelToken cancelToken,
-  }) => _eventDataSource.stream(after: after, cancelToken: cancelToken);
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {
