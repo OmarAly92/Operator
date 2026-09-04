@@ -192,14 +192,13 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('renders the terminal for a tui session', (tester) async {
+  testWidgets('renders the terminal for any session it can find', (tester) async {
     await pumpRoute(
       tester,
-      sessions: const [SessionModel(id: 'w-1', projectId: 'p', mode: 'tui')],
+      sessions: const [SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code')],
     );
 
     expect(find.byType(TerminalScreen), findsOneWidget);
-    expect(find.text('Terminal UI is not in this build yet'), findsNothing);
   });
 
   testWidgets('reports a session the daemon does not have', (tester) async {
@@ -223,7 +222,7 @@ void main() {
 
   testWidgets('uses a cached session without another board refresh', (tester) async {
     final cubit = await settledCubit(
-      const [SessionModel(id: 'w-1', projectId: 'p', mode: 'tui')],
+      const [SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code')],
     );
     try {
       await pumpSettledRoute(tester, cubit);

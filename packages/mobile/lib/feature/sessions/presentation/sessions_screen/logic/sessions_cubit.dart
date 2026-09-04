@@ -111,7 +111,6 @@ class SessionsCubit extends Cubit<SessionsState> {
                   status: byId[s.id]!.status,
                   activity: byId[s.id]!.activity,
                   harness: s.harness,
-                  mode: s.mode,
                   branch: s.branch,
                   issueId: s.issueId,
                   displayName: s.displayName,

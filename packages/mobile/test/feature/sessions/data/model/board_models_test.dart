@@ -66,12 +66,6 @@ void main() {
       expect(OrchestratorModel.fromJson({'id': 'o1', 'projectId': 'p'}).projectName, 'p');
     });
 
-    test('narrows mode to chat or tui', () {
-      expect(OrchestratorModel.fromJson({'id': 'o', 'mode': 'chat'}).mode, 'chat');
-      expect(OrchestratorModel.fromJson({'id': 'o', 'mode': 'tui'}).mode, 'tui');
-      expect(OrchestratorModel.fromJson({'id': 'o'}).mode, 'tui');
-    });
-
     test('unwraps an object-shaped activity', () {
       expect(
         OrchestratorModel.fromJson({'id': 'o', 'activity': {'state': 'blocked'}}).activity,

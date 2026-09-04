@@ -9,7 +9,6 @@ class OrchestratorModel extends Equatable {
     this.status,
     this.activity,
     this.harness,
-    this.mode,
     this.updatedAt,
     this.hasRuntime,
     this.isTerminal,
@@ -21,7 +20,6 @@ class OrchestratorModel extends Equatable {
   final String? status;
   final String? activity;
   final String? harness;
-  final String? mode;
   final String? updatedAt;
   final bool? hasRuntime;
   final bool? isTerminal;
@@ -36,7 +34,6 @@ class OrchestratorModel extends Equatable {
       status: json['status'] as String?,
       activity: activityString(json['activity']),
       harness: json['harness'] as String?,
-      mode: json['mode'] == 'chat' ? 'chat' : 'tui',
       updatedAt: json['updatedAt'] as String?,
       hasRuntime: !isTerminated,
       isTerminal: isTerminated,
@@ -45,6 +42,6 @@ class OrchestratorModel extends Equatable {
 
   @override
   List<Object?> get props => [
-    id, projectId, projectName, status, activity, harness, mode, updatedAt, hasRuntime, isTerminal,
+    id, projectId, projectName, status, activity, harness, updatedAt, hasRuntime, isTerminal,
   ];
 }

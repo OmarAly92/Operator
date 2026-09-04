@@ -10,7 +10,6 @@ class SessionModel extends Equatable {
     this.status,
     this.activity,
     this.harness,
-    this.mode,
     this.branch,
     this.issueId,
     this.displayName,
@@ -27,7 +26,6 @@ class SessionModel extends Equatable {
   final String? status;
   final String? activity;
   final String? harness;
-  final String? mode;
   final String? branch;
   final String? issueId;
   final String? displayName;
@@ -44,7 +42,6 @@ class SessionModel extends Equatable {
     status: json['status'] as String?,
     activity: activityString(json['activity']),
     harness: json['harness'] as String?,
-    mode: json['mode'] as String?,
     branch: json['branch'] as String?,
     issueId: json['issueId'] as String?,
     displayName: json['displayName'] as String?,
@@ -59,7 +56,7 @@ class SessionModel extends Equatable {
 
   @override
   List<Object?> get props => [
-    id, projectId, kind, status, activity, harness, mode, branch, issueId,
+    id, projectId, kind, status, activity, harness, branch, issueId,
     displayName, createdAt, updatedAt, previewUrl, isTerminated, prs,
   ];
 }
