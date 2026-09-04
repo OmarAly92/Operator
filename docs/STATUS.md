@@ -40,14 +40,10 @@ surface (`npm run sqlc`, `npm run api`).
 - Full session lifecycle over HTTP: list, get, spawn, kill, restore, rename,
   rollback, cleanup, send, activity, PR claim/list. Orchestrator routes
   (list/spawn/get) are wired too.
-- One daemon-committed interface per session. TUI sessions retain the established
-  pty-host agent runtime; Chat sessions use runtime-less native controllers,
-  persist provider conversation identity, and dispatch lifecycle reactions
-  through the same mode-aware session manager. A durable, capability-gated
-  drain/interrupt handoff can move the same Claude Code or Codex native
-  conversation between TUI and Chat without changing the Operator session/worktree;
-  rollback, restart recovery, controller-generation fencing, and a transition
-  message outbox preserve the one-controller invariant.
+- One session kind. Every session runs the agent's own terminal UI in the
+  pty-host runtime; there is no chat controller to choose and no interface
+  handoff. The ACP/chat subsystem is still in the tree but unreachable, and is
+  deleted in Phase 4 of `docs/superpowers/specs/2026-09-04-single-session-interface-design.md`.
 - Durable Chat conversations with project-scoped orchestrator continuity,
   session-scoped worker history, bounded history pages, transactional raw-event
   archive/projection, controller-generation fencing, turns, messages,
@@ -174,16 +170,10 @@ surface (`npm run sqlc`, `npm run api`).
 
 - Connect Mobile pairs with the daemon's opt-in authenticated LAN listener; the
   loopback listener and its security model remain unchanged.
-- New mobile workers and orchestrators request Chat mode by default. Worker
-  creation filters to the daemon-advertised Chat harnesses, while Terminal UI
-  remains an explicit compatibility choice and typed Chat preflight failures
-  offer that fallback.
-- Session routing uses the same daemon-committed mode as desktop. TUI keeps
-  the existing authenticated mux/xterm surface; Chat uses the same durable,
-  paged conversation projection and CDC/SSE invalidation stream as desktop.
-- Mobile exposes the same capability-gated TUI↔Chat handoff, busy-turn policy,
-  cancellation window, progress overlay, and automatic renderer swap after the
-  daemon commits the new controller.
+- Mobile spawns a terminal session with no interface choice and routes every
+  session to the terminal screen, which opens in the blocks view for a covered
+  harness and can be toggled to the raw terminal per session, remembered on the
+  device.
 - Native Chat includes prose/Markdown, provider activity, commands, plans,
   changed files, approvals, structured input, model/effort/provider controls,
   compaction, rollback, MCP recovery, skills and file references, staged/native
@@ -224,11 +214,6 @@ surface (`npm run sqlc`, `npm run api`).
   [`architecture.md`](architecture.md), "Standalone Browser Runtime". Manual
   lifecycle acceptance across all three platforms remains native verification
   work.
-- **Cross-interface visual history import**: provider-native context continues
-  across a compatible handoff, and Chat history already recorded by Operator remains
-  durable. A first TUI→Chat switch does not reconstruct terminal screen output
-  as structured Operator messages/tool cards; doing so requires a provider history
-  import contract with stable identities and deduplication.
 - **In-flight tool portability**: drain can finish accepted work and interrupt
   can cancel it, but no common provider protocol serializes a currently executing
   tool call or detached background process for adoption by another controller.

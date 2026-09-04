@@ -155,8 +155,9 @@ Ships the target flow. Touches no ACP code; the chat subsystem goes dormant but 
 compilable and intact, so this phase is reversible by revert.
 
 **Backend**
-- `CreateSessionRequest.Mode` ([`dto.go:181`](../../../backend/internal/httpd/controllers/dto.go))
-  is removed. A request carrying `mode` is rejected `400 SESSION_MODE_REMOVED` rather
+- `SpawnSessionRequest.Mode` ([`dto.go:181`](../../../backend/internal/httpd/controllers/dto.go))
+  is removed. A request carrying `mode` on `POST /sessions`, `POST /orchestrators`, or
+  `POST /orchestrators/delegate` is rejected `400 SESSION_MODE_REMOVED` rather
   than silently ignored: a caller that asked for chat must not get TUI without being
   told. There are no shipped clients, so this is cheap insurance for a stale mobile
   build on a dev phone, not a compatibility commitment.

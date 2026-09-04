@@ -315,65 +315,11 @@ flowchart TD
 
 ### Session Interface Handoff
 
-An interface switch is a controller replacement inside the existing Operator session,
-not a new session. The session id, project, worktree, branch, lifecycle facts,
-PR ownership, and provider-native conversation id stay the same. Only the
-mode-owned controller changes.
-
-The generic coordinator lives in `session_manager`; providers opt in through the
-small `AgentInterfaceHandoff` capability only after their TUI resume id and Chat
-protocol id are proven to name the same native conversation. Claude Code and
-Codex currently satisfy that contract. Merely having a Chat/ACP driver is not
-enough to enable switching for another harness.
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Manager as Session Manager
-    participant Lifecycle as Lifecycle Manager
-    participant DB as SQLite
-    participant Source as Current Controller
-    participant Target as Target Controller
-
-    Client->>Manager: POST interface-transition(target, policy)
-    Manager->>DB: Claim one active transition
-    Manager->>Target: Preflight binary/auth/protocol
-    alt policy = drain
-        Manager->>Source: Close intake; finish accepted work
-    else policy = interrupt
-        Manager->>Source: Cancel active and queued work
-    end
-    Manager->>Source: Stop and wait for shutdown
-    Manager->>Lifecycle: CommitControllerEpoch(source, target, native id)
-    Lifecycle->>DB: CAS mode + clear old generation/handles + idle fact
-    Manager->>Target: Native resume(same conversation id)
-    Manager->>DB: Persist new handle/generation; complete transition
-    DB-->>Client: session_updated CDC invalidation
-```
-
-The session row is the commit point. If target startup fails, the coordinator
-CASes the row back and resumes the source. If the daemon dies mid-handoff, boot
-reconciliation marks the interrupted transition for recovery and restores the
-controller named by the last committed `session_mode`. Lifecycle/automation
-messages received during the no-controller gap are held in a durable outbox and
-delivered through whichever controller ultimately owns the session. Terminal
-transition paths, transient delivery failures, and daemon restarts all retain
-the message for retry; Chat retries carry a stable idempotency key. Old Chat
-events are fenced by controller generation; old TUI hooks are fenced by runtime
-launch id.
-
-`drain` is loss-minimizing and may wait on an approval or user-input request;
-`interrupt` sends the provider's cancellation first, allows a short transcript
-flush, and then stops the source. Files and completed provider context survive.
-There is no provider-neutral way to migrate a currently executing tool call or a
-detached background process, and Operator does not synthesize terminal screen output
-into structured Chat history.
-
-For TUI drains, Operator gates new terminal input before checking quiescence. It accepts
-either an idle fact newer than the last accepted input or an adapter-confirmed
-idle terminal held across the settle window. A contradictory stale-idle fact has
-a bounded proof window and fails without stopping the source; activity reported
-as active work or a user-paced decision remains unbounded.
+Removed on 2026-09-04. Every session runs the agent's terminal UI and there is
+no second controller to hand off to. The coordinator in
+`session_manager/interface_transition.go` and its tables are unreachable and are
+deleted in Phase 4 of
+`docs/superpowers/specs/2026-09-04-single-session-interface-design.md`.
 
 ### Observation Flow
 
