@@ -220,6 +220,15 @@ Text _highlightedField({
   );
 }
 
+/// Returns a single-line, ellipsized preview of a reasoning block's body for
+/// its collapsed header, so a reader can glance at what the agent was
+/// thinking without expanding the block.
+String _reasoningPreview(String body) {
+  final firstLine = body.split('\n').firstWhere((line) => line.trim().isNotEmpty, orElse: () => '').trim();
+  const maxLength = 140;
+  return firstLine.length > maxLength ? '${firstLine.substring(0, maxLength)}…' : firstLine;
+}
+
 class BlockActionButton extends StatelessWidget {
   const BlockActionButton({
     super.key,
@@ -313,13 +322,29 @@ class BlockCardHeader extends StatelessWidget {
           BlockStatusDot(status: block.status),
           const SizedBox(width: 8),
           Expanded(
-            child: _highlightedField(
-              context: context,
-              text: display.displayName,
-              ranges: nameHighlight?.ranges ?? const <MatchRange>[],
-              base: AppTextStyle.style12SemiBold.copyWith(
-                color: skin.textPrimary,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _highlightedField(
+                  context: context,
+                  text: display.displayName,
+                  ranges: nameHighlight?.ranges ?? const <MatchRange>[],
+                  base: AppTextStyle.style12SemiBold.copyWith(
+                    color: skin.textPrimary,
+                  ),
+                ),
+                if (block.kind == BlockKind.reasoning && collapsed && _reasoningPreview(display.summary).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      _reasoningPreview(display.summary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+                    ),
+                  ),
+              ],
             ),
           ),
           AppText(

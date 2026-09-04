@@ -6,12 +6,12 @@ import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 
-Widget _host(SessionBlock block) => SkinScope(
+Widget _host(SessionBlock block, {bool collapsed = false}) => SkinScope(
   skin: const DarkSkin(),
   child: ScreenUtilInit(
     designSize: const Size(390, 844),
     builder: (context, _) => MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: BlockCard(block: block))),
+      home: Scaffold(body: SingleChildScrollView(child: BlockCard(block: block, collapsed: collapsed))),
     ),
   ),
 );
@@ -109,5 +109,32 @@ void main() {
     await tester.pumpWidget(_host(_base(id: 'b-5', kind: BlockKind.todo, title: 'Todo', body: 'plain text')));
 
     expect(find.text('plain text'), findsOneWidget);
+  });
+
+  testWidgets('a collapsed reasoning block shows a one-line preview of its body', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        _base(
+          id: 'b-6',
+          kind: BlockKind.reasoning,
+          title: 'Reasoning',
+          body: 'Considering the tradeoffs of each approach\nSecond line with more detail',
+        ),
+        collapsed: true,
+      ),
+    );
+
+    expect(find.text('Reasoning'), findsOneWidget);
+    expect(find.text('Considering the tradeoffs of each approach'), findsOneWidget);
+    expect(find.textContaining('Second line with more detail'), findsNothing);
+  });
+
+  testWidgets('a very long single-line reasoning body is truncated in the collapsed preview', (tester) async {
+    final longLine = 'x' * 500;
+    await tester.pumpWidget(
+      _host(_base(id: 'b-7', kind: BlockKind.reasoning, title: 'Reasoning', body: longLine), collapsed: true),
+    );
+
+    expect(find.text(longLine), findsNothing);
   });
 }

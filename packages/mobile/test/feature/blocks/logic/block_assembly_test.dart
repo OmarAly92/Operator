@@ -16,6 +16,7 @@ BlockEventModel _event(
   String? rawEvent,
   int? truncatedLines,
   List<BlockRedactedSpanModel>? spans,
+  String? source,
 }) => BlockEventModel(
   seq: seq,
   sessionId: 's-1',
@@ -29,6 +30,7 @@ BlockEventModel _event(
   rawEvent: rawEvent,
   truncatedLines: truncatedLines,
   redactedSpans: spans,
+  source: source,
 );
 
 void main() {
@@ -251,6 +253,36 @@ void main() {
       ]);
 
       expect(blocks.single.body, 'Bash\nwants to run something');
+    });
+
+    test('a todo sourceId replayed across turns does not leave todoIndex past the end', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'todo', sourceId: 'a', text: 'first list'),
+        _event(3, 'stop'),
+        _event(4, 'prompt_submit', text: 'go again'),
+        _event(5, 'todo', sourceId: 'a', text: 'replayed list'),
+        _event(6, 'todo', sourceId: 'b', text: 'new list'),
+      ]);
+
+      final todos = blocks.where((b) => b.kind == BlockKind.todo).toList();
+      expect(todos, hasLength(1));
+      expect(todos.single.id, 'src-a');
+      expect(todos.single.body, 'new list');
+    });
+
+    test('a transcript question sourceId replayed across turns does not leave questionIndex past the end', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'question_asked', sourceId: 'q', text: 'Pick a branch?', source: 'transcript'),
+        _event(3, 'prompt_submit', text: 'go again'),
+        _event(4, 'question_asked', sourceId: 'q', text: 'Pick a branch again?', source: 'transcript'),
+        _event(5, 'question_asked', sourceId: 'r', text: 'A new question', source: 'transcript'),
+      ]);
+
+      final questions = blocks.where((b) => b.status == BlockStatus.blocked).toList();
+      expect(questions, hasLength(1));
+      expect(questions.single.id, 'src-r');
     });
 
     test('the tool input is opaque text and is never parsed', () {

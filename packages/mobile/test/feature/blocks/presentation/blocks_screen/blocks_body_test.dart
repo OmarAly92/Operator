@@ -440,23 +440,25 @@ void main() {
   testWidgets('reasoning starts collapsed and expands on tap', (
     tester,
   ) async {
+    const body = 'first line of thinking\nsecond line with more detail';
     when(() => cubit.blocks).thenReturn([
       _block(id: 'seq-1', kind: BlockKind.prompt, title: 'Prompt', body: 'go'),
       _block(
         id: 'src-u-1',
         kind: BlockKind.reasoning,
         title: 'Reasoning',
-        body: 'thinking out loud',
+        body: body,
       ),
     ]);
 
     await _pump(tester, cubit);
 
-    expect(find.text('thinking out loud'), findsNothing);
+    expect(find.text(body), findsNothing);
+    expect(find.text('first line of thinking'), findsOneWidget);
 
     await tester.tap(find.text('Reasoning'));
     await tester.pumpAndSettle();
 
-    expect(find.text('thinking out loud'), findsOneWidget);
+    expect(find.text(body), findsOneWidget);
   });
 }

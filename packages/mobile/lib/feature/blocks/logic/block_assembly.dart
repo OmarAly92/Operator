@@ -56,8 +56,8 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         if (todoIndex != null) {
           blocks[todoIndex] = blocks[todoIndex].copyWith(body: text, lastSeq: seq);
         } else {
-          todoIndex = blocks.length;
           _upsert(blocks, indexById, _create(event, id, BlockKind.todo, BlockStatus.ok, 'Todo', text, model));
+          todoIndex = indexById[id];
         }
 
       case 'tool_start':
@@ -158,8 +158,8 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           blocks[questionIndex] = block;
           indexById[block.id] = questionIndex;
         } else {
-          questionIndex = blocks.length;
           _upsert(blocks, indexById, block);
+          questionIndex = indexById[block.id];
         }
 
       case 'permission_replied':
