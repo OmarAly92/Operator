@@ -86,4 +86,22 @@ void main() {
       {'beforeSeq': 9, 'limit': 50},
     );
   });
+
+  test('reads the source channel off the wire', () {
+    final model = BlockEventModel.fromJson(const {
+      'seq': 1,
+      'sessionId': 's-1',
+      'kind': 'assistant_text',
+      'source': 'transcript',
+      'text': 'hello',
+    });
+
+    expect(model.source, 'transcript');
+  });
+
+  test('a record with no source parses with a null source', () {
+    final model = BlockEventModel.fromJson(const {'seq': 1, 'kind': 'stop'});
+
+    expect(model.source, isNull);
+  });
 }

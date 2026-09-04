@@ -209,6 +209,37 @@ class CompactionBlockDetail extends BlockDetail {
   List<Object?> get props => [trigger, preTokens];
 }
 
+class QuestionBlockDetail extends BlockDetail {
+  const QuestionBlockDetail({required this.questions});
+
+  final List<BlockQuestion> questions;
+
+  @override
+  List<Object?> get props => [questions];
+}
+
+class BlockQuestion extends Equatable {
+  const BlockQuestion({this.question, this.header, this.multiSelect, this.options = const []});
+
+  final String? question;
+  final String? header;
+  final bool? multiSelect;
+  final List<BlockQuestionOption> options;
+
+  @override
+  List<Object?> get props => [question, header, multiSelect, options];
+}
+
+class BlockQuestionOption extends Equatable {
+  const BlockQuestionOption({this.label, this.description});
+
+  final String? label;
+  final String? description;
+
+  @override
+  List<Object?> get props => [label, description];
+}
+
 class UnknownBlockDetail extends BlockDetail {
   const UnknownBlockDetail({this.raw});
 
@@ -241,6 +272,8 @@ class SessionBlock extends Equatable {
     required this.body,
     this.detail,
     this.toolName,
+    this.result,
+    this.model,
     this.errorType,
     this.truncatedLines = 0,
     this.redacted = false,
@@ -258,6 +291,8 @@ class SessionBlock extends Equatable {
   final String body;
   final BlockDetail? detail;
   final String? toolName;
+  final String? result;
+  final String? model;
   final String? errorType;
   final int truncatedLines;
   final bool redacted;
@@ -265,9 +300,13 @@ class SessionBlock extends Equatable {
   final List<SessionBlock>? children;
 
   SessionBlock copyWith({
+    BlockKind? kind,
     BlockStatus? status,
     String? turnId,
+    String? title,
     String? body,
+    String? result,
+    String? model,
     BlockDetail? detail,
     int? lastSeq,
     String? errorType,
@@ -279,11 +318,13 @@ class SessionBlock extends Equatable {
     id: id,
     firstSeq: firstSeq,
     lastSeq: lastSeq ?? this.lastSeq,
-    kind: kind,
+    kind: kind ?? this.kind,
     status: status ?? this.status,
     turnId: turnId ?? this.turnId,
-    title: title,
+    title: title ?? this.title,
     body: body ?? this.body,
+    result: result ?? this.result,
+    model: model ?? this.model,
     detail: detail ?? this.detail,
     toolName: toolName,
     errorType: errorType ?? this.errorType,
@@ -305,6 +346,8 @@ class SessionBlock extends Equatable {
     body,
     detail,
     toolName,
+    result,
+    model,
     errorType,
     truncatedLines,
     redacted,
@@ -344,6 +387,10 @@ BlockDisplay blockDisplay(SessionBlock block) {
     CompactionBlockDetail(:final trigger, :final preTokens) => BlockDisplay(
       displayName: 'Compaction',
       summary: '${trigger?.name ?? ''} at ${preTokens ?? ''} tokens',
+    ),
+    QuestionBlockDetail() => BlockDisplay(
+      displayName: block.title,
+      summary: block.body,
     ),
     UnknownBlockDetail(:final raw) => BlockDisplay(
       displayName: block.title,

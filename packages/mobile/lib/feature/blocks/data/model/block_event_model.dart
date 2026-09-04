@@ -20,6 +20,7 @@ class BlockEventModel extends Equatable {
   final String? sessionId;
   final String? sourceId;
   final String? kind;
+  final String? source;
   final String? rawEvent;
   final String? harness;
   final String? toolName;
@@ -37,6 +38,7 @@ class BlockEventModel extends Equatable {
     this.sessionId,
     this.sourceId,
     this.kind,
+    this.source,
     this.rawEvent,
     this.harness,
     this.toolName,
@@ -57,6 +59,7 @@ class BlockEventModel extends Equatable {
       sessionId: json['sessionId'] as String?,
       sourceId: json['sourceId'] as String?,
       kind: json['kind'] as String?,
+      source: json['source'] as String?,
       rawEvent: json['rawEvent'] as String?,
       harness: json['harness'] as String?,
       toolName: json['toolName'] as String?,
@@ -84,6 +87,7 @@ class BlockEventModel extends Equatable {
     sessionId,
     sourceId,
     kind,
+    source,
     rawEvent,
     harness,
     toolName,
