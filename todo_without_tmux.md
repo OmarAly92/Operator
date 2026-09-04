@@ -519,3 +519,17 @@ Claude side, whatever Codex provides), a collapsed nested layout in
 `block_assembly.dart`, and a rule for sidechain records that arrive when no Task
 block is running. Pick it up if the terminal keeps getting opened to see what a
 subagent is doing.
+
+### 15.3 Mobile's block window did not grow with the backend's retention
+
+Phase 2 raised the backend's per-session block-event retention from 500 to 2000,
+because transcript enrichment multiplies events per turn — `assistant_text`,
+`reasoning`, `tool_start`, `tool_result` and `turn_model` can all fire for what used
+to be a handful of hook events. The mobile client's own `kBlockWindow` and
+`kBlockMaxWindow` constants in
+`packages/mobile/lib/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart`
+were not raised to match, so the phone's reachable scrollback for a busy session
+shrank several-fold relative to before this phase. Sizing them correctly needs real
+usage data (how far back people actually scroll on a busy session), not an arbitrary
+guess, so this is deliberately deferred rather than fixed alongside the retention
+bump.
