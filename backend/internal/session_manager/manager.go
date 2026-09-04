@@ -122,6 +122,13 @@ var (
 	// would answer it on the user's behalf. The API maps it to a 409; the
 	// caller retries once the user has answered in the terminal.
 	ErrAwaitingDecision = errors.New("session: awaiting a user decision")
+	// ErrAgentNotResponding means the paste was written to the pane but the
+	// session never went active across the whole confirmation budget, despite
+	// every Enter the loop is allowed to send. A successful write is not
+	// delivery: a pty-host orphaned by a daemon restart still accepts the bytes
+	// and drops them. Reporting success there loses the message silently, so
+	// the API maps this to a 409 the caller can retry or surface.
+	ErrAgentNotResponding = errors.New("session: agent did not accept the message")
 )
 
 // Env vars a spawned process reads to learn who it is. A worker that starts
@@ -2453,7 +2460,9 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 		return nil
 	}
 	if m.harnessNudgeSafe(rec.Harness) {
-		m.confirmActive(ctx, m.messenger, id)
+		if err := m.confirmActive(ctx, m.messenger, id); err != nil {
+			return fmt.Errorf("send %s: %w", id, err)
+		}
 	}
 	return nil
 }
@@ -2543,8 +2552,11 @@ const (
 // answer it for the user. Sticky ActivityWaitingInput does NOT stop the loop:
 // an idle-prompt session with an unsubmitted pasted draft is exactly the case
 // the nudge exists for.
-func (m *Manager) confirmActive(ctx context.Context, guard *sessionguard.Guard, id domain.SessionID) {
-	m.confirmActiveWithNudge(ctx, id, nil, func(nudgeCtx context.Context) (sessionguard.Outcome, error) {
+// confirmActive reports ErrAgentNotResponding when the budget runs out with the
+// session still inactive; every other stopping condition is best-effort and
+// returns nil.
+func (m *Manager) confirmActive(ctx context.Context, guard *sessionguard.Guard, id domain.SessionID) error {
+	return m.confirmActiveWithNudge(ctx, id, nil, func(nudgeCtx context.Context) (sessionguard.Outcome, error) {
 		return guard.Deliver(nudgeCtx, id, "")
 	})
 }
@@ -2558,28 +2570,32 @@ type confirmationStopCheck func(context.Context) (bool, error)
 // suppressed at the write boundary so the retry cannot steer a running turn or
 // answer a permission dialog. stop is checked before waiting and immediately
 // before every Enter so a completed target acknowledgement always wins.
+// A switch's catch-up Enter stays best-effort: the handoff has its own
+// acknowledgement path, so an exhausted budget must not fail the mutation.
 func (m *Manager) confirmActiveUnderMutation(ctx context.Context, guard *sessionguard.Guard, id domain.SessionID, stop confirmationStopCheck) {
-	m.confirmActiveWithNudge(ctx, id, stop, func(nudgeCtx context.Context) (sessionguard.Outcome, error) {
+	_ = m.confirmActiveWithNudge(ctx, id, stop, func(nudgeCtx context.Context) (sessionguard.Outcome, error) {
 		return guard.CoordinationUnderMutation(nudgeCtx, id, "", m.harnessNudgeSafe, nil)
 	})
 }
 
-func (m *Manager) confirmActiveWithNudge(ctx context.Context, id domain.SessionID, stop confirmationStopCheck, nudge func(context.Context) (sessionguard.Outcome, error)) {
+func (m *Manager) confirmActiveWithNudge(ctx context.Context, id domain.SessionID, stop confirmationStopCheck, nudge func(context.Context) (sessionguard.Outcome, error)) error {
 	for attempt := 1; ; attempt++ {
 		if m.confirmationStopRequested(ctx, id, attempt, stop) {
-			return
+			return nil
 		}
 		outcome, err := m.waitForActive(ctx, id)
 		if err != nil || outcome == waitActive {
-			return
+			return nil
 		}
+		// Blocked is not a lost message: the paste is sitting in the composer
+		// behind a permission dialog and submits once the user answers.
 		if outcome == waitBlocked {
 			m.logger.Info("send: session awaiting a decision; skipping Enter nudge", "sessionID", id, "attempt", attempt)
-			return
+			return nil
 		}
 		if attempt >= m.sendConfirm.maxAttempts {
 			m.logger.Warn("send: activity confirmation budget exhausted", "sessionID", id, "attempts", attempt)
-			return
+			return ErrAgentNotResponding
 		}
 		// Timed out with budget remaining: the previous Enter did not land.
 		// Nudge again with an Enter-only send. Deliver re-reads state
@@ -2589,19 +2605,19 @@ func (m *Manager) confirmActiveWithNudge(ctx context.Context, id domain.SessionI
 		// per-poll check inside waitForActive cannot cover; a store failure
 		// inside the guard fails closed (no Enter on an unknown state).
 		if m.confirmationStopRequested(ctx, id, attempt, stop) {
-			return
+			return nil
 		}
 		nudgeOutcome, nudgeErr := nudge(ctx)
 		if nudgeErr != nil {
 			m.logger.Warn("send: confirm re-send failed", "sessionID", id, "attempt", attempt, "error", nudgeErr)
-			return
+			return nil
 		}
 		if nudgeOutcome != sessionguard.Sent {
 			// Not necessarily blocked: the session may also have become active,
 			// terminated, or vanished since the poll — the outcome says which.
 			// The mutation-safe switch path additionally suppresses active turns.
 			m.logger.Info("send: session unavailable before nudge; skipping Enter nudge", "sessionID", id, "attempt", attempt, "outcome", nudgeOutcome.String())
-			return
+			return nil
 		}
 	}
 }

@@ -6153,7 +6153,11 @@ func TestSend_ConfirmsAndNudgesUntilActive(t *testing.T) {
 
 func TestSend_ConfirmBudgetCapsRetries(t *testing.T) {
 	// A signaling harness that never goes active must still terminate: at most
-	// maxAttempts Sends (initial + maxAttempts-1 nudges), and Send never errors.
+	// maxAttempts Sends (initial + maxAttempts-1 nudges). Exhausting the budget
+	// is positive evidence the paste never landed — three Enters and the
+	// session never went active — so Send reports it instead of claiming
+	// success. A pane that silently swallows input (a pty-host orphaned by a
+	// daemon restart) otherwise returns 200 and the message disappears.
 	st := newFakeStore()
 	st.sessions["s1"] = domain.SessionRecord{ID: "s1", Harness: "claude-code",
 		Activity: domain.Activity{State: domain.ActivityIdle}}
@@ -6162,8 +6166,9 @@ func TestSend_ConfirmBudgetCapsRetries(t *testing.T) {
 	var logBuf bytes.Buffer
 	m.logger = slog.New(slog.NewTextHandler(&logBuf, nil))
 
-	if err := m.Send(context.Background(), "s1", "stuck prompt", nil); err != nil {
-		t.Fatalf("Send: %v", err)
+	err := m.Send(context.Background(), "s1", "stuck prompt", nil)
+	if !errors.Is(err, ErrAgentNotResponding) {
+		t.Fatalf("Send err = %v, want ErrAgentNotResponding", err)
 	}
 	if len(msg.msgs) > m.sendConfirm.maxAttempts {
 		t.Fatalf("Send calls = %d, want <= %d (budget cap)", len(msg.msgs), m.sendConfirm.maxAttempts)

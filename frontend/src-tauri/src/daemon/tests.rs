@@ -207,6 +207,21 @@ fn daemon_discovery_acp_runtime_dev_and_packaged() {
 }
 
 #[test]
+fn daemon_discovery_dev_paths_ignore_src_tauri_cwd() {
+    let env = env_from(&[]);
+    let resources = PathBuf::from("/resources");
+    let app_path = PathBuf::from("/repo/frontend/src-tauri");
+    assert_eq!(
+        resolve_acp_runtime_dir(&env, false, &resources, &app_path),
+        PathBuf::from("/repo/frontend/resources/acp-runtime")
+    );
+    let browser = resolve_agent_browser_binary_path(&env, false, &resources, &app_path, "darwin");
+    assert!(browser
+        .to_string_lossy()
+        .starts_with("/repo/frontend/agent-browser"));
+}
+
+#[test]
 fn daemon_telemetry_renderer_intent_defaults_to_packaging() {
     assert_eq!(telemetry_renderer_env(&env_from(&[]), true), "on");
     assert_eq!(telemetry_renderer_env(&env_from(&[]), false), "off");

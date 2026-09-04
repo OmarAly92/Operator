@@ -96,11 +96,7 @@ pub fn resolve_daemon_launch(
         }
     }
     if !is_packaged {
-        let frontend_root = if app_path.file_name().is_some_and(|name| name == "src-tauri") {
-            app_path.parent().unwrap_or(app_path)
-        } else {
-            app_path
-        };
+        let frontend_root = dev_frontend_root(app_path);
         return Some(DaemonLaunchSpec {
             command: "go".to_string(),
             args: vec![
@@ -143,6 +139,14 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     normalized
 }
 
+pub fn dev_frontend_root(app_path: &Path) -> &Path {
+    if app_path.file_name().is_some_and(|name| name == "src-tauri") {
+        app_path.parent().unwrap_or(app_path)
+    } else {
+        app_path
+    }
+}
+
 pub fn resolve_agent_browser_binary_path(
     env: &HashMap<String, String>,
     is_packaged: bool,
@@ -167,7 +171,7 @@ pub fn resolve_agent_browser_binary_path(
     if is_packaged {
         resources_path.join("agent-browser").join(bin)
     } else {
-        app_path.join("agent-browser").join(bin)
+        dev_frontend_root(app_path).join("agent-browser").join(bin)
     }
 }
 
@@ -193,7 +197,9 @@ pub fn resolve_acp_runtime_dir(
     if is_packaged {
         resources_path.join("acp-runtime")
     } else {
-        app_path.join("resources").join("acp-runtime")
+        dev_frontend_root(app_path)
+            .join("resources")
+            .join("acp-runtime")
     }
 }
 
