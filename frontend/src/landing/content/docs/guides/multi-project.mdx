@@ -29,13 +29,13 @@ Fresh installations also have Scratch for tasks that do not require Git. Scratch
 
 ## Give each project its own roles
 
-Open each project's settings and choose its worker, orchestrator, model, rules, setup, reviewers, and default session interface. Project configuration is typed and independent; changing one project does not set global YAML defaults for the others.
+Open each project's settings and choose its worker, orchestrator, model, rules, setup, and reviewers. Project configuration is typed and independent; changing one project does not set global YAML defaults for the others.
 
 ## Spawn in the right project
 
 ```bash
-opr spawn --project api --name api-issue --issue 42 --mode chat
-opr spawn --project web --name web-fix --prompt "Fix the header" --mode tui
+opr spawn --project api --name api-issue --issue 42
+opr spawn --project web --name web-fix --prompt "Fix the header"
 ```
 
 When `--project` is omitted, Operator can resolve `OPERATOR_PROJECT_ID`, the current registered repository, or Scratch when it is the only project. Supplying the project explicitly is clearest in scripts.
@@ -61,7 +61,7 @@ Kill one session with `opr session kill <session-id>`. Use `opr session cleanup 
 
 ## Use mobile across projects
 
-Connect Mobile exposes the same registered projects and session modes through the authenticated mobile listener. Mobile prefers Chat for new workers and orchestrators when a compatible harness is installed, while Terminal UI remains selectable.
+Connect Mobile exposes the same registered projects and terminal sessions through the authenticated mobile listener. Covered harnesses open in the blocks view by default, with a per-session raw-terminal toggle remembered on the device.
 
 <Cards>
 	<Card title="Projects" href="/docs/configuration/projects" description="Current typed project settings." />

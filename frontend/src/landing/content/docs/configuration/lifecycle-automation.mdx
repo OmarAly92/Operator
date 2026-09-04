@@ -18,14 +18,9 @@ Operator has built-in lifecycle automation. It is not currently a user-configura
 
 Messages are signature-deduplicated, so an unchanged set of failures or comments is not sent on every poll. A changed failure set or changed unresolved feedback can produce a fresh nudge.
 
-## Mode-aware delivery
+## Session delivery
 
-Lifecycle messages go through the same session manager as user messages:
-
-- Terminal UI sessions receive the message through their runtime.
-- Chat sessions receive a native provider turn and persist it in the structured conversation.
-
-Operator does not run both controllers at once. A handoff between compatible interfaces drains or interrupts the old controller before committing the new one.
+Lifecycle messages go through the same session manager as user messages and reach the agent through its terminal runtime.
 
 ## Notifications
 

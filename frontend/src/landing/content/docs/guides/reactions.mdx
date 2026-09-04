@@ -13,7 +13,7 @@ Claim the pull request to the worker that should respond:
 opr session claim-pr <session-id> <pr-number-or-url>
 ```
 
-Operator then routes failing checks, requested changes, unresolved comments, and eligible merge conflicts to that session. Delivery is mode-aware, so the same workflow works for structured Chat and Terminal UI.
+Operator then routes failing checks, requested changes, unresolved comments, and eligible merge conflicts through that session's terminal runtime.
 
 ## Avoid duplicate nudges
 
@@ -32,7 +32,7 @@ Click a notification to open its session or PR context. Desktop toasts supplemen
 
 ## Intervene manually
 
-Send a focused instruction to a session from its Chat composer or Terminal UI. The CLI equivalent is:
+Send a focused instruction to a session from its terminal. The CLI equivalent is:
 
 ```bash
 opr send --help
@@ -45,13 +45,5 @@ Merge is always an explicit action:
 ```bash
 opr pr merge <pr-number>
 ```
-
-## Switch interfaces when useful
-
-For compatible Claude Code and Codex sessions, use **Open Chat** or **Open Terminal UI**. Operator preserves the session and worktree, drains or interrupts active work according to your choice, and commits only one controller at a time.
-
-<Callout type="info">
-	A first Terminal UI → Chat switch preserves provider-native context where supported, but it does not convert old terminal screen output into structured Chat cards.
-</Callout>
 
 See [Lifecycle automation configuration](/docs/configuration/lifecycle-automation) for the current event and notification reference.

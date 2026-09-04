@@ -9,10 +9,7 @@ Operator supports two complementary review loops: observing feedback already pos
 
 The SCM observer records review state and unresolved comments. When changes are requested or unresolved feedback changes, lifecycle sends the focused unresolved comments to the owning worker. Resolved threads drop out of the next message.
 
-Delivery follows the session interface:
-
-- Chat receives a durable provider turn in the conversation.
-- Terminal UI receives the message through the running agent session.
+Delivery reaches the agent through the running terminal session.
 
 Feedback is signature-deduplicated. Operator does not repeat an unchanged comment set on every poll.
 

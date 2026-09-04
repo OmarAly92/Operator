@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Configure projects, agents, session interfaces, and local daemon behavior in current Operator.
+description: Configure projects, agents, and local daemon behavior in current Operator.
 ---
 
 Operator keeps its durable state under `~/.operator`. The daemon stores projects, sessions, pull-request facts, notifications, and typed project configuration in SQLite under `~/.operator/data`; `~/.operator/running.json` lets the desktop app and CLI find the running daemon.
@@ -59,15 +59,6 @@ The primary daemon listener is always loopback-only and unauthenticated. Its bin
 | `OPERATOR_ALLOWED_ORIGINS` | packaged desktop origin | Additional trusted browser origins |
 
 Do not set `HOST=0.0.0.0` or proxy the primary daemon to a network. For phone access, use the separate authenticated listener created by **Connect Mobile**. See [Remote access](/docs/configuration/remote-access).
-
-## Chat and Terminal UI defaults
-
-Every session commits to one interface at a time:
-
-- **Chat** uses a structured, runtime-less provider controller with durable messages, activities, approvals, and usage.
-- **Terminal UI** runs the agent's native terminal interface through Operator's terminal runtime.
-
-Choose the default for new sessions in project settings. You can also select it explicitly from the new-session flow or with `opr spawn --mode chat|tui`. Compatible Claude Code and Codex sessions can switch interfaces later without changing the Operator session or worktree.
 
 <Cards>
 	<Card title="Projects" href="/docs/configuration/projects" description="Configure one project and its session roles." />

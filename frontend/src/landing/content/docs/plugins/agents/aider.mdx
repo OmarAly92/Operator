@@ -7,9 +7,9 @@ Operator resolves `aider` from your machine and leaves model credentials to Aide
 
 ```bash
 opr agent ls --refresh
-opr spawn --project my-app --name aider-task --agent aider --mode tui
+opr spawn --project my-app --name aider-task --agent aider
 ```
 
-Aider is currently Terminal UI-only. It does not have an Operator structured Chat driver, so `--mode chat` is rejected explicitly.
+Operator runs Aider's native terminal UI in the session worktree.
 
 Use project `agentConfig` and environment settings for supported model/permission overrides. Agent adapters are compiled into Operator; there is no separate Aider plugin package or YAML plugin block.

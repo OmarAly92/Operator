@@ -5,6 +5,6 @@ description: Session terminals streamed through the daemon's mux to the desktop 
 
 The session view renders an xterm terminal connected to the daemon's `/mux` WebSocket. The connection follows daemon port changes and can reconnect after the desktop restarts.
 
-Terminal UI sessions attach to the agent's live platform runtime. Chat sessions do not create an agent TUI runtime, but the session can still open worktree shells through the same mux infrastructure.
+Every session attaches to the agent's live platform runtime. Session-scoped worktree shells use the same mux infrastructure as separate resources.
 
 This is built into the desktop app. There is no `terminal: web` setting, `opr open` command, or iTerm2/AppleScript terminal plugin in the current release.

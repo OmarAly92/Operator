@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MobileNav } from "./components/MobileNav";
 import { DesktopNav } from "./components/DesktopNav";
-import { OperatorLogo } from "./components/OperatorLogo";
+import { OperatorLogo } from "./components/AOLogo";
 
 interface HeaderProps {
   ctaButtons: React.ReactNode;

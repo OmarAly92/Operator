@@ -7,9 +7,9 @@ Operator's Cursor adapter resolves the Cursor Agent CLI from your machine and ch
 
 ```bash
 opr agent ls --refresh
-opr spawn --project my-app --name cursor-task --agent cursor --mode tui
+opr spawn --project my-app --name cursor-task --agent cursor
 ```
 
-Cursor is currently Terminal UI-only; requesting `--mode chat` fails with an unsupported-Chat error rather than silently creating a different interface.
+Operator runs Cursor's native terminal UI in the session worktree.
 
 Operator records activity through the adapter's supported hooks and terminal signals. There is no Cursor npm plugin or `operator.yaml` block to install.

@@ -8,7 +8,7 @@ Operator has two session roles:
 - A **worker** implements a focused task in an isolated workspace and may own pull requests.
 - An **orchestrator** supervises a project, monitors sessions, and delegates implementation to workers.
 
-Role and interface are separate choices. Either role can start in structured Chat or Terminal UI when its harness supports that interface.
+Both roles run their configured harness in its native terminal UI.
 
 ## Configure roles
 
@@ -48,20 +48,13 @@ The desktop provides dedicated new-session and orchestrator flows. From the CLI:
 
 ```bash
 opr spawn --project my-project --kind orchestrator \
-  --name supervisor --mode chat
+  --name supervisor
 
 opr spawn --project my-project --kind worker \
-  --name issue-42 --issue 42 --mode tui
+  --name issue-42 --issue 42
 ```
 
 `--name` is required and limited to 20 characters. `--harness` overrides the role's configured agent for one spawn.
-
-## Choose Chat or Terminal UI
-
-- Use **Chat** for structured messages, provider activity, approvals, plans, changed files, usage, compaction, and rollback. Current native drivers cover Codex, Claude Code, OpenCode, and Droid.
-- Use **Terminal UI** when you want the agent's native interface or a harness without native Chat support.
-
-Compatible Claude Code and Codex sessions expose **Open Chat** or **Open Terminal UI**. Idle sessions switch directly. When work is active, Operator asks whether to finish and drain it or stop and interrupt it before switching controllers.
 
 ## Project rules
 

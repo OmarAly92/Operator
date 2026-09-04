@@ -35,10 +35,6 @@ Anyone who can observe traffic on an untrusted network may read the password and
 
 ## What mobile supports
 
-The Expo/React Native app is a native control surface over the same daemon resources as desktop. New mobile sessions prefer Chat when a compatible installed harness is available; Terminal UI remains an explicit compatibility choice.
+The Expo/React Native app is a native control surface over the same daemon resources as desktop. New mobile sessions always launch the harness's terminal UI.
 
-Mobile supports structured Chat, Terminal UI, session creation, the same capability-gated Chat/TUI handoff, approvals and structured input, changed files, model/provider controls, compaction and rollback, voice dictation, attachments, and a session-scoped worktree shell.
-
-<Callout type="info">
-	Chat and Terminal UI are two controllers for the same Operator session. Switching does not create a new worktree, but a first switch from Terminal UI to Chat does not reconstruct old terminal screen output as structured messages.
-</Callout>
+Mobile supports terminal session creation, hook-derived blocks for covered harnesses, a raw-terminal toggle, changed files, voice dictation, attachments, and a session-scoped worktree shell. Transcript-rich blocks and deterministic terminal controls arrive in later phases.

@@ -1,6 +1,6 @@
 ---
 title: Agent adapters
-description: The terminal harnesses built into Operator and the smaller set that also supports structured Chat.
+description: The terminal harnesses built into Operator.
 ---
 
 Operator compiles agent adapters into the daemon. It uses your locally installed agent CLI and its existing authentication; it does not bundle provider credentials or install adapters from npm.
@@ -28,32 +28,19 @@ opr agent ls --refresh --json
 
 The readiness probe reports whether a harness is supported, installed, and authenticated. Spawn still performs authoritative validation.
 
-## Chat versus Terminal UI
-
-All advertised harnesses can run through their native terminal interface. Four also have structured Chat drivers:
-
-| Harness | Chat transport |
-| --- | --- |
-| `codex` | Codex native app-server |
-| `claude-code` | `claude-agent-acp` using the user's Claude executable |
-| `opencode` | Native ACP |
-| `droid` | Native ACP |
-
-Every other harness is Terminal UI-only. Choose the initial interface with `opr spawn --mode chat|tui`. Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while retaining the Operator session and worktree.
-
 ## Choosing and configuring a harness
 
 ```bash
 opr project set-config my-app --worker-agent codex
-opr spawn --project my-app --name auth-fix --agent claude-code --mode chat
+opr spawn --project my-app --name auth-fix --agent claude-code
 ```
 
 `--agent` and `--harness` are aliases. Project configuration may also specify model, permission mode, environment, prompt rules, and separate worker/orchestrator defaults. Use `opr project set-config --help` for the typed fields.
 
 <Cards>
-	<Card title="Claude Code" description="Terminal UI and structured Chat." href="/docs/plugins/agents/claude-code" />
-	<Card title="Codex" description="Terminal UI and native app-server Chat." href="/docs/plugins/agents/codex" />
-	<Card title="OpenCode" description="Terminal UI and native ACP Chat." href="/docs/plugins/agents/opencode" />
+	<Card title="Claude Code" description="Built-in terminal harness." href="/docs/plugins/agents/claude-code" />
+	<Card title="Codex" description="Built-in terminal harness." href="/docs/plugins/agents/codex" />
+	<Card title="OpenCode" description="Built-in terminal harness." href="/docs/plugins/agents/opencode" />
 	<Card title="Cursor" description="Built-in terminal harness." href="/docs/plugins/agents/cursor" />
 	<Card title="Aider" description="Built-in terminal harness." href="/docs/plugins/agents/aider" />
 </Cards>

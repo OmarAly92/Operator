@@ -10,6 +10,6 @@ The runtime owns a Terminal UI process and exposes attach, interrupt, messaging,
 | macOS / Linux | [tmux](/docs/plugins/runtimes/tmux) | Install `tmux`. |
 | Windows | ConPTY | Built into supported Windows versions. |
 
-Structured Chat sessions use provider controllers instead of an agent terminal runtime. They can still open a separate session-scoped worktree shell in the desktop app.
+Every session uses an agent terminal runtime. The desktop app can also open a separate session-scoped worktree shell.
 
 Run `opr doctor` to check the runtime required on the current platform.

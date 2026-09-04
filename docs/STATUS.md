@@ -44,13 +44,9 @@ surface (`npm run sqlc`, `npm run api`).
   pty-host runtime; there is no chat controller to choose and no interface
   handoff. The ACP/chat subsystem is still in the tree but unreachable, and is
   deleted in Phase 4 of `docs/superpowers/specs/2026-09-04-single-session-interface-design.md`.
-- Durable Chat conversations with project-scoped orchestrator continuity,
-  session-scoped worker history, bounded history pages, transactional raw-event
-  archive/projection, controller-generation fencing, turns, messages,
-  activities, approvals, structured input, usage, compaction, and rollback.
-- Chat drivers for the user's installed Codex (native app-server), Claude Code
-  (claude-agent-acp), OpenCode, and Droid. Operator reuses each harness's existing
-  binary/auth resolution and does not bundle provider CLIs.
+- The dormant ACP/chat implementation and its schema remain compilable during
+  the staged removal, but no spawn, route, desktop surface, or mobile surface can
+  select it. Phase 4 removes it.
 - Project CRUD plus per-project config (`PUT /projects/{id}/config`).
 - PR action engine wired into the API: `POST /prs/{id}/merge` and
   `/prs/{id}/resolve-comments`.
@@ -135,13 +131,8 @@ surface (`npm run sqlc`, `npm run api`).
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
   session view + inspector, project settings, pull-requests page,
   spawn-orchestrator flow.
-- SessionView renders from the session's persisted mode: the existing terminal
-  surface for TUI, or the durable Chat timeline/composer for Chat. Chat retains
-  access to session-scoped worktree shells without creating an agent session.
-- Compatible Claude Code and Codex sessions expose an in-session “Open Chat” /
-  “Open Terminal UI” action. Idle sessions switch directly; busy sessions offer
-  an explicit finish-and-drain or stop-and-interrupt policy and show durable
-  progress/recovery state.
+- SessionView always renders the agent's live terminal. There is no desktop
+  blocks view, Chat composer, interface picker, or interface-switch action.
 - Desktop status and SCM summary V1: session status comes from
   `GET /api/v1/sessions`; visible/active PR context comes from
   `GET /api/v1/sessions/{sessionId}/pr`; `GET /api/v1/events` is kept open as
@@ -157,8 +148,6 @@ surface (`npm run sqlc`, `npm run api`).
   runners (`docs/benchmarks/tauri-port-baseline.md`).
 - Shell-terminal history replays decoded raw bytes before its live mux attachment opens,
   preserving chronological block order across page reloads and daemon restarts.
-- Chat history uses bounded pages and targeted CDC/SSE invalidation rather than
-  polling and transferring the full lifetime of a conversation.
 - In-app notification center with click access, Unread/All filters, paginated
   REST catch-up, live notification stream updates, separate PR/session target
   actions, persistent read history, mark-read controls, and native app toasts
@@ -174,12 +163,8 @@ surface (`npm run sqlc`, `npm run api`).
   session to the terminal screen, which opens in the blocks view for a covered
   harness and can be toggled to the raw terminal per session, remembered on the
   device.
-- Native Chat includes prose/Markdown, provider activity, commands, plans,
-  changed files, approvals, structured input, model/effort/provider controls,
-  compaction, rollback, MCP recovery, skills and file references, staged/native
-  image delivery, embedded text resources, voice dictation, retryable delivery,
-  persisted drafts, and a session-scoped worktree shell through the existing
-  terminal mux.
+- Mobile's current blocks view is hook-derived. Phase 2 adds transcript-backed
+  Claude Code and Codex content; Phase 3 adds deterministic terminal controls.
 
 ## In flight / not yet a runtime feature
 

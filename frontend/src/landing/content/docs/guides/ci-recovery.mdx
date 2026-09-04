@@ -10,7 +10,7 @@ When a claimed GitHub pull request has failing checks, Operator's SCM observer r
 1. Operator polls the claimed PR through its GitHub provider.
 2. The lifecycle reducer derives `ci_failed` from the stored PR facts.
 3. Operator formats the failing check names and links into one focused message.
-4. The session manager delivers it through the active interface: a native Chat turn or the Terminal UI runtime.
+4. The session manager delivers it through the terminal runtime.
 5. The desktop updates the PR summary and failing-check links from the same durable facts.
 
 Operator fingerprints the failing-check set. An unchanged failure is not resent on every poll; a changed set can produce a new nudge.
@@ -27,7 +27,7 @@ Or claim it while creating a session:
 
 ```bash
 opr spawn --project my-project --name fix-pr-42 \
-  --claim-pr 42 --mode chat
+  --claim-pr 42
 ```
 
 Use `--no-takeover` if the operation should fail when another active session already owns the PR.
@@ -47,4 +47,4 @@ Open the session inspector to see the PR, CI state, and failing-check links. The
 - There is no `opr review-check` command or configurable CI retry/escalation budget.
 - Draft and required-check semantics come from the normalized PR facts rather than a user reaction rule.
 
-If automatic delivery is unavailable, open the owning Chat or Terminal UI session and send a follow-up directly with the desktop composer or `opr send`.
+If automatic delivery is unavailable, open the owning terminal session and send a follow-up directly or with `opr send`.

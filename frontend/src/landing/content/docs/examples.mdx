@@ -1,44 +1,33 @@
 ---
 title: Examples
-description: Practical workflows for desktop sessions, Chat and TUI, pull requests, reviews, previews, and mobile.
+description: Practical workflows for terminal sessions, pull requests, reviews, previews, and mobile.
 ---
 
 These examples use capabilities shipped in the current Go daemon and Tauri desktop app. They do not rely on the retired TypeScript plugin configuration or an `examples/` directory.
 
-## Start A Focused Chat Worker
+## Start A Focused Worker
 
 1. Add a local GitHub repository in the desktop app.
 2. Create a task named **Fix settings validation**.
-3. Select an installed Chat-capable harness such as Codex or Claude Code.
-4. Choose **Chat** and use a bounded prompt:
+3. Select an installed harness such as Codex or Claude Code.
+4. Use a bounded prompt:
 
 ```text
 Reproduce the invalid settings error, add a regression test, and make the smallest fix.
 Run the focused tests and summarize changed behavior. Do not refactor unrelated settings code.
 ```
 
-Watch provider activities and changed files in Chat. If an approval or structured question appears, answer it in the timeline.
+Watch the agent's terminal and changed files. Answer approvals and questions in the terminal.
 
 ## Use A Native Terminal UI
 
-Create another task and choose **Terminal UI**. Operator creates the worktree and launches the harness's native interface through tmux on macOS/Linux or conpty on Windows.
+Create another task. Operator creates the worktree and launches the harness's native interface through tmux on macOS/Linux or conpty on Windows.
 
 Use the desktop terminal for native interactive commands. Send normal follow-up guidance through Operator's message controls:
 
 ```text
 The failing case is on Windows path normalization. Keep the Unix behavior unchanged.
 ```
-
-## Switch Claude Code Or Codex To Chat
-
-For a compatible idle TUI session, choose **Open Chat**. Operator stops the old controller, resumes the provider conversation through the native Chat driver, and keeps the same session and worktree.
-
-If the session is busy, choose deliberately:
-
-- **Finish and drain** waits for accepted work to finish before switching.
-- **Stop and interrupt** cancels the active turn before switching.
-
-Switching preserves provider context, but a first TUI-to-Chat switch does not reconstruct old terminal screen output as structured Chat cards.
 
 ## Claim An Existing Pull Request
 

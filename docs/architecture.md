@@ -1,6 +1,6 @@
 # Operator Architecture
 
-Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a pty-host runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
+Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and runs its agent's terminal UI inside a pty-host runtime. Desktop renders that terminal directly; mobile renders hook-derived blocks by default with a device-local raw-terminal toggle. The daemon coordinates both clients through the same session, lifecycle, workspace, storage, and observation boundaries.
 
 ## Table of Contents
 
@@ -38,9 +38,12 @@ The only persistent session state is:
 
 - `activity_state` — What the agent last reported (`active`, `idle`, `waiting_input`, `blocked`, `exited`). `waiting_input` is an agent at an empty prompt awaiting its next instruction; `blocked` is an agent stopped on a pending permission/approval decision — automation must never inject input into a blocked session.
 - `is_terminated` — Whether the session should be treated as over
-- `session_mode` plus its runtime/provider handle and generation — The currently committed controller epoch
-- `session_interface_transitions` — Durable checkpoints for an in-progress or completed TUI↔Chat handoff
+- The runtime handle and launch generation for the session's terminal process
 - PR facts — `pr`, `pr_checks`, `pr_comment` tables
+
+The legacy `session_mode`, conversation, and interface-transition schema remains
+temporarily so the dormant ACP packages compile. New sessions are always `tui`,
+the pre-release reset removes legacy rows, and Phase 4 deletes that schema.
 
 ### What is NOT Durable
 
@@ -70,7 +73,6 @@ graph TB
         PRSvc[PR Service]
         ReviewSvc[Review Service]
         SessionMgr[Session Manager]
-        ChatSvc[Chat Service]
         LCM[Lifecycle Manager]
     end
 
@@ -88,7 +90,6 @@ graph TB
     subgraph Adapters["Adapters"]
         AgentAdapter[Agent Adapters]
         RuntimeAdapter[Runtime pty-host]
-        ChatDriver[Native Chat / ACP Drivers]
         WorkspaceAdapter[Workspace git worktree]
         SCMAdapter[SCM GitHub]
     end
@@ -102,12 +103,10 @@ graph TB
     Controllers --> PRSvc
 
     SessionSvc --> SessionMgr
-    SessionMgr --> ChatSvc
     SessionMgr --> LCM
     SessionMgr --> AgentAdapter
     SessionMgr --> RuntimeAdapter
     SessionMgr --> WorkspaceAdapter
-    ChatSvc --> ChatDriver
 
     LCM --> SQLite
     LCM --> AgentAdapter
@@ -196,7 +195,7 @@ backend/internal/
 ├── service/             # Controller-facing services
 │   ├── project/         # Project CRUD
 │   ├── session/         # Session read-model assembly
-│   ├── chat/            # Runtime-less Chat controllers + durable projection
+│   ├── chat/            # Dormant until removal in Phase 4
 │   ├── pr/              # PR observation service
 │   └── review/          # Code review service
 ├── session_manager/     # Internal session command engine
@@ -211,7 +210,7 @@ backend/internal/
 ├── terminal/            # Terminal session protocol
 ├── adapters/            # Concrete adapter implementations
 │   ├── agent/           # 23+ agent harnesses
-│   ├── chatdriver/      # Native provider protocols and reusable ACP transport
+│   ├── chatdriver/      # Dormant until removal in Phase 4
 │   ├── runtime/         # pty-host runtime
 │   ├── workspace/       # git worktree
 │   ├── scm/             # GitHub
@@ -231,8 +230,6 @@ sequenceDiagram
     participant LCM as Lifecycle Manager
     participant Agent as Agent Adapter
     participant Runtime as Runtime Adapter
-    participant ChatSvc as Chat Service
-    participant ChatDriver as Chat Driver
     participant WS as Workspace Adapter
     participant DB as SQLite
     participant CDC as CDC Broadcaster
@@ -241,13 +238,7 @@ sequenceDiagram
     HTTP->>Svc: Spawn(config)
     Svc->>Mgr: Spawn(config)
 
-    Mgr->>Mgr: Resolve initial mode
-    alt initial mode = chat
-        Mgr->>ChatSvc: Preflight binary/auth/protocol
-        ChatSvc->>ChatDriver: Probe installed provider
-    else initial mode = tui
-        Mgr->>Runtime: Validate runtime prerequisites
-    end
+    Mgr->>Runtime: Validate runtime prerequisites
 
     Note over Mgr: 1. Create session row
     Mgr->>DB: Insert session
@@ -258,19 +249,12 @@ sequenceDiagram
     Mgr->>WS: Create(project, branch)
     WS->>WS: git worktree add
 
-    alt persisted mode = tui
-        Note over Mgr: 3a. Launch terminal controller
-        Mgr->>Runtime: Create(session)
-        Runtime->>Runtime: Start pty-host
-        Mgr->>Agent: GetLaunchCommand()
-        Agent-->>Mgr: launch command
-        Mgr->>Runtime: Execute(agent command)
-    else persisted mode = chat
-        Note over Mgr: 3b. Launch native Chat controller
-        Mgr->>ChatSvc: StartChat(session, worktree, harness)
-        ChatSvc->>ChatDriver: Start or resume provider conversation
-        Note over Runtime: No agent runtime handle is created
-    end
+    Note over Mgr: 3. Launch terminal controller
+    Mgr->>Runtime: Create(session)
+    Runtime->>Runtime: Start pty-host
+    Mgr->>Agent: GetLaunchCommand()
+    Agent-->>Mgr: launch command
+    Mgr->>Runtime: Execute(agent command)
 
     Note over Mgr: 4. Mark spawned
     Mgr->>LCM: MarkSpawned(handle)
@@ -291,22 +275,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Start([User spawns session]) --> Validate[Validate project config and explicit mode]
-    Validate --> InitialMode{Resolved initial mode}
-    InitialMode -->|chat| Preflight[Probe native Chat driver]
-    InitialMode -->|tui| RuntimePreflight[Validate runtime prerequisites]
-    Preflight --> CreateRow[Create session row in SQLite]
+    Start([User spawns session]) --> Validate[Validate project config]
+    Validate --> RuntimePreflight[Validate runtime prerequisites]
     RuntimePreflight --> CreateRow
     CreateRow --> Trigger1[CDC: session.created]
     CreateRow --> CreateWS[Create git worktree]
-    CreateWS --> LaunchMode{Persisted mode}
-    LaunchMode -->|tui| CreateRT[Launch pty-host runtime]
+    CreateWS --> CreateRT[Launch pty-host runtime]
     CreateRT --> GetCmd[Get agent launch command]
     GetCmd --> ExecAgent[Execute agent in runtime]
-    LaunchMode -->|chat| ChatController[Start or resume provider controller]
-    ChatController --> Fence[Claim controller generation]
     ExecAgent --> MarkSpawned[MarkSpawned in LCM]
-    Fence --> MarkSpawned
     MarkSpawned --> Trigger2[CDC: session.updated]
     Trigger1 --> Done
     Trigger2 --> Done([Session running])
@@ -358,9 +335,7 @@ flowchart TD
 sequenceDiagram
     participant SCM as SCM Observer
     participant LCM as Lifecycle Manager
-    participant Dispatch as Mode-aware Messenger
-    participant TUI as Runtime Messenger
-    participant Chat as Chat Controller
+    participant Dispatch as Runtime Messenger
 
     SCM->>SCM: Observe PR comment
     SCM->>LCM: ApplySCMObservation()
@@ -377,11 +352,7 @@ sequenceDiagram
     LCM->>LCM: Detect actionable feedback
     LCM->>Dispatch: Send(merge conflict)
 
-    alt session mode = tui
-        Dispatch->>TUI: Send through runtime handle
-    else session mode = chat
-        Dispatch->>Chat: Enqueue native provider turn
-    end
+    Dispatch->>Dispatch: Send through runtime handle
 ```
 
 ---
@@ -393,13 +364,13 @@ sequenceDiagram
 ```mermaid
 erDiagram
     projects ||--o{ sessions : owns
-    projects ||--o| conversations : owns_orchestrator_narrative
-    sessions ||--o| conversations : owns_worker_narrative
-    sessions ||--o{ session_interface_transitions : records_controller_handoffs
-    session_interface_transitions ||--o{ session_interface_transition_messages : holds_messages_during_gap
-    conversations ||--o{ conversation_turns : contains
-    conversations ||--o{ conversation_messages : contains
-    conversations ||--o{ conversation_activities : contains
+    projects ||--o| conversations : legacy_chat_schema
+    sessions ||--o| conversations : legacy_chat_schema
+    sessions ||--o{ session_interface_transitions : legacy_handoff_schema
+    session_interface_transitions ||--o{ session_interface_transition_messages : legacy_handoff_schema
+    conversations ||--o{ conversation_turns : legacy_chat_schema
+    conversations ||--o{ conversation_messages : legacy_chat_schema
+    conversations ||--o{ conversation_activities : legacy_chat_schema
     sessions ||--o{ pull_requests : owns
     pull_requests ||--o{ pr_checks : has
     pull_requests ||--o{ pr_review_threads : has
@@ -557,7 +528,6 @@ flowchart TD
     subgraph Inputs["Observation Inputs"]
         RuntimeObs[TUI Runtime Observations]
         ActivitySignals[Agent Activity Signals]
-        ChatSignals[Chat Controller Signals]
         SCMObs[SCM Observations]
     end
 
@@ -576,7 +546,6 @@ flowchart TD
 
     RuntimeObs --> Reducer
     ActivitySignals --> Reducer
-    ChatSignals --> Reducer
     SCMObs --> Reducer
 
     Reducer --> StateMachine
@@ -610,7 +579,7 @@ stateDiagram-v2
 
     note right of Active
         Agent is working
-        TUI runtime or Chat controller alive
+        Terminal runtime alive
     end note
 
     note right of Waiting
@@ -620,7 +589,7 @@ stateDiagram-v2
 
     note right of Terminated
         Session over
-        Mode-owned controller cleaned up
+        Terminal runtime cleaned up
     end note
 ```
 
@@ -690,7 +659,7 @@ flowchart TD
     List --> ForEach[For each session]
 
     ForEach --> GetHandle{Has runtime<br/>handle?}
-    GetHandle -->|No, including Chat| Skip[Skip runtime probe]
+    GetHandle -->|No| Skip[Skip runtime probe]
     GetHandle -->|Yes| Probe[Probe runtime]
 
     Probe --> Result{Probe result}
@@ -801,11 +770,11 @@ The daemon runs two independent HTTP listeners sharing the same chi router:
 2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3011` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.operator/mobile/config.json` and restored on daemon boot.
 
 The mobile app is a second thin renderer over those same session resources. It
-branches on the session's persisted `mode`: TUI attaches the existing mux PTY,
-while Chat reads the paged conversation projection and uses the durable CDC SSE
-stream only for targeted invalidation/reconnect. Sends, approvals, input,
-provider configuration, compaction, rollback, and shell creation remain daemon
-commands; no provider or lifecycle policy is implemented in the Flutter client.
+routes every session to the terminal screen, renders hook-derived blocks for a
+covered harness by default, and can attach the same mux PTY as a raw-terminal
+view. The per-session view choice is stored only on the device. Session commands
+remain daemon operations; no provider or lifecycle policy is implemented in the
+Flutter client.
 
 For implementation details and security model, consult `docs/adr/0001-lan-listener-for-mobile.md` and the glossary in `CONTEXT.md`.
 
@@ -827,17 +796,13 @@ sequenceDiagram
     Controller->>Controller: decode JSON
     Controller->>Service: Spawn(config)
     Service->>Manager: Spawn(config)
-    Manager->>Manager: Resolve mode and preflight its controller
+    Manager->>Manager: Validate terminal runtime prerequisites
     Manager->>Store: Create session
     Store->>DB: INSERT INTO sessions
     DB->>Store: session record
     Store->>Manager: session record
     Manager->>Manager: Create and provision workspace
-    alt mode = tui
-        Manager->>Manager: Launch terminal runtime/controller
-    else mode = chat
-        Manager->>Manager: Launch runtime-less Chat controller
-    end
+    Manager->>Manager: Launch terminal runtime/controller
     Manager->>Service: Session response
     Service->>Controller: enriched session
     Controller->>Controller: encode JSON
@@ -848,11 +813,8 @@ sequenceDiagram
 
 ## Terminal Multiplexing
 
-The mux is the primary agent controller only for TUI-mode sessions. Chat-mode
-sessions have no agent runtime handle and never attach their provider through
-the mux. They may still open session-scoped shell terminals as a worktree escape
-hatch; those shells are separate resources and do not become the agent
-controller.
+The mux carries every session's agent terminal and any session-scoped worktree
+shells. The agent terminal is the only live agent controller.
 
 ### Durable shell-block capture
 

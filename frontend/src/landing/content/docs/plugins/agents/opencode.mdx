@@ -1,15 +1,15 @@
 ---
 title: OpenCode
-description: Built-in Terminal UI and native ACP Chat support for the user's OpenCode installation.
+description: Built-in terminal support for the user's OpenCode installation.
 ---
 
 Operator resolves your local `opencode` executable and reuses its authentication.
 
 ```bash
 opr agent ls --refresh
-opr spawn --project my-app --name opencode-task --agent opencode --mode chat
+opr spawn --project my-app --name opencode-task --agent opencode
 ```
 
-OpenCode can run as its native Terminal UI or through its native ACP interface in structured Chat. Chat history is persisted by Operator as a durable, paged conversation projection while provider conversation identity is retained for continuity.
+Operator runs OpenCode's native terminal UI in the session worktree.
 
 OpenCode is also a shipped reviewer harness. Reviewer configuration is independent from the worker harness; inspect project settings and `opr review --help` for the current review workflow.

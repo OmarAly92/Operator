@@ -14,7 +14,7 @@ The desktop app is the canonical install path. It owns the local daemon, require
 | Git | Always | Creates and manages isolated worktrees and branches. |
 | GitHub CLI `gh` | GitHub projects | Uses your existing authentication for repository and pull-request operations. |
 | An agent harness | Always | The coding agent Operator launches, such as Claude Code, Codex, Cursor, Aider, or OpenCode. |
-| tmux | Terminal UI on macOS/Linux | Keeps native TUI sessions attachable. Chat does not require an agent tmux pane. |
+| tmux | Terminal UI on macOS/Linux | Keeps native TUI sessions attachable. |
 
 Operator uses the agent binaries and sign-ins already installed on your machine. It does not bundle Claude Code, Codex, or other provider CLIs.
 
@@ -48,7 +48,7 @@ Use an account that can read the repository and perform the branch and pull-requ
 
 Install at least one supported agent harness and run it once outside Operator to complete its sign-in flow. Operator detects available harnesses when you create a session.
 
-For structured Chat, start with Claude Code, Codex, OpenCode, or Droid. Other supported harnesses run through their native Terminal UI.
+Every supported harness runs through its native terminal UI.
 
 </Step>
 <Step>
@@ -99,7 +99,7 @@ All Operator application state lives under `~/.operator` by default, including t
 		Run `gh auth status`. Confirm the active account can access the repository and its pull requests.
 	</Accordion>
 	<Accordion title="Terminal UI cannot start on macOS or Linux">
-		Install `tmux`, or choose Chat when the selected harness supports it.
+		Install `tmux` and restart Operator.
 	</Accordion>
 	<Accordion title="The legacy `opr` command is not found">
 		The desktop app does not require it. Only troubleshoot the package manager's global bin path if you intentionally use the frozen legacy CLI.

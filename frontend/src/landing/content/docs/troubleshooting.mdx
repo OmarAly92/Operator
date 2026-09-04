@@ -40,9 +40,6 @@ opr doctor --json
 	<Accordion title="No agent harness is offered">
 		Install the harness, run it once to authenticate, and restart Operator. The desktop daemon inherits a login-shell environment and reuses each provider's installed binary and authentication.
 	</Accordion>
-	<Accordion title="Chat preflight fails">
-		Confirm the selected harness supports native Chat and its binary is authenticated. Chat currently supports Codex, Claude Code, OpenCode, and Droid. Choose Terminal UI when the harness lacks Chat support or preflight cannot connect.
-	</Accordion>
 	<Accordion title="A TUI session will not start on macOS or Linux">
 		Run `tmux -V` and install tmux if it is missing. On Windows, Operator uses its native conpty host instead.
 	</Accordion>
@@ -50,7 +47,7 @@ opr doctor --json
 		Open the session and answer the pending approval or permission prompt. Operator deliberately does not inject lifecycle messages while a controller is blocked.
 	</Accordion>
 	<Accordion title="The status appears wrong">
-		Status is derived from activity, termination, controller, and pull-request facts. A failed runtime probe is not treated as death. Reopen the session and inspect its Chat or terminal before killing it.
+		Status is derived from activity, termination, runtime, and pull-request facts. A failed runtime probe is not treated as death. Reopen the session and inspect its terminal before killing it.
 	</Accordion>
 	<Accordion title="A session will not restore">
 		Use the desktop restore action or `opr session restore <session-id>`. Restore reuses the same session and worktree when the selected adapter supports recovery. Check that the harness remains installed and authenticated.
@@ -104,4 +101,4 @@ opr doctor --json
 
 ## Still Stuck
 
-Open an issue in the [Operator repository](https://github.com/OmarAly92/operator/issues). Include the desktop version, operating system, agent harness and interface mode, reproduction steps, and sanitized `opr doctor --json` output when the CLI is available. Never attach credentials, provider transcripts, or the entire `~/.operator` directory.
+Open an issue in the [Operator repository](https://github.com/OmarAly92/operator/issues). Include the desktop version, operating system, agent harness, reproduction steps, and sanitized `opr doctor --json` output when the CLI is available. Never attach credentials, provider transcripts, or the entire `~/.operator` directory.

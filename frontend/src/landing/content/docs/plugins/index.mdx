@@ -9,7 +9,7 @@ Operator's current Go backend uses built-in adapters and services. These capabil
 
 | Area | Shipped support | Selection |
 | --- | --- | --- |
-| [Agents](/docs/plugins/agents) | 24 terminal agent adapters; four also support structured Chat | Per project or session |
+| [Agents](/docs/plugins/agents) | 24 terminal agent adapters | Per project or session |
 | [Runtime](/docs/plugins/runtimes) | `tmux` on macOS/Linux; ConPTY on Windows | Automatic by platform |
 | [Workspace](/docs/plugins/workspaces) | Git worktrees and Operator-managed Scratch directories | Automatic by project kind |
 | [Tracker](/docs/plugins/trackers) | GitHub issue intake | Per-project, opt-in |
@@ -28,7 +28,7 @@ The other areas are daemon-owned boundaries, not interchangeable marketplace slo
 </Callout>
 
 <Cards>
-	<Card title="Agent catalog" description="See every built-in harness and its Chat support." href="/docs/plugins/agents" />
+	<Card title="Agent catalog" description="See every built-in terminal harness." href="/docs/plugins/agents" />
 	<Card title="CLI reference" description="Use the current daemon-backed commands." href="/docs/cli" />
 	<Card title="Migration" description="Move projects from the legacy TypeScript release." href="/docs/migration" />
 </Cards>

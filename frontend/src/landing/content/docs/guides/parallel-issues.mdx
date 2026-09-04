@@ -1,19 +1,19 @@
 ---
 title: Parallel work
-description: Run isolated worker sessions across issues without mixing branches, terminals, or conversations.
+description: Run isolated worker sessions across issues without mixing branches or terminals.
 ---
 
-Start each task as its own worker session. Git projects receive separate worktrees and branches; Scratch receives separate Operator-managed directories. Chat conversations and Terminal UI runtimes are session-scoped.
+Start each task as its own worker session. Git projects receive separate worktrees and branches; Scratch receives separate Operator-managed directories. Terminal runtimes are session-scoped.
 
 ## Start sessions from desktop
 
-Choose a project, create a new task, give it a short display name, then select the worker harness and Chat or Terminal UI. Repeat for each independent task. The sidebar and sessions board update from the daemon's event stream without a reload.
+Choose a project, create a new task, give it a short display name, then select the worker harness. Repeat for each independent task. The sidebar and sessions board update from the daemon's event stream without a reload.
 
 ## Start sessions from the CLI
 
 ```bash
-opr spawn --project web --name issue-42 --issue 42 --mode chat
-opr spawn --project web --name issue-43 --issue 43 --mode tui
+opr spawn --project web --name issue-42 --issue 42
+opr spawn --project web --name issue-43 --issue 43
 opr spawn --project api --name auth-fix --prompt "Fix token refresh" --harness codex
 ```
 
@@ -25,9 +25,8 @@ opr spawn --project api --name auth-fix --prompt "Fix token refresh" --harness c
 | --- | --- |
 | Files | A worktree or Scratch directory per session |
 | Branch | A generated `opr/<session-id>/root` branch unless overridden |
-| Agent controller | One committed Chat or Terminal UI controller per session |
-| Chat history | Durable, session-scoped conversation projection |
-| Terminal | Session runtime or session-scoped worktree shell |
+| Agent controller | One terminal runtime per session |
+| Terminal | Agent runtime or session-scoped worktree shell |
 | External preview | A selected-session target that opens once in your default browser |
 
 Operator-managed worktrees live under `~/.operator/data/worktrees`, not `~/.worktrees`. External side effects such as pushes, pull requests, CI runs, and review comments are naturally shared with the repository host.
@@ -49,4 +48,4 @@ Cleanup reclaims eligible workspaces for terminated sessions. Dirty registered w
 
 ## Follow the work
 
-Open a session to see its Chat timeline or live terminal, pull-request summary, review runs, and changed files; `opr preview` opens a session's local app in your default browser. Lifecycle updates keep CI, reviews, mergeability, activity, and notifications attached to the owning session.
+Open a session to see its live terminal, pull-request summary, review runs, and changed files; `opr preview` opens a session's local app in your default browser. Lifecycle updates keep CI, reviews, mergeability, activity, and notifications attached to the owning session.

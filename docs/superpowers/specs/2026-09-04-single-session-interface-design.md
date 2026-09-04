@@ -1,6 +1,6 @@
 # One session kind, two client views
 
-Status: design approved, unimplemented
+Status: Phase 1 implemented; Phases 2–4 unimplemented
 Date: 2026-09-04
 Scope: `backend/internal`, `frontend/src/renderer`, `packages/mobile`
 Supersedes: the dual-mode session model established by

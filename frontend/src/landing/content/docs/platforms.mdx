@@ -3,13 +3,13 @@ title: Platforms
 description: Install and use Operator on macOS, Windows, Linux, and mobile.
 ---
 
-Operator ships as a desktop application for macOS, Windows, and Linux. The core workflow is the same everywhere: register a repository, create an isolated worktree, run an agent in Chat or Terminal UI, and follow its pull request.
+Operator ships as a desktop application for macOS, Windows, and Linux. The core workflow is the same everywhere: register a repository, create an isolated worktree, run an agent in its native terminal UI, and follow its pull request.
 
 <PlatformSupport
 	macos="full"
 	linux="full"
 	windows="full"
-	note={<>Terminal UI uses tmux on macOS/Linux and a native conpty host on Windows. Chat uses native provider controllers.</>}
+	note={<>Terminal UI uses tmux on macOS/Linux and a native conpty host on Windows.</>}
 />
 
 ## Desktop Downloads
@@ -25,7 +25,7 @@ Use the download selector on [Installation](/docs/installation) for the current 
 
 ## macOS
 
-Both Chat and Terminal UI are supported. Install tmux if you want to use native terminal sessions:
+Install tmux to run terminal sessions:
 
 ```bash
 brew install tmux
@@ -35,7 +35,7 @@ macOS packages include both a `.dmg` and `.zip`. The disk image is convenient fo
 
 ## Linux
 
-Linux supports the desktop app, Chat, and tmux-backed Terminal UI. Install tmux with your distribution package manager when needed:
+Linux supports the desktop app and tmux-backed Terminal UI. Install tmux with your distribution package manager when needed:
 
 ```bash
 sudo apt install tmux
@@ -45,7 +45,7 @@ Choose the AppImage for a portable launch, or the `.deb`/`.rpm` package that mat
 
 ## Windows
 
-Windows supports the desktop workflow, structured Chat, and native Terminal UI through Operator's conpty host. It does not require tmux, and iTerm2-specific helpers do not apply.
+Windows supports the desktop workflow and native terminal UI through Operator's conpty host. It does not require tmux, and iTerm2-specific helpers do not apply.
 
 Use PowerShell, Command Prompt, or Git Bash for optional CLI commands. Operator suppresses transient console windows for tools launched by the desktop daemon.
 
@@ -61,7 +61,7 @@ Security properties:
 - Traffic is plaintext HTTP and intended only for a trusted home network.
 - Daemon control, telemetry, and browser-control routes remain loopback-only.
 
-Mobile defaults new workers and orchestrators to Chat when the selected harness supports it. Terminal UI remains available as a compatibility choice.
+Mobile creates terminal sessions. Covered harnesses open in the blocks view by default, with a raw-terminal toggle remembered per session on the device.
 
 ## Remote And Server Use
 

@@ -14,7 +14,7 @@ The agents still write the code. Operator provides the control layer around them
 ## What Operator Helps You Do
 
 - Run several coding agents without mixing their files, branches, or pull requests.
-- Choose a native terminal UI or structured Chat for each session.
+- Run each session in its agent's native terminal UI.
 - Follow activity, CI, review feedback, and merge readiness from the desktop app.
 - Send follow-up instructions to the right worker.
 - Run reviewer agents and route requested changes back to the worker.
@@ -29,18 +29,11 @@ Operator works best when each worker has a clear, reviewable outcome: a focused 
 add project -> start session -> isolated worktree -> pull request -> CI/review -> merge -> cleanup
 ```
 
-You can create sessions from the desktop app or the optional CLI. Operator launches the selected agent interface, observes durable activity and pull-request facts, and derives the status shown in the UI.
+You can create sessions from the desktop app or the optional CLI. Operator launches the selected agent's terminal UI, observes durable activity and pull-request facts, and derives the status shown in the UI.
 
-## Chat And Terminal UI
+## Terminal UI
 
-Every session has one active agent interface at a time:
-
-| Interface | Best for |
-| --- | --- |
-| **Chat** | Structured messages, activities, approvals, plans, usage, and conversation history. |
-| **Terminal UI** | The agent harness's native interactive terminal experience. |
-
-Chat is currently available for installed Codex, Claude Code, OpenCode, and Droid harnesses. Compatible Claude Code and Codex sessions can switch between Chat and Terminal UI without changing the Operator session or worktree.
+Every session runs the harness's native interactive terminal. Desktop renders it directly. Mobile opens covered harnesses in a hook-derived blocks view by default and can toggle to the raw terminal per session.
 
 ## Local By Design
 
@@ -50,7 +43,7 @@ Connect Mobile is a separate, opt-in home-network listener protected by a connec
 
 ## Supported Agents
 
-Operator includes adapters for more than twenty agent harnesses, including Claude Code, Codex, Cursor, Aider, OpenCode, Droid, Kimi Code, GitHub Copilot, and others. Native Chat support is a smaller capability-gated subset; other harnesses use Terminal UI.
+Operator includes terminal adapters for more than twenty agent harnesses, including Claude Code, Codex, Cursor, Aider, OpenCode, Droid, Kimi Code, GitHub Copilot, and others.
 
 GitHub is the currently shipped source-control observation path. Broader tracker and SCM integrations described in older Operator documentation are not all available in the current daemon rewrite.
 
@@ -59,7 +52,7 @@ GitHub is the currently shipped source-control observation path. Broader tracker
 <Cards>
 	<Card title="Installation" description="Download the desktop app and connect your tools." href="/docs/installation" />
 	<Card title="Quickstart" description="Run one worker session from task to pull request." href="/docs/quickstart" />
-	<Card title="Dashboard" description="Learn the desktop board, session view, Chat, terminal, and inspector." href="/docs/dashboard" />
-	<Card title="Architecture" description="Understand the Go daemon, desktop app, storage, and session modes." href="/docs/architecture" />
+	<Card title="Dashboard" description="Learn the desktop board, terminal session view, and inspector." href="/docs/dashboard" />
+	<Card title="Architecture" description="Understand the Go daemon, desktop app, storage, and terminal runtime." href="/docs/architecture" />
 	<Card title="Troubleshooting" description="Resolve common desktop, daemon, agent, and session problems." href="/docs/troubleshooting" />
 </Cards>

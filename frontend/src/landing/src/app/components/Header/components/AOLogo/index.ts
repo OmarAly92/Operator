@@ -1,1 +1,1 @@
-export { OperatorLogo } from "./OperatorLogo";
+export { OperatorLogo } from "./AOLogo";

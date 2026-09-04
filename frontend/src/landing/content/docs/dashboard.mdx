@@ -3,7 +3,7 @@ title: Dashboard
 description: Use the Operator desktop app to supervise projects, sessions, pull requests, reviews, and previews.
 ---
 
-The Operator desktop app is the main control surface. It runs the local daemon, keeps projects and sessions visible, and lets you move between a worker's Chat or terminal, pull-request context, review runs, changed files, and external previews.
+The Operator desktop app is the main control surface. It runs the local daemon, keeps projects and sessions visible, and lets you move between a worker's terminal, pull-request context, review runs, changed files, and external previews.
 
 ## The App Shell
 
@@ -11,10 +11,10 @@ The Operator desktop app is the main control surface. It runs the local daemon, 
 | --- | --- |
 | **Sidebar** | Registered projects and their worker or orchestrator sessions. |
 | **Board / center pane** | Sessions grouped by their current derived state. |
-| **Session view** | Structured Chat or the live native Terminal UI. |
+| **Session view** | The live native Terminal UI. |
 | **Inspector** | Pull request, reviews, and files for the selected session. |
 
-Operator remembers the session's committed interface mode. Opening a Chat session restores its paged conversation timeline; opening a TUI session reconnects to its terminal through the daemon mux.
+Opening a session reconnects to its terminal through the daemon mux.
 
 ## Read Session State
 
@@ -30,21 +30,11 @@ Common activity signals include:
 
 A failed or unknown runtime probe alone is not proof that a session is dead.
 
-## Work In Chat
-
-Chat sessions show durable messages, provider activities, commands, plans, changed files, approvals, structured questions, usage, and compaction state. History loads in bounded pages so long-running sessions remain responsive.
-
-The composer sends a provider turn through the daemon. A Chat session can also open a session-scoped worktree shell without creating an agent TUI pane.
-
 ## Work In Terminal UI
 
 TUI sessions preserve the selected harness's native terminal experience. The desktop terminal connects through one daemon WebSocket mux: tmux-backed on macOS/Linux and conpty-backed on Windows.
 
 Use the terminal for native prompts and interactive tools. Use Operator's message controls for routine follow-ups so lifecycle reactions can apply the correct delivery policy.
-
-## Switch Interfaces
-
-Compatible Claude Code and Codex sessions show **Open Chat** or **Open Terminal UI**. Operator replaces the controller inside the same session and worktree. If work is in progress, choose whether to let the current turn finish and drain or stop and interrupt it. Progress and recovery state survive daemon restarts.
 
 ## Pull Requests And Reviews
 
@@ -69,7 +59,7 @@ The notification center keeps durable alerts for sessions that need input, pull 
 
 ## Connect Mobile
 
-In settings, **Connect Mobile** enables an authenticated LAN listener and shows pairing details. The mobile app uses the same durable sessions, Chat history, and event stream. It supports Chat by default and can open a TUI session through the authenticated terminal mux.
+In settings, **Connect Mobile** enables an authenticated LAN listener and shows pairing details. The mobile app uses the same durable sessions and event stream. Covered harnesses open in a hook-derived blocks view by default and can toggle to the raw terminal through the authenticated mux.
 
 Connect Mobile is plaintext and intended only for a trusted home network. Turning it off closes the LAN listener.
 
@@ -83,6 +73,6 @@ GitHub is the current shipped SCM observation path. Do not expect every tracker 
 
 <Cards>
 	<Card title="Quickstart" href="/docs/quickstart" description="Create and follow the first worker session." />
-	<Card title="Architecture" href="/docs/architecture" description="Understand the daemon, storage, events, and controller modes." />
+	<Card title="Architecture" href="/docs/architecture" description="Understand the daemon, storage, events, and terminal runtime." />
 	<Card title="Examples" href="/docs/examples" description="Try practical desktop and CLI workflows." />
 </Cards>

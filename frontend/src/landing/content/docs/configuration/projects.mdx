@@ -65,16 +65,6 @@ Workers implement tasks and own code changes. Orchestrators supervise a project 
 
 The exact model names come from the installed provider. Operator reuses the provider CLI and its existing authentication; it does not store provider tokens in project configuration.
 
-## Session interface
-
-The role selects what a session does; the interface selects how you interact with its agent.
-
-- Chat is available when the installed harness advertises native Chat support. Current drivers cover Codex, Claude Code, OpenCode, and Droid.
-- Terminal UI remains available across the wider agent adapter catalog.
-- Compatible Claude Code and Codex sessions can hand off between Chat and Terminal UI while keeping their Operator session and worktree.
-
-Choose the default interface in desktop project settings. Override it for a single CLI spawn with `--mode chat` or `--mode tui`.
-
 ## Setup and rules
 
 Use `env`, `symlinks`, and `postCreate` for repeatable workspace setup. A failing `postCreate` command prevents the agent from starting, so keep setup deterministic.

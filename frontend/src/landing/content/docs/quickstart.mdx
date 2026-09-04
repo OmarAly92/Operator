@@ -34,19 +34,14 @@ Open Operator, choose **Add project**, and select the local repository. The desk
 
 Create a new task from the project and enter a short name plus a specific prompt. Select an installed agent harness.
 
-Choose the interface that fits the task:
-
-- **Chat** for structured conversation, activities, approvals, plans, and durable history.
-- **Terminal UI** for the harness's native interactive terminal.
-
-Operator creates an isolated git worktree and branch for the session before launching the selected controller.
+Operator creates an isolated git worktree and branch for the session, then launches the harness's native terminal UI.
 
 </Step>
 <Step>
 
 ### Follow the session
 
-Select the session in the sidebar or board. The main pane shows either its Chat conversation or live terminal. The inspector keeps session details, pull-request state, reviews, and changed files close at hand.
+Select the session in the sidebar or board. The main pane shows its live terminal. The inspector keeps session details, pull-request state, reviews, and changed files close at hand.
 
 Activity such as active, idle, waiting for input, blocked, or exited is combined with pull-request facts to derive the status shown by Operator.
 
@@ -55,7 +50,7 @@ Activity such as active, idle, waiting for input, blocked, or exited is combined
 
 ### Give feedback
 
-Use the Chat composer or session message controls for follow-up instructions. Keep corrections concrete:
+Use the terminal or session message controls for follow-up instructions. Keep corrections concrete:
 
 ```text
 Keep this change limited to the API route. Do not refactor the shared client.
@@ -85,10 +80,6 @@ opr preview http://127.0.0.1:5173
 
 If the repository includes `.operator/launch.json`, `opr preview start` can start a configured development server. The selected target then opens once in your system's default browser. Operator does not guess a preview target merely because a worker exists.
 
-## Try Switching Interfaces
-
-Compatible Claude Code and Codex sessions expose **Open Chat** or **Open Terminal UI**. An idle session can switch directly. If a turn is busy, Operator asks whether to finish and drain it or stop and interrupt it before replacing the controller. The Operator session and worktree remain the same.
-
 ## Optional CLI
 
 The CLI is a thin client for the app-owned daemon. It is useful for scripting and terminal-first workflows, but is not required for normal desktop use.
@@ -102,7 +93,7 @@ opr send --session <session-id> --message "Run the focused tests before you fini
 ## Next
 
 <Cards>
-	<Card title="Dashboard" description="Learn the board, session view, inspector, Chat, and terminal." href="/docs/dashboard" />
+	<Card title="Dashboard" description="Learn the board, terminal session view, and inspector." href="/docs/dashboard" />
 	<Card title="Architecture" description="See how the desktop app and daemon coordinate sessions." href="/docs/architecture" />
 	<Card title="Examples" description="Try current desktop and CLI workflows." href="/docs/examples" />
 </Cards>
