@@ -504,6 +504,13 @@ type TerminalBlock struct {
 	CreatedAt      time.Time
 }
 
+type TranscriptOffset struct {
+	SessionID  string
+	Path       string
+	ByteOffset int64
+	UpdatedAt  time.Time
+}
+
 type UsageBinding struct {
 	ID             int64
 	SessionID      domain.SessionID
