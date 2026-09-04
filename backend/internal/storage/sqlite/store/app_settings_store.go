@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/gen"
 )
 
@@ -19,11 +18,6 @@ import (
 // settings service's Record; JSON facets stay encoded because interpreting them
 // is preference policy, not storage policy.
 type AppSettings struct {
-	// DefaultSessionMode is the interface a new session gets when the spawn does
-	// not name one. Never applied to an existing session: only an explicit
-	// interface transition changes a live session's committed mode, so
-	// changing this only affects sessions created afterwards.
-	DefaultSessionMode      domain.SessionMode
 	UpdatedAt               time.Time
 	UILocale                string
 	UpdateOptIn             bool
@@ -58,16 +52,13 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		return AppSettings{}, fmt.Errorf("read app settings: %w", err)
 	}
 	out := AppSettings{
-		// Normalized on read: a value written by a build that knows a mode this
-		// one does not must still resolve to something dispatchable.
-		DefaultSessionMode: domain.NormalizeSessionMode(row.DefaultSessionMode),
-		UpdatedAt:          row.UpdatedAt,
-		UILocale:           row.UiLocale,
-		UpdateOptIn:        row.UpdateOptIn,
-		UpdateChannel:      row.UpdateChannel,
-		UpdateNightlyAck:   row.UpdateNightlyAck,
-		KeybindingsJSON:    row.KeybindingsJson,
-		MigrationJSON:      row.MigrationJson,
+		UpdatedAt:        row.UpdatedAt,
+		UILocale:         row.UiLocale,
+		UpdateOptIn:      row.UpdateOptIn,
+		UpdateChannel:    row.UpdateChannel,
+		UpdateNightlyAck: row.UpdateNightlyAck,
+		KeybindingsJSON:  row.KeybindingsJson,
+		MigrationJSON:    row.MigrationJson,
 	}
 	if row.UpdateFeaturePR.Valid {
 		pr := row.UpdateFeaturePR.Int64
@@ -78,22 +69,6 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		out.LegacyDesktopImportedAt = &stamp
 	}
 	return out, nil
-}
-
-// SetDefaultSessionMode persists the default interface for new sessions.
-func (s *Store) SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode, now time.Time) error {
-	if !mode.Valid() {
-		return fmt.Errorf("invalid session mode %q", mode)
-	}
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if err := s.qw.SetDefaultSessionMode(ctx, gen.SetDefaultSessionModeParams{
-		DefaultSessionMode: mode,
-		UpdatedAt:          now,
-	}); err != nil {
-		return fmt.Errorf("set default session mode: %w", err)
-	}
-	return nil
 }
 
 // SetAppUILocale persists the desktop presentation language.

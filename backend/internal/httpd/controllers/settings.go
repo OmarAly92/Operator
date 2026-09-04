@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
@@ -17,12 +16,10 @@ import (
 // SettingsService is the controller-facing preferences contract.
 type SettingsService interface {
 	Get(ctx context.Context) (settingssvc.Snapshot, error)
-	SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode) (settingssvc.Snapshot, error)
 	SetUILocale(ctx context.Context, locale string) (settingssvc.Snapshot, error)
 	SetUpdateSettings(ctx context.Context, prefs settingssvc.UpdateSettings) (settingssvc.Snapshot, error)
 	SetKeybindings(ctx context.Context, overrides settingssvc.KeybindingOverrides) (settingssvc.Snapshot, error)
 	SetMigrationState(ctx context.Context, state settingssvc.MigrationState) (settingssvc.Snapshot, error)
-	ChatHarnesses(candidates []domain.AgentHarness) []domain.AgentHarness
 }
 
 // SettingsController owns the daemon-owned preference routes.
@@ -37,7 +34,6 @@ type SettingsController struct {
 // Register mounts the settings routes.
 func (c *SettingsController) Register(r chi.Router) {
 	r.Get("/settings", c.get)
-	r.Patch("/settings/session-interface", c.setSessionInterface)
 	r.Patch("/settings/ui", c.setUI)
 	r.Patch("/settings/updates", c.setUpdates)
 	r.Patch("/settings/keybindings", c.setKeybindings)
@@ -50,33 +46,6 @@ func (c *SettingsController) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snapshot, err := c.Svc.Get(r.Context())
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusOK, c.response(snapshot))
-}
-
-func (c *SettingsController) setSessionInterface(w http.ResponseWriter, r *http.Request) {
-	if c.Svc == nil {
-		apispec.NotImplemented(w, r, "PATCH", "/api/v1/settings/session-interface")
-		return
-	}
-	var req UpdateSessionInterfaceRequest
-	if !decodeConversationBody(w, r, &req) {
-		return
-	}
-
-	// Parsed strictly: an unrecognized value is rejected rather than collapsing to
-	// a default the caller did not ask for.
-	mode, err := domain.ParseSessionMode(req.DefaultSessionMode)
-	if err != nil || mode == "" {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation",
-			"SESSION_MODE_INVALID", `defaultSessionMode must be "chat" or "tui"`, nil)
-		return
-	}
-
-	snapshot, err := c.Svc.SetDefaultSessionMode(r.Context(), mode)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -207,16 +176,7 @@ func decodeSettingsBody(w http.ResponseWriter, r *http.Request, into any) bool {
 }
 
 func (c *SettingsController) response(snapshot settingssvc.Snapshot) SettingsResponse {
-	// Reported so the client can warn that choosing chat narrows which agents are
-	// available, instead of letting the user discover it at spawn time.
-	chatHarnesses := c.Svc.ChatHarnesses(domain.AllHarnesses)
-	names := make([]string, 0, len(chatHarnesses))
-	for _, harness := range chatHarnesses {
-		names = append(names, string(harness))
-	}
 	return SettingsResponse{
-		DefaultSessionMode:      string(snapshot.DefaultSessionMode),
-		ChatHarnesses:           names,
 		UI:                      UiSettings{Locale: snapshot.UILocale},
 		Updates:                 snapshot.Updates,
 		Keybindings:             snapshot.Keybindings,

@@ -4539,43 +4539,6 @@ paths:
       summary: Record the legacy desktop import decision
       tags:
       - settings
-  /api/v1/settings/session-interface:
-    patch:
-      operationId: updateSessionInterface
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateSessionInterfaceRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SettingsResponse'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Bad Request
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Choose the default interface for new sessions
-      tags:
-      - settings
   /api/v1/settings/ui:
     patch:
       operationId: updateUiSettings
@@ -7982,15 +7945,6 @@ components:
       type: object
     SettingsResponse:
       properties:
-        chatHarnesses:
-          items:
-            type: string
-          type: array
-        defaultSessionMode:
-          enum:
-          - chat
-          - tui
-          type: string
         keybindings:
           $ref: '#/components/schemas/KeybindingOverrides'
         legacyDesktopImportedAt:
@@ -8005,8 +7959,6 @@ components:
         updates:
           $ref: '#/components/schemas/UpdateSettings'
       required:
-      - defaultSessionMode
-      - chatHarnesses
       - ui
       - updates
       - keybindings
@@ -8460,16 +8412,6 @@ components:
       required:
       - displayName
       - config
-      type: object
-    UpdateSessionInterfaceRequest:
-      properties:
-        defaultSessionMode:
-          enum:
-          - chat
-          - tui
-          type: string
-      required:
-      - defaultSessionMode
       type: object
     UpdateSettings:
       properties:

@@ -186,7 +186,7 @@ func TestImportLegacyDesktopMarkerFailureLeavesRetryWindowOpen(t *testing.T) {
 	writeLegacyFile(t, filepath.Join(dir, "ui-settings.json"), `{"locale":"ja"}`)
 
 	store := &markFailingStore{&fakeStore{rec: Record{UILocale: "fr"}}}
-	svc := New(store, nil, func() time.Time {
+	svc := New(store, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	})
 	if err := svc.ImportLegacyDesktop(context.Background(), legacyFiles(dir)); err == nil {
@@ -211,7 +211,7 @@ func TestImportLegacyDesktopFailedFacetDoesNotStampMarker(t *testing.T) {
 	writeLegacyFile(t, filepath.Join(dir, "ui-settings.json"), `{"locale":"ja"}`)
 
 	store := &facetFailingStore{&fakeStore{}}
-	svc := New(store, nil, func() time.Time {
+	svc := New(store, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	})
 	if err := svc.ImportLegacyDesktop(context.Background(), legacyFiles(dir)); err == nil {

@@ -9,8 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const claimAppLegacyDesktopImport = `-- name: ClaimAppLegacyDesktopImport :execrows
@@ -140,19 +138,5 @@ func (q *Queries) SetAppUpdateSettings(ctx context.Context, arg SetAppUpdateSett
 		arg.UpdateFeaturePR,
 		arg.UpdatedAt,
 	)
-	return err
-}
-
-const setDefaultSessionMode = `-- name: SetDefaultSessionMode :exec
-UPDATE app_settings SET default_session_mode = ?, updated_at = ? WHERE id = 1
-`
-
-type SetDefaultSessionModeParams struct {
-	DefaultSessionMode domain.SessionMode
-	UpdatedAt          time.Time
-}
-
-func (q *Queries) SetDefaultSessionMode(ctx context.Context, arg SetDefaultSessionModeParams) error {
-	_, err := q.db.ExecContext(ctx, setDefaultSessionMode, arg.DefaultSessionMode, arg.UpdatedAt)
 	return err
 }

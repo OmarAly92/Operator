@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/config"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
@@ -19,7 +18,6 @@ import (
 )
 
 type fakeSettingsService struct {
-	gotMode      domain.SessionMode
 	gotLocale    string
 	gotUpdates   settingssvc.UpdateSettings
 	gotBindings  settingssvc.KeybindingOverrides
@@ -27,20 +25,10 @@ type fakeSettingsService struct {
 	snapshot     settingssvc.Snapshot
 	getErr       error
 	migrationErr error
-	harnesses    []domain.AgentHarness
 }
 
 func (f *fakeSettingsService) Get(context.Context) (settingssvc.Snapshot, error) {
 	return f.snapshot, f.getErr
-}
-
-func (f *fakeSettingsService) SetDefaultSessionMode(_ context.Context, mode domain.SessionMode) (settingssvc.Snapshot, error) {
-	f.gotMode = mode
-	return f.snapshot, nil
-}
-
-func (f *fakeSettingsService) ChatHarnesses([]domain.AgentHarness) []domain.AgentHarness {
-	return f.harnesses
 }
 
 func (f *fakeSettingsService) SetUILocale(_ context.Context, locale string) (settingssvc.Snapshot, error) {
@@ -77,9 +65,8 @@ func newSettingsTestServer(t *testing.T, svc controllers.SettingsService) *httpt
 func sampleSnapshot() settingssvc.Snapshot {
 	imported := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
 	return settingssvc.Snapshot{
-		DefaultSessionMode: domain.SessionModeTUI,
-		UpdatedAt:          time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC),
-		UILocale:           "ja",
+		UpdatedAt: time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC),
+		UILocale:  "ja",
 		Updates: settingssvc.UpdateSettings{
 			Enabled:    true,
 			Channel:    settingssvc.UpdateChannelNightly,
@@ -101,7 +88,7 @@ func sampleSnapshot() settingssvc.Snapshot {
 }
 
 func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
-	svc := &fakeSettingsService{snapshot: sampleSnapshot(), harnesses: []domain.AgentHarness{domain.HarnessClaudeCode}}
+	svc := &fakeSettingsService{snapshot: sampleSnapshot()}
 	srv := newSettingsTestServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, "GET", "/api/v1/settings", "")
@@ -109,9 +96,7 @@ func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body=%s", status, body)
 	}
 	var resp struct {
-		DefaultSessionMode string   `json:"defaultSessionMode"`
-		ChatHarnesses      []string `json:"chatHarnesses"`
-		UI                 struct {
+		UI struct {
 			Locale string `json:"locale"`
 		} `json:"ui"`
 		Updates struct {
@@ -134,9 +119,6 @@ func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
 		LegacyDesktopImportedAt string `json:"legacyDesktopImportedAt"`
 	}
 	mustJSON(t, body, &resp)
-	if resp.DefaultSessionMode != "tui" || len(resp.ChatHarnesses) != 1 {
-		t.Errorf("session fields drifted: %+v", resp)
-	}
 	if resp.UI.Locale != "ja" {
 		t.Errorf("locale = %q, want ja", resp.UI.Locale)
 	}
@@ -285,31 +267,8 @@ func TestSettingsAPINotImplementedWithoutService(t *testing.T) {
 	}
 }
 
-func TestSettingsAPISessionInterfaceUnchanged(t *testing.T) {
-	svc := &fakeSettingsService{snapshot: sampleSnapshot(), harnesses: []domain.AgentHarness{domain.HarnessClaudeCode}}
-	srv := newSettingsTestServer(t, svc)
-
-	body, status, _ := doRequest(t, srv, "PATCH", "/api/v1/settings/session-interface", `{"defaultSessionMode":"chat"}`)
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", status, body)
-	}
-	if svc.gotMode != domain.SessionModeChat {
-		t.Errorf("mode = %q, want chat", svc.gotMode)
-	}
-	var resp struct {
-		DefaultSessionMode string   `json:"defaultSessionMode"`
-		ChatHarnesses      []string `json:"chatHarnesses"`
-	}
-	mustJSON(t, body, &resp)
-	if resp.DefaultSessionMode != "tui" {
-		t.Errorf("response mode = %q, want the snapshot value", resp.DefaultSessionMode)
-	}
-}
-
-func TestSettingsAPIGetStillServesWhenOnlySessionFieldsSet(t *testing.T) {
-	svc := &fakeSettingsService{snapshot: settingssvc.Snapshot{
-		DefaultSessionMode: domain.SessionModeChat,
-	}}
+func TestSettingsAPIGetStillServesAnEmptySnapshot(t *testing.T) {
+	svc := &fakeSettingsService{snapshot: settingssvc.Snapshot{}}
 	srv := newSettingsTestServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, "GET", "/api/v1/settings", "")

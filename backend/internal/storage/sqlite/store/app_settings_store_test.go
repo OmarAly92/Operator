@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite/sqlitetest"
 	sqlitestore "github.com/OmarAly92/operator/backend/internal/storage/sqlite/store"
@@ -22,9 +21,6 @@ func TestAppSettingsMigrationSeedsDesktopDefaults(t *testing.T) {
 	row, err := s.GetAppSettings(ctx)
 	if err != nil {
 		t.Fatalf("read app settings: %v", err)
-	}
-	if row.DefaultSessionMode != domain.SessionModeTUI {
-		t.Errorf("mode = %q, want tui", row.DefaultSessionMode)
 	}
 	if row.UILocale != "en" {
 		t.Errorf("locale = %q, want en", row.UILocale)
@@ -57,9 +53,6 @@ func TestAppSettingsFacetWritesPreserveUnrelatedColumns(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 
-	if err := s.SetDefaultSessionMode(ctx, domain.SessionModeChat, now); err != nil {
-		t.Fatalf("set session mode: %v", err)
-	}
 	if err := s.SetAppUILocale(ctx, "ko", now); err != nil {
 		t.Fatalf("set ui locale: %v", err)
 	}
@@ -77,9 +70,6 @@ func TestAppSettingsFacetWritesPreserveUnrelatedColumns(t *testing.T) {
 	row, err := s.GetAppSettings(ctx)
 	if err != nil {
 		t.Fatalf("read app settings: %v", err)
-	}
-	if row.DefaultSessionMode != domain.SessionModeChat {
-		t.Errorf("mode = %q, want chat preserved", row.DefaultSessionMode)
 	}
 	if row.UILocale != "ko" {
 		t.Errorf("locale = %q, want ko preserved", row.UILocale)
@@ -184,7 +174,6 @@ func TestAppSettingsMutationsEmitNoChangeLogRows(t *testing.T) {
 	pr := int64(9)
 
 	mutate := []func() error{
-		func() error { return s.SetDefaultSessionMode(ctx, domain.SessionModeChat, now) },
 		func() error { return s.SetAppUILocale(ctx, "zh-CN", now) },
 		func() error { return s.SetAppUpdateSettings(ctx, true, "nightly", true, &pr, now) },
 		func() error { return s.SetAppKeybindings(ctx, `{"new-session":[]}`, now) },

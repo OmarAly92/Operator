@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
 )
 
@@ -24,17 +23,6 @@ func (f *fakeStore) GetAppSettings(context.Context) (Record, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.rec, f.err
-}
-
-func (f *fakeStore) SetDefaultSessionMode(_ context.Context, mode domain.SessionMode, now time.Time) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return f.err
-	}
-	f.rec.DefaultSessionMode = mode
-	f.rec.UpdatedAt = now
-	return nil
 }
 
 func (f *fakeStore) SetUILocale(_ context.Context, locale string, now time.Time) error {
@@ -155,22 +143,21 @@ func (f *fakeStore) ApplyLegacyDesktopImport(_ context.Context, values LegacyDes
 }
 
 func newTestService(store *fakeStore) *Service {
-	return New(store, nil, func() time.Time {
+	return New(store, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	})
 }
 
 func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 	store := &fakeStore{rec: Record{
-		DefaultSessionMode: domain.SessionModeTUI,
-		UpdatedAt:          time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC),
-		UILocale:           "xx-YY",
-		UpdateOptIn:        true,
-		UpdateChannel:      "weekly",
-		UpdateNightlyAck:   true,
-		UpdateFeaturePR:    nil,
-		KeybindingsJSON:    `{"new-session":not-json`,
-		MigrationJSON:      `{`,
+		UpdatedAt:        time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC),
+		UILocale:         "xx-YY",
+		UpdateOptIn:      true,
+		UpdateChannel:    "weekly",
+		UpdateNightlyAck: true,
+		UpdateFeaturePR:  nil,
+		KeybindingsJSON:  `{"new-session":not-json`,
+		MigrationJSON:    `{`,
 	}}
 	svc := newTestService(store)
 
@@ -195,31 +182,6 @@ func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 	}
 	if snapshot.Migration.Status != MigrationPending {
 		t.Errorf("migration status = %q, want %q for corrupt JSON", snapshot.Migration.Status, MigrationPending)
-	}
-}
-
-func TestSetDefaultSessionModePersistsAndReturnsSnapshot(t *testing.T) {
-	store := &fakeStore{}
-	svc := newTestService(store)
-
-	snapshot, err := svc.SetDefaultSessionMode(context.Background(), domain.SessionModeChat)
-	if err != nil {
-		t.Fatalf("set default session mode: %v", err)
-	}
-	if snapshot.DefaultSessionMode != domain.SessionModeChat {
-		t.Errorf("mode = %q, want chat", snapshot.DefaultSessionMode)
-	}
-	if _, err := svc.SetDefaultSessionMode(context.Background(), "voice"); err == nil {
-		t.Fatal("expected invalid mode to be rejected")
-	}
-}
-
-func TestDefaultSessionModeFallsBackWhenStoreFails(t *testing.T) {
-	store := &fakeStore{err: errors.New("disk on fire")}
-	svc := newTestService(store)
-
-	if got := svc.DefaultSessionMode(context.Background()); got != domain.DefaultSessionMode {
-		t.Errorf("mode = %q, want compatibility default %q", got, domain.DefaultSessionMode)
 	}
 }
 
@@ -545,9 +507,6 @@ func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	}
 	if snapshot.Migration.Status != MigrationDeclined {
 		t.Errorf("migration = %q, want declined preserved", snapshot.Migration.Status)
-	}
-	if snapshot.DefaultSessionMode != domain.DefaultSessionMode {
-		t.Errorf("session mode = %q, want the default untouched", snapshot.DefaultSessionMode)
 	}
 }
 

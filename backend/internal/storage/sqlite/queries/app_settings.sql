@@ -6,9 +6,6 @@
 -- name: GetAppSettings :one
 SELECT * FROM app_settings WHERE id = 1;
 
--- name: SetDefaultSessionMode :exec
-UPDATE app_settings SET default_session_mode = ?, updated_at = ? WHERE id = 1;
-
 -- name: SetAppUILocale :exec
 UPDATE app_settings SET ui_locale = ?, updated_at = ? WHERE id = 1;
 

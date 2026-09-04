@@ -201,7 +201,6 @@ func Run() error {
 	// service's, adapted here so neither package imports the other.
 	settingsSvc := settingssvc.New(
 		settingsStore{store: store},
-		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
 	)
 

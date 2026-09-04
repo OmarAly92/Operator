@@ -1795,12 +1795,6 @@ type SetConversationTitleResponse struct {
 
 // SettingsResponse is the daemon-owned preference set.
 type SettingsResponse struct {
-	// DefaultSessionMode applies to sessions created from now on. Changing it
-	// never alters an existing session; only an explicit interface transition can.
-	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
-	// ChatHarnesses are the agents that can run in chat mode today. Empty means
-	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string `json:"chatHarnesses"`
 	// UI holds the desktop presentation preferences.
 	UI UiSettings `json:"ui"`
 	// Updates is the auto-update opt-in state shared by desktop clients.
@@ -1813,11 +1807,6 @@ type SettingsResponse struct {
 	// LegacyDesktopImportedAt records when legacy JSON settings were imported.
 	// Null until the import runs; once set it never clears or moves.
 	LegacyDesktopImportedAt *time.Time `json:"legacyDesktopImportedAt"`
-}
-
-// UpdateSessionInterfaceRequest changes the default interface for new sessions.
-type UpdateSessionInterfaceRequest struct {
-	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 }
 
 // UiSettings holds the desktop presentation preferences.

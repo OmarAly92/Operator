@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	settingssvc "github.com/OmarAly92/operator/backend/internal/service/settings"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 )
@@ -24,7 +23,6 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Record, 
 		return settingssvc.Record{}, err
 	}
 	return settingssvc.Record{
-		DefaultSessionMode:      row.DefaultSessionMode,
 		UpdatedAt:               row.UpdatedAt,
 		UILocale:                row.UILocale,
 		UpdateOptIn:             row.UpdateOptIn,
@@ -35,14 +33,6 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Record, 
 		MigrationJSON:           row.MigrationJSON,
 		LegacyDesktopImportedAt: row.LegacyDesktopImportedAt,
 	}, nil
-}
-
-func (s settingsStore) SetDefaultSessionMode(
-	ctx context.Context,
-	mode domain.SessionMode,
-	now time.Time,
-) error {
-	return s.store.SetDefaultSessionMode(ctx, mode, now)
 }
 
 func (s settingsStore) SetUILocale(ctx context.Context, locale string, now time.Time) error {

@@ -141,7 +141,6 @@ func schemaName(_ reflect.Type, defaultName string) string {
 // the drift test fails until the spec is regenerated, which flags the gap.
 var schemaNames = map[string]string{
 	"ControllersSettingsResponse":                     "SettingsResponse",
-	"ControllersUpdateSessionInterfaceRequest":        "UpdateSessionInterfaceRequest",
 	"ControllersUiSettings":                           "UiSettings",
 	"ControllersMigrationState":                       "MigrationState",
 	"SettingsUpdateSettings":                          "UpdateSettings",
@@ -543,17 +542,6 @@ func shellTerminalOperations() []operation {
 			summary: "Read the daemon-owned user preferences",
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPatch, path: "/api/v1/settings/session-interface", id: "updateSessionInterface", tag: "settings",
-			summary: "Choose the default interface for new sessions",
-			reqBody: controllers.UpdateSessionInterfaceRequest{},
-			resps: []respUnit{
-				{http.StatusOK, controllers.SettingsResponse{}},
-				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

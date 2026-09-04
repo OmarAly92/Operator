@@ -1497,23 +1497,6 @@ export interface paths {
         patch: operations["setMigrationState"];
         trace?: never;
     };
-    "/api/v1/settings/session-interface": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Choose the default interface for new sessions */
-        patch: operations["updateSessionInterface"];
-        trace?: never;
-    };
     "/api/v1/settings/ui": {
         parameters: {
             query?: never;
@@ -2795,9 +2778,6 @@ export interface components {
             harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
         };
         SettingsResponse: {
-            chatHarnesses: string[];
-            /** @enum {string} */
-            defaultSessionMode: "chat" | "tui";
             keybindings: components["schemas"]["KeybindingOverrides"];
             /** Format: date-time */
             legacyDesktopImportedAt: null | string;
@@ -2973,10 +2953,6 @@ export interface components {
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
             displayName: string;
-        };
-        UpdateSessionInterfaceRequest: {
-            /** @enum {string} */
-            defaultSessionMode: "chat" | "tui";
         };
         UpdateSettings: {
             /** @enum {string} */
@@ -8701,57 +8677,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MigrationState"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    updateSessionInterface: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSessionInterfaceRequest"];
             };
         };
         responses: {
