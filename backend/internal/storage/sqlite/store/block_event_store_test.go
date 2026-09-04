@@ -166,6 +166,27 @@ func TestSelectBlockEventsBeforeSeqAtTheStartIsEmpty(t *testing.T) {
 	}
 }
 
+func TestBlockEventStoreRoundTripsSource(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	if _, err := s.InsertBlockEvent(ctx, blockeventsvc.Record{
+		SessionID: "s-1",
+		Kind:      domain.BlockEventAssistantText,
+		Source:    domain.BlockEventSourceTranscript,
+		Text:      "done",
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	recs, err := s.SelectBlockEventsBySession(ctx, "s-1", 0, 10)
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if len(recs) != 1 || recs[0].Source != domain.BlockEventSourceTranscript {
+		t.Fatalf("source = %+v", recs)
+	}
+}
+
 func TestSelectBlockEventsBeforeSeqIsScopedToOneSession(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

@@ -1698,6 +1698,7 @@ export interface components {
             /** Format: int64 */
             seq: number;
             sessionId: string;
+            source?: string;
             sourceId?: string;
             text?: string;
             toolInput?: string;

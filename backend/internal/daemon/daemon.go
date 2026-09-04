@@ -148,7 +148,7 @@ func Run() error {
 	if n := redact.LoadUserPatterns(cfg.DataDir, log); n > 0 {
 		log.Info("loaded user redaction patterns", "count", n)
 	}
-	blockEvents := blockevent.NewService(store, termMgr, 500)
+	blockEvents := blockevent.NewService(store, termMgr, 2000)
 
 	terminalBlocks := terminalblocksvc.NewService(store)
 	captureSup := capturesvc.NewSupervisor(runtimeAdapter, terminalBlocks, cfg.DataDir, cfg.ShutdownTimeout, log)

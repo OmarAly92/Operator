@@ -5003,6 +5003,8 @@ components:
           type: integer
         sessionId:
           type: string
+        source:
+          type: string
         sourceId:
           type: string
         text:

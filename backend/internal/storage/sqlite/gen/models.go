@@ -89,6 +89,7 @@ type BlockEvent struct {
 	TruncatedLines int64
 	CreatedAt      time.Time
 	ToolInput      string
+	Source         string
 }
 
 type ChangeLog struct {

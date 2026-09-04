@@ -39,6 +39,7 @@ func (s *Store) InsertBlockEvent(ctx context.Context, rec blockeventsvc.Record) 
 		ErrorType:      rec.ErrorType,
 		HookVersion:    rec.HookVersion,
 		TruncatedLines: int64(rec.TruncatedLines),
+		Source:         string(rec.Source),
 		CreatedAt:      rec.CreatedAt,
 	})
 	if err != nil {
@@ -73,6 +74,7 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 			ErrorType:      row.ErrorType,
 			HookVersion:    row.HookVersion,
 			TruncatedLines: int(row.TruncatedLines),
+			Source:         domain.BlockEventSource(row.Source),
 			CreatedAt:      row.CreatedAt,
 		}
 		if row.RedactedSpans != "" {
@@ -114,6 +116,7 @@ func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string
 			ErrorType:      row.ErrorType,
 			HookVersion:    row.HookVersion,
 			TruncatedLines: int(row.TruncatedLines),
+			Source:         domain.BlockEventSource(row.Source),
 			CreatedAt:      row.CreatedAt,
 		}
 		if row.RedactedSpans != "" {

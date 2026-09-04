@@ -261,6 +261,7 @@ type BlockEventView struct {
 	SessionID      string                  `json:"sessionId"`
 	SourceID       string                  `json:"sourceId,omitempty"`
 	Kind           string                  `json:"kind"`
+	Source         string                  `json:"source,omitempty"`
 	RawEvent       string                  `json:"rawEvent,omitempty"`
 	Harness        string                  `json:"harness,omitempty"`
 	ToolName       string                  `json:"toolName,omitempty"`
@@ -295,6 +296,7 @@ func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 			SessionID:      rec.SessionID,
 			SourceID:       rec.SourceID,
 			Kind:           string(rec.Kind),
+			Source:         string(rec.Source),
 			RawEvent:       rec.RawEvent,
 			Harness:        rec.Harness,
 			ToolName:       rec.ToolName,

@@ -99,6 +99,7 @@ var shippedMigrations = map[int64]string{
 	92: "0092_terminal_blocks.sql",
 	93: "0093_drop_shell_terminal_session_id.sql",
 	94: "0094_clear_pre_release_data.go",
+	95: "0095_block_event_source.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

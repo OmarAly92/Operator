@@ -1122,9 +1122,8 @@ func (c *SessionsController) listAgentSwitches(w http.ResponseWriter, r *http.Re
 	envelope.WriteJSON(w, http.StatusOK, ListAgentSwitchesResponse{Switches: agentSwitchViews(switches)})
 }
 
-// maxBlockEventPage bounds one history page. It matches the daemon's per-session
-// retention (blockevent.NewService(store, termMgr, 500) in daemon.go) so a
-// client can ask for everything that exists in one call and no more.
+// maxBlockEventPage bounds one history page. It bounds one response; a client
+// reaches older events with beforeSeq.
 const maxBlockEventPage = 500
 
 func (c *SessionsController) listBlockEvents(w http.ResponseWriter, r *http.Request) {

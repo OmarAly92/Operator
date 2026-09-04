@@ -77,6 +77,7 @@ func (s *Service) Record(ctx context.Context, sessionID domain.SessionID, harnes
 		SessionID:      string(sessionID),
 		SourceID:       sourceID,
 		Kind:           decision.Kind,
+		Source:         domain.BlockEventSourceHook,
 		Harness:        harness,
 		ToolName:       sig.ToolName,
 		ToolUseID:      sig.ToolUseID,
