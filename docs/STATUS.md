@@ -163,8 +163,14 @@ surface (`npm run sqlc`, `npm run api`).
   session to the terminal screen, which opens in the blocks view for a covered
   harness and can be toggled to the raw terminal per session, remembered on the
   device.
-- Mobile's current blocks view is hook-derived. Phase 2 adds transcript-backed
-  Claude Code and Codex content; Phase 3 adds deterministic terminal controls.
+- Mobile's blocks view is fed by two channels: agent hooks report status and the
+  session's native transcript reports body. A per-session tailer projects Claude
+  Code JSONL and Codex rollout records into assistant text, reasoning, full tool
+  input, tool results, todo lists, the turn's model, compaction, and the options
+  of a pending question. Precedence is fixed: transcript wins on body, hook wins
+  on status, and a session whose transcript is unreadable degrades to the
+  hook-only projection. Harnesses other than Claude Code and Codex contribute
+  hook blocks only. Phase 3 adds deterministic terminal controls.
 
 ## In flight / not yet a runtime feature
 

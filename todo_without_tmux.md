@@ -499,7 +499,7 @@ scope decisions, not bugs.
 
 ### 15.1 Grok has no transcript mapper
 
-Phase 2 of that spec tails the native transcript of Claude Code and Codex to give the
+Phase 2 tails the native transcript of Claude Code and Codex to give the
 phone full assistant text, reasoning, tool input and results. `grok` reuses Claude
 Code's hook table in `blockdispatch/dispatch.go`, so its hook blocks are identical,
 but whether it writes a Claude-shaped JSONL transcript was never checked and the user
@@ -510,8 +510,8 @@ tailer at its transcript path; if not, it needs its own mapper behind the same s
 
 ### 15.2 Subagent records are dropped, not nested
 
-Claude Code marks a Task subagent's inner messages with `isSidechain: true`; Codex
-emits `event_msg` `sub_agent_activity`. Phase 2 drops both, so the phone sees the
+Claude Code marked a Task subagent's inner messages with `isSidechain: true`; Codex
+emitted `event_msg` `sub_agent_activity`. Phase 2 drops both, so the phone sees the
 Task tool block and its final summary result but nothing of what the subagent did
 in between. Nesting them as children under the running Task block would give full
 visibility but needs a parent linkage in the block event record (`parentUuid` on the

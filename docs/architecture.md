@@ -1,6 +1,6 @@
 # Operator Architecture
 
-Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and runs its agent's terminal UI inside a pty-host runtime. Desktop renders that terminal directly; mobile renders hook-derived blocks by default with a device-local raw-terminal toggle. The daemon coordinates both clients through the same session, lifecycle, workspace, storage, and observation boundaries.
+Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and runs its agent's terminal UI inside a pty-host runtime. Desktop renders that terminal directly; mobile renders blocks derived from agent hooks and the session's native transcript by default with a device-local raw-terminal toggle. The daemon coordinates both clients through the same session, lifecycle, workspace, storage, and observation boundaries.
 
 ## Table of Contents
 
@@ -770,11 +770,11 @@ The daemon runs two independent HTTP listeners sharing the same chi router:
 2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3011` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.operator/mobile/config.json` and restored on daemon boot.
 
 The mobile app is a second thin renderer over those same session resources. It
-routes every session to the terminal screen, renders hook-derived blocks for a
-covered harness by default, and can attach the same mux PTY as a raw-terminal
-view. The per-session view choice is stored only on the device. Session commands
-remain daemon operations; no provider or lifecycle policy is implemented in the
-Flutter client.
+routes every session to the terminal screen, renders blocks for a covered harness
+by default, merged from the hook channel and the daemon's transcript tailer, and
+can attach the same mux PTY as a raw-terminal view. The per-session view choice
+is stored only on the device. Session commands remain daemon operations; no
+provider or lifecycle policy is implemented in the Flutter client.
 
 For implementation details and security model, consult `docs/adr/0001-lan-listener-for-mobile.md` and the glossary in `CONTEXT.md`.
 
@@ -815,6 +815,20 @@ sequenceDiagram
 
 The mux carries every session's agent terminal and any session-scoped worktree
 shells. The agent terminal is the only live agent controller.
+
+### Transcript block projection
+
+`internal/observe/transcript` runs one tail per live session whose harness has a
+mapper in `adapters/agent/blocktranscript` (Claude Code and Codex today). It
+resolves the session's provider transcript through the adapter's own
+`AgentTranscriptLocator`, rejecting any path outside that provider's config
+directory, reads new complete JSONL lines from a cursor persisted in
+`transcript_offsets`, and records each mapped record through the same
+`blockevent.Service` a hook uses — same redaction, same caps, same mux publish —
+marked `source = transcript`. It shares no state with the usage observer, which
+reads the same files on its own cursor for unrelated reasons. An unrecognised
+record type produces nothing and is counted, so a harness upgrade degrades to
+fewer blocks rather than to a crash.
 
 ### Durable shell-block capture
 
