@@ -273,10 +273,6 @@ type Manager struct {
 	// chat launches the structured controller for a chat-mode session. Nil means
 	// this build cannot run chat sessions, and a chat spawn is refused rather
 	// than silently downgraded to a terminal.
-	// defaults resolves the daemon-owned default session interface for a spawn
-	// that names no mode. Nil falls back to the compatibility default, so a build
-	// without it behaves exactly as before.
-	defaults            SessionModeDefaults
 	chat                ChatLauncher
 	lcm                 lifecycleRecorder
 	preview             PreviewLifecycle
@@ -479,9 +475,6 @@ type Deps struct {
 	Workspace ports.Workspace
 	Store     Store
 	Messenger ports.AgentMessenger
-	// Defaults supplies the daemon-owned default session interface for spawns that
-	// name no mode. Nil means always use the compatibility default.
-	Defaults SessionModeDefaults
 	// Chat launches the structured controller for a chat-mode session. Nil means
 	// chat mode is unavailable, and a chat spawn is refused rather than silently
 	// downgraded to a terminal.
@@ -518,7 +511,6 @@ func New(d Deps) *Manager {
 		agents:                       d.Agents,
 		workspace:                    d.Workspace,
 		store:                        d.Store,
-		defaults:                     d.Defaults,
 		chat:                         d.Chat,
 		lcm:                          d.Lifecycle,
 		preview:                      d.Preview,
@@ -610,28 +602,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
 	}
 
-	// Resolve the controller mode here, before anything durable is created, for
-	// the same reason an unknown harness is rejected above: a chat request Operator
-	// cannot honor should cost nothing, not leave a terminated row and a worktree
-	// behind. It never falls back to TUI — that would put the user in a terminal
-	// they deliberately did not ask for.
-	mode := m.resolveSessionMode(ctx, cfg.RequestedMode)
-	if mode == domain.SessionModeChat {
-		if m.chat == nil {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: chat mode is not available in this build", ports.ErrChatUnsupported)
-		}
-		if err := m.chat.PreflightChat(ctx, cfg.Harness); err != nil {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
-		}
-	}
-	cfg.RequestedMode = mode
-
-	// A chat session runs no agent inside a terminal runtime, so the terminal
-	// prerequisites are not its concern.
-	if mode == domain.SessionModeTUI {
-		if err := m.validateRuntimePrerequisites(); err != nil {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
-		}
+	mode := domain.SessionModeTUI
+	if err := m.validateRuntimePrerequisites(); err != nil {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
 	}
 
 	prompt, systemPrompt, err := m.buildSpawnTexts(ctx, cfg)
@@ -2773,17 +2746,15 @@ func (m *Manager) cleanupRecords(ctx context.Context, project domain.ProjectID) 
 
 func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 	return domain.SessionRecord{
-		ProjectID:   cfg.ProjectID,
-		IssueID:     cfg.IssueID,
-		Kind:        cfg.Kind,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		Harness:     cfg.Harness,
-		DisplayName: cfg.DisplayName,
-		Activity:    domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
-		// Resolved before this point and persisted here. There is no UPDATE
-		// statement that can change it afterwards.
-		Mode:             domain.NormalizeSessionMode(cfg.RequestedMode),
+		ProjectID:        cfg.ProjectID,
+		IssueID:          cfg.IssueID,
+		Kind:             cfg.Kind,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		Harness:          cfg.Harness,
+		DisplayName:      cfg.DisplayName,
+		Activity:         domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
+		Mode:             domain.SessionModeTUI,
 		AutoInjectReview: true,
 	}
 }

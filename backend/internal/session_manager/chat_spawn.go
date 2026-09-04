@@ -231,30 +231,6 @@ func (m *Manager) sendChat(ctx context.Context, id domain.SessionID, message, cl
 	return true, nil
 }
 
-// SessionModeDefaults supplies the daemon-owned default session interface.
-type SessionModeDefaults interface {
-	DefaultSessionMode(ctx context.Context) domain.SessionMode
-}
-
-// resolveSessionMode applies the precedence for a spawn:
-//
-//  1. the mode the caller explicitly requested;
-//  2. the daemon-owned default;
-//  3. the compatibility default, TUI.
-//
-// The default is read here, at spawn time, so changing the preference affects only
-// sessions created afterwards. An existing session changes only through an explicit,
-// capability-gated interface transition; it is never re-resolved from the default.
-func (m *Manager) resolveSessionMode(ctx context.Context, requested domain.SessionMode) domain.SessionMode {
-	if requested.Valid() {
-		return requested
-	}
-	if m.defaults == nil {
-		return domain.DefaultSessionMode
-	}
-	return domain.NormalizeSessionMode(m.defaults.DefaultSessionMode(ctx))
-}
-
 // resumeChatController reattaches a chat session to its provider conversation
 // after a daemon restart.
 //

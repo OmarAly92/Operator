@@ -1055,6 +1055,29 @@ func mkLive(id domain.SessionID) domain.SessionRecord {
 	return domain.SessionRecord{ID: id, ProjectID: "mer", Metadata: domain.SessionMetadata{WorkspacePath: "/ws/" + string(id), RuntimeHandleID: "h1"}, Activity: domain.Activity{State: domain.ActivityActive}}
 }
 
+func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		Worker: domain.RoleOverride{Harness: domain.HarnessCodex},
+	}}
+	agent := &recordingAgent{}
+	rt := &fakeRuntime{}
+	ws := &fakeWorkspace{}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, RequestedMode: domain.SessionModeChat})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Mode != domain.SessionModeTUI {
+		t.Fatalf("spawned mode = %q, want every session recorded as tui", rec.Mode)
+	}
+	if rt.lastCfg.Env[EnvSessionID] == "" {
+		t.Fatal("a tui session must launch the terminal runtime")
+	}
+}
+
 func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
