@@ -283,3 +283,71 @@ func TestRecordDoesNotPublishADroppedEvent(t *testing.T) {
 		t.Fatal("a dropped event was published to live clients")
 	}
 }
+
+func TestRecordTranscriptMarksSourceAndRedacts(t *testing.T) {
+	store, pub := &fakeStore{}, &fakePublisher{}
+	svc := NewService(store, pub, 500)
+
+	err := svc.RecordTranscript(context.Background(), "s-1", "claude-code", domain.BlockTranscriptEvent{
+		Kind:      domain.BlockEventToolResult,
+		SourceID:  "toolu_1",
+		ToolUseID: "toolu_1",
+		Text:      "token ghp_abcdefghijklmnopqrstuvwxyz0123 leaked",
+	})
+	if err != nil {
+		t.Fatalf("RecordTranscript: %v", err)
+	}
+	if len(store.inserted) != 1 {
+		t.Fatalf("inserted %d", len(store.inserted))
+	}
+	rec := store.inserted[0]
+	if rec.Source != domain.BlockEventSourceTranscript {
+		t.Fatalf("source = %q", rec.Source)
+	}
+	if rec.Kind != domain.BlockEventToolResult || rec.SourceID != "toolu_1" {
+		t.Fatalf("record = %+v", rec)
+	}
+	if strings.Contains(rec.Text, "ghp_abcdefghijklmnopqrstuvwxyz0123") {
+		t.Fatal("secret survived redaction")
+	}
+	if len(rec.RedactedSpans) == 0 {
+		t.Fatal("redacted spans were not reported")
+	}
+	if len(pub.published) != 1 || pub.published[0].Seq != 1 {
+		t.Fatalf("published %+v", pub.published)
+	}
+}
+
+func TestRecordTranscriptCapsAndMarksTruncation(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+
+	body := strings.Repeat("line\n", 40000)
+	if err := svc.RecordTranscript(context.Background(), "s-1", "codex", domain.BlockTranscriptEvent{
+		Kind: domain.BlockEventAssistantText,
+		Text: body,
+	}); err != nil {
+		t.Fatalf("RecordTranscript: %v", err)
+	}
+	rec := store.inserted[0]
+	if len(rec.Text) > maxTranscriptTextBytes {
+		t.Fatalf("text len = %d", len(rec.Text))
+	}
+	if rec.TruncatedLines == 0 {
+		t.Fatal("a capped body must be marked")
+	}
+	if !utf8.ValidString(rec.Text) {
+		t.Fatal("cap split a rune")
+	}
+}
+
+func TestRecordTranscriptIgnoresEmptyKind(t *testing.T) {
+	store := &fakeStore{}
+	svc := NewService(store, nil, 500)
+	if err := svc.RecordTranscript(context.Background(), "s-1", "codex", domain.BlockTranscriptEvent{}); err != nil {
+		t.Fatalf("RecordTranscript: %v", err)
+	}
+	if len(store.inserted) != 0 {
+		t.Fatal("an event with no kind is not a block event")
+	}
+}
