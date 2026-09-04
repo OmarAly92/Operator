@@ -142,7 +142,8 @@ Phase 3 adds the one write that is allowed to.
 | approve / deny | one key into the visible dialog, screen-verified | tool's `PostToolUse` (allow) or next hook signal (deny) |
 | answer a question | arrow keys and Enter, screen-verified | the question tool's result in the transcript |
 | stop | Esc while active | `stop` hook |
-| `/compact`, `/model` | typed while idle | transcript compaction record / next turn's model |
+| `/compact` | typed while idle | transcript compaction record |
+| `/model` | typed while idle, then its picker is driven | next turn's model |
 
 Every action has three client states: **sending**, **sent**, **confirmed**. Nothing is
 shown as done before its confirming signal arrives, and a signal that never arrives
@@ -492,10 +493,51 @@ user-visible behaviour is the same either way; only the reliability differs.
 
 ### Stop, compact, model
 
-- **stop** writes Esc while the session is *active*, confirmed by the `stop` hook. It
-  is the one action that must not wait for idle; Esc at an idle prompt is a no-op.
-- **`/compact`** and **`/model`** are typed like `send`, gated on idle, confirmed by the
-  transcript's `compaction` record and the next turn's `turn_model` respectively.
+These are not three variations on `send`; they differ in what they write and in what
+can confirm them. They share one endpoint, joining the `/decision` and `/answer`
+family:
+
+```
+POST /sessions/{id}/command   { "command": "stop" | "compact" | "model", "model": "<label>"? }
+```
+
+Every command runs the same four steps — **precondition, screen verify, write,
+observe** — and writes nothing at all when its precondition fails.
+
+| command | precondition | writes | confirmed by |
+|---|---|---|---|
+| `stop` | activity is *active* | `Esc` | the `stop` hook |
+| `compact` | idle, no pending decision | `/compact` + Enter | the transcript's `compaction` record |
+| `model` | idle, no pending decision | `/model` + Enter, then drives the picker | the next turn's `turn_model` |
+
+**stop must not wait for idle** — it is the one action whose whole purpose is to
+interrupt, and Esc at an idle prompt is a no-op. It also cannot go through `send`:
+the daemon runs `SanitizeControlChars` on that path, which strips the very byte stop
+consists of. The command endpoint writes to the pty directly, under the same gating
+and observation as everything else in this phase.
+
+**`/model` opens a menu**, in both harnesses, so a button that merely types it parks
+the desktop terminal in a dialog nobody at that keyboard asked for. Driving that menu
+makes `/model` a sibling of *answering a question*, not of *send*, and it uses the
+same dialog driver.
+
+It is deliberately **one call, not two**. Opening the picker and then waiting for a
+phone tap would hold the desktop terminal open for as long as the phone takes; instead
+the client sends the model *label* it wants, and the daemon types `/model`, captures
+the pane, matches the label against the rows actually on screen, drives to the verified
+row and presses Enter. If the menu never appears, or the label is not among its rows,
+the daemon writes `Esc` to back out and returns `409 MODEL_NOT_OFFERED`. The terminal
+is never left parked.
+
+The client's picker list is a per-harness seed **refreshed from the last successful
+capture**, so it tracks what the provider actually offers instead of rotting in a
+constant. The seed only populates the list; the authoritative match is always the
+screen.
+
+`model` is the one action whose confirmation is genuinely late — `turn_model` does not
+arrive until the *next* turn, which may be much later. It shows **sent** as soon as the
+capture proves the menu closed and **confirmed** when that turn begins. Under this
+phase's own rule that is the honest reading, not a gap to paper over.
 
 ### Rejected: a blocking hook that returns the decision
 
@@ -516,6 +558,21 @@ going away. Mobile renders `BlockKind.permission` and the question block as acti
 with the three-state confirmation. The desktop has no blocks view; its terminal dialog
 *is* the interaction, and nothing is added there.
 
+The three commands get a **command row** in the blocks view, in the exact slot
+`TerminalKeyRow` occupies in raw mode and inheriting its fixed-count, fixed-height
+contract, so the composer never shifts when the view is toggled. Three buttons —
+Stop, Compact, Model — always present, each **visible but disabled** when its
+precondition does not hold, and each saying why on tap ("the agent is working",
+"answer the permission request first"). A fixed layout means nothing jumps as the
+session changes state, and the user learns the rule rather than watching controls
+appear and vanish. Model's tap opens a sheet with the list; picking fires the single
+call. Each button carries its own sending / sent / confirmed state, and an
+*unconfirmed* one is amber with the raw terminal one tap away.
+
+The raw view's existing key row is untouched. Its `esc` and `^C` remain the raw
+terminal's own unmediated keys; the overlap with Stop is deliberate, because the key
+row is the escape hatch and the command row is the observed path.
+
 **Not in this phase.** Push notifications for a pending interaction. The registrar and
 status plumbing exist behind `PushTokenSource` and stay unwired until there is a
 Firebase project and an APNs key. The pending-interaction stream is the event a push
@@ -527,9 +584,19 @@ with the dialog absent is refused with 409 and writes nothing. A decision whose 
 capture shows no change is reported unconfirmed. `send` stays refused while an approval
 is pending. An `allow` confirms on the matching `PostToolUse` or `tool_result`; a `deny`
 confirms on the next hook signal. A question answer navigates to the verified row
-before Enter and confirms on the tool result. Stop writes Esc while active and nothing
-while idle. A send during an active turn is shown as queued and confirms on its
-`prompt_submit`, whichever delivery path the spike selected for that harness.
+before Enter and confirms on the tool result. A send during an active turn is shown as
+queued and confirms on its `prompt_submit`, whichever delivery path the spike selected
+for that harness.
+
+Each command is refused in the wrong activity state, and while a decision is pending,
+with its own code and **writing nothing**; the happy path writes exactly one key
+sequence and reports *unconfirmed* when its signal misses the budget. Stop writes Esc
+while active and nothing while idle. `/model` with no menu on screen after typing, and
+`/model` whose label is absent from the rows on screen, both write `Esc` and return
+409; a label that is present lands the highlight on the verified row before Enter, and
+the seed list is replaced by what the capture actually showed. Mobile's command row is
+pixel-identical in every session state, its disabled buttons explain themselves, and
+each button walks sending → sent → confirmed against fixture events.
 
 ## Phase 4 — delete ACP
 
@@ -590,3 +657,20 @@ Answered by the user on 2026-09-04; kept here so the reasoning is not lost.
   the target and idle-gated delivery as the fallback.
 - **Phase 4 starts when Phase 3 merges.** No observation window.
 - **Reasoning renders collapsed with a preview**, no setting.
+
+Answered on 2026-09-04, after Phase 2 shipped:
+
+- **stop, `/compact` and `/model` are buttons on mobile**, in a command row in the
+  blocks view, over one `POST /sessions/{id}/command` endpoint rather than raw mux
+  keystrokes — the mux path cannot gate, refuse or confirm, and a tap on a detached
+  socket is a silent no-op.
+- **`/model` drives its picker** rather than typing an argument form off a hardcoded
+  model list, and does it in one call so the desktop terminal is never parked in an
+  open menu waiting on a phone.
+- **Phase 3 is not split.** stop and `/compact` alone would be shippable without pane
+  capture, but they are the least valuable third of the phase, and shipping them first
+  would delay approve/deny and question-answering — the two things that make the phone
+  a client. There are no users to ship early to. Instead the phase is *ordered*: the
+  command endpoint and observed-confirmation plumbing land before anything needs
+  capture, so stop and `/compact` are the cheap proof that the write path works and the
+  dialog driver builds on a path already exercised.
