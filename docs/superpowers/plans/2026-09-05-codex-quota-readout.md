@@ -107,7 +107,7 @@ if err := json.Unmarshal(envelope.Payload, &payload); err != nil || payload.Type
 
 Note 0098 and 0099 already exist on master; 0100 is the next free number.
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- Migration 0100: the account's Codex quota position.
@@ -145,12 +145,12 @@ DROP TABLE IF EXISTS usage_quota;
 -- +goose StatementEnd
 ```
 
-- [ ] **Step 2: Verify it applies to a fresh database**
+- [x] **Step 2: Verify it applies to a fresh database**
 
 Run: `cd backend && go test ./internal/storage/sqlite/...`
 Expected: PASS. `sqlitetest.MustOpen` runs every migration, so bad SQL fails here.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/internal/storage/sqlite/migrations/0100_usage_quota.sql
@@ -173,7 +173,7 @@ git commit -m "feat(usage): add the account quota table"
   - `type UsageQuota struct { LimitID, Harness, PlanType string; ObservedAt time.Time; Primary, Secondary *UsageQuotaWindow }`
   - `func (q UsageQuota) IsEmpty() bool` — true when both windows are nil (the G7 case worth discarding)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestUsageQuotaWindowIsStaleAfterItsWindowRolls(t *testing.T) {
@@ -207,12 +207,12 @@ func TestUsageQuotaIsEmptyWhenNoWindowReported(t *testing.T) {
 
 The last case is the one that matters: `0.0` used and "not reported" must never collapse into each other.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/domain/ -run TestUsageQuota -v`
 Expected: FAIL — `undefined: domain.UsageQuotaWindow`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```go
 // UsageQuotaWindow is one rate-limit window as the provider reported it.
@@ -246,12 +246,12 @@ type UsageQuota struct {
 func (q UsageQuota) IsEmpty() bool { return q.Primary == nil && q.Secondary == nil }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && go test ./internal/domain/ -run TestUsageQuota -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/domain
@@ -272,7 +272,7 @@ git commit -m "feat(usage): add quota types and the staleness rule"
 
 This is the task G3 warns about. Restructure `parseCodexEvent` so the quota read happens before the `payload.Info == nil` return, and so an info-less event still yields quota.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestParseCodexReadsQuotaFromAnInfolessEvent(t *testing.T) {
@@ -338,12 +338,12 @@ func TestParseCodexIgnoresAnObservationWithNoWindows(t *testing.T) {
 
 Write `codexRateLimitLine(t, timestamp string, primaryPercent float64, resetsAt int64) []byte` as a helper in the test file, emitting the G1 shape with `info` null. `parseCodexForTest` already exists at `parser_test.go:619` — reuse it, do not write a second one.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseCodexReadsQuota -v`
 Expected: FAIL — `result.Quota` undefined.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `Quota *domain.UsageQuota` to `parseResult`. Then restructure the head of `parseCodexEvent`:
 
@@ -423,12 +423,12 @@ Assigning `result.Quota` unconditionally on each qualifying event means the last
 
 `envelopeTimestamp` already exists from the prior plan's Task 4. If it does not, read `codexEnvelope` for the timestamp field name and add it.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseCodex -v`
 Expected: PASS, including the pre-existing Codex tests.
 
-- [ ] **Step 5: Verify against a real rollout**
+- [x] **Step 5: Verify against a real rollout**
 
 This proves the shape against genuine provider output rather than a fixture. Create a throwaway test, run it, then delete it:
 
@@ -468,12 +468,12 @@ func TestProbeRealRollout(t *testing.T) {
 
 Expected: many rollouts report quota, with `window_minutes` 300 and 10080. Delete the file before committing.
 
-- [ ] **Step 6: Run the whole package**
+- [x] **Step 6: Run the whole package**
 
 Run: `cd backend && go test ./internal/observe/usage/`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/internal/observe/usage
@@ -496,7 +496,7 @@ git commit -m "feat(usage): read the Codex rate limits the parser was discarding
   - `func (s *Store) GetUsageQuota(ctx context.Context) (domain.UsageQuota, bool, error)` — newest row across limit ids
   - `ApplyUsageChunkWithContext` gains a trailing `quota *domain.UsageQuota` parameter so the write joins the existing transaction
 
-- [ ] **Step 1: Write the queries**
+- [x] **Step 1: Write the queries**
 
 ```sql
 -- name: UpsertUsageQuota :exec
@@ -528,7 +528,7 @@ ORDER BY observed_at DESC
 LIMIT 1;
 ```
 
-- [ ] **Step 2: Regenerate sqlc and write the failing test**
+- [x] **Step 2: Regenerate sqlc and write the failing test**
 
 Run: `cd backend && go generate ./internal/storage/sqlite/...`
 
@@ -597,28 +597,28 @@ func TestGetUsageQuotaReportsAbsenceRatherThanZero(t *testing.T) {
 
 `parseTime` already exists in this test file from the prior plan's Task 5 — reuse it.
 
-- [ ] **Step 3: Run to verify failure, then implement**
+- [x] **Step 3: Run to verify failure, then implement**
 
 Run: `cd backend && go test ./internal/storage/sqlite/store/ -run TestUsageQuota -v` (and the Save/Get names above)
 Expected: FAIL — methods undefined.
 
 Implement `SaveUsageQuota` and `GetUsageQuota` following the neighbouring methods' locking convention (`s.writeMu.Lock()` for writes, `s.qr` for reads). `GetUsageQuota` maps `sql.ErrNoRows` to `(zero, false, nil)`. Then thread the quota through `ApplyUsageChunkWithContext` and `applyUsageChunk` so it is written inside the same transaction as the events — the context snapshot already works this way (`usage_store.go:449`), and quota should not be able to land while the chunk that produced it rolls back.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd backend && go test ./internal/storage/sqlite/store/`
 Expected: PASS.
 
-- [ ] **Step 5: Wire the collector**
+- [x] **Step 5: Wire the collector**
 
 In `backend/internal/service/usage/collector.go`, pass `result.Quota` into the `ApplyUsageChunkWithContext` call alongside the existing `result.Context`.
 
-- [ ] **Step 6: Run the service and storage tests**
+- [x] **Step 6: Run the service and storage tests**
 
 Run: `cd backend && go test ./internal/service/usage/ ./internal/storage/sqlite/...`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/internal/storage backend/internal/service/usage
@@ -653,7 +653,7 @@ git commit -m "feat(usage): persist the account quota with the usage chunk"
 
 `stale` is computed server-side from `IsStale(now)` — mobile is a thin client and must not decide this. A stale window still reports its numbers so the client can explain *why* it is showing nothing, but the client must not render the percentage when `stale` is true.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```go
 func TestQuotaMarksARolledWindowStale(t *testing.T) {
@@ -695,21 +695,21 @@ func TestQuotaReturnsNullWhenNeverObserved(t *testing.T) {
 
 Extend the existing `fakeSummary` with `quota`/`hasQuota` and a `Quota` method. `doRequest`, `mustDecode` and `assertErrorCode` already exist — reuse them.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd backend && go test ./internal/httpd/controllers/ -run TestQuota -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `Quota` to `usageSummaryStore` and `SummaryReader`; register `r.Get("/usage/quota", c.quota)`; add `UsageQuotaEnvelope`, `UsageQuotaResponse` and `UsageQuotaWindowResponse` DTOs beside the existing usage DTOs; register the new named types in `specgen/build.go` per `AGENTS.md:117`. Omit a nil window from `windows` rather than emitting a null entry.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd backend && go test ./internal/httpd/... ./internal/service/usage/`
 Expected: PASS, including spec-drift and route-parity tests.
 
-- [ ] **Step 5: Regenerate the API artifacts**
+- [x] **Step 5: Regenerate the API artifacts**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && npm run api
@@ -717,14 +717,14 @@ cd backend && go test ./internal/httpd/...
 ```
 Expected: PASS. Commit `openapi.yaml` and `frontend/src/api/schema.ts` with the Go changes.
 
-- [ ] **Step 6: Full backend gate**
+- [x] **Step 6: Full backend gate**
 
 ```bash
 cd backend && gofmt -l internal/ && go vet ./... && go test ./... && golangci-lint run ./...
 ```
 Expected: clean, all pass, `0 issues`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend frontend/src/api/schema.ts
@@ -746,7 +746,7 @@ git commit -m "feat(usage): serve the Codex quota position over HTTP"
 - Consumes: the wire shape from Task 5.
 - Produces: `UsageQuotaModel{harness, limitId, planType, observedAt, windows}`, `UsageQuotaWindowModel{kind, windowMinutes, usedPercent, resetsAt, stale}`, `EndPoints.usageQuota`, `UsageRepository.quota() → Future<UsageQuotaModel?>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 void main() {
@@ -786,21 +786,21 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/usage_quota_model_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Hand-written, all fields nullable, `Equatable`. Add `static const String usageQuota = '/api/v1/usage/quota';` to `EndPoints`. The repository returns `null` when the envelope's `quota` is null — mirror how `sessionContext` already handles absence in this same repository.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mobile
@@ -824,7 +824,7 @@ git commit -m "feat(mobile): add the usage quota model and repository call"
 
 **Copy rules, from G5 and G6.** The section is headed **"Codex plan usage"**, never "limits" alone, and it names the harness. Windows are labelled from `windowMinutes`: 300 → "5-hour window", 10080 → "Weekly", anything else → "<n>-minute window". Under it, a line reading **"Claude Code: not reported"** — Claude publishes no quota, and silently omitting it would let the Codex bar read as the machine's overall position. A stale window shows **"Unknown — last seen <relative time>"** and no percentage and no bar.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```dart
 void main() {
@@ -884,28 +884,28 @@ testWidgets('renders nothing when quota was never observed', (tester) async {
 
 Copy `_wrap` from an existing usage-screen widget test.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `UsageState` gains `final UsageQuotaModel? quota;` with `copyWith` and `props` updated. `UsageCubit.load` fetches quota alongside the rollup; a quota failure must not fail the screen — the buckets still render. Use `context.skin` for colours, `AppTextStyle` for type, raw ints for spacing.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Full mobile gate**
+- [x] **Step 5: Full mobile gate**
 
 ```bash
 cd packages/mobile && flutter analyze && flutter test
 ```
 Expected: `No issues found!`, then all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/mobile
