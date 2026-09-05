@@ -105,7 +105,7 @@ void main() {
     await tester.pump();
 
     verify(() => cubit.answer('q1', [
-      [1],
+      ['second'],
     ])).called(1);
   });
 
@@ -125,7 +125,7 @@ void main() {
     await tester.pump();
 
     verify(() => cubit.answer('q1', [
-      [0, 2],
+      ['a', 'c'],
     ])).called(1);
   });
 }

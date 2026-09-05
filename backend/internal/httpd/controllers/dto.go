@@ -272,6 +272,7 @@ type BlockEventView struct {
 	ErrorType      string                  `json:"errorType,omitempty"`
 	HookVersion    string                  `json:"hookVersion,omitempty"`
 	TruncatedLines int                     `json:"truncatedLines,omitempty"`
+	InteractionID  string                  `json:"interactionId,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 }
 
@@ -307,6 +308,7 @@ func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 			ErrorType:      rec.ErrorType,
 			HookVersion:    rec.HookVersion,
 			TruncatedLines: rec.TruncatedLines,
+			InteractionID:  rec.InteractionID,
 			CreatedAt:      rec.CreatedAt,
 		})
 	}

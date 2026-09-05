@@ -1358,6 +1358,9 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrWrongActivityState):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
 			"the command is not available in the session's current state", nil)
+	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
+			"the terminal composer holds an unsent draft", nil)
 	case errors.Is(err, sessionmanager.ErrModelNotOffered):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
 			"the harness did not offer that model", map[string]any{"models": result.Models})

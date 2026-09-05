@@ -1,0 +1,48 @@
+[0m ▐▛███▛█   Claude Code v2.1.260[0m
+[0m▝▜██████▀  Sonnet 5 with medium effort · Claude Max[0m
+[0m  ▝▝ ▝▝    ~/.operator/data/worktrees/scratch/workers/sample[0m
+[0m
+[0m
+[0m❯ Hi[0m
+[0m
+[0m⏺ Hi! What are we working on today?[0m
+[0m
+[0m✻ Baked for 1s · done 3:06 PM[0m
+[0m
+[0m❯ /model[0m
+[0m  ⎿  Kept model as Sonnet 5[0m
+[0m
+[0m❯ Run the bash command: echo hello-from-fixture[0m
+[0m
+[0m⏺ Bash(echo hello-from-fixture)[0m
+[0m  ⎿  hello-from-fixture[0m
+[0m
+[0m⏺ Output: hello-from-fixture[0m
+[0m
+[0m✻ Worked for 6s · done 5:51 AM[0m
+[0m
+[0m❯ Create a file named fixture-probe.txt containing the word sample[0m
+[0m
+[0m⏺ Write(/Users/user/.operator/dev/data/worktrees/scratch/workers/scra[0m
+[0m       tch-2/fixture-probe.txt)[0m
+[0m  ⎿  User rejected    /Users/user/.operator/dev/data/worktrees/scratc[0m
+[0m     write to         h/workers/scratch-2/fixture-probe.txt[0m
+[0m      1 sample[0m
+[0m
+[0m✻ Cooked for 2s · done 5:52 AM[0m
+[0m
+[0m❯ Use the AskUserQuestion tool to ask me which colour I prefer, options[0m
+[0m  red green blue[0m
+[0m────────────────────────────────────────────────────────────────────────[0m
+[0m ☐ Colour[0m
+[0m
+[0mWhich colour do you prefer?[0m
+[0m
+[0m❯ 1. Red[0m
+[0m  2. Green[0m
+[0m  3. Type something.[0m
+[0m────────────────────────────────────────────────────────────────────────[0m
+[0m  4. Chat about this[0m
+[0m
+[0mEnter to select · ↑/↓ to navigate · Esc to cancel[0m
+[0m

@@ -36,6 +36,18 @@ func (m *Manager) Draft(ctx context.Context, id domain.SessionID) (string, error
 	if err != nil {
 		return "", fmt.Errorf("draft %s: %w", id, err)
 	}
+	// A dialog's own bordered, highlighted rows satisfy the very structural
+	// checks the composer-draft readers use — finding 9's marker-glyph
+	// collision, one layer above the menu reader it was written for. A model
+	// picker or a question menu on screen therefore reads back as a "draft",
+	// and mirroring it into another client's composer would put text there the
+	// user never wrote. The check lives here rather than inside each plugin so
+	// both harnesses are covered by one code path.
+	if dialogs, ok := m.dialogReaderFor(rec.Harness); ok {
+		if _, onScreen := dialogs.ReadDialog(pane); onScreen {
+			return "", nil
+		}
+	}
 	draft, ok := reader.ReadComposerDraft(pane)
 	if !ok {
 		return "", nil

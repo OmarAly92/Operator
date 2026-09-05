@@ -18,50 +18,62 @@ class BlockQuestionOptions extends StatefulWidget {
 }
 
 class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
-  final Set<int> _selected = {};
+  /// Keyed by question, holding the option LABELS chosen for it. The daemon
+  /// resolves labels against the rows actually on screen, so a label carries
+  /// its own identity and never depends on a position the harness may have
+  /// shifted with a synthetic row.
+  final Map<int, List<String>> _selected = {};
 
   bool get _multiSelect => widget.questions.any((question) => question.multiSelect == true);
 
-  void _select(int index) {
+  void _select(int question, String label) {
     final interactionId = widget.interactionId;
-    if (interactionId == null) return;
+    if (interactionId == null || label.isEmpty) return;
     if (_multiSelect) {
       setState(() {
-        if (!_selected.remove(index)) _selected.add(index);
+        final chosen = _selected.putIfAbsent(question, () => <String>[]);
+        if (!chosen.remove(label)) chosen.add(label);
+        if (chosen.isEmpty) _selected.remove(question);
       });
       return;
     }
     context.read<SessionCommandCubit>().answer(interactionId, [
-      [index],
+      [label],
     ]);
   }
 
   void _submit() {
     final interactionId = widget.interactionId;
     if (interactionId == null || _selected.isEmpty) return;
-    context.read<SessionCommandCubit>().answer(interactionId, [_selected.toList()..sort()]);
+    final groups = <List<String>>[];
+    for (var question = 0; question < widget.questions.length; question++) {
+      final chosen = _selected[question];
+      if (chosen != null && chosen.isNotEmpty) groups.add(List<String>.of(chosen));
+    }
+    if (groups.isEmpty) return;
+    context.read<SessionCommandCubit>().answer(interactionId, groups);
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     final actionable = widget.interactionId != null;
-    var index = 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final question in widget.questions) ...[
-            if ((question.header ?? '').isNotEmpty)
+          for (var question = 0; question < widget.questions.length; question++) ...[
+            if ((widget.questions[question].header ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: AppText(
-                  question.header!,
+                  widget.questions[question].header!,
                   style: AppTextStyle.style10SemiBold.copyWith(color: skin.textTertiary),
                 ),
               ),
-            for (final option in question.options) _optionTile(context, option, index++, actionable),
+            for (final option in widget.questions[question].options)
+              _optionTile(context, option, question, actionable),
           ],
           if (!actionable)
             AppText(
@@ -78,9 +90,11 @@ class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
     );
   }
 
-  Widget _optionTile(BuildContext context, BlockQuestionOption option, int index, bool actionable) {
+  Widget _optionTile(BuildContext context, BlockQuestionOption option, int question, bool actionable) {
     final skin = context.skin;
-    final selected = actionable && _multiSelect && _selected.contains(index);
+    final label = option.label ?? '';
+    final selected =
+        actionable && _multiSelect && (_selected[question]?.contains(label) ?? false);
     final tile = Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 6),
@@ -94,7 +108,7 @@ class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppText(
-            option.label ?? '',
+            label,
             style: AppTextStyle.style12SemiBold.copyWith(color: skin.textPrimary),
           ),
           if ((option.description ?? '').isNotEmpty)
@@ -110,6 +124,6 @@ class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
       ),
     );
     if (!actionable) return tile;
-    return GestureDetector(onTap: () => _select(index), child: tile);
+    return GestureDetector(onTap: () => _select(question, label), child: tile);
   }
 }

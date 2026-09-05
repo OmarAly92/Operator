@@ -49,7 +49,14 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
     if (mounted) setState(() => _resolving = false);
   }
 
-  ({String id, String title, String? projectId, String? previewUrl, String? harness})?
+  ({
+    String id,
+    String title,
+    String? projectId,
+    String? previewUrl,
+    String? harness,
+    String? activity,
+  })?
   _lookup(
     SessionsCubit cubit,
   ) {
@@ -61,6 +68,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           projectId: session.projectId,
           previewUrl: session.previewUrl,
           harness: session.harness,
+          activity: session.activity,
         );
       }
     }
@@ -72,6 +80,7 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
           projectId: orchestrator.projectId,
           previewUrl: null,
           harness: orchestrator.harness,
+          activity: orchestrator.activity,
         );
       }
     }
@@ -109,7 +118,8 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
                 create: (_) => sl<BlocksCubit>(param1: args.sessionId, param2: args.harness),
               ),
               BlocProvider<SessionCommandCubit>(
-                create: (_) => sl<SessionCommandCubit>(param1: args.sessionId),
+                create: (_) =>
+                    sl<SessionCommandCubit>(param1: args.sessionId, param2: session.activity),
               ),
               BlocProvider<PreviewCubit>(
                 create: (_) => sl<PreviewCubit>(param1: session.id, param2: session.previewUrl),

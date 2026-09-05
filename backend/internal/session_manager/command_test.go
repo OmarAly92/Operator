@@ -202,3 +202,70 @@ func newCommandTestManager(t *testing.T, state domain.ActivityState) (*Manager, 
 	}
 	return m, rt
 }
+
+// fakeEmptyComposerDetector reports emptiness from the pane text so a test can
+// put a human draft on screen.
+type fakeEmptyComposerDetector struct{ empty bool }
+
+func (f fakeEmptyComposerDetector) ComposerIsEmpty(string) bool { return f.empty }
+
+// TestCommandCompactRefusesANonEmptyComposer and its /model sibling pin the
+// guard on this plan's two NEW unattended writes: typing a slash command into a
+// pty that holds a human's unsent draft submits "<their draft>/compact" as one
+// garbled prompt.
+func TestCommandCompactRefusesANonEmptyComposer(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.styledOutput = "❯ half a thought the user has not sent"
+	m.emptyComposerDetector = fakeEmptyComposerDetector{empty: false}
+
+	_, err := m.Command(context.Background(), "s1", domain.CommandCompact, "")
+	if !errors.Is(err, ErrComposerNotEmpty) {
+		t.Fatalf("expected ErrComposerNotEmpty, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestCommandCompactWritesWhenTheComposerIsEmpty(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.styledOutput = "❯"
+	m.emptyComposerDetector = fakeEmptyComposerDetector{empty: true}
+
+	res, err := m.Command(context.Background(), "s1", domain.CommandCompact, "")
+	if err != nil {
+		t.Fatalf("Command: %v", err)
+	}
+	if !res.Wrote || len(rt.inputs) != 1 || rt.inputs[0] != "/compact\r" {
+		t.Fatalf("expected one /compact write, got %+v %q", res, rt.inputs)
+	}
+}
+
+func TestCommandModelRefusesANonEmptyComposer(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.styledOutput = "❯ half a thought the user has not sent"
+	rt.panes = []string{"MENU:0"}
+	m.menuReader = fakeMenuReader{rows: []string{"sonnet", "opus"}}
+	m.emptyComposerDetector = fakeEmptyComposerDetector{empty: false}
+
+	_, err := m.Command(context.Background(), "s1", domain.CommandModel, "opus")
+	if !errors.Is(err, ErrComposerNotEmpty) {
+		t.Fatalf("expected ErrComposerNotEmpty, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+// A harness with no detector stays usable: the capability is opt-in and only
+// reports emptiness from positive evidence.
+func TestCommandCompactIsNotGatedWhenTheHarnessHasNoDetector(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+
+	if _, err := m.Command(context.Background(), "s1", domain.CommandCompact, ""); err != nil {
+		t.Fatalf("Command: %v", err)
+	}
+	if len(rt.inputs) != 1 {
+		t.Fatalf("expected the write to proceed, got %q", rt.inputs)
+	}
+}

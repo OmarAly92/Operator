@@ -38,9 +38,11 @@ ServerFailure<Map<String, dynamic>> handleDioError(DioException error) {
   final apiStatus = rawCode is String ? rawCode : null;
   final rawDetails = body['details'];
   final details = rawDetails is Map<String, dynamic> ? rawDetails : const <String, dynamic>{};
+  // requestId is spread LAST: it is the envelope's own field and must win over
+  // a same-named key that happens to appear inside a server's details map.
   final extras = <String, dynamic>{
-    if (requestId is String) 'requestId': requestId,
     ...details,
+    if (requestId is String) 'requestId': requestId,
   };
   return ServerFailure<Map<String, dynamic>>(
     error: error,

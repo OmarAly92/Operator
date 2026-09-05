@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
@@ -13,6 +14,7 @@ import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -127,7 +129,10 @@ class TerminalHarness {
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
     blocksCubit = BlocksCubit(mux, blocksRepository, cubit.args.sessionId, harness: harness);
-    commandCubit = SessionCommandCubit(MockSessionControlRepository(), sessionId: cubit.args.sessionId);
+    final controlRepository = MockSessionControlRepository();
+    when(() => controlRepository.getInteractions(any()))
+        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+    commandCubit = SessionCommandCubit(mux, controlRepository, sessionId: cubit.args.sessionId);
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {

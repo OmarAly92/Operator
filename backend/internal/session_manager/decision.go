@@ -36,6 +36,12 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	if rec.IsTerminated {
 		return ErrTerminated
 	}
+	if rec.Activity.State == domain.ActivityExited {
+		return ErrAgentExited
+	}
+	if rec.Metadata.RuntimeHandleID == "" {
+		return ErrIncompleteHandle
+	}
 	pending, ok := m.Interaction(id, interactionID)
 	if !ok || pending.Kind != domain.InteractionPermission {
 		return ErrDialogAbsent
@@ -75,7 +81,7 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 		return d.Menu, on
 	}
 	if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
-		return m.answerFailure(ctx, id, driver, err)
+		return m.answerFailure(id, err)
 	}
 	present := func(pane string) bool {
 		d, on := reader.ReadDialog(pane)
@@ -95,9 +101,13 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	}
 }
 
-// Answer drives a question's menu. Selections is one []int per question in the
-// dialog; a single-element inner slice is a single-select, several are a
-// multi-select whose rows are toggled before Enter.
+// Answer drives a question's menu. Selections is one group of option LABELS
+// per question in the dialog; a single-element group is a single-select,
+// several are a multi-select whose rows are toggled before Enter.
+//
+// Labels, never indices: the harness inserts synthetic rows ("Type
+// something.", "Chat about this") the transcript never listed, so a position
+// carried from the client lands on the wrong row (finding 8).
 //
 // Every hop is verified against a fresh read by the driver rather than counted:
 // counting presses assumes the menu did not wrap, scroll or swallow a key.
@@ -115,11 +125,17 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 	if rec.IsTerminated {
 		return ErrTerminated
 	}
+	if rec.Activity.State == domain.ActivityExited {
+		return ErrAgentExited
+	}
+	if rec.Metadata.RuntimeHandleID == "" {
+		return ErrIncompleteHandle
+	}
 	pending, ok := m.Interaction(id, interactionID)
 	if !ok || pending.Kind != domain.InteractionQuestion {
 		return ErrDialogAbsent
 	}
-	reader, ok := m.menuReaderFor(rec.Harness)
+	reader, ok := m.dialogReaderFor(rec.Harness)
 	if !ok {
 		return ErrDialogAbsent
 	}
@@ -127,56 +143,86 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 	handle := runtimeHandle(rec.Metadata)
 	driver := m.driverFor(handle)
 	keys := reader.MenuKeys()
+	readMenu := func(pane string) (ports.Menu, bool) {
+		d, on := reader.ReadDialog(pane)
+		if !on || d.Kind != ports.DialogQuestion {
+			return ports.Menu{}, false
+		}
+		return d.Menu, true
+	}
+	// Reading the dialog rather than the bare menu is what tells a question
+	// apart from a permission prompt or a model picker, which render the same
+	// numbered menu (finding 6). Decide makes the mirror-image check.
+	readQuestion := func() (ports.Menu, error) {
+		pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+		if err != nil {
+			return ports.Menu{}, fmt.Errorf("answer %s: read menu: %w", id, err)
+		}
+		menu, on := readMenu(pane)
+		if !on {
+			return ports.Menu{}, ErrDialogAbsent
+		}
+		return menu, nil
+	}
 
-	pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+	menu, err := readQuestion()
 	if err != nil {
-		return fmt.Errorf("answer %s: read menu: %w", id, err)
+		return err
 	}
-	menu, open := reader.ReadMenu(pane)
-	if !open {
-		return ErrDialogAbsent
-	}
-	// Resolve every label to a row on screen BEFORE writing anything: a
-	// half-answered question is worse than a refused one, and a label with no
-	// matching row means the menu is not the one the client was looking at.
-	resolved := make([][]int, 0, len(selections))
-	for _, group := range selections {
-		if len(group) == 0 {
-			return fmt.Errorf("answer %s: empty selection group: %w", id, ErrAnswerInvalid)
-		}
-		rows := make([]int, 0, len(group))
-		for _, label := range group {
-			row := indexOfRow(menu.Rows, label)
-			if row < 0 {
-				return fmt.Errorf("answer %s: option %q is not on screen: %w", id, label, ErrAnswerInvalid)
+	for i, group := range selections {
+		// Each group answers a DIFFERENT question, and submitting the previous
+		// one moves the dialog on, so every group after the first is resolved
+		// against the rows now on screen. Resolving all of them against the
+		// first read would silently answer question 2 with question 1's rows.
+		if i > 0 {
+			if menu, err = readQuestion(); err != nil {
+				return err
 			}
-			rows = append(rows, row)
 		}
-		resolved = append(resolved, rows)
-	}
-
-	for _, group := range resolved {
-		for i, row := range group {
-			if err := driver.NavigateTo(ctx, reader.ReadMenu, keys, row); err != nil {
-				return m.answerFailure(ctx, id, driver, err)
+		rows, err := resolveRows(id, menu, group)
+		if err != nil {
+			return err
+		}
+		for j, row := range rows {
+			if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
+				return m.answerFailure(id, err)
 			}
 			// Multi-select toggles each row and submits once at the end; a
 			// single-select submits on the row itself.
-			if len(group) > 1 && keys.Multi != "" && i < len(group) {
+			if len(rows) > 1 && keys.Multi != "" && j < len(rows) {
 				if err := driver.Press(ctx, keys.Multi); err != nil {
-					return m.answerFailure(ctx, id, driver, err)
+					return m.answerFailure(id, err)
 				}
 			}
 		}
 		if err := driver.Press(ctx, keys.Select); err != nil {
-			return m.answerFailure(ctx, id, driver, err)
+			return m.answerFailure(id, err)
 		}
 	}
 	m.ClearInteractions(id)
 	return nil
 }
 
-func (m *Manager) answerFailure(ctx context.Context, id domain.SessionID, driver *dialogdriver.Driver, err error) error {
+// resolveRows maps one question group's option labels onto the rows currently
+// on screen. It resolves every label before the caller writes anything: a
+// half-answered question is worse than a refused one, and a label with no
+// matching row means the menu is not the one the client was looking at.
+func resolveRows(id domain.SessionID, menu ports.Menu, group []string) ([]int, error) {
+	if len(group) == 0 {
+		return nil, fmt.Errorf("answer %s: empty selection group: %w", id, ErrAnswerInvalid)
+	}
+	rows := make([]int, 0, len(group))
+	for _, label := range group {
+		row := indexOfRow(menu.Rows, label)
+		if row < 0 {
+			return nil, fmt.Errorf("answer %s: option %q is not on screen: %w", id, label, ErrAnswerInvalid)
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (m *Manager) answerFailure(id domain.SessionID, err error) error {
 	if errors.Is(err, dialogdriver.ErrNotOnScreen) {
 		m.ClearInteractions(id)
 		return ErrDialogAbsent

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
+	"github.com/OmarAly92/operator/backend/internal/ports"
 	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 )
 
@@ -63,6 +64,9 @@ func (m *Manager) commandTyped(ctx context.Context, rec domain.SessionRecord, te
 	if rec.Activity.State != domain.ActivityIdle {
 		return CommandResult{}, ErrWrongActivityState
 	}
+	if err := m.requireEmptyComposer(ctx, rec); err != nil {
+		return CommandResult{}, err
+	}
 	if err := m.runtime.SendInput(ctx, runtimeHandle(rec.Metadata), text+"\r"); err != nil {
 		return CommandResult{}, fmt.Errorf("command %s %s: %w", text, rec.ID, err)
 	}
@@ -84,6 +88,9 @@ func (m *Manager) commandModel(ctx context.Context, rec domain.SessionRecord, la
 	reader, ok := m.menuReaderFor(rec.Harness)
 	if !ok {
 		return CommandResult{}, ErrWrongActivityState
+	}
+	if err := m.requireEmptyComposer(ctx, rec); err != nil {
+		return CommandResult{}, err
 	}
 
 	handle := runtimeHandle(rec.Metadata)
@@ -117,6 +124,33 @@ func (m *Manager) commandModel(ctx context.Context, rec domain.SessionRecord, la
 		return CommandResult{Models: menu.Rows}, fmt.Errorf("command model %s: select: %w", rec.ID, err)
 	}
 	return CommandResult{Wrote: true, Models: menu.Rows}, nil
+}
+
+// requireEmptyComposer refuses an unattended slash-command write while a human
+// draft sits unsent in the harness's composer: the write would be appended to
+// it and submitted as one garbled prompt. A harness with no detector, or a
+// runtime that cannot preserve styling at all, is not gated — the capability is
+// opt-in and reports emptiness only from positive evidence, so treating a
+// missing capability as "not empty" would make /compact and /model permanently
+// unavailable there. A pane read that FAILS is a different thing and is
+// surfaced: we could not check, so we do not write.
+func (m *Manager) requireEmptyComposer(ctx context.Context, rec domain.SessionRecord) error {
+	detector, ok := m.emptyComposerDetectorFor(rec.Harness)
+	if !ok {
+		return nil
+	}
+	styled, ok := m.runtime.(ports.StyledTerminalOutputReader)
+	if !ok {
+		return nil
+	}
+	output, err := styled.GetStyledOutput(ctx, runtimeHandle(rec.Metadata), sourceComposerProbeLines)
+	if err != nil {
+		return fmt.Errorf("command %s: read composer: %w", rec.ID, err)
+	}
+	if !detector.ComposerIsEmpty(output) {
+		return ErrComposerNotEmpty
+	}
+	return nil
 }
 
 // escape backs out of a picker we are abandoning. Its failure is logged and

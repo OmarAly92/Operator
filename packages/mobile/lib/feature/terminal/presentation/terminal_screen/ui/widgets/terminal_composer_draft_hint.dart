@@ -10,6 +10,17 @@ class TerminalComposerDraftHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The draft is fetched asynchronously by attach(), so in the running app it
+    // always lands AFTER this widget's first build. Reading cubit.draft once
+    // would leave the hint permanently invisible; the BlocBuilder is what makes
+    // the late arrival show up.
+    return BlocBuilder<TerminalCubit, TerminalState>(
+      buildWhen: (previous, current) => current is TerminalReadyState,
+      builder: (context, _) => _hint(context),
+    );
+  }
+
+  Widget _hint(BuildContext context) {
     final cubit = context.read<TerminalCubit>();
     final skin = context.skin;
     final draft = cubit.draft;

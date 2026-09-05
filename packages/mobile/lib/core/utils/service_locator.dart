@@ -235,8 +235,13 @@ class ServiceLocator {
   }
 
   static void _blocksFeatureSetup() {
-    sl.registerFactoryParam<SessionCommandCubit, String, void>(
-      (sessionId, _) => SessionCommandCubit(sl<SessionControlRepository>(), sessionId: sessionId),
+    sl.registerFactoryParam<SessionCommandCubit, String, String?>(
+      (sessionId, activity) => SessionCommandCubit(
+        sl<MuxClient>(),
+        sl<SessionControlRepository>(),
+        sessionId: sessionId,
+        initialActivity: activity,
+      ),
     );
     sl.registerFactoryParam<BlocksCubit, String, String?>(
       (sessionId, harness) =>

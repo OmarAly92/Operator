@@ -1777,6 +1777,7 @@ export interface components {
             errorType?: string;
             harness?: string;
             hookVersion?: string;
+            interactionId?: string;
             kind: string;
             rawEvent?: string;
             redactedSpans?: components["schemas"]["BlockRedactedSpanView"][];

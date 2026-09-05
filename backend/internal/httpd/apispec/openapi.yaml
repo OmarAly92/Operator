@@ -5209,6 +5209,8 @@ components:
           type: string
         hookVersion:
           type: string
+        interactionId:
+          type: string
         kind:
           type: string
         rawEvent:

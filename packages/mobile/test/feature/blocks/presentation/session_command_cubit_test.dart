@@ -6,10 +6,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_answer_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/session_command_result_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
@@ -17,10 +20,15 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 
 class MockSessionControlRepository extends Mock implements SessionControlRepository {}
 
+class _MockMux extends Mock implements MuxClient {}
+
 BlockEventModel _event({String? kind}) => BlockEventModel(kind: kind);
 
 void main() {
   late MockSessionControlRepository repo;
+  late _MockMux mux;
+  late StreamController<List<SessionPatch>> patches;
+  late StreamController<BlockEventEnvelope> events;
   late SessionCommandCubit cubit;
 
   setUpAll(() {
@@ -31,7 +39,19 @@ void main() {
 
   setUp(() {
     repo = MockSessionControlRepository();
-    cubit = SessionCommandCubit(repo, sessionId: 's1');
+    mux = _MockMux();
+    patches = StreamController<List<SessionPatch>>.broadcast();
+    events = StreamController<BlockEventEnvelope>.broadcast();
+    when(() => mux.sessionPatches).thenAnswer((_) => patches.stream);
+    when(() => mux.blockEvents).thenAnswer((_) => events.stream);
+    when(() => repo.getInteractions(any()))
+        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+    cubit = SessionCommandCubit(mux, repo, sessionId: 's1');
+  });
+
+  tearDown(() async {
+    await patches.close();
+    await events.close();
   });
 
   test('stop is enabled only while active', () {
@@ -152,7 +172,7 @@ void main() {
       when(() => repo.sendCommand(any(), any())).thenAnswer(
         (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
       );
-      return SessionCommandCubit(repo, sessionId: 's1', budget: Duration.zero)..onActivity('idle');
+      return SessionCommandCubit(mux, repo, sessionId: 's1', budget: Duration.zero)..onActivity('idle');
     },
     act: (c) async {
       await c.run('compact');
@@ -167,7 +187,7 @@ void main() {
       when(() => repo.sendCommand(any(), any())).thenAnswer(
         (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
       );
-      return SessionCommandCubit(repo, sessionId: 's1', budget: Duration.zero)..onActivity('idle');
+      return SessionCommandCubit(mux, repo, sessionId: 's1', budget: Duration.zero)..onActivity('idle');
     },
     act: (c) async {
       await c.run('model', model: 'opus');
@@ -216,6 +236,116 @@ void main() {
     await runFuture;
 
     expect(cubit.phases['compact'], CommandPhase.confirmed);
+  });
+
+  test('a session patch off the mux feeds activity, so the row is enabled without an onActivity call', () async {
+    expect(cubit.enabled('stop'), isFalse, reason: 'no activity is known yet');
+
+    patches.add(const [
+      SessionPatch(
+        id: 's1',
+        status: 'running',
+        activity: 'active',
+        attentionLevel: 'none',
+        lastActivityAt: '2026-09-05T00:00:00Z',
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.enabled('stop'), isTrue);
+    expect(cubit.enabled('compact'), isFalse);
+  });
+
+  test('a patch for another session is ignored', () async {
+    cubit.onActivity('idle');
+    patches.add(const [
+      SessionPatch(
+        id: 'other',
+        status: 'running',
+        activity: 'active',
+        attentionLevel: 'none',
+        lastActivityAt: '2026-09-05T00:00:00Z',
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.enabled('compact'), isTrue, reason: 'another session must not move this row');
+  });
+
+  test('a block event off the mux confirms a sent command without an onEvent call', () async {
+    when(() => repo.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
+    );
+    cubit.onActivity('idle');
+    await cubit.run('compact');
+    expect(cubit.phases['compact'], CommandPhase.sent);
+
+    events.add(const BlockEventEnvelope('s1', {'kind': 'compaction'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.phases['compact'], CommandPhase.confirmed);
+  });
+
+  test('a block event for another session is ignored', () async {
+    when(() => repo.sendCommand(any(), any())).thenAnswer(
+      (_) async => Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))),
+    );
+    cubit.onActivity('idle');
+    await cubit.run('compact');
+
+    events.add(const BlockEventEnvelope('other', {'kind': 'compaction'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.phases['compact'], CommandPhase.sent);
+  });
+
+  test('the seeded activity enables the row before any patch arrives', () {
+    final seeded = SessionCommandCubit(mux, repo, sessionId: 's1', initialActivity: 'idle');
+    expect(seeded.enabled('compact'), isTrue);
+    unawaited(seeded.close());
+  });
+
+  test('a pending dialog is backfilled from the interactions endpoint on start', () async {
+    when(() => repo.getInteractions('s1')).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse<List<PendingInteractionModel>>(
+          data: const [PendingInteractionModel(id: 'int-9', kind: 'permission', toolName: 'Write')],
+        ),
+      ),
+    );
+    final reconciled = SessionCommandCubit(mux, repo, sessionId: 's1');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(reconciled.pendingInteraction?.id, 'int-9');
+    await reconciled.close();
+  });
+
+  test('a failing interactions fetch leaves the row usable', () async {
+    when(() => repo.getInteractions('s1'))
+        .thenAnswer((_) async => Result.failure(ServerFailure(error: 'nope', message: 'nope')));
+    final reconciled = SessionCommandCubit(mux, repo, sessionId: 's1', initialActivity: 'idle');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(reconciled.pendingInteraction, isNull);
+    expect(reconciled.enabled('compact'), isTrue);
+    await reconciled.close();
+  });
+
+  test('closing cancels the mux subscriptions', () async {
+    await cubit.close();
+    patches.add(const [
+      SessionPatch(
+        id: 's1',
+        status: 'running',
+        activity: 'active',
+        attentionLevel: 'none',
+        lastActivityAt: '2026-09-05T00:00:00Z',
+      ),
+    ]);
+    events.add(const BlockEventEnvelope('s1', {'kind': 'compaction'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.activity, isNull);
   });
 
   test('closing while a command is in flight does not throw when the response lands', () async {

@@ -4,7 +4,10 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_answer_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
@@ -14,9 +17,23 @@ import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 part 'session_command_state.dart';
 
 class SessionCommandCubit extends Cubit<SessionCommandState> {
-  SessionCommandCubit(this._repo, {required this.sessionId, this.budget = kCommandConfirmationBudget})
-    : super(const SessionCommandState());
+  SessionCommandCubit(
+    this._mux,
+    this._repo, {
+    required this.sessionId,
+    String? initialActivity,
+    this.budget = kCommandConfirmationBudget,
+  }) : super(const SessionCommandState()) {
+    // Seeded before the first patch arrives: the mux only pushes a session
+    // patch when something CHANGES, so a cubit built while the session sits
+    // idle would otherwise never learn its activity and refuse every command.
+    _activity = initialActivity;
+    _patchesSub = _mux.sessionPatches.listen(_onPatches);
+    _eventsSub = _mux.blockEvents.where((event) => event.sessionId == sessionId).listen(_onLive);
+    unawaited(_reconcileInteractions());
+  }
 
+  final MuxClient _mux;
   final SessionControlRepository _repo;
   final String sessionId;
   final Duration budget;
@@ -24,6 +41,47 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   final Map<String, Timer> _timers = {};
   final Set<String> _pendingConfirm = {};
   String? _activity;
+
+  StreamSubscription<List<SessionPatch>>? _patchesSub;
+  StreamSubscription<BlockEventEnvelope>? _eventsSub;
+
+  /// The dialog the daemon says is pending, learned from the reconnect
+  /// reconciliation endpoint rather than from a block event. A phone that was
+  /// backgrounded when the dialog appeared never saw that event.
+  PendingInteractionModel? pendingInteraction;
+
+  String? get activity => _activity;
+
+  void _onPatches(List<SessionPatch> patches) {
+    for (final patch in patches) {
+      if (patch.id != sessionId) continue;
+      onActivity(patch.activity);
+      return;
+    }
+  }
+
+  void _onLive(BlockEventEnvelope envelope) {
+    final event = BlockEventModel.fromJson(envelope.block);
+    if ((event.interactionId ?? '').isNotEmpty) pendingInteraction = null;
+    onEvent(event);
+  }
+
+  /// Backfills the dialog a client that reconnected (or opened the session
+  /// late) has no block event for. A failure is silent: the block-event stream
+  /// remains the primary path and a refusal here must not disable the row.
+  Future<void> _reconcileInteractions() async {
+    final result = await _repo.getInteractions(sessionId);
+    if (isClosed) return;
+    result.when(
+      onSuccess: (response) {
+        final pending = response.data;
+        if (pending == null || pending.isEmpty) return;
+        pendingInteraction = pending.first;
+        _emitPhases(Map<String, CommandPhase>.of(state.phases));
+      },
+      onFailure: (_) {},
+    );
+  }
 
   Map<String, CommandPhase> get phases => state.phases;
   List<String> get models => state.models;
@@ -118,7 +176,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     );
   }
 
-  Future<void> answer(String requestId, List<List<int>> selections) async {
+  Future<void> answer(String requestId, List<List<String>> selections) async {
     _setPhase('answer', CommandPhase.sending);
     final result = await _repo.answer(sessionId, SessionAnswerParams(requestId: requestId, selections: selections));
     if (isClosed) return;
@@ -151,6 +209,8 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   @override
   Future<void> close() {
+    unawaited(_patchesSub?.cancel());
+    unawaited(_eventsSub?.cancel());
     for (final timer in _timers.values) {
       timer.cancel();
     }

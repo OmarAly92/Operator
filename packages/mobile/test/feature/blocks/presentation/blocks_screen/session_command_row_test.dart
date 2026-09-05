@@ -3,9 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/core/mux/mux_client.dart';
+import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
@@ -24,6 +29,18 @@ class MockSessionCommandCubit extends Mock implements SessionCommandCubit {}
 
 class MockSessionControlRepository extends Mock implements SessionControlRepository {}
 
+class _MockMux extends Mock implements MuxClient {}
+
+SessionCommandCubit _realCommandCubit(String activity) {
+  final mux = _MockMux();
+  when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+  when(() => mux.blockEvents).thenAnswer((_) => const Stream<BlockEventEnvelope>.empty());
+  final repo = MockSessionControlRepository();
+  when(() => repo.getInteractions(any()))
+      .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+  return SessionCommandCubit(mux, repo, sessionId: 's-1', initialActivity: activity);
+}
+
 void _stubBloc(MockSessionCommandCubit cubit) {
   when(() => cubit.stream).thenAnswer((_) => const Stream.empty());
   when(() => cubit.state).thenReturn(const SessionCommandState());
@@ -31,8 +48,7 @@ void _stubBloc(MockSessionCommandCubit cubit) {
 }
 
 Widget _host({required String activity, MockSessionCommandCubit? cubit}) {
-  final commandCubit =
-      cubit ?? (SessionCommandCubit(MockSessionControlRepository(), sessionId: 's-1')..onActivity(activity));
+  final commandCubit = cubit ?? _realCommandCubit(activity);
   if (cubit != null) _stubBloc(cubit);
 
   return SkinScope(

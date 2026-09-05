@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
@@ -44,6 +45,22 @@ void main() {
     verifyNever(
       () => harness.mux.sendInput(any(), any(), projectId: any(named: 'projectId')),
     );
+  });
+
+  // In the running app fetchDraft() always resolves AFTER the composer's first
+  // build, so a hint that reads cubit.draft once at build time never appears.
+  testWidgets('a draft that arrives after the first build still shows', (tester) async {
+    when(() => harness.terminalRepository.getDraft(any()))
+        .thenAnswer((_) async => Result.success('run the sample task'));
+
+    await pumpComposer(tester);
+    expect(find.text('run the sample task'), findsNothing);
+
+    await harness.cubit.fetchDraft();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('run the sample task'), findsOneWidget);
   });
 
   testWidgets('an empty remote draft shows nothing', (tester) async {

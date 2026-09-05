@@ -39,6 +39,11 @@ var (
 	ErrWrongActivityState = errors.New("session: command not available in this activity state")
 	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
 	ErrModelNotOffered    = errors.New("session: model not offered by this harness")
+	// ErrComposerNotEmpty means a human draft is sitting unsent in the
+	// harness's composer, so an unattended slash-command write would submit
+	// "<their draft>/compact" as one garbled prompt. Nothing is written; the
+	// caller retries once the desktop composer is clear.
+	ErrComposerNotEmpty = errors.New("session: the terminal composer is not empty")
 	// ErrProjectNotResolvable means the spawn's project has no usable repo
 	// (unregistered, archived, or missing a path). The API maps it to a 400.
 	ErrProjectNotResolvable = errors.New("session: project repo not resolvable")
@@ -281,6 +286,10 @@ type Manager struct {
 	// It is nil in production; tests set it directly since their fakeAgents do
 	// not implement ports.TerminalComposerReader.
 	composerReader ports.TerminalComposerReader
+	// emptyComposerDetector overrides emptyComposerDetectorFor's resolution
+	// against m.agents. It is nil in production; tests set it directly since
+	// their fakeAgents do not implement ports.EmptyComposerDetector.
+	emptyComposerDetector ports.EmptyComposerDetector
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -3948,6 +3957,18 @@ func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (dialogAndMenuRea
 	}
 	reader, ok := agent.(dialogAndMenuReader)
 	return reader, ok
+}
+
+func (m *Manager) emptyComposerDetectorFor(harness domain.AgentHarness) (ports.EmptyComposerDetector, bool) {
+	if m.emptyComposerDetector != nil {
+		return m.emptyComposerDetector, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	detector, ok := agent.(ports.EmptyComposerDetector)
+	return detector, ok
 }
 
 func (m *Manager) composerReaderFor(harness domain.AgentHarness) (ports.TerminalComposerReader, bool) {
