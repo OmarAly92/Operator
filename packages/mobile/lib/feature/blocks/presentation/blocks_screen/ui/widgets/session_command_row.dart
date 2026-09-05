@@ -21,23 +21,31 @@ class SessionCommandRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<SessionCommandCubit>();
-    final phases = cubit.phases;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      child: Row(
-        spacing: 5,
-        children: [
-          for (final command in _kCommands)
-            Expanded(
-              child: SessionCommandButton(
-                label: _kLabels[command]!,
-                enabled: cubit.enabled(command),
-                phase: phases[command],
-                onTap: () => _onTap(context, cubit, command),
-              ),
-            ),
-        ],
-      ),
+    // BlocBuilder, not a bare context.read: this widget is const, so Flutter
+    // skips its element update when an ancestor rebuilds. Without a subscription
+    // the phase indicators and the disabled styling freeze at their first values
+    // while the session moves on underneath them.
+    return BlocBuilder<SessionCommandCubit, SessionCommandState>(
+      builder: (context, _) {
+        final phases = cubit.phases;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          child: Row(
+            spacing: 5,
+            children: [
+              for (final command in _kCommands)
+                Expanded(
+                  child: SessionCommandButton(
+                    label: _kLabels[command]!,
+                    enabled: cubit.enabled(command),
+                    phase: phases[command],
+                    onTap: () => _onTap(context, cubit, command),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

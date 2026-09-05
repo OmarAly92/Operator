@@ -83,9 +83,14 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
 		return m.answerFailure(id, err)
 	}
+	// The row, not just the dialog. NavigateTo confirmed the highlight was on
+	// the allow/deny row, but the person at the desktop can move it before the
+	// Select lands, and Select takes whatever is under the highlight then --
+	// which on a Write dialog is "Yes, and switch to accept edits", widening
+	// permissions for the rest of the session.
 	present := func(pane string) bool {
 		d, on := reader.ReadDialog(pane)
-		return on && d.Kind == ports.DialogPermission
+		return on && d.Kind == ports.DialogPermission && d.Menu.Selected == row
 	}
 	switch err := driver.AnswerDialog(ctx, present, keys.Select); {
 	case err == nil:
@@ -150,6 +155,12 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		}
 		return d.Menu, true
 	}
+	onRow := func(row int) func(string) bool {
+		return func(pane string) bool {
+			menu, on := readMenu(pane)
+			return on && menu.Selected == row
+		}
+	}
 	// Reading the dialog rather than the bare menu is what tells a question
 	// apart from a permission prompt or a model picker, which render the same
 	// numbered menu (finding 6). Decide makes the mirror-image check.
@@ -183,6 +194,7 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 		if err != nil {
 			return err
 		}
+		last := -1
 		for j, row := range rows {
 			if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
 				return m.answerFailure(id, err)
@@ -190,12 +202,18 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 			// Multi-select toggles each row and submits once at the end; a
 			// single-select submits on the row itself.
 			if len(rows) > 1 && keys.Multi != "" && j < len(rows) {
-				if err := driver.Press(ctx, keys.Multi); err != nil {
+				if err := driver.AnswerDialog(ctx, onRow(row), keys.Multi); err != nil {
 					return m.answerFailure(id, err)
 				}
 			}
+			last = row
 		}
-		if err := driver.Press(ctx, keys.Select); err != nil {
+		// Select is the decisive key: if the dialog has closed, Enter lands on
+		// the composer and submits whatever draft is sitting in it. It goes
+		// through the verified path so the row is re-checked before the write
+		// and the screen is checked after, which is also what lets an answer
+		// report itself unconfirmed rather than silently succeed.
+		if err := driver.AnswerDialog(ctx, onRow(last), keys.Select); err != nil {
 			return m.answerFailure(id, err)
 		}
 	}

@@ -181,7 +181,7 @@ func TestDecideDenyDrivesTheDenyKey(t *testing.T) {
 
 func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
-	rt.panes = []string{"MENU:0", "MENU:0", "MENU:1", "moved on"}
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:1", "MENU:1", "moved on"}
 	m.dialogReader = fakeQuestionReader{rows: questionRows("first", "second")}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -242,7 +242,13 @@ func TestAnswerRejectsAnEmptySelection(t *testing.T) {
 
 func TestAnswerTogglesEveryRowOfAMultiSelectBeforeEnter(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
-	rt.panes = []string{"MENU:0", "MENU:0", "MENU:0", "MENU:1", "MENU:2"}
+	rt.panes = []string{
+		"MENU:0", "MENU:0", // read, navigate to row 0
+		"MENU:0", "toggled a", // verified toggle of row 0
+		"MENU:2",              // navigate to row 2
+		"MENU:2", "toggled c", // verified toggle of row 2
+		"MENU:2", "submitted", // verified Enter
+	}
 	m.dialogReader = fakeQuestionReader{rows: questionRows("a", "b", "c"), multi: " "}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -307,7 +313,12 @@ func TestAnswerResolvesEachGroupAgainstItsOwnMenu(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
 	// Q1 is on screen for the first group's read and its navigation; after its
 	// Enter the pane shows Q2, whose rows share no label with Q1.
-	rt.panes = []string{"Q1:0", "Q1:0", "Q1:1", "Q2:0", "Q2:0", "Q2:1"}
+	rt.panes = []string{
+		"Q1:0", "Q1:0", "Q1:1", // read Q1, navigate to row 1
+		"Q1:1", "Q2:0", // verified Enter; the pane moves on to Q2
+		"Q2:0", "Q2:0", "Q2:1", // read Q2, navigate to row 1
+		"Q2:1", "done", // verified Enter
+	}
 	m.dialogReader = fakeQuestionReader{rows: map[string][]string{
 		"Q1": {"red", "green"},
 		"Q2": {"north", "south"},
@@ -332,7 +343,11 @@ func TestAnswerResolvesEachGroupAgainstItsOwnMenu(t *testing.T) {
 // offered for the second: the stale-read bug would have accepted it.
 func TestAnswerRejectsASecondGroupLabelThatIsNotOnTheSecondQuestion(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
-	rt.panes = []string{"Q1:0", "Q1:0", "Q1:1", "Q2:0"}
+	rt.panes = []string{
+		"Q1:0", "Q1:0", "Q1:1", // read Q1, navigate to row 1
+		"Q1:1", "Q2:0", // verified Enter; the pane moves on to Q2
+		"Q2:0", // read Q2, whose rows do not carry the stale label
+	}
 	m.dialogReader = fakeQuestionReader{rows: map[string][]string{
 		"Q1": {"red", "green"},
 		"Q2": {"north", "south"},
@@ -397,5 +412,69 @@ func TestDecideAndAnswerRefuseAnIncompleteHandle(t *testing.T) {
 		if len(rt.inputs) != 0 {
 			t.Fatalf("%s: expected no writes, got %q", name, rt.inputs)
 		}
+	}
+}
+
+func TestDecideRefusesWhenTheHighlightMovedBeforeTheSelect(t *testing.T) {
+	// NavigateTo confirms the highlight is on the allow row, but the desktop
+	// user can move it before the Select lands. Pressing Select on whatever is
+	// now under the highlight can choose "Yes, and switch to accept edits",
+	// which widens permissions for the rest of the session.
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{
+		"DIALOG SEL:0", // Decide's own read: AllowRow resolves to row 0
+		"DIALOG SEL:0", // NavigateTo: already on target, no keys written
+		"DIALOG SEL:1", // AnswerDialog's pre-write read: highlight has moved
+		"DIALOG SEL:1",
+	}
+	m.dialogReader = fakeDialogReader{present: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
+
+	err := m.Decide(context.Background(), "s1", "i1", "allow")
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("err = %v, want ErrDialogAbsent", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("a moved highlight must be answered by writing nothing, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerRefusesWhenTheHighlightMovedBeforeTheSelect(t *testing.T) {
+	// The same race on the question path. Answer's Select is the decisive key:
+	// if the dialog closed, Enter lands on the composer and submits whatever
+	// draft is sitting in it.
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{
+		"MENU:0", // Answer's read: resolve labels against the rows on screen
+		"MENU:0", // NavigateTo: already on target
+		"MENU:1", // pre-Select read: highlight has moved
+		"MENU:1",
+	}
+	m.dialogReader = fakeQuestionReader{rows: questionRows("first", "second")}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}})
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("err = %v, want ErrDialogAbsent", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("a moved highlight must be answered by writing nothing, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerReportsUnconfirmedWhenTheScreenDoesNotMoveAfterSelect(t *testing.T) {
+	// Answer's Select must carry the same three-state contract as Decide's:
+	// a write whose screen never changed is unconfirmed, not success.
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:0", "MENU:0"}
+	m.dialogReader = fakeQuestionReader{rows: questionRows("first", "second")}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}})
+	if !errors.Is(err, ErrUnconfirmed) {
+		t.Fatalf("err = %v, want ErrUnconfirmed", err)
+	}
+	if len(rt.inputs) != 1 {
+		t.Fatalf("an unconfirmed answer must not retry, got %q", rt.inputs)
 	}
 }

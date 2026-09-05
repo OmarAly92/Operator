@@ -7,11 +7,19 @@ class SessionCommandState extends Equatable {
   final Map<String, CommandPhase> phases;
   final List<String> models;
 
-  const SessionCommandState({this.phases = const {}, this.models = const []});
+  /// The session's activity state. It lives in the state, not only in the
+  /// cubit, because enablement is derived from it: holding it privately meant
+  /// a change emitted nothing and every listener kept its stale enablement.
+  final String? activity;
+
+  const SessionCommandState({this.phases = const {}, this.models = const [], this.activity});
 
   SessionCommandState copyWith({Map<String, CommandPhase>? phases, List<String>? models}) =>
-      SessionCommandState(phases: phases ?? this.phases, models: models ?? this.models);
+      SessionCommandState(phases: phases ?? this.phases, models: models ?? this.models, activity: activity);
+
+  SessionCommandState withActivity(String? next) =>
+      SessionCommandState(phases: phases, models: models, activity: next);
 
   @override
-  List<Object?> get props => [phases, models];
+  List<Object?> get props => [phases, models, activity];
 }

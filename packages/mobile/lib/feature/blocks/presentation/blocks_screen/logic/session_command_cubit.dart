@@ -151,7 +151,9 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   }
 
   void onActivity(String? activity) {
+    final changed = _activity != activity;
     _activity = activity;
+    if (changed && !isClosed) emit(state.withActivity(activity));
     final phase = state.phases['stop'];
     if (phase == CommandPhase.sending) {
       if (confirmsStop(activity)) _pendingConfirm.add('stop');

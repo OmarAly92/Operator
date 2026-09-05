@@ -98,6 +98,7 @@ Widget _terminalBody({required SessionViewMode mode}) {
 }
 
 void main() {
+  _liveRebuildTests();
   tearDown(() async {
     for (final harness in _harnesses) {
       await harness.dispose();
@@ -231,5 +232,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SessionCommandRow), findsOneWidget);
     expect(find.byType(TerminalKeyRow), findsNothing);
+  });
+}
+
+Widget _hostWithCubit(SessionCommandCubit cubit) => SkinScope(
+  skin: const DarkSkin(),
+  child: ScreenUtilInit(
+    designSize: const Size(390, 844),
+    builder: (context, _) => MaterialApp(
+      home: Scaffold(
+        body: BlocProvider<SessionCommandCubit>.value(
+          value: cubit,
+          child: const SessionCommandRow(),
+        ),
+      ),
+    ),
+  ),
+);
+
+bool _buttonEnabled(WidgetTester tester, String label) =>
+    tester.widget<SessionCommandButton>(find.widgetWithText(SessionCommandButton, label)).enabled;
+
+void _liveRebuildTests() {
+  group('live rebuild', () {
+    testWidgets('enablement follows the cubit when the session state changes', (tester) async {
+      // The row read the cubit once at build time. Declared const and reading
+      // through context.read, it never rebuilt on an emit, so its indicators
+      // and disabled styling went stale while taps still behaved correctly —
+      // a control surface that silently stops reflecting reality.
+      final cubit = _realCommandCubit('idle');
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_hostWithCubit(cubit));
+
+      expect(_buttonEnabled(tester, 'Compact'), isTrue);
+      expect(_buttonEnabled(tester, 'Stop'), isFalse);
+
+      cubit.onActivity('active');
+      await tester.pump();
+
+      expect(_buttonEnabled(tester, 'Compact'), isFalse, reason: 'the agent is working now');
+      expect(_buttonEnabled(tester, 'Stop'), isTrue, reason: 'stop is only available while active');
+    });
+
+    testWidgets('a phase change reaches the button', (tester) async {
+      final cubit = _realCommandCubit('active');
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_hostWithCubit(cubit));
+
+      expect(
+        tester.widget<SessionCommandButton>(find.widgetWithText(SessionCommandButton, 'Stop')).phase,
+        isNot(CommandPhase.confirmed),
+      );
+
+      cubit.onActivity('idle');
+      await tester.pump();
+
+      expect(_buttonEnabled(tester, 'Stop'), isFalse);
+    });
   });
 }
