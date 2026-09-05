@@ -608,12 +608,14 @@ func parseCodexEvent(source domain.UsageSourceContext, envelope codexEnvelope, s
 	}
 	event.OccurredAt = envelopeTimestamp(envelope)
 	result.Events = append(result.Events, event)
-	result.Context = &domain.SessionContext{
-		Harness:    string(domain.HarnessCodex),
-		ModelID:    model,
-		Used:       total.TotalTokens,
-		Window:     payload.Info.ModelContextWindow,
-		ObservedAt: event.OccurredAt,
+	if source.Source.SubagentID == "" {
+		result.Context = &domain.SessionContext{
+			Harness:    string(domain.HarnessCodex),
+			ModelID:    model,
+			Used:       total.TotalTokens,
+			Window:     payload.Info.ModelContextWindow,
+			ObservedAt: event.OccurredAt,
+		}
 	}
 }
 

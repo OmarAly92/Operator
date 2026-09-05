@@ -142,6 +142,23 @@ func TestParseCodexReportsAbsoluteContextAndWindow(t *testing.T) {
 	}
 }
 
+func TestParseCodexChildDoesNotReportContext(t *testing.T) {
+	source := usageSource(domain.UsageSourceCodexRollout)
+	source.Source.NativeSessionID = "22222222-2222-4222-8222-222222222222"
+	source.Source.SubagentID = source.Source.NativeSessionID
+	source.Source.ParserStateJSON = `{"version":1,"source_kind":"codex_rollout","codex":{"baseline":{},"native_session_id":"22222222-2222-4222-8222-222222222222","direct_parent_id":"11111111-1111-4111-8111-111111111111","pending_spawn_call_ids":[],"discovered_child_ids":[]}}`
+	result := parseRecords(source, []jsonlRecord{{
+		Data: codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000),
+	}}, 1, time.Time{})
+	if result.err != nil {
+		t.Fatalf("parse child: %v", result.err)
+	}
+
+	if result.Context != nil {
+		t.Fatalf("context = %+v, want nil for a Codex child", result.Context)
+	}
+}
+
 func TestParseCodexCounterResetNeverEmitsNegativeUsage(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	source := usageSource(domain.UsageSourceCodexRollout)
