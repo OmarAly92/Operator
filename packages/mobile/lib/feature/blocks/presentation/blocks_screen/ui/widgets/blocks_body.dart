@@ -9,11 +9,14 @@ import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_find_bar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_list.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_nav_controls.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_selection_bar.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/context_readout_chip.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
+import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 class BlocksBody extends StatefulWidget {
   const BlocksBody({super.key, this.onRerun});
@@ -228,12 +231,14 @@ class BlocksBodyState extends State<BlocksBody> {
                   ranges: const <MatchRange>[],
                 ),
               );
-        final highlight = (activeMatch != null && activeMatch.blockId.isNotEmpty)
+        final highlight =
+            (activeMatch != null && activeMatch.blockId.isNotEmpty)
             ? activeMatch
             : null;
         final currentIndex = (highlight == null)
             ? 0
-            : matches.indexWhere((match) => match.blockId == _activeMatchId) + 1;
+            : matches.indexWhere((match) => match.blockId == _activeMatchId) +
+                  1;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (highlight == null) return;
           final list = _listKey.currentState;
@@ -294,7 +299,9 @@ class BlocksBodyState extends State<BlocksBody> {
                         }),
                         highlights: highlight == null
                             ? const <String, BlockMatch>{}
-                            : <String, BlockMatch>{highlight.blockId: highlight},
+                            : <String, BlockMatch>{
+                                highlight.blockId: highlight,
+                              },
                         selectedIds: _selected,
                         selectionMode: _selectionMode,
                         onToggleSelect: _toggleSelected,
@@ -316,7 +323,9 @@ class BlocksBodyState extends State<BlocksBody> {
                 top: 6,
                 left: 0,
                 right: 0,
-                child: IgnorePointer(child: StickyBlockHeader(sticky: _sticky)),
+                child: IgnorePointer(
+                  child: _StickyHeaderWithContextReadout(sticky: _sticky),
+                ),
               ),
               Positioned(
                 right: 12,
@@ -328,8 +337,9 @@ class BlocksBodyState extends State<BlocksBody> {
                       : BlockNavControls(
                           onPrevious: () => _listKey.currentState
                               ?.scrollToBoundary(forward: false),
-                          onNext: () => _listKey.currentState
-                              ?.scrollToBoundary(forward: true),
+                          onNext: () => _listKey.currentState?.scrollToBoundary(
+                            forward: true,
+                          ),
                           onLatest: () => _listKey.currentState?.jumpToLatest(),
                           showLatest: !pinned,
                         ),
@@ -377,4 +387,31 @@ class BlocksBodyState extends State<BlocksBody> {
       ),
     ),
   );
+}
+
+/// `BlocksBody` is reused standalone in tests with no `SessionCommandCubit`
+/// above it. In the real app `session_route_screen.dart` always provides one
+/// alongside `BlocsCubit`, so a missing provider here means "no context
+/// observation available", not a wiring bug -- render the chip empty instead
+/// of throwing.
+class _StickyHeaderWithContextReadout extends StatelessWidget {
+  const _StickyHeaderWithContextReadout({required this.sticky});
+
+  final ValueNotifier<StickyBlock?> sticky;
+
+  @override
+  Widget build(BuildContext context) {
+    ContextReadoutData? readout;
+    try {
+      readout = context.select<SessionCommandCubit, ContextReadoutData?>(
+        (cubit) => cubit.state.contextReadout,
+      );
+    } on ProviderNotFoundException {
+      readout = null;
+    }
+    return StickyBlockHeader(
+      sticky: sticky,
+      trailing: ContextReadoutChip(readout: readout),
+    );
+  }
 }

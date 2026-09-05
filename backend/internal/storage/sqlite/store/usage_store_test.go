@@ -481,6 +481,54 @@ func TestApplyUsageChunkAtomicReplayAndTokenAggregates(t *testing.T) {
 	}
 }
 
+func TestApplyUsageChunkRollsBackAndRetriesWhenContextSaveFails(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	session := seedUsageSession(t, s, domain.HarnessCodex)
+	now := parseTime(t, "2026-09-05T12:05:00Z")
+	source := seedUsageSource(t, s, session, now)
+	event := usageEvent("event-1", domain.UsageTokenMetrics{
+		InputTokens: 10, UncachedInputTokens: 10, OutputTokens: 2,
+	})
+	event.OccurredAt = now
+	nextState := domain.SourceCursorState{
+		ByteOffset: 10,
+		State:      domain.UsageSourceActive,
+		UpdatedAt:  now,
+	}
+	invalidContext := &domain.SessionContext{
+		Harness: "codex", ModelID: "gpt-5.7", Used: -1, Window: 200_000, ObservedAt: now,
+	}
+
+	err := s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, invalidContext)
+	if err == nil {
+		t.Fatal("expected invalid context to reject the chunk")
+	}
+	assertUsageSourceOffset(t, s, source.ID, 0)
+	aggregates, aggregateErr := s.ListUsageModelAggregates(ctx, session.ID)
+	mustNoError(t, aggregateErr)
+	if len(aggregates) != 0 {
+		t.Fatalf("failed context write persisted events: %+v", aggregates)
+	}
+	if _, ok, getErr := s.GetSessionContext(ctx, session.ID); getErr != nil || ok {
+		t.Fatalf("failed context write persisted context: ok=%v err=%v", ok, getErr)
+	}
+
+	want := *invalidContext
+	want.Used = 10
+	mustNoError(t, s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, &want))
+	assertUsageSourceOffset(t, s, source.ID, 10)
+	aggregates, aggregateErr = s.ListUsageModelAggregates(ctx, session.ID)
+	mustNoError(t, aggregateErr)
+	if len(aggregates) != 1 || aggregates[0].Tokens.InputTokens != 10 {
+		t.Fatalf("retried chunk aggregates = %+v, want input 10", aggregates)
+	}
+	got, ok, getErr := s.GetSessionContext(ctx, session.ID)
+	if getErr != nil || !ok || got != want {
+		t.Fatalf("retried chunk context = %+v ok=%v err=%v, want %+v", got, ok, getErr, want)
+	}
+}
+
 func TestApplyUsageChunkRejectsConflictsAndPreservesCursor(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -892,6 +940,272 @@ func TestUsageSessionAggregatesParentChildAndMultipleBindingsExactlyOnce(t *test
 	if row.TotalTokens != 215 || row.Incomplete {
 		t.Fatalf("compact aggregate = %+v", row)
 	}
+}
+
+func TestUsageRollupBucketsByDayAndExcludesUndatedRows(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessClaudeCode)
+
+	mustInsertUsageEvent(t, s, binding, 100, parseTime(t, "2026-09-01T10:00:00Z"))
+	mustInsertUsageEvent(t, s, binding, 250, parseTime(t, "2026-09-01T23:59:00Z"))
+	mustInsertUsageEvent(t, s, binding, 40, parseTime(t, "2026-09-02T00:01:00Z"))
+	mustInsertUsageEventUndated(t, s, binding, 9999)
+
+	got, err := s.UsageRollup(
+		context.Background(),
+		parseTime(t, "2026-09-01T00:00:00Z"),
+		parseTime(t, "2026-09-03T00:00:00Z"),
+		"day",
+	)
+	mustNoError(t, err)
+	if len(got) != 2 {
+		t.Fatalf("buckets = %d, want 2", len(got))
+	}
+	if got[0].Start != parseTime(t, "2026-09-01T00:00:00Z") ||
+		got[0].Totals.InputTokens == nil || *got[0].Totals.InputTokens != 350 {
+		t.Fatalf("day one = %+v, want input 350", got[0])
+	}
+	if got[1].Start != parseTime(t, "2026-09-02T00:00:00Z") ||
+		got[1].Totals.InputTokens == nil || *got[1].Totals.InputTokens != 40 {
+		t.Fatalf("day two = %+v, want input 40", got[1])
+	}
+	var total int64
+	for _, bucket := range got {
+		total += *bucket.Totals.InputTokens
+	}
+	if total != 390 {
+		t.Fatalf("total = %d, want 390", total)
+	}
+}
+
+func TestUsageRollupKeepsMondayInItsWeekAndTotalsAllBindings(t *testing.T) {
+	s := newTestStore(t)
+	first := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	second := seedUsageBinding(t, s, "scratch-2", domain.HarnessClaudeCode)
+
+	mustInsertUsageEvent(t, s, first, 100, parseTime(t, "2026-08-31T00:00:00Z"))
+	mustInsertUsageEvent(t, s, second, 50, parseTime(t, "2026-09-06T23:59:59Z"))
+	mustInsertUsageEvent(t, s, first, 25, parseTime(t, "2026-09-07T00:00:00Z"))
+
+	got, err := s.UsageRollup(
+		context.Background(),
+		parseTime(t, "2026-08-31T00:00:00Z"),
+		parseTime(t, "2026-09-08T00:00:00Z"),
+		"week",
+	)
+	mustNoError(t, err)
+	if len(got) != 2 {
+		t.Fatalf("buckets = %+v, want two weeks", got)
+	}
+	if got[0].Start != parseTime(t, "2026-08-31T00:00:00Z") ||
+		got[0].Totals.InputTokens == nil || *got[0].Totals.InputTokens != 150 {
+		t.Fatalf("first week = %+v, want Monday 2026-08-31 and input 150", got[0])
+	}
+	if got[1].Start != parseTime(t, "2026-09-07T00:00:00Z") ||
+		got[1].Totals.InputTokens == nil || *got[1].Totals.InputTokens != 25 {
+		t.Fatalf("second week = %+v, want Monday 2026-09-07 and input 25", got[1])
+	}
+}
+
+func TestUsageRollupRejectsUnknownBucket(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.UsageRollup(context.Background(), time.Time{}, time.Time{}, "month")
+	if err == nil {
+		t.Fatal("expected unsupported usage rollup bucket error")
+	}
+}
+
+func TestSessionContextRoundTrips(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.6-luna",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}
+
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want %+v", got, want)
+	}
+}
+
+func TestSessionContextPreservesObservedModel(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}
+
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want observed model %+v", got, want)
+	}
+}
+
+func TestSessionContextIgnoresUndatedObservation(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, domain.SessionContext{
+		Harness: "codex", ModelID: "gpt-5.8", Used: 30_000, Window: 250_000,
+	}))
+
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want dated observation %+v", got, want)
+	}
+}
+
+func TestSessionContextIgnoresOlderObservation(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.8",
+		Used:       30_000,
+		Window:     250_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:06:00Z"),
+	}
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}))
+
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want newest observation %+v", got, want)
+	}
+}
+
+func TestSessionContextUsesNewestBindingObservation(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	session := seedUsageSession(t, s, domain.HarnessCodex)
+	older := mustUpsertUsageBinding(t, s, session, parseTime(t, "2026-09-05T12:00:00Z"), domain.UsageBindingRecord{
+		NativeRootID:   "codex-root",
+		InitialModelID: "gpt-5.6-luna",
+		State:          domain.UsageBindingActive,
+	})
+	newer, err := s.UpsertUsageBinding(ctx, domain.UsageBindingRecord{
+		SessionID:      session.ID,
+		Harness:        domain.HarnessClaudeCode,
+		NativeRootID:   "claude-root",
+		InitialModelID: "claude-sonnet-4-5",
+		State:          domain.UsageBindingActive,
+		UpdatedAt:      parseTime(t, "2026-09-05T12:01:00Z"),
+	})
+	mustNoError(t, err)
+
+	mustNoError(t, s.SaveSessionContext(ctx, older.ID, domain.SessionContext{
+		ModelID: "gpt-5.6-luna", Used: 10, Window: 100, ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}))
+	mustNoError(t, s.SaveSessionContext(ctx, newer.ID, domain.SessionContext{
+		ModelID: "claude-sonnet-4-5", Used: 20, Window: 200, ObservedAt: parseTime(t, "2026-09-05T12:06:00Z"),
+	}))
+
+	got, ok, err := s.GetSessionContext(ctx, session.ID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got.Harness != "claude-code" || got.ModelID != "claude-sonnet-4-5" ||
+		got.Used != 20 || got.Window != 200 || got.ObservedAt != parseTime(t, "2026-09-05T12:06:00Z") {
+		t.Fatalf("context = %+v, want newest Claude binding", got)
+	}
+}
+
+func seedUsageBinding(
+	t *testing.T,
+	s *sqlite.Store,
+	sessionID string,
+	harness domain.AgentHarness,
+) domain.UsageBindingRecord {
+	t.Helper()
+	seedProject(t, s, sessionID)
+	record := sampleRecord(sessionID)
+	record.Harness = harness
+	session, err := s.CreateSession(context.Background(), record)
+	mustNoError(t, err)
+	return mustUpsertUsageBinding(t, s, session, time.Now().UTC(), domain.UsageBindingRecord{
+		NativeRootID: sessionID + "-root",
+		InitialModelID: map[domain.AgentHarness]string{
+			domain.HarnessCodex:      "gpt-5.6-luna",
+			domain.HarnessClaudeCode: "claude-sonnet-4-5",
+		}[harness],
+		State: domain.UsageBindingActive,
+	})
+}
+
+func mustInsertUsageEvent(
+	t *testing.T,
+	s *sqlite.Store,
+	binding domain.UsageBindingRecord,
+	inputTokens int64,
+	occurredAt time.Time,
+) {
+	t.Helper()
+	source := mustInsertUsageSource(t, s, occurredAt, domain.UsageSourceRecord{
+		BindingID:       binding.ID,
+		Kind:            domain.UsageSourceCodexRollout,
+		NativeSessionID: fmt.Sprintf("rollup-%d-%d", inputTokens, occurredAt.UnixNano()),
+		ArtifactPath:    fmt.Sprintf("/tmp/rollup-%d-%d.jsonl", inputTokens, occurredAt.UnixNano()),
+		FileIdentity:    fmt.Sprintf("rollup-%d-%d", inputTokens, occurredAt.UnixNano()),
+		State:           domain.UsageSourcePending,
+	})
+	err := s.ApplyUsageChunk(context.Background(), source.ID, 0, source.UpdatedAt, domain.SourceCursorState{
+		ByteOffset: 1,
+		State:      domain.UsageSourceComplete,
+		UpdatedAt:  time.Now().UTC(),
+	}, []domain.ModelUsageEvent{{
+		ModelID:        binding.InitialModelID,
+		Tokens:         domain.UsageTokenMetrics{InputTokens: inputTokens, UncachedInputTokens: inputTokens},
+		SourceEventKey: fmt.Sprintf("rollup-event-%d", source.ID),
+		OccurredAt:     occurredAt,
+	}})
+	mustNoError(t, err)
+}
+
+func mustInsertUsageEventUndated(t *testing.T, s *sqlite.Store, binding domain.UsageBindingRecord, inputTokens int64) {
+	t.Helper()
+	mustInsertUsageEvent(t, s, binding, inputTokens, time.Time{})
+}
+
+func parseTime(t *testing.T, raw string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, raw)
+	mustNoError(t, err)
+	return parsed
 }
 
 func seedUsageSession(t *testing.T, s *sqlite.Store, harness domain.AgentHarness) domain.SessionRecord {

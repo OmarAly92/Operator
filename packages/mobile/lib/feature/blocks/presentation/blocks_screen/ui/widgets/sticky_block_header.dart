@@ -22,9 +22,10 @@ class StickyBlock extends Equatable {
 }
 
 class StickyBlockHeader extends StatelessWidget {
-  const StickyBlockHeader({super.key, required this.sticky});
+  const StickyBlockHeader({super.key, required this.sticky, this.trailing});
 
   final ValueListenable<StickyBlock?> sticky;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<StickyBlock?>(
@@ -39,7 +40,16 @@ class StickyBlockHeader extends StatelessWidget {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
           border: Border.all(color: skin.borderSubtle),
         ),
-        child: BlockCardHeader(block: value.block),
+        child: Row(
+          children: [
+            Expanded(child: BlockCardHeader(block: value.block)),
+            if (trailing != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: trailing,
+              ),
+          ],
+        ),
       );
     },
   );

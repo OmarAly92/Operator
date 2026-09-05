@@ -10,9 +10,12 @@ sealed class EndPoints {
   static const String notificationsReadAll = '/api/v1/notifications/read-all';
   static const String pushDevices = '/api/v1/push/devices';
   static const String events = '/api/v1/events';
+  static const String usageRollup = '/api/v1/usage/rollup';
 
   static String notification(String id) => '$notifications/${Uri.encodeComponent(id)}';
   static String pushDevice(String token) => '$pushDevices/${Uri.encodeComponent(token)}';
+  static String usageSession(String sessionId) =>
+      '/api/v1/usage/sessions/${Uri.encodeComponent(sessionId)}';
 
   static String sessionPr(String sessionId) => '/api/v1/sessions/$sessionId/pr';
   static String sessionKill(String sessionId) => '/api/v1/sessions/$sessionId/kill';

@@ -983,6 +983,11 @@ type ListUsageSessionsQuery struct {
 	ProjectID domain.ProjectID `query:"projectId,omitempty" description:"Optional project id filter for dashboard cards."`
 }
 
+type UsageRollupQuery struct {
+	Bucket string `query:"bucket" required:"true" enum:"day,week" description:"Calendar bucket width."`
+	Days   int    `query:"days,omitempty" default:"14" minimum:"1" maximum:"90" description:"Number of trailing days to include. Defaults to 14."`
+}
+
 // CompactSessionUsageResponse is one session card's token-only usage summary.
 type CompactSessionUsageResponse struct {
 	SessionID   domain.SessionID `json:"sessionId"`
@@ -1018,12 +1023,31 @@ type UsageHarnessResponse struct {
 	Models  []UsageModelResponse `json:"models"`
 }
 
+type SessionContextResponse struct {
+	Harness    string    `json:"harness"`
+	ModelID    string    `json:"modelId"`
+	Used       int64     `json:"used" minimum:"0"`
+	Window     int64     `json:"window" minimum:"0"`
+	ObservedAt time.Time `json:"observedAt"`
+}
+
+type UsageRollupBucketResponse struct {
+	Start  string              `json:"start" format:"date"`
+	Totals UsageTotalsResponse `json:"totals"`
+}
+
+type UsageRollupResponse struct {
+	Bucket  string                      `json:"bucket" enum:"day,week"`
+	Buckets []UsageRollupBucketResponse `json:"buckets"`
+}
+
 // SessionUsageResponse is detailed telemetry for the session inspector.
 type SessionUsageResponse struct {
-	SessionID  domain.SessionID       `json:"sessionId"`
-	Incomplete bool                   `json:"incomplete"`
-	Totals     UsageTotalsResponse    `json:"totals"`
-	Harnesses  []UsageHarnessResponse `json:"harnesses"`
+	SessionID  domain.SessionID        `json:"sessionId"`
+	Incomplete bool                    `json:"incomplete"`
+	Context    *SessionContextResponse `json:"context,omitempty"`
+	Totals     UsageTotalsResponse     `json:"totals"`
+	Harnesses  []UsageHarnessResponse  `json:"harnesses"`
 }
 
 // ListNotificationsQuery is the query string accepted by GET /api/v1/notifications.

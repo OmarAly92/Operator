@@ -164,7 +164,7 @@ WHERE usage_bindings.session_id = ?2
         AND sessions.updated_at = ?4
         AND sessions.is_terminated = 0
   )
-RETURNING id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at
+RETURNING id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at, context_used, context_window, context_at, context_model_id
 `
 
 type FinalizeUsageBindingsForSessionLaunchParams struct {
@@ -197,6 +197,10 @@ func (q *Queries) FinalizeUsageBindingsForSessionLaunch(ctx context.Context, arg
 			&i.State,
 			&i.LastErrorCode,
 			&i.UpdatedAt,
+			&i.ContextUsed,
+			&i.ContextWindow,
+			&i.ContextAt,
+			&i.ContextModelID,
 		); err != nil {
 			return nil, err
 		}
@@ -250,7 +254,7 @@ func (q *Queries) GetModelUsageEventByKey(ctx context.Context, arg GetModelUsage
 }
 
 const getUsageBindingBySessionHarnessRoot = `-- name: GetUsageBindingBySessionHarnessRoot :one
-SELECT id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at
+SELECT id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at, context_used, context_window, context_at, context_model_id
 FROM usage_bindings
 WHERE session_id = ? AND harness = ? AND native_root_id = ?
 `
@@ -273,6 +277,10 @@ func (q *Queries) GetUsageBindingBySessionHarnessRoot(ctx context.Context, arg G
 		&i.State,
 		&i.LastErrorCode,
 		&i.UpdatedAt,
+		&i.ContextUsed,
+		&i.ContextWindow,
+		&i.ContextAt,
+		&i.ContextModelID,
 	)
 	return i, err
 }
@@ -416,8 +424,8 @@ const insertModelUsageEvent = `-- name: InsertModelUsageEvent :exec
 INSERT INTO model_usage_events (
     binding_id, usage_source_id, model_id, input_tokens, uncached_input_tokens,
     cache_read_tokens, cache_write_tokens, output_tokens, reasoning_tokens,
-    source_event_key
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    source_event_key, occurred_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertModelUsageEventParams struct {
@@ -431,6 +439,7 @@ type InsertModelUsageEventParams struct {
 	OutputTokens        int64
 	ReasoningTokens     sql.NullInt64
 	SourceEventKey      string
+	OccurredAt          sql.NullTime
 }
 
 func (q *Queries) InsertModelUsageEvent(ctx context.Context, arg InsertModelUsageEventParams) error {
@@ -445,6 +454,7 @@ func (q *Queries) InsertModelUsageEvent(ctx context.Context, arg InsertModelUsag
 		arg.OutputTokens,
 		arg.ReasoningTokens,
 		arg.SourceEventKey,
+		arg.OccurredAt,
 	)
 	return err
 }
@@ -630,7 +640,7 @@ func (q *Queries) ListLatestRetiredCodexReplacementClaimsByPath(ctx context.Cont
 }
 
 const listUsageBindingsForCodexParent = `-- name: ListUsageBindingsForCodexParent :many
-SELECT DISTINCT ub.id, ub.session_id, ub.harness, ub.native_root_id, ub.initial_model_id, ub.state, ub.last_error_code, ub.updated_at
+SELECT DISTINCT ub.id, ub.session_id, ub.harness, ub.native_root_id, ub.initial_model_id, ub.state, ub.last_error_code, ub.updated_at, ub.context_used, ub.context_window, ub.context_at, ub.context_model_id
 FROM usage_bindings ub
 JOIN sessions s ON s.id = ub.session_id
 JOIN usage_sources parent ON parent.binding_id = ub.id
@@ -672,6 +682,10 @@ func (q *Queries) ListUsageBindingsForCodexParent(ctx context.Context, parentNat
 			&i.State,
 			&i.LastErrorCode,
 			&i.UpdatedAt,
+			&i.ContextUsed,
+			&i.ContextWindow,
+			&i.ContextAt,
+			&i.ContextModelID,
 		); err != nil {
 			return nil, err
 		}
@@ -687,7 +701,7 @@ func (q *Queries) ListUsageBindingsForCodexParent(ctx context.Context, parentNat
 }
 
 const listUsageBindingsForSession = `-- name: ListUsageBindingsForSession :many
-SELECT id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at
+SELECT id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at, context_used, context_window, context_at, context_model_id
 FROM usage_bindings
 WHERE session_id = ?
 ORDER BY updated_at, id
@@ -711,6 +725,10 @@ func (q *Queries) ListUsageBindingsForSession(ctx context.Context, sessionID dom
 			&i.State,
 			&i.LastErrorCode,
 			&i.UpdatedAt,
+			&i.ContextUsed,
+			&i.ContextWindow,
+			&i.ContextAt,
+			&i.ContextModelID,
 		); err != nil {
 			return nil, err
 		}
@@ -726,7 +744,7 @@ func (q *Queries) ListUsageBindingsForSession(ctx context.Context, sessionID dom
 }
 
 const listUsageDiscoveryBindings = `-- name: ListUsageDiscoveryBindings :many
-SELECT ub.id, ub.session_id, ub.harness, ub.native_root_id, ub.initial_model_id, ub.state, ub.last_error_code, ub.updated_at
+SELECT ub.id, ub.session_id, ub.harness, ub.native_root_id, ub.initial_model_id, ub.state, ub.last_error_code, ub.updated_at, ub.context_used, ub.context_window, ub.context_at, ub.context_model_id
 FROM usage_bindings ub
 JOIN sessions s ON s.id = ub.session_id
 WHERE (s.is_terminated = 0 OR ub.state = 'finalizing')
@@ -783,6 +801,10 @@ func (q *Queries) ListUsageDiscoveryBindings(ctx context.Context, limit int64) (
 			&i.State,
 			&i.LastErrorCode,
 			&i.UpdatedAt,
+			&i.ContextUsed,
+			&i.ContextWindow,
+			&i.ContextAt,
+			&i.ContextModelID,
 		); err != nil {
 			return nil, err
 		}
@@ -1053,7 +1075,7 @@ ON CONFLICT (session_id, harness, native_root_id) DO UPDATE SET
         ELSE excluded.last_error_code
     END,
     updated_at = excluded.updated_at
-RETURNING id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at
+RETURNING id, session_id, harness, native_root_id, initial_model_id, state, last_error_code, updated_at, context_used, context_window, context_at, context_model_id
 `
 
 type UpsertUsageBindingParams struct {
@@ -1086,6 +1108,10 @@ func (q *Queries) UpsertUsageBinding(ctx context.Context, arg UpsertUsageBinding
 		&i.State,
 		&i.LastErrorCode,
 		&i.UpdatedAt,
+		&i.ContextUsed,
+		&i.ContextWindow,
+		&i.ContextAt,
+		&i.ContextModelID,
 	)
 	return i, err
 }

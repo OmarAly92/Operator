@@ -1,0 +1,263 @@
+# Mobile Context Readout and Usage Rollup — Implementation Report
+
+Consolidates the per-task worker/review notes (originally scattered as
+`task-*-report.md` / `task-*-rereview.md` files at the worktree root) into one
+place, plus the results of the tasks completed in this session (11–13) and the
+manual steps still owed for Task 14.
+
+## Tasks 1–10 (prior sessions, committed)
+
+All green on first or second pass. Notable findings folded in during review:
+
+- **Task 4 (Codex context capture)** — first pass had a bug: every accepted
+  Codex token-count event assigned `result.Context`, including **child**
+  rollout sources (non-empty `SubagentID`), which could overwrite the parent
+  session's context with a subagent's independent window (violates F7). Fixed
+  by gating the assignment to `source.Source.SubagentID == ""` and adding
+  `TestParseCodexChildDoesNotReportContext`. Re-review confirmed PASS.
+- **Task 5 (persistence)** — the originally proposed weekly bucketing SQL,
+  `date(occurred_at, 'weekday 1', '-7 days')`, was verified against a test
+  proving Monday stays its own bucket. A follow-up review fix made context
+  persistence transactional (`ApplyUsageChunkWithContext`): a failed context
+  write now rolls back the whole chunk instead of partially persisting, and
+  `SaveSessionContext` only updates when the incoming observation is dated and
+  not older than what's stored (migration `0099_usage_context_model.sql` adds
+  `context_model_id` for this). `golangci-lint` as a bare binary was
+  unavailable in that sandbox (`command not found`); the pinned
+  `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
+  --path-mode=abs` was used instead and returned 0 issues.
+- **Task 7 (HTTP endpoints)** — added a follow-up test
+  (`TestRollupServiceErrorIs500`) covering a summary-service failure on a
+  valid rollup request; no production code change was needed, the existing
+  handler already routed it through `envelope.WriteError`. One transient,
+  unrelated timeout was observed in `TestShellBlocksRestartAdoptsLiveHelperAndJournal`
+  during `npm run lint`; it passed in isolation and on the full suite rerun,
+  so treated as flake, not a regression.
+- **Tasks 6, 8, 10** — straightforward TDD passes, no findings.
+
+## Task 11 — Context chip on the blocks screen
+
+**Status: DONE.**
+
+Picked up as uncommitted work-in-progress with two defects:
+
+1. **Trivial lint** — `session_command_cubit.dart:234`, an if-statement body
+   not wrapped in braces (`curly_braces_in_flow_control_structures`). Fixed.
+2. **Real bug** — `blocks_body.dart` wrapped the sticky header in an
+   unconditional `BlocBuilder<SessionCommandCubit, SessionCommandState>`. The
+   pre-existing (unmodified) test
+   `test/feature/blocks/presentation/block_selection_test.dart` pumps
+   `BlocsBody` standalone with only a `BlocProvider<BlocksCubit>` above it —
+   no `SessionCommandCubit` ancestor — and started throwing
+   `ProviderNotFoundException` through that `BlocBuilder`.
+
+**Resolution chosen:** kept `contextReadout` on `SessionCommandCubit` exactly
+as specced (the plan is explicit that context refresh piggybacks on the
+existing `onActivity`/refresh tick and must not become a second poll loop),
+but made *consumption* of that cubit defensive instead of a hard requirement.
+Introduced a small private widget, `_StickyHeaderWithContextReadout`, local to
+`blocks_body.dart`, that does:
+
+```dart
+try {
+  readout = context.select<SessionCommandCubit, ContextReadoutData?>(
+    (cubit) => cubit.state.contextReadout,
+  );
+} on ProviderNotFoundException {
+  readout = null;
+}
+```
+
+`context.select` (from `package:provider`, re-exported transitively through
+`flutter_bloc`) preserves the original `BlocBuilder`'s narrow-rebuild
+semantics (rebuilds only when `contextReadout` changes) while degrading
+gracefully to "no observation available" — i.e. `ContextReadoutChip(readout:
+null)`, which already renders `SizedBox.shrink()` — when no
+`SessionCommandCubit` is above it in the tree. This is neither a pure "hoist
+the provider" fix (doesn't help `block_selection_test.dart`, which pumps
+`BlocsBody` in total isolation) nor a pure "decouple the data source" fix
+(would contradict the plan's single-poll-loop instruction and duplicate
+refresh logic) — it keeps the data source as specced and only hardens the
+read site.
+
+No import of `package:provider/provider.dart` was needed in the end —
+`flutter_bloc` already re-exports the used symbols (`ProviderNotFoundException`,
+`context.select`), and adding the explicit import triggered an
+`unnecessary_import` lint, so it was removed again (and a `provider` pubspec
+dependency add tried in passing was reverted along with it).
+
+Gates:
+
+```
+flutter analyze
+Analyzing mobile...
+No issues found! (ran in 3.2s)
+
+flutter test
+...
++1382: All tests passed!
+```
+
+The 7 previously-failing tests in `block_selection_test.dart` now pass
+unmodified, alongside the existing (also unmodified in behavior)
+`blocks_body_test.dart` chip-rendering case ("the context readout is attached
+to the sticky block header").
+
+Commit: `9be299afb feat(mobile): show context occupancy on the blocks screen`
+
+## Task 12 — Daily/weekly usage screen
+
+**Status: DONE.**
+
+Added `UsageCubit`/`UsageState` (statuses `initial`/`loading`/`loaded`/`error`,
+following the plan's spec verbatim) and `UsageScreen` with a Day/Week toggle
+and a list of buckets. Registered `UsageCubit` in the service locator and
+`RoutesStrings.usage` + its route in `app_router.dart`. The screen shows only
+consumption per bucket (`inputTokens`/`outputTokens`), never a percentage or
+anything framed as a limit/quota, per F8.
+
+`UsageCubit.load` catches `Failure` and surfaces `failure.apiStatus` (the
+daemon's machine-readable error code, e.g. `INVALID_RANGE`) as `state.error`,
+falling back to `failure.message` if no code is present — this is what lets
+the cubit test assert `state.error == 'INVALID_RANGE'` without inventing a new
+error-mapping convention.
+
+Gates: `flutter analyze` → `No issues found!`; `flutter test` → `+1386: All
+tests passed!` (1384 → 1386 after this task's 2 new cubit tests).
+
+Commit: `7295f6215 feat(mobile): add the daily and weekly token usage screen`
+
+## Task 13 — Settings entry point + final gate
+
+**Status: DONE.**
+
+Added a "Token usage" row (`Icons.query_stats`) in its own `SettingsGroup`
+between Notifications and the About/Version group in `settings_body.dart`,
+navigating to `RoutesStrings.usage` via `Navigator.of(context).pushNamed`.
+
+Adding a new group pushed later rows (`Version`, `Disconnect & forget
+server`) far enough down the `ListView` that they fell outside the test
+binding's default viewport *and* its cache extent, so three previously
+`ensureVisible`-based or unscrolled existing tests started failing with "No
+element" / "0 widgets found" — not because behavior regressed, but because
+the fixed-size test surface could no longer see them without a real drag.
+Fixed by switching those three tests (`the About section renders the
+formatted version`, `declining the disconnect confirmation...`, `confirming
+disconnect...`) from `ensureVisible` to `tester.dragUntilVisible(...,
+find.byType(ListView), const Offset(0, -200))`, which actually scrolls the
+list rather than assuming the target is already built. Two new test cases
+were added: `settings offers a token usage row` (from the plan, verbatim) and
+`the Token usage row opens the usage route`.
+
+Gates:
+- `flutter analyze` → `No issues found!`
+- `flutter test` → `+1386: All tests passed!` (22/22 in
+  `test/feature/settings/`)
+- Backend gate (final, full):
+  - `gofmt -l internal/` → no output
+  - `go vet ./...` → no output
+  - `go test ./...` → all packages `ok`
+  - `golangci-lint` was not on `PATH` in this sandbox (same as Tasks 5-7);
+    used the pinned invocation instead:
+    `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --path-mode=abs ./...`
+    → `0 issues.`
+
+Commit: `9522060c3 feat(mobile): link the token usage screen from settings`
+
+## Task 14 — Live verification against a real daemon
+
+**Status: RUN 2026-09-05. Steps 2-4 PASS. Step 5 verified against real provider
+data but not through a live session. Step 6 not run.**
+
+Run against a daemon built from this branch on an isolated port (3007) with its
+own data dir, so the live daemon on 3002 and its database were untouched and
+migration 0098 was not applied to real user data.
+
+**Step 2 — spawn and take several turns.** Spawned `scratch-4` (claude-code) and
+sent three further messages; all returned HTTP 200. Four assistant turns total.
+
+Incidental: in a brand-new empty database the allocator issued `scratch-4`, not
+`scratch-1` — the machine-wide pty-host registry still held 1-3, and the session
+id claim probe skipped them. Unrelated to this plan, but it confirms that fix
+working live.
+
+**Step 3 — context is occupancy, not the cumulative total. PASS.**
+
+```
+context.used        57,036
+totals.inputTokens 227,394
+context.window           0     (correct: Claude states no window, F5)
+```
+
+A 4x gap on a four-turn session. Cross-checked against the raw transcript, which
+gives cumulative 227,394 and last-turn context 57,036 — both match the endpoint
+exactly. The F1 bug (reporting the sum) is not present.
+
+**Step 4 — rollups. PASS.**
+
+Day bucket `2026-09-05` and week bucket `2026-08-31`, both totalling 227,394.
+Error paths return the documented codes: `bucket=fortnight` -> `INVALID_BUCKET`,
+`days=500` -> `INVALID_RANGE`.
+
+The plan flagged `date(occurred_at, 'weekday 1', '-7 days')` as asserted but not
+verified. It is now verified: 2026-09-05 is a Saturday, and 2026-08-31 is the
+Monday on or before it. The SQL is correct.
+
+**Step 5 — Codex window. Verified against real data; not reproduced live.**
+
+A live Codex session (`scratch-9`) produced no context. The cause is not a defect
+in this branch: its usage source bound correctly and the parser read the right
+rollout, but all three `token_count` events in that session carried `"info": null`
+— this Codex build populates `info` only sometimes. With no `info` there is no
+usage and no window to report, and the parser correctly emitted nothing.
+
+To verify the path itself, the branch parser was run over a real info-bearing
+rollout (`rollout-2026-09-05T05-58-39`, 16 `token_count` events with `info`):
+
+```
+used=263660  window=258400  model="gpt-5.6-luna"
+```
+
+So Task 4 is correct against genuine provider output. What remains unproven is
+only the end-to-end live path on a session long enough to emit `info`.
+
+**Step 6 — phone check. NOT RUN.** This ran on an isolated daemon that the phone
+is not paired to. To check on the device, restart the real daemon on this branch
+from the desktop app and open a session.
+
+### Finding: F8 is wrong for Codex
+
+F8 in the plan says no quota data exists anywhere and that daily/weekly limits
+are unbuildable. That holds for Claude Code, whose JSONL carries no such fields.
+It is **false for Codex**. Every `token_count` event in a Codex rollout carries a
+`rate_limits` object, and in an active session it is populated:
+
+```json
+"primary":   {"used_percent": 0.0,  "window_minutes": 300,   "resets_at": 1788626687},
+"secondary": {"used_percent": 24.0, "window_minutes": 10080, "resets_at": 1789125853},
+"plan_type": "plus", "credits": {"has_credits": false, "balance": "0"}
+```
+
+`window_minutes: 300` is the 5-hour window; `10080` is the 7-day window. That is
+real quota-remaining data — `used_percent` plus a reset timestamp — in a file
+Operator already tails, and the parser currently discards it exactly as it once
+discarded `model_context_window`.
+
+This does not change any code in this plan, and nothing here should be relabelled
+as a "limit" on the strength of it: the data covers Codex only, so a UI built on
+it would show quota for one harness and nothing for the other. It is recorded
+here because the plan's stated reason for excluding quota is now known to be
+wrong for half the harnesses, and that is a decision to revisit deliberately
+rather than a gap to quietly fill.
+
+## Commit log for this session
+
+```
+9522060c3 feat(mobile): link the token usage screen from settings
+7295f6215 feat(mobile): add the daily and weekly token usage screen
+331e71832 docs: consolidate stray task reports into the mobile usage plan report
+9be299afb feat(mobile): show context occupancy on the blocks screen
+```
+
+(Tasks 1–10 predate this session; see the "Tasks 1–10" section above for
+their commits and findings.)

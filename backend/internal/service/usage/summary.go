@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apierr"
@@ -13,6 +14,8 @@ type usageSummaryStore interface {
 	ListCompactSessionUsage(context.Context, domain.ProjectID) ([]domain.CompactSessionUsage, error)
 	ListUsageModelAggregates(context.Context, domain.SessionID) ([]domain.UsageModelAggregate, error)
 	GetUsageSessionIncomplete(context.Context, domain.SessionID) (bool, error)
+	GetSessionContext(context.Context, domain.SessionID) (domain.SessionContext, bool, error)
+	UsageRollup(context.Context, time.Time, time.Time, string) ([]domain.UsageRollupBucket, error)
 }
 
 // SummaryReader derives token summaries from normalized usage events.
@@ -48,10 +51,28 @@ func (r *SummaryReader) Get(ctx context.Context, sessionID domain.SessionID) (do
 	if err != nil {
 		return domain.SessionUsageSummary{}, err
 	}
+	sessionContext, hasContext, err := r.store.GetSessionContext(ctx, sessionID)
+	if err != nil {
+		return domain.SessionUsageSummary{}, err
+	}
+	var summaryContext *domain.SessionContext
+	if hasContext {
+		summaryContext = &sessionContext
+	}
 	return domain.SessionUsageSummary{
-		SessionID: sessionID, Incomplete: incomplete,
+		SessionID: sessionID, Incomplete: incomplete, Context: summaryContext,
 		Totals: usageTotals(models), Harnesses: harnessUsageSummaries(models),
 	}, nil
+}
+
+func (r *SummaryReader) Rollup(ctx context.Context, from, to time.Time, bucket string) ([]domain.UsageRollupBucket, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("usage summary store is unavailable")
+	}
+	if bucket != "day" && bucket != "week" {
+		return nil, fmt.Errorf("unsupported usage rollup bucket %q", bucket)
+	}
+	return r.store.UsageRollup(ctx, from, to, bucket)
 }
 
 func usageTotals(models []domain.UsageModelAggregate) domain.UsageMetricTotals {

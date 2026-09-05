@@ -1,4 +1,3 @@
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
@@ -54,6 +53,9 @@ import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/sp
 import 'package:operator_mobile/feature/terminal/data/data_source/terminal_remote_data_source.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/usage/data/data_source/usage_remote_data_source.dart';
+import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
+import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final sl = GetIt.instance;
@@ -69,6 +71,7 @@ class ServiceLocator {
     _settingsFeatureSetup();
     _chatFeatureSetup();
     _terminalFeatureSetup();
+    _usageFeatureSetup();
     _blocksFeatureSetup();
     _notificationFeatureSetup();
     _voiceSetup();
@@ -98,7 +101,9 @@ class ServiceLocator {
       () => ConversationEventBus(sl<ChatEventDataSource>()),
     );
 
-    sl.registerLazySingleton<GlobalKey<NavigatorState>>(() => GlobalKey<NavigatorState>());
+    sl.registerLazySingleton<GlobalKey<NavigatorState>>(
+      () => GlobalKey<NavigatorState>(),
+    );
     sl.registerLazySingleton<DeepLinkService>(
       () => DeepLinkService(AppLinksSource(), sl<GlobalKey<NavigatorState>>()),
     );
@@ -204,10 +209,7 @@ class ServiceLocator {
     );
 
     sl.registerLazySingleton<ChatRepository>(
-      () => ChatRepositoryImp(
-        sl<ChatRemoteDataSource>(),
-        sl<NetworkStatus>(),
-      ),
+      () => ChatRepositoryImp(sl<ChatRemoteDataSource>(), sl<NetworkStatus>()),
     );
     sl.registerLazySingleton<ChatRemoteDataSource>(
       () => ChatRemoteDataSourceImp(sl<ApiConsumer>()),
@@ -227,7 +229,10 @@ class ServiceLocator {
       ),
     );
     sl.registerLazySingleton<TerminalRepository>(
-      () => TerminalRepositoryImp(sl<TerminalRemoteDataSource>(), sl<NetworkStatus>()),
+      () => TerminalRepositoryImp(
+        sl<TerminalRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<TerminalRemoteDataSource>(
       () => TerminalRemoteDataSourceImp(sl<ApiConsumer>()),
@@ -239,13 +244,18 @@ class ServiceLocator {
       (sessionId, activity) => SessionCommandCubit(
         sl<MuxClient>(),
         sl<SessionControlRepository>(),
+        sl<UsageRepository>(),
         sessionId: sessionId,
         initialActivity: activity,
       ),
     );
     sl.registerFactoryParam<BlocksCubit, String, String?>(
-      (sessionId, harness) =>
-          BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), sessionId, harness: harness),
+      (sessionId, harness) => BlocksCubit(
+        sl<MuxClient>(),
+        sl<BlocksRepository>(),
+        sessionId,
+        harness: harness,
+      ),
     );
     sl.registerFactoryParam<ConversationBlocksCubit, String, void>(
       (sessionId, _) => ConversationBlocksCubit(
@@ -261,34 +271,60 @@ class ServiceLocator {
       ),
     );
     sl.registerLazySingleton<BlocksRepository>(
-      () => BlocksRepositoryImp(sl<BlocksRemoteDataSource>(), sl<NetworkStatus>()),
+      () => BlocksRepositoryImp(
+        sl<BlocksRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<BlocksRemoteDataSource>(
       () => BlocksRemoteDataSourceImp(sl<ApiConsumer>()),
     );
     sl.registerLazySingleton<SessionControlRepository>(
-      () => SessionControlRepositoryImp(sl<SessionControlRemoteDataSource>(), sl<NetworkStatus>()),
+      () => SessionControlRepositoryImp(
+        sl<SessionControlRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<SessionControlRemoteDataSource>(
       () => SessionControlRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 
+  static void _usageFeatureSetup() {
+    sl.registerLazySingleton<UsageRepository>(
+      () => UsageRepository(sl<UsageRemoteDataSource>()),
+    );
+    sl.registerLazySingleton<UsageRemoteDataSource>(
+      () => UsageRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+    sl.registerFactory<UsageCubit>(() => UsageCubit(sl<UsageRepository>()));
+  }
+
   static void _notificationFeatureSetup() {
     sl.registerLazySingleton<NotificationsCubit>(
-      () => NotificationsCubit(sl<NotificationRepository>(), sl<ServerConfigStore>()),
+      () => NotificationsCubit(
+        sl<NotificationRepository>(),
+        sl<ServerConfigStore>(),
+      ),
     );
 
     sl.registerLazySingleton<NotificationRepository>(
-      () => NotificationRepositoryImp(sl<NotificationRemoteDataSource>(), sl<NetworkStatus>()),
+      () => NotificationRepositoryImp(
+        sl<NotificationRemoteDataSource>(),
+        sl<NetworkStatus>(),
+      ),
     );
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImp(sl<ApiConsumer>()),
     );
 
-    sl.registerLazySingleton<PushTokenSource>(() => const UnconfiguredPushTokenSource());
+    sl.registerLazySingleton<PushTokenSource>(
+      () => const UnconfiguredPushTokenSource(),
+    );
     sl.registerLazySingleton<PushRegistrationStore>(
-      () => PushRegistrationStore(FlutterPushSecureStorage(sl<FlutterSecureStorage>())),
+      () => PushRegistrationStore(
+        FlutterPushSecureStorage(sl<FlutterSecureStorage>()),
+      ),
     );
     sl.registerLazySingleton<PushRegistrar>(
       () => PushRegistrar(
@@ -311,8 +347,11 @@ class ServiceLocator {
 
   static void _previewFeatureSetup() {
     sl.registerFactoryParam<PreviewCubit, String, String?>(
-      (sessionId, previewUrl) =>
-          PreviewCubit(sl<PreviewRepository>(), sessionId, previewUrl: previewUrl),
+      (sessionId, previewUrl) => PreviewCubit(
+        sl<PreviewRepository>(),
+        sessionId,
+        previewUrl: previewUrl,
+      ),
     );
 
     sl.registerLazySingleton<PreviewRepository>(

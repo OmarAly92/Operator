@@ -180,6 +180,8 @@ void main() {
                   _FakePairingScreen(onPaired: () => when(() => serverConfigStore.current).thenReturn(_pairedConfig)),
               RoutesStrings.notifications: (_) =>
                   const Scaffold(body: Text('Notifications screen')),
+              RoutesStrings.usage: (_) =>
+                  const Scaffold(body: Text('Usage screen')),
             },
             home: MultiBlocProvider(
               providers: [
@@ -304,14 +306,23 @@ void main() {
   testWidgets('the About section renders the formatted version', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
+    await tester.dragUntilVisible(
+      find.text('1.2.0 (42)'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
+
     expect(find.text('1.2.0 (42)'), findsOneWidget);
   });
 
   testWidgets('declining the disconnect confirmation leaves the server untouched', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
-    await tester.ensureVisible(find.text('Disconnect & forget server'));
-    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('Disconnect & forget server'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
     await tester.tap(find.text('Disconnect & forget server'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
@@ -325,8 +336,11 @@ void main() {
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
-    await tester.ensureVisible(find.text('Disconnect & forget server'));
-    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('Disconnect & forget server'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
     await tester.tap(find.text('Disconnect & forget server'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
@@ -356,6 +370,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Notifications screen'), findsOneWidget);
+  });
+
+  testWidgets('settings offers a token usage row', (tester) async {
+    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+
+    expect(find.text('Token usage'), findsOneWidget);
+  });
+
+  testWidgets('the Token usage row opens the usage route', (tester) async {
+    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+    await tester.tap(find.text('Token usage'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Usage screen'), findsOneWidget);
   });
 
   testWidgets('a paired, granted, unregistered device offers a live switch', (tester) async {

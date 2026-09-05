@@ -46,6 +46,49 @@ func TestParseClaudeSubagentIncludesSidechainTranscript(t *testing.T) {
 	}
 }
 
+func TestParseClaudeRecordsTimestampAndContext(t *testing.T) {
+	record := `{"type":"assistant","uuid":"u1","timestamp":"2026-09-05T12:19:12.745Z",` +
+		`"message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"end_turn",` +
+		`"usage":{"input_tokens":2,"cache_creation_input_tokens":21113,` +
+		`"cache_read_input_tokens":34972,"output_tokens":4}}}`
+
+	result := parseClaudeForTest(t, domain.UsageSourceClaudeMain, record)
+
+	if len(result.Events) != 1 {
+		t.Fatalf("events = %d, want 1", len(result.Events))
+	}
+	got := result.Events[0]
+	if got.Tokens.InputTokens != 56087 {
+		t.Fatalf("input = %d, want 56087 (2 + 21113 + 34972)", got.Tokens.InputTokens)
+	}
+	want := time.Date(2026, 9, 5, 12, 19, 12, 745000000, time.UTC)
+	if !got.OccurredAt.Equal(want) {
+		t.Fatalf("occurredAt = %v, want %v", got.OccurredAt, want)
+	}
+	if result.Context == nil {
+		t.Fatal("context = nil, want the main source to report occupancy")
+	}
+	if result.Context.Used != 56087 {
+		t.Fatalf("context used = %d, want 56087", result.Context.Used)
+	}
+	if result.Context.Window != 0 {
+		t.Fatalf("context window = %d, want 0 -- Claude reports no window", result.Context.Window)
+	}
+}
+
+func TestParseClaudeSubagentDoesNotReportContext(t *testing.T) {
+	record := `{"type":"assistant","uuid":"u1","timestamp":"2026-09-05T12:19:12.745Z",` +
+		`"message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"end_turn",` +
+		`"usage":{"input_tokens":10,"cache_creation_input_tokens":0,` +
+		`"cache_read_input_tokens":0,"output_tokens":1}}}`
+
+	result := parseClaudeForTest(t, domain.UsageSourceClaudeSubagent, record)
+
+	if result.Context != nil {
+		t.Fatal("a subagent has its own window; it must not overwrite the session's context")
+	}
+}
+
 func TestParseCodexCumulativeDeltasAndRepeats(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	source := usageSource(domain.UsageSourceCodexRollout)
@@ -72,6 +115,47 @@ func TestParseCodexCumulativeDeltasAndRepeats(t *testing.T) {
 	state := parserStateFromResult(t, result, domain.UsageSourceCodexRollout)
 	if state.Codex.Baseline.InputTokens != 160 || state.Codex.ModelID != "gpt-5.6" {
 		t.Fatalf("parser state = %+v", state.Codex)
+	}
+}
+
+func TestParseCodexReportsAbsoluteContextAndWindow(t *testing.T) {
+	first := codexTokenCountLine(t, "2026-09-05T12:00:00Z", 10_000, 200_000)
+	second := codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000)
+
+	result := parseCodexForTest(t, first, second)
+
+	if result.Context == nil {
+		t.Fatal("context = nil, want Codex to report occupancy")
+	}
+	if result.Context.Used != 25_000 {
+		t.Fatalf("used = %d, want 25000 (the absolute total, not a delta sum)", result.Context.Used)
+	}
+	if result.Context.Window != 200_000 {
+		t.Fatalf("window = %d, want 200000", result.Context.Window)
+	}
+	if want := time.Date(2026, 9, 5, 12, 5, 0, 0, time.UTC); !result.Context.ObservedAt.Equal(want) {
+		t.Fatalf("observedAt = %v, want %v", result.Context.ObservedAt, want)
+	}
+	frac, ok := result.Context.Fraction()
+	if !ok || frac != 0.125 {
+		t.Fatalf("fraction = %v ok=%v, want 0.125 true", frac, ok)
+	}
+}
+
+func TestParseCodexChildDoesNotReportContext(t *testing.T) {
+	source := usageSource(domain.UsageSourceCodexRollout)
+	source.Source.NativeSessionID = "22222222-2222-4222-8222-222222222222"
+	source.Source.SubagentID = source.Source.NativeSessionID
+	source.Source.ParserStateJSON = `{"version":1,"source_kind":"codex_rollout","codex":{"baseline":{},"native_session_id":"22222222-2222-4222-8222-222222222222","direct_parent_id":"11111111-1111-4111-8111-111111111111","pending_spawn_call_ids":[],"discovered_child_ids":[]}}`
+	result := parseRecords(source, []jsonlRecord{{
+		Data: codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000),
+	}}, 1, time.Time{})
+	if result.err != nil {
+		t.Fatalf("parse child: %v", result.err)
+	}
+
+	if result.Context != nil {
+		t.Fatalf("context = %+v, want nil for a Codex child", result.Context)
 	}
 }
 
@@ -524,6 +608,24 @@ func usageSource(kind domain.UsageSourceKind) domain.UsageSourceContext {
 	}
 }
 
+func parseClaudeForTest(t *testing.T, kind domain.UsageSourceKind, record string) parseResult {
+	t.Helper()
+	source := usageSource(kind)
+	result := parseResult{}
+	parseClaude(source, []jsonlRecord{{Data: []byte(record)}}, &claudeParserStateV1{}, &result)
+	return result
+}
+
+func parseCodexForTest(t *testing.T, records ...[]byte) parseResult {
+	t.Helper()
+	source := usageSource(domain.UsageSourceCodexRollout)
+	jsonl := make([]jsonlRecord, len(records))
+	for index, record := range records {
+		jsonl[index] = jsonlRecord{Offset: int64(index), Data: record}
+	}
+	return parseRecords(source, jsonl, int64(len(records)), time.Time{})
+}
+
 func parserStateFromResult(t *testing.T, result parseResult, kind domain.UsageSourceKind) *parserStateEnvelope {
 	t.Helper()
 	if result.err != nil {
@@ -544,6 +646,14 @@ func codexTokenLine(timestamp string, input, cached, cacheWrite, output, reasoni
 	return []byte(fmt.Sprintf(
 		`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":%d,"output_tokens":%d,"reasoning_output_tokens":%d,"total_tokens":%d}}}}`,
 		timestamp, input, cached, cacheWrite, output, reasoning, input+output,
+	))
+}
+
+func codexTokenCountLine(t *testing.T, timestamp string, total, modelContextWindow int64) []byte {
+	t.Helper()
+	return []byte(fmt.Sprintf(
+		`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":%d},"model_context_window":%d}}}`,
+		timestamp, total, total, modelContextWindow,
 	))
 }
 

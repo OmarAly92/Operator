@@ -229,6 +229,7 @@ type ModelUsageEvent struct {
 	OutputTokens        int64
 	ReasoningTokens     sql.NullInt64
 	SourceEventKey      string
+	OccurredAt          sql.NullTime
 }
 
 type Notification struct {
@@ -521,6 +522,10 @@ type UsageBinding struct {
 	State          domain.UsageBindingState
 	LastErrorCode  string
 	UpdatedAt      time.Time
+	ContextUsed    int64
+	ContextWindow  int64
+	ContextAt      sql.NullTime
+	ContextModelID string
 }
 
 type UsageCodexPendingChild struct {

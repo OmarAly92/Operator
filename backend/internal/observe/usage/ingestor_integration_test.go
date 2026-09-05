@@ -48,6 +48,33 @@ func TestIngestorPersistsVersionedCodexParserStateAcrossChunks(t *testing.T) {
 	assertCodexParserState(t, readParserStateJSON(t, dataDir, source.ID), 160, "gpt-5.6")
 }
 
+func TestIngestorPersistsRootCodexSessionContext(t *testing.T) {
+	ctx := context.Background()
+	store, source, path, now := seedCodexIngestionSource(t, t.TempDir())
+	content := `{"type":"turn_context","payload":{"model":"gpt-5.7"}}` + "\n" +
+		string(codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000)) + "\n"
+	mustNoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+	ingestor := NewIngestor(store, IngestorConfig{Clock: func() time.Time { return now }})
+	if _, err := ingestor.Ingest(ctx, source.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.GetSessionContext(ctx, sourceSessionID(t, store, source.ID))
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: time.Date(2026, time.September, 5, 12, 5, 0, 0, time.UTC),
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want %+v", got, want)
+	}
+}
+
 func TestIngestorRejectsInvalidPersistedParserStateWithoutAdvancing(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -987,19 +1014,20 @@ type applyInterleavingStore struct {
 	beforeApply func()
 }
 
-func (s *applyInterleavingStore) ApplyUsageChunk(
+func (s *applyInterleavingStore) ApplyUsageChunkWithContext(
 	ctx context.Context,
 	sourceID int64,
 	expectedOffset int64,
 	expectedRevision time.Time,
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
+	sessionContext *domain.SessionContext,
 ) error {
 	if beforeApply := s.beforeApply; beforeApply != nil {
 		s.beforeApply = nil
 		beforeApply()
 	}
-	return s.Store.ApplyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events)
+	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
 }
 
 func assertTokenAggregate(t *testing.T, store *sqlite.Store, sessionID domain.SessionID, total int64) {

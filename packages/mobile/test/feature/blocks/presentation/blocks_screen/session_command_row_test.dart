@@ -22,23 +22,43 @@ import 'package:operator_mobile/feature/preview/presentation/preview_screen/logi
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
+import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 
 import '../../../terminal/terminal_harness.dart';
 
 class MockSessionCommandCubit extends Mock implements SessionCommandCubit {}
 
-class MockSessionControlRepository extends Mock implements SessionControlRepository {}
+class MockSessionControlRepository extends Mock
+    implements SessionControlRepository {}
 
 class _MockMux extends Mock implements MuxClient {}
 
+class _MockUsageRepository extends Mock implements UsageRepository {}
+
 SessionCommandCubit _realCommandCubit(String activity) {
   final mux = _MockMux();
-  when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
-  when(() => mux.blockEvents).thenAnswer((_) => const Stream<BlockEventEnvelope>.empty());
+  when(
+    () => mux.sessionPatches,
+  ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+  when(
+    () => mux.blockEvents,
+  ).thenAnswer((_) => const Stream<BlockEventEnvelope>.empty());
   final repo = MockSessionControlRepository();
-  when(() => repo.getInteractions(any()))
-      .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
-  return SessionCommandCubit(mux, repo, sessionId: 's-1', initialActivity: activity);
+  when(() => repo.getInteractions(any())).thenAnswer(
+    (_) async =>
+        Result.success(GlobalResponse<List<PendingInteractionModel>>()),
+  );
+  final usageRepository = _MockUsageRepository();
+  when(
+    () => usageRepository.sessionContext(any()),
+  ).thenAnswer((_) async => null);
+  return SessionCommandCubit(
+    mux,
+    repo,
+    usageRepository,
+    sessionId: 's-1',
+    initialActivity: activity,
+  );
 }
 
 void _stubBloc(MockSessionCommandCubit cubit) {
@@ -70,7 +90,8 @@ Widget _host({required String activity, MockSessionCommandCubit? cubit}) {
 final _harnesses = <TerminalHarness>[];
 
 Widget _terminalBody({required SessionViewMode mode}) {
-  final harness = TerminalHarness()..start(harness: mode == SessionViewMode.blocks ? 'claude-code' : null);
+  final harness = TerminalHarness()
+    ..start(harness: mode == SessionViewMode.blocks ? 'claude-code' : null);
   _harnesses.add(harness);
 
   return SkinScope(
@@ -84,9 +105,14 @@ Widget _terminalBody({required SessionViewMode mode}) {
               BlocProvider<TerminalCubit>.value(value: harness.cubit),
               BlocProvider<SessionViewCubit>.value(value: harness.viewCubit),
               BlocProvider<BlocksCubit>.value(value: harness.blocksCubit),
-              BlocProvider<SessionCommandCubit>.value(value: harness.commandCubit),
+              BlocProvider<SessionCommandCubit>.value(
+                value: harness.commandCubit,
+              ),
               BlocProvider<PreviewCubit>(
-                create: (_) => sl<PreviewCubit>(param1: harness.cubit.args.sessionId, param2: null),
+                create: (_) => sl<PreviewCubit>(
+                  param1: harness.cubit.args.sessionId,
+                  param2: null,
+                ),
               ),
             ],
             child: const TerminalBody(),
@@ -106,14 +132,18 @@ void main() {
     _harnesses.clear();
   });
 
-  testWidgets('the row renders three buttons in every session state', (tester) async {
+  testWidgets('the row renders three buttons in every session state', (
+    tester,
+  ) async {
     for (final activity in ['idle', 'active', 'blocked']) {
       await tester.pumpWidget(_host(activity: activity));
       expect(find.byType(SessionCommandButton), findsNWidgets(3));
     }
   });
 
-  testWidgets('the row height does not change with session state', (tester) async {
+  testWidgets('the row height does not change with session state', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(activity: 'idle'));
     final idle = tester.getSize(find.byType(SessionCommandRow));
 
@@ -121,25 +151,36 @@ void main() {
     await tester.pumpAndSettle();
     final blocked = tester.getSize(find.byType(SessionCommandRow));
 
-    expect(blocked, idle, reason: 'a reflowing row is the thing the fixed key row exists to avoid');
+    expect(
+      blocked,
+      idle,
+      reason: 'a reflowing row is the thing the fixed key row exists to avoid',
+    );
   });
 
-  testWidgets('tapping a disabled button shows why instead of calling the cubit', (tester) async {
-    final cubit = MockSessionCommandCubit();
-    when(() => cubit.phases).thenReturn(const {});
-    when(() => cubit.enabled('stop')).thenReturn(true);
-    when(() => cubit.enabled('compact')).thenReturn(false);
-    when(() => cubit.enabled('model')).thenReturn(false);
-    when(() => cubit.disabledReason('compact')).thenReturn('The agent is working');
-    when(() => cubit.disabledReason('model')).thenReturn('The agent is working');
+  testWidgets(
+    'tapping a disabled button shows why instead of calling the cubit',
+    (tester) async {
+      final cubit = MockSessionCommandCubit();
+      when(() => cubit.phases).thenReturn(const {});
+      when(() => cubit.enabled('stop')).thenReturn(true);
+      when(() => cubit.enabled('compact')).thenReturn(false);
+      when(() => cubit.enabled('model')).thenReturn(false);
+      when(
+        () => cubit.disabledReason('compact'),
+      ).thenReturn('The agent is working');
+      when(
+        () => cubit.disabledReason('model'),
+      ).thenReturn('The agent is working');
 
-    await tester.pumpWidget(_host(activity: 'active', cubit: cubit));
-    await tester.tap(find.text('Compact'));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(_host(activity: 'active', cubit: cubit));
+      await tester.tap(find.text('Compact'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('The agent is working'), findsOneWidget);
-    verifyNever(() => cubit.run(any()));
-  });
+      expect(find.text('The agent is working'), findsOneWidget);
+      verifyNever(() => cubit.run(any()));
+    },
+  );
 
   testWidgets('tapping stop while active runs the command', (tester) async {
     final cubit = MockSessionCommandCubit();
@@ -156,30 +197,37 @@ void main() {
     verify(() => cubit.run('stop')).called(1);
   });
 
-  testWidgets('tapping model opens the picker rather than running immediately', (tester) async {
+  testWidgets(
+    'tapping model opens the picker rather than running immediately',
+    (tester) async {
+      final cubit = MockSessionCommandCubit();
+      when(() => cubit.phases).thenReturn(const {});
+      when(() => cubit.enabled('stop')).thenReturn(false);
+      when(() => cubit.enabled('compact')).thenReturn(true);
+      when(() => cubit.enabled('model')).thenReturn(true);
+      when(() => cubit.models).thenReturn(['sonnet', 'opus']);
+
+      await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
+      await tester.tap(find.text('Model'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ModelPickerSheet), findsOneWidget);
+      verifyNever(() => cubit.run(any(), model: any(named: 'model')));
+    },
+  );
+
+  testWidgets('picking a model runs the command with that label', (
+    tester,
+  ) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn(const {});
     when(() => cubit.enabled('stop')).thenReturn(false);
     when(() => cubit.enabled('compact')).thenReturn(true);
     when(() => cubit.enabled('model')).thenReturn(true);
     when(() => cubit.models).thenReturn(['sonnet', 'opus']);
-
-    await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
-    await tester.tap(find.text('Model'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ModelPickerSheet), findsOneWidget);
-    verifyNever(() => cubit.run(any(), model: any(named: 'model')));
-  });
-
-  testWidgets('picking a model runs the command with that label', (tester) async {
-    final cubit = MockSessionCommandCubit();
-    when(() => cubit.phases).thenReturn(const {});
-    when(() => cubit.enabled('stop')).thenReturn(false);
-    when(() => cubit.enabled('compact')).thenReturn(true);
-    when(() => cubit.enabled('model')).thenReturn(true);
-    when(() => cubit.models).thenReturn(['sonnet', 'opus']);
-    when(() => cubit.run(any(), model: any(named: 'model'))).thenAnswer((_) async {});
+    when(
+      () => cubit.run(any(), model: any(named: 'model')),
+    ).thenAnswer((_) async {});
 
     await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
     await tester.tap(find.text('Model'));
@@ -190,40 +238,56 @@ void main() {
     verify(() => cubit.run('model', model: 'opus')).called(1);
   });
 
-  testWidgets('an unconfirmed command is visibly distinct from a confirmed one', (tester) async {
-    final cubit = MockSessionCommandCubit();
-    when(() => cubit.phases).thenReturn({'compact': CommandPhase.unconfirmed});
-    when(() => cubit.enabled('stop')).thenReturn(false);
-    when(() => cubit.enabled('compact')).thenReturn(true);
-    when(() => cubit.enabled('model')).thenReturn(true);
-    await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'an unconfirmed command is visibly distinct from a confirmed one',
+    (tester) async {
+      final cubit = MockSessionCommandCubit();
+      when(
+        () => cubit.phases,
+      ).thenReturn({'compact': CommandPhase.unconfirmed});
+      when(() => cubit.enabled('stop')).thenReturn(false);
+      when(() => cubit.enabled('compact')).thenReturn(true);
+      when(() => cubit.enabled('model')).thenReturn(true);
+      await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
+      await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
-  });
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    },
+  );
 
-  testWidgets('a disabled button renders muted, an enabled one renders full colour', (tester) async {
-    final cubit = MockSessionCommandCubit();
-    when(() => cubit.phases).thenReturn(const {});
-    when(() => cubit.enabled('stop')).thenReturn(false);
-    when(() => cubit.enabled('compact')).thenReturn(true);
-    when(() => cubit.enabled('model')).thenReturn(true);
+  testWidgets(
+    'a disabled button renders muted, an enabled one renders full colour',
+    (tester) async {
+      final cubit = MockSessionCommandCubit();
+      when(() => cubit.phases).thenReturn(const {});
+      when(() => cubit.enabled('stop')).thenReturn(false);
+      when(() => cubit.enabled('compact')).thenReturn(true);
+      when(() => cubit.enabled('model')).thenReturn(true);
 
-    await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
+      await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
 
-    final skin = const DarkSkin();
-    final stopText = tester.widget<Text>(
-      find.descendant(of: find.widgetWithText(SessionCommandButton, 'Stop'), matching: find.byType(Text)),
-    );
-    final compactText = tester.widget<Text>(
-      find.descendant(of: find.widgetWithText(SessionCommandButton, 'Compact'), matching: find.byType(Text)),
-    );
+      final skin = const DarkSkin();
+      final stopText = tester.widget<Text>(
+        find.descendant(
+          of: find.widgetWithText(SessionCommandButton, 'Stop'),
+          matching: find.byType(Text),
+        ),
+      );
+      final compactText = tester.widget<Text>(
+        find.descendant(
+          of: find.widgetWithText(SessionCommandButton, 'Compact'),
+          matching: find.byType(Text),
+        ),
+      );
 
-    expect(stopText.style?.color, skin.textFaint);
-    expect(compactText.style?.color, isNot(skin.textFaint));
-  });
+      expect(stopText.style?.color, skin.textFaint);
+      expect(compactText.style?.color, isNot(skin.textFaint));
+    },
+  );
 
-  testWidgets('the row is absent in raw mode and present in blocks mode', (tester) async {
+  testWidgets('the row is absent in raw mode and present in blocks mode', (
+    tester,
+  ) async {
     await tester.pumpWidget(_terminalBody(mode: SessionViewMode.raw));
     expect(find.byType(SessionCommandRow), findsNothing);
     expect(find.byType(TerminalKeyRow), findsOneWidget);
@@ -250,12 +314,17 @@ Widget _hostWithCubit(SessionCommandCubit cubit) => SkinScope(
   ),
 );
 
-bool _buttonEnabled(WidgetTester tester, String label) =>
-    tester.widget<SessionCommandButton>(find.widgetWithText(SessionCommandButton, label)).enabled;
+bool _buttonEnabled(WidgetTester tester, String label) => tester
+    .widget<SessionCommandButton>(
+      find.widgetWithText(SessionCommandButton, label),
+    )
+    .enabled;
 
 void _liveRebuildTests() {
   group('live rebuild', () {
-    testWidgets('enablement follows the cubit when the session state changes', (tester) async {
+    testWidgets('enablement follows the cubit when the session state changes', (
+      tester,
+    ) async {
       // The row read the cubit once at build time. Declared const and reading
       // through context.read, it never rebuilt on an emit, so its indicators
       // and disabled styling went stale while taps still behaved correctly —
@@ -270,8 +339,16 @@ void _liveRebuildTests() {
       cubit.onActivity('active');
       await tester.pump();
 
-      expect(_buttonEnabled(tester, 'Compact'), isFalse, reason: 'the agent is working now');
-      expect(_buttonEnabled(tester, 'Stop'), isTrue, reason: 'stop is only available while active');
+      expect(
+        _buttonEnabled(tester, 'Compact'),
+        isFalse,
+        reason: 'the agent is working now',
+      );
+      expect(
+        _buttonEnabled(tester, 'Stop'),
+        isTrue,
+        reason: 'stop is only available while active',
+      );
     });
 
     testWidgets('a phase change reaches the button', (tester) async {
@@ -280,7 +357,11 @@ void _liveRebuildTests() {
       await tester.pumpWidget(_hostWithCubit(cubit));
 
       expect(
-        tester.widget<SessionCommandButton>(find.widgetWithText(SessionCommandButton, 'Stop')).phase,
+        tester
+            .widget<SessionCommandButton>(
+              find.widgetWithText(SessionCommandButton, 'Stop'),
+            )
+            .phase,
         isNot(CommandPhase.confirmed),
       );
 
