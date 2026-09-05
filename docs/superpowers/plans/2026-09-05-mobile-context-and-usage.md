@@ -1258,11 +1258,11 @@ git commit -m "feat(mobile): link the token usage screen from settings"
 
 This exists because every prior task's tests use fixtures, and the entire feature is a claim about what real providers write into real files. A green suite does not establish that the parser reads an actual transcript correctly.
 
-- [ ] **Step 1: Restart the daemon so it runs this branch**
+- [x] **Step 1: Restart the daemon so it runs this branch**
 
 The daemon is owned by the desktop app. Restart it from the app rather than from a shell — a daemon launched from an agent shell inherits that shell's environment, and a `claude` process started with `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID` or `ANTHROPIC_BASE_URL` set will exit immediately. If you must launch it by hand, unset every `CLAUDE_*` and `ANTHROPIC_*` variable and set `TERM` and `LANG`.
 
-- [ ] **Step 2: Spawn a session and take several turns**
+- [x] **Step 2: Spawn a session and take several turns**
 
 ```bash
 curl -s -X POST http://127.0.0.1:3002/api/v1/sessions \
@@ -1271,14 +1271,14 @@ curl -s -X POST http://127.0.0.1:3002/api/v1/sessions \
 ```
 Then send two or three more messages so cumulative and occupancy diverge.
 
-- [ ] **Step 3: Confirm context is occupancy, not the cumulative total**
+- [x] **Step 3: Confirm context is occupancy, not the cumulative total**
 
 ```bash
 curl -s http://127.0.0.1:3002/api/v1/usage/sessions/<id> | python3 -m json.tool
 ```
 Expected: `context.used` is close to the newest turn's input total and **much smaller** than `totals.inputTokens`. If they are equal on a multi-turn session, the parser is reporting the sum — that is the F1 bug, and the task is not done.
 
-- [ ] **Step 4: Confirm the rollup buckets**
+- [x] **Step 4: Confirm the rollup buckets**
 
 ```bash
 curl -s 'http://127.0.0.1:3002/api/v1/usage/rollup?bucket=day&days=7' | python3 -m json.tool
@@ -1286,7 +1286,7 @@ curl -s 'http://127.0.0.1:3002/api/v1/usage/rollup?bucket=week&days=28' | python
 ```
 Expected: today's bucket is non-zero. Events written before migration 0098 are absent, which is correct.
 
-- [ ] **Step 5: Confirm a Codex session reports a window**
+- [x] **Step 5: Confirm a Codex session reports a window**
 
 Spawn with `"harness":"codex"`, take a turn, then check that `context.window` is non-zero and `context.used` is below it. This is the only path that produces a percentage.
 
@@ -1294,7 +1294,7 @@ Spawn with `"harness":"codex"`, take a turn, then check that `context.window` is
 
 Open the session on the paired device. Claude sessions show a token count with no bar; Codex sessions show a percentage and a bar. Settings → Token usage lists today.
 
-- [ ] **Step 7: Record the results**
+- [x] **Step 7: Record the results**
 
 Write what each step actually returned into `docs/superpowers/plans/2026-09-05-mobile-context-and-usage-report.md`, including the numbers. State each gate as pass or fail, not as "was run".
 

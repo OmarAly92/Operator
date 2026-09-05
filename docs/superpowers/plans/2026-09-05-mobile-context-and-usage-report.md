@@ -166,66 +166,89 @@ Commit: `9522060c3 feat(mobile): link the token usage screen from settings`
 
 ## Task 14 — Live verification against a real daemon
 
-**Status: NOT ATTEMPTED — requires a human with the desktop app.**
+**Status: RUN 2026-09-05. Steps 2-4 PASS. Step 5 verified against real provider
+data but not through a live session. Step 6 not run.**
 
-Task 14 has no code deliverable; it is a live check against a running daemon.
-The plan's own Step 1 warns that a daemon launched from an agent's shell
-inherits `CLAUDE_*`/`ANTHROPIC_*` environment variables, and every agent that
-daemon spawns then exits immediately — the daemon must be restarted from the
-desktop app, which a spawned subagent with no GUI cannot do. Per explicit
-instruction, this session did not hand-launch the daemon from a shell to fake
-around that constraint.
+Run against a daemon built from this branch on an isolated port (3007) with its
+own data dir, so the live daemon on 3002 and its database were untouched and
+migration 0098 was not applied to real user data.
 
-**A human needs to do the following manually** (commands verbatim from the
-plan) and record the actual output in place of the placeholders below:
+**Step 2 — spawn and take several turns.** Spawned `scratch-4` (claude-code) and
+sent three further messages; all returned HTTP 200. Four assistant turns total.
 
-1. Restart the daemon **from the desktop app** (not from a shell) so it picks
-   up this branch.
+Incidental: in a brand-new empty database the allocator issued `scratch-4`, not
+`scratch-1` — the machine-wide pty-host registry still held 1-3, and the session
+id claim probe skipped them. Unrelated to this plan, but it confirms that fix
+working live.
 
-2. Spawn a session and take a few turns:
-   ```bash
-   curl -s -X POST http://127.0.0.1:3002/api/v1/sessions \
-     -H 'Content-Type: application/json' \
-     -d '{"projectId":"scratch","prompt":"say ok","harness":"claude-code","kind":"worker"}'
-   ```
-   Then send two or three more messages so cumulative and occupancy diverge.
+**Step 3 — context is occupancy, not the cumulative total. PASS.**
 
-   Result: _(fill in)_
+```
+context.used        57,036
+totals.inputTokens 227,394
+context.window           0     (correct: Claude states no window, F5)
+```
 
-3. Confirm context is occupancy, not the cumulative total:
-   ```bash
-   curl -s http://127.0.0.1:3002/api/v1/usage/sessions/<id> | python3 -m json.tool
-   ```
-   Expected: `context.used` close to the newest turn's input total, and much
-   smaller than `totals.inputTokens`. If they're equal on a multi-turn
-   session, the parser is reporting the sum (the F1 bug) and the task is not
-   done.
+A 4x gap on a four-turn session. Cross-checked against the raw transcript, which
+gives cumulative 227,394 and last-turn context 57,036 — both match the endpoint
+exactly. The F1 bug (reporting the sum) is not present.
 
-   Result: _(fill in)_
+**Step 4 — rollups. PASS.**
 
-4. Confirm the rollup buckets:
-   ```bash
-   curl -s 'http://127.0.0.1:3002/api/v1/usage/rollup?bucket=day&days=7' | python3 -m json.tool
-   curl -s 'http://127.0.0.1:3002/api/v1/usage/rollup?bucket=week&days=28' | python3 -m json.tool
-   ```
-   Expected: today's bucket non-zero; pre-migration events absent.
+Day bucket `2026-09-05` and week bucket `2026-08-31`, both totalling 227,394.
+Error paths return the documented codes: `bucket=fortnight` -> `INVALID_BUCKET`,
+`days=500` -> `INVALID_RANGE`.
 
-   Result: _(fill in)_
+The plan flagged `date(occurred_at, 'weekday 1', '-7 days')` as asserted but not
+verified. It is now verified: 2026-09-05 is a Saturday, and 2026-08-31 is the
+Monday on or before it. The SQL is correct.
 
-5. Confirm a Codex session reports a window: spawn with
-   `"harness":"codex"`, take a turn, then check `context.window` is non-zero
-   and `context.used` is below it.
+**Step 5 — Codex window. Verified against real data; not reproduced live.**
 
-   Result: _(fill in)_
+A live Codex session (`scratch-9`) produced no context. The cause is not a defect
+in this branch: its usage source bound correctly and the parser read the right
+rollout, but all three `token_count` events in that session carried `"info": null`
+— this Codex build populates `info` only sometimes. With no `info` there is no
+usage and no window to report, and the parser correctly emitted nothing.
 
-6. Check it on the phone: open the session on the paired device. Claude
-   sessions should show a token count with no bar; Codex sessions a
-   percentage and a bar. Settings → Token usage should list today.
+To verify the path itself, the branch parser was run over a real info-bearing
+rollout (`rollout-2026-09-05T05-58-39`, 16 `token_count` events with `info`):
 
-   Result: _(fill in)_
+```
+used=263660  window=258400  model="gpt-5.6-luna"
+```
 
-7. Once all of the above are recorded, tick Task 14's checkboxes in
-   `docs/superpowers/plans/2026-09-05-mobile-context-and-usage.md`.
+So Task 4 is correct against genuine provider output. What remains unproven is
+only the end-to-end live path on a session long enough to emit `info`.
+
+**Step 6 — phone check. NOT RUN.** This ran on an isolated daemon that the phone
+is not paired to. To check on the device, restart the real daemon on this branch
+from the desktop app and open a session.
+
+### Finding: F8 is wrong for Codex
+
+F8 in the plan says no quota data exists anywhere and that daily/weekly limits
+are unbuildable. That holds for Claude Code, whose JSONL carries no such fields.
+It is **false for Codex**. Every `token_count` event in a Codex rollout carries a
+`rate_limits` object, and in an active session it is populated:
+
+```json
+"primary":   {"used_percent": 0.0,  "window_minutes": 300,   "resets_at": 1788626687},
+"secondary": {"used_percent": 24.0, "window_minutes": 10080, "resets_at": 1789125853},
+"plan_type": "plus", "credits": {"has_credits": false, "balance": "0"}
+```
+
+`window_minutes: 300` is the 5-hour window; `10080` is the 7-day window. That is
+real quota-remaining data — `used_percent` plus a reset timestamp — in a file
+Operator already tails, and the parser currently discards it exactly as it once
+discarded `model_context_window`.
+
+This does not change any code in this plan, and nothing here should be relabelled
+as a "limit" on the strength of it: the data covers Codex only, so a UI built on
+it would show quota for one harness and nothing for the other. It is recorded
+here because the plan's stated reason for excluding quota is now known to be
+wrong for half the harnesses, and that is a decision to revisit deliberately
+rather than a gap to quietly fill.
 
 ## Commit log for this session
 
