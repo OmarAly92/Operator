@@ -66,3 +66,29 @@ func TestSessionCommandModelRequiresALabel(t *testing.T) {
 		t.Fatal("a model command with no label must not reach the service")
 	}
 }
+
+func TestSessionCommandModelNotOfferedIncludesOfferedModels(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.commandErr = sessionmanager.ErrModelNotOffered
+	svc.commandResult = sessionmanager.CommandResult{Models: []string{"sonnet", "haiku"}}
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/s1/command", `{"command":"model","model":"opus"}`)
+	assertErrorCode(t, body, status, http.StatusConflict, "SESSION_MODEL_NOT_OFFERED")
+
+	var got errorBody
+	mustJSON(t, body, &got)
+	models, ok := got.Details["models"].([]any)
+	if !ok {
+		t.Fatalf("details.models missing or wrong type: %#v", got.Details)
+	}
+	want := []string{"sonnet", "haiku"}
+	if len(models) != len(want) {
+		t.Fatalf("models = %v, want %v", models, want)
+	}
+	for i, m := range models {
+		if m != want[i] {
+			t.Fatalf("models = %v, want %v", models, want)
+		}
+	}
+}

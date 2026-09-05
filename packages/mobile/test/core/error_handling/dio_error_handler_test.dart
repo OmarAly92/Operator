@@ -47,6 +47,23 @@ void main() {
       expect(failure.apiStatus, 'X');
     });
 
+    test('merges the details map into validationErrors', () {
+      final failure = handleDioError(
+        _exception({
+          'error': 'conflict',
+          'code': 'SESSION_MODEL_NOT_OFFERED',
+          'message': 'the harness did not offer that model',
+          'requestId': 'req_02H',
+          'details': {
+            'models': ['sonnet', 'haiku'],
+          },
+        }, 409),
+      );
+
+      expect(failure.validationErrors?['models'], ['sonnet', 'haiku']);
+      expect(failure.validationErrors?['requestId'], 'req_02H');
+    });
+
     test('maps a timeout to a network failure', () {
       final failure = handleDioError(
         DioException(

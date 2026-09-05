@@ -36,11 +36,17 @@ ServerFailure<Map<String, dynamic>> handleDioError(DioException error) {
           : 'Request failed';
   final rawCode = body['code'];
   final apiStatus = rawCode is String ? rawCode : null;
+  final rawDetails = body['details'];
+  final details = rawDetails is Map<String, dynamic> ? rawDetails : const <String, dynamic>{};
+  final extras = <String, dynamic>{
+    if (requestId is String) 'requestId': requestId,
+    ...details,
+  };
   return ServerFailure<Map<String, dynamic>>(
     error: error,
     message: message,
     statusCode: error.response?.statusCode,
     apiStatus: apiStatus,
-    validationErrors: requestId is String ? {'requestId': requestId} : null,
+    validationErrors: extras.isEmpty ? null : extras,
   );
 }

@@ -1358,7 +1358,7 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 			"the command is not available in the session's current state", nil)
 	case errors.Is(err, sessionmanager.ErrModelNotOffered):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
-			"the harness did not offer that model", nil)
+			"the harness did not offer that model", map[string]any{"models": result.Models})
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
