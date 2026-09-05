@@ -13,13 +13,16 @@ import 'package:operator_mobile/feature/blocks/data/model/params/session_command
 import 'package:operator_mobile/feature/blocks/data/model/params/session_decision_params.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/command_confirmation.dart';
+import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
+import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
 part 'session_command_state.dart';
 
 class SessionCommandCubit extends Cubit<SessionCommandState> {
   SessionCommandCubit(
     this._mux,
-    this._repo, {
+    this._repo,
+    this._usageRepository, {
     required this.sessionId,
     String? initialActivity,
     this.budget = kCommandConfirmationBudget,
@@ -29,12 +32,16 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     // idle would otherwise never learn its activity and refuse every command.
     _activity = initialActivity;
     _patchesSub = _mux.sessionPatches.listen(_onPatches);
-    _eventsSub = _mux.blockEvents.where((event) => event.sessionId == sessionId).listen(_onLive);
+    _eventsSub = _mux.blockEvents
+        .where((event) => event.sessionId == sessionId)
+        .listen(_onLive);
     unawaited(_reconcileInteractions());
+    unawaited(_refreshContext());
   }
 
   final MuxClient _mux;
   final SessionControlRepository _repo;
+  final UsageRepository _usageRepository;
   final String sessionId;
   final Duration budget;
 
@@ -108,7 +115,10 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   /// A refusal must never leave a command at sent; failures reset to idle.
   Future<void> run(String command, {String? model}) async {
     _setPhase(command, CommandPhase.sending);
-    final result = await _repo.sendCommand(sessionId, SessionCommandParams(command: command, model: model));
+    final result = await _repo.sendCommand(
+      sessionId,
+      SessionCommandParams(command: command, model: model),
+    );
     if (isClosed) return;
     result.when(
       onSuccess: (response) {
@@ -122,8 +132,11 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
       },
       onFailure: (failure) {
         List<String>? offered;
-        if (command == 'model' && failure is ServerFailure && failure.validationErrors?['models'] is List) {
-          offered = (failure.validationErrors!['models'] as List).cast<String>();
+        if (command == 'model' &&
+            failure is ServerFailure &&
+            failure.validationErrors?['models'] is List) {
+          offered = (failure.validationErrors!['models'] as List)
+              .cast<String>();
         }
         _pendingConfirm.remove(command);
         _setPhase(command, CommandPhase.idle, models: offered);
@@ -151,6 +164,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   }
 
   void onActivity(String? activity) {
+    unawaited(_refreshContext());
     final changed = _activity != activity;
     _activity = activity;
     if (changed && !isClosed) emit(state.withActivity(activity));
@@ -165,13 +179,29 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     }
   }
 
+  Future<void> _refreshContext() async {
+    try {
+      final sessionContext = await _usageRepository.sessionContext(sessionId);
+      if (!isClosed) {
+        emit(state.withContextReadout(ContextReadout.of(sessionContext)));
+      }
+    } on Failure {
+      return;
+    }
+  }
+
   Future<void> decide(String requestId, String behavior) async {
     _setPhase('decision', CommandPhase.sending);
-    final result = await _repo.decide(sessionId, SessionDecisionParams(requestId: requestId, behavior: behavior));
+    final result = await _repo.decide(
+      sessionId,
+      SessionDecisionParams(requestId: requestId, behavior: behavior),
+    );
     if (isClosed) return;
     result.when(
       onSuccess: (response) {
-        final phase = response.data?.state == 'unconfirmed' ? CommandPhase.unconfirmed : CommandPhase.sent;
+        final phase = response.data?.state == 'unconfirmed'
+            ? CommandPhase.unconfirmed
+            : CommandPhase.sent;
         _setPhase('decision', phase);
       },
       onFailure: (_) => _setPhase('decision', CommandPhase.idle),
@@ -180,11 +210,16 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   Future<void> answer(String requestId, List<List<String>> selections) async {
     _setPhase('answer', CommandPhase.sending);
-    final result = await _repo.answer(sessionId, SessionAnswerParams(requestId: requestId, selections: selections));
+    final result = await _repo.answer(
+      sessionId,
+      SessionAnswerParams(requestId: requestId, selections: selections),
+    );
     if (isClosed) return;
     result.when(
       onSuccess: (response) {
-        final phase = response.data?.state == 'unconfirmed' ? CommandPhase.unconfirmed : CommandPhase.sent;
+        final phase = response.data?.state == 'unconfirmed'
+            ? CommandPhase.unconfirmed
+            : CommandPhase.sent;
         _setPhase('answer', phase);
       },
       onFailure: (_) => _setPhase('answer', CommandPhase.idle),
@@ -195,7 +230,9 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     _timers.remove(command)?.cancel();
     _timers[command] = Timer(budget, () {
       if (isClosed) return;
-      if (state.phases[command] == CommandPhase.sent) _setPhase(command, CommandPhase.unconfirmed);
+      if (state.phases[command] == CommandPhase.sent) {
+        _setPhase(command, CommandPhase.unconfirmed);
+      }
     });
   }
 

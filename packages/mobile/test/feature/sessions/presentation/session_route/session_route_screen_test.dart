@@ -30,6 +30,7 @@ import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/lo
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
+import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
@@ -42,7 +43,10 @@ class _MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class _MockBlocksRepository extends Mock implements BlocksRepository {}
 
-class _MockSessionControlRepository extends Mock implements SessionControlRepository {}
+class _MockSessionControlRepository extends Mock
+    implements SessionControlRepository {}
+
+class _MockUsageRepository extends Mock implements UsageRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -55,7 +59,10 @@ class _InertVoiceProvider implements VoiceProvider {
   Future<bool> requestPermission() async => false;
 
   @override
-  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {}
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {}
 
   @override
   void stop() {}
@@ -84,17 +91,27 @@ void main() {
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
-    when(() => mux.terminalEvents).thenAnswer((_) => const Stream<TerminalEvent>.empty());
-    when(() => mux.blockEvents).thenAnswer(
-      (_) => const Stream<BlockEventEnvelope>.empty(),
-    );
+    when(
+      () => mux.terminalEvents,
+    ).thenAnswer((_) => const Stream<TerminalEvent>.empty());
+    when(
+      () => mux.blockEvents,
+    ).thenAnswer((_) => const Stream<BlockEventEnvelope>.empty());
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
     when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
-    when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.resize(any(), any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    when(
+      () => mux.openTerminal(any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.closeTerminal(any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.sendInput(any(), any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.resize(any(), any(), any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
 
     await sl.reset();
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
@@ -108,25 +125,37 @@ void main() {
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(const []));
     sl.registerFactoryParam<BlocksCubit, String, String?>(
-      (sessionId, harness) => BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
+      (sessionId, harness) =>
+          BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
     );
     final sessionControlRepository = _MockSessionControlRepository();
-    when(() => sessionControlRepository.getInteractions(any()))
-        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+    when(() => sessionControlRepository.getInteractions(any())).thenAnswer(
+      (_) async =>
+          Result.success(GlobalResponse<List<PendingInteractionModel>>()),
+    );
+    final usageRepository = _MockUsageRepository();
+    when(
+      () => usageRepository.sessionContext(any()),
+    ).thenAnswer((_) async => null);
     sl.registerFactoryParam<SessionCommandCubit, String, String?>(
       (sessionId, activity) => SessionCommandCubit(
         mux,
         sessionControlRepository,
+        usageRepository,
         sessionId: sessionId,
         initialActivity: activity,
       ),
     );
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
-      (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
+      (onTranscript, _) =>
+          VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
     );
     final previewRepository = _MockPreviewRepository();
     when(
-      () => previewRepository.getPreview(any(), previewUrl: any(named: 'previewUrl')),
+      () => previewRepository.getPreview(
+        any(),
+        previewUrl: any(named: 'previewUrl'),
+      ),
     ).thenAnswer((_) async => Result.success(null));
     sl.registerFactoryParam<PreviewCubit, String, String?>(
       (sessionId, previewUrl) => PreviewCubit(
@@ -160,7 +189,9 @@ void main() {
           builder: (context, _) => MaterialApp(
             home: MultiBlocProvider(
               providers: [
-                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux)),
+                BlocProvider<SessionsCubit>(
+                  create: (_) => SessionsCubit(repository, mux),
+                ),
               ],
               child: const SessionRouteScreen(sessionId: 'w-1'),
             ),
@@ -195,9 +226,7 @@ void main() {
           designSize: const Size(390, 844),
           builder: (context, _) => MaterialApp(
             home: MultiBlocProvider(
-              providers: [
-                BlocProvider<SessionsCubit>.value(value: cubit),
-              ],
+              providers: [BlocProvider<SessionsCubit>.value(value: cubit)],
               child: const SessionRouteScreen(sessionId: 'w-1'),
             ),
           ),
@@ -208,10 +237,14 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('renders the terminal for any session it can find', (tester) async {
+  testWidgets('renders the terminal for any session it can find', (
+    tester,
+  ) async {
     await pumpRoute(
       tester,
-      sessions: const [SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code')],
+      sessions: const [
+        SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code'),
+      ],
     );
 
     expect(find.byType(TerminalScreen), findsOneWidget);
@@ -224,22 +257,27 @@ void main() {
     verify(() => repository.getBoard()).called(1);
   });
 
-  testWidgets('refreshes a settled empty cache once before reporting the session missing', (tester) async {
-    final cubit = await settledCubit(const []);
-    try {
-      await pumpSettledRoute(tester, cubit);
+  testWidgets(
+    'refreshes a settled empty cache once before reporting the session missing',
+    (tester) async {
+      final cubit = await settledCubit(const []);
+      try {
+        await pumpSettledRoute(tester, cubit);
 
-      expect(find.text('Session not found.'), findsOneWidget);
-      verify(() => repository.getBoard()).called(1);
-    } finally {
-      await cubit.close();
-    }
-  });
+        expect(find.text('Session not found.'), findsOneWidget);
+        verify(() => repository.getBoard()).called(1);
+      } finally {
+        await cubit.close();
+      }
+    },
+  );
 
-  testWidgets('uses a cached session without another board refresh', (tester) async {
-    final cubit = await settledCubit(
-      const [SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code')],
-    );
+  testWidgets('uses a cached session without another board refresh', (
+    tester,
+  ) async {
+    final cubit = await settledCubit(const [
+      SessionModel(id: 'w-1', projectId: 'p', harness: 'claude-code'),
+    ]);
     try {
       await pumpSettledRoute(tester, cubit);
 

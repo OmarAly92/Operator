@@ -27,6 +27,7 @@ import 'package:operator_mobile/feature/preview/presentation/preview_screen/logi
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 
 class MockMuxClient extends Mock implements MuxClient {}
 
@@ -38,7 +39,10 @@ class MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class MockBlocksRepository extends Mock implements BlocksRepository {}
 
-class MockSessionControlRepository extends Mock implements SessionControlRepository {}
+class MockSessionControlRepository extends Mock
+    implements SessionControlRepository {}
+
+class MockUsageRepository extends Mock implements UsageRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -51,7 +55,10 @@ class _InertVoiceProvider implements VoiceProvider {
   Future<bool> requestPermission() async => false;
 
   @override
-  Future<void> start(VoiceCallbacks callbacks, {VoiceMode mode = VoiceMode.push}) async {}
+  Future<void> start(
+    VoiceCallbacks callbacks, {
+    VoiceMode mode = VoiceMode.push,
+  }) async {}
 
   @override
   void stop() {}
@@ -64,8 +71,10 @@ class TerminalHarness {
   final MockMuxClient mux = MockMuxClient();
   final MockTerminalRepository terminalRepository = MockTerminalRepository();
   final MockSessionsRepository sessionsRepository = MockSessionsRepository();
-  final StreamController<MuxStatus> statuses = StreamController<MuxStatus>.broadcast();
-  final StreamController<TerminalEvent> events = StreamController<TerminalEvent>.broadcast();
+  final StreamController<MuxStatus> statuses =
+      StreamController<MuxStatus>.broadcast();
+  final StreamController<TerminalEvent> events =
+      StreamController<TerminalEvent>.broadcast();
   final StreamController<BlockEventEnvelope> blockEvents =
       StreamController<BlockEventEnvelope>.broadcast();
   final StreamController<List<SessionPatch>> sessionPatches =
@@ -79,13 +88,17 @@ class TerminalHarness {
   void start({bool shellOnly = false, String? harness}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
       sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
-        (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
+        (onTranscript, _) =>
+            VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),
       );
     }
     if (!sl.isRegistered<PreviewCubit>()) {
       final previewRepository = MockPreviewRepository();
       when(
-        () => previewRepository.getPreview(any(), previewUrl: any(named: 'previewUrl')),
+        () => previewRepository.getPreview(
+          any(),
+          previewUrl: any(named: 'previewUrl'),
+        ),
       ).thenAnswer((_) async => Result.success(null));
       sl.registerFactoryParam<PreviewCubit, String, String?>(
         (sessionId, previewUrl) => PreviewCubit(
@@ -100,10 +113,18 @@ class TerminalHarness {
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
-    when(() => mux.openTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.closeTerminal(any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.sendInput(any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
-    when(() => mux.resize(any(), any(), any(), projectId: any(named: 'projectId'))).thenReturn(null);
+    when(
+      () => mux.openTerminal(any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.closeTerminal(any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.sendInput(any(), any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
+    when(
+      () => mux.resize(any(), any(), any(), projectId: any(named: 'projectId')),
+    ).thenReturn(null);
     when(() => mux.blockEvents).thenAnswer((_) => blockEvents.stream);
     when(() => mux.sessionPatches).thenAnswer((_) => sessionPatches.stream);
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
@@ -120,19 +141,41 @@ class TerminalHarness {
               title: 'Worktree shell',
               shellOnly: true,
             )
-          : TerminalArgs(id: 's-1', sessionId: 's-1', title: 'Session', harness: harness),
+          : TerminalArgs(
+              id: 's-1',
+              sessionId: 's-1',
+              title: 'Session',
+              harness: harness,
+            ),
     );
 
     final blocksRepository = MockBlocksRepository();
-    when(() => blocksRepository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => blocksRepository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
-    blocksCubit = BlocksCubit(mux, blocksRepository, cubit.args.sessionId, harness: harness);
+    blocksCubit = BlocksCubit(
+      mux,
+      blocksRepository,
+      cubit.args.sessionId,
+      harness: harness,
+    );
     final controlRepository = MockSessionControlRepository();
-    when(() => controlRepository.getInteractions(any()))
-        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
-    commandCubit = SessionCommandCubit(mux, controlRepository, sessionId: cubit.args.sessionId);
+    when(() => controlRepository.getInteractions(any())).thenAnswer(
+      (_) async =>
+          Result.success(GlobalResponse<List<PendingInteractionModel>>()),
+    );
+    final usageRepository = MockUsageRepository();
+    when(
+      () => usageRepository.sessionContext(any()),
+    ).thenAnswer((_) async => null);
+    commandCubit = SessionCommandCubit(
+      mux,
+      controlRepository,
+      usageRepository,
+      sessionId: cubit.args.sessionId,
+    );
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
@@ -150,7 +193,10 @@ class TerminalHarness {
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
                   BlocProvider<SessionCommandCubit>.value(value: commandCubit),
                   BlocProvider<PreviewCubit>(
-                    create: (_) => sl<PreviewCubit>(param1: cubit.args.sessionId, param2: null),
+                    create: (_) => sl<PreviewCubit>(
+                      param1: cubit.args.sessionId,
+                      param2: null,
+                    ),
                   ),
                 ],
                 child: SizedBox(width: 400, height: 600, child: child),
