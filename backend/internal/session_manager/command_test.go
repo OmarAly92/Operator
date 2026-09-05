@@ -15,6 +15,7 @@ import (
 type fakeMenuReader struct {
 	rows   []string
 	noMenu bool
+	multi  string
 }
 
 func (f fakeMenuReader) ReadMenu(pane string) (ports.Menu, bool) {
@@ -39,6 +40,7 @@ func (f fakeMenuReader) MenuKeys() ports.MenuKeys {
 		Select:        "\r",
 		Cancel:        "\x1b",
 		SessionSelect: "s",
+		Multi:         f.multi,
 	}
 }
 

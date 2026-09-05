@@ -1812,6 +1812,57 @@ paths:
       summary: Submit a generation-fenced source-agent handoff
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/answer:
+    post:
+      operationId: answerSessionQuestion
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSessionAnswerRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionAnswerResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Answer a session's pending question menu
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/attachments:
     post:
       operationId: stageSessionAttachments
@@ -5314,6 +5365,27 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersSessionAnswerRequest:
+      properties:
+        requestId:
+          type: string
+        selections:
+          items:
+            items:
+              type: string
+            type: array
+          type: array
+      required:
+      - requestId
+      - selections
+      type: object
+    ControllersSessionAnswerResponse:
+      properties:
+        state:
+          type: string
+      required:
+      - state
       type: object
     ControllersSessionDecisionRequest:
       properties:

@@ -33,35 +33,38 @@ import (
 )
 
 type fakeSessionService struct {
-	sessions        map[domain.SessionID]domain.Session
-	sent            string
-	sentAttachment  *ports.SpawnAttachment
-	commandResult   sessionmanager.CommandResult
-	commandErr      error
-	commandCalls    int
-	sendErr         error
-	decideErr       error
-	decideCalls     int
-	delegationInput sessionsvc.DelegateTaskInput
-	delegationErr   error
-	cleanupProjects []domain.ProjectID
-	cleanupResult   []domain.SessionID
-	cleanupSkipped  []sessionsvc.CleanupSkipped
-	workspaceFiles  sessionsvc.WorkspaceFiles
-	workspaceFile   sessionsvc.WorkspaceFileDetail
-	workspacePaths  []string
-	spawnErr        error
-	claimErr        error
-	listPRErr       error
-	workspaceErr    error
-	staged          []ports.SpawnAttachment
-	stagedPaths     []string
-	stageErr        error
-	agentSwitches   map[domain.AgentSwitchID]domain.AgentSwitch
-	switchConfig    sessionsvc.SwitchAgentInput
-	switchErr       error
-	handoff         json.RawMessage
-	handoffSource   domain.AgentGenerationID
+	sessions         map[domain.SessionID]domain.Session
+	sent             string
+	sentAttachment   *ports.SpawnAttachment
+	commandResult    sessionmanager.CommandResult
+	commandErr       error
+	commandCalls     int
+	sendErr          error
+	decideErr        error
+	decideCalls      int
+	answerErr        error
+	answerCalls      int
+	answerSelections [][]string
+	delegationInput  sessionsvc.DelegateTaskInput
+	delegationErr    error
+	cleanupProjects  []domain.ProjectID
+	cleanupResult    []domain.SessionID
+	cleanupSkipped   []sessionsvc.CleanupSkipped
+	workspaceFiles   sessionsvc.WorkspaceFiles
+	workspaceFile    sessionsvc.WorkspaceFileDetail
+	workspacePaths   []string
+	spawnErr         error
+	claimErr         error
+	listPRErr        error
+	workspaceErr     error
+	staged           []ports.SpawnAttachment
+	stagedPaths      []string
+	stageErr         error
+	agentSwitches    map[domain.AgentSwitchID]domain.AgentSwitch
+	switchConfig     sessionsvc.SwitchAgentInput
+	switchErr        error
+	handoff          json.RawMessage
+	handoffSource    domain.AgentGenerationID
 }
 
 type fakeManagedPreviewServer struct {
@@ -383,6 +386,12 @@ func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ do
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {
 	f.decideCalls++
 	return f.decideErr
+}
+
+func (f *fakeSessionService) Answer(_ context.Context, _ domain.SessionID, _ string, selections [][]string) error {
+	f.answerCalls++
+	f.answerSelections = selections
+	return f.answerErr
 }
 
 func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error) {

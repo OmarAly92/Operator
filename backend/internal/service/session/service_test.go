@@ -1258,6 +1258,9 @@ func (*fakeCommander) Command(context.Context, domain.SessionID, domain.SessionC
 func (*fakeCommander) Decide(context.Context, domain.SessionID, string, string) error {
 	return nil
 }
+func (*fakeCommander) Answer(context.Context, domain.SessionID, string, [][]string) error {
+	return nil
+}
 func (f *fakeCommander) Cleanup(_ context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error) {
 	f.cleanupProjects = append(f.cleanupProjects, project)
 	if f.cleanupErr != nil {

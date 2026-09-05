@@ -616,6 +616,17 @@ type SessionDecisionResponse struct {
 	State string `json:"state"`
 }
 
+// SessionAnswerRequest is the body of POST /api/v1/sessions/{sessionId}/answer.
+type SessionAnswerRequest struct {
+	RequestID  string     `json:"requestId"`
+	Selections [][]string `json:"selections"`
+}
+
+// SessionAnswerResponse is the body of POST /api/v1/sessions/{sessionId}/answer.
+type SessionAnswerResponse struct {
+	State string `json:"state"`
+}
+
 // DelegateTaskRequest is the body of POST /api/v1/orchestrators/delegate.
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {

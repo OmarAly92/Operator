@@ -129,3 +129,84 @@ func TestDecideDenyDrivesTheDenyKey(t *testing.T) {
 		t.Fatalf("expected Down then Select, got %q", rt.inputs)
 	}
 }
+
+func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:1", "moved on"}
+	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"second"}}); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	last := rt.inputs[len(rt.inputs)-1]
+	if last != "\r" {
+		t.Fatalf("expected Enter last, got %q", rt.inputs)
+	}
+	if len(rt.inputs) < 2 {
+		t.Fatalf("expected navigation before Enter, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerWritesNothingWhenTheMenuIsGone(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"idle"}
+	m.menuReader = fakeMenuReader{noMenu: true}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}})
+	if !errors.Is(err, ErrDialogAbsent) {
+		t.Fatalf("expected ErrDialogAbsent, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerRejectsALabelThatIsNotOnScreen(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0"}
+	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"nonexistent option"}}); err == nil {
+		t.Fatal("expected a label with no matching row to be rejected")
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerRejectsAnEmptySelection(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0"}
+	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	if err := m.Answer(context.Background(), "s1", "q1", nil); err == nil {
+		t.Fatal("expected an empty selection to be rejected")
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
+
+func TestAnswerTogglesEveryRowOfAMultiSelectBeforeEnter(t *testing.T) {
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:0", "MENU:1", "MENU:2"}
+	m.menuReader = fakeMenuReader{rows: []string{"a", "b", "c"}, multi: " "}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"a", "c"}}); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	spaces := 0
+	for _, in := range rt.inputs {
+		if in == " " {
+			spaces++
+		}
+	}
+	if spaces != 2 {
+		t.Fatalf("expected one toggle per selected row, got %d in %q", spaces, rt.inputs)
+	}
+}
