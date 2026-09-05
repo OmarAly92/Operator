@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -185,4 +187,46 @@ void main() {
     act: (c) => c.decide('i1', 'allow'),
     verify: (c) => expect(c.phases['decision'], CommandPhase.unconfirmed),
   );
+
+  test('stop confirms even when the idle signal beats the HTTP response back', () async {
+    final pending = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => repo.sendCommand(any(), any())).thenAnswer((_) => pending.future);
+    cubit.onActivity('active');
+
+    final runFuture = cubit.run('stop');
+    expect(cubit.phases['stop'], CommandPhase.sending);
+
+    cubit.onActivity('idle');
+    pending.complete(Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))));
+    await runFuture;
+
+    expect(cubit.phases['stop'], CommandPhase.confirmed);
+  });
+
+  test('compact confirms even when the compaction event beats the HTTP response back', () async {
+    final pending = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => repo.sendCommand(any(), any())).thenAnswer((_) => pending.future);
+    cubit.onActivity('idle');
+
+    final runFuture = cubit.run('compact');
+    expect(cubit.phases['compact'], CommandPhase.sending);
+
+    cubit.onEvent(_event(kind: 'compaction'));
+    pending.complete(Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))));
+    await runFuture;
+
+    expect(cubit.phases['compact'], CommandPhase.confirmed);
+  });
+
+  test('closing while a command is in flight does not throw when the response lands', () async {
+    final pending = Completer<Result<GlobalResponse<SessionCommandResultModel>, Failure>>();
+    when(() => repo.sendCommand(any(), any())).thenAnswer((_) => pending.future);
+    cubit.onActivity('idle');
+
+    final runFuture = cubit.run('compact');
+    await cubit.close();
+    pending.complete(Result.success(GlobalResponse(data: const SessionCommandResultModel(state: 'sent'))));
+
+    await expectLater(runFuture, completes);
+  });
 }

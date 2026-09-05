@@ -22,6 +22,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   final Duration budget;
 
   final Map<String, Timer> _timers = {};
+  final Set<String> _pendingConfirm = {};
   String? _activity;
 
   Map<String, CommandPhase> get phases => state.phases;
@@ -46,13 +47,18 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     return command == 'stop' ? 'The agent is idle' : 'The agent is working';
   }
 
-  /// A refusal must never leave a command at sent — only run() promotes to sent.
+  /// A refusal must never leave a command at sent; failures reset to idle.
   Future<void> run(String command, {String? model}) async {
     _setPhase(command, CommandPhase.sending);
     final result = await _repo.sendCommand(sessionId, SessionCommandParams(command: command, model: model));
+    if (isClosed) return;
     result.when(
       onSuccess: (response) {
         final offered = response.data?.models;
+        if (_pendingConfirm.remove(command)) {
+          _setPhase(command, CommandPhase.confirmed, models: offered);
+          return;
+        }
         _setPhase(command, CommandPhase.sent, models: offered);
         if (command != 'model') _startTimer(command);
       },
@@ -61,6 +67,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
         if (command == 'model' && failure is ServerFailure && failure.validationErrors?['models'] is List) {
           offered = (failure.validationErrors!['models'] as List).cast<String>();
         }
+        _pendingConfirm.remove(command);
         _setPhase(command, CommandPhase.idle, models: offered);
       },
     );
@@ -70,19 +77,29 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     final next = Map<String, CommandPhase>.of(state.phases);
     var changed = false;
     for (final key in state.phases.keys.toList()) {
-      if (next[key] != CommandPhase.sent) continue;
       if (key != 'compact' && key != 'model') continue;
+      final phase = next[key];
+      if (phase == CommandPhase.sending) {
+        if (confirmsCommand(key, event)) _pendingConfirm.add(key);
+        continue;
+      }
+      if (phase != CommandPhase.sent) continue;
       if (!confirmsCommand(key, event)) continue;
       _timers.remove(key)?.cancel();
       next[key] = CommandPhase.confirmed;
       changed = true;
     }
-    if (changed) emit(state.copyWith(phases: next));
+    if (changed) _emitPhases(next);
   }
 
   void onActivity(String? activity) {
     _activity = activity;
-    if (state.phases['stop'] == CommandPhase.sent && confirmsStop(activity)) {
+    final phase = state.phases['stop'];
+    if (phase == CommandPhase.sending) {
+      if (confirmsStop(activity)) _pendingConfirm.add('stop');
+      return;
+    }
+    if (phase == CommandPhase.sent && confirmsStop(activity)) {
       _timers.remove('stop')?.cancel();
       _setPhase('stop', CommandPhase.confirmed);
     }
@@ -91,6 +108,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   Future<void> decide(String requestId, String behavior) async {
     _setPhase('decision', CommandPhase.sending);
     final result = await _repo.decide(sessionId, SessionDecisionParams(requestId: requestId, behavior: behavior));
+    if (isClosed) return;
     result.when(
       onSuccess: (response) {
         final phase = response.data?.state == 'unconfirmed' ? CommandPhase.unconfirmed : CommandPhase.sent;
@@ -103,6 +121,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   Future<void> answer(String requestId, List<List<int>> selections) async {
     _setPhase('answer', CommandPhase.sending);
     final result = await _repo.answer(sessionId, SessionAnswerParams(requestId: requestId, selections: selections));
+    if (isClosed) return;
     result.when(
       onSuccess: (response) {
         final phase = response.data?.state == 'unconfirmed' ? CommandPhase.unconfirmed : CommandPhase.sent;
@@ -115,13 +134,19 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   void _startTimer(String command) {
     _timers.remove(command)?.cancel();
     _timers[command] = Timer(budget, () {
+      if (isClosed) return;
       if (state.phases[command] == CommandPhase.sent) _setPhase(command, CommandPhase.unconfirmed);
     });
   }
 
   void _setPhase(String command, CommandPhase phase, {List<String>? models}) {
     final next = Map<String, CommandPhase>.of(state.phases)..[command] = phase;
-    emit(state.copyWith(phases: next, models: models));
+    _emitPhases(next, models: models);
+  }
+
+  void _emitPhases(Map<String, CommandPhase> phases, {List<String>? models}) {
+    if (isClosed) return;
+    emit(state.copyWith(phases: phases, models: models));
   }
 
   @override
