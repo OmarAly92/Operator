@@ -1478,7 +1478,7 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
 	}
-	if state == domain.ActivityBlocked {
+	if state == domain.ActivityBlocked && (sig.ToolUseID != "" || sig.ToolName != "") {
 		sig.InteractionID = uuid.NewString()
 	}
 	if c.Activity != nil && (sig.Valid || sig.AgentSessionID != "") {

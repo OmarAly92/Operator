@@ -263,6 +263,45 @@ func TestSessionsAPI_ActivityAcceptsBlocked(t *testing.T) {
 	}
 }
 
+// TestSessionsAPI_BlockedWithoutToolIdentityMintsNoInteractionID pins the fix
+// for an identity-less blocked signal (Claude Code's notification/
+// permission_prompt duplicate, which carries no toolName/toolUseId): the
+// controller must not mint an InteractionID for it, because lifecycle's
+// RegisterInteraction guard (applyToolPrecedenceLocked) refuses to register
+// on exactly this signal shape to avoid stomping the real dialog's
+// registration. Minting one anyway would let a persisted block event
+// advertise an id nothing ever registered, so a client answering it gets a
+// dead-end "not found".
+func TestSessionsAPI_BlockedWithoutToolIdentityMintsNoInteractionID(t *testing.T) {
+	rec := &fakeActivityRecorder{}
+	srv := newActivityTestServer(t, rec)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/opr-1/activity", `{"state":"blocked","event":"notification"}`)
+	if status != http.StatusOK {
+		t.Fatalf("activity = %d, want 200; body=%s", status, body)
+	}
+	if rec.gotSignal.InteractionID != "" {
+		t.Fatalf("InteractionID = %q, want empty for an identity-less blocked signal", rec.gotSignal.InteractionID)
+	}
+}
+
+// TestSessionsAPI_BlockedWithToolIdentityMintsInteractionID pins the
+// companion case: a blocked signal that DOES identify the dialog (carries a
+// toolName, as claude-code's permission-request hook does) must get a
+// non-empty InteractionID, matching lifecycle's RegisterInteraction guard.
+func TestSessionsAPI_BlockedWithToolIdentityMintsInteractionID(t *testing.T) {
+	rec := &fakeActivityRecorder{}
+	srv := newActivityTestServer(t, rec)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/opr-1/activity", `{"state":"blocked","event":"permission-request","toolName":"Bash"}`)
+	if status != http.StatusOK {
+		t.Fatalf("activity = %d, want 200; body=%s", status, body)
+	}
+	if rec.gotSignal.InteractionID == "" {
+		t.Fatal("InteractionID is empty, want a minted id for a signal that identifies the dialog")
+	}
+}
+
 func TestSessionsAPI_ActivityThreadsCorrelationFields(t *testing.T) {
 	// The optional correlation fields ride into the signal (sanitized); a
 	// body without them (old CLIs) keeps producing a plain state-only signal,
