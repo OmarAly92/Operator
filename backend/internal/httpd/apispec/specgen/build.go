@@ -252,6 +252,8 @@ var schemaNames = map[string]string{
 	"ControllersRollbackSessionResponse":            "RollbackSessionResponse",
 	"ControllersSendSessionMessageRequest":          "SendSessionMessageRequest",
 	"ControllersSendSessionMessageResponse":         "SendSessionMessageResponse",
+	"ControllersSessionCommandRequest":              "SessionCommandRequest",
+	"ControllersSessionCommandResponse":             "SessionCommandResponse",
 	"ControllersDelegateTaskRequest":                "DelegateTaskRequest",
 	"ControllersDelegateTaskResponse":               "DelegateTaskResponse",
 	"ControllersClaimPRResponse":                    "ClaimPRResponse",
@@ -1708,6 +1710,19 @@ func sessionOperations() []operation {
 				// Conflict: the session is terminated, or paused on a permission
 				// decision (SESSION_AWAITING_DECISION) — the guarded send refuses
 				// to paste into a pending dialog.
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/command", id: "sendSessionCommand", tag: "sessions",
+			summary:    "Drive a control command into a session's terminal",
+			pathParams: []any{controllers.SessionIDParam{}},
+			reqBody:    controllers.SessionCommandRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionCommandResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 			},

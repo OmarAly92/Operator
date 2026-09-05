@@ -563,6 +563,16 @@ type SendSessionMessageResponse struct {
 	Message   string           `json:"message"`
 }
 
+type SessionCommandRequest struct {
+	Command string `json:"command"`
+	Model   string `json:"model,omitempty"`
+}
+
+type SessionCommandResponse struct {
+	State  string   `json:"state"`
+	Models []string `json:"models,omitempty"`
+}
+
 // DelegateTaskRequest is the body of POST /api/v1/orchestrators/delegate.
 // An omitted agent tells the orchestrator to use the project's worker default.
 type DelegateTaskRequest struct {

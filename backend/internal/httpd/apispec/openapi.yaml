@@ -1981,6 +1981,57 @@ paths:
       summary: Read a session's retained, redacted block-event log
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/command:
+    post:
+      operationId: sendSessionCommand
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCommandRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionCommandResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Drive a control command into a session's terminal
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/conversation:
     get:
       operationId: getSessionConversation
@@ -7172,6 +7223,26 @@ components:
       - ok
       - sessionId
       - message
+      type: object
+    SessionCommandRequest:
+      properties:
+        command:
+          type: string
+        model:
+          type: string
+      required:
+      - command
+      type: object
+    SessionCommandResponse:
+      properties:
+        models:
+          items:
+            type: string
+          type: array
+        state:
+          type: string
+      required:
+      - state
       type: object
     SessionPRCISummary:
       properties:

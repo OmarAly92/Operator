@@ -29,12 +29,16 @@ import (
 	previewutil "github.com/OmarAly92/operator/backend/internal/preview"
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 type fakeSessionService struct {
 	sessions        map[domain.SessionID]domain.Session
 	sent            string
 	sentAttachment  *ports.SpawnAttachment
+	commandResult   sessionmanager.CommandResult
+	commandErr      error
+	commandCalls    int
 	delegationInput sessionsvc.DelegateTaskInput
 	delegationErr   error
 	cleanupProjects []domain.ProjectID
@@ -360,6 +364,11 @@ func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message
 	f.sent = message
 	f.sentAttachment = attachment
 	return nil
+}
+
+func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ domain.SessionCommand, _ string) (sessionmanager.CommandResult, error) {
+	f.commandCalls++
+	return f.commandResult, f.commandErr
 }
 
 func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error) {
