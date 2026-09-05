@@ -111,3 +111,51 @@ func TestReadDialogRejectsIdleStaleAndMalformedPanes(t *testing.T) {
 		})
 	}
 }
+
+func TestReadMenuFindsRowsAndTheHighlight(t *testing.T) {
+	p := &Plugin{}
+	menu, ok := p.ReadMenu(readPane(t, "claudecode_model_picker.txt"))
+	if !ok {
+		t.Fatal("expected the model picker to be recognised")
+	}
+	if len(menu.Rows) < 2 {
+		t.Fatalf("expected several rows, got %v", menu.Rows)
+	}
+	if menu.Selected < 0 || menu.Selected >= len(menu.Rows) {
+		t.Fatalf("Selected = %d, out of range for %d rows", menu.Selected, len(menu.Rows))
+	}
+}
+
+func TestReadMenuReadsQuestionOptions(t *testing.T) {
+	menu, ok := (&Plugin{}).ReadMenu(readPane(t, "claudecode_question.txt"))
+	if !ok || len(menu.Rows) != 5 {
+		t.Fatalf("ReadMenu = %+v, %v; want five question options", menu, ok)
+	}
+}
+
+func TestReadMenuTracksADifferentHighlight(t *testing.T) {
+	p := &Plugin{}
+	first, _ := p.ReadMenu(readPane(t, "claudecode_model_picker.txt"))
+	second, ok := p.ReadMenu(readPane(t, "claudecode_model_picker_row2.txt"))
+	if !ok {
+		t.Fatal("expected the second picker pane to be recognised")
+	}
+	if first.Selected == second.Selected {
+		t.Fatal("the two fixtures must differ in which row is highlighted, or the reader is not reading the highlight")
+	}
+}
+
+func TestReadMenuRejectsAnIdlePane(t *testing.T) {
+	p := &Plugin{}
+	if _, ok := p.ReadMenu(readPane(t, "claudecode_idle.txt")); ok {
+		t.Fatal("an idle pane must not be read as a menu")
+	}
+}
+
+func TestMenuKeysAreNonEmpty(t *testing.T) {
+	keys := (&Plugin{}).MenuKeys()
+	want := ports.MenuKeys{Up: "\x1b[A", Down: "\x1b[B", Select: "\r", Cancel: "\x1b", Multi: " ", SessionSelect: "s"}
+	if keys != want {
+		t.Fatalf("MenuKeys = %+v, want %+v", keys, want)
+	}
+}

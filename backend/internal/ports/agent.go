@@ -221,6 +221,20 @@ type Menu struct {
 	Selected int
 }
 
+type MenuKeys struct {
+	Up            string
+	Down          string
+	Select        string
+	Cancel        string
+	Multi         string
+	SessionSelect string
+}
+
+type TerminalMenuReader interface {
+	ReadMenu(pane string) (Menu, bool)
+	MenuKeys() MenuKeys
+}
+
 type Dialog struct {
 	Kind  DialogKind
 	Title string

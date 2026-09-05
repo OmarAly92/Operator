@@ -32,8 +32,21 @@ func (p *Plugin) DenyRow(ports.Menu) (int, bool) {
 	return 0, false
 }
 
+func (p *Plugin) ReadMenu(pane string) (ports.Menu, bool) {
+	dialog, ok := p.ReadDialog(pane)
+	if !ok {
+		return ports.Menu{}, false
+	}
+	return dialog.Menu, true
+}
+
+func (p *Plugin) MenuKeys() ports.MenuKeys {
+	return ports.MenuKeys{Up: "\x1b[A", Down: "\x1b[B", Select: "\r", Cancel: "\x1b", SessionSelect: "\r"}
+}
+
 func readNumberedMenu(lines []string) (ports.Menu, bool) {
 	return terminalui.ReadNumberedMenu(lines, "›")
 }
 
 var _ ports.TerminalDialogReader = (*Plugin)(nil)
+var _ ports.TerminalMenuReader = (*Plugin)(nil)

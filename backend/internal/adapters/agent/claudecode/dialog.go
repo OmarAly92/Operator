@@ -44,6 +44,18 @@ func (p *Plugin) DenyRow(menu ports.Menu) (int, bool) {
 	return plainAnswerRow(menu, "No")
 }
 
+func (p *Plugin) ReadMenu(pane string) (ports.Menu, bool) {
+	dialog, ok := p.ReadDialog(pane)
+	if !ok {
+		return ports.Menu{}, false
+	}
+	return dialog.Menu, true
+}
+
+func (p *Plugin) MenuKeys() ports.MenuKeys {
+	return ports.MenuKeys{Up: "\x1b[A", Down: "\x1b[B", Select: "\r", Cancel: "\x1b", Multi: " ", SessionSelect: "s"}
+}
+
 func plainAnswerRow(menu ports.Menu, answer string) (int, bool) {
 	found := -1
 	for i, row := range menu.Rows {
@@ -109,3 +121,4 @@ func paneLines(pane string) []string {
 }
 
 var _ ports.TerminalDialogReader = (*Plugin)(nil)
+var _ ports.TerminalMenuReader = (*Plugin)(nil)
