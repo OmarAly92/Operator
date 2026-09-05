@@ -293,11 +293,15 @@ var schemaNames = map[string]string{
 	"ControllersMarkAllNotificationsReadResponse":   "MarkAllNotificationsReadResponse",
 	"ControllersUsageHookMetadata":                  "UsageHookMetadata",
 	"ControllersListUsageSessionsQuery":             "ListUsageSessionsQuery",
+	"ControllersUsageRollupQuery":                   "UsageRollupQuery",
 	"ControllersCompactSessionUsageResponse":        "CompactSessionUsageResponse",
 	"ControllersListCompactSessionUsageResponse":    "ListCompactSessionUsageResponse",
 	"ControllersUsageTotalsResponse":                "UsageTotalsResponse",
 	"ControllersUsageModelResponse":                 "UsageModelResponse",
 	"ControllersUsageHarnessResponse":               "UsageHarnessResponse",
+	"ControllersSessionContextResponse":             "SessionContextResponse",
+	"ControllersUsageRollupBucketResponse":          "UsageRollupBucketResponse",
+	"ControllersUsageRollupResponse":                "UsageRollupResponse",
 	"ControllersSessionUsageResponse":               "SessionUsageResponse",
 	// httpd/controllers — standalone shell terminal wire envelopes
 	"ControllersShellTerminalHandleIDParam": "ShellTerminalHandleIDParam",
@@ -523,6 +527,17 @@ func usageOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.SessionUsageResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/usage/rollup", id: "getUsageRollup", tag: "usage",
+			summary:    "Get day or week token usage rollups",
+			pathParams: []any{controllers.UsageRollupQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.UsageRollupResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

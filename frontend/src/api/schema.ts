@@ -1650,6 +1650,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/rollup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get day or week token usage rollups */
+        get: operations["getUsageRollup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/sessions": {
         parameters: {
             query?: never;
@@ -2642,6 +2659,16 @@ export interface components {
             models?: string[];
             state: string;
         };
+        SessionContextResponse: {
+            harness: string;
+            modelId: string;
+            /** Format: date-time */
+            observedAt: string;
+            /** Format: int64 */
+            used: number;
+            /** Format: int64 */
+            window: number;
+        };
         SessionPRCISummary: {
             failingChecks: components["schemas"]["SessionPRFailingCheck"][];
             /** @enum {string} */
@@ -2753,6 +2780,7 @@ export interface components {
             session: components["schemas"]["ControllersSessionView"];
         };
         SessionUsageResponse: {
+            context?: components["schemas"]["SessionContextResponse"];
             harnesses: components["schemas"]["UsageHarnessResponse"][];
             incomplete: boolean;
             sessionId: string;
@@ -3043,6 +3071,16 @@ export interface components {
         UsageModelResponse: {
             modelId: string;
             totals: components["schemas"]["UsageTotalsResponse"];
+        };
+        UsageRollupBucketResponse: {
+            /** Format: date */
+            start: string;
+            totals: components["schemas"]["UsageTotalsResponse"];
+        };
+        UsageRollupResponse: {
+            /** @enum {string} */
+            bucket: "day" | "week";
+            buckets: components["schemas"]["UsageRollupBucketResponse"][];
         };
         UsageTotalsResponse: {
             cacheReadTokens: null | number;
@@ -9216,6 +9254,58 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getUsageRollup: {
+        parameters: {
+            query: {
+                /** @description Calendar bucket width. */
+                bucket: "day" | "week";
+                /** @description Number of trailing days to include. Defaults to 14. */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageRollupResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
