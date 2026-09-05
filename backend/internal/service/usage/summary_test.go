@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
@@ -14,7 +15,10 @@ type usageSummaryStoreStub struct {
 	found      bool
 	incomplete bool
 	models     []domain.UsageModelAggregate
-	calls      [4]int
+	context    domain.SessionContext
+	hasContext bool
+	rollup     []domain.UsageRollupBucket
+	calls      [6]int
 }
 
 func (s *usageSummaryStoreStub) ListCompactSessionUsage(_ context.Context, id domain.ProjectID) ([]domain.CompactSessionUsage, error) {
@@ -32,6 +36,14 @@ func (s *usageSummaryStoreStub) ListUsageModelAggregates(context.Context, domain
 func (s *usageSummaryStoreStub) GetUsageSessionIncomplete(context.Context, domain.SessionID) (bool, error) {
 	s.calls[3]++
 	return s.incomplete, nil
+}
+func (s *usageSummaryStoreStub) GetSessionContext(context.Context, domain.SessionID) (domain.SessionContext, bool, error) {
+	s.calls[4]++
+	return s.context, s.hasContext, nil
+}
+func (s *usageSummaryStoreStub) UsageRollup(context.Context, time.Time, time.Time, string) ([]domain.UsageRollupBucket, error) {
+	s.calls[5]++
+	return s.rollup, nil
 }
 
 func TestSummaryReaderListCompactUsesOneBatchRead(t *testing.T) {
@@ -82,8 +94,40 @@ func TestSummaryReaderGetAggregatesModelsAndIntegrity(t *testing.T) {
 	if len(got.Harnesses) != 2 || got.Harnesses[0].Models[0].ModelID != "gpt-5.6" {
 		t.Fatalf("harnesses = %+v", got.Harnesses)
 	}
-	if store.calls != [4]int{0, 1, 1, 1} {
+	if store.calls != [6]int{0, 1, 1, 1, 1, 0} {
 		t.Fatalf("store calls = %v", store.calls)
+	}
+}
+
+func TestGetIncludesContextWhenObserved(t *testing.T) {
+	reader := NewSummaryReader(&usageSummaryStoreStub{
+		found:      true,
+		context:    domain.SessionContext{Harness: "claude-code", Used: 64880},
+		hasContext: true,
+	})
+	got, err := reader.Get(context.Background(), "scratch-1")
+	mustNoError(t, err)
+	if got.Context == nil {
+		t.Fatal("context = nil, want the observed context")
+	}
+	if got.Context.Used != 64880 {
+		t.Fatalf("used = %d, want 64880", got.Context.Used)
+	}
+}
+
+func TestGetOmitsContextWhenNeverObserved(t *testing.T) {
+	reader := NewSummaryReader(&usageSummaryStoreStub{found: true})
+	got, err := reader.Get(context.Background(), "scratch-1")
+	mustNoError(t, err)
+	if got.Context != nil {
+		t.Fatal("context must stay nil so the client renders nothing rather than zero")
+	}
+}
+
+func TestRollupRejectsUnknownBucket(t *testing.T) {
+	reader := NewSummaryReader(&usageSummaryStoreStub{})
+	if _, err := reader.Rollup(context.Background(), time.Now().Add(-time.Hour), time.Now(), "fortnight"); err == nil {
+		t.Fatal("want an error for an unsupported bucket")
 	}
 }
 

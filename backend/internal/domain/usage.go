@@ -194,6 +194,7 @@ type HarnessUsageSummary struct {
 type SessionUsageSummary struct {
 	SessionID  SessionID
 	Incomplete bool
+	Context    *SessionContext
 	Totals     UsageMetricTotals
 	Harnesses  []HarnessUsageSummary
 }
