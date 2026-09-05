@@ -3191,7 +3191,175 @@ git commit -m "feat(mobile): add the blocks-view command row"
 
 ---
 
-## Task 16: Actionable permission and question blocks, then the final gates
+## Task 16: Mirror the terminal's composer draft into the mobile composer
+
+Reported on 2026-09-05 while this plan was being written. Half of that report was a
+bug and is already fixed on `master` in `584d2ee07`: unmapped hooks
+(`pre-tool-use`, `subagent-stop`, `session-end`) were persisted as `unknown` blocks
+and the mobile assembler rendered any unrecognised kind as a chat notice, so a
+`subagent-stop` payload carrying the composer draft appeared on the phone **as a
+message from the agent**. Read that commit before starting — it is the reason
+`kind: "unknown"` now renders nothing.
+
+The other half is this task. The desktop TUI shows an unsent draft in its composer;
+the phone shows nothing, because no channel carries the live composer contents to a
+client. The draft belongs **in the mobile composer field**, not in the transcript.
+
+**Files:**
+- Modify: `backend/internal/adapters/agent/claudecode/dialog.go`, `dialog_test.go`
+- Modify: `backend/internal/adapters/agent/codex/dialog.go`, `dialog_test.go`
+- Modify: `backend/internal/ports/agent.go`
+- Modify: `backend/internal/session_manager/command.go` (or a sibling `draft.go`)
+- Modify: `backend/internal/httpd/controllers/sessions.go`, `dto.go`, `specgen/build.go`
+- Modify: `packages/mobile/lib/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart`
+- Modify: `packages/mobile/lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart`
+
+**Interfaces:**
+- Consumes: `runtime.GetStyledOutput` (`ports.StyledTerminalOutputReader`), the readers from Tasks 4-5.
+- Produces: `ports.TerminalComposerReader` with `ReadComposerDraft(styledPane string) (string, bool)`; `GET /api/v1/sessions/{sessionId}/draft` returning `{"draft": "..."}`.
+
+### The one detail that decides whether this works
+
+**A composer is never empty — it holds dim placeholder text when it has no draft.**
+The captured fixtures show both states:
+
+| fixture | composer line | is it a draft? |
+|---|---|---|
+| `claudecode_idle.txt` | `❯` + NBSP + `run the sample task` | **yes** — human-authored |
+| `codex_idle.txt` | `› Improve documentation in @filename` | **no** — dim placeholder |
+
+Plain `GetOutput` cannot tell these apart: both are just text on the prompt line.
+The distinction lives in the SGR styling, which is exactly why
+`ports.StyledTerminalOutputReader` exists — its doc comment already says it is
+"for safety checks that must distinguish dim placeholder text from a
+human-authored draft", and it instructs callers to **fail closed when
+unavailable**. Do the same here: no styled reader, no draft.
+
+Mirroring a placeholder into the phone's composer would put words in the user's
+mouth — they tap send and dispatch text they never wrote. **Fail closed: when the
+styling is ambiguous, report no draft.**
+
+- [ ] **Step 1: Write the failing reader test**
+
+Add to `claudecode/dialog_test.go`:
+
+```go
+func TestReadComposerDraftReturnsAHumanAuthoredDraft(t *testing.T) {
+	p := &Plugin{}
+	draft, ok := p.ReadComposerDraft(readStyledPane(t, "claudecode_idle_styled.txt"))
+	if !ok {
+		t.Fatal("expected the composer draft to be read")
+	}
+	if draft != "run the sample task" {
+		t.Fatalf("draft = %q", draft)
+	}
+}
+
+func TestReadComposerDraftRejectsDimPlaceholderText(t *testing.T) {
+	// A placeholder mirrored into the phone's composer would have the user
+	// send text they never wrote.
+	p := &Plugin{}
+	if draft, ok := p.ReadComposerDraft(readStyledPane(t, "claudecode_placeholder_styled.txt")); ok {
+		t.Fatalf("placeholder text must not read as a draft, got %q", draft)
+	}
+}
+
+func TestReadComposerDraftFailsClosedOnUnstyledInput(t *testing.T) {
+	// Plain output carries no dim/normal distinction. Answering from it would
+	// be a guess.
+	p := &Plugin{}
+	if _, ok := p.ReadComposerDraft(readPane(t, "claudecode_idle.txt")); ok {
+		t.Fatal("an unstyled pane must fail closed, not guess")
+	}
+}
+```
+
+Mirror for `codex`, where `codex_idle_styled.txt` is the **placeholder** case —
+`Improve documentation in @filename` must read as no draft.
+
+- [ ] **Step 2: Capture the two styled fixtures this task needs**
+
+The committed fixtures are plain. Capture styled ones with the reader from Task 4,
+passing the `styled` argument, from a real session of each harness: one with a typed
+draft, one with an empty composer showing its placeholder. Save as
+`claudecode_idle_styled.txt`, `claudecode_placeholder_styled.txt`,
+`codex_idle_styled.txt`. Scrub content, keep every escape sequence byte-for-byte —
+**the escapes are the entire signal here**, so do not normalise or trim them.
+
+Add `readStyledPane` beside `readPane`; it must not strip anything.
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+```bash
+cd backend && go test ./internal/adapters/agent/claudecode/ ./internal/adapters/agent/codex/ -run TestReadComposerDraft -v
+```
+
+Expected: FAIL to compile — `p.ReadComposerDraft undefined`.
+
+- [ ] **Step 4: Add the port and both readers**
+
+```go
+// TerminalComposerReader is an optional adapter capability for reading a
+// harness's unsent composer draft. It takes STYLED pane text: a composer always
+// holds something, and only the styling separates dim placeholder text from what
+// the human actually typed. Implementations MUST fail closed — returning false
+// when the styling does not clearly mark a draft — because the caller mirrors
+// the result into another client's composer, where a wrong answer becomes a
+// message the user never wrote.
+type TerminalComposerReader interface {
+	ReadComposerDraft(styledPane string) (string, bool)
+}
+```
+
+Implement for both harnesses against the styled fixtures. Reuse the prompt-line
+location logic from Task 4's `paneLines`; the difference here is that the escapes
+must survive to be inspected.
+
+- [ ] **Step 5: Add `GET /sessions/{sessionId}/draft`**
+
+A read-only endpoint: resolve the harness's reader, take a styled pane read, return
+`{"draft": "..."}` with an empty string when there is no draft. It never writes.
+A harness with no reader returns an empty draft, not an error. Add the `specgen`
+entry, then:
+
+```bash
+npm run api && git status --porcelain
+```
+
+**Polling, not streaming.** A draft changes on every keystroke and matters only
+while someone is looking at the composer. Do not add it to the mux patch stream:
+that would put per-keystroke traffic on the socket the Kanban board depends on.
+The client fetches it when the blocks screen gains focus and after each send.
+
+- [ ] **Step 6: Show it in the mobile composer**
+
+`TerminalCubit` gains `draft` and fetches it on attach and after each send.
+`TerminalComposer` shows a non-empty remote draft **only while its own field is
+empty**, as dim prefill the user can tap to adopt — never overwriting text the
+person on the phone is currently typing. Adopting it fills the field for editing;
+it does not send.
+
+Widget tests: a remote draft appears when the field is empty; it does **not**
+appear when the user has typed something; tapping it fills the field without
+sending; an empty remote draft shows nothing.
+
+- [ ] **Step 7: Run the gates**
+
+```bash
+npm run lint
+cd packages/mobile && flutter analyze && flutter test
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A
+git commit -m "feat(mobile): mirror the terminal composer draft into the phone's composer"
+```
+
+---
+
+## Task 17: Actionable permission and question blocks, then the final gates
 
 The last piece of the spec's Phase 3 surface: the blocks themselves become answerable.
 
@@ -3358,3 +3526,5 @@ git commit -m "feat(mobile): make permission and question blocks answerable"
 - **Task 11 is a spike**, and its deliverable is a written finding. Do not keep probe code.
 - **Never retry an unconfirmed write.** The key may well have landed and simply not redrawn; a second key answers the *next* dialog. `ErrUnconfirmed` is reported, never retried, at every layer.
 - **A refused action writes nothing.** Every backend test in this plan asserts that explicitly, because a half-acted refusal is the failure mode that would cost a user real work.
+- **Task 16 needs styled fixtures that do not exist yet.** The committed panes are plain; that task captures its own, and the ANSI escapes in them are the entire signal, so they must not be normalised.
+- **Task 17 is last** and its live smoke test needs a human at the keyboard.
