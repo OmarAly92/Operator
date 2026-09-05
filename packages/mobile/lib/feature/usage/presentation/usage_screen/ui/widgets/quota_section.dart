@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/relative_time.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/usage/data/model/usage_quota_model.dart';
 import 'package:operator_mobile/feature/usage/logic/quota_readout.dart';
@@ -78,7 +79,7 @@ class _QuotaWindowRow extends StatelessWidget {
         const SizedBox(height: 4),
         if (readout.isUnknown)
           AppText(
-            'Unknown — last seen ${_relativeTime(observedAt)}',
+            'Unknown — last seen ${relativeTime(observedAt?.toIso8601String())}',
             style: AppTextStyle.style11Regular.copyWith(color: skin.textTertiary),
           )
         else
@@ -93,14 +94,5 @@ class _QuotaWindowRow extends StatelessWidget {
           ),
       ],
     );
-  }
-
-  String _relativeTime(DateTime? time) {
-    if (time == null) return 'an unknown time ago';
-    final diff = DateTime.now().difference(time);
-    if (diff.inSeconds < 60) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
   }
 }

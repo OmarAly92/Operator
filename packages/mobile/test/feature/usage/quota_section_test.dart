@@ -29,6 +29,20 @@ void main() {
     expect(find.textContaining('not reported'), findsOneWidget);
   });
 
+  testWidgets('shows a stale window as unknown with a last-seen time and no bar', (tester) async {
+    final observedAt = DateTime.now().subtract(const Duration(minutes: 10));
+    await tester.pumpWidget(_wrap(QuotaSection(quota: UsageQuotaModel.fromJson({
+      'harness': 'codex', 'planType': 'plus',
+      'observedAt': observedAt.toIso8601String(),
+      'windows': [
+        {'kind': 'primary', 'windowMinutes': 300, 'usedPercent': 77, 'stale': true},
+      ],
+    }))));
+    expect(find.text('Unknown — last seen 10m'), findsOneWidget);
+    expect(find.text('77%'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
   testWidgets('renders nothing when quota was never observed', (tester) async {
     await tester.pumpWidget(_wrap(const QuotaSection(quota: null)));
     expect(find.text('Codex plan usage'), findsNothing);
