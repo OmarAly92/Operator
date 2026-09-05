@@ -104,6 +104,7 @@ var shippedMigrations = map[int64]string{
 	97: "0097_block_event_interaction_id.sql",
 	98: "0098_usage_time_and_context.sql",
 	99: "0099_usage_context_model.sql",
+	100: "0100_usage_quota.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
