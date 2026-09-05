@@ -16,7 +16,7 @@ import (
 var expectedUsageTableColumns = map[string][]string{
 	"usage_bindings": {
 		"id", "session_id", "harness", "native_root_id", "initial_model_id",
-		"state", "last_error_code", "updated_at",
+		"state", "last_error_code", "updated_at", "context_used", "context_window", "context_at",
 	},
 	"usage_sources": {
 		"id", "binding_id", "kind", "native_session_id", "subagent_id", "artifact_path",
@@ -26,7 +26,7 @@ var expectedUsageTableColumns = map[string][]string{
 	"model_usage_events": {
 		"id", "binding_id", "usage_source_id", "model_id", "input_tokens", "uncached_input_tokens",
 		"cache_read_tokens", "cache_write_tokens", "output_tokens", "reasoning_tokens",
-		"source_event_key",
+		"source_event_key", "occurred_at",
 	},
 }
 
@@ -37,6 +37,45 @@ func TestUsageTablesKeepOnlyDurableCollectionState(t *testing.T) {
 		if !reflect.DeepEqual(got, wantColumns) {
 			t.Errorf("%s columns = %v, want %v", table, got, wantColumns)
 		}
+	}
+}
+
+func TestMigration0098AddsUsageTimeAndContextSnapshot(t *testing.T) {
+	db := openMigratedTestDB(t)
+
+	rows, err := db.Query(`SELECT name, "notnull", dflt_value FROM pragma_table_info('usage_bindings') WHERE name IN ('context_used', 'context_window', 'context_at') ORDER BY name`)
+	if err != nil {
+		t.Fatalf("read context columns: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	wantDefaults := map[string]string{"context_used": "0", "context_window": "0", "context_at": ""}
+	for rows.Next() {
+		var name string
+		var defaultValue sql.NullString
+		var notNull int
+		if err := rows.Scan(&name, &notNull, &defaultValue); err != nil {
+			t.Fatalf("scan context column: %v", err)
+		}
+		if name == "context_at" {
+			if notNull != 0 || defaultValue.Valid {
+				t.Errorf("context_at metadata = notnull %d, default %q", notNull, defaultValue.String)
+			}
+			continue
+		}
+		if !defaultValue.Valid || notNull != 1 || defaultValue.String != wantDefaults[name] {
+			t.Errorf("%s metadata = notnull %d, default %q", name, notNull, defaultValue.String)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate context columns: %v", err)
+	}
+
+	var indexCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_model_usage_events_occurred_at'`).Scan(&indexCount); err != nil {
+		t.Fatalf("read occurred_at index: %v", err)
+	}
+	if indexCount != 1 {
+		t.Fatalf("occurred_at index count = %d, want 1", indexCount)
 	}
 }
 

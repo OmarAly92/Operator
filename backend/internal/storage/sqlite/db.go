@@ -143,6 +143,9 @@ func migrate(db *sql.DB) error {
 	if err := repairRenumberedAgentSwitchMigrationHistory(db); err != nil {
 		return fmt.Errorf("repair renumbered agent-switch migration history: %w", err)
 	}
+	if err := repairSkippedUsageMigration(db); err != nil {
+		return fmt.Errorf("repair skipped usage migration: %w", err)
+	}
 	if err := prepareBurnedSchemaRepairs(db); err != nil {
 		return fmt.Errorf("prepare burned schema repairs: %w", err)
 	}
@@ -160,6 +163,24 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	return reconcileSchema(db)
+}
+
+func repairSkippedUsageMigration(db *sql.DB) error {
+	var usageTable, gooseTable int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'model_usage_events'`).Scan(&usageTable); err != nil {
+		return err
+	}
+	if usageTable != 0 {
+		return nil
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'goose_db_version'`).Scan(&gooseTable); err != nil {
+		return err
+	}
+	if gooseTable == 0 {
+		return nil
+	}
+	_, err := db.Exec(`DELETE FROM goose_db_version WHERE version_id = 52`)
+	return err
 }
 
 // prepareBrowserVerifierMigration preserves development databases that ran an
