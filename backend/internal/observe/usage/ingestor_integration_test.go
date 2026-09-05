@@ -51,7 +51,7 @@ func TestIngestorPersistsVersionedCodexParserStateAcrossChunks(t *testing.T) {
 func TestIngestorPersistsRootCodexSessionContext(t *testing.T) {
 	ctx := context.Background()
 	store, source, path, now := seedCodexIngestionSource(t, t.TempDir())
-	content := `{"type":"turn_context","payload":{"model":"fallback-model"}}` + "\n" +
+	content := `{"type":"turn_context","payload":{"model":"gpt-5.7"}}` + "\n" +
 		string(codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000)) + "\n"
 	mustNoError(t, os.WriteFile(path, []byte(content), 0o600))
 
@@ -65,7 +65,7 @@ func TestIngestorPersistsRootCodexSessionContext(t *testing.T) {
 	}
 	want := domain.SessionContext{
 		Harness:    "codex",
-		ModelID:    "fallback-model",
+		ModelID:    "gpt-5.7",
 		Used:       25_000,
 		Window:     200_000,
 		ObservedAt: time.Date(2026, time.September, 5, 12, 5, 0, 0, time.UTC),
@@ -1014,19 +1014,20 @@ type applyInterleavingStore struct {
 	beforeApply func()
 }
 
-func (s *applyInterleavingStore) ApplyUsageChunk(
+func (s *applyInterleavingStore) ApplyUsageChunkWithContext(
 	ctx context.Context,
 	sourceID int64,
 	expectedOffset int64,
 	expectedRevision time.Time,
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
+	sessionContext *domain.SessionContext,
 ) error {
 	if beforeApply := s.beforeApply; beforeApply != nil {
 		s.beforeApply = nil
 		beforeApply()
 	}
-	return s.Store.ApplyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events)
+	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
 }
 
 func assertTokenAggregate(t *testing.T, store *sqlite.Store, sessionID domain.SessionID, total int64) {

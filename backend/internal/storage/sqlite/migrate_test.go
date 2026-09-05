@@ -18,6 +18,7 @@ var expectedUsageTableColumns = map[string][]string{
 	"usage_bindings": {
 		"id", "session_id", "harness", "native_root_id", "initial_model_id",
 		"state", "last_error_code", "updated_at", "context_used", "context_window", "context_at",
+		"context_model_id",
 	},
 	"usage_sources": {
 		"id", "binding_id", "kind", "native_session_id", "subagent_id", "artifact_path",

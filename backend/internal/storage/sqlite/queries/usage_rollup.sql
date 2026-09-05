@@ -1,10 +1,15 @@
 -- name: SaveSessionContext :exec
 UPDATE usage_bindings
-SET context_used = ?, context_window = ?, context_at = ?
-WHERE id = ?;
+SET context_used = sqlc.arg(context_used),
+    context_window = sqlc.arg(context_window),
+    context_at = sqlc.arg(context_at),
+    context_model_id = sqlc.arg(context_model_id)
+WHERE id = sqlc.arg(id)
+  AND sqlc.arg(context_at) IS NOT NULL
+  AND (context_at IS NULL OR context_at <= sqlc.arg(context_at));
 
 -- name: GetSessionContext :one
-SELECT harness, context_used, context_window, context_at, initial_model_id
+SELECT harness, context_used, context_window, context_at, context_model_id
 FROM usage_bindings
 WHERE session_id = ? AND context_at IS NOT NULL
 ORDER BY context_at DESC

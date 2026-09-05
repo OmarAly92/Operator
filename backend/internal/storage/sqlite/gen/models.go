@@ -525,6 +525,7 @@ type UsageBinding struct {
 	ContextUsed    int64
 	ContextWindow  int64
 	ContextAt      sql.NullTime
+	ContextModelID string
 }
 
 type UsageCodexPendingChild struct {

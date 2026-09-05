@@ -359,6 +359,28 @@ func (s *Store) ApplyUsageChunk(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 ) error {
+	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, nil)
+}
+
+func (s *Store) ApplyUsageChunkWithContext(
+	ctx context.Context,
+	sourceID, expectedOffset int64,
+	expectedRevision time.Time,
+	nextState domain.SourceCursorState,
+	events []domain.ModelUsageEvent,
+	sessionContext *domain.SessionContext,
+) error {
+	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
+}
+
+func (s *Store) applyUsageChunk(
+	ctx context.Context,
+	sourceID, expectedOffset int64,
+	expectedRevision time.Time,
+	nextState domain.SourceCursorState,
+	events []domain.ModelUsageEvent,
+	sessionContext *domain.SessionContext,
+) error {
 	if nextState.ParserStateJSON != "" {
 		if err := validateParserStateObject(nextState.ParserStateJSON); err != nil {
 			return err
@@ -416,10 +438,15 @@ func (s *Store) ApplyUsageChunk(
 			return err
 		}
 		if insertedEvent {
-			return q.TouchUsageBinding(ctx, gen.TouchUsageBindingParams{
+			if err := q.TouchUsageBinding(ctx, gen.TouchUsageBindingParams{
 				UpdatedAt: timeOrNow(nextState.UpdatedAt),
 				ID:        source.BindingID,
-			})
+			}); err != nil {
+				return err
+			}
+		}
+		if sessionContext != nil {
+			return saveSessionContext(ctx, q, source.BindingID, *sessionContext)
 		}
 		return nil
 	})
@@ -445,11 +472,16 @@ func (s *Store) ListUsageModelAggregates(ctx context.Context, sessionID domain.S
 func (s *Store) SaveSessionContext(ctx context.Context, bindingID int64, sessionContext domain.SessionContext) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	err := s.qw.SaveSessionContext(ctx, gen.SaveSessionContextParams{
-		ContextUsed:   sessionContext.Used,
-		ContextWindow: sessionContext.Window,
-		ContextAt:     ptrTimeToNullTime(&sessionContext.ObservedAt),
-		ID:            bindingID,
+	return saveSessionContext(ctx, s.qw, bindingID, sessionContext)
+}
+
+func saveSessionContext(ctx context.Context, queries *gen.Queries, bindingID int64, sessionContext domain.SessionContext) error {
+	err := queries.SaveSessionContext(ctx, gen.SaveSessionContextParams{
+		ContextUsed:    sessionContext.Used,
+		ContextWindow:  sessionContext.Window,
+		ContextAt:      ptrTimeToNullTime(&sessionContext.ObservedAt),
+		ContextModelID: sessionContext.ModelID,
+		ID:             bindingID,
 	})
 	if err != nil {
 		return fmt.Errorf("save session context for binding %d: %w", bindingID, err)
@@ -467,7 +499,7 @@ func (s *Store) GetSessionContext(ctx context.Context, sessionID domain.SessionI
 	}
 	return domain.SessionContext{
 		Harness:    string(row.Harness),
-		ModelID:    row.InitialModelID,
+		ModelID:    row.ContextModelID,
 		Used:       row.ContextUsed,
 		Window:     row.ContextWindow,
 		ObservedAt: row.ContextAt.Time.UTC(),

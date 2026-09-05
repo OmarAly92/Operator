@@ -13,7 +13,7 @@ import (
 )
 
 const getSessionContext = `-- name: GetSessionContext :one
-SELECT harness, context_used, context_window, context_at, initial_model_id
+SELECT harness, context_used, context_window, context_at, context_model_id
 FROM usage_bindings
 WHERE session_id = ? AND context_at IS NOT NULL
 ORDER BY context_at DESC
@@ -25,7 +25,7 @@ type GetSessionContextRow struct {
 	ContextUsed    int64
 	ContextWindow  int64
 	ContextAt      sql.NullTime
-	InitialModelID string
+	ContextModelID string
 }
 
 func (q *Queries) GetSessionContext(ctx context.Context, sessionID domain.SessionID) (GetSessionContextRow, error) {
@@ -36,22 +36,28 @@ func (q *Queries) GetSessionContext(ctx context.Context, sessionID domain.Sessio
 		&i.ContextUsed,
 		&i.ContextWindow,
 		&i.ContextAt,
-		&i.InitialModelID,
+		&i.ContextModelID,
 	)
 	return i, err
 }
 
 const saveSessionContext = `-- name: SaveSessionContext :exec
 UPDATE usage_bindings
-SET context_used = ?, context_window = ?, context_at = ?
-WHERE id = ?
+SET context_used = ?1,
+    context_window = ?2,
+    context_at = ?3,
+    context_model_id = ?4
+WHERE id = ?5
+  AND ?3 IS NOT NULL
+  AND (context_at IS NULL OR context_at <= ?3)
 `
 
 type SaveSessionContextParams struct {
-	ContextUsed   int64
-	ContextWindow int64
-	ContextAt     sql.NullTime
-	ID            int64
+	ContextUsed    int64
+	ContextWindow  int64
+	ContextAt      sql.NullTime
+	ContextModelID string
+	ID             int64
 }
 
 func (q *Queries) SaveSessionContext(ctx context.Context, arg SaveSessionContextParams) error {
@@ -59,6 +65,7 @@ func (q *Queries) SaveSessionContext(ctx context.Context, arg SaveSessionContext
 		arg.ContextUsed,
 		arg.ContextWindow,
 		arg.ContextAt,
+		arg.ContextModelID,
 		arg.ID,
 	)
 	return err

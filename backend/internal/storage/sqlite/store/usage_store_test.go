@@ -481,6 +481,54 @@ func TestApplyUsageChunkAtomicReplayAndTokenAggregates(t *testing.T) {
 	}
 }
 
+func TestApplyUsageChunkRollsBackAndRetriesWhenContextSaveFails(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	session := seedUsageSession(t, s, domain.HarnessCodex)
+	now := parseTime(t, "2026-09-05T12:05:00Z")
+	source := seedUsageSource(t, s, session, now)
+	event := usageEvent("event-1", domain.UsageTokenMetrics{
+		InputTokens: 10, UncachedInputTokens: 10, OutputTokens: 2,
+	})
+	event.OccurredAt = now
+	nextState := domain.SourceCursorState{
+		ByteOffset: 10,
+		State:      domain.UsageSourceActive,
+		UpdatedAt:  now,
+	}
+	invalidContext := &domain.SessionContext{
+		Harness: "codex", ModelID: "gpt-5.7", Used: -1, Window: 200_000, ObservedAt: now,
+	}
+
+	err := s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, invalidContext)
+	if err == nil {
+		t.Fatal("expected invalid context to reject the chunk")
+	}
+	assertUsageSourceOffset(t, s, source.ID, 0)
+	aggregates, aggregateErr := s.ListUsageModelAggregates(ctx, session.ID)
+	mustNoError(t, aggregateErr)
+	if len(aggregates) != 0 {
+		t.Fatalf("failed context write persisted events: %+v", aggregates)
+	}
+	if _, ok, getErr := s.GetSessionContext(ctx, session.ID); getErr != nil || ok {
+		t.Fatalf("failed context write persisted context: ok=%v err=%v", ok, getErr)
+	}
+
+	want := *invalidContext
+	want.Used = 10
+	mustNoError(t, s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, &want))
+	assertUsageSourceOffset(t, s, source.ID, 10)
+	aggregates, aggregateErr = s.ListUsageModelAggregates(ctx, session.ID)
+	mustNoError(t, aggregateErr)
+	if len(aggregates) != 1 || aggregates[0].Tokens.InputTokens != 10 {
+		t.Fatalf("retried chunk aggregates = %+v, want input 10", aggregates)
+	}
+	got, ok, getErr := s.GetSessionContext(ctx, session.ID)
+	if getErr != nil || !ok || got != want {
+		t.Fatalf("retried chunk context = %+v ok=%v err=%v, want %+v", got, ok, getErr, want)
+	}
+}
+
 func TestApplyUsageChunkRejectsConflictsAndPreservesCursor(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -988,6 +1036,79 @@ func TestSessionContextRoundTrips(t *testing.T) {
 	}
 }
 
+func TestSessionContextPreservesObservedModel(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}
+
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want observed model %+v", got, want)
+	}
+}
+
+func TestSessionContextIgnoresUndatedObservation(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, domain.SessionContext{
+		Harness: "codex", ModelID: "gpt-5.8", Used: 30_000, Window: 250_000,
+	}))
+
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want dated observation %+v", got, want)
+	}
+}
+
+func TestSessionContextIgnoresOlderObservation(t *testing.T) {
+	s := newTestStore(t)
+	binding := seedUsageBinding(t, s, "scratch-1", domain.HarnessCodex)
+	want := domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.8",
+		Used:       30_000,
+		Window:     250_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:06:00Z"),
+	}
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, want))
+	mustNoError(t, s.SaveSessionContext(context.Background(), binding.ID, domain.SessionContext{
+		Harness:    "codex",
+		ModelID:    "gpt-5.7",
+		Used:       25_000,
+		Window:     200_000,
+		ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+	}))
+
+	got, ok, err := s.GetSessionContext(context.Background(), binding.SessionID)
+	if err != nil || !ok {
+		t.Fatalf("get context: ok=%v err=%v", ok, err)
+	}
+	if got != want {
+		t.Fatalf("context = %+v, want newest observation %+v", got, want)
+	}
+}
+
 func TestSessionContextUsesNewestBindingObservation(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -1008,10 +1129,10 @@ func TestSessionContextUsesNewestBindingObservation(t *testing.T) {
 	mustNoError(t, err)
 
 	mustNoError(t, s.SaveSessionContext(ctx, older.ID, domain.SessionContext{
-		Used: 10, Window: 100, ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
+		ModelID: "gpt-5.6-luna", Used: 10, Window: 100, ObservedAt: parseTime(t, "2026-09-05T12:05:00Z"),
 	}))
 	mustNoError(t, s.SaveSessionContext(ctx, newer.ID, domain.SessionContext{
-		Used: 20, Window: 200, ObservedAt: parseTime(t, "2026-09-05T12:06:00Z"),
+		ModelID: "claude-sonnet-4-5", Used: 20, Window: 200, ObservedAt: parseTime(t, "2026-09-05T12:06:00Z"),
 	}))
 
 	got, ok, err := s.GetSessionContext(ctx, session.ID)
