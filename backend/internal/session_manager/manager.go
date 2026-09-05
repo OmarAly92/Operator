@@ -22,6 +22,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
 )
@@ -268,6 +269,10 @@ type Manager struct {
 	agents    ports.AgentResolver
 	workspace ports.Workspace
 	store     Store
+	// menuReader overrides menuReaderFor's resolution against m.agents. It is
+	// nil in production; tests set it directly since their fakeAgents do not
+	// implement ports.TerminalMenuReader.
+	menuReader ports.TerminalMenuReader
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -3895,6 +3900,35 @@ func (m *Manager) wrapAgentProcessWithLaunchID(agent ports.Agent, id domain.Sess
 
 func runtimeHandle(meta domain.SessionMetadata) ports.RuntimeHandle {
 	return ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+}
+
+func (m *Manager) menuReaderFor(harness domain.AgentHarness) (ports.TerminalMenuReader, bool) {
+	if m.menuReader != nil {
+		return m.menuReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalMenuReader)
+	return reader, ok
+}
+
+type runtimeScreen struct {
+	runtime runtimeController
+	handle  ports.RuntimeHandle
+}
+
+func (s runtimeScreen) Read(ctx context.Context) (string, error) {
+	return s.runtime.GetOutput(ctx, s.handle, commandPaneLines)
+}
+
+func (s runtimeScreen) Write(ctx context.Context, keys string) error {
+	return s.runtime.SendInput(ctx, s.handle, keys)
+}
+
+func (m *Manager) driverFor(handle ports.RuntimeHandle) *dialogdriver.Driver {
+	return dialogdriver.New(runtimeScreen{runtime: m.runtime, handle: handle}, 150*time.Millisecond)
 }
 
 func workspaceInfo(rec domain.SessionRecord) ports.WorkspaceInfo {
