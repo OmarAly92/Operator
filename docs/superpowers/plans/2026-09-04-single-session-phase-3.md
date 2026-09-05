@@ -26,6 +26,39 @@ Verified against the code on 2026-09-04, before this plan was written. **Impleme
 
 5. **`send` cannot carry a control byte.** `domain.SanitizeControlChars` strips them, which is why the mobile raw key row goes through the mux instead ([`keys.dart:3`](../../../packages/mobile/lib/feature/terminal/logic/keys.dart)). Every keystroke in this plan therefore goes through `SendInput`, never through the send path.
 
+6. **Every blocking dialog is the same numbered menu.** Captured from a real session on 2026-09-05 (`backend/testdata/panes/`). The permission prompt is **not** a y/n prompt — it renders as a numbered list with a `❯ ` highlight, exactly like the model picker and the question menu:
+
+```
+ Do you want to create fixture-probe.txt?
+ ❯ 1. Yes
+   2. Yes, and switch to accept edits (auto-approve file edits and
+      common file commands) for this session (shift+tab)
+   3. No
+ Esc to cancel · Tab to amend
+```
+
+   The option list **varies by tool** — a Write dialog offers "switch to accept edits", a Bash dialog offers different wording — so a fixed `PermissionKey(behavior) → "y"/"n"` cannot work and **is removed from this plan**. All three dialogs share one reader and one navigation model; they are told apart by their footer, which is the stable discriminator:
+
+   | dialog | footer |
+   |---|---|
+   | permission | `Esc to cancel · Tab to amend` |
+   | model picker | `Enter to set as default · s to use this session only · Esc to cancel` |
+   | question | `Enter to select · ↑/↓ to navigate · Esc to cancel` |
+
+7. **The model picker's Enter is the wrong key.** Its footer says `Enter to set as default · s to use this session only`. Pressing Enter changes the user's **global default model for every new session** — far beyond what "change this session's model" asks for. The driver must press **`s`**. This was wrong in the spec and in the first draft of this plan; a fixture caught it.
+
+8. **On-screen rows do not align with the transcript's option indices.** A real `AskUserQuestion` menu appends synthetic rows the transcript never lists:
+
+```
+❯ 1. Red
+  2. Green
+  3. Blue
+  4. Type something.
+  5. Chat about this
+```
+
+   "Type something." and "Chat about this" are the harness's own additions. A client sending index 2 from the transcript's options would land on the wrong row if any synthetic row preceded it, and free-text answers go through row 4. **Selections are resolved by matching option text against the on-screen rows, never by passing an index straight through.**
+
 ## Global Constraints
 
 - **Go tests and lint gate every backend task.** `npm run lint` from the repo root runs `go test ./...` plus golangci-lint and must exit 0 issues.
@@ -716,7 +749,7 @@ The daemon must never type into a screen it has not just looked at. This task ad
 - Modify: `backend/internal/ports/agent.go` (new optional capability interface)
 
 **Interfaces:**
-- Produces: `ports.TerminalDialogReader` with `ReadPermissionDialog(pane string) (ports.PermissionDialog, bool)` and `PermissionKey(behavior string) (string, bool)`; `ports.PermissionDialog{ToolName string; Lines []string}`. Both `claudecode.Plugin` and `codex.Plugin` implement it.
+- Produces: `ports.TerminalDialogReader` with `ReadDialog(pane string) (ports.Dialog, bool)`, `AllowRow(ports.Menu) (int, bool)` and `DenyRow(ports.Menu) (int, bool)`; `ports.Dialog{Kind DialogKind; Title string; Menu Menu}`; `ports.DialogKind` with `DialogPermission`/`DialogQuestion`/`DialogModel`. Both `claudecode.Plugin` and `codex.Plugin` implement it. `ports.Menu` and the shared `readNumberedMenu` helper are defined here and reused by Task 5.
 - Consumes: nothing.
 
 - [ ] **Step 1: Capture real fixtures**
@@ -802,46 +835,71 @@ func readPane(t *testing.T, name string) string {
 	return string(b)
 }
 
-func TestReadPermissionDialogRecognisesTheRealDialog(t *testing.T) {
+func TestReadDialogRecognisesTheRealPermissionDialog(t *testing.T) {
 	p := &Plugin{}
-	dlg, ok := p.ReadPermissionDialog(readPane(t, "claudecode_permission.txt"))
+	dlg, ok := p.ReadDialog(readPane(t, "claudecode_permission.txt"))
 	if !ok {
 		t.Fatal("expected the permission dialog to be recognised")
 	}
-	if dlg.ToolName == "" {
-		t.Fatal("expected the dialog to name the blocking tool")
+	if dlg.Kind != ports.DialogPermission {
+		t.Fatalf("Kind = %q, want permission", dlg.Kind)
 	}
-	if len(dlg.Lines) == 0 {
-		t.Fatal("expected the dialog's option lines")
+	if len(dlg.Menu.Rows) != 3 {
+		t.Fatalf("the captured fixture has 3 options, got %v", dlg.Menu.Rows)
+	}
+	allow, ok := p.AllowRow(dlg.Menu)
+	if !ok || allow != 0 {
+		t.Fatalf("AllowRow = %d, %v; want row 0 (\"1. Yes\")", allow, ok)
+	}
+	deny, ok := p.DenyRow(dlg.Menu)
+	if !ok || deny != 2 {
+		t.Fatalf("DenyRow = %d, %v; want row 2 (\"3. No\")", deny, ok)
 	}
 }
 
-func TestReadPermissionDialogRejectsAnIdlePane(t *testing.T) {
+func TestAllowRowRejectsTheCompoundYes(t *testing.T) {
+	// "2. Yes, and switch to accept edits ... for this session" widens
+	// permissions for the rest of the session. A naive prefix match picks it.
 	p := &Plugin{}
-	if _, ok := p.ReadPermissionDialog(readPane(t, "claudecode_idle.txt")); ok {
-		t.Fatal("an idle pane must not be read as a permission dialog")
+	menu := ports.Menu{Rows: []string{
+		"2. Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab)",
+		"3. No",
+	}}
+	if _, ok := p.AllowRow(menu); ok {
+		t.Fatal("the compound Yes must not be treated as a plain allow")
 	}
 }
 
-func TestReadPermissionDialogRejectsEmptyAndGarbage(t *testing.T) {
+func TestReadDialogRejectsAnIdlePane(t *testing.T) {
+	p := &Plugin{}
+	if _, ok := p.ReadDialog(readPane(t, "claudecode_idle.txt")); ok {
+		t.Fatal("an idle pane must not be read as a dialog")
+	}
+}
+
+func TestReadDialogRejectsEmptyAndGarbage(t *testing.T) {
 	p := &Plugin{}
 	for _, pane := range []string{"", "\n\n\n", "some unrelated output\nmore output"} {
-		if _, ok := p.ReadPermissionDialog(pane); ok {
+		if _, ok := p.ReadDialog(pane); ok {
 			t.Fatalf("expected no dialog for %q", pane)
 		}
 	}
 }
 
-func TestPermissionKeyCoversAllowAndDenyOnly(t *testing.T) {
+func TestReadDialogTellsTheThreeKindsApartByTheirFooter(t *testing.T) {
 	p := &Plugin{}
-	for _, behavior := range []string{"allow", "deny"} {
-		key, ok := p.PermissionKey(behavior)
-		if !ok || key == "" {
-			t.Fatalf("expected a key for %q", behavior)
+	for fixture, want := range map[string]ports.DialogKind{
+		"claudecode_permission.txt":   ports.DialogPermission,
+		"claudecode_model_picker.txt": ports.DialogModel,
+		"claudecode_question.txt":     ports.DialogQuestion,
+	} {
+		dlg, ok := p.ReadDialog(readPane(t, fixture))
+		if !ok {
+			t.Fatalf("%s: not recognised", fixture)
 		}
-	}
-	if _, ok := p.PermissionKey("maybe"); ok {
-		t.Fatal("expected an unknown behavior to be rejected")
+		if dlg.Kind != want {
+			t.Fatalf("%s: Kind = %q, want %q", fixture, dlg.Kind, want)
+		}
 	}
 }
 ```
@@ -851,22 +909,35 @@ Write the mirror file for `codex` with the codex fixtures and `package codex`.
 - [ ] **Step 3: Run the tests to verify they fail**
 
 ```bash
-cd backend && go test ./internal/adapters/agent/claudecode/ ./internal/adapters/agent/codex/ -run TestReadPermissionDialog -v
+cd backend && go test ./internal/adapters/agent/claudecode/ ./internal/adapters/agent/codex/ -run TestReadDialog -v
 ```
 
-Expected: FAIL to compile — `p.ReadPermissionDialog undefined`.
+Expected: FAIL to compile — `p.ReadDialog undefined`.
 
 - [ ] **Step 4: Add the port**
 
 In `backend/internal/ports/agent.go`, beside `TerminalActivityDetector`:
 
 ```go
-// PermissionDialog is what a harness's permission prompt says: the tool it is
-// blocking on, and the option lines as rendered. Lines is for the client to
-// display and for tests to pin; the driver matches on it, never on an index.
-type PermissionDialog struct {
-	ToolName string
-	Lines    []string
+// DialogKind names the blocking dialogs a harness can put on screen. They all
+// render as the same numbered menu (finding 6); the kind comes from the footer,
+// which is what actually distinguishes them.
+type DialogKind string
+
+const (
+	DialogPermission DialogKind = "permission"
+	DialogQuestion   DialogKind = "question"
+	DialogModel      DialogKind = "model"
+)
+
+// Dialog is a blocking prompt as rendered: its kind, its title line, and the
+// menu the user is choosing from. Rows are the option text as shown, which is
+// what callers match against — never a bare index, because the harness inserts
+// synthetic rows the caller never knew about (finding 8).
+type Dialog struct {
+	Kind  DialogKind
+	Title string
+	Menu  Menu
 }
 
 // TerminalDialogReader is an optional adapter capability for reading a harness's
@@ -874,11 +945,13 @@ type PermissionDialog struct {
 // text and MUST fail closed: an unrecognised screen returns false, never a
 // guess, because the caller is about to write a keystroke on the strength of it.
 type TerminalDialogReader interface {
-	ReadPermissionDialog(pane string) (PermissionDialog, bool)
-	// PermissionKey maps "allow" or "deny" onto the key that answers this
-	// harness's dialog. The keys are chosen so that one landing on an idle
-	// prompt instead is harmless.
-	PermissionKey(behavior string) (string, bool)
+	ReadDialog(pane string) (Dialog, bool)
+	// AllowRow and DenyRow pick the row that approves or refuses a permission
+	// dialog, by matching the rows' text. They return false when no row clearly
+	// carries that meaning — the option list varies by tool, so guessing an
+	// index would approve something the user never saw.
+	AllowRow(menu Menu) (int, bool)
+	DenyRow(menu Menu) (int, bool)
 }
 ```
 
@@ -891,35 +964,53 @@ package claudecode
 
 import "strings"
 
-// ReadPermissionDialog recognises Claude Code's permission prompt and lifts the
-// tool it is blocking on. It fails closed: the caller writes a keystroke on the
-// strength of this answer, so an ambiguous screen must read as "no dialog".
-func (p *Plugin) ReadPermissionDialog(pane string) (ports.PermissionDialog, bool) {
+// ReadDialog recognises any of Claude Code's blocking dialogs. It fails closed:
+// the caller writes a keystroke on the strength of this answer, so an ambiguous
+// screen must read as "no dialog".
+//
+// The three dialogs share one numbered-menu layout and differ only in their
+// footer, so the footer decides the kind — see the fixtures under
+// backend/testdata/panes/, which are the authority for these strings.
+func (p *Plugin) ReadDialog(pane string) (ports.Dialog, bool) {
 	lines := paneLines(pane)
-	start := dialogStart(lines)
-	if start < 0 {
-		return ports.PermissionDialog{}, false
+	kind, ok := dialogKind(lines)
+	if !ok {
+		return ports.Dialog{}, false
 	}
-	options := optionLines(lines[start:])
-	if len(options) < 2 {
-		return ports.PermissionDialog{}, false
+	menu, ok := readNumberedMenu(lines)
+	if !ok || len(menu.Rows) < 2 {
+		return ports.Dialog{}, false
 	}
-	return ports.PermissionDialog{ToolName: dialogToolName(lines[start:]), Lines: options}, true
+	return ports.Dialog{Kind: kind, Title: dialogTitle(lines), Menu: menu}, true
 }
 
-func (p *Plugin) PermissionKey(behavior string) (string, bool) {
-	switch behavior {
-	case "allow":
-		return claudeAllowKey, true
-	case "deny":
-		return claudeDenyKey, true
-	default:
-		return "", false
+// AllowRow and DenyRow match by meaning, not position. A Write dialog's rows are
+// "Yes" / "Yes, and switch to accept edits ..." / "No"; a Bash dialog's differ.
+// The plain affirmative is the one to pick — never the "and also change a
+// setting" variant, which would silently widen permissions for the session.
+func (p *Plugin) AllowRow(menu ports.Menu) (int, bool) {
+	for i, row := range menu.Rows {
+		if isPlainYes(row) {
+			return i, true
+		}
 	}
+	return 0, false
+}
+
+func (p *Plugin) DenyRow(menu ports.Menu) (int, bool) {
+	for i, row := range menu.Rows {
+		if isPlainNo(row) {
+			return i, true
+		}
+	}
+	return 0, false
 }
 ```
 
-`dialogStart`, `optionLines`, `dialogToolName`, `paneLines`, `claudeAllowKey` and `claudeDenyKey` are yours to write from the fixture. Two rules bind them:
+`dialogKind`, `dialogTitle`, `readNumberedMenu`, `paneLines`, `isPlainYes` and `isPlainNo` are yours to write from the fixtures. `readNumberedMenu` is shared with Task 5 — write it once here and reuse it. Three rules bind them:
+
+- **`isPlainYes` must reject the compound option.** `2. Yes, and switch to accept edits ... for this session` begins with "Yes" and would match a naive prefix test, but choosing it *widens permissions for the rest of the session*. Match the bare affirmative only.
+
 
 - **Strip ANSI before matching.** Copy the escape regexp and line-splitting approach from `codex/terminal_activity.go:9` (`codexTerminalEscape` and `terminalLines`) rather than inventing another; a pane read through `GetOutput` carries SGR sequences.
 - **Match only the last screenful.** A dialog scrolled off the top is not on screen. `DetectTerminalActivity` bounds itself to the last 12 lines for the same reason; bound yours the same way.
@@ -965,7 +1056,9 @@ The model picker and the question menu are the same shape: a list of rows, one o
 
 **Interfaces:**
 - Consumes: `ports.TerminalDialogReader` from Task 4.
-- Produces: `ports.TerminalMenuReader` with `ReadMenu(pane string) (ports.Menu, bool)` and `MenuKeys() ports.MenuKeys`; `ports.Menu{Rows []string; Selected int}`; `ports.MenuKeys{Up, Down, Select, Cancel, Multi string}`.
+- Produces: `ports.TerminalMenuReader` with `ReadMenu(pane string) (ports.Menu, bool)` and `MenuKeys() ports.MenuKeys`; `ports.Menu{Rows []string; Selected int}`; `ports.MenuKeys{Up, Down, Select, Cancel, Multi, SessionSelect string}`.
+
+`ReadMenu` is the menu-only accessor `dialogdriver.NavigateTo` consumes; implement it as a thin wrapper over Task 4's `readNumberedMenu` so there is exactly one parser for the `❯ N.` layout that all three dialogs share. Do not write a second one.
 
 - [ ] **Step 1: Capture the fixtures**
 
@@ -1014,6 +1107,9 @@ func TestMenuKeysAreNonEmpty(t *testing.T) {
 	if keys.Up == "" || keys.Down == "" || keys.Select == "" || keys.Cancel == "" {
 		t.Fatalf("every navigation key must be set: %+v", keys)
 	}
+	if keys.SessionSelect != "s" {
+		t.Fatalf("SessionSelect = %q, want \"s\" — Enter would rewrite the user's global default model", keys.SessionSelect)
+	}
 }
 ```
 
@@ -1048,12 +1144,18 @@ type MenuKeys struct {
 	Select string
 	Cancel string
 	Multi  string
+	// SessionSelect applies a model-picker choice to THIS SESSION ONLY. Claude
+	// Code's picker footer reads "Enter to set as default · s to use this
+	// session only": Select there would rewrite the user's global default for
+	// every future session, so the model command MUST use this key instead
+	// (finding 7).
+	SessionSelect string
 }
 
-// TerminalMenuReader is an optional adapter capability for reading a harness's
-// list dialogs. Like TerminalDialogReader it MUST be pure and MUST fail closed:
-// the driver navigates by comparing successive reads, so a wrong Selected moves
-// the highlight to the wrong row and then presses Enter on it.
+// TerminalMenuReader is the menu-only view of a harness's dialogs, consumed by
+// the driver's navigation loop. It MUST be pure and MUST fail closed: the driver
+// navigates by comparing successive reads, so a wrong Selected moves the
+// highlight to the wrong row and then presses Select on it.
 type TerminalMenuReader interface {
 	ReadMenu(pane string) (Menu, bool)
 	MenuKeys() MenuKeys
@@ -1457,8 +1559,13 @@ func TestCommandModelDrivesThePickerToTheMatchingRow(t *testing.T) {
 	if rt.inputs[0] != "/model\r" {
 		t.Fatalf("expected /model to be typed first, got %q", rt.inputs)
 	}
-	if rt.inputs[len(rt.inputs)-1] != "\r" {
-		t.Fatalf("expected Enter last, got %q", rt.inputs)
+	if last := rt.inputs[len(rt.inputs)-1]; last != "s" {
+		t.Fatalf("expected the session-scoped select key %q last, got %q", "s", rt.inputs)
+	}
+	for _, in := range rt.inputs {
+		if in == "\r" && in != rt.inputs[0] {
+			t.Fatal("Enter in the model picker sets the user's global default; only /model's own submit may use it")
+		}
 	}
 }
 
@@ -1571,7 +1678,10 @@ func (m *Manager) commandModel(ctx context.Context, rec domain.SessionRecord, la
 		m.escape(ctx, driver, rec.ID)
 		return CommandResult{Models: menu.Rows}, fmt.Errorf("command model %s: %w", rec.ID, err)
 	}
-	if err := driver.Press(ctx, reader.MenuKeys().Select); err != nil {
+	// SessionSelect, never Select: the picker's Enter sets the user's DEFAULT
+	// model for every new session, which is not what "change this session's
+	// model" asked for (finding 7).
+	if err := driver.Press(ctx, reader.MenuKeys().SessionSelect); err != nil {
 		return CommandResult{Models: menu.Rows}, fmt.Errorf("command model %s: select: %w", rec.ID, err)
 	}
 	return CommandResult{Wrote: true, Models: menu.Rows}, nil
@@ -1949,7 +2059,9 @@ func TestDecideDenyDrivesTheDenyKey(t *testing.T) {
 }
 ```
 
-Write `fakeDialogReader` in the test file, satisfying `ports.TerminalDialogReader`.
+Write `fakeDialogReader` in the test file, satisfying `ports.TerminalDialogReader`: it returns a `ports.Dialog` of the configured kind whose `Menu.Rows` are `["1. Yes", "3. No"]`, with `AllowRow`/`DenyRow` returning 0 and 1. The tests above assert *how many* keys were written and that the last is the menu's Select — with the fixture's highlight already on row 0, an allow navigates zero times and presses Select once, while a deny presses Down then Select.
+
+Adjust the two "exactly one key" assertions accordingly: an allow writes one key, a deny writes two. What must not change is that a **refused** decision writes zero.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -2005,18 +2117,44 @@ func (m *Manager) Decide(ctx context.Context, id domain.SessionID, interactionID
 	if !ok {
 		return ErrDialogAbsent
 	}
-	key, ok := reader.PermissionKey(behavior)
-	if !ok {
+	if behavior != "allow" && behavior != "deny" {
 		return fmt.Errorf("decide %s: unknown behavior %q", id, behavior)
 	}
 
 	handle := runtimeHandle(rec.Metadata)
 	driver := m.driverFor(handle)
-	present := func(pane string) bool {
-		_, on := reader.ReadPermissionDialog(pane)
-		return on
+
+	// The permission prompt is a numbered menu whose options vary by tool
+	// (finding 6), so the row is found by meaning and then navigated to —
+	// there is no fixed answer key.
+	pane, err := m.runtime.GetOutput(ctx, handle, commandPaneLines)
+	if err != nil {
+		return fmt.Errorf("decide %s: read dialog: %w", id, err)
 	}
-	switch err := driver.AnswerDialog(ctx, present, key); {
+	dlg, on := reader.ReadDialog(pane)
+	if !on || dlg.Kind != ports.DialogPermission {
+		return ErrDialogAbsent
+	}
+	row, found := reader.AllowRow(dlg.Menu)
+	if behavior == "deny" {
+		row, found = reader.DenyRow(dlg.Menu)
+	}
+	if !found {
+		return ErrDialogAbsent
+	}
+	keys := reader.MenuKeys()
+	readMenu := func(pane string) (ports.Menu, bool) {
+		d, on := reader.ReadDialog(pane)
+		return d.Menu, on
+	}
+	if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
+		return m.answerFailure(ctx, id, driver, err)
+	}
+	present := func(pane string) bool {
+		d, on := reader.ReadDialog(pane)
+		return on && d.Kind == ports.DialogPermission
+	}
+	switch err := driver.AnswerDialog(ctx, present, keys.Select); {
 	case err == nil:
 		m.ClearInteractions(id)
 		return nil
@@ -2102,8 +2240,10 @@ Claude Code only. Codex has no `AskUserQuestion` equivalent in the sampled rollo
 - Modify: `backend/internal/httpd/controllers/sessions.go`, `dto.go`, `specgen/build.go`
 
 **Interfaces:**
-- Consumes: `dialogdriver.NavigateTo`/`Press` (Task 6), `ports.TerminalMenuReader` (Task 5), the interaction registry (Task 8).
-- Produces: `(*Manager).Answer(ctx, id domain.SessionID, interactionID string, selections [][]int) error`; `controllers.SessionAnswerRequest{RequestID string; Selections [][]int}`.
+- Consumes: `dialogdriver.NavigateTo`/`Press` (Task 6), `ports.TerminalDialogReader` (Tasks 4-5), the interaction registry (Task 8).
+- Produces: `(*Manager).Answer(ctx, id domain.SessionID, interactionID string, selections [][]string) error`; `controllers.SessionAnswerRequest{RequestID string; Selections [][]string}`.
+
+**Selections are option TEXT, not indices** (finding 8). A real question menu appends synthetic rows the transcript never lists — `4. Type something.`, `5. Chat about this` — so an index taken from the transcript's option list can address the wrong row. The client sends the option label it showed the user; the daemon matches it against the rows on screen and refuses when no row matches, rather than pressing Enter on a guess.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2116,7 +2256,7 @@ func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
 	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
-	if err := m.Answer(context.Background(), "s1", "q1", [][]int{{1}}); err != nil {
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"second"}}); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	last := rt.inputs[len(rt.inputs)-1]
@@ -2134,7 +2274,7 @@ func TestAnswerWritesNothingWhenTheMenuIsGone(t *testing.T) {
 	m.menuReader = fakeMenuReader{noMenu: true}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
-	err := m.Answer(context.Background(), "s1", "q1", [][]int{{0}})
+	err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}})
 	if !errors.Is(err, ErrDialogAbsent) {
 		t.Fatalf("expected ErrDialogAbsent, got %v", err)
 	}
@@ -2143,14 +2283,14 @@ func TestAnswerWritesNothingWhenTheMenuIsGone(t *testing.T) {
 	}
 }
 
-func TestAnswerRejectsAnOutOfRangeSelection(t *testing.T) {
+func TestAnswerRejectsALabelThatIsNotOnScreen(t *testing.T) {
 	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
 	rt.panes = []string{"MENU:0"}
 	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
-	if err := m.Answer(context.Background(), "s1", "q1", [][]int{{7}}); err == nil {
-		t.Fatal("expected an out-of-range selection to be rejected")
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"nonexistent option"}}); err == nil {
+		t.Fatal("expected a label with no matching row to be rejected")
 	}
 	if len(rt.inputs) != 0 {
 		t.Fatalf("expected no writes, got %q", rt.inputs)
@@ -2177,7 +2317,7 @@ func TestAnswerTogglesEveryRowOfAMultiSelectBeforeEnter(t *testing.T) {
 	m.menuReader = fakeMenuReader{rows: []string{"a", "b", "c"}, multi: " "}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
-	if err := m.Answer(context.Background(), "s1", "q1", [][]int{{0, 1}}); err != nil {
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"a", "c"}}); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	spaces := 0
@@ -2211,7 +2351,7 @@ In `decision.go`:
 //
 // Every hop is verified against a fresh read by the driver rather than counted:
 // counting presses assumes the menu did not wrap, scroll or swallow a key.
-func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]int) error {
+func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error {
 	if len(selections) == 0 {
 		return fmt.Errorf("answer %s: no selections", id)
 	}
@@ -2245,20 +2385,28 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 	if !open {
 		return ErrDialogAbsent
 	}
+	// Resolve every label to a row on screen BEFORE writing anything: a
+	// half-answered question is worse than a refused one, and a label with no
+	// matching row means the menu is not the one the client was looking at.
+	resolved := make([][]int, 0, len(selections))
 	for _, group := range selections {
 		if len(group) == 0 {
 			return fmt.Errorf("answer %s: empty selection group", id)
 		}
-		for _, row := range group {
-			if row < 0 || row >= len(menu.Rows) {
-				return fmt.Errorf("answer %s: selection %d out of range for %d rows", id, row, len(menu.Rows))
+		rows := make([]int, 0, len(group))
+		for _, label := range group {
+			row := indexOfRow(menu.Rows, label)
+			if row < 0 {
+				return fmt.Errorf("answer %s: option %q is not on screen", id, label)
 			}
+			rows = append(rows, row)
 		}
+		resolved = append(resolved, rows)
 	}
 
-	for _, group := range selections {
+	for _, group := range resolved {
 		for i, row := range group {
-			if err := driver.NavigateTo(ctx, reader.ReadMenu, keys, row); err != nil {
+			if err := driver.NavigateTo(ctx, readMenu, keys, row); err != nil {
 				return m.answerFailure(ctx, id, driver, err)
 			}
 			// Multi-select toggles each row and submits once at the end; a
@@ -2301,7 +2449,7 @@ Expected: PASS, eleven tests.
 
 - [ ] **Step 5: Add the route, spec entry, and controller tests**
 
-Same error mapping as Task 9, plus `400 SESSION_ANSWER_INVALID` for an out-of-range or empty selection.
+Same error mapping as Task 9, plus `400 SESSION_ANSWER_INVALID` for an empty selection or a label that matches no row on screen.
 
 ```bash
 npm run api && npm run lint

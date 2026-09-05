@@ -1,0 +1,51 @@
+ ▐▛███▛█   Claude Code v2.1.260
+▝▜██████▀  Sonnet 5 with medium effort · Claude Max
+  ▝▝ ▝▝    ~/.operator/data/worktrees/scratch/workers/sample
+
+
+❯ Hi
+
+⏺ Hi! What are we working on today?
+
+✻ Baked for 1s · done 3:06 PM
+
+❯ /model
+
+────────────────────────────────────────────────────────────────────────
+  Select model
+  Switch between Claude models. Your pick becomes the default for new
+  sessions. For other/previous model names, specify with --model.
+
+    1. Default (recommended)  Opus 5 with 1M context · Best for
+                              everyday, complex tasks
+    2. Opus (1M context)      Opus 5 with 1M context · Best for
+                              everyday, complex tasks
+    3. Fable                  Fable 5.1 · Most capable for your
+                              hardest and longest-running tasks
+    4. Sonnet ✔               Sonnet 5 · Efficient for routine tasks
+  ❯ 5. Haiku                  Haiku 4.5 · Fastest for quick answers
+
+  ○ Effort not supported for Haiku
+
+  Use /fast to turn on Fast mode (Opus 5).
+
+  Enter to set as default · s to use this session only · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
