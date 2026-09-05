@@ -8,7 +8,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-var numberedMenuRow = regexp.MustCompile(`^([1-9][0-9]*)\.\s+(.+)$`)
+var numberedMenuRow = regexp.MustCompile(`^([1-9]\d*)\.\s+(.+)$`)
 
 func ReadNumberedMenu(lines []string, marker string) (ports.Menu, bool) {
 	menu := ports.Menu{Selected: -1}
@@ -17,7 +17,7 @@ func ReadNumberedMenu(lines []string, marker string) (ports.Menu, bool) {
 		row := strings.TrimSpace(strings.TrimPrefix(line, marker))
 		match := numberedMenuRow.FindStringSubmatch(row)
 		if match == nil {
-			if selected {
+			if selected && len(menu.Rows) > 0 {
 				return ports.Menu{}, false
 			}
 			if len(menu.Rows) > 0 && strings.Trim(line, "─") != "" {

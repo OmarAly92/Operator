@@ -117,7 +117,7 @@ func paneLines(pane string) []string {
 			lines = append(lines, line)
 		}
 	}
-	return lines[max(0, len(lines)-12):]
+	return lines[max(0, len(lines)-40):]
 }
 
 var _ ports.TerminalDialogReader = (*Plugin)(nil)

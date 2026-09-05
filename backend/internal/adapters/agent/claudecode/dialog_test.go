@@ -102,13 +102,22 @@ func TestReadDialogRejectsIdleStaleAndMalformedPanes(t *testing.T) {
 		"missing first row": strings.ReplaceAll(permission, "❯ 1. Yes", ""),
 		"missing highlight": strings.ReplaceAll(permission, "❯ 1. Yes", "1. Yes"),
 		"two highlights":    strings.ReplaceAll(permission, "3. No", "❯ 3. No"),
-		"clipped menu":      "❯ 1. Yes\n" + strings.Repeat("wrapped description\n", 12) + "2. No\nEsc to cancel · Tab to amend",
+		"clipped menu":      "❯ 1. Yes\n" + strings.Repeat("wrapped description\n", 40) + "2. No\nEsc to cancel · Tab to amend",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if dlg, ok := (&Plugin{}).ReadDialog(pane); ok {
 				t.Fatalf("unexpected dialog: %+v", dlg)
 			}
 		})
+	}
+}
+
+func TestReadDialogSurvivesAnExtraMenuRow(t *testing.T) {
+	pane := readPane(t, "claudecode_model_picker.txt")
+	extra := strings.Replace(pane, "    5. Haiku                  Haiku 4.5 · Fastest for quick answers",
+		"    5. Zephyr                 Zephyr · Another model.\n    6. Haiku                  Haiku 4.5 · Fastest for quick answers", 1)
+	if _, ok := (&Plugin{}).ReadDialog(extra); !ok {
+		t.Error("one extra menu row breaks model reading entirely")
 	}
 }
 

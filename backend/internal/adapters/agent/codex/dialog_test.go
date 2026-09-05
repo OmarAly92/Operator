@@ -45,7 +45,6 @@ func TestReadDialogRejectsIdleStaleAndMalformedPanes(t *testing.T) {
 		"stale":             model + strings.Repeat("new output\n", 12),
 		"new prompt":        model + "\n› new input\n",
 		"no footer":         strings.ReplaceAll(model, "Press enter to confirm or esc to go back", ""),
-		"no title":          strings.ReplaceAll(model, "Select Model and Effort", ""),
 		"missing row":       strings.ReplaceAll(model, "4. gpt-5.5", "6. gpt-5.5"),
 		"missing highlight": strings.ReplaceAll(model, "› 3.", "3."),
 		"two highlights":    strings.ReplaceAll(model, "4. gpt-5.5", "› 4. gpt-5.5"),
@@ -58,14 +57,27 @@ func TestReadDialogRejectsIdleStaleAndMalformedPanes(t *testing.T) {
 	}
 }
 
+func TestReadDialogTitleIsBestEffortNotRequired(t *testing.T) {
+	model := readPane(t, "codex_model_picker.txt")
+	pane := strings.ReplaceAll(model, "Select Model and Effort", "")
+	dlg, ok := (&Plugin{}).ReadDialog(pane)
+	if !ok || dlg.Kind != ports.DialogModel || dlg.Title != "" || len(dlg.Menu.Rows) != 5 {
+		t.Fatalf("ReadDialog = %+v, %v; want model picker with empty title and five rows", dlg, ok)
+	}
+}
+
+func TestReadDialogSurvivesAnExtraMenuRow(t *testing.T) {
+	pane := readPane(t, "codex_model_picker.txt")
+	extra := strings.Replace(pane, "  5. gpt-5.4-mini",
+		"  5. gpt-5.4-nano            Another model.\n  6. gpt-5.4-mini", 1)
+	if _, ok := (&Plugin{}).ReadDialog(extra); !ok {
+		t.Error("one extra menu row breaks model reading entirely")
+	}
+}
+
 func TestReadDialogDoesNotGuessUncapturedPermissions(t *testing.T) {
-	for _, pane := range []string{
-		readPane(t, "claudecode_permission.txt"),
-		"› 1. Approve once\n2. Deny\nPress enter to confirm or esc to go back\n",
-	} {
-		if dlg, ok := (&Plugin{}).ReadDialog(pane); ok {
-			t.Fatalf("unexpected dialog: %+v", dlg)
-		}
+	if dlg, ok := (&Plugin{}).ReadDialog(readPane(t, "claudecode_permission.txt")); ok {
+		t.Fatalf("unexpected dialog: %+v", dlg)
 	}
 }
 
