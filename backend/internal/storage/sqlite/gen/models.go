@@ -90,6 +90,7 @@ type BlockEvent struct {
 	CreatedAt      time.Time
 	ToolInput      string
 	Source         string
+	InteractionID  string
 }
 
 type ChangeLog struct {

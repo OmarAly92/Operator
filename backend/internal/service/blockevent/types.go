@@ -31,6 +31,7 @@ type Record struct {
 	ErrorType      string                  `json:"errorType,omitempty"`
 	HookVersion    string                  `json:"hookVersion,omitempty"`
 	TruncatedLines int                     `json:"truncatedLines,omitempty"`
+	InteractionID  string                  `json:"interactionId,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 }
 

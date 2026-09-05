@@ -352,6 +352,12 @@ type Manager struct {
 
 	reviewersMu sync.Mutex
 	reviewers   ReviewerTerminator
+
+	// interactions is deliberately in-memory: a pending dialog does not survive
+	// a daemon restart because the agent's dialog does not either — the pty is
+	// gone with it.
+	interactionsMu sync.Mutex
+	interactions   map[domain.SessionID]domain.PendingInteraction
 }
 
 // latestUserPromptRecorder narrows the post-delivery write to the single fact

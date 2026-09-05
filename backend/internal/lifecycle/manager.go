@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
@@ -107,6 +109,16 @@ type sessionOperationGate interface {
 	SessionMutationInProgress(id domain.SessionID) bool
 }
 
+// InteractionRegistry is the seam through which a blocked signal registers the
+// dialog a phone client can answer. It is late-bound like the other
+// session-manager-owned seams: Session Manager itself depends on this
+// lifecycle reducer, so constructor injection would create a dependency
+// cycle.
+type InteractionRegistry interface {
+	RegisterInteraction(id domain.SessionID, in domain.PendingInteraction)
+	ClearInteractions(id domain.SessionID)
+}
+
 type pendingLaunch struct {
 	launchID string
 	ready    chan struct{}
@@ -167,6 +179,9 @@ type Manager struct {
 	projects         projectConfigLoader
 	operationGateMu  sync.RWMutex
 	operationGate    sessionOperationGate
+
+	interactionsMu sync.RWMutex
+	interactions   InteractionRegistry
 
 	mu        sync.Mutex
 	window    time.Duration
@@ -253,6 +268,34 @@ func (m *Manager) sessionMutationInProgress(id domain.SessionID) bool {
 	gate := m.operationGate
 	m.operationGateMu.RUnlock()
 	return gate != nil && gate.SessionMutationInProgress(id)
+}
+
+// SetInteractionRegistry late-binds Session Manager's pending-dialog registry.
+// Guard every call site that uses it with a nil check: lifecycle starts
+// before the session manager, and a hook arriving in that window must not
+// panic.
+func (m *Manager) SetInteractionRegistry(r InteractionRegistry) {
+	m.interactionsMu.Lock()
+	defer m.interactionsMu.Unlock()
+	m.interactions = r
+}
+
+func (m *Manager) registerInteraction(id domain.SessionID, in domain.PendingInteraction) {
+	m.interactionsMu.RLock()
+	registry := m.interactions
+	m.interactionsMu.RUnlock()
+	if registry != nil {
+		registry.RegisterInteraction(id, in)
+	}
+}
+
+func (m *Manager) clearInteractions(id domain.SessionID) {
+	m.interactionsMu.RLock()
+	registry := m.interactions
+	m.interactionsMu.RUnlock()
+	if registry != nil {
+		registry.ClearInteractions(id)
+	}
 }
 
 // PrepareLaunch registers a supervised generation before the runtime starts.
@@ -836,6 +879,21 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 				f.blockedCandidate = useID
 			}
 		}
+		if s.ToolUseID != "" || s.ToolName != "" {
+			// This signal identifies the dialog (as opposed to an identity-less
+			// Notification duplicate) — register it so a client can answer it.
+			mintedID := s.InteractionID
+			if mintedID == "" {
+				mintedID = uuid.NewString()
+			}
+			m.registerInteraction(id, domain.PendingInteraction{
+				ID:        mintedID,
+				Kind:      domain.InteractionPermission,
+				ToolName:  s.ToolName,
+				ToolInput: s.ToolInput,
+				CreatedAt: m.clock(),
+			})
+		}
 		return s
 
 	case cur == domain.ActivityBlocked:
@@ -844,6 +902,7 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 		switch {
 		case isTurnBoundaryEvent(s.Event):
 			delete(m.flights, id)
+			m.clearInteractions(id)
 			return s
 		case isPostToolUseEvent(s.Event) &&
 			fl != nil && fl.blockedCandidate != "" && s.ToolUseID == fl.blockedCandidate:
@@ -868,6 +927,7 @@ func (m *Manager) applyToolPrecedenceLocked(id domain.SessionID, cur domain.Acti
 	default:
 		if isTurnBoundaryEvent(s.Event) {
 			delete(m.flights, id)
+			m.clearInteractions(id)
 		}
 		return s
 	}

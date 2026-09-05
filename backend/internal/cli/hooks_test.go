@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type activityCapture struct {
@@ -476,6 +477,32 @@ func TestHooks_ClaudeCodePermissionRequestReportsBlocked(t *testing.T) {
 	}
 	if got := capturedState(t, capture); got != "blocked" {
 		t.Errorf("state = %q, want blocked", got)
+	}
+}
+
+func TestPermissionRequestHookExitsImmediatelyWithEmptyStdout(t *testing.T) {
+	// The rejected design blocks here until a client answers, which hides the
+	// dialog from the desktop terminal for the whole wait. If this test starts
+	// failing because the hook now blocks or writes a decision, that design was
+	// reintroduced — read the spec's "Rejected: a blocking hook" section.
+	t.Setenv("OPERATOR_SESSION_ID", "opr-7")
+	cfg := setConfigEnv(t)
+	srv, _ := activityServer(t, http.StatusOK, `{"ok":true}`)
+	writeRunFileFor(t, cfg, srv)
+
+	start := time.Now()
+	out, _, err := executeCLI(t, Deps{
+		In:           strings.NewReader(`{"tool_name":"Bash","tool_input":{}}`),
+		ProcessAlive: func(int) bool { return true },
+	}, "hooks", "claude-code", "permission-request")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("stdout = %q, want empty — a decision on stdout is the rejected blocking design", out)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("hook took %s; it must not wait on a client", elapsed)
 	}
 }
 

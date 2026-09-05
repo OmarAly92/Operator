@@ -36,7 +36,10 @@ type APIDeps struct {
 	// BlockHistory serves the persisted block-event log. Nil answers 501 rather
 	// than an empty list, so a client can tell "no blocks yet" from "this daemon
 	// cannot serve them".
-	BlockHistory        controllers.BlockEventHistory
+	BlockHistory controllers.BlockEventHistory
+	// Interactions serves a session's currently pending dialogs, for reconnect
+	// reconciliation.
+	Interactions        controllers.InteractionReader
 	UsageHooks          controllers.UsageHookRecorder
 	UsageSummary        controllers.UsageSummaryService
 	PRs                 prsvc.ActionManager
@@ -105,6 +108,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			Activity:      deps.Activity,
 			BlockEvents:   deps.BlockEvents,
 			BlockHistory:  deps.BlockHistory,
+			Interactions:  deps.Interactions,
 			Usage:         deps.UsageHooks,
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,

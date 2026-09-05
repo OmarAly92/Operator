@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
@@ -135,6 +136,13 @@ type BlockEventHistory interface {
 	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
+// InteractionReader serves a session's currently pending dialogs. This exists
+// for reconnect reconciliation: a phone that was backgrounded when the dialog
+// appeared has no block event for it.
+type InteractionReader interface {
+	Interactions(ctx context.Context, sessionID domain.SessionID) ([]domain.PendingInteraction, error)
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -162,6 +170,7 @@ type SessionsController struct {
 	Activity      ActivityRecorder
 	BlockEvents   BlockEventRecorder
 	BlockHistory  BlockEventHistory
+	Interactions  InteractionReader
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -198,6 +207,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/rollback", c.rollback)
 	r.Post("/sessions/{sessionId}/send", c.send)
 	r.Post("/sessions/{sessionId}/command", c.command)
+	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
@@ -1355,6 +1365,19 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Request) {
+	if c.Interactions == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/interactions")
+		return
+	}
+	interactions, err := c.Interactions.Interactions(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
 func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/orchestrators/delegate")
@@ -1454,6 +1477,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
+	}
+	if state == domain.ActivityBlocked {
+		sig.InteractionID = uuid.NewString()
 	}
 	if c.Activity != nil && (sig.Valid || sig.AgentSessionID != "") {
 		if err := c.Activity.ApplyActivitySignal(r.Context(), sessionID(r), sig); err != nil {

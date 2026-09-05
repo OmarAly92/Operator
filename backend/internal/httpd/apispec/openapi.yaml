@@ -2954,6 +2954,39 @@ paths:
       summary: Discard a turn and everything after it from the agent's memory
       tags:
       - conversations
+  /api/v1/sessions/{sessionId}/interactions:
+    get:
+      operationId: listSessionInteractions
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionInteractionsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List a session's currently pending dialogs
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/kill:
     post:
       operationId: killSession
@@ -5230,6 +5263,37 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersSessionInteraction:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        lines:
+          items:
+            type: string
+          type: array
+        toolInput:
+          type: string
+        toolName:
+          type: string
+      required:
+      - id
+      - kind
+      - createdAt
+      type: object
+    ControllersSessionInteractionsResponse:
+      properties:
+        interactions:
+          items:
+            $ref: '#/components/schemas/ControllersSessionInteraction'
+          type: array
+      required:
+      - interactions
       type: object
     ControllersSessionView:
       properties:
