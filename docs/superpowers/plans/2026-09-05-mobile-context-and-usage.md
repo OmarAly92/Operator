@@ -106,7 +106,7 @@ The JSONL `message.usage` object contains exactly: `input_tokens`, `cache_creati
 
 `occurred_at` is nullable because rows written before this migration have no knowable time, and backfilling them would mean re-reading every transcript. A NULL row is excluded from rollups rather than bucketed wrongly.
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- Migration 0098: when a usage event happened, and how full the context is.
@@ -168,14 +168,14 @@ ALTER TABLE model_usage_events DROP COLUMN occurred_at;
 -- +goose StatementEnd
 ```
 
-- [ ] **Step 2: Verify the migration applies to a fresh database**
+- [x] **Step 2: Verify the migration applies to a fresh database**
 
 Run: `cd backend && go test ./internal/storage/sqlite/... -run Migration -v`
 Expected: PASS. If the repo has no migration test that opens a fresh DB, run instead:
 `cd backend && go test ./internal/storage/sqlite/sqlitetest/...`
 Expected: PASS — `sqlitetest.MustOpen` runs every migration, so any SQL error fails here.
 
-- [ ] **Step 3: Verify the new columns exist**
+- [x] **Step 3: Verify the new columns exist**
 
 ```bash
 cd backend && cat > /tmp/schemacheck_test.go <<'EOF'
@@ -189,7 +189,7 @@ cd backend && go run ./cmd/opr dev --help >/dev/null 2>&1 || true
 ```
 Expected: the `sqlitetest` package tests pass, which is the real gate. Delete `/tmp/schemacheck_test.go`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/internal/storage/sqlite/migrations/0098_usage_time_and_context.sql
@@ -212,7 +212,7 @@ git commit -m "feat(usage): add event time and context snapshot columns"
   - `func (c SessionContext) Fraction() (float64, bool)` — returns `(used/window, true)` only when `Window > 0 && Used >= 0`; otherwise `(0, false)`
   - `type UsageRollupBucket struct { Start time.Time; Totals UsageMetricTotals }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestSessionContextFraction(t *testing.T) {
@@ -243,12 +243,12 @@ func TestSessionContextFraction(t *testing.T) {
 
 The "window unknown is not zero percent" case is the one that matters: Claude reports no window (F5), and a UI that reads `0` as "0% full" would tell the user the opposite of the truth.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/domain/ -run TestSessionContextFraction -v`
 Expected: FAIL — `undefined: domain.SessionContext`.
 
-- [ ] **Step 3: Add the types**
+- [x] **Step 3: Add the types**
 
 ```go
 // SessionContext is how full one agent's context window is right now. Window is
@@ -284,12 +284,12 @@ type UsageRollupBucket struct {
 
 Add `OccurredAt time.Time` to the existing `ModelUsageEvent` struct.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && go test ./internal/domain/ -run TestSessionContextFraction -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/domain/usage.go backend/internal/domain/usage_test.go
@@ -310,7 +310,7 @@ git commit -m "feat(usage): add session context and rollup bucket types"
 
 Per F2 the occupancy value is already computed as `input`. This task only records it and the timestamp.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestParseClaudeRecordsTimestampAndContext(t *testing.T) {
@@ -359,12 +359,12 @@ func TestParseClaudeSubagentDoesNotReportContext(t *testing.T) {
 
 Write `parseClaudeForTest` as a helper in the test file mirroring how the existing tests in `parser_test.go` invoke `parseClaude` — read that file first and match its construction of `domain.UsageSourceContext` and `claudeParserStateV1` rather than inventing a new shape.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseClaude -v`
 Expected: FAIL — `result.Context` undefined, and `OccurredAt` zero.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to the `claudeTranscriptRecord` struct: `Timestamp string \`json:"timestamp"\``.
 
@@ -397,17 +397,17 @@ and after the loop, still inside `parseClaude`:
 	}
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseClaude -v`
 Expected: PASS.
 
-- [ ] **Step 5: Run the whole usage package to check nothing regressed**
+- [x] **Step 5: Run the whole usage package to check nothing regressed**
 
 Run: `cd backend && go test ./internal/observe/usage/`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/observe/usage/parser.go backend/internal/observe/usage/parser_test.go
@@ -428,7 +428,7 @@ git commit -m "feat(usage): record event time and Claude context occupancy"
 
 Per F3 the stored `input_tokens` is a delta, so occupancy must come from the absolute total. Per F4 the window is already parsed and discarded.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestParseCodexReportsAbsoluteContextAndWindow(t *testing.T) {
@@ -457,12 +457,12 @@ func TestParseCodexReportsAbsoluteContextAndWindow(t *testing.T) {
 
 Write `codexTokenCountLine` and `parseCodexForTest` in the test file by reading the existing Codex tests in `parser_test.go` and matching their envelope construction. The helper must emit a `token_count` payload shaped as `{"type":"token_count","info":{"total_token_usage":{...},"model_context_window":N}}`, with `total_token_usage` populated the way `codexTokenVector` expects.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseCodex -v`
 Expected: FAIL — `result.Context` is nil.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `parseCodexEvent`, after the existing delta computation and event append, and *outside* the `isCodexContextFill` early return:
 
@@ -483,17 +483,17 @@ Place this immediately before `parseCodexEvent` returns on the success path, usi
 
 Note: a context-fill event (`isCodexContextFill`) resets the baseline and returns early. Leave that path alone — it emits no usage event, and reporting a context reading from it would show the window as momentarily full.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && go test ./internal/observe/usage/ -run TestParseCodex -v`
 Expected: PASS.
 
-- [ ] **Step 5: Run the whole package**
+- [x] **Step 5: Run the whole package**
 
 Run: `cd backend && go test ./internal/observe/usage/`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/observe/usage/parser.go backend/internal/observe/usage/parser_test.go
@@ -517,7 +517,7 @@ git commit -m "feat(usage): persist the Codex context window instead of discardi
   - `GetSessionContext(ctx, sessionID domain.SessionID) (domain.SessionContext, bool, error)`
   - `UsageRollup(ctx, from, to time.Time, bucket string) ([]domain.UsageRollupBucket, error)` where `bucket` is `"day"` or `"week"`
 
-- [ ] **Step 1: Write the new queries**
+- [x] **Step 1: Write the new queries**
 
 Add `occurred_at` to the existing insert's column list and parameters. Then create `usage_rollup.sql`:
 
@@ -565,7 +565,7 @@ ORDER BY bucket_start;
 
 `date(occurred_at, 'weekday 1', '-7 days')` yields the Monday on or before each event. Verify this in Step 3 rather than trusting it.
 
-- [ ] **Step 2: Regenerate sqlc and write the failing store test**
+- [x] **Step 2: Regenerate sqlc and write the failing store test**
 
 Run: `cd backend && go generate ./internal/storage/sqlite/...` (or the repo's sqlc command — check `AGENTS.md`).
 
@@ -630,28 +630,28 @@ func TestSessionContextRoundTrips(t *testing.T) {
 
 Write `seedUsageBinding`, `mustInsertUsageEvent`, `mustInsertUsageEventUndated` and `parseTime` as helpers in this test file, following how existing tests in `usage_store_test.go` seed rows.
 
-- [ ] **Step 3: Run to verify failure, then implement the store methods**
+- [x] **Step 3: Run to verify failure, then implement the store methods**
 
 Run: `cd backend && go test ./internal/storage/sqlite/store/ -run "TestUsageRollup|TestSessionContext" -v`
 Expected: FAIL — methods undefined.
 
 Implement `SaveSessionContext`, `GetSessionContext` and `UsageRollup` on `*Store`, following the write-lock convention used by neighbouring write methods (`s.writeMu.Lock()` for writes; the reader queries `s.qr` for reads). `UsageRollup` switches on `bucket` and returns an error for any value other than `"day"` or `"week"`.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd backend && go test ./internal/storage/sqlite/store/ -run "TestUsageRollup|TestSessionContext" -v`
 Expected: PASS. If the week test disagrees with the SQL, fix the SQL — do not adjust the expectation to match a wrong Monday.
 
-- [ ] **Step 5: Wire the collector to save context**
+- [x] **Step 5: Wire the collector to save context**
 
 In `backend/internal/service/usage/collector.go`, wherever the collector persists a `parseResult`'s events, add: if `result.Context != nil`, call `SaveSessionContext` for that binding. Find the existing persist call with `grep -n "Events" internal/service/usage/collector.go`.
 
-- [ ] **Step 6: Run the usage service tests**
+- [x] **Step 6: Run the usage service tests**
 
 Run: `cd backend && go test ./internal/service/usage/ ./internal/storage/sqlite/...`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/internal/storage/sqlite backend/internal/service/usage
@@ -672,7 +672,7 @@ git commit -m "feat(usage): persist context snapshots and add time-bucketed roll
   - `domain.SessionUsageSummary` gains `Context *domain.SessionContext`
   - `func (r *SummaryReader) Rollup(ctx context.Context, from, to time.Time, bucket string) ([]domain.UsageRollupBucket, error)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestGetIncludesContextWhenObserved(t *testing.T) {
@@ -713,21 +713,21 @@ func TestRollupRejectsUnknownBucket(t *testing.T) {
 
 Extend the existing `fakeUsageStore` in `summary_test.go` with `context`/`hasContext` fields and the two new methods.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd backend && go test ./internal/service/usage/ -run "TestGet|TestRollup" -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Extend `usageSummaryStore` with `GetSessionContext` and `UsageRollup`, populate `Context` in `Get`, and add `Rollup` that validates the bucket and delegates.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd backend && go test ./internal/service/usage/ -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/service/usage backend/internal/domain
@@ -749,7 +749,7 @@ git commit -m "feat(usage): expose session context and rollups from the summary 
   - `GET /api/v1/usage/sessions/{sessionId}` response gains optional `context: {harness, modelId, used, window, observedAt}`. `window` is `0` when unknown; the client must branch on that.
   - `GET /api/v1/usage/rollup?bucket=day|week&days=N` → `{"bucket":"day","buckets":[{"start":"2026-09-01","totals":{...}}]}`. `days` defaults to 14, max 90. Invalid `bucket` → `400 INVALID_BUCKET`; invalid `days` → `400 INVALID_RANGE`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestGetSessionUsageIncludesContext(t *testing.T) {
@@ -789,21 +789,21 @@ func TestRollupRejectsTooLongRange(t *testing.T) {
 
 `doRequest`, `assertErrorCode` and `mustDecode` already exist in this package's test helpers — read `usage_test.go` and reuse them rather than writing new ones.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd backend && go test ./internal/httpd/controllers/ -run "TestGetSessionUsage|TestRollup" -v`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the handler and DTOs**
+- [x] **Step 3: Implement the handler and DTOs**
 
 Register `r.Get("/usage/rollup", c.rollup)` alongside the existing two routes. Add `SessionContextResponse` and `UsageRollupResponse` DTOs in the same file as the existing usage DTOs, and register any new named types in `specgen/build.go` per `AGENTS.md:117`.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd backend && go test ./internal/httpd/... -v 2>&1 | tail -20`
 Expected: PASS, including the spec-drift and route-parity tests.
 
-- [ ] **Step 5: Regenerate the API artifacts**
+- [x] **Step 5: Regenerate the API artifacts**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && npm run api
@@ -811,14 +811,14 @@ cd backend && go test ./internal/httpd/...
 ```
 Expected: PASS. Commit `openapi.yaml` and `frontend/src/api/schema.ts` together with the Go changes (`AGENTS.md:138`).
 
-- [ ] **Step 6: Full backend gate**
+- [x] **Step 6: Full backend gate**
 
 ```bash
 cd backend && gofmt -l internal/ && go vet ./... && go test ./... && golangci-lint run ./...
 ```
 Expected: no gofmt output, no vet output, all tests pass, `0 issues`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend frontend/src/api/schema.ts
@@ -840,7 +840,7 @@ git commit -m "feat(usage): serve session context and day/week rollups over HTTP
 - Consumes: the wire shapes from Task 7.
 - Produces: `SessionContextModel{harness, modelId, used, window, observedAt}`, `UsageRollupModel{bucket, buckets}`, `UsageBucketModel{start, inputTokens, outputTokens, ...}`, `UsageRollupParams{bucket, days}`, and `EndPoints.usageSession(String sessionId)` / `EndPoints.usageRollup`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 void main() {
@@ -879,12 +879,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/session_context_model_test.dart`
 Expected: FAIL — file not found / undefined class.
 
-- [ ] **Step 3: Implement the model**
+- [x] **Step 3: Implement the model**
 
 ```dart
 class SessionContextModel extends Equatable {
@@ -929,12 +929,12 @@ Write `UsageRollupModel`/`UsageBucketModel` in the same hand-written style, and 
   static const String usageRollup = '/api/v1/usage/rollup';
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mobile/lib/feature/usage packages/mobile/lib/core packages/mobile/test/feature/usage
@@ -954,7 +954,7 @@ git commit -m "feat(mobile): add usage context and rollup models"
 - Consumes: Task 8's models and endpoints.
 - Produces: `UsageRepository.sessionContext(String sessionId) → Future<SessionContextModel?>` and `UsageRepository.rollup(UsageRollupParams) → Future<UsageRollupModel>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 void main() {
@@ -977,21 +977,21 @@ void main() {
 
 Write `FakeUsageRemoteDataSource` in the test file. Follow the existing repository tests under `packages/mobile/test/feature/` for the fake style used in this codebase.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/usage_repository_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 The data source uses the injected `ApiConsumer` and parses with `GlobalResponse.fromJson(response.data, withDataKey: false)`, matching `sessions_remote_data_source.dart`. Read that file first and mirror its error handling.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mobile/lib/feature/usage packages/mobile/test/feature/usage
@@ -1012,7 +1012,7 @@ git commit -m "feat(mobile): add usage data source and repository"
 
 Thresholds match the desktop's retired `ContextMeter`: warn at 0.7, critical at 0.9. Keeping them identical means both clients read the same way.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 void main() {
@@ -1044,21 +1044,21 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/context_readout_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `used` formats as `<1000` verbatim, otherwise one decimal place with a `k` suffix (`64880 → '64.9k tokens'`). Percentage rounds to the nearest whole number.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mobile/lib/feature/usage/logic packages/mobile/test/feature/usage
