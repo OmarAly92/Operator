@@ -23,6 +23,7 @@ type jsonlRecord struct {
 
 type parseResult struct {
 	Events                 []domain.ModelUsageEvent
+	Context                *domain.SessionContext
 	Cursor                 domain.SourceCursorState
 	newCodexChild          bool
 	pendingCodexSpawnCalls int
@@ -240,6 +241,7 @@ func validSHA256Digest(value string) bool {
 type claudeTranscriptRecord struct {
 	Type        string `json:"type"`
 	UUID        string `json:"uuid"`
+	Timestamp   string `json:"timestamp"`
 	IsSidechain bool   `json:"isSidechain"`
 	Message     struct {
 		ID         string  `json:"id"`
@@ -303,7 +305,20 @@ func parseClaude(source domain.UsageSourceContext, records []jsonlRecord, state 
 				keyID,
 			),
 		}
+		if parsed, err := time.Parse(time.RFC3339Nano, native.Timestamp); err == nil {
+			event.OccurredAt = parsed.UTC()
+		}
 		result.Events = append(result.Events, event)
+	}
+	if source.Source.Kind == domain.UsageSourceClaudeMain && len(result.Events) > 0 {
+		newest := result.Events[len(result.Events)-1]
+		result.Context = &domain.SessionContext{
+			Harness:    string(domain.HarnessClaudeCode),
+			ModelID:    newest.ModelID,
+			Used:       newest.Tokens.InputTokens,
+			Window:     0,
+			ObservedAt: newest.OccurredAt,
+		}
 	}
 }
 

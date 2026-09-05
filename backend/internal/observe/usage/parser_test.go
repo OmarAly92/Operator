@@ -46,6 +46,49 @@ func TestParseClaudeSubagentIncludesSidechainTranscript(t *testing.T) {
 	}
 }
 
+func TestParseClaudeRecordsTimestampAndContext(t *testing.T) {
+	record := `{"type":"assistant","uuid":"u1","timestamp":"2026-09-05T12:19:12.745Z",` +
+		`"message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"end_turn",` +
+		`"usage":{"input_tokens":2,"cache_creation_input_tokens":21113,` +
+		`"cache_read_input_tokens":34972,"output_tokens":4}}}`
+
+	result := parseClaudeForTest(t, domain.UsageSourceClaudeMain, record)
+
+	if len(result.Events) != 1 {
+		t.Fatalf("events = %d, want 1", len(result.Events))
+	}
+	got := result.Events[0]
+	if got.Tokens.InputTokens != 56087 {
+		t.Fatalf("input = %d, want 56087 (2 + 21113 + 34972)", got.Tokens.InputTokens)
+	}
+	want := time.Date(2026, 9, 5, 12, 19, 12, 745000000, time.UTC)
+	if !got.OccurredAt.Equal(want) {
+		t.Fatalf("occurredAt = %v, want %v", got.OccurredAt, want)
+	}
+	if result.Context == nil {
+		t.Fatal("context = nil, want the main source to report occupancy")
+	}
+	if result.Context.Used != 56087 {
+		t.Fatalf("context used = %d, want 56087", result.Context.Used)
+	}
+	if result.Context.Window != 0 {
+		t.Fatalf("context window = %d, want 0 -- Claude reports no window", result.Context.Window)
+	}
+}
+
+func TestParseClaudeSubagentDoesNotReportContext(t *testing.T) {
+	record := `{"type":"assistant","uuid":"u1","timestamp":"2026-09-05T12:19:12.745Z",` +
+		`"message":{"id":"m1","model":"claude-sonnet-5","stop_reason":"end_turn",` +
+		`"usage":{"input_tokens":10,"cache_creation_input_tokens":0,` +
+		`"cache_read_input_tokens":0,"output_tokens":1}}}`
+
+	result := parseClaudeForTest(t, domain.UsageSourceClaudeSubagent, record)
+
+	if result.Context != nil {
+		t.Fatal("a subagent has its own window; it must not overwrite the session's context")
+	}
+}
+
 func TestParseCodexCumulativeDeltasAndRepeats(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	source := usageSource(domain.UsageSourceCodexRollout)
@@ -522,6 +565,14 @@ func usageSource(kind domain.UsageSourceKind) domain.UsageSourceContext {
 		},
 		InitialModelID: "fallback-model",
 	}
+}
+
+func parseClaudeForTest(t *testing.T, kind domain.UsageSourceKind, record string) parseResult {
+	t.Helper()
+	source := usageSource(kind)
+	result := parseResult{}
+	parseClaude(source, []jsonlRecord{{Data: []byte(record)}}, &claudeParserStateV1{}, &result)
+	return result
 }
 
 func parserStateFromResult(t *testing.T, result parseResult, kind domain.UsageSourceKind) *parserStateEnvelope {
