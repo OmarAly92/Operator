@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/feature/usage/data/model/params/usage_rollup_params.dart';
 import 'package:operator_mobile/feature/usage/data/model/session_context_model.dart';
+import 'package:operator_mobile/feature/usage/data/model/usage_quota_model.dart';
 import 'package:operator_mobile/feature/usage/data/model/usage_rollup_model.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
@@ -23,6 +24,9 @@ class FakeUsageRepository implements UsageRepository {
   @override
   Future<SessionContextModel?> sessionContext(String sessionId) =>
       throw UnimplementedError();
+
+  @override
+  Future<UsageQuotaModel?> quota() => throw UnimplementedError();
 }
 
 void main() {

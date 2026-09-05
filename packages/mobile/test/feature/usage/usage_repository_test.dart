@@ -19,6 +19,11 @@ class FakeUsageRemoteDataSource implements UsageRemoteDataSource {
   Future<GlobalResponse<Map<String, dynamic>>> sessionContext(
     String sessionId,
   ) async => GlobalResponse(data: sessionJson);
+
+  @override
+  Future<GlobalResponse<Map<String, dynamic>>> quota() {
+    throw UnimplementedError();
+  }
 }
 
 void main() {
