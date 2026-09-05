@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -69,6 +70,23 @@ func TestMigration0098AddsUsageTimeAndContextSnapshot(t *testing.T) {
 	}
 	if occurredAt.Valid {
 		t.Fatalf("occurred_at = %v, want NULL", occurredAt.Time)
+	}
+	for _, column := range []struct {
+		table string
+		name  string
+	}{
+		{table: "model_usage_events", name: "occurred_at"},
+		{table: "usage_bindings", name: "context_at"},
+	} {
+		var notNull int
+		var defaultValue sql.NullString
+		query := fmt.Sprintf(`SELECT "notnull", dflt_value FROM pragma_table_info('%s') WHERE name = '%s'`, column.table, column.name)
+		if err := db.QueryRow(query).Scan(&notNull, &defaultValue); err != nil {
+			t.Fatalf("read %s.%s metadata: %v", column.table, column.name, err)
+		}
+		if notNull != 0 || defaultValue.Valid {
+			t.Fatalf("%s.%s metadata = notnull %d, default %q, want nullable with no default", column.table, column.name, notNull, defaultValue.String)
+		}
 	}
 	if _, err := db.Exec(`UPDATE usage_bindings SET context_used = -1 WHERE id = 1`); err == nil {
 		t.Fatal("negative context_used update succeeded")
