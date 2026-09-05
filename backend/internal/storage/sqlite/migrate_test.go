@@ -43,39 +43,68 @@ func TestUsageTablesKeepOnlyDurableCollectionState(t *testing.T) {
 func TestMigration0098AddsUsageTimeAndContextSnapshot(t *testing.T) {
 	db := openMigratedTestDB(t)
 
-	rows, err := db.Query(`SELECT name, "notnull", dflt_value FROM pragma_table_info('usage_bindings') WHERE name IN ('context_used', 'context_window', 'context_at') ORDER BY name`)
-	if err != nil {
-		t.Fatalf("read context columns: %v", err)
+	if _, err := db.Exec(`INSERT INTO projects (id, path, registered_at) VALUES ('usage-test', '/tmp/usage-test', CURRENT_TIMESTAMP); INSERT INTO sessions (id, project_id, num, activity_last_at, created_at, updated_at) VALUES ('usage-test-1', 'usage-test', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`); err != nil {
+		t.Fatalf("seed usage session: %v", err)
 	}
-	defer func() { _ = rows.Close() }()
-	wantDefaults := map[string]string{"context_used": "0", "context_window": "0", "context_at": ""}
-	for rows.Next() {
-		var name string
-		var defaultValue sql.NullString
-		var notNull int
-		if err := rows.Scan(&name, &notNull, &defaultValue); err != nil {
-			t.Fatalf("scan context column: %v", err)
-		}
-		if name == "context_at" {
-			if notNull != 0 || defaultValue.Valid {
-				t.Errorf("context_at metadata = notnull %d, default %q", notNull, defaultValue.String)
-			}
-			continue
-		}
-		if !defaultValue.Valid || notNull != 1 || defaultValue.String != wantDefaults[name] {
-			t.Errorf("%s metadata = notnull %d, default %q", name, notNull, defaultValue.String)
-		}
+	if _, err := db.Exec(`INSERT INTO usage_bindings (session_id, harness, native_root_id, state, updated_at) VALUES ('usage-test-1', 'codex', 'root-test', 'active', CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatalf("insert usage binding: %v", err)
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate context columns: %v", err)
+	if _, err := db.Exec(`INSERT INTO usage_sources (binding_id, kind, artifact_path, state, updated_at) VALUES (1, 'codex_rollout', '/tmp/usage-rollout.jsonl', 'active', CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatalf("insert usage source: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO model_usage_events (binding_id, usage_source_id, model_id, input_tokens, uncached_input_tokens, cache_read_tokens, cache_write_tokens, output_tokens, source_event_key) VALUES (1, 1, 'gpt-test', 10, 10, 0, 0, 5, 'event-test')`); err != nil {
+		t.Fatalf("insert usage event: %v", err)
+	}
+
+	var contextUsed, contextWindow int
+	var contextAt, occurredAt sql.NullTime
+	if err := db.QueryRow(`SELECT context_used, context_window, context_at FROM usage_bindings WHERE id = 1`).Scan(&contextUsed, &contextWindow, &contextAt); err != nil {
+		t.Fatalf("read context defaults: %v", err)
+	}
+	if contextUsed != 0 || contextWindow != 0 || contextAt.Valid {
+		t.Fatalf("context row = (%d, %d, %v), want (0, 0, NULL)", contextUsed, contextWindow, contextAt.Valid)
+	}
+	if err := db.QueryRow(`SELECT occurred_at FROM model_usage_events WHERE id = 1`).Scan(&occurredAt); err != nil {
+		t.Fatalf("read occurred_at: %v", err)
+	}
+	if occurredAt.Valid {
+		t.Fatalf("occurred_at = %v, want NULL", occurredAt.Time)
+	}
+	if _, err := db.Exec(`UPDATE usage_bindings SET context_used = -1 WHERE id = 1`); err == nil {
+		t.Fatal("negative context_used update succeeded")
+	}
+	if _, err := db.Exec(`UPDATE usage_bindings SET context_window = -1 WHERE id = 1`); err == nil {
+		t.Fatal("negative context_window update succeeded")
 	}
 
 	var indexCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_model_usage_events_occurred_at'`).Scan(&indexCount); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_index_info('idx_model_usage_events_occurred_at') WHERE name = 'occurred_at'`).Scan(&indexCount); err != nil {
 		t.Fatalf("read occurred_at index: %v", err)
 	}
 	if indexCount != 1 {
-		t.Fatalf("occurred_at index count = %d, want 1", indexCount)
+		t.Fatalf("occurred_at index target count = %d, want 1", indexCount)
+	}
+}
+
+func TestRepairSkippedUsageMigrationReleasesStaleVersion(t *testing.T) {
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "opr.db")+pragmas)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	upTo(t, db, 43)
+	if _, err := db.Exec(`INSERT INTO goose_db_version (version_id, is_applied) VALUES (52, 1)`); err != nil {
+		t.Fatalf("seed stale migration: %v", err)
+	}
+	if err := repairSkippedUsageMigration(db); err != nil {
+		t.Fatalf("repair skipped usage migration: %v", err)
+	}
+	var applied int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id = 52 AND is_applied = 1`).Scan(&applied); err != nil {
+		t.Fatalf("read stale migration: %v", err)
+	}
+	if applied != 0 {
+		t.Fatalf("stale migration rows = %d, want 0", applied)
 	}
 }
 
