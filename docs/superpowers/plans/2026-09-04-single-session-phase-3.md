@@ -126,33 +126,8 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-type fakeCommandRuntime struct {
-	inputs  []string
-	output  string
-	sendErr error
-}
-
-func (f *fakeCommandRuntime) Create(context.Context, ports.RuntimeConfig) (ports.RuntimeHandle, error) {
-	return ports.RuntimeHandle{}, nil
-}
-func (f *fakeCommandRuntime) Destroy(context.Context, ports.RuntimeHandle) error { return nil }
-func (f *fakeCommandRuntime) IsAlive(context.Context, ports.RuntimeHandle) (bool, error) {
-	return true, nil
-}
-func (f *fakeCommandRuntime) GetOutput(context.Context, ports.RuntimeHandle, int) (string, error) {
-	return f.output, nil
-}
-func (f *fakeCommandRuntime) SendInput(_ context.Context, _ ports.RuntimeHandle, input string) error {
-	if f.sendErr != nil {
-		return f.sendErr
-	}
-	f.inputs = append(f.inputs, input)
-	return nil
-}
-
 func TestCommandStopWritesEscapeWhileActive(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityActive)
+	m, rt := newCommandTestManager(t, domain.ActivityActive)
 
 	res, err := m.Command(context.Background(), "s1", domain.CommandStop, "")
 	if err != nil {
@@ -167,8 +142,7 @@ func TestCommandStopWritesEscapeWhileActive(t *testing.T) {
 }
 
 func TestCommandStopRefusedWhileIdleAndWritesNothing(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityIdle)
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandStop, "")
 	if !errors.Is(err, ErrWrongActivityState) {
@@ -191,23 +165,36 @@ func TestCommandRejectsUnknownVerb(t *testing.T) {
 }
 ```
 
-Add the helper at the bottom of the same file. Build the `Manager` the way the existing tests in this package do — copy the construction from the nearest existing `newTestManager`-style helper in `manager_test.go` rather than inventing one, and set the session's activity state and `Metadata.RuntimeHandleID` on the stored record:
+**Do not write a new fake runtime.** `manager_test.go:1008` already has `newManager() (*Manager, *fakeStore, *fakeRuntime, *fakeWorkspace)` — no `*testing.T` argument — and a `fakeRuntime` that already implements `Create`, `Destroy`, `IsAlive`, `GetOutput`, `GetStyledOutput` and `Interrupt`. Widening `runtimeController` in Step 4 breaks that fake, so it must gain `SendInput` anyway; give it the recording behaviour there rather than standing up a parallel fake:
 
 ```go
-func newCommandTestManager(t *testing.T, rt *fakeCommandRuntime, state domain.ActivityState) *Manager {
-	t.Helper()
-	m := newTestManagerWithRuntime(t, rt)
-	seedSession(t, m, domain.SessionRecord{
-		ID:       "s1",
-		Harness:  "claude-code",
-		Activity: domain.SessionActivity{State: state},
-		Metadata: domain.SessionMetadata{RuntimeHandleID: "h1"},
-	})
-	return m
+// in manager_test.go, beside the other fakeRuntime methods
+func (r *fakeRuntime) SendInput(_ context.Context, _ ports.RuntimeHandle, input string) error {
+	if r.sendInputErr != nil {
+		return r.sendInputErr
+	}
+	r.inputs = append(r.inputs, input)
+	return nil
 }
 ```
 
-If `newTestManagerWithRuntime` and `seedSession` do not exist under those names, write thin equivalents in this file only — do not refactor the package's existing helpers.
+Add `inputs []string`, `sendInputErr error` and `panes []string` to the `fakeRuntime` struct, and make its existing `GetOutput` return successive entries from `panes` (holding on the last) so Tasks 6, 7, 9 and 10 can script a screen. Then the helper in `command_test.go` is thin:
+
+```go
+func newCommandTestManager(t *testing.T, state domain.ActivityState) (*Manager, *fakeRuntime) {
+	t.Helper()
+	m, st, rt, _ := newManager()
+	st.sessions["s1"] = domain.SessionRecord{
+		ID:       "s1",
+		Harness:  domain.HarnessClaudeCode,
+		Activity: domain.SessionActivity{State: state},
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "h1"},
+	}
+	return m, rt
+}
+```
+
+Check `fakeStore`'s actual field name for its session map before writing that line; use whatever it is. Every later task in this plan builds its manager through this same two-value helper.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -399,8 +386,7 @@ Append to `command_test.go`:
 
 ```go
 func TestCommandCompactTypesTheSlashCommandWhileIdle(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityIdle)
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
 
 	if _, err := m.Command(context.Background(), "s1", domain.CommandCompact, ""); err != nil {
 		t.Fatalf("Command: %v", err)
@@ -411,8 +397,7 @@ func TestCommandCompactTypesTheSlashCommandWhileIdle(t *testing.T) {
 }
 
 func TestCommandCompactRefusedWhileActive(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityActive)
+	m, rt := newCommandTestManager(t, domain.ActivityActive)
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandCompact, "")
 	if !errors.Is(err, ErrWrongActivityState) {
@@ -424,8 +409,7 @@ func TestCommandCompactRefusedWhileActive(t *testing.T) {
 }
 
 func TestCommandCompactRefusedWhileBlocked(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandCompact, "")
 	if !errors.Is(err, ErrAwaitingDecision) {
@@ -575,7 +559,7 @@ func TestSessionCommandModelRequiresALabel(t *testing.T) {
 }
 ```
 
-Write `postJSON`, `decodeJSON`, `assertErrorCode` and the `fakeSessionService` fields in this file if the package has no equivalents; reuse the package's existing helpers where they exist.
+**Use the package's real helpers, not the invented ones above.** `projects_test.go:522` has `doRequest(t, srv, method, path, body) ([]byte, int, http.Header)` against an `httptest.Server`, and `:630` has `assertErrorCode(t, body, status, wantStatus, wantCode)`. Rewrite each test above in that idiom — the assertions are what matter, not the helper names. Add the `commandResult`/`commandErr`/`commandCalls` fields to whatever fake the package already uses for the session service.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -1402,16 +1386,16 @@ git commit -m "feat(dialogdriver): verify the screen before and after every keys
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `command_test.go`. Extend `fakeCommandRuntime` so `GetOutput` returns successive panes, mirroring `scriptedScreen`:
+Append to `command_test.go`. This relies on `fakeRuntime.panes` from Task 1 — `GetOutput` returns successive entries and holds on the last, mirroring `scriptedScreen` in Task 6:
 
 ```go
 func TestCommandModelDrivesThePickerToTheMatchingRow(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.panes = []string{
 		"MENU:0", // after /model is typed
 		"MENU:0", // NavigateTo's first read
 		"MENU:1", // after one Down
-	}}
-	m := newCommandTestManager(t, rt, domain.ActivityIdle)
+	}
 	m.menuReader = fakeMenuReader{rows: []string{"sonnet", "opus"}}
 
 	res, err := m.Command(context.Background(), "s1", domain.CommandModel, "opus")
@@ -1430,8 +1414,8 @@ func TestCommandModelDrivesThePickerToTheMatchingRow(t *testing.T) {
 }
 
 func TestCommandModelBacksOutWhenTheLabelIsNotOffered(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"MENU:0"}}
-	m := newCommandTestManager(t, rt, domain.ActivityIdle)
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.panes = []string{"MENU:0"}
 	m.menuReader = fakeMenuReader{rows: []string{"sonnet", "opus"}}
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandModel, "gpt-5")
@@ -1449,8 +1433,8 @@ func TestCommandModelBacksOutWhenTheLabelIsNotOffered(t *testing.T) {
 }
 
 func TestCommandModelBacksOutWhenNoMenuAppears(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"idle prompt"}}
-	m := newCommandTestManager(t, rt, domain.ActivityIdle)
+	m, rt := newCommandTestManager(t, domain.ActivityIdle)
+	rt.panes = []string{"idle prompt"}
 	m.menuReader = fakeMenuReader{noMenu: true}
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandModel, "opus")
@@ -1463,8 +1447,7 @@ func TestCommandModelBacksOutWhenNoMenuAppears(t *testing.T) {
 }
 
 func TestCommandModelRefusedWhileActive(t *testing.T) {
-	rt := &fakeCommandRuntime{}
-	m := newCommandTestManager(t, rt, domain.ActivityActive)
+	m, rt := newCommandTestManager(t, domain.ActivityActive)
 
 	_, err := m.Command(context.Background(), "s1", domain.CommandModel, "opus")
 	if !errors.Is(err, ErrWrongActivityState) {
@@ -1622,7 +1605,7 @@ Create `backend/internal/session_manager/interaction_test.go`:
 
 ```go
 func TestInteractionsAreListedAfterRegistration(t *testing.T) {
-	m := newCommandTestManager(t, &fakeCommandRuntime{}, domain.ActivityBlocked)
+	m, _ := newCommandTestManager(t, domain.ActivityBlocked)
 	m.RegisterInteraction("s1", domain.PendingInteraction{
 		ID: "i1", Kind: "permission", ToolName: "Bash", ToolInput: `{"command":"ls"}`,
 	})
@@ -1637,7 +1620,7 @@ func TestInteractionsAreListedAfterRegistration(t *testing.T) {
 }
 
 func TestATurnBoundaryClearsPendingInteractions(t *testing.T) {
-	m := newCommandTestManager(t, &fakeCommandRuntime{}, domain.ActivityBlocked)
+	m, _ := newCommandTestManager(t, domain.ActivityBlocked)
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: "permission"})
 	m.ClearInteractions("s1")
 
@@ -1650,7 +1633,7 @@ func TestATurnBoundaryClearsPendingInteractions(t *testing.T) {
 func TestRegisteringASecondInteractionReplacesTheFirst(t *testing.T) {
 	// Only one dialog is ever on screen. Keeping a stale one would let a client
 	// answer a dialog that is no longer there.
-	m := newCommandTestManager(t, &fakeCommandRuntime{}, domain.ActivityBlocked)
+	m, _ := newCommandTestManager(t, domain.ActivityBlocked)
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: "permission"})
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i2", Kind: "permission"})
 
@@ -1661,14 +1644,14 @@ func TestRegisteringASecondInteractionReplacesTheFirst(t *testing.T) {
 }
 
 func TestInteractionLookupMissesAnUnknownID(t *testing.T) {
-	m := newCommandTestManager(t, &fakeCommandRuntime{}, domain.ActivityBlocked)
+	m, _ := newCommandTestManager(t, domain.ActivityBlocked)
 	if _, ok := m.Interaction("s1", "nope"); ok {
 		t.Fatal("expected an unknown interaction id to miss")
 	}
 }
 
 func TestInteractionsOfAnUnknownSessionIsEmptyNotAnError(t *testing.T) {
-	m := newCommandTestManager(t, &fakeCommandRuntime{}, domain.ActivityIdle)
+	m, _ := newCommandTestManager(t, domain.ActivityIdle)
 	got, err := m.Interactions(context.Background(), "unknown")
 	if err != nil {
 		t.Fatalf("Interactions: %v", err)
@@ -1717,7 +1700,19 @@ Create `backend/internal/session_manager/interaction.go` holding a `map[domain.S
 
 In `internal/lifecycle/manager.go`, where a signal maps to `domain.ActivityBlocked` (`applyToolPrecedenceLocked`'s `case s.State == domain.ActivityBlocked`), call `RegisterInteraction` with a fresh id, `s.ToolName` and the hook's `ToolInput`. Where the code already does `delete(m.flights, id)` at a turn boundary, also call `ClearInteractions`.
 
-Do this through a narrow interface declared in `lifecycle`, not by importing `session_manager` — check which direction the existing dependency runs before wiring, and follow it.
+**Neither package imports the other** — verified; the only mentions are in comments. So declare the seam in `lifecycle` and late-bind it at daemon wiring, which is the pattern this codebase already uses for exactly this shape (`SetReviewerTerminator`, `SetTerminalInputGate`, `SetBlockPublisher`):
+
+```go
+// in internal/lifecycle
+type InteractionRegistry interface {
+	RegisterInteraction(id domain.SessionID, in domain.PendingInteraction)
+	ClearInteractions(id domain.SessionID)
+}
+
+func (m *Manager) SetInteractionRegistry(r InteractionRegistry) { m.interactions = r }
+```
+
+Wire it in `internal/daemon/lifecycle_wiring.go` alongside the other late-bound setters, after the session manager is built. Guard every call with a nil check: lifecycle starts before the session manager, and a hook arriving in that window must not panic.
 
 - [ ] **Step 5: Pin the hook's non-blocking contract**
 
@@ -1748,7 +1743,7 @@ func TestPermissionRequestHookExitsImmediatelyWithEmptyStdout(t *testing.T) {
 }
 ```
 
-Use whatever the package's existing hook tests use to invoke a sub-command in place of `runHook`.
+**The hook is a CLI that POSTs, not an in-process call.** `internal/cli/hooks.go:317` sends the signal to `POST /api/v1/sessions/{id}/activity` and deliberately exits 0 even when that POST fails. The existing tests drive it through `activityServer(t, status, respBody)` at `hooks_test.go:24`, which returns an `httptest.Server` plus a capture, with `capturedState(t, capture)` reading what was sent — `TestHooks_NotificationReportsBlocked` at `:199` is the closest model. Rewrite the test above in that idiom: point the CLI at the test server, invoke the `permission-request` sub-command, and assert exit 0, empty stdout, and that it returned promptly.
 
 ```bash
 cd backend && go test ./internal/cli/ -run TestPermissionRequestHook -v
@@ -1816,8 +1811,8 @@ Create `backend/internal/session_manager/decision_test.go`:
 
 ```go
 func TestDecideDrivesExactlyOneKeyWhenTheDialogIsOnScreen(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"DIALOG", "moved on"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG", "moved on"}
 	m.dialogReader = fakeDialogReader{present: true, allow: "y", deny: "n"}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
 
@@ -1830,8 +1825,8 @@ func TestDecideDrivesExactlyOneKeyWhenTheDialogIsOnScreen(t *testing.T) {
 }
 
 func TestDecideWritesNothingWhenTheDialogIsGone(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"idle prompt"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"idle prompt"}
 	m.dialogReader = fakeDialogReader{present: false}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
 
@@ -1845,8 +1840,8 @@ func TestDecideWritesNothingWhenTheDialogIsGone(t *testing.T) {
 }
 
 func TestDecideReportsUnconfirmedWhenTheScreenDoesNotMove(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"DIALOG", "DIALOG"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG", "DIALOG"}
 	m.dialogReader = fakeDialogReader{present: true, allow: "y"}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
 
@@ -1862,8 +1857,8 @@ func TestDecideReportsUnconfirmedWhenTheScreenDoesNotMove(t *testing.T) {
 func TestDecideRefusesAStaleInteractionID(t *testing.T) {
 	// Two clients racing one dialog: the loser is told the dialog is gone
 	// rather than answering the next one by accident.
-	rt := &fakeCommandRuntime{panes: []string{"DIALOG"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG"}
 	m.dialogReader = fakeDialogReader{present: true, allow: "y"}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i2", Kind: domain.InteractionPermission})
 
@@ -1877,8 +1872,8 @@ func TestDecideRefusesAStaleInteractionID(t *testing.T) {
 }
 
 func TestDecideRejectsAnUnknownBehavior(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"DIALOG"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG"}
 	m.dialogReader = fakeDialogReader{present: true, allow: "y", deny: "n"}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
 
@@ -1891,8 +1886,8 @@ func TestDecideRejectsAnUnknownBehavior(t *testing.T) {
 }
 
 func TestDecideDenyDrivesTheDenyKey(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"DIALOG", "moved on"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"DIALOG", "moved on"}
 	m.dialogReader = fakeDialogReader{present: true, allow: "y", deny: "n"}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "i1", Kind: domain.InteractionPermission})
 
@@ -2067,8 +2062,8 @@ Append to `decision_test.go`:
 
 ```go
 func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"MENU:0", "MENU:1", "moved on"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:1", "moved on"}
 	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -2085,8 +2080,8 @@ func TestAnswerNavigatesToTheVerifiedRowBeforeEnter(t *testing.T) {
 }
 
 func TestAnswerWritesNothingWhenTheMenuIsGone(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"idle"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"idle"}
 	m.menuReader = fakeMenuReader{noMenu: true}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -2100,8 +2095,8 @@ func TestAnswerWritesNothingWhenTheMenuIsGone(t *testing.T) {
 }
 
 func TestAnswerRejectsAnOutOfRangeSelection(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"MENU:0"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0"}
 	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -2114,8 +2109,8 @@ func TestAnswerRejectsAnOutOfRangeSelection(t *testing.T) {
 }
 
 func TestAnswerRejectsAnEmptySelection(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"MENU:0"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0"}
 	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
@@ -2128,8 +2123,8 @@ func TestAnswerRejectsAnEmptySelection(t *testing.T) {
 }
 
 func TestAnswerTogglesEveryRowOfAMultiSelectBeforeEnter(t *testing.T) {
-	rt := &fakeCommandRuntime{panes: []string{"MENU:0", "MENU:0", "MENU:1", "MENU:1", "moved on"}}
-	m := newCommandTestManager(t, rt, domain.ActivityBlocked)
+	m, rt := newCommandTestManager(t, domain.ActivityBlocked)
+	rt.panes = []string{"MENU:0", "MENU:0", "MENU:1", "MENU:1", "moved on"}
 	m.menuReader = fakeMenuReader{rows: []string{"a", "b", "c"}, multi: " "}
 	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
 
