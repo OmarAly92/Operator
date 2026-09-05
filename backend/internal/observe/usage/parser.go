@@ -24,6 +24,7 @@ type jsonlRecord struct {
 type parseResult struct {
 	Events                 []domain.ModelUsageEvent
 	Context                *domain.SessionContext
+	Quota                  *domain.UsageQuota
 	Cursor                 domain.SourceCursorState
 	newCodexChild          bool
 	pendingCodexSpawnCalls int
@@ -538,8 +539,18 @@ func parseCodexEvent(source domain.UsageSourceContext, envelope codexEnvelope, s
 			Total              codexTokenVector `json:"total_token_usage"`
 			ModelContextWindow int64            `json:"model_context_window"`
 		} `json:"info"`
+		RateLimits *codexRateLimits `json:"rate_limits"`
 	}
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil || payload.Type != "token_count" || payload.Info == nil {
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil || payload.Type != "token_count" {
+		return
+	}
+	// Before the Info guard: rate_limits is a sibling of info, not a field in
+	// it, so an event with "info": null still reports the account's quota. A
+	// freshly spawned session emits nothing else (G3).
+	if quota := payload.RateLimits.toDomain(envelopeTimestamp(envelope)); quota != nil {
+		result.Quota = quota
+	}
+	if payload.Info == nil {
 		return
 	}
 	total := payload.Info.Total
@@ -617,6 +628,48 @@ func parseCodexEvent(source domain.UsageSourceContext, envelope codexEnvelope, s
 			ObservedAt: event.OccurredAt,
 		}
 	}
+}
+
+type codexRateLimitWindow struct {
+	UsedPercent   float64 `json:"used_percent"`
+	WindowMinutes int     `json:"window_minutes"`
+	ResetsAt      int64   `json:"resets_at"`
+}
+
+type codexRateLimits struct {
+	LimitID   string                `json:"limit_id"`
+	PlanType  string                `json:"plan_type"`
+	Primary   *codexRateLimitWindow `json:"primary"`
+	Secondary *codexRateLimitWindow `json:"secondary"`
+}
+
+func (r *codexRateLimits) toDomain(observedAt time.Time) *domain.UsageQuota {
+	if r == nil {
+		return nil
+	}
+	quota := domain.UsageQuota{
+		LimitID:    r.LimitID,
+		Harness:    string(domain.HarnessCodex),
+		PlanType:   r.PlanType,
+		ObservedAt: observedAt,
+		Primary:    r.Primary.toDomain(),
+		Secondary:  r.Secondary.toDomain(),
+	}
+	if quota.IsEmpty() {
+		return nil
+	}
+	return &quota
+}
+
+func (w *codexRateLimitWindow) toDomain() *domain.UsageQuotaWindow {
+	if w == nil {
+		return nil
+	}
+	out := domain.UsageQuotaWindow{UsedPercent: w.UsedPercent, WindowMinutes: w.WindowMinutes}
+	if w.ResetsAt > 0 {
+		out.ResetsAt = time.Unix(w.ResetsAt, 0).UTC()
+	}
+	return &out
 }
 
 func envelopeTimestamp(envelope codexEnvelope) time.Time {

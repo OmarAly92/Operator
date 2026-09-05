@@ -664,6 +664,77 @@ func codexContextFillLine(timestamp string, modelContextWindow int64) []byte {
 	))
 }
 
+func codexRateLimitLine(t *testing.T, timestamp string, primaryPercent float64, resetsAt int64) []byte {
+	t.Helper()
+	return []byte(fmt.Sprintf(
+		`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":null,`+
+			`"rate_limits":{"limit_id":"codex","plan_type":"plus",`+
+			`"primary":{"used_percent":%v,"window_minutes":300,"resets_at":%d},`+
+			`"secondary":{"used_percent":12.0,"window_minutes":10080,"resets_at":1789223035}}}}`,
+		timestamp, primaryPercent, resetsAt,
+	))
+}
+
+func TestParseCodexReadsQuotaFromAnInfolessEvent(t *testing.T) {
+	// The exact shape a freshly spawned session emits: no usage, quota present.
+	line := []byte(`{"timestamp":"2026-09-05T16:29:43.649Z","type":"event_msg","payload":{` +
+		`"type":"token_count","info":null,"rate_limits":{"limit_id":"codex","plan_type":"plus",` +
+		`"primary":{"used_percent":77.0,"window_minutes":300,"resets_at":1788636235},` +
+		`"secondary":{"used_percent":12.0,"window_minutes":10080,"resets_at":1789223035}}}}`)
+
+	result := parseCodexForTest(t, line)
+
+	if len(result.Events) != 0 {
+		t.Fatalf("events = %d, want 0 -- there is no usage in this event", len(result.Events))
+	}
+	if result.Quota == nil {
+		t.Fatal("quota = nil: the Info==nil guard swallowed a rate_limits-only event (G3)")
+	}
+	if result.Quota.Primary == nil || result.Quota.Primary.UsedPercent != 77 {
+		t.Fatalf("primary = %+v, want 77%%", result.Quota.Primary)
+	}
+	if result.Quota.Primary.WindowMinutes != 300 {
+		t.Fatalf("primary window = %d, want 300", result.Quota.Primary.WindowMinutes)
+	}
+	if result.Quota.Secondary == nil || result.Quota.Secondary.WindowMinutes != 10080 {
+		t.Fatalf("secondary = %+v, want the 10080-minute window", result.Quota.Secondary)
+	}
+	if result.Quota.PlanType != "plus" || result.Quota.LimitID != "codex" {
+		t.Fatalf("plan/limit = %q/%q", result.Quota.PlanType, result.Quota.LimitID)
+	}
+	want := time.Unix(1788636235, 0).UTC()
+	if !result.Quota.Primary.ResetsAt.Equal(want) {
+		t.Fatalf("resetsAt = %v, want %v (epoch seconds)", result.Quota.Primary.ResetsAt, want)
+	}
+}
+
+func TestParseCodexQuotaTakesTheNewestReadingNotTheHighest(t *testing.T) {
+	// Codex re-accounts inside one window: 100 then 77, same resets_at (G4).
+	high := codexRateLimitLine(t, "2026-09-05T15:26:53Z", 100.0, 1788636235)
+	low := codexRateLimitLine(t, "2026-09-05T15:26:55Z", 77.0, 1788636235)
+
+	result := parseCodexForTest(t, high, low)
+
+	if result.Quota == nil || result.Quota.Primary == nil {
+		t.Fatal("quota = nil")
+	}
+	if result.Quota.Primary.UsedPercent != 77 {
+		t.Fatalf("used = %v, want 77 -- newest wins, never the maximum", result.Quota.Primary.UsedPercent)
+	}
+}
+
+func TestParseCodexIgnoresAnObservationWithNoWindows(t *testing.T) {
+	line := []byte(`{"timestamp":"2026-09-05T16:29:43.649Z","type":"event_msg","payload":{` +
+		`"type":"token_count","info":null,"rate_limits":{"limit_id":"premium",` +
+		`"primary":null,"secondary":null,"credits":{"has_credits":false,"balance":"0"}}}}`)
+
+	result := parseCodexForTest(t, line)
+
+	if result.Quota != nil {
+		t.Fatal("an observation with neither window carries nothing and must not be stored (G7)")
+	}
+}
+
 func osWrite(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o600)
 }
