@@ -288,6 +288,16 @@ class _SettingsBodyState extends State<SettingsBody> {
             const VerticalSpace(20),
             SettingsGroup(
               children: [
+                SettingsRow(
+                  icon: Icons.query_stats,
+                  label: 'Token usage',
+                  onTap: () => Navigator.of(context).pushNamed(RoutesStrings.usage),
+                ),
+              ],
+            ),
+            const VerticalSpace(20),
+            SettingsGroup(
+              children: [
                 SettingsRow(icon: Icons.info_outline, label: 'Version', value: formatVersion(_buildInfo)),
                 SettingsRow(
                   icon: Icons.bug_report_outlined,

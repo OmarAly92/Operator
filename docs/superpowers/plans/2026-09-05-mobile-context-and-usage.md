@@ -1213,7 +1213,7 @@ git commit -m "feat(mobile): add the daily and weekly token usage screen"
 - Consumes: `RoutesStrings.usage`, `UsageScreen`.
 - Produces: nothing downstream.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 testWidgets('settings offers a token usage row', (tester) async {
@@ -1222,28 +1222,28 @@ testWidgets('settings offers a token usage row', (tester) async {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/settings/`
 Expected: FAIL.
 
-- [ ] **Step 3: Add the row and register the route**
+- [x] **Step 3: Add the row and register the route**
 
-- [ ] **Step 4: Run the full mobile gate**
+- [x] **Step 4: Run the full mobile gate**
 
 ```bash
 cd packages/mobile && flutter analyze && flutter test
 ```
 Expected: `No issues found!` then all tests pass.
 
-- [ ] **Step 5: Run the full backend gate one final time**
+- [x] **Step 5: Run the full backend gate one final time**
 
 ```bash
 cd backend && gofmt -l internal/ && go vet ./... && go test ./... && golangci-lint run ./...
 ```
 Expected: clean, all pass, `0 issues`. If golangci reports paths under `.worktrees/`, run `golangci-lint cache clean` first.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/mobile
