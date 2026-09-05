@@ -110,8 +110,11 @@ void main() {
   testWidgets('tapping a disabled button shows why instead of calling the cubit', (tester) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(true);
     when(() => cubit.enabled('compact')).thenReturn(false);
+    when(() => cubit.enabled('model')).thenReturn(false);
     when(() => cubit.disabledReason('compact')).thenReturn('The agent is working');
+    when(() => cubit.disabledReason('model')).thenReturn('The agent is working');
 
     await tester.pumpWidget(_host(activity: 'active', cubit: cubit));
     await tester.tap(find.text('Compact'));
@@ -125,6 +128,8 @@ void main() {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn(const {});
     when(() => cubit.enabled('stop')).thenReturn(true);
+    when(() => cubit.enabled('compact')).thenReturn(false);
+    when(() => cubit.enabled('model')).thenReturn(false);
     when(() => cubit.run(any())).thenAnswer((_) async {});
 
     await tester.pumpWidget(_host(activity: 'active', cubit: cubit));
@@ -137,6 +142,8 @@ void main() {
   testWidgets('tapping model opens the picker rather than running immediately', (tester) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
     when(() => cubit.enabled('model')).thenReturn(true);
     when(() => cubit.models).thenReturn(['sonnet', 'opus']);
 
@@ -151,6 +158,8 @@ void main() {
   testWidgets('picking a model runs the command with that label', (tester) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
     when(() => cubit.enabled('model')).thenReturn(true);
     when(() => cubit.models).thenReturn(['sonnet', 'opus']);
     when(() => cubit.run(any(), model: any(named: 'model'))).thenAnswer((_) async {});
@@ -167,10 +176,34 @@ void main() {
   testWidgets('an unconfirmed command is visibly distinct from a confirmed one', (tester) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.phases).thenReturn({'compact': CommandPhase.unconfirmed});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
+    when(() => cubit.enabled('model')).thenReturn(true);
     await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
+  testWidgets('a disabled button renders muted, an enabled one renders full colour', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.phases).thenReturn(const {});
+    when(() => cubit.enabled('stop')).thenReturn(false);
+    when(() => cubit.enabled('compact')).thenReturn(true);
+    when(() => cubit.enabled('model')).thenReturn(true);
+
+    await tester.pumpWidget(_host(activity: 'idle', cubit: cubit));
+
+    final skin = const DarkSkin();
+    final stopText = tester.widget<Text>(
+      find.descendant(of: find.widgetWithText(SessionCommandButton, 'Stop'), matching: find.byType(Text)),
+    );
+    final compactText = tester.widget<Text>(
+      find.descendant(of: find.widgetWithText(SessionCommandButton, 'Compact'), matching: find.byType(Text)),
+    );
+
+    expect(stopText.style?.color, skin.textFaint);
+    expect(compactText.style?.color, isNot(skin.textFaint));
   });
 
   testWidgets('the row is absent in raw mode and present in blocks mode', (tester) async {

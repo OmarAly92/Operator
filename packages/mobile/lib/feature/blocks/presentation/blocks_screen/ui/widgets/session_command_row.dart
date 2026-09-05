@@ -31,6 +31,7 @@ class SessionCommandRow extends StatelessWidget {
             Expanded(
               child: SessionCommandButton(
                 label: _kLabels[command]!,
+                enabled: cubit.enabled(command),
                 phase: phases[command],
                 onTap: () => _onTap(context, cubit, command),
               ),
@@ -58,15 +59,23 @@ class SessionCommandRow extends StatelessWidget {
 }
 
 class SessionCommandButton extends StatelessWidget {
-  const SessionCommandButton({super.key, required this.label, required this.phase, required this.onTap});
+  const SessionCommandButton({
+    super.key,
+    required this.label,
+    required this.enabled,
+    required this.phase,
+    required this.onTap,
+  });
 
   final String label;
+  final bool enabled;
   final CommandPhase? phase;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
+    final foreground = enabled ? null : skin.textFaint;
     final Widget? indicator = switch (phase) {
       CommandPhase.sending => SizedBox(
         width: 11,
@@ -100,7 +109,7 @@ class SessionCommandButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: 6,
             children: [
-              AppText(label, style: AppTextStyle.mono13Regular),
+              AppText(label, style: AppTextStyle.mono13Regular.copyWith(color: foreground)),
               ?indicator,
             ],
           ),
