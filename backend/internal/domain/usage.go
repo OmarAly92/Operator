@@ -124,6 +124,30 @@ type ModelUsageEvent struct {
 	ModelID        string
 	Tokens         UsageTokenMetrics
 	SourceEventKey string
+	OccurredAt     time.Time
+}
+
+type SessionContext struct {
+	Harness    string
+	ModelID    string
+	Used       int64
+	Window     int64
+	ObservedAt time.Time
+}
+
+func (c SessionContext) Fraction() (float64, bool) {
+	if c.Window <= 0 || c.Used < 0 {
+		return 0, false
+	}
+	if c.Used >= c.Window {
+		return 1, true
+	}
+	return float64(c.Used) / float64(c.Window), true
+}
+
+type UsageRollupBucket struct {
+	Start  time.Time
+	Totals UsageMetricTotals
 }
 
 // UsageModelAggregate is the raw model-level aggregate read from storage before
