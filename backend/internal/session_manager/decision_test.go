@@ -34,6 +34,11 @@ func (f fakeDialogReader) ReadDialog(pane string) (ports.Dialog, bool) {
 func (f fakeDialogReader) AllowRow(ports.Menu) (int, bool) { return 0, true }
 func (f fakeDialogReader) DenyRow(ports.Menu) (int, bool)  { return 1, true }
 
+func (f fakeDialogReader) ReadMenu(pane string) (ports.Menu, bool) {
+	dlg, ok := f.ReadDialog(pane)
+	return dlg.Menu, ok
+}
+
 func (f fakeDialogReader) MenuKeys() ports.MenuKeys {
 	return ports.MenuKeys{Up: "up", Down: "down", Select: "enter"}
 }

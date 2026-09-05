@@ -275,8 +275,8 @@ type Manager struct {
 	menuReader ports.TerminalMenuReader
 	// dialogReader overrides dialogReaderFor's resolution against m.agents. It is
 	// nil in production; tests set it directly since their fakeAgents do not
-	// implement ports.TerminalDialogReader.
-	dialogReader ports.TerminalDialogReader
+	// implement dialogAndMenuReader.
+	dialogReader dialogAndMenuReader
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -3924,7 +3924,17 @@ func (m *Manager) menuReaderFor(harness domain.AgentHarness) (ports.TerminalMenu
 	return reader, ok
 }
 
-func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (ports.TerminalDialogReader, bool) {
+// dialogAndMenuReader composes the two port capabilities Decide needs: reading
+// the permission dialog itself (ports.TerminalDialogReader) and driving the
+// menu it renders (ports.TerminalMenuReader, for MenuKeys). The two stay
+// separate capabilities in ports — this composition is local to the one
+// caller that needs both.
+type dialogAndMenuReader interface {
+	ports.TerminalDialogReader
+	ports.TerminalMenuReader
+}
+
+func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (dialogAndMenuReader, bool) {
 	if m.dialogReader != nil {
 		return m.dialogReader, true
 	}
@@ -3932,7 +3942,7 @@ func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (ports.TerminalDi
 	if !found {
 		return nil, false
 	}
-	reader, ok := agent.(ports.TerminalDialogReader)
+	reader, ok := agent.(dialogAndMenuReader)
 	return reader, ok
 }
 

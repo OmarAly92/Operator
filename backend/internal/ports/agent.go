@@ -245,7 +245,6 @@ type TerminalDialogReader interface {
 	ReadDialog(pane string) (Dialog, bool)
 	AllowRow(menu Menu) (int, bool)
 	DenyRow(menu Menu) (int, bool)
-	MenuKeys() MenuKeys
 }
 
 // EmptyComposerDetector is an opt-in safety capability for unsolicited
