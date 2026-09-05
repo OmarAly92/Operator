@@ -24,6 +24,7 @@ const (
 type ingestorStore interface {
 	GetUsageSourceForIngestion(context.Context, int64) (domain.UsageSourceContext, bool, error)
 	ApplyUsageChunk(context.Context, int64, int64, time.Time, domain.SourceCursorState, []domain.ModelUsageEvent) error
+	SaveSessionContext(context.Context, int64, domain.SessionContext) error
 	MarkUsageSourceState(context.Context, int64, domain.UsageSourceState, string, *time.Time, time.Time) (bool, error)
 	MarkUsageSourceFailure(context.Context, int64, int64, string, time.Time, time.Time) (bool, error)
 	ReplaceUsageSource(context.Context, int64, string, domain.UsageSourceRecord, time.Time) (domain.UsageSourceRecord, error)
@@ -311,6 +312,11 @@ func (i *Ingestor) Ingest(ctx context.Context, sourceID int64) (IngestResult, er
 			return result, nil
 		}
 		return result, fmt.Errorf("apply usage source %d: %w", source.Source.ID, err)
+	}
+	if parsed.Context != nil {
+		if err := i.store.SaveSessionContext(ctx, source.Source.BindingID, *parsed.Context); err != nil {
+			return result, fmt.Errorf("save context for usage binding %d: %w", source.Source.BindingID, err)
+		}
 	}
 	result.Reconcile = parsed.newCodexChild
 	if parsed.Cursor.State == domain.UsageSourceComplete {

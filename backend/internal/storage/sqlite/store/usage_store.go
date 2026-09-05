@@ -442,6 +442,103 @@ func (s *Store) ListUsageModelAggregates(ctx context.Context, sessionID domain.S
 	return out, nil
 }
 
+func (s *Store) SaveSessionContext(ctx context.Context, bindingID int64, sessionContext domain.SessionContext) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	err := s.qw.SaveSessionContext(ctx, gen.SaveSessionContextParams{
+		ContextUsed:   sessionContext.Used,
+		ContextWindow: sessionContext.Window,
+		ContextAt:     ptrTimeToNullTime(&sessionContext.ObservedAt),
+		ID:            bindingID,
+	})
+	if err != nil {
+		return fmt.Errorf("save session context for binding %d: %w", bindingID, err)
+	}
+	return nil
+}
+
+func (s *Store) GetSessionContext(ctx context.Context, sessionID domain.SessionID) (domain.SessionContext, bool, error) {
+	row, err := s.qr.GetSessionContext(ctx, sessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.SessionContext{}, false, nil
+	}
+	if err != nil {
+		return domain.SessionContext{}, false, fmt.Errorf("get session context for session %s: %w", sessionID, err)
+	}
+	return domain.SessionContext{
+		Harness:    string(row.Harness),
+		ModelID:    row.InitialModelID,
+		Used:       row.ContextUsed,
+		Window:     row.ContextWindow,
+		ObservedAt: row.ContextAt.Time.UTC(),
+	}, true, nil
+}
+
+func (s *Store) UsageRollup(ctx context.Context, from, to time.Time, bucket string) ([]domain.UsageRollupBucket, error) {
+	fromTime := sql.NullTime{Time: from.UTC(), Valid: true}
+	toTime := sql.NullTime{Time: to.UTC(), Valid: true}
+	switch bucket {
+	case "day":
+		rows, err := s.qr.UsageRollupByDay(ctx, gen.UsageRollupByDayParams{OccurredAt: fromTime, OccurredAt_2: toTime})
+		if err != nil {
+			return nil, fmt.Errorf("roll up usage by day: %w", err)
+		}
+		return usageDayBuckets(rows)
+	case "week":
+		rows, err := s.qr.UsageRollupByWeek(ctx, gen.UsageRollupByWeekParams{OccurredAt: fromTime, OccurredAt_2: toTime})
+		if err != nil {
+			return nil, fmt.Errorf("roll up usage by week: %w", err)
+		}
+		return usageWeekBuckets(rows)
+	default:
+		return nil, fmt.Errorf("unsupported usage rollup bucket %q", bucket)
+	}
+}
+
+func usageDayBuckets(rows []gen.UsageRollupByDayRow) ([]domain.UsageRollupBucket, error) {
+	buckets := make([]domain.UsageRollupBucket, 0, len(rows))
+	for _, row := range rows {
+		bucket, err := usageRollupBucket(row.BucketStart, domain.UsageMetricTotals{
+			InputTokens:         &row.InputTokens,
+			UncachedInputTokens: &row.UncachedInputTokens,
+			CacheReadTokens:     &row.CacheReadTokens,
+			CacheWriteTokens:    &row.CacheWriteTokens,
+			OutputTokens:        &row.OutputTokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		buckets = append(buckets, bucket)
+	}
+	return buckets, nil
+}
+
+func usageWeekBuckets(rows []gen.UsageRollupByWeekRow) ([]domain.UsageRollupBucket, error) {
+	buckets := make([]domain.UsageRollupBucket, 0, len(rows))
+	for _, row := range rows {
+		bucket, err := usageRollupBucket(row.BucketStart, domain.UsageMetricTotals{
+			InputTokens:         &row.InputTokens,
+			UncachedInputTokens: &row.UncachedInputTokens,
+			CacheReadTokens:     &row.CacheReadTokens,
+			CacheWriteTokens:    &row.CacheWriteTokens,
+			OutputTokens:        &row.OutputTokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		buckets = append(buckets, bucket)
+	}
+	return buckets, nil
+}
+
+func usageRollupBucket(bucketStart string, totals domain.UsageMetricTotals) (domain.UsageRollupBucket, error) {
+	start, err := time.Parse(time.DateOnly, bucketStart)
+	if err != nil {
+		return domain.UsageRollupBucket{}, fmt.Errorf("parse usage bucket %q: %w", bucketStart, err)
+	}
+	return domain.UsageRollupBucket{Start: start.UTC(), Totals: totals}, nil
+}
+
 // GetUsageSessionIncomplete reports whether durable collection facts indicate missing usage.
 func (s *Store) GetUsageSessionIncomplete(ctx context.Context, sessionID domain.SessionID) (bool, error) {
 	incomplete, err := s.qr.GetUsageSessionIncomplete(ctx, string(sessionID))
@@ -560,6 +657,7 @@ func usageEventInsertParams(source gen.GetUsageSourceWithBindingAndSessionRow, e
 		OutputTokens:        ev.Tokens.OutputTokens,
 		ReasoningTokens:     ptrInt64ToNull(ev.Tokens.ReasoningTokens),
 		SourceEventKey:      ev.SourceEventKey,
+		OccurredAt:          ptrTimeToNullTime(&ev.OccurredAt),
 	}
 }
 

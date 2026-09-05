@@ -344,8 +344,8 @@ WHERE binding_id = ? AND source_event_key = ?;
 INSERT INTO model_usage_events (
     binding_id, usage_source_id, model_id, input_tokens, uncached_input_tokens,
     cache_read_tokens, cache_write_tokens, output_tokens, reasoning_tokens,
-    source_event_key
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    source_event_key, occurred_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: TouchUsageBinding :exec
 UPDATE usage_bindings SET updated_at = ? WHERE id = ?;
