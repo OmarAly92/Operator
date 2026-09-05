@@ -7,6 +7,7 @@ import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/blocks_body.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/raw_terminal_pane.dart';
@@ -104,7 +105,9 @@ class _TerminalBodyState extends State<TerminalBody> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (context.read<SessionViewCubit>().mode == SessionViewMode.raw)
-                        const TerminalKeyRow(),
+                        const TerminalKeyRow()
+                      else
+                        const SessionCommandRow(),
                       const TerminalComposer(),
                     ],
                   ),

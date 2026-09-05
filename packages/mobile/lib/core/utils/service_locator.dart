@@ -23,6 +23,7 @@ import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
 import 'package:operator_mobile/feature/notification/data/repository/notification_repository.dart';
@@ -234,6 +235,9 @@ class ServiceLocator {
   }
 
   static void _blocksFeatureSetup() {
+    sl.registerFactoryParam<SessionCommandCubit, String, void>(
+      (sessionId, _) => SessionCommandCubit(sl<SessionControlRepository>(), sessionId: sessionId),
+    );
     sl.registerFactoryParam<BlocksCubit, String, String?>(
       (sessionId, harness) =>
           BlocksCubit(sl<MuxClient>(), sl<BlocksRepository>(), sessionId, harness: harness),

@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_empty_state.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
@@ -106,6 +107,9 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
               ),
               BlocProvider<BlocksCubit>(
                 create: (_) => sl<BlocksCubit>(param1: args.sessionId, param2: args.harness),
+              ),
+              BlocProvider<SessionCommandCubit>(
+                create: (_) => sl<SessionCommandCubit>(param1: args.sessionId),
               ),
               BlocProvider<PreviewCubit>(
                 create: (_) => sl<PreviewCubit>(param1: session.id, param2: session.previewUrl),
