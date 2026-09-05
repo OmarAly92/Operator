@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -228,4 +229,12 @@ func TestRollupRejectsInvalidRange(t *testing.T) {
 			assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_RANGE")
 		})
 	}
+}
+
+func TestRollupServiceErrorIs500(t *testing.T) {
+	srv := newUsageTestServer(t, &fakeUsageSummaryService{err: errors.New("rollup unavailable")})
+	body, status, headers := doRequest(t, srv, http.MethodGet, "/api/v1/usage/rollup?bucket=day&days=7", "")
+
+	assertJSON(t, headers)
+	assertErrorCode(t, body, status, http.StatusInternalServerError, "INTERNAL_ERROR")
 }
