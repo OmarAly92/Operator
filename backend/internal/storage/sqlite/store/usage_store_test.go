@@ -500,7 +500,7 @@ func TestApplyUsageChunkRollsBackAndRetriesWhenContextSaveFails(t *testing.T) {
 		Harness: "codex", ModelID: "gpt-5.7", Used: -1, Window: 200_000, ObservedAt: now,
 	}
 
-	err := s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, invalidContext)
+	err := s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, invalidContext, nil)
 	if err == nil {
 		t.Fatal("expected invalid context to reject the chunk")
 	}
@@ -516,7 +516,7 @@ func TestApplyUsageChunkRollsBackAndRetriesWhenContextSaveFails(t *testing.T) {
 
 	want := *invalidContext
 	want.Used = 10
-	mustNoError(t, s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, &want))
+	mustNoError(t, s.ApplyUsageChunkWithContext(ctx, source.ID, 0, source.UpdatedAt, nextState, []domain.ModelUsageEvent{event}, &want, nil))
 	assertUsageSourceOffset(t, s, source.ID, 10)
 	aggregates, aggregateErr = s.ListUsageModelAggregates(ctx, session.ID)
 	mustNoError(t, aggregateErr)
@@ -1206,6 +1206,67 @@ func parseTime(t *testing.T, raw string) time.Time {
 	parsed, err := time.Parse(time.RFC3339, raw)
 	mustNoError(t, err)
 	return parsed
+}
+
+func TestSaveUsageQuotaKeepsTheNewestObservation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	older := domain.UsageQuota{
+		LimitID: "codex", Harness: "codex", PlanType: "plus",
+		ObservedAt: parseTime(t, "2026-09-05T15:26:53Z"),
+		Primary:    &domain.UsageQuotaWindow{UsedPercent: 100, WindowMinutes: 300},
+	}
+	newer := domain.UsageQuota{
+		LimitID: "codex", Harness: "codex", PlanType: "plus",
+		ObservedAt: parseTime(t, "2026-09-05T15:26:55Z"),
+		Primary:    &domain.UsageQuotaWindow{UsedPercent: 77, WindowMinutes: 300},
+	}
+
+	if err := store.SaveUsageQuota(ctx, older); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveUsageQuota(ctx, newer); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.GetUsageQuota(ctx)
+	if err != nil || !ok {
+		t.Fatalf("get = %v %v", ok, err)
+	}
+	if got.Primary.UsedPercent != 77 {
+		t.Fatalf("used = %v, want 77 -- newest wins even when it is lower", got.Primary.UsedPercent)
+	}
+}
+
+func TestSaveUsageQuotaIgnoresAnOlderObservation(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	newer := domain.UsageQuota{LimitID: "codex", ObservedAt: parseTime(t, "2026-09-05T15:26:55Z"),
+		Primary: &domain.UsageQuotaWindow{UsedPercent: 77, WindowMinutes: 300}}
+	older := domain.UsageQuota{LimitID: "codex", ObservedAt: parseTime(t, "2026-09-05T10:00:00Z"),
+		Primary: &domain.UsageQuotaWindow{UsedPercent: 5, WindowMinutes: 300}}
+
+	if err := store.SaveUsageQuota(ctx, newer); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveUsageQuota(ctx, older); err != nil {
+		t.Fatal(err)
+	}
+	got, _, _ := store.GetUsageQuota(ctx)
+	if got.Primary.UsedPercent != 77 {
+		t.Fatalf("used = %v, want 77 -- a late-arriving old reading must not win", got.Primary.UsedPercent)
+	}
+}
+
+func TestGetUsageQuotaReportsAbsenceRatherThanZero(t *testing.T) {
+	store := newTestStore(t)
+	_, ok, err := store.GetUsageQuota(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("want ok=false on an empty table, so the client renders nothing rather than 0%")
+	}
 }
 
 func seedUsageSession(t *testing.T, s *sqlite.Store, harness domain.AgentHarness) domain.SessionRecord {

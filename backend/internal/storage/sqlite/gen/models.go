@@ -541,6 +541,19 @@ type UsageCodexSourceDiscovery struct {
 	HasMixedChildTypes     int64
 }
 
+type UsageQuotum struct {
+	LimitID                string
+	Harness                string
+	PlanType               string
+	ObservedAt             time.Time
+	PrimaryUsedPercent     sql.NullFloat64
+	PrimaryWindowMinutes   sql.NullInt64
+	PrimaryResetsAt        sql.NullTime
+	SecondaryUsedPercent   sql.NullFloat64
+	SecondaryWindowMinutes sql.NullInt64
+	SecondaryResetsAt      sql.NullTime
+}
+
 type UsageSessionIntegrity struct {
 	SessionID  string
 	Incomplete int64

@@ -1022,12 +1022,13 @@ func (s *applyInterleavingStore) ApplyUsageChunkWithContext(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 	sessionContext *domain.SessionContext,
+	quota *domain.UsageQuota,
 ) error {
 	if beforeApply := s.beforeApply; beforeApply != nil {
 		s.beforeApply = nil
 		beforeApply()
 	}
-	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
+	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext, quota)
 }
 
 func assertTokenAggregate(t *testing.T, store *sqlite.Store, sessionID domain.SessionID, total int64) {

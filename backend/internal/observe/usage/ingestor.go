@@ -23,7 +23,7 @@ const (
 
 type ingestorStore interface {
 	GetUsageSourceForIngestion(context.Context, int64) (domain.UsageSourceContext, bool, error)
-	ApplyUsageChunkWithContext(context.Context, int64, int64, time.Time, domain.SourceCursorState, []domain.ModelUsageEvent, *domain.SessionContext) error
+	ApplyUsageChunkWithContext(context.Context, int64, int64, time.Time, domain.SourceCursorState, []domain.ModelUsageEvent, *domain.SessionContext, *domain.UsageQuota) error
 	MarkUsageSourceState(context.Context, int64, domain.UsageSourceState, string, *time.Time, time.Time) (bool, error)
 	MarkUsageSourceFailure(context.Context, int64, int64, string, time.Time, time.Time) (bool, error)
 	ReplaceUsageSource(context.Context, int64, string, domain.UsageSourceRecord, time.Time) (domain.UsageSourceRecord, error)
@@ -294,6 +294,7 @@ func (i *Ingestor) Ingest(ctx context.Context, sourceID int64) (IngestResult, er
 		parsed.Cursor,
 		parsed.Events,
 		parsed.Context,
+		parsed.Quota,
 	); err != nil {
 		if errors.Is(err, domain.ErrUsageSourceEventConflict) {
 			if _, markErr := i.store.MarkUsageSourceState(
