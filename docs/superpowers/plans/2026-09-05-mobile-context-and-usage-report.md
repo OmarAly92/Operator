@@ -107,12 +107,62 @@ Commit: `9be299afb feat(mobile): show context occupancy on the blocks screen`
 
 ## Task 12 — Daily/weekly usage screen
 
-See the session's final `git log --oneline` for the commit hash; details
-recorded there since this document was written before Task 12 started.
+**Status: DONE.**
+
+Added `UsageCubit`/`UsageState` (statuses `initial`/`loading`/`loaded`/`error`,
+following the plan's spec verbatim) and `UsageScreen` with a Day/Week toggle
+and a list of buckets. Registered `UsageCubit` in the service locator and
+`RoutesStrings.usage` + its route in `app_router.dart`. The screen shows only
+consumption per bucket (`inputTokens`/`outputTokens`), never a percentage or
+anything framed as a limit/quota, per F8.
+
+`UsageCubit.load` catches `Failure` and surfaces `failure.apiStatus` (the
+daemon's machine-readable error code, e.g. `INVALID_RANGE`) as `state.error`,
+falling back to `failure.message` if no code is present — this is what lets
+the cubit test assert `state.error == 'INVALID_RANGE'` without inventing a new
+error-mapping convention.
+
+Gates: `flutter analyze` → `No issues found!`; `flutter test` → `+1386: All
+tests passed!` (1384 → 1386 after this task's 2 new cubit tests).
+
+Commit: `7295f6215 feat(mobile): add the daily and weekly token usage screen`
 
 ## Task 13 — Settings entry point + final gate
 
-See the session's final `git log --oneline` for the commit hash.
+**Status: DONE.**
+
+Added a "Token usage" row (`Icons.query_stats`) in its own `SettingsGroup`
+between Notifications and the About/Version group in `settings_body.dart`,
+navigating to `RoutesStrings.usage` via `Navigator.of(context).pushNamed`.
+
+Adding a new group pushed later rows (`Version`, `Disconnect & forget
+server`) far enough down the `ListView` that they fell outside the test
+binding's default viewport *and* its cache extent, so three previously
+`ensureVisible`-based or unscrolled existing tests started failing with "No
+element" / "0 widgets found" — not because behavior regressed, but because
+the fixed-size test surface could no longer see them without a real drag.
+Fixed by switching those three tests (`the About section renders the
+formatted version`, `declining the disconnect confirmation...`, `confirming
+disconnect...`) from `ensureVisible` to `tester.dragUntilVisible(...,
+find.byType(ListView), const Offset(0, -200))`, which actually scrolls the
+list rather than assuming the target is already built. Two new test cases
+were added: `settings offers a token usage row` (from the plan, verbatim) and
+`the Token usage row opens the usage route`.
+
+Gates:
+- `flutter analyze` → `No issues found!`
+- `flutter test` → `+1386: All tests passed!` (22/22 in
+  `test/feature/settings/`)
+- Backend gate (final, full):
+  - `gofmt -l internal/` → no output
+  - `go vet ./...` → no output
+  - `go test ./...` → all packages `ok`
+  - `golangci-lint` was not on `PATH` in this sandbox (same as Tasks 5-7);
+    used the pinned invocation instead:
+    `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --path-mode=abs ./...`
+    → `0 issues.`
+
+Commit: `9522060c3 feat(mobile): link the token usage screen from settings`
 
 ## Task 14 — Live verification against a real daemon
 
@@ -179,6 +229,12 @@ plan) and record the actual output in place of the placeholders below:
 
 ## Commit log for this session
 
-See the final message of the session for the authoritative
-`git log --oneline` covering everything done in this pass (Task 11 fix,
-Task 12, Task 13).
+```
+9522060c3 feat(mobile): link the token usage screen from settings
+7295f6215 feat(mobile): add the daily and weekly token usage screen
+331e71832 docs: consolidate stray task reports into the mobile usage plan report
+9be299afb feat(mobile): show context occupancy on the blocks screen
+```
+
+(Tasks 1–10 predate this session; see the "Tasks 1–10" section above for
+their commits and findings.)
