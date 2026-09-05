@@ -112,6 +112,9 @@ func (m *Manager) Answer(ctx context.Context, id domain.SessionID, interactionID
 	if !ok {
 		return ErrNotFound
 	}
+	if rec.IsTerminated {
+		return ErrTerminated
+	}
 	pending, ok := m.Interaction(id, interactionID)
 	if !ok || pending.Kind != domain.InteractionQuestion {
 		return ErrDialogAbsent

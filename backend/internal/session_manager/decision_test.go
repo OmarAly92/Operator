@@ -210,3 +210,24 @@ func TestAnswerTogglesEveryRowOfAMultiSelectBeforeEnter(t *testing.T) {
 		t.Fatalf("expected one toggle per selected row, got %d in %q", spaces, rt.inputs)
 	}
 }
+
+func TestAnswerRefusesATerminatedSession(t *testing.T) {
+	m, st, rt, _ := newManager()
+	st.sessions["s1"] = domain.SessionRecord{
+		ID:           "s1",
+		Harness:      domain.HarnessClaudeCode,
+		Activity:     domain.Activity{State: domain.ActivityBlocked},
+		Metadata:     domain.SessionMetadata{RuntimeHandleID: "h1"},
+		IsTerminated: true,
+	}
+	rt.panes = []string{"MENU:0"}
+	m.menuReader = fakeMenuReader{rows: []string{"first", "second"}}
+	m.RegisterInteraction("s1", domain.PendingInteraction{ID: "q1", Kind: domain.InteractionQuestion})
+
+	if err := m.Answer(context.Background(), "s1", "q1", [][]string{{"first"}}); !errors.Is(err, ErrTerminated) {
+		t.Fatalf("expected ErrTerminated, got %v", err)
+	}
+	if len(rt.inputs) != 0 {
+		t.Fatalf("expected no writes, got %q", rt.inputs)
+	}
+}
