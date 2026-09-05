@@ -368,8 +368,25 @@ export function BlockTerminal({
 		[fontSize],
 	);
 
-	terminalDebug("block-terminal", "render", {
-		surface: coreError ? "error" : !core ? "loading" : altScreenActive ? "block-list(alt)" : "block-list",
+	const surface = coreError ? "error" : !core ? "loading" : altScreenActive ? "block-list(alt)" : "block-list";
+
+	// Logged from effects, not the render body. terminalDebug reaches the host
+	// over an IPC call, and a side effect during render fires on discarded and
+	// StrictMode double renders too -- which is how one frame-paced re-render
+	// loop turned into 15k IPC round-trips and a log nothing else was legible in.
+	useEffect(() => {
+		terminalDebug("block-terminal", "surface", { surface });
+	}, [surface]);
+
+	// Which surface is showing is the signal worth a line each time it changes;
+	// the commit count is what makes a render storm visible without one line per
+	// commit, since a loop shows up as this climbing while nothing else logs.
+	const commits = useRef(0);
+	useEffect(() => {
+		commits.current += 1;
+		if (commits.current % 100 === 0) {
+			terminalDebug("block-terminal", "commits", { count: commits.current, surface });
+		}
 	});
 
 	if (coreError || !core) {
