@@ -1,0 +1,51 @@
+⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run
+  without review for this invocation.
+
+⚠ MCP client for `myserver` failed to start: MCP startup failed: No such
+  file or directory (os error 2)
+
+⚠ The figma MCP server is not logged in. Run `codex mcp login figma`.
+
+⚠ MCP client for `context7` failed to start: MCP startup failed:
+  handshaking with MCP server failed: Send message error Transport
+  [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_
+  http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client
+  _adapter::StreamableHttpClientAdapter>>] error: Client error: HTTP
+  request failed: http/request failed: error sending request for url
+  (https://example.invalid/mcp when send initialize request
+
+• You have 1 usage limit reset available. Run /usage to use one.
+
+⚠ MCP startup incomplete (failed: alpha, beta, gamma)
+
+• Ran cat /Users/user/.codex/skills/.system/../.. 2>/dev/null >/dev/
+  │ null; cat /Users/user/.codex/plugins/cache/
+  │ claude-plugins-official/superpowers/6.3.0/skills/
+  │ … +1 lines
+  └ ---
+    name: using-superpowers
+    … +64 lines (ctrl + t to view transcript)
+    default behavior. Only skip skill workflows or instructions when
+    your human partner has explicitly told you to.
+
+────────────────────────────────────────────────────────────────────────
+
+• Hi! How can I help?
+
+────────────────────────────────────────────────────────────────────────
+
+
+  Select Model and Effort
+  Access legacy models by running codex -m <model_name> or in your con
+
+  1. gpt-5.6-sol (default)   Reliable agentic workhorse for everyday
+                             tasks.
+  2. gpt-5.6-terra           Balanced agentic coding model for
+                             everyday work.
+  3. gpt-5.6-luna (current)  Fast and affordable agentic coding model.
+› 4. gpt-5.5                 Proven previous-generation model for
+                             coding and general work.
+  5. gpt-5.4-mini            Small, fast, and cost-efficient model for
+                             simpler coding tasks.
+
+  Press enter to confirm or esc to go back

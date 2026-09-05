@@ -59,6 +59,23 @@ Verified against the code on 2026-09-04, before this plan was written. **Impleme
 
    "Type something." and "Chat about this" are the harness's own additions. A client sending index 2 from the transcript's options would land on the wrong row if any synthetic row preceded it, and free-text answers go through row 4. **Selections are resolved by matching option text against the on-screen rows, never by passing an index straight through.**
 
+9. **The two harnesses differ in glyph, in select key, and in what they gate.** Codex fixtures captured 2026-09-05 from a real session:
+
+   | | Claude Code | Codex |
+   |---|---|---|
+   | composer prompt | `❯` + **non-breaking space** | `›` + space |
+   | menu highlight | `❯ N.` | `› N.` |
+   | model picker footer | `Enter to set as default · s to use this session only · Esc to cancel` | `Press enter to confirm or esc to go back` |
+   | session-scoped model key | `s` | **Enter** — it has no separate default |
+
+   So `MenuKeys.SessionSelect` is `"s"` for Claude Code and `"\r"` for Codex. **Never hardcode either.** A harness with no session/default split sets `SessionSelect` equal to `Select`, and the model command reads `SessionSelect` unconditionally.
+
+   Codex also uses `›` for **both** the composer prompt and the menu highlight, so a matcher keyed on the glyph alone will read an idle composer as a one-row menu. Require the numbered-row form (`› N.`) and the menu's own footer, never the glyph by itself. `codex_idle.txt` is the negative case that catches this.
+
+10. **No Codex permission fixture exists, and the mapper must ship without one.** The Codex session on this machine auto-approves: `touch` inside the workspace, in `/tmp`, and in `$HOME` all ran with no dialog, and this Codex build has no `/approvals` command to tighten the policy from inside the session. Capturing one needs a session launched with a stricter approval flag, which is a spawn-time decision.
+
+    Until such a fixture exists, **`codex.Plugin.ReadDialog` must return `false` for the permission kind rather than guess at a layout nobody has seen.** That is the fail-closed behaviour the port already demands: a Codex permission dialog is then simply not answerable from the phone, which is exactly today's behaviour and no regression. Do not write a speculative Codex permission matcher — a wrong one presses a key on an unknown screen. Tracked in `todo_without_tmux.md` §15.
+
 ## Global Constraints
 
 - **Go tests and lint gate every backend task.** `npm run lint` from the repo root runs `go test ./...` plus golangci-lint and must exit 0 issues.

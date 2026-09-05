@@ -1,0 +1,51 @@
+│ directory:   ~/.operator/dev/data/…/workers/scratch-3 │
+│ permissions: YOLO mode                                │
+╰───────────────────────────────────────────────────────╯
+
+  Tip: New Use /fast to enable our fastest inference with increased plan
+  usage.
+
+
+› Hi
+
+
+⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run
+  without review for this invocation.
+
+⚠ MCP client for `myserver` failed to start: MCP startup failed: No such
+  file or directory (os error 2)
+
+⚠ The figma MCP server is not logged in. Run `codex mcp login figma`.
+
+⚠ MCP client for `context7` failed to start: MCP startup failed:
+  handshaking with MCP server failed: Send message error Transport
+  [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_
+  http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client
+  _adapter::StreamableHttpClientAdapter>>] error: Client error: HTTP
+  request failed: http/request failed: error sending request for url
+  (https://example.invalid/mcp when send initialize request
+
+• You have 1 usage limit reset available. Run /usage to use one.
+
+⚠ MCP startup incomplete (failed: alpha, beta, gamma)
+
+• Ran cat /Users/user/.codex/skills/.system/../.. 2>/dev/null >/dev/
+  │ null; cat /Users/user/.codex/plugins/cache/
+  │ claude-plugins-official/superpowers/6.3.0/skills/
+  │ … +1 lines
+  └ ---
+    name: using-superpowers
+    … +64 lines (ctrl + t to view transcript)
+    default behavior. Only skip skill workflows or instructions when
+    your human partner has explicitly told you to.
+
+────────────────────────────────────────────────────────────────────────
+
+• Hi! How can I help?
+
+────────────────────────────────────────────────────────────────────────
+
+
+› Improve documentation in @filename
+
+  gpt-5.6-luna medium · ~/.operator/data/worktrees/scratch/workers/sample
