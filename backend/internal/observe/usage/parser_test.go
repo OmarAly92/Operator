@@ -118,6 +118,30 @@ func TestParseCodexCumulativeDeltasAndRepeats(t *testing.T) {
 	}
 }
 
+func TestParseCodexReportsAbsoluteContextAndWindow(t *testing.T) {
+	first := codexTokenCountLine(t, "2026-09-05T12:00:00Z", 10_000, 200_000)
+	second := codexTokenCountLine(t, "2026-09-05T12:05:00Z", 25_000, 200_000)
+
+	result := parseCodexForTest(t, first, second)
+
+	if result.Context == nil {
+		t.Fatal("context = nil, want Codex to report occupancy")
+	}
+	if result.Context.Used != 25_000 {
+		t.Fatalf("used = %d, want 25000 (the absolute total, not a delta sum)", result.Context.Used)
+	}
+	if result.Context.Window != 200_000 {
+		t.Fatalf("window = %d, want 200000", result.Context.Window)
+	}
+	if want := time.Date(2026, 9, 5, 12, 5, 0, 0, time.UTC); !result.Context.ObservedAt.Equal(want) {
+		t.Fatalf("observedAt = %v, want %v", result.Context.ObservedAt, want)
+	}
+	frac, ok := result.Context.Fraction()
+	if !ok || frac != 0.125 {
+		t.Fatalf("fraction = %v ok=%v, want 0.125 true", frac, ok)
+	}
+}
+
 func TestParseCodexCounterResetNeverEmitsNegativeUsage(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	source := usageSource(domain.UsageSourceCodexRollout)
@@ -575,6 +599,16 @@ func parseClaudeForTest(t *testing.T, kind domain.UsageSourceKind, record string
 	return result
 }
 
+func parseCodexForTest(t *testing.T, records ...[]byte) parseResult {
+	t.Helper()
+	source := usageSource(domain.UsageSourceCodexRollout)
+	jsonl := make([]jsonlRecord, len(records))
+	for index, record := range records {
+		jsonl[index] = jsonlRecord{Offset: int64(index), Data: record}
+	}
+	return parseRecords(source, jsonl, int64(len(records)), time.Time{})
+}
+
 func parserStateFromResult(t *testing.T, result parseResult, kind domain.UsageSourceKind) *parserStateEnvelope {
 	t.Helper()
 	if result.err != nil {
@@ -595,6 +629,14 @@ func codexTokenLine(timestamp string, input, cached, cacheWrite, output, reasoni
 	return []byte(fmt.Sprintf(
 		`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":%d,"output_tokens":%d,"reasoning_output_tokens":%d,"total_tokens":%d}}}}`,
 		timestamp, input, cached, cacheWrite, output, reasoning, input+output,
+	))
+}
+
+func codexTokenCountLine(t *testing.T, timestamp string, total, modelContextWindow int64) []byte {
+	t.Helper()
+	return []byte(fmt.Sprintf(
+		`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":%d},"model_context_window":%d}}}`,
+		timestamp, total, total, modelContextWindow,
 	))
 }
 

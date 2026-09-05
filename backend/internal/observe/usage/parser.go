@@ -606,7 +606,23 @@ func parseCodexEvent(source domain.UsageSourceContext, envelope codexEnvelope, s
 			strconv.FormatInt(total.ReasoningOutputTokens, 10),
 		),
 	}
+	event.OccurredAt = envelopeTimestamp(envelope)
 	result.Events = append(result.Events, event)
+	result.Context = &domain.SessionContext{
+		Harness:    string(domain.HarnessCodex),
+		ModelID:    model,
+		Used:       total.TotalTokens,
+		Window:     payload.Info.ModelContextWindow,
+		ObservedAt: event.OccurredAt,
+	}
+}
+
+func envelopeTimestamp(envelope codexEnvelope) time.Time {
+	parsed, err := time.Parse(time.RFC3339Nano, envelope.Timestamp)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed.UTC()
 }
 
 func recordMalformed(result *parseResult) {
