@@ -727,6 +727,55 @@ func doPreviewOriginMethod(t *testing.T, srv *httptest.Server, method, previewUR
 	return body, resp.StatusCode, resp.Header
 }
 
+func TestSessionsAPI_GetDraftReturnsTheDraft(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.draftResult = "run the sample task"
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET draft = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Draft string `json:"draft"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Draft != "run the sample task" {
+		t.Fatalf("draft = %q", resp.Draft)
+	}
+}
+
+// A harness with no composer reader (or a session with no styled runtime
+// support) must report an empty draft, not an error — this is the same
+// fail-closed contract Manager.Draft implements, exercised here at the route.
+func TestSessionsAPI_GetDraftReturnsEmptyStringNotAnErrorWhenThereIsNoReader(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.draftResult = ""
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET draft = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Draft string `json:"draft"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Draft != "" {
+		t.Fatalf("draft = %q, want empty", resp.Draft)
+	}
+}
+
+func TestSessionsAPI_GetDraftWithoutServiceIsNotImplemented(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{}, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, headers := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	assertJSON(t, headers)
+	assertErrorCode(t, body, status, http.StatusNotImplemented, "NOT_IMPLEMENTED")
+}
+
 func TestSessionsRoutes_DefaultToStubsWithoutService(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{}, httpd.ControlDeps{}))

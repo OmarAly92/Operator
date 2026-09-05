@@ -148,6 +148,13 @@ func LastPromptDraft(output, marker string) (string, bool) {
 		}
 		content := append([]styledRune{}, line[len(markerRunes):]...)
 		for j := i + 1; j < len(lines); j++ {
+			// An unbordered composer (e.g. Codex) is always followed by a blank
+			// row before any status footer — the footer is a different UI element,
+			// not wrapped draft text, so stop before it rather than folding its
+			// (often partially dim) chrome into the extracted draft.
+			if isBlankStyledLine(lines[j]) {
+				break
+			}
 			content = append(content, lines[j]...)
 		}
 		return draftTextFromStyledRunes(content)
@@ -183,7 +190,7 @@ func LastBorderedPromptDraft(output, marker string) (string, bool) {
 			upperWidth = horizontalRuleWidth(lines[j])
 		}
 		lowerIndex, lowerWidth := -1, 0
-		for j := len(lines) - 1; j > i; j-- {
+		for j := i + 1; j < len(lines); j++ {
 			if lowerWidth = horizontalRuleWidth(lines[j]); lowerWidth > 0 {
 				lowerIndex = j
 				break
@@ -325,6 +332,15 @@ func applySGRDim(current bool, params string) bool {
 		}
 	}
 	return current
+}
+
+func isBlankStyledLine(line []styledRune) bool {
+	for _, r := range line {
+		if !unicode.IsSpace(r.value) {
+			return false
+		}
+	}
+	return true
 }
 
 func trimLeftStyledSpace(line []styledRune) []styledRune {

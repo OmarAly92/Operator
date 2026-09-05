@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
@@ -40,7 +41,9 @@ void main() {
     await tester.pump();
 
     expect(harness.cubit.composer.text, 'run the sample task');
-    expect(harness.cubit.sending, isFalse);
+    verifyNever(
+      () => harness.mux.sendInput(any(), any(), projectId: any(named: 'projectId')),
+    );
   });
 
   testWidgets('an empty remote draft shows nothing', (tester) async {
@@ -49,6 +52,9 @@ void main() {
     await pumpComposer(tester);
 
     expect(find.byType(TerminalComposerDraftHint), findsOneWidget);
-    expect(find.byType(Positioned), findsNothing);
+    expect(
+      find.descendant(of: find.byType(TerminalComposerDraftHint), matching: find.byType(AppText)),
+      findsNothing,
+    );
   });
 }

@@ -20,21 +20,19 @@ class TerminalComposerDraftHint extends StatelessWidget {
       builder: (context, value, _) {
         if (value.text.isNotEmpty) return const SizedBox.shrink();
         return Positioned.fill(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                cubit.composer.text = draft;
-                cubit.composer.selection = TextSelection.collapsed(offset: draft.length);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: AppText(
-                    draft,
-                    style: AppTextStyle.style15Regular.copyWith(color: skin.textFaint),
-                  ),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  cubit.composer.text = draft;
+                  cubit.composer.selection = TextSelection.collapsed(offset: draft.length);
+                },
+                child: AppText(
+                  draft,
+                  style: AppTextStyle.style15Regular.copyWith(color: skin.textFaint),
                 ),
               ),
             ),

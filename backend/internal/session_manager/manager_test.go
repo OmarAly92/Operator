@@ -257,6 +257,9 @@ type fakeRuntime struct {
 	supervisedAliveOverride *bool
 	supervisedSequence      []bool
 	destroyedIDs            []string
+	styledOutput            string
+	styledOutputErr         error
+	styledOutputCalls       int
 }
 
 func (r *fakeRuntime) Interrupt(_ context.Context, handle ports.RuntimeHandle) error {
@@ -419,10 +422,11 @@ func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int)
 	return out, nil
 }
 func (r *fakeRuntime) GetStyledOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error) {
-	if r.outputErr != nil {
-		return "", r.outputErr
+	r.styledOutputCalls++
+	if r.styledOutputErr != nil {
+		return "", r.styledOutputErr
 	}
-	return "", nil
+	return r.styledOutput, nil
 }
 
 type fakeAgent struct{}

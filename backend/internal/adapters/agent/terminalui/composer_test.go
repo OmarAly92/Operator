@@ -53,3 +53,94 @@ func TestLastBorderedPromptIsEmptyOrDimPlaceholder(t *testing.T) {
 		})
 	}
 }
+
+func TestLastBorderedPromptDraft(t *testing.T) {
+	rule := "\x1b[38;5;244m" + strings.Repeat("─", 48) + "\x1b[39m"
+	footer := "\x1b[38;5;220mUpdate available!\x1b[39m\n\x1b[38;5;211m⏵⏵ bypass permissions on\x1b[39m"
+	tests := []struct {
+		name      string
+		output    string
+		wantDraft string
+		wantOK    bool
+	}{
+		{
+			name:      "typed draft",
+			output:    rule + "\n❯ do not submit this\n" + rule + "\n" + footer,
+			wantDraft: "do not submit this",
+			wantOK:    true,
+		},
+		{
+			name:   "empty composer",
+			output: rule + "\n\x1b[39m❯ \x1b[7m \x1b[0m\n" + rule + "\n" + footer,
+			wantOK: false,
+		},
+		// Regression: a second same-width rule below the composer's own closing
+		// rule (e.g. another UI element's box) must not have its content, plus
+		// everything after it, folded into the returned draft. Scanning for the
+		// NEAREST rule below the marker line, not the bottom-most rule in the
+		// whole pane, is what keeps this from happening.
+		{
+			name:      "a second rule and footer below the composer must not pollute the draft",
+			output:    rule + "\n❯ run the sample task\n" + rule + "\n" + rule + "\n" + footer,
+			wantDraft: "run the sample task",
+			wantOK:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			draft, ok := LastBorderedPromptDraft(tt.output, "❯")
+			if ok != tt.wantOK {
+				t.Fatalf("LastBorderedPromptDraft() ok = %v, want %v (draft=%q)", ok, tt.wantOK, draft)
+			}
+			if ok && draft != tt.wantDraft {
+				t.Fatalf("LastBorderedPromptDraft() = %q, want %q", draft, tt.wantDraft)
+			}
+		})
+	}
+}
+
+func TestLastPromptDraft(t *testing.T) {
+	tests := []struct {
+		name      string
+		output    string
+		marker    string
+		wantDraft string
+		wantOK    bool
+	}{
+		{
+			name:   "dim codex placeholder fails closed",
+			output: "› \x1b[2mExplain this codebase\x1b[0m\n\n\x1b[2mmodel · workspace\x1b[0m",
+			marker: "›",
+			wantOK: false,
+		},
+		{
+			name:   "plain output fails closed",
+			output: "› Explain this codebase",
+			marker: "›",
+			wantOK: false,
+		},
+		// Regression: Codex always renders a status footer below the composer
+		// (e.g. "model · workspace") whose separator is dim, separated from the
+		// composer by a blank row. That footer must not poison every real
+		// read — the scan stops at the first blank row rather than folding the
+		// footer's mixed dim/non-dim chrome into the extracted content.
+		{
+			name:      "a real draft reads cleanly despite the dim status footer below it",
+			output:    "› run the sample task\n\n  gpt-5.6 medium\x1b[2m · \x1b[0mworkspace",
+			marker:    "›",
+			wantDraft: "run the sample task",
+			wantOK:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			draft, ok := LastPromptDraft(tt.output, tt.marker)
+			if ok != tt.wantOK {
+				t.Fatalf("LastPromptDraft() ok = %v, want %v (draft=%q)", ok, tt.wantOK, draft)
+			}
+			if ok && draft != tt.wantDraft {
+				t.Fatalf("LastPromptDraft() = %q, want %q", draft, tt.wantDraft)
+			}
+		})
+	}
+}

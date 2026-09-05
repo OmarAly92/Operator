@@ -141,6 +141,30 @@ func TestReadComposerDraftRejectsDimPlaceholderText(t *testing.T) {
 	}
 }
 
+func TestReadComposerDraftReadsAHumanAuthoredDraftDespiteTheStatusFooterBelowIt(t *testing.T) {
+	// codex_idle_styled.txt's placeholder segment is
+	// "\x1b[0m\x1b[2mImprove documentation in @filename\x1b[0m" (dim). Swap it for
+	// plain, non-dim draft text, keeping every other captured byte — including the
+	// real status footer below the composer, whose " · " separator is genuinely
+	// dim. Before the LastPromptDraft footer-boundary fix, that always-present
+	// footer poisoned every real read; this proves the fix reads the draft cleanly.
+	pane := readStyledPane(t, "codex_idle_styled.txt")
+	pane = strings.Replace(
+		pane,
+		"\x1b[0m\x1b[2mImprove documentation in @filename\x1b[0m",
+		"\x1b[0mrun the sample task",
+		1,
+	)
+	p := &Plugin{}
+	draft, ok := p.ReadComposerDraft(pane)
+	if !ok {
+		t.Fatal("expected the composer draft to be read despite the status footer below it")
+	}
+	if draft != "run the sample task" {
+		t.Fatalf("draft = %q", draft)
+	}
+}
+
 func TestReadComposerDraftFailsClosedOnUnstyledInput(t *testing.T) {
 	// Plain output carries no dim/normal distinction. Answering from it would
 	// be a guess.
