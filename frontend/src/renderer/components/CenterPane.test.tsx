@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSwitch } from "../hooks/useAgentSwitches";
@@ -355,5 +355,118 @@ describe("CenterPane surfaces", () => {
 		});
 		expect(screen.getByText("terminal body")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: /blocks/i })).not.toBeInTheDocument();
+	});
+});
+
+// The pane measures its own width and writes it back as the terminal region's
+// width, and the topbar portal renders that region inside .center-panel-surface.
+// Observing the surface as well as the pane therefore closed a loop —
+// measure -> setState -> layout inside the surface -> observer -> measure — that
+// re-rendered the whole terminal subtree at frame rate for as long as the pane
+// stayed mounted. The observer must watch the pane and nothing else.
+describe("CenterPane width measurement", () => {
+	type Recorded = { callback: ResizeObserverCallback; targets: Element[] };
+
+	function recordObservers() {
+		const records: Recorded[] = [];
+		class RecordingResizeObserver {
+			private record: Recorded;
+			constructor(callback: ResizeObserverCallback) {
+				this.record = { callback, targets: [] };
+				records.push(this.record);
+			}
+			observe(target: Element) {
+				this.record.targets.push(target);
+			}
+			unobserve() {}
+			disconnect() {}
+		}
+		const original = window.ResizeObserver;
+		Object.defineProperty(window, "ResizeObserver", {
+			configurable: true,
+			writable: true,
+			value: RecordingResizeObserver,
+		});
+		return {
+			records,
+			restore: () =>
+				Object.defineProperty(window, "ResizeObserver", {
+					configurable: true,
+					writable: true,
+					value: original,
+				}),
+		};
+	}
+
+	// Rendered inside a real .center-panel-surface, which is what the pane used to
+	// reach for with closest() — without it the regression cannot reproduce.
+	function renderInSurface() {
+		return render(
+			<div className="center-panel-surface">
+				<TooltipProvider>
+					<CenterPane daemonReady theme="dark" session={worker} />
+				</TooltipProvider>
+			</div>,
+		);
+	}
+
+	it("never observes the surface it writes the measurement into", () => {
+		const { records, restore } = recordObservers();
+		try {
+			renderInSurface();
+			const observed = records.flatMap((record) => record.targets);
+			expect(observed.some((target) => target.classList.contains("terminal-pane-frame"))).toBe(true);
+			expect(observed.some((target) => target.classList.contains("center-panel-surface"))).toBe(false);
+		} finally {
+			restore();
+		}
+	});
+
+	it("holds the measured width steady against sub-pixel jitter", () => {
+		const { records, restore } = recordObservers();
+		try {
+			renderInSurface();
+			const paneRecord = records.find((record) =>
+				record.targets.some((target) => target.classList.contains("terminal-pane-frame")),
+			);
+			expect(paneRecord).toBeDefined();
+			const pane = paneRecord?.targets.find((target) =>
+				target.classList.contains("terminal-pane-frame"),
+			) as HTMLElement;
+
+			let measured = 800.4;
+			vi.spyOn(pane, "getBoundingClientRect").mockImplementation(
+				() =>
+					({
+						width: measured,
+						height: 0,
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
+						x: 0,
+						y: 0,
+						toJSON: () => ({}),
+					}) as DOMRect,
+			);
+
+			const fire = () => act(() => paneRecord?.callback([], {} as ResizeObserver));
+			fire();
+			const region = screen.getByTestId("session-terminal-region");
+			expect(region.style.width).toBe("800px");
+
+			// Sub-pixel jitter must not move it again: that drift is exactly what
+			// kept the observer cycle from ever reaching a fixed point.
+			measured = 800.4999;
+			fire();
+			expect(region.style.width).toBe("800px");
+
+			// A real pixel change still takes effect.
+			measured = 900;
+			fire();
+			expect(region.style.width).toBe("900px");
+		} finally {
+			restore();
+		}
 	});
 });

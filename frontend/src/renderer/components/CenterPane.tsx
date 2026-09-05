@@ -96,7 +96,7 @@ export function CenterPane({
 	const { t } = useTranslation();
 	const paneRef = useRef<HTMLDivElement | null>(null);
 	const [fontSize] = useState(initialTerminalFontSize);
-	const [terminalBounds, setTerminalBounds] = useState({ leftInset: 0, rightInset: 0, width: 0 });
+	const [terminalBounds, setTerminalBounds] = useState({ width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const tabsOverflow = useOverflowScroll<HTMLDivElement>(session?.id ?? "");
 	const agentSwitchesQuery = useAgentSwitches(session?.id ?? "");
@@ -135,27 +135,24 @@ export function CenterPane({
 	useEffect(() => {
 		const pane = paneRef.current;
 		if (!pane) return;
-		const workspaceSurface = pane.closest<HTMLElement>(".center-panel-surface");
+		// Observe the pane alone. This measurement is written back into the DOM as
+		// the terminal region's width, and the topbar portal renders that region
+		// inside .center-panel-surface -- so observing the surface too closed a
+		// cycle: measure -> setState -> layout inside the surface -> observer ->
+		// measure, spinning at frame rate for as long as the pane was mounted. The
+		// surface was only ever read for leftInset/rightInset, which nothing
+		// consumed, so dropping them cuts the cycle rather than damping it.
+		//
+		// Rounding covers what is left: getBoundingClientRect returns fractional
+		// pixels, and an exact-float guard lets sub-pixel drift re-enter the
+		// remaining pane -> width -> layout path. Whole pixels give it a fixed point.
 		const measure = () => {
-			const paneRect = pane.getBoundingClientRect();
-			// leftInset/rightInset are kept for the terminal region width calculation
-			// but no longer used for viewport-alignment padding (topbar is inside the surface).
-			const workspaceRect = workspaceSurface?.getBoundingClientRect() ?? paneRect;
-			const next = {
-				leftInset: workspaceRect.left,
-				rightInset: Math.max(0, window.innerWidth - workspaceRect.right),
-				width: paneRect.width,
-			};
-			setTerminalBounds((current) =>
-				current.leftInset === next.leftInset && current.rightInset === next.rightInset && current.width === next.width
-					? current
-					: next,
-			);
+			const next = { width: Math.round(pane.getBoundingClientRect().width) };
+			setTerminalBounds((current) => (current.width === next.width ? current : next));
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(pane);
-		if (workspaceSurface) observer.observe(workspaceSurface);
 		return () => observer.disconnect();
 	}, []);
 
