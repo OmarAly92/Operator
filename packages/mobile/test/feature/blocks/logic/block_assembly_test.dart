@@ -17,6 +17,7 @@ BlockEventModel _event(
   int? truncatedLines,
   List<BlockRedactedSpanModel>? spans,
   String? source,
+  String? interactionId,
 }) => BlockEventModel(
   seq: seq,
   sessionId: 's-1',
@@ -31,6 +32,7 @@ BlockEventModel _event(
   truncatedLines: truncatedLines,
   redactedSpans: spans,
   source: source,
+  interactionId: interactionId,
 );
 
 String _question(String question) =>
@@ -318,6 +320,15 @@ void main() {
       expect(blocks.map((block) => block.title).toList(), ['Prompt', 'First?', 'Second?']);
     });
 
+    test('a transcript question enriching a hook placeholder preserves its interaction id', () {
+      final blocks = assembleBlocks([
+        _event(1, 'question_asked', sourceId: 'native-1', source: 'hook', text: 'Waiting on you', interactionId: 'i1'),
+        _event(2, 'question_asked', sourceId: 'q1', toolUseId: 'q1', source: 'transcript', toolInput: _question('First?')),
+      ]);
+
+      expect(blocks.single.interactionId, 'i1');
+    });
+
     test('a later TodoWrite folds into the first todo block and its result is dropped', () {
       final blocks = assembleBlocks([
         _event(1, 'prompt_submit', text: 'go'),
@@ -338,6 +349,33 @@ void main() {
       ]);
 
       expect(blocks.single.body, contains('truncated by Operator'));
+    });
+
+    test('a permission event carries its interaction id onto the block', () {
+      final blocks = assembleBlocks([
+        _event(1, 'permission_request', sourceId: 't1', interactionId: 'i1'),
+      ]);
+
+      expect(blocks.single.interactionId, 'i1');
+    });
+
+    test('a block with no interaction id is not actionable', () {
+      final blocks = assembleBlocks([_event(1, 'tool_start', sourceId: 't1')]);
+
+      expect(blocks.single.interactionId, isNull);
+    });
+
+    test('the transcript merge preserves the hook-supplied interaction id', () {
+      final blocks = assembleBlocks([
+        _event(1, 'permission_request', sourceId: 't1', interactionId: 'i1'),
+        _event(2, 'tool_start', sourceId: 't1', source: 'transcript', toolInput: '{"command":"ls"}'),
+      ]);
+
+      expect(
+        blocks.single.interactionId,
+        'i1',
+        reason: 'transcript wins on body, but it must not erase the id the hook supplied',
+      );
     });
   });
 

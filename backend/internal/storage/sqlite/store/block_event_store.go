@@ -41,6 +41,7 @@ func (s *Store) InsertBlockEvent(ctx context.Context, rec blockeventsvc.Record) 
 		HookVersion:    rec.HookVersion,
 		TruncatedLines: int64(rec.TruncatedLines),
 		Source:         string(rec.Source),
+		InteractionID:  rec.InteractionID,
 		CreatedAt:      rec.CreatedAt,
 	})
 	if err != nil {
@@ -77,6 +78,7 @@ func (s *Store) SelectBlockEventsBySession(ctx context.Context, sessionID string
 			HookVersion:    row.HookVersion,
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
+			InteractionID:  row.InteractionID,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -113,6 +115,7 @@ func (s *Store) SelectBlockEventsBeforeSeq(ctx context.Context, sessionID string
 			HookVersion:    row.HookVersion,
 			TruncatedLines: row.TruncatedLines,
 			Source:         row.Source,
+			InteractionID:  row.InteractionID,
 			CreatedAt:      row.CreatedAt,
 		}))
 	}
@@ -138,6 +141,7 @@ type blockEventRowFields struct {
 	HookVersion    string
 	TruncatedLines int64
 	Source         string
+	InteractionID  string
 	CreatedAt      time.Time
 }
 
@@ -157,6 +161,7 @@ func blockEventRecordFromRow(f blockEventRowFields) blockeventsvc.Record {
 		HookVersion:    f.HookVersion,
 		TruncatedLines: int(f.TruncatedLines),
 		Source:         domain.BlockEventSource(f.Source),
+		InteractionID:  f.InteractionID,
 		CreatedAt:      f.CreatedAt,
 	}
 	if f.RedactedSpans != "" {

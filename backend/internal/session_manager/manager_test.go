@@ -242,8 +242,11 @@ type fakeRuntime struct {
 	created, destroyed int
 	lastCfg            ports.RuntimeConfig
 	outputs            []string
+	panes              []string
 	outputCalls        int
 	outputErr          error
+	sendInputErr       error
+	inputs             []string
 	interruptErr       error
 	interrupts         []string
 	onInterrupt        func(ports.RuntimeHandle)
@@ -254,6 +257,9 @@ type fakeRuntime struct {
 	supervisedAliveOverride *bool
 	supervisedSequence      []bool
 	destroyedIDs            []string
+	styledOutput            string
+	styledOutputErr         error
+	styledOutputCalls       int
 }
 
 func (r *fakeRuntime) Interrupt(_ context.Context, handle ports.RuntimeHandle) error {
@@ -262,6 +268,14 @@ func (r *fakeRuntime) Interrupt(_ context.Context, handle ports.RuntimeHandle) e
 		r.onInterrupt(handle)
 	}
 	return r.interruptErr
+}
+
+func (r *fakeRuntime) SendInput(_ context.Context, _ ports.RuntimeHandle, input string) error {
+	if r.sendInputErr != nil {
+		return r.sendInputErr
+	}
+	r.inputs = append(r.inputs, input)
+	return nil
 }
 
 type fakePreviewLifecycle struct {
@@ -391,6 +405,13 @@ func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int)
 	if r.outputErr != nil {
 		return "", r.outputErr
 	}
+	if len(r.panes) > 0 {
+		out := r.panes[0]
+		if len(r.panes) > 1 {
+			r.panes = r.panes[1:]
+		}
+		return out, nil
+	}
 	if len(r.outputs) == 0 {
 		return "", nil
 	}
@@ -401,10 +422,11 @@ func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int)
 	return out, nil
 }
 func (r *fakeRuntime) GetStyledOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error) {
-	if r.outputErr != nil {
-		return "", r.outputErr
+	r.styledOutputCalls++
+	if r.styledOutputErr != nil {
+		return "", r.styledOutputErr
 	}
-	return "", nil
+	return r.styledOutput, nil
 }
 
 type fakeAgent struct{}

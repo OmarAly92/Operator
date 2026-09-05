@@ -13,6 +13,7 @@ import 'package:operator_mobile/feature/chat/voice/ui/mic_key.dart';
 import 'package:operator_mobile/feature/chat/voice/ui/voice_strip.dart';
 import 'package:operator_mobile/feature/terminal/logic/send_route.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
+import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer_draft_hint.dart';
 
 class TerminalComposer extends StatefulWidget {
   const TerminalComposer({super.key});
@@ -89,25 +90,30 @@ class _TerminalComposerState extends State<TerminalComposer> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Expanded(
-                              child: TextField(
-                                controller: cubit.composer,
-                                maxLines: null,
-                                style: AppTextStyle.style15Regular.copyWith(
-                                  color: skin.textPrimary,
-                                ),
-                                cursorColor: skin.blue,
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
+                              child: Stack(
+                                children: [
+                                  TextField(
+                                    controller: cubit.composer,
+                                    maxLines: null,
+                                    style: AppTextStyle.style15Regular.copyWith(
+                                      color: skin.textPrimary,
+                                    ),
+                                    cursorColor: skin.blue,
+                                    decoration: InputDecoration(
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      hintText: toTerminal
+                                          ? 'Send to terminal...'
+                                          : 'Message the agent...',
+                                      hintStyle: AppTextStyle.style15Regular
+                                          .copyWith(color: skin.textFaint),
+                                    ),
                                   ),
-                                  hintText: toTerminal
-                                      ? 'Send to terminal...'
-                                      : 'Message the agent...',
-                                  hintStyle: AppTextStyle.style15Regular
-                                      .copyWith(color: skin.textFaint),
-                                ),
+                                  const TerminalComposerDraftHint(),
+                                ],
                               ),
                             ),
                             if (!cubit.args.shellOnly)

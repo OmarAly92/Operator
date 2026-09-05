@@ -22,6 +22,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
+	"github.com/OmarAly92/operator/backend/internal/service/dialogdriver"
 	"github.com/OmarAly92/operator/backend/internal/sessionguard"
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
 )
@@ -29,12 +30,20 @@ import (
 // Sentinel errors returned by the Session Manager; callers match them with
 // errors.Is.
 var (
-	ErrNotFound         = errors.New("session: not found")
-	ErrNotRestorable    = errors.New("session: not restorable (not terminal)")
-	ErrTerminated       = errors.New("session: terminated")
-	ErrAgentExited      = errors.New("session: agent exited")
-	ErrAgentNotExited   = errors.New("session: agent has not exited")
-	ErrIncompleteHandle = errors.New("session: incomplete teardown handle")
+	ErrNotFound           = errors.New("session: not found")
+	ErrNotRestorable      = errors.New("session: not restorable (not terminal)")
+	ErrTerminated         = errors.New("session: terminated")
+	ErrAgentExited        = errors.New("session: agent exited")
+	ErrAgentNotExited     = errors.New("session: agent has not exited")
+	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
+	ErrWrongActivityState = errors.New("session: command not available in this activity state")
+	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
+	ErrModelNotOffered    = errors.New("session: model not offered by this harness")
+	// ErrComposerNotEmpty means a human draft is sitting unsent in the
+	// harness's composer, so an unattended slash-command write would submit
+	// "<their draft>/compact" as one garbled prompt. Nothing is written; the
+	// caller retries once the desktop composer is clear.
+	ErrComposerNotEmpty = errors.New("session: the terminal composer is not empty")
 	// ErrProjectNotResolvable means the spawn's project has no usable repo
 	// (unregistered, archived, or missing a path). The API maps it to a 400.
 	ErrProjectNotResolvable = errors.New("session: project repo not resolvable")
@@ -201,6 +210,7 @@ type runtimeController interface {
 	Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error)
 	Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	GetOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error)
+	SendInput(ctx context.Context, handle ports.RuntimeHandle, input string) error
 	// IsAlive reports whether the handle's runtime session still exists. Used by
 	// Reconcile on boot to adopt crash-surviving sessions and reap leaked ones.
 	IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool, error)
@@ -264,6 +274,22 @@ type Manager struct {
 	agents    ports.AgentResolver
 	workspace ports.Workspace
 	store     Store
+	// menuReader overrides menuReaderFor's resolution against m.agents. It is
+	// nil in production; tests set it directly since their fakeAgents do not
+	// implement ports.TerminalMenuReader.
+	menuReader ports.TerminalMenuReader
+	// dialogReader overrides dialogReaderFor's resolution against m.agents. It is
+	// nil in production; tests set it directly since their fakeAgents do not
+	// implement dialogAndMenuReader.
+	dialogReader dialogAndMenuReader
+	// composerReader overrides composerReaderFor's resolution against m.agents.
+	// It is nil in production; tests set it directly since their fakeAgents do
+	// not implement ports.TerminalComposerReader.
+	composerReader ports.TerminalComposerReader
+	// emptyComposerDetector overrides emptyComposerDetectorFor's resolution
+	// against m.agents. It is nil in production; tests set it directly since
+	// their fakeAgents do not implement ports.EmptyComposerDetector.
+	emptyComposerDetector ports.EmptyComposerDetector
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -343,6 +369,12 @@ type Manager struct {
 
 	reviewersMu sync.Mutex
 	reviewers   ReviewerTerminator
+
+	// interactions is deliberately in-memory: a pending dialog does not survive
+	// a daemon restart because the agent's dialog does not either — the pty is
+	// gone with it.
+	interactionsMu sync.Mutex
+	interactions   map[domain.SessionID]domain.PendingInteraction
 }
 
 // latestUserPromptRecorder narrows the post-delivery write to the single fact
@@ -3891,6 +3923,81 @@ func (m *Manager) wrapAgentProcessWithLaunchID(agent ports.Agent, id domain.Sess
 
 func runtimeHandle(meta domain.SessionMetadata) ports.RuntimeHandle {
 	return ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+}
+
+func (m *Manager) menuReaderFor(harness domain.AgentHarness) (ports.TerminalMenuReader, bool) {
+	if m.menuReader != nil {
+		return m.menuReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalMenuReader)
+	return reader, ok
+}
+
+// dialogAndMenuReader composes the two port capabilities Decide needs: reading
+// the permission dialog itself (ports.TerminalDialogReader) and driving the
+// menu it renders (ports.TerminalMenuReader, for MenuKeys). The two stay
+// separate capabilities in ports — this composition is local to the one
+// caller that needs both.
+type dialogAndMenuReader interface {
+	ports.TerminalDialogReader
+	ports.TerminalMenuReader
+}
+
+func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (dialogAndMenuReader, bool) {
+	if m.dialogReader != nil {
+		return m.dialogReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(dialogAndMenuReader)
+	return reader, ok
+}
+
+func (m *Manager) emptyComposerDetectorFor(harness domain.AgentHarness) (ports.EmptyComposerDetector, bool) {
+	if m.emptyComposerDetector != nil {
+		return m.emptyComposerDetector, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	detector, ok := agent.(ports.EmptyComposerDetector)
+	return detector, ok
+}
+
+func (m *Manager) composerReaderFor(harness domain.AgentHarness) (ports.TerminalComposerReader, bool) {
+	if m.composerReader != nil {
+		return m.composerReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalComposerReader)
+	return reader, ok
+}
+
+type runtimeScreen struct {
+	runtime runtimeController
+	handle  ports.RuntimeHandle
+}
+
+func (s runtimeScreen) Read(ctx context.Context) (string, error) {
+	return s.runtime.GetOutput(ctx, s.handle, commandPaneLines)
+}
+
+func (s runtimeScreen) Write(ctx context.Context, keys string) error {
+	return s.runtime.SendInput(ctx, s.handle, keys)
+}
+
+func (m *Manager) driverFor(handle ports.RuntimeHandle) *dialogdriver.Driver {
+	return dialogdriver.New(runtimeScreen{runtime: m.runtime, handle: handle}, 150*time.Millisecond)
 }
 
 func workspaceInfo(rec domain.SessionRecord) ports.WorkspaceInfo {

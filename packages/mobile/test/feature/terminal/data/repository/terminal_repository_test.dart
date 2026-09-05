@@ -152,4 +152,26 @@ void main() {
       verifyNever(() => dataSource.closeShellTerminal(any()));
     });
   });
+
+  group('getDraft', () {
+    test('returns the draft string from the data source', () async {
+      when(() => dataSource.getDraft(any()))
+          .thenAnswer((_) async => const GlobalResponse(data: 'run the sample task'));
+
+      final result = await repository.getDraft('s-1');
+
+      expect(result.isSuccess, isTrue);
+      result.when(
+        onSuccess: (draft) => expect(draft, 'run the sample task'),
+        onFailure: (_) => fail('expected success'),
+      );
+    });
+
+    test('fails offline without calling the data source', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
+
+      expect((await repository.getDraft('s-1')).isFailure, isTrue);
+      verifyNever(() => dataSource.getDraft(any()));
+    });
+  });
 }

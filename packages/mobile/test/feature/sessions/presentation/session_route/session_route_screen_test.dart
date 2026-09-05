@@ -12,8 +12,11 @@ import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
@@ -38,6 +41,8 @@ class _MockTerminalRepository extends Mock implements TerminalRepository {}
 class _MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class _MockBlocksRepository extends Mock implements BlocksRepository {}
+
+class _MockSessionControlRepository extends Mock implements SessionControlRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -104,6 +109,17 @@ void main() {
     ).thenAnswer((_) async => Result.success(const []));
     sl.registerFactoryParam<BlocksCubit, String, String?>(
       (sessionId, harness) => BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
+    );
+    final sessionControlRepository = _MockSessionControlRepository();
+    when(() => sessionControlRepository.getInteractions(any()))
+        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+    sl.registerFactoryParam<SessionCommandCubit, String, String?>(
+      (sessionId, activity) => SessionCommandCubit(
+        mux,
+        sessionControlRepository,
+        sessionId: sessionId,
+        initialActivity: activity,
+      ),
     );
     sl.registerFactoryParam<VoiceInputCubit, void Function(String), void>(
       (onTranscript, _) => VoiceInputCubit(_InertVoiceProvider(), onTranscript: onTranscript),

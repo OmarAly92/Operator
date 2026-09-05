@@ -260,6 +260,45 @@ func TestListBlockEventsReturnsPersistedLog(t *testing.T) {
 	}
 }
 
+// TestListBlockEventsCarriesTheInteractionID pins the field the phone needs to
+// act on a dialog it learned about through the REST fetch rather than the live
+// block-event stream. Without it a reconnecting client replaces its live-received
+// id with null and the permission block stops being answerable.
+func TestListBlockEventsCarriesTheInteractionID(t *testing.T) {
+	hist := &fakeBlockEventHistory{recs: []blockeventsvc.Record{{
+		Seq:           9,
+		SessionID:     "s-1",
+		Kind:          domain.BlockEventPermissionRequest,
+		Harness:       "claude-code",
+		ToolName:      "Write",
+		InteractionID: "int-42",
+		CreatedAt:     time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC),
+	}}}
+	srv := newBlockHistoryTestServer(t, hist)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/s-1/blocks", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", status, body)
+	}
+	var got controllers.ListSessionBlockEventsResponse
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Blocks) != 1 || got.Blocks[0].InteractionID != "int-42" {
+		t.Fatalf("blocks = %+v, want one block carrying interactionId int-42", got.Blocks)
+	}
+
+	var raw struct {
+		Blocks []map[string]any `json:"blocks"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatalf("decode raw: %v", err)
+	}
+	if raw.Blocks[0]["interactionId"] != "int-42" {
+		t.Fatalf("wire body = %s, want interactionId on the JSON object", body)
+	}
+}
+
 func TestListBlockEventsDefaultsCursorAndLimit(t *testing.T) {
 	hist := &fakeBlockEventHistory{}
 	srv := newBlockHistoryTestServer(t, hist)

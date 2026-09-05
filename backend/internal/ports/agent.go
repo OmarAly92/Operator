@@ -208,6 +208,56 @@ type TerminalActivityDetector interface {
 	DetectTerminalActivity(output string) (domain.ActivityState, bool)
 }
 
+type DialogKind string
+
+const (
+	DialogPermission DialogKind = "permission"
+	DialogQuestion   DialogKind = "question"
+	DialogModel      DialogKind = "model"
+)
+
+type Menu struct {
+	Rows     []string
+	Selected int
+}
+
+type MenuKeys struct {
+	Up            string
+	Down          string
+	Select        string
+	Cancel        string
+	Multi         string
+	SessionSelect string
+}
+
+type TerminalMenuReader interface {
+	ReadMenu(pane string) (Menu, bool)
+	MenuKeys() MenuKeys
+}
+
+type Dialog struct {
+	Kind  DialogKind
+	Title string
+	Menu  Menu
+}
+
+type TerminalDialogReader interface {
+	ReadDialog(pane string) (Dialog, bool)
+	AllowRow(menu Menu) (int, bool)
+	DenyRow(menu Menu) (int, bool)
+}
+
+// TerminalComposerReader is an optional adapter capability for reading a
+// harness's unsent composer draft. It takes STYLED pane text: a composer always
+// holds something, and only the styling separates dim placeholder text from what
+// the human actually typed. Implementations MUST fail closed — returning false
+// when the styling does not clearly mark a draft — because the caller mirrors
+// the result into another client's composer, where a wrong answer becomes a
+// message the user never wrote.
+type TerminalComposerReader interface {
+	ReadComposerDraft(styledPane string) (string, bool)
+}
+
 // EmptyComposerDetector is an opt-in safety capability for unsolicited
 // coordination sent to an already-running interactive agent. It must return
 // true only when current terminal evidence positively proves that the active

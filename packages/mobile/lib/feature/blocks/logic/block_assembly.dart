@@ -158,8 +158,9 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         final body = fromTranscript ? '' : text;
         final block = _create(event, id, BlockKind.notice, BlockStatus.blocked, title, body, model, detail: questions);
         if (fromTranscript && hookQuestionIndex != null) {
+          final interactionId = blocks[hookQuestionIndex].interactionId;
           indexById.remove(blocks[hookQuestionIndex].id);
-          blocks[hookQuestionIndex] = block;
+          blocks[hookQuestionIndex] = block.copyWith(interactionId: interactionId);
           indexById[block.id] = hookQuestionIndex;
           questionIndex = hookQuestionIndex;
           hookQuestionIndex = null;
@@ -280,6 +281,7 @@ SessionBlock _create(
   createdAt: event.createdAt,
   turnId: null,
   detail: detail ?? UnknownBlockDetail(raw: event.toolInput ?? event.text ?? ''),
+  interactionId: event.interactionId,
 );
 
 void _upsert(List<SessionBlock> blocks, Map<String, int> indexById, SessionBlock block) {

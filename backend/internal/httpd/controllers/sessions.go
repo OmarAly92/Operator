@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/httpd/apispec"
@@ -30,6 +31,7 @@ import (
 	blockeventsvc "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	usagesvc "github.com/OmarAly92/operator/backend/internal/service/usage"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 	"github.com/OmarAly92/operator/backend/internal/workspacewatch"
 )
 
@@ -97,6 +99,10 @@ type SessionService interface {
 	SetAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool) (domain.Session, error)
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
+	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Draft(ctx context.Context, id domain.SessionID) (string, error)
+	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
+	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
 	ListPRSummaries(ctx context.Context, id domain.SessionID) ([]sessionsvc.PRSummary, error)
 	ClaimPR(ctx context.Context, id domain.SessionID, ref string, opts sessionsvc.ClaimPROptions) (sessionsvc.ClaimPRResult, error)
@@ -133,6 +139,13 @@ type BlockEventHistory interface {
 	HistoryBefore(ctx context.Context, sessionID domain.SessionID, beforeSeq int64, limit int) ([]blockeventsvc.Record, error)
 }
 
+// InteractionReader serves a session's currently pending dialogs. This exists
+// for reconnect reconciliation: a phone that was backgrounded when the dialog
+// appeared has no block event for it.
+type InteractionReader interface {
+	Interactions(ctx context.Context, sessionID domain.SessionID) ([]domain.PendingInteraction, error)
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -160,6 +173,7 @@ type SessionsController struct {
 	Activity      ActivityRecorder
 	BlockEvents   BlockEventRecorder
 	BlockHistory  BlockEventHistory
+	Interactions  InteractionReader
 	Usage         UsageHookRecorder
 	PreviewServer ManagedPreviewServer
 	Capabilities  SessionCapabilityValidator
@@ -195,6 +209,11 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/kill", c.kill)
 	r.Post("/sessions/{sessionId}/rollback", c.rollback)
 	r.Post("/sessions/{sessionId}/send", c.send)
+	r.Post("/sessions/{sessionId}/command", c.command)
+	r.Post("/sessions/{sessionId}/decision", c.decision)
+	r.Post("/sessions/{sessionId}/answer", c.answer)
+	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
+	r.Get("/sessions/{sessionId}/draft", c.draft)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
@@ -1304,6 +1323,150 @@ func (c *SessionsController) send(w http.ResponseWriter, r *http.Request) {
 	envelope.WriteJSON(w, http.StatusOK, SendSessionMessageResponse{OK: true, SessionID: sessionID(r), Message: message})
 }
 
+func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/command")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSendBodyBytes)
+	var in SessionCommandRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	command, ok := domain.ParseSessionCommand(in.Command)
+	if !ok {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_UNKNOWN",
+			"unknown command; expected one of stop, compact, model", nil)
+		return
+	}
+	if command == domain.CommandModel && strings.TrimSpace(in.Model) == "" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_COMMAND_MODEL_REQUIRED",
+			"the model command requires a model label", nil)
+		return
+	}
+
+	result, err := c.Svc.Command(r.Context(), sessionID(r), command, in.Model)
+	switch {
+	case err == nil:
+		envelope.WriteJSON(w, http.StatusOK, SessionCommandResponse{State: "sent", Models: result.Models})
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
+	case errors.Is(err, sessionmanager.ErrAwaitingDecision):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_AWAITING_DECISION",
+			"the session is paused on a permission decision", nil)
+	case errors.Is(err, sessionmanager.ErrWrongActivityState):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMMAND_UNAVAILABLE",
+			"the command is not available in the session's current state", nil)
+	case errors.Is(err, sessionmanager.ErrComposerNotEmpty):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_COMPOSER_NOT_EMPTY",
+			"the terminal composer holds an unsent draft", nil)
+	case errors.Is(err, sessionmanager.ErrModelNotOffered):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_MODEL_NOT_OFFERED",
+			"the harness did not offer that model", map[string]any{"models": result.Models})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/decision")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSendBodyBytes)
+	var in SessionDecisionRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if in.Behavior != "allow" && in.Behavior != "deny" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID",
+			"unknown behavior; expected allow or deny", nil)
+		return
+	}
+
+	err := c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	switch {
+	case err == nil:
+		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
+	case errors.Is(err, sessionmanager.ErrUnconfirmed):
+		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "unconfirmed"})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) answer(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/answer")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSendBodyBytes)
+	var in SessionAnswerRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+
+	err := c.Svc.Answer(r.Context(), sessionID(r), in.RequestID, in.Selections)
+	switch {
+	case err == nil:
+		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "sent"})
+	case errors.Is(err, sessionmanager.ErrUnconfirmed):
+		envelope.WriteJSON(w, http.StatusOK, SessionAnswerResponse{State: "unconfirmed"})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	case errors.Is(err, sessionmanager.ErrAnswerInvalid):
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_ANSWER_INVALID", err.Error(), nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Request) {
+	if c.Interactions == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/interactions")
+		return
+	}
+	interactions, err := c.Interactions.Interactions(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
+func (c *SessionsController) draft(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/draft")
+		return
+	}
+	draft, err := c.Svc.Draft(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionDraftResponse{Draft: draft})
+}
+
 func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/orchestrators/delegate")
@@ -1403,6 +1566,9 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
+	}
+	if state == domain.ActivityBlocked && (sig.ToolUseID != "" || sig.ToolName != "") {
+		sig.InteractionID = uuid.NewString()
 	}
 	if c.Activity != nil && (sig.Valid || sig.AgentSessionID != "") {
 		if err := c.Activity.ApplyActivitySignal(r.Context(), sessionID(r), sig); err != nil {

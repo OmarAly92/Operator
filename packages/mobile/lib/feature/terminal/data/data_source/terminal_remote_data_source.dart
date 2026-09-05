@@ -10,6 +10,7 @@ abstract class TerminalRemoteDataSource {
   Future<GlobalResponse<ShellTerminalModel>> openShellTerminal(OpenSessionShellParams params);
   Future<void> closeShellTerminal(String handleId);
   Future<void> sendSessionMessage(String sessionId, SendSessionMessageParams params);
+  Future<GlobalResponse<String?>> getDraft(String sessionId);
 }
 
 class TerminalRemoteDataSourceImp implements TerminalRemoteDataSource {
@@ -48,5 +49,15 @@ class TerminalRemoteDataSourceImp implements TerminalRemoteDataSource {
   @override
   Future<void> sendSessionMessage(String sessionId, SendSessionMessageParams params) async {
     await _apiConsumer.post(EndPoints.sessionSend(sessionId), body: params.toJson());
+  }
+
+  @override
+  Future<GlobalResponse<String?>> getDraft(String sessionId) async {
+    final response = await _apiConsumer.get(EndPoints.sessionDraft(sessionId));
+    return GlobalResponse<String?>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: (json) => json['draft'] as String?,
+    );
   }
 }

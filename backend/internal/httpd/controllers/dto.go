@@ -272,6 +272,7 @@ type BlockEventView struct {
 	ErrorType      string                  `json:"errorType,omitempty"`
 	HookVersion    string                  `json:"hookVersion,omitempty"`
 	TruncatedLines int                     `json:"truncatedLines,omitempty"`
+	InteractionID  string                  `json:"interactionId,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 }
 
@@ -307,7 +308,45 @@ func blockEventViews(recs []blockeventsvc.Record) []BlockEventView {
 			ErrorType:      rec.ErrorType,
 			HookVersion:    rec.HookVersion,
 			TruncatedLines: rec.TruncatedLines,
+			InteractionID:  rec.InteractionID,
 			CreatedAt:      rec.CreatedAt,
+		})
+	}
+	return views
+}
+
+// SessionInteraction is one pending dialog a client can answer, as served to
+// clients.
+type SessionInteraction struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	ToolName  string    `json:"toolName,omitempty"`
+	ToolInput string    `json:"toolInput,omitempty"`
+	Lines     []string  `json:"lines,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// SessionInteractionsResponse is the body of
+// GET /api/v1/sessions/{sessionId}/interactions.
+type SessionInteractionsResponse struct {
+	Interactions []SessionInteraction `json:"interactions"`
+}
+
+// SessionDraftResponse is the body of GET /api/v1/sessions/{sessionId}/draft.
+type SessionDraftResponse struct {
+	Draft string `json:"draft"`
+}
+
+func sessionInteractionViews(interactions []domain.PendingInteraction) []SessionInteraction {
+	views := make([]SessionInteraction, 0, len(interactions))
+	for _, in := range interactions {
+		views = append(views, SessionInteraction{
+			ID:        in.ID,
+			Kind:      in.Kind,
+			ToolName:  in.ToolName,
+			ToolInput: in.ToolInput,
+			Lines:     in.Lines,
+			CreatedAt: in.CreatedAt,
 		})
 	}
 	return views
@@ -561,6 +600,38 @@ type SendSessionMessageResponse struct {
 	OK        bool             `json:"ok"`
 	SessionID domain.SessionID `json:"sessionId"`
 	Message   string           `json:"message"`
+}
+
+type SessionCommandRequest struct {
+	Command string `json:"command"`
+	Model   string `json:"model,omitempty"`
+}
+
+type SessionCommandResponse struct {
+	State  string   `json:"state"`
+	Models []string `json:"models,omitempty"`
+}
+
+// SessionDecisionRequest is the body of POST /api/v1/sessions/{sessionId}/decision.
+type SessionDecisionRequest struct {
+	RequestID string `json:"requestId"`
+	Behavior  string `json:"behavior"`
+}
+
+// SessionDecisionResponse is the body of POST /api/v1/sessions/{sessionId}/decision.
+type SessionDecisionResponse struct {
+	State string `json:"state"`
+}
+
+// SessionAnswerRequest is the body of POST /api/v1/sessions/{sessionId}/answer.
+type SessionAnswerRequest struct {
+	RequestID  string     `json:"requestId"`
+	Selections [][]string `json:"selections"`
+}
+
+// SessionAnswerResponse is the body of POST /api/v1/sessions/{sessionId}/answer.
+type SessionAnswerResponse struct {
+	State string `json:"state"`
 }
 
 // DelegateTaskRequest is the body of POST /api/v1/orchestrators/delegate.

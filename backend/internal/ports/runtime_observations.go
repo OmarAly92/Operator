@@ -72,4 +72,7 @@ type ActivitySignal struct {
 	// public hook endpoint): lifecycle rejects it after a mode handoff or Chat
 	// controller replacement.
 	ControllerGeneration string
+	// InteractionID is minted by the controller, not decoded from the wire: the
+	// hook payload does not reliably carry the blocking tool's own id.
+	InteractionID string
 }

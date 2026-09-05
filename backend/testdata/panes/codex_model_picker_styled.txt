@@ -1,0 +1,52 @@
+[0m⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run[0m
+[0m  without review for this invocation.[0m
+[0m
+[0m⚠ MCP client for `myserver` failed to start: MCP startup failed: No such[0m
+[0m  file or directory (os error 2)[0m
+[0m
+[0m⚠ The figma MCP server is not logged in. Run `codex mcp login figma`.[0m
+[0m
+[0m⚠ MCP client for `context7` failed to start: MCP startup failed:[0m
+[0m  handshaking with MCP server failed: Send message error Transport[0m
+[0m  [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_[0m
+[0m  http_client::StreamableHttpClientWorker<codex_rmcp_client::http_client[0m
+[0m  _adapter::StreamableHttpClientAdapter>>] error: Client error: HTTP[0m
+[0m  request failed: http/request failed: error sending request for url[0m
+[0m  (https://example.invalid/mcp when send initialize request[0m
+[0m
+[0m• You have 1 usage limit reset available. Run /usage to use one.[0m
+[0m
+[0m⚠ MCP startup incomplete (failed: alpha, beta, gamma)[0m
+[0m
+[0m• Ran cat /Users/user/.codex/skills/.system/../.. 2>/dev/null >/dev/[0m
+[0m  │ null; cat /Users/user/.codex/plugins/cache/[0m
+[0m  │ claude-plugins-official/superpowers/6.3.0/skills/[0m
+[0m  │ … +1 lines[0m
+[0m  └ ---[0m
+[0m    name: using-superpowers[0m
+[0m    … +64 lines (ctrl + t to view transcript)[0m
+[0m    default behavior. Only skip skill workflows or instructions when[0m
+[0m    your human partner has explicitly told you to.[0m
+[0m
+[0m────────────────────────────────────────────────────────────────────────[0m
+[0m
+[0m• Hi! How can I help?[0m
+[0m
+[0m────────────────────────────────────────────────────────────────────────[0m
+[0m
+[0m
+[0m  Select Model and Effort[0m
+[0m  Access legacy models by running codex -m <model_name> or in your con[0m
+[0m
+[0m  1. gpt-5.6-sol (default)   Reliable agentic workhorse for everyday[0m
+[0m                             tasks.[0m
+[0m  2. gpt-5.6-terra           Balanced agentic coding model for[0m
+[0m                             everyday work.[0m
+[0m› 3. gpt-5.6-luna (current)  Fast and affordable agentic coding model.[0m
+[0m  4. gpt-5.5                 Proven previous-generation model for[0m
+[0m                             coding and general work.[0m
+[0m  5. gpt-5.4-mini            Small, fast, and cost-efficient model for[0m
+[0m                             simpler coding tasks.[0m
+[0m
+[0m  Press enter to confirm or esc to go back[0m
+[0m

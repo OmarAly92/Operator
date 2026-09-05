@@ -1812,6 +1812,57 @@ paths:
       summary: Submit a generation-fenced source-agent handoff
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/answer:
+    post:
+      operationId: answerSessionQuestion
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSessionAnswerRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionAnswerResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Answer a session's pending question menu
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/attachments:
     post:
       operationId: stageSessionAttachments
@@ -1979,6 +2030,57 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Read a session's retained, redacted block-event log
+      tags:
+      - sessions
+  /api/v1/sessions/{sessionId}/command:
+    post:
+      operationId: sendSessionCommand
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCommandRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionCommandResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Drive a control command into a session's terminal
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/conversation:
@@ -2903,6 +3005,123 @@ paths:
       summary: Discard a turn and everything after it from the agent's memory
       tags:
       - conversations
+  /api/v1/sessions/{sessionId}/decision:
+    post:
+      operationId: decideSessionDialog
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSessionDecisionRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionDecisionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Answer a session's pending permission dialog
+      tags:
+      - sessions
+  /api/v1/sessions/{sessionId}/draft:
+    get:
+      operationId: getSessionDraft
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionDraftResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read a session's unsent composer draft
+      tags:
+      - sessions
+  /api/v1/sessions/{sessionId}/interactions:
+    get:
+      operationId: listSessionInteractions
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionInteractionsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List a session's currently pending dialogs
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/kill:
     post:
       operationId: killSession
@@ -4990,6 +5209,8 @@ components:
           type: string
         hookVersion:
           type: string
+        interactionId:
+          type: string
         kind:
           type: string
         rawEvent:
@@ -5179,6 +5400,82 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersSessionAnswerRequest:
+      properties:
+        requestId:
+          type: string
+        selections:
+          items:
+            items:
+              type: string
+            type: array
+          type: array
+      required:
+      - requestId
+      - selections
+      type: object
+    ControllersSessionAnswerResponse:
+      properties:
+        state:
+          type: string
+      required:
+      - state
+      type: object
+    ControllersSessionDecisionRequest:
+      properties:
+        behavior:
+          type: string
+        requestId:
+          type: string
+      required:
+      - requestId
+      - behavior
+      type: object
+    ControllersSessionDecisionResponse:
+      properties:
+        state:
+          type: string
+      required:
+      - state
+      type: object
+    ControllersSessionDraftResponse:
+      properties:
+        draft:
+          type: string
+      required:
+      - draft
+      type: object
+    ControllersSessionInteraction:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        lines:
+          items:
+            type: string
+          type: array
+        toolInput:
+          type: string
+        toolName:
+          type: string
+      required:
+      - id
+      - kind
+      - createdAt
+      type: object
+    ControllersSessionInteractionsResponse:
+      properties:
+        interactions:
+          items:
+            $ref: '#/components/schemas/ControllersSessionInteraction'
+          type: array
+      required:
+      - interactions
       type: object
     ControllersSessionView:
       properties:
@@ -7172,6 +7469,26 @@ components:
       - ok
       - sessionId
       - message
+      type: object
+    SessionCommandRequest:
+      properties:
+        command:
+          type: string
+        model:
+          type: string
+      required:
+      - command
+      type: object
+    SessionCommandResponse:
+      properties:
+        models:
+          items:
+            type: string
+          type: array
+        state:
+          type: string
+      required:
+      - state
       type: object
     SessionPRCISummary:
       properties:

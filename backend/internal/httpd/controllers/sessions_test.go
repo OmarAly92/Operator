@@ -29,32 +29,44 @@ import (
 	previewutil "github.com/OmarAly92/operator/backend/internal/preview"
 	"github.com/OmarAly92/operator/backend/internal/previewserver"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
+	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
 )
 
 type fakeSessionService struct {
-	sessions        map[domain.SessionID]domain.Session
-	sent            string
-	sentAttachment  *ports.SpawnAttachment
-	delegationInput sessionsvc.DelegateTaskInput
-	delegationErr   error
-	cleanupProjects []domain.ProjectID
-	cleanupResult   []domain.SessionID
-	cleanupSkipped  []sessionsvc.CleanupSkipped
-	workspaceFiles  sessionsvc.WorkspaceFiles
-	workspaceFile   sessionsvc.WorkspaceFileDetail
-	workspacePaths  []string
-	spawnErr        error
-	claimErr        error
-	listPRErr       error
-	workspaceErr    error
-	staged          []ports.SpawnAttachment
-	stagedPaths     []string
-	stageErr        error
-	agentSwitches   map[domain.AgentSwitchID]domain.AgentSwitch
-	switchConfig    sessionsvc.SwitchAgentInput
-	switchErr       error
-	handoff         json.RawMessage
-	handoffSource   domain.AgentGenerationID
+	sessions         map[domain.SessionID]domain.Session
+	sent             string
+	sentAttachment   *ports.SpawnAttachment
+	commandResult    sessionmanager.CommandResult
+	commandErr       error
+	commandCalls     int
+	draftResult      string
+	draftErr         error
+	sendErr          error
+	decideErr        error
+	decideCalls      int
+	answerErr        error
+	answerCalls      int
+	answerSelections [][]string
+	delegationInput  sessionsvc.DelegateTaskInput
+	delegationErr    error
+	cleanupProjects  []domain.ProjectID
+	cleanupResult    []domain.SessionID
+	cleanupSkipped   []sessionsvc.CleanupSkipped
+	workspaceFiles   sessionsvc.WorkspaceFiles
+	workspaceFile    sessionsvc.WorkspaceFileDetail
+	workspacePaths   []string
+	spawnErr         error
+	claimErr         error
+	listPRErr        error
+	workspaceErr     error
+	staged           []ports.SpawnAttachment
+	stagedPaths      []string
+	stageErr         error
+	agentSwitches    map[domain.AgentSwitchID]domain.AgentSwitch
+	switchConfig     sessionsvc.SwitchAgentInput
+	switchErr        error
+	handoff          json.RawMessage
+	handoffSource    domain.AgentGenerationID
 }
 
 type fakeManagedPreviewServer struct {
@@ -357,9 +369,35 @@ func (f *fakeSessionService) Rename(_ context.Context, id domain.SessionID, disp
 }
 
 func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message string, attachment *ports.SpawnAttachment) error {
+	if f.sendErr != nil {
+		if errors.Is(f.sendErr, sessionmanager.ErrAwaitingDecision) {
+			return apierr.Conflict("SESSION_AWAITING_DECISION", "the session is paused on a permission decision", nil)
+		}
+		return f.sendErr
+	}
 	f.sent = message
 	f.sentAttachment = attachment
 	return nil
+}
+
+func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ domain.SessionCommand, _ string) (sessionmanager.CommandResult, error) {
+	f.commandCalls++
+	return f.commandResult, f.commandErr
+}
+
+func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
+	return f.draftResult, f.draftErr
+}
+
+func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {
+	f.decideCalls++
+	return f.decideErr
+}
+
+func (f *fakeSessionService) Answer(_ context.Context, _ domain.SessionID, _ string, selections [][]string) error {
+	f.answerCalls++
+	f.answerSelections = selections
+	return f.answerErr
 }
 
 func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error) {
@@ -687,6 +725,55 @@ func doPreviewOriginMethod(t *testing.T, srv *httptest.Server, method, previewUR
 		t.Fatalf("read preview response: %v", err)
 	}
 	return body, resp.StatusCode, resp.Header
+}
+
+func TestSessionsAPI_GetDraftReturnsTheDraft(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.draftResult = "run the sample task"
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET draft = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Draft string `json:"draft"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Draft != "run the sample task" {
+		t.Fatalf("draft = %q", resp.Draft)
+	}
+}
+
+// A harness with no composer reader (or a session with no styled runtime
+// support) must report an empty draft, not an error — this is the same
+// fail-closed contract Manager.Draft implements, exercised here at the route.
+func TestSessionsAPI_GetDraftReturnsEmptyStringNotAnErrorWhenThereIsNoReader(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.draftResult = ""
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET draft = %d, want 200; body=%s", status, body)
+	}
+	var resp struct {
+		Draft string `json:"draft"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.Draft != "" {
+		t.Fatalf("draft = %q, want empty", resp.Draft)
+	}
+}
+
+func TestSessionsAPI_GetDraftWithoutServiceIsNotImplemented(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{}, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, headers := doRequest(t, srv, "GET", "/api/v1/sessions/opr-1/draft", "")
+	assertJSON(t, headers)
+	assertErrorCode(t, body, status, http.StatusNotImplemented, "NOT_IMPLEMENTED")
 }
 
 func TestSessionsRoutes_DefaultToStubsWithoutService(t *testing.T) {

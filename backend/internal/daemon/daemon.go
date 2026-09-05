@@ -279,6 +279,7 @@ func Run() error {
 	lcStack.LCM.SetCompletionTerminator(sessMgr)
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)
+	lcStack.LCM.SetInteractionRegistry(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
 	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.AgentHarness(cfg.Agent), Telemetry: telemetrySink})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
@@ -420,6 +421,7 @@ func Run() error {
 		Activity:            lcStack.LCM,
 		BlockEvents:         blockEvents,
 		BlockHistory:        blockEvents,
+		Interactions:        sessMgr,
 		UsageHooks:          usageCollector,
 		UsageSummary:        usagesvc.NewSummaryReader(store),
 		Telemetry:           telemetrySink,

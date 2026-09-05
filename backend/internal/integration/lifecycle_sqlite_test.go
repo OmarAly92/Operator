@@ -46,6 +46,9 @@ func (s *stubRuntime) IsAlive(_ context.Context, h ports.RuntimeHandle) (bool, e
 func (s *stubRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int) (string, error) {
 	return "", nil
 }
+func (s *stubRuntime) SendInput(_ context.Context, _ ports.RuntimeHandle, _ string) error {
+	return nil
+}
 
 // wasDestroyed reports whether Destroy was called with the given handle ID.
 func (s *stubRuntime) wasDestroyed(handleID string) bool {

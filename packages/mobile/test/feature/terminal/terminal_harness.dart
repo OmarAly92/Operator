@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
@@ -13,8 +14,11 @@ import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
+import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
@@ -33,6 +37,8 @@ class MockSessionsRepository extends Mock implements SessionsRepository {}
 class MockPreviewRepository extends Mock implements PreviewRepository {}
 
 class MockBlocksRepository extends Mock implements BlocksRepository {}
+
+class MockSessionControlRepository extends Mock implements SessionControlRepository {}
 
 class _InertVoiceProvider implements VoiceProvider {
   @override
@@ -68,6 +74,7 @@ class TerminalHarness {
   late TerminalCubit cubit;
   late SessionViewCubit viewCubit;
   late BlocksCubit blocksCubit;
+  late SessionCommandCubit commandCubit;
 
   void start({bool shellOnly = false, String? harness}) {
     if (!sl.isRegistered<VoiceInputCubit>()) {
@@ -122,6 +129,10 @@ class TerminalHarness {
 
     viewCubit = SessionViewCubit(defaultViewMode(cubit.args));
     blocksCubit = BlocksCubit(mux, blocksRepository, cubit.args.sessionId, harness: harness);
+    final controlRepository = MockSessionControlRepository();
+    when(() => controlRepository.getInteractions(any()))
+        .thenAnswer((_) async => Result.success(GlobalResponse<List<PendingInteractionModel>>()));
+    commandCubit = SessionCommandCubit(mux, controlRepository, sessionId: cubit.args.sessionId);
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
@@ -137,6 +148,7 @@ class TerminalHarness {
                   BlocProvider<TerminalCubit>.value(value: cubit),
                   BlocProvider<SessionViewCubit>.value(value: viewCubit),
                   BlocProvider<BlocksCubit>.value(value: blocksCubit),
+                  BlocProvider<SessionCommandCubit>.value(value: commandCubit),
                   BlocProvider<PreviewCubit>(
                     create: (_) => sl<PreviewCubit>(param1: cubit.args.sessionId, param2: null),
                   ),
@@ -154,6 +166,7 @@ class TerminalHarness {
   Future<void> dispose() async {
     await viewCubit.close();
     await blocksCubit.close();
+    await commandCubit.close();
     await blockEvents.close();
     await sessionPatches.close();
     await cubit.close();

@@ -135,6 +135,9 @@ type sessionLifecycle interface {
 	// SetReviewerTerminator late-binds worker lifecycle teardown to the review
 	// service, which is built alongside the controller-facing service below.
 	SetReviewerTerminator(terminator sessionmanager.ReviewerTerminator)
+	RegisterInteraction(id domain.SessionID, in domain.PendingInteraction)
+	ClearInteractions(id domain.SessionID)
+	Interactions(ctx context.Context, id domain.SessionID) ([]domain.PendingInteraction, error)
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so
