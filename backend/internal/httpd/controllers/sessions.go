@@ -100,6 +100,7 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
 	ListPRSummaries(ctx context.Context, id domain.SessionID) ([]sessionsvc.PRSummary, error)
 	ClaimPR(ctx context.Context, id domain.SessionID, ref string, opts sessionsvc.ClaimPROptions) (sessionsvc.ClaimPRResult, error)
@@ -207,6 +208,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/rollback", c.rollback)
 	r.Post("/sessions/{sessionId}/send", c.send)
 	r.Post("/sessions/{sessionId}/command", c.command)
+	r.Post("/sessions/{sessionId}/decision", c.decision)
 	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
@@ -1358,6 +1360,41 @@ func (c *SessionsController) command(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sessionmanager.ErrDialogAbsent):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
 			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
+	default:
+		envelope.WriteError(w, r, err)
+	}
+}
+
+func (c *SessionsController) decision(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/decision")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSendBodyBytes)
+	var in SessionDecisionRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	if in.Behavior != "allow" && in.Behavior != "deny" {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "SESSION_DECISION_INVALID",
+			"unknown behavior; expected allow or deny", nil)
+		return
+	}
+
+	err := c.Svc.Decide(r.Context(), sessionID(r), in.RequestID, in.Behavior)
+	switch {
+	case err == nil:
+		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "sent"})
+	case errors.Is(err, sessionmanager.ErrUnconfirmed):
+		envelope.WriteJSON(w, http.StatusOK, SessionDecisionResponse{State: "unconfirmed"})
+	case errors.Is(err, sessionmanager.ErrDialogAbsent):
+		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_DIALOG_ABSENT",
+			"the expected dialog is no longer on screen", nil)
+	case errors.Is(err, sessionmanager.ErrNotFound):
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "session not found", nil)
 	case errors.Is(err, sessionmanager.ErrTerminated), errors.Is(err, sessionmanager.ErrAgentExited):
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SESSION_NOT_RUNNING", "the session is not running", nil)
 	default:

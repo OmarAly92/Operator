@@ -64,6 +64,7 @@ type commander interface {
 	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Cleanup(ctx context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error)
 	RollbackSpawn(ctx context.Context, id domain.SessionID) (deleted, killed bool, err error)
 	StageAttachments(ctx context.Context, id domain.SessionID, attachments []ports.SpawnAttachment) ([]string, error)
@@ -615,6 +616,10 @@ func (s *Service) Send(ctx context.Context, id domain.SessionID, message string,
 
 func (s *Service) Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error) {
 	return s.manager.Command(ctx, id, command, model)
+}
+
+func (s *Service) Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error {
+	return s.manager.Decide(ctx, id, interactionID, behavior)
 }
 
 // Rename updates the user-facing session display name.

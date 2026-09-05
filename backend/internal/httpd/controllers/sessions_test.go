@@ -39,6 +39,9 @@ type fakeSessionService struct {
 	commandResult   sessionmanager.CommandResult
 	commandErr      error
 	commandCalls    int
+	sendErr         error
+	decideErr       error
+	decideCalls     int
 	delegationInput sessionsvc.DelegateTaskInput
 	delegationErr   error
 	cleanupProjects []domain.ProjectID
@@ -361,6 +364,12 @@ func (f *fakeSessionService) Rename(_ context.Context, id domain.SessionID, disp
 }
 
 func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message string, attachment *ports.SpawnAttachment) error {
+	if f.sendErr != nil {
+		if errors.Is(f.sendErr, sessionmanager.ErrAwaitingDecision) {
+			return apierr.Conflict("SESSION_AWAITING_DECISION", "the session is paused on a permission decision", nil)
+		}
+		return f.sendErr
+	}
 	f.sent = message
 	f.sentAttachment = attachment
 	return nil
@@ -369,6 +378,11 @@ func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message
 func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ domain.SessionCommand, _ string) (sessionmanager.CommandResult, error) {
 	f.commandCalls++
 	return f.commandResult, f.commandErr
+}
+
+func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {
+	f.decideCalls++
+	return f.decideErr
 }
 
 func (f *fakeSessionService) DelegateTask(_ context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error) {

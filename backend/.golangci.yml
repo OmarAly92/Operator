@@ -110,6 +110,13 @@ linters:
       # The reflect/unsafe field-inspection test is intentional.
       - path: wiring_test\.go
         linters: [gosec]
+      # answerFailure's ctx and driver are unused today; it is the shared
+      # classifier both Decide (Task 9) and a later retrying caller (Task 10)
+      # call with the same signature, so it stays rather than being added
+      # back piecemeal.
+      - path: internal/session_manager/decision\.go
+        linters: [unparam]
+        text: "answerFailure"
       # Spawning git/agent subprocesses with computed args is the point.
       - linters: [gosec]
         text: "G204"

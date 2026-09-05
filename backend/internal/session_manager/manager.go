@@ -273,6 +273,10 @@ type Manager struct {
 	// nil in production; tests set it directly since their fakeAgents do not
 	// implement ports.TerminalMenuReader.
 	menuReader ports.TerminalMenuReader
+	// dialogReader overrides dialogReaderFor's resolution against m.agents. It is
+	// nil in production; tests set it directly since their fakeAgents do not
+	// implement ports.TerminalDialogReader.
+	dialogReader ports.TerminalDialogReader
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -3917,6 +3921,18 @@ func (m *Manager) menuReaderFor(harness domain.AgentHarness) (ports.TerminalMenu
 		return nil, false
 	}
 	reader, ok := agent.(ports.TerminalMenuReader)
+	return reader, ok
+}
+
+func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (ports.TerminalDialogReader, bool) {
+	if m.dialogReader != nil {
+		return m.dialogReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalDialogReader)
 	return reader, ok
 }
 

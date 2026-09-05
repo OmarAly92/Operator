@@ -2954,6 +2954,57 @@ paths:
       summary: Discard a turn and everything after it from the agent's memory
       tags:
       - conversations
+  /api/v1/sessions/{sessionId}/decision:
+    post:
+      operationId: decideSessionDialog
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSessionDecisionRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionDecisionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Answer a session's pending permission dialog
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/interactions:
     get:
       operationId: listSessionInteractions
@@ -5263,6 +5314,23 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersSessionDecisionRequest:
+      properties:
+        behavior:
+          type: string
+        requestId:
+          type: string
+      required:
+      - requestId
+      - behavior
+      type: object
+    ControllersSessionDecisionResponse:
+      properties:
+        state:
+          type: string
+      required:
+      - state
       type: object
     ControllersSessionInteraction:
       properties:

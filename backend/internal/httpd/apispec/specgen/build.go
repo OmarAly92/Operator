@@ -1728,6 +1728,19 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/decision", id: "decideSessionDialog", tag: "sessions",
+			summary:    "Answer a session's pending permission dialog",
+			pathParams: []any{controllers.SessionIDParam{}},
+			reqBody:    controllers.SessionDecisionRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionDecisionResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/interactions", id: "listSessionInteractions", tag: "sessions",
 			summary:    "List a session's currently pending dialogs",
 			pathParams: []any{controllers.SessionIDParam{}},
