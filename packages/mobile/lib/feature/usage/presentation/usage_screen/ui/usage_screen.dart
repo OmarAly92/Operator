@@ -9,6 +9,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/usage/data/model/usage_rollup_model.dart';
 import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
+import 'package:operator_mobile/feature/usage/presentation/usage_screen/ui/widgets/quota_section.dart';
 
 class UsageScreen extends StatefulWidget {
   const UsageScreen({super.key});
@@ -37,6 +38,7 @@ class _UsageScreenState extends State<UsageScreen> {
               onChanged: (bucket) => context.read<UsageCubit>().load(bucket),
             ),
           ),
+          QuotaSection(quota: state.quota),
           Expanded(child: _UsageBody(state: state)),
         ],
       ),

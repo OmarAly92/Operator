@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/feature/usage/data/model/params/usage_rollup_params.dart';
+import 'package:operator_mobile/feature/usage/data/model/usage_quota_model.dart';
 import 'package:operator_mobile/feature/usage/data/model/usage_rollup_model.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
 
@@ -16,11 +17,13 @@ class UsageCubit extends Cubit<UsageState> {
     emit(state.copyWith(status: UsageStatus.loading, bucket: bucket));
     try {
       final rollup = await _repository.rollup(UsageRollupParams(bucket: bucket));
+      final quota = await _fetchQuota();
       emit(
         UsageState(
           status: UsageStatus.loaded,
           bucket: bucket,
           buckets: rollup.buckets,
+          quota: quota,
         ),
       );
     } on Failure catch (failure) {
@@ -31,6 +34,14 @@ class UsageCubit extends Cubit<UsageState> {
           error: failure.apiStatus ?? failure.message,
         ),
       );
+    }
+  }
+
+  Future<UsageQuotaModel?> _fetchQuota() async {
+    try {
+      return await _repository.quota();
+    } catch (_) {
+      return null;
     }
   }
 }
