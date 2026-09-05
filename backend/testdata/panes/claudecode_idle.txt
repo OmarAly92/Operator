@@ -1,0 +1,40 @@
+  sample transcript line
+    sample transcript line
+    sample transcript line
+    sample transcript line
+    sample transcript line
+    sample transcript line
+  sample transcript line
+    sample transcript line
+    sample transcript line
+  sample transcript line
+    sample transcript line
+    sample transcript line
+  sample transcript line
+    sample transcript line
+  sample transcript line
+    sample transcript line
+    sample transcript line
+
+  sample transcript line
+  sample transcript line
+  sample transcript line
+  sample transcript line
+    sample transcript line
+  sample transcript line
+  sample transcript line
+  sample transcript line
+  sample transcript line
+    sample transcript line
+
+✻ Brewed for 21s · done 5:42 AM
+
+────────────────────────────────────────────────────────────────────────
+❯ run the sample task
+────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+                                                          61343 tokens
+                                               currentVersion: 2.1.260
+                Update available! Run: brew upgrade claude-code@latest
+                                                                   /rc
+

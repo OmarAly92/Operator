@@ -721,15 +721,64 @@ The daemon must never type into a screen it has not just looked at. This task ad
 
 - [ ] **Step 1: Capture real fixtures**
 
-Spawn a real session of each harness and trigger a permission dialog (a `Bash` call for Claude Code; a shell command for Codex). With the daemon running, dump the pane:
+**`opr pane-capture` is not the tool** — it is a hidden command that journals a byte stream from stdin, and takes `--dir`/`--epoch`, not a session id. There is no HTTP route that returns a pane either. The pane lives in the pty-host's ring buffer, reachable through `ptyhost.Runtime.GetOutput`, which resolves a session id via the B2 registry at `~/.operator/windows-pty-hosts.json` (that path is HOME-based and the same on macOS despite the name).
 
-```bash
-opr pane-capture <session-id> --lines 40
+Write a throwaway reader inside the backend module — it must be in-module to import `internal/`:
+
+```go
+// backend/tmp_panecap/main.go — delete after capturing
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost"
+	"github.com/OmarAly92/operator/backend/internal/ports"
+)
+
+func main() {
+	id := os.Args[1]
+	lines := 40
+	if len(os.Args) > 2 {
+		lines, _ = strconv.Atoi(os.Args[2])
+	}
+	styled := len(os.Args) > 3 && os.Args[3] == "styled"
+
+	rt := ptyhost.New(ptyhost.Options{})
+	var out string
+	var err error
+	if styled {
+		out, err = rt.GetStyledOutput(context.Background(), ports.RuntimeHandle{ID: id}, lines)
+	} else {
+		out, err = rt.GetOutput(context.Background(), ports.RuntimeHandle{ID: id}, lines)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	fmt.Print(out)
+}
 ```
 
-If `opr pane-capture` does not accept those flags, read `backend/internal/cli/pane_capture.go` and use what it does expose. Save each dump under `backend/testdata/panes/`, then **replace the content** — file paths, command text, repo names — with neutral placeholders, keeping the box drawing, prompts, key hints, and line structure byte-for-byte. The structure is what the readers match on; the content is not.
+```bash
+cd backend && go run ./tmp_panecap <session-id> 40           # plain, what GetOutput returns
+cd backend && go run ./tmp_panecap <session-id> 40 styled    # SGR preserved, for highlight detection
+```
 
-Capture an idle pane for each harness the same way. These are the negative cases and they matter as much.
+Spawn a real session of each harness and trigger a permission dialog (a `Bash` call for Claude Code; a shell command for Codex). Save each dump under `backend/testdata/panes/`, then **replace the content** — file paths, command text, repo names — with neutral placeholders, keeping the box drawing, prompts, key hints, and line structure byte-for-byte. The structure is what the readers match on; the content is not.
+
+**`claudecode_idle.txt` is already captured and scrubbed**, from a real session on 2026-09-05. Read it before writing any matcher — and note what it proves: the separator after Claude Code's `❯` prompt glyph is a **non-breaking space (`c2a0`), not an ASCII space**. A matcher written from an imagined screen would have used `"❯ "` and silently never matched. Check the bytes of anything you intend to match:
+
+```bash
+sed -n '<line>p' <fixture> | head -c 60 | xxd
+```
+
+Capture an idle pane for each remaining harness the same way. These are the negative cases and they matter as much.
+
+A session whose pty-host was restarted has an empty ring buffer and returns almost nothing; if a capture comes back near-empty, that is the cause — use a session with visible scrollback rather than debugging the reader.
 
 - [ ] **Step 2: Write the failing test**
 
