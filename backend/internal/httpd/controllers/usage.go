@@ -18,6 +18,7 @@ type UsageSummaryService interface {
 	ListCompact(context.Context, domain.ProjectID) ([]domain.CompactSessionUsage, error)
 	Get(context.Context, domain.SessionID) (domain.SessionUsageSummary, error)
 	Rollup(context.Context, time.Time, time.Time, string) ([]domain.UsageRollupBucket, error)
+	Quota(context.Context) (domain.UsageQuota, bool, error)
 }
 
 // UsageController owns compact dashboard usage routes.
@@ -30,6 +31,7 @@ func (c *UsageController) Register(r chi.Router) {
 	r.Get("/usage/sessions", c.listSessions)
 	r.Get("/usage/sessions/{sessionId}", c.getSession)
 	r.Get("/usage/rollup", c.rollup)
+	r.Get("/usage/quota", c.quota)
 }
 
 func (c *UsageController) listSessions(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +82,24 @@ func (c *UsageController) rollup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, usageRollupResponse(bucket, buckets))
+}
+
+func (c *UsageController) quota(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/usage/quota")
+		return
+	}
+	quota, ok, err := c.Svc.Quota(r.Context())
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	if !ok {
+		envelope.WriteJSON(w, http.StatusOK, UsageQuotaEnvelope{})
+		return
+	}
+	resp := usageQuotaResponse(quota)
+	envelope.WriteJSON(w, http.StatusOK, UsageQuotaEnvelope{Quota: &resp})
 }
 
 func usageRollupParams(w http.ResponseWriter, r *http.Request) (string, int, bool) {
@@ -139,6 +159,28 @@ func usageRollupResponse(bucket string, buckets []domain.UsageRollupBucket) Usag
 		})
 	}
 	return UsageRollupResponse{Bucket: bucket, Buckets: responses}
+}
+
+func usageQuotaResponse(quota domain.UsageQuota) UsageQuotaResponse {
+	now := time.Now()
+	windows := make([]UsageQuotaWindowResponse, 0, 2)
+	if quota.Primary != nil {
+		windows = append(windows, usageQuotaWindowResponse("primary", *quota.Primary, now))
+	}
+	if quota.Secondary != nil {
+		windows = append(windows, usageQuotaWindowResponse("secondary", *quota.Secondary, now))
+	}
+	return UsageQuotaResponse{
+		Harness: quota.Harness, LimitID: quota.LimitID, PlanType: quota.PlanType,
+		ObservedAt: quota.ObservedAt, Windows: windows,
+	}
+}
+
+func usageQuotaWindowResponse(kind string, window domain.UsageQuotaWindow, now time.Time) UsageQuotaWindowResponse {
+	return UsageQuotaWindowResponse{
+		Kind: kind, WindowMinutes: window.WindowMinutes, UsedPercent: window.UsedPercent,
+		ResetsAt: window.ResetsAt, Stale: window.IsStale(now),
+	}
 }
 
 func usageTotalsResponse(totals domain.UsageMetricTotals) UsageTotalsResponse {

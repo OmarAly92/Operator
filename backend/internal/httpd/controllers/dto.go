@@ -1041,6 +1041,34 @@ type UsageRollupResponse struct {
 	Buckets []UsageRollupBucketResponse `json:"buckets"`
 }
 
+// UsageQuotaWindowResponse is one rate-limit window in the account's Codex
+// quota position. Stale is computed server-side (domain.UsageQuotaWindow.IsStale)
+// so mobile never has to decide whether a reading outlived its window; the
+// numeric fields still carry the last observed values even when stale, so the
+// client can explain why it is hiding them.
+type UsageQuotaWindowResponse struct {
+	Kind          string    `json:"kind" enum:"primary,secondary"`
+	WindowMinutes int       `json:"windowMinutes"`
+	UsedPercent   float64   `json:"usedPercent"`
+	ResetsAt      time.Time `json:"resetsAt"`
+	Stale         bool      `json:"stale"`
+}
+
+// UsageQuotaResponse is the account's Codex quota position, not a session's.
+type UsageQuotaResponse struct {
+	Harness    string                     `json:"harness"`
+	LimitID    string                     `json:"limitId"`
+	PlanType   string                     `json:"planType"`
+	ObservedAt time.Time                  `json:"observedAt"`
+	Windows    []UsageQuotaWindowResponse `json:"windows"`
+}
+
+// UsageQuotaEnvelope is the body of GET /api/v1/usage/quota. Quota is nil when
+// no quota has ever been observed — always a 200, never a 404.
+type UsageQuotaEnvelope struct {
+	Quota *UsageQuotaResponse `json:"quota"`
+}
+
 // SessionUsageResponse is detailed telemetry for the session inspector.
 type SessionUsageResponse struct {
 	SessionID  domain.SessionID        `json:"sessionId"`

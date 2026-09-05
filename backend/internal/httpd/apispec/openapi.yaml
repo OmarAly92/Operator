@@ -4902,6 +4902,31 @@ paths:
       summary: Read a shell terminal's retained raw block history, oldest first
       tags:
       - shellTerminals
+  /api/v1/usage/quota:
+    get:
+      operationId: getUsageQuota
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageQuotaEnvelope'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Get the account's latest Codex quota position
+      tags:
+      - usage
   /api/v1/usage/rollup:
     get:
       operationId: getUsageRollup
@@ -8614,6 +8639,59 @@ components:
       required:
       - modelId
       - totals
+      type: object
+    UsageQuotaEnvelope:
+      properties:
+        quota:
+          $ref: '#/components/schemas/UsageQuotaResponse'
+      required:
+      - quota
+      type: object
+    UsageQuotaResponse:
+      properties:
+        harness:
+          type: string
+        limitId:
+          type: string
+        observedAt:
+          format: date-time
+          type: string
+        planType:
+          type: string
+        windows:
+          items:
+            $ref: '#/components/schemas/UsageQuotaWindowResponse'
+          type: array
+      required:
+      - harness
+      - limitId
+      - planType
+      - observedAt
+      - windows
+      type: object
+    UsageQuotaWindowResponse:
+      properties:
+        kind:
+          enum:
+          - primary
+          - secondary
+          type: string
+        resetsAt:
+          format: date-time
+          type: string
+        stale:
+          type: boolean
+        usedPercent:
+          format: double
+          type: number
+        windowMinutes:
+          type: integer
+      required:
+      - kind
+      - windowMinutes
+      - usedPercent
+      - resetsAt
+      - stale
       type: object
     UsageRollupBucketResponse:
       properties:

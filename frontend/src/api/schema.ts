@@ -1650,6 +1650,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the account's latest Codex quota position */
+        get: operations["getUsageQuota"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/rollup": {
         parameters: {
             query?: never;
@@ -3071,6 +3088,27 @@ export interface components {
         UsageModelResponse: {
             modelId: string;
             totals: components["schemas"]["UsageTotalsResponse"];
+        };
+        UsageQuotaEnvelope: {
+            quota: components["schemas"]["UsageQuotaResponse"];
+        };
+        UsageQuotaResponse: {
+            harness: string;
+            limitId: string;
+            /** Format: date-time */
+            observedAt: string;
+            planType: string;
+            windows: components["schemas"]["UsageQuotaWindowResponse"][];
+        };
+        UsageQuotaWindowResponse: {
+            /** @enum {string} */
+            kind: "primary" | "secondary";
+            /** Format: date-time */
+            resetsAt: string;
+            stale: boolean;
+            /** Format: double */
+            usedPercent: number;
+            windowMinutes: number;
         };
         UsageRollupBucketResponse: {
             /** Format: date */
@@ -9259,6 +9297,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getUsageQuota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageQuotaEnvelope"];
                 };
             };
             /** @description Internal Server Error */
