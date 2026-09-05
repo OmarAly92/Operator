@@ -11,6 +11,7 @@ abstract class TerminalRepository {
   FutureResult<GlobalResponse<ShellTerminalModel>> openSessionShell(OpenSessionShellParams params);
   FutureResult<bool> closeShellTerminal(String handleId);
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params);
+  FutureResult<String?> getDraft(String sessionId);
 }
 
 class TerminalRepositoryImp implements TerminalRepository {
@@ -49,6 +50,10 @@ class TerminalRepositoryImp implements TerminalRepository {
   @override
   FutureResult<bool> sendSessionMessage(String sessionId, SendSessionMessageParams params) =>
       _run(() => _remoteDataSource.sendSessionMessage(sessionId, params));
+
+  @override
+  FutureResult<String?> getDraft(String sessionId) =>
+      _guard(() async => (await _remoteDataSource.getDraft(sessionId)).data);
 
   Future<Result<T, Failure>> _guard<T>(Future<T> Function() action) async {
     if (await _network.isConnected) {

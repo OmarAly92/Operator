@@ -330,6 +330,11 @@ type SessionInteractionsResponse struct {
 	Interactions []SessionInteraction `json:"interactions"`
 }
 
+// SessionDraftResponse is the body of GET /api/v1/sessions/{sessionId}/draft.
+type SessionDraftResponse struct {
+	Draft string `json:"draft"`
+}
+
 func sessionInteractionViews(interactions []domain.PendingInteraction) []SessionInteraction {
 	views := make([]SessionInteraction, 0, len(interactions))
 	for _, in := range interactions {

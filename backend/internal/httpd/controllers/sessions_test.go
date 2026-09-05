@@ -39,6 +39,8 @@ type fakeSessionService struct {
 	commandResult    sessionmanager.CommandResult
 	commandErr       error
 	commandCalls     int
+	draftResult      string
+	draftErr         error
 	sendErr          error
 	decideErr        error
 	decideCalls      int
@@ -381,6 +383,10 @@ func (f *fakeSessionService) Send(_ context.Context, _ domain.SessionID, message
 func (f *fakeSessionService) Command(_ context.Context, _ domain.SessionID, _ domain.SessionCommand, _ string) (sessionmanager.CommandResult, error) {
 	f.commandCalls++
 	return f.commandResult, f.commandErr
+}
+
+func (f *fakeSessionService) Draft(_ context.Context, _ domain.SessionID) (string, error) {
+	return f.draftResult, f.draftErr
 }
 
 func (f *fakeSessionService) Decide(_ context.Context, _ domain.SessionID, _, _ string) error {

@@ -247,6 +247,17 @@ type TerminalDialogReader interface {
 	DenyRow(menu Menu) (int, bool)
 }
 
+// TerminalComposerReader is an optional adapter capability for reading a
+// harness's unsent composer draft. It takes STYLED pane text: a composer always
+// holds something, and only the styling separates dim placeholder text from what
+// the human actually typed. Implementations MUST fail closed — returning false
+// when the styling does not clearly mark a draft — because the caller mirrors
+// the result into another client's composer, where a wrong answer becomes a
+// message the user never wrote.
+type TerminalComposerReader interface {
+	ReadComposerDraft(styledPane string) (string, bool)
+}
+
 // EmptyComposerDetector is an opt-in safety capability for unsolicited
 // coordination sent to an already-running interactive agent. It must return
 // true only when current terminal evidence positively proves that the active

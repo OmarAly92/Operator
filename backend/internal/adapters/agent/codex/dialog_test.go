@@ -18,6 +18,11 @@ func readPane(t *testing.T, name string) string {
 	return string(pane)
 }
 
+func readStyledPane(t *testing.T, name string) string {
+	t.Helper()
+	return readPane(t, name)
+}
+
 func TestReadDialogRecognisesTheRealModelPicker(t *testing.T) {
 	for _, fixture := range []string{"codex_model_picker.txt", "codex_model_picker_row2.txt"} {
 		t.Run(fixture, func(t *testing.T) {
@@ -122,6 +127,26 @@ func TestReadMenuRejectsAnIdlePane(t *testing.T) {
 	p := &Plugin{}
 	if _, ok := p.ReadMenu(readPane(t, "codex_idle.txt")); ok {
 		t.Fatal("an idle pane must not be read as a menu")
+	}
+}
+
+func TestReadComposerDraftRejectsDimPlaceholderText(t *testing.T) {
+	// codex_idle_styled.txt is Codex's placeholder case: "Improve documentation
+	// in @filename" is example chrome, not something a user typed. A
+	// placeholder mirrored into the phone's composer would have the user send
+	// text they never wrote.
+	p := &Plugin{}
+	if draft, ok := p.ReadComposerDraft(readStyledPane(t, "codex_idle_styled.txt")); ok {
+		t.Fatalf("placeholder text must not read as a draft, got %q", draft)
+	}
+}
+
+func TestReadComposerDraftFailsClosedOnUnstyledInput(t *testing.T) {
+	// Plain output carries no dim/normal distinction. Answering from it would
+	// be a guess.
+	p := &Plugin{}
+	if _, ok := p.ReadComposerDraft(readPane(t, "codex_idle.txt")); ok {
+		t.Fatal("an unstyled pane must fail closed, not guess")
 	}
 }
 

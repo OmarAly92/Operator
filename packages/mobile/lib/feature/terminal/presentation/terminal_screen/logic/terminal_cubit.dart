@@ -102,6 +102,7 @@ class TerminalCubit extends Cubit<TerminalState> {
   bool restoring = false;
   bool sending = false;
   String? banner;
+  String? draft;
   SendTarget sendTarget;
   double fontSize = kTerminalFontSize;
 
@@ -155,7 +156,21 @@ class TerminalCubit extends Cubit<TerminalState> {
     _mux.openTerminal(args.id, projectId: args.projectId);
     final fit = _lastFit;
     if (fit != null) _mux.resize(args.id, fit.cols, fit.rows, projectId: args.projectId);
+    unawaited(fetchDraft());
     _emit();
+  }
+
+  Future<void> fetchDraft() async {
+    try {
+      final result = await _repository.getDraft(args.sessionId);
+      result.when(
+        onSuccess: (value) {
+          draft = value;
+          _emit();
+        },
+        onFailure: (_) {},
+      );
+    } catch (_) {}
   }
 
   void detach() {
@@ -215,6 +230,7 @@ class TerminalCubit extends Cubit<TerminalState> {
       banner = kTerminalModeNotice;
       composer.clear();
       _emit();
+      unawaited(fetchDraft());
       return;
     }
 
@@ -228,6 +244,7 @@ class TerminalCubit extends Cubit<TerminalState> {
       onSuccess: (_) {
         Haptics.success();
         composer.clear();
+        unawaited(fetchDraft());
       },
       onFailure: (failure) {
         // Only reroute onto a socket we actually hold open — otherwise the write
@@ -237,6 +254,7 @@ class TerminalCubit extends Cubit<TerminalState> {
           sendTarget = SendTarget.terminal;
           banner = kReroutedNotice;
           composer.clear();
+          unawaited(fetchDraft());
           return;
         }
         Haptics.error();

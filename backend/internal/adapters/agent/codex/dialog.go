@@ -45,9 +45,14 @@ func (p *Plugin) MenuKeys() ports.MenuKeys {
 	return ports.MenuKeys{Up: "\x1b[A", Down: "\x1b[B", Select: "\r", Cancel: "\x1b", SessionSelect: "\r"}
 }
 
+func (p *Plugin) ReadComposerDraft(styledPane string) (string, bool) {
+	return terminalui.LastPromptDraft(styledPane, "›")
+}
+
 func readNumberedMenu(lines []string) (ports.Menu, bool) {
 	return terminalui.ReadNumberedMenu(lines, "›")
 }
 
 var _ ports.TerminalDialogReader = (*Plugin)(nil)
 var _ ports.TerminalMenuReader = (*Plugin)(nil)
+var _ ports.TerminalComposerReader = (*Plugin)(nil)

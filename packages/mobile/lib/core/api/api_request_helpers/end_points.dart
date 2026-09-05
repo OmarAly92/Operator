@@ -51,6 +51,7 @@ sealed class EndPoints {
   static String sessionDecision(String sessionId) => '${_session(sessionId)}/decision';
   static String sessionAnswer(String sessionId) => '${_session(sessionId)}/answer';
   static String sessionInteractions(String sessionId) => '${_session(sessionId)}/interactions';
+  static String sessionDraft(String sessionId) => '${_session(sessionId)}/draft';
   static String sessionBlocks(String sessionId) => '${_session(sessionId)}/blocks';
 
   static String sessionPreview(String sessionId) => '${_session(sessionId)}/preview';

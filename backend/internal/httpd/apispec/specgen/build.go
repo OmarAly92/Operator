@@ -1764,6 +1764,16 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/draft", id: "getSessionDraft", tag: "sessions",
+			summary:    "Read a session's unsent composer draft",
+			pathParams: []any{controllers.SessionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionDraftResponse{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/activity", id: "setSessionActivity", tag: "sessions",
 			summary:    "Report an agent activity-state signal for a session",
 			pathParams: []any{controllers.SessionIDParam{}},

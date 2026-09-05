@@ -1255,6 +1255,9 @@ func (f *fakeCommander) Send(_ context.Context, id domain.SessionID, message str
 func (*fakeCommander) Command(context.Context, domain.SessionID, domain.SessionCommand, string) (sessionmanager.CommandResult, error) {
 	return sessionmanager.CommandResult{}, nil
 }
+func (*fakeCommander) Draft(context.Context, domain.SessionID) (string, error) {
+	return "", nil
+}
 func (*fakeCommander) Decide(context.Context, domain.SessionID, string, string) error {
 	return nil
 }

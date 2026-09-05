@@ -64,6 +64,7 @@ type commander interface {
 	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	Cleanup(ctx context.Context, project domain.ProjectID) (sessionmanager.CleanupResult, error)
@@ -617,6 +618,11 @@ func (s *Service) Send(ctx context.Context, id domain.SessionID, message string,
 
 func (s *Service) Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error) {
 	return s.manager.Command(ctx, id, command, model)
+}
+
+// Draft reads the session's unsent composer draft, or "" when there is none.
+func (s *Service) Draft(ctx context.Context, id domain.SessionID) (string, error) {
+	return s.manager.Draft(ctx, id)
 }
 
 func (s *Service) Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error {

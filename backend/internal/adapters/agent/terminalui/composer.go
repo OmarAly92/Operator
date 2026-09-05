@@ -119,6 +119,119 @@ func LastBorderedPromptIsEmptyOrDimPlaceholder(output, marker string) bool {
 	return false
 }
 
+// LastPromptDraft extracts the human-authored composer draft that
+// LastPromptIsEmptyOrDimPlaceholder inspects for emptiness, for callers that
+// must forward the composer's contents rather than merely know it is
+// non-empty. It fails closed (ok=false) when the input carries no SGR styling
+// at all (a plain capture cannot distinguish a draft from dim placeholder
+// text), when the prompt marker is absent, or when any visible rune after the
+// marker is dim (placeholder chrome) — a draft is only reported when every
+// visible rune is unambiguously non-dim.
+func LastPromptDraft(output, marker string) (string, bool) {
+	if !hasSGRStyling(output) {
+		return "", false
+	}
+	marker = strings.TrimSpace(marker)
+	if marker == "" {
+		return "", false
+	}
+	lines := styledTerminalLines(output)
+	markerRunes := []rune(marker)
+	start := len(lines) - composerLookbackLines
+	if start < 0 {
+		start = 0
+	}
+	for i := len(lines) - 1; i >= start; i-- {
+		line := trimLeftStyledSpace(lines[i])
+		if len(line) < len(markerRunes) || styledString(line[:len(markerRunes)]) != marker {
+			continue
+		}
+		content := append([]styledRune{}, line[len(markerRunes):]...)
+		for j := i + 1; j < len(lines); j++ {
+			content = append(content, lines[j]...)
+		}
+		return draftTextFromStyledRunes(content)
+	}
+	return "", false
+}
+
+// LastBorderedPromptDraft mirrors LastBorderedPromptIsEmptyOrDimPlaceholder's
+// bounded-composer detection, but extracts the draft text between the two
+// horizontal rules instead of only reporting emptiness. See LastPromptDraft
+// for the fail-closed rules.
+func LastBorderedPromptDraft(output, marker string) (string, bool) {
+	if !hasSGRStyling(output) {
+		return "", false
+	}
+	marker = strings.TrimSpace(marker)
+	if marker == "" {
+		return "", false
+	}
+	lines := styledTerminalLines(output)
+	markerRunes := []rune(marker)
+	start := len(lines) - composerLookbackLines
+	if start < 0 {
+		start = 0
+	}
+	for i := len(lines) - 1; i >= start; i-- {
+		line := trimLeftStyledSpace(lines[i])
+		if len(line) < len(markerRunes) || styledString(line[:len(markerRunes)]) != marker {
+			continue
+		}
+		upperWidth := 0
+		for j := i - 1; j >= 0 && upperWidth == 0; j-- {
+			upperWidth = horizontalRuleWidth(lines[j])
+		}
+		lowerIndex, lowerWidth := -1, 0
+		for j := len(lines) - 1; j > i; j-- {
+			if lowerWidth = horizontalRuleWidth(lines[j]); lowerWidth > 0 {
+				lowerIndex = j
+				break
+			}
+		}
+		if upperWidth == 0 || lowerIndex < 0 || upperWidth != lowerWidth {
+			return "", false
+		}
+		content := append([]styledRune{}, line[len(markerRunes):]...)
+		for _, continuation := range lines[i+1 : lowerIndex] {
+			content = append(content, continuation...)
+		}
+		return draftTextFromStyledRunes(content)
+	}
+	return "", false
+}
+
+// draftTextFromStyledRunes fails closed (ok=false) unless every visible rune
+// is non-dim and at least one is non-space: dim text is placeholder chrome,
+// and any dim rune mixed among the rest is ambiguous enough to refuse.
+func draftTextFromStyledRunes(runes []styledRune) (string, bool) {
+	var b strings.Builder
+	hasVisible := false
+	for _, r := range runes {
+		if unicode.IsSpace(r.value) {
+			b.WriteRune(r.value)
+			continue
+		}
+		if r.dim {
+			return "", false
+		}
+		hasVisible = true
+		b.WriteRune(r.value)
+	}
+	if !hasVisible {
+		return "", false
+	}
+	return strings.TrimSpace(b.String()), true
+}
+
+// hasSGRStyling reports whether output carries any CSI escape sequence at
+// all. A plain capture with none carries no dim/normal distinction, so a
+// caller with only that capture cannot separate a draft from a placeholder
+// and must fail closed rather than guess.
+func hasSGRStyling(output string) bool {
+	return strings.Contains(output, "\x1b[")
+}
+
 func horizontalRuleWidth(line []styledRune) int {
 	for len(line) > 0 && unicode.IsSpace(line[0].value) {
 		line = line[1:]

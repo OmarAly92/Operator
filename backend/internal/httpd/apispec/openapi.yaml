@@ -3056,6 +3056,39 @@ paths:
       summary: Answer a session's pending permission dialog
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/draft:
+    get:
+      operationId: getSessionDraft
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersSessionDraftResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read a session's unsent composer draft
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/interactions:
     get:
       operationId: listSessionInteractions
@@ -5403,6 +5436,13 @@ components:
           type: string
       required:
       - state
+      type: object
+    ControllersSessionDraftResponse:
+      properties:
+        draft:
+          type: string
+      required:
+      - draft
       type: object
     ControllersSessionInteraction:
       properties:

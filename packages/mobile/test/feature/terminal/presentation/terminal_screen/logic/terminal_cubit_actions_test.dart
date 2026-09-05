@@ -76,6 +76,49 @@ void main() {
     await events.close();
   });
 
+  group('draft', () {
+    test('fetches the remote draft on attach', () async {
+      when(() => terminalRepository.getDraft(any()))
+          .thenAnswer((_) async => Result.success('run the sample task'));
+      final cubit = build();
+
+      cubit.attach();
+      await Future<void>.value();
+
+      expect(cubit.draft, 'run the sample task');
+      verify(() => terminalRepository.getDraft('s-1')).called(1);
+      await cubit.close();
+    });
+
+    test('refetches the remote draft after a successful send', () async {
+      when(() => terminalRepository.getDraft(any()))
+          .thenAnswer((_) async => Result.success('next draft'));
+      when(() => terminalRepository.sendSessionMessage(any(), any()))
+          .thenAnswer((_) async => Result.success(true));
+      final cubit = build();
+      cubit.composer.text = 'ship it';
+
+      await cubit.send();
+      await Future<void>.value();
+
+      expect(cubit.draft, 'next draft');
+      verify(() => terminalRepository.getDraft('s-1')).called(greaterThanOrEqualTo(1));
+      await cubit.close();
+    });
+
+    test('leaves the draft unset when the fetch fails', () async {
+      when(() => terminalRepository.getDraft(any()))
+          .thenAnswer((_) async => Result.failure(ServerFailure.noNetwork()));
+      final cubit = build();
+
+      cubit.attach();
+      await Future<void>.value();
+
+      expect(cubit.draft, isNull);
+      await cubit.close();
+    });
+  });
+
   group('send', () {
     test('sends to the agent route by default and clears the composer', () async {
       when(() => terminalRepository.sendSessionMessage(any(), any()))

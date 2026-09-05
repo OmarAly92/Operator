@@ -56,6 +56,10 @@ func (p *Plugin) MenuKeys() ports.MenuKeys {
 	return ports.MenuKeys{Up: "\x1b[A", Down: "\x1b[B", Select: "\r", Cancel: "\x1b", Multi: " ", SessionSelect: "s"}
 }
 
+func (p *Plugin) ReadComposerDraft(styledPane string) (string, bool) {
+	return terminalui.LastBorderedPromptDraft(styledPane, "❯")
+}
+
 func plainAnswerRow(menu ports.Menu, answer string) (int, bool) {
 	found := -1
 	for i, row := range menu.Rows {
@@ -122,3 +126,4 @@ func paneLines(pane string) []string {
 
 var _ ports.TerminalDialogReader = (*Plugin)(nil)
 var _ ports.TerminalMenuReader = (*Plugin)(nil)
+var _ ports.TerminalComposerReader = (*Plugin)(nil)

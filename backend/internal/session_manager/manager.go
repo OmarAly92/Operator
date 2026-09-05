@@ -277,6 +277,10 @@ type Manager struct {
 	// nil in production; tests set it directly since their fakeAgents do not
 	// implement dialogAndMenuReader.
 	dialogReader dialogAndMenuReader
+	// composerReader overrides composerReaderFor's resolution against m.agents.
+	// It is nil in production; tests set it directly since their fakeAgents do
+	// not implement ports.TerminalComposerReader.
+	composerReader ports.TerminalComposerReader
 	// messenger is a sessionguard.Guard wrapping the raw messenger, so every
 	// pane write is guarded (re-read state, refuse a blocked session) without
 	// each call site re-deriving the check. Send/confirmActive use Deliver for
@@ -3943,6 +3947,18 @@ func (m *Manager) dialogReaderFor(harness domain.AgentHarness) (dialogAndMenuRea
 		return nil, false
 	}
 	reader, ok := agent.(dialogAndMenuReader)
+	return reader, ok
+}
+
+func (m *Manager) composerReaderFor(harness domain.AgentHarness) (ports.TerminalComposerReader, bool) {
+	if m.composerReader != nil {
+		return m.composerReader, true
+	}
+	agent, found := m.agents.Agent(harness)
+	if !found {
+		return nil, false
+	}
+	reader, ok := agent.(ports.TerminalComposerReader)
 	return reader, ok
 }
 

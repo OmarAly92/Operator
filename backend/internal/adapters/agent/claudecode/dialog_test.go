@@ -18,6 +18,11 @@ func readPane(t *testing.T, name string) string {
 	return string(pane)
 }
 
+func readStyledPane(t *testing.T, name string) string {
+	t.Helper()
+	return readPane(t, name)
+}
+
 func TestReadDialogRecognisesTheRealPermissionDialog(t *testing.T) {
 	p := &Plugin{}
 	dlg, ok := p.ReadDialog(readPane(t, "claudecode_permission.txt"))
@@ -158,6 +163,35 @@ func TestReadMenuRejectsAnIdlePane(t *testing.T) {
 	p := &Plugin{}
 	if _, ok := p.ReadMenu(readPane(t, "claudecode_idle.txt")); ok {
 		t.Fatal("an idle pane must not be read as a menu")
+	}
+}
+
+func TestReadComposerDraftReturnsAHumanAuthoredDraft(t *testing.T) {
+	p := &Plugin{}
+	draft, ok := p.ReadComposerDraft(readStyledPane(t, "claudecode_idle_styled.txt"))
+	if !ok {
+		t.Fatal("expected the composer draft to be read")
+	}
+	if draft != "run the sample task" {
+		t.Fatalf("draft = %q", draft)
+	}
+}
+
+func TestReadComposerDraftRejectsDimPlaceholderText(t *testing.T) {
+	// A placeholder mirrored into the phone's composer would have the user
+	// send text they never wrote.
+	p := &Plugin{}
+	if draft, ok := p.ReadComposerDraft(readStyledPane(t, "claudecode_placeholder_styled.txt")); ok {
+		t.Fatalf("placeholder text must not read as a draft, got %q", draft)
+	}
+}
+
+func TestReadComposerDraftFailsClosedOnUnstyledInput(t *testing.T) {
+	// Plain output carries no dim/normal distinction. Answering from it would
+	// be a guess.
+	p := &Plugin{}
+	if _, ok := p.ReadComposerDraft(readPane(t, "claudecode_idle.txt")); ok {
+		t.Fatal("an unstyled pane must fail closed, not guess")
 	}
 }
 

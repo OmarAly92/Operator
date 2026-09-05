@@ -100,6 +100,7 @@ type SessionService interface {
 	SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error)
 	Send(ctx context.Context, id domain.SessionID, message string, attachment *ports.SpawnAttachment) error
 	Command(ctx context.Context, id domain.SessionID, command domain.SessionCommand, model string) (sessionmanager.CommandResult, error)
+	Draft(ctx context.Context, id domain.SessionID) (string, error)
 	Decide(ctx context.Context, id domain.SessionID, interactionID, behavior string) error
 	Answer(ctx context.Context, id domain.SessionID, interactionID string, selections [][]string) error
 	DelegateTask(ctx context.Context, in sessionsvc.DelegateTaskInput) (sessionsvc.DelegateTaskOutcome, error)
@@ -212,6 +213,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Post("/sessions/{sessionId}/decision", c.decision)
 	r.Post("/sessions/{sessionId}/answer", c.answer)
 	r.Get("/sessions/{sessionId}/interactions", c.listInteractions)
+	r.Get("/sessions/{sessionId}/draft", c.draft)
 	r.Post("/sessions/{sessionId}/activity", c.activity)
 	r.Post("/sessions/{sessionId}/pin", c.pin)
 	r.Delete("/sessions/{sessionId}/pin", c.unpin)
@@ -1447,6 +1449,19 @@ func (c *SessionsController) listInteractions(w http.ResponseWriter, r *http.Req
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, SessionInteractionsResponse{Interactions: sessionInteractionViews(interactions)})
+}
+
+func (c *SessionsController) draft(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/sessions/{sessionId}/draft")
+		return
+	}
+	draft, err := c.Svc.Draft(r.Context(), sessionID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionDraftResponse{Draft: draft})
 }
 
 func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request) {

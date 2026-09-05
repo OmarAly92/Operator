@@ -73,4 +73,22 @@ void main() {
     ).captured.single as Map<String, dynamic>;
     expect(captured, {'message': 'go'});
   });
+
+  test('reads the composer draft from the draft route', () async {
+    when(() => apiConsumer.get(any()))
+        .thenAnswer((_) async => _response({'draft': 'run the sample task'}));
+
+    final draft = (await dataSource.getDraft('s-1')).data;
+
+    expect(draft, 'run the sample task');
+    verify(() => apiConsumer.get(EndPoints.sessionDraft('s-1'))).called(1);
+  });
+
+  test('reads an empty draft as null', () async {
+    when(() => apiConsumer.get(any())).thenAnswer((_) async => _response({'draft': ''}));
+
+    final draft = (await dataSource.getDraft('s-1')).data;
+
+    expect(draft, '');
+  });
 }
