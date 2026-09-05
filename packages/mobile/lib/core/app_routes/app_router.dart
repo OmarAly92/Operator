@@ -23,6 +23,8 @@ import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/logic/sp
 import 'package:operator_mobile/feature/spawn/presentation/spawn_screen/ui/spawn_screen.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart';
+import 'package:operator_mobile/feature/usage/presentation/usage_screen/logic/usage_cubit.dart';
+import 'package:operator_mobile/feature/usage/presentation/usage_screen/ui/usage_screen.dart';
 
 sealed class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -130,6 +132,12 @@ sealed class AppRouter {
             ),
             child: PreviewScreen(title: args?['title'] as String? ?? 'Preview'),
           ),
+          settings: settings,
+        );
+
+      case RoutesStrings.usage:
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider(create: (_) => sl<UsageCubit>(), child: const UsageScreen()),
           settings: settings,
         );
 

@@ -1083,7 +1083,7 @@ git commit -m "feat(mobile): add context readout formatting"
 
 The cubit refreshes context on the same tick that already refreshes command state — do not add a second poll loop. Follow the existing `onActivity` pattern in `session_command_cubit.dart`.
 
-- [ ] **Step 1: Write the failing widget test**
+- [x] **Step 1: Write the failing widget test**
 
 ```dart
 void main() {
@@ -1113,26 +1113,26 @@ void main() {
 
 Write `_wrap` to provide `SkinScope` — copy it from an existing widget test under `packages/mobile/test/feature/blocks/`.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/blocks/context_readout_chip_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the chip and wire it in**
+- [x] **Step 3: Implement the chip and wire it in**
 
 Use `context.skin` for colours and `AppTextStyle.style11Regular` (or the neighbouring header's size) for type. Raw ints for padding. Return `const SizedBox.shrink()` when `readout == null`.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/blocks/`
 Expected: PASS.
 
-- [ ] **Step 5: Gate**
+- [x] **Step 5: Gate**
 
 Run: `cd packages/mobile && flutter analyze && flutter test`
 Expected: `No issues found!`, then all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/mobile
@@ -1155,7 +1155,7 @@ git commit -m "feat(mobile): show context occupancy on the blocks screen"
 
 **Copy constraint from F8:** this screen shows *consumption*, never *quota*. Title it "Token usage". Do not use the words "limit", "quota", or "remaining" anywhere on it, and do not render a percentage-of-plan — Operator has no source for one, and a number that looks like a quota would be read as one.
 
-- [ ] **Step 1: Write the failing cubit test**
+- [x] **Step 1: Write the failing cubit test**
 
 ```dart
 void main() {
@@ -1179,21 +1179,21 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/usage_cubit_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the cubit, state and screen**
+- [x] **Step 3: Implement the cubit, state and screen**
 
 Cubit only, `Equatable` state, no `Bloc` events. The screen has a day/week segmented control and a list of buckets. Navigation uses `Navigator.of(context)` with a new `RoutesStrings.usage` constant.
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `cd packages/mobile && flutter test test/feature/usage/`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mobile
