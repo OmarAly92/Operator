@@ -33,6 +33,7 @@ type Workspace struct {
 var _ ports.Workspace = (*Workspace)(nil)
 var _ ports.WorkspaceProject = (*Workspace)(nil)
 var _ ports.WorkspaceObserver = (*Workspace)(nil)
+var _ ports.SessionIDClaimChecker = (*Workspace)(nil)
 
 // New returns a router over git and scratch workspace implementations.
 func New(deps Deps) *Workspace {
@@ -179,4 +180,25 @@ func (w *Workspace) gitWorkspaceProject() (ports.WorkspaceProject, error) {
 		return nil, errors.New("workspace router: git workspace does not support workspace projects")
 	}
 	return gitProject, nil
+}
+
+// IsSessionIDClaimed asks every backing adapter that can answer whether the id
+// is already taken in its own namespace, and reports claimed if any of them says
+// so. It takes no project because the allocator has only a candidate id at that
+// point, and each adapter answers about its whole managed root regardless.
+func (w *Workspace) IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error) {
+	for _, adapter := range []ports.Workspace{w.git, w.scratch} {
+		checker, ok := adapter.(ports.SessionIDClaimChecker)
+		if !ok || checker == nil {
+			continue
+		}
+		claimed, err := checker.IsSessionIDClaimed(ctx, sessionID)
+		if err != nil {
+			return false, err
+		}
+		if claimed {
+			return true, nil
+		}
+	}
+	return false, nil
 }

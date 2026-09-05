@@ -1731,6 +1731,7 @@ func TestToAPIErrorMapsWorkspaceBranchSentinels(t *testing.T) {
 		wantKind apierr.Kind
 		wantCode string
 	}{
+		{"workspace not empty", fmt.Errorf("spawn scratch-5: workspace: scratch workspace: path %q already contains files: %w", "/tmp/ws", ports.ErrWorkspaceDirty), apierr.KindConflict, "WORKSPACE_NOT_EMPTY"},
 		{"checked out elsewhere", fmt.Errorf("spawn mer-1: workspace: %w: \"x\" is checked out at \"/tmp\"", ports.ErrWorkspaceBranchCheckedOutElsewhere), apierr.KindConflict, "BRANCH_CHECKED_OUT_ELSEWHERE"},
 		{"not fetched", fmt.Errorf("spawn mer-1: workspace: %w: \"x\" has no local head", ports.ErrWorkspaceBranchNotFetched), apierr.KindInvalid, "BRANCH_NOT_FETCHED"},
 		{"invalid branch", fmt.Errorf("spawn mer-1: workspace: %w: \"bad!!\" (exit 1)", ports.ErrWorkspaceBranchInvalid), apierr.KindInvalid, "INVALID_BRANCH"},

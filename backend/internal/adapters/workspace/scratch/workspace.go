@@ -24,6 +24,7 @@ type Workspace struct {
 
 var _ ports.Workspace = (*Workspace)(nil)
 var _ ports.WorkspaceObserver = (*Workspace)(nil)
+var _ ports.SessionIDClaimChecker = (*Workspace)(nil)
 
 // New validates ManagedRoot and returns a scratch workspace adapter.
 func New(opts Options) (*Workspace, error) {
@@ -231,4 +232,34 @@ func samePath(a, b string) bool {
 		return true
 	}
 	return a == b
+}
+
+// IsSessionIDClaimed reports whether a scratch directory for this session id
+// already holds files anywhere under the managed root. Session numbers are
+// allocated from the database as MAX(num)+1, so a database that is newer than
+// the managed root — reset, migrated fresh, or restored — reissues numbers whose
+// directories still exist, and every spawn then fails Create with
+// ports.ErrWorkspaceDirty forever. The probe answers for both role directories
+// because the allocator knows the id but not yet the session's kind.
+//
+// "Claimed" mirrors Create exactly (non-empty, not merely present) so that a
+// free answer here means Create will succeed.
+func (w *Workspace) IsSessionIDClaimed(_ context.Context, sessionID domain.SessionID) (bool, error) {
+	if err := validatePathComponent("session id", string(sessionID)); err != nil {
+		return false, err
+	}
+	matches, err := filepath.Glob(filepath.Join(w.managedRoot, "*", "*", string(sessionID)))
+	if err != nil {
+		return false, fmt.Errorf("scratch workspace: probe session id %q: %w", sessionID, err)
+	}
+	for _, match := range matches {
+		nonEmpty, err := pathExistsNonEmpty(match)
+		if err != nil {
+			return false, fmt.Errorf("scratch workspace: probe session id %q: %w", sessionID, err)
+		}
+		if nonEmpty {
+			return true, nil
+		}
+	}
+	return false, nil
 }

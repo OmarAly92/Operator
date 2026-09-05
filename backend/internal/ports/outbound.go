@@ -94,13 +94,13 @@ type StyledTerminalOutputReader interface {
 	GetStyledOutput(ctx context.Context, handle RuntimeHandle, lines int) (string, error)
 }
 
-// SessionIDClaimChecker is an optional runtime capability for reporting that a
-// session id is already taken in the runtime's own namespace. Session ids are
-// allocated from the database, but a terminal runtime's names are usually
-// machine-wide and outlive the daemon, so the two can disagree. Implementations
-// must answer only about the runtime's namespace, and must return an error
-// rather than a guess when the probe is inconclusive: callers treat an error as
-// "keep the id the database chose".
+// SessionIDClaimChecker is an optional capability for reporting that a session
+// id is already taken in the implementation's own namespace. Session ids are
+// allocated from the database, but the things they name outlive it: a terminal
+// runtime's names are machine-wide and survive the daemon, and a workspace root
+// survives a database reset. Implementations must answer only about their own
+// namespace, and must return an error rather than a guess when the probe is
+// inconclusive: callers treat an error as "keep the id the database chose".
 type SessionIDClaimChecker interface {
 	IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error)
 }

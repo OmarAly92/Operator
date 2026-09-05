@@ -182,11 +182,12 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Scratch:  scratchWS,
 		Projects: store,
 	})
-	// Session ids double as runtime session names, and a terminal runtime's
-	// namespace is machine-wide: a pty-host outlives the daemon that spawned
-	// it, so a database allocating from 1 can pick a name that is still taken
-	// and the spawn dies at launch. Let the allocator skip those.
-	store.SetSessionIDInUse(sessionIDClaimProbe(runtime, log))
+	// Session ids name things that outlive the database that allocates them. A
+	// pty-host's session names are machine-wide and survive the daemon, and the
+	// workspace root survives a reset or fresh migration — either can already
+	// hold the id MAX(num)+1 just produced, and the spawn then dies at launch or
+	// on a dirty workspace. Let the allocator skip those.
+	store.SetSessionIDInUse(sessionIDClaimProbe(log, runtime, ws))
 	mgr := sessionmanager.New(sessionmanager.Deps{
 		Runtime:             runtime,
 		Agents:              agents,

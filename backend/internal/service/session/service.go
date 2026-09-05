@@ -952,6 +952,8 @@ func toAPIError(err error) error {
 			"This session already has an agent switch in progress", nil)
 	case errors.Is(err, sessionmanager.ErrScratchBranchUnsupported):
 		return apierr.Invalid("SCRATCH_BRANCH_UNSUPPORTED", err.Error(), nil)
+	case errors.Is(err, ports.ErrWorkspaceDirty):
+		return apierr.Conflict("WORKSPACE_NOT_EMPTY", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere):
 		return apierr.Conflict("BRANCH_CHECKED_OUT_ELSEWHERE", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchNotFetched):
