@@ -29,12 +29,15 @@ import (
 // Sentinel errors returned by the Session Manager; callers match them with
 // errors.Is.
 var (
-	ErrNotFound         = errors.New("session: not found")
-	ErrNotRestorable    = errors.New("session: not restorable (not terminal)")
-	ErrTerminated       = errors.New("session: terminated")
-	ErrAgentExited      = errors.New("session: agent exited")
-	ErrAgentNotExited   = errors.New("session: agent has not exited")
-	ErrIncompleteHandle = errors.New("session: incomplete teardown handle")
+	ErrNotFound           = errors.New("session: not found")
+	ErrNotRestorable      = errors.New("session: not restorable (not terminal)")
+	ErrTerminated         = errors.New("session: terminated")
+	ErrAgentExited        = errors.New("session: agent exited")
+	ErrAgentNotExited     = errors.New("session: agent has not exited")
+	ErrIncompleteHandle   = errors.New("session: incomplete teardown handle")
+	ErrWrongActivityState = errors.New("session: command not available in this activity state")
+	ErrDialogAbsent       = errors.New("session: dialog is no longer on screen")
+	ErrModelNotOffered    = errors.New("session: model not offered by this harness")
 	// ErrProjectNotResolvable means the spawn's project has no usable repo
 	// (unregistered, archived, or missing a path). The API maps it to a 400.
 	ErrProjectNotResolvable = errors.New("session: project repo not resolvable")
@@ -201,6 +204,7 @@ type runtimeController interface {
 	Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error)
 	Destroy(ctx context.Context, handle ports.RuntimeHandle) error
 	GetOutput(ctx context.Context, handle ports.RuntimeHandle, lines int) (string, error)
+	SendInput(ctx context.Context, handle ports.RuntimeHandle, input string) error
 	// IsAlive reports whether the handle's runtime session still exists. Used by
 	// Reconcile on boot to adopt crash-surviving sessions and reap leaked ones.
 	IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool, error)

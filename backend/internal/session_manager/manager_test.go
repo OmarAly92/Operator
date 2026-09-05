@@ -242,8 +242,11 @@ type fakeRuntime struct {
 	created, destroyed int
 	lastCfg            ports.RuntimeConfig
 	outputs            []string
+	panes              []string
 	outputCalls        int
 	outputErr          error
+	sendInputErr       error
+	inputs             []string
 	interruptErr       error
 	interrupts         []string
 	onInterrupt        func(ports.RuntimeHandle)
@@ -262,6 +265,14 @@ func (r *fakeRuntime) Interrupt(_ context.Context, handle ports.RuntimeHandle) e
 		r.onInterrupt(handle)
 	}
 	return r.interruptErr
+}
+
+func (r *fakeRuntime) SendInput(_ context.Context, _ ports.RuntimeHandle, input string) error {
+	if r.sendInputErr != nil {
+		return r.sendInputErr
+	}
+	r.inputs = append(r.inputs, input)
+	return nil
 }
 
 type fakePreviewLifecycle struct {
@@ -390,6 +401,13 @@ func (r *fakeRuntime) GetOutput(_ context.Context, _ ports.RuntimeHandle, _ int)
 	r.outputCalls++
 	if r.outputErr != nil {
 		return "", r.outputErr
+	}
+	if len(r.panes) > 0 {
+		out := r.panes[0]
+		if len(r.panes) > 1 {
+			r.panes = r.panes[1:]
+		}
+		return out, nil
 	}
 	if len(r.outputs) == 0 {
 		return "", nil
