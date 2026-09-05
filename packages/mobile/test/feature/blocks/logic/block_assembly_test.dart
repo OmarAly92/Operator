@@ -37,6 +37,7 @@ String _question(String question) =>
     '{"questions":[{"question":"$question","header":"H","options":[{"label":"main"}]}]}';
 
 void main() {
+  _unknownKindTests();
   group('assembleBlocks', () {
     test('a prompt is running until its stop arrives', () {
       final open = assembleBlocks([_event(1, 'prompt_submit', text: 'go')]);
@@ -149,16 +150,21 @@ void main() {
       expect(resolveStranded(blocks, 'Session ended').single.status, BlockStatus.failed);
     });
 
-    test('an unknown kind degrades to a notice titled by its raw event', () {
+    test('an unknown kind contributes no block', () {
+      // This replaces an earlier rule that rendered "unknown" as a notice
+      // titled by its raw event, for forward compatibility. That rule surfaced
+      // hook payloads as chat messages: an unmapped subagent-stop put the
+      // terminal composer's draft on the phone as a message from the agent.
+      // Forward compatibility is still covered, by the unrecognised-kind test
+      // below — "unknown" is the daemon's own marker for an event with no
+      // meaning in the vocabulary, which is not the same as new content.
       final blocks = assembleBlocks([_event(1, 'unknown', rawEvent: 'future-hook', text: 'body')]);
 
-      expect(blocks.single.kind, BlockKind.notice);
-      expect(blocks.single.title, 'future-hook');
-      expect(blocks.single.body, 'body');
+      expect(blocks, isEmpty);
     });
 
-    test('an unknown kind with no raw event still renders', () {
-      expect(assembleBlocks([_event(1, 'unknown')]).single.title, 'Event');
+    test('an unknown kind with no raw event contributes no block', () {
+      expect(assembleBlocks([_event(1, 'unknown')]), isEmpty);
     });
 
     test('input order does not matter and duplicate seqs are dropped', () {
@@ -370,6 +376,45 @@ void main() {
       expect(BlockHarnesses.covers('aider'), isFalse);
       expect(BlockHarnesses.covers(null), isFalse);
       expect(BlockHarnesses.covers(''), isFalse);
+    });
+  });
+}
+
+void _unknownKindTests() {
+  group('unknown block events', () {
+    test('an unknown kind contributes no block', () {
+      // The daemon records an installed-but-unmapped hook as kind "unknown",
+      // carrying whatever text the payload held. Rendering it as a notice put
+      // the terminal composer's draft on screen as a chat message, titled
+      // "subagent-stop".
+      final blocks = assembleBlocks([
+        _event(1, 'unknown', rawEvent: 'subagent-stop', text: 'search more on the Anthropic lawsuit'),
+      ]);
+
+      expect(blocks, isEmpty);
+    });
+
+    test('an unknown kind does not interrupt the blocks around it', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', sourceId: 'p1', text: 'hello'),
+        _event(2, 'unknown', rawEvent: 'pre-tool-use', text: 'noise'),
+        _event(3, 'stop', sourceId: 'p1', text: 'done'),
+      ]);
+
+      expect(blocks.map((b) => b.kind), isNot(contains(BlockKind.notice)));
+      expect(blocks.map((b) => b.body), isNot(contains('noise')));
+      expect(blocks.first.kind, BlockKind.prompt);
+    });
+
+    test('a kind this build does not recognise still renders, for forward compatibility', () {
+      // Distinct from "unknown": a newer daemon emitting a kind this client has
+      // not learned yet is real content, and silence would hide it.
+      final blocks = assembleBlocks([
+        _event(1, 'some_future_kind', rawEvent: 'some-future-kind', text: 'real content'),
+      ]);
+
+      expect(blocks, hasLength(1));
+      expect(blocks.single.kind, BlockKind.notice);
     });
   });
 }

@@ -200,6 +200,9 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
           );
         }
 
+      case 'unknown':
+        break;
+
       default:
         final raw = event.rawEvent ?? '';
         _upsert(

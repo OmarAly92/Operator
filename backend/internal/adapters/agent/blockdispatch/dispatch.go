@@ -25,6 +25,12 @@ type MapFunc func(event string) Decision
 type rule struct {
 	kind      domain.BlockEventKind
 	errorType string
+	// drop marks an event the harness installs but that carries nothing a
+	// reader of the conversation needs. It is recognized and deliberately
+	// contributes no block, which is different from an unmapped event: an
+	// unmapped one is persisted as an unknown block and rendered by clients as
+	// a notice titled with its raw name.
+	drop bool
 }
 
 func fromTable(table map[string]rule) MapFunc {
@@ -33,18 +39,29 @@ func fromTable(table map[string]rule) MapFunc {
 		if !found {
 			return Decision{Kind: domain.BlockEventUnknown}
 		}
-		return Decision{Kind: r.kind, ErrorType: r.errorType, Known: true}
+		return Decision{Kind: r.kind, ErrorType: r.errorType, Known: true, Drop: r.drop}
 	}
 }
 
+// Every sub-command in claudeManagedHooks must appear here. An installed event
+// that is missing falls through to BlockEventUnknown and is persisted, which
+// clients render as a chat notice carrying whatever text the payload held.
 var claudeCodeEvents = map[string]rule{
 	"session-start":         {kind: domain.BlockEventSessionStart},
 	"user-prompt-submit":    {kind: domain.BlockEventPromptSubmit},
+	"pre-tool-use":          {kind: domain.BlockEventToolStart},
 	"post-tool-use":         {kind: domain.BlockEventToolComplete},
 	"post-tool-use-failure": {kind: domain.BlockEventToolComplete, errorType: "tool_failed"},
 	"permission-request":    {kind: domain.BlockEventPermissionRequest},
 	"stop":                  {kind: domain.BlockEventStop},
 	"notification":          {kind: domain.BlockEventQuestionAsked},
+	// Subagent traffic is deliberately excluded from the conversation, matching
+	// the transcript side, which drops isSidechain records and codex
+	// sub_agent_activity. Nesting it under its Task block is deferred.
+	"subagent-stop": {drop: true},
+	// session-end drives the activity state (exited) and carries nothing a
+	// reader of the conversation needs.
+	"session-end": {drop: true},
 }
 
 var codexEvents = map[string]rule{
