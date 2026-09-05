@@ -208,6 +208,31 @@ type TerminalActivityDetector interface {
 	DetectTerminalActivity(output string) (domain.ActivityState, bool)
 }
 
+type DialogKind string
+
+const (
+	DialogPermission DialogKind = "permission"
+	DialogQuestion   DialogKind = "question"
+	DialogModel      DialogKind = "model"
+)
+
+type Menu struct {
+	Rows     []string
+	Selected int
+}
+
+type Dialog struct {
+	Kind  DialogKind
+	Title string
+	Menu  Menu
+}
+
+type TerminalDialogReader interface {
+	ReadDialog(pane string) (Dialog, bool)
+	AllowRow(menu Menu) (int, bool)
+	DenyRow(menu Menu) (int, bool)
+}
+
 // EmptyComposerDetector is an opt-in safety capability for unsolicited
 // coordination sent to an already-running interactive agent. It must return
 // true only when current terminal evidence positively proves that the active
