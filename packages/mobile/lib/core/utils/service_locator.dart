@@ -18,7 +18,9 @@ import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart'
 import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
 import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
+import 'package:operator_mobile/feature/blocks/data/data_source/session_control_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
+import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
@@ -254,6 +256,12 @@ class ServiceLocator {
     );
     sl.registerLazySingleton<BlocksRemoteDataSource>(
       () => BlocksRemoteDataSourceImp(sl<ApiConsumer>()),
+    );
+    sl.registerLazySingleton<SessionControlRepository>(
+      () => SessionControlRepositoryImp(sl<SessionControlRemoteDataSource>(), sl<NetworkStatus>()),
+    );
+    sl.registerLazySingleton<SessionControlRemoteDataSource>(
+      () => SessionControlRemoteDataSourceImp(sl<ApiConsumer>()),
     );
   }
 
