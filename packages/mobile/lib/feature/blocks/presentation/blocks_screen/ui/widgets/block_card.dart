@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/search/text_match.dart';
@@ -7,6 +8,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_question_options.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_result_section.dart';
@@ -68,8 +70,39 @@ class BlockCard extends StatelessWidget {
               softWrap: true,
             ),
           ),
+        if (block.kind == BlockKind.permission)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: block.interactionId != null
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: BlockActionButton(
+                          label: 'Allow',
+                          primary: true,
+                          onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'allow'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: BlockActionButton(
+                          label: 'Deny',
+                          primary: false,
+                          onTap: () => context.read<SessionCommandCubit>().decide(block.interactionId!, 'deny'),
+                        ),
+                      ),
+                    ],
+                  )
+                : AppText(
+                    'Answer in the terminal',
+                    style: AppTextStyle.style10Regular.copyWith(color: skin.textTertiary),
+                  ),
+          ),
         if (block.detail is QuestionBlockDetail)
-          BlockQuestionOptions(questions: (block.detail! as QuestionBlockDetail).questions),
+          BlockQuestionOptions(
+            questions: (block.detail! as QuestionBlockDetail).questions,
+            interactionId: block.interactionId,
+          ),
         if ((block.result ?? '').isNotEmpty) BlockResultSection(result: block.result!),
         if (block.children != null && block.children!.isNotEmpty)
           Padding(
