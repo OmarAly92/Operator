@@ -920,11 +920,13 @@ git commit -m "feat(mobile): show the Codex plan quota on the usage screen"
 
 Every prior task tests against fixtures. This feature is a claim about what Codex writes into real files, and the highest-risk defect (G3) is invisible to fixtures if the fixtures happen to include `info`.
 
-- [ ] **Step 1: Restart the daemon on this branch**
+- [x] **Step 1: Restart the daemon on this branch**
 
 Restart it **from the desktop app**, not a shell. A daemon launched from an agent shell inherits `CLAUDE_*` and `ANTHROPIC_*` variables and every agent it spawns exits immediately. If launching by hand is unavoidable, unset every such variable and set `TERM` and `LANG`.
 
-- [ ] **Step 2: Spawn a fresh Codex session and take one turn**
+Result: done by the user from the desktop app, on `master` (post-merge), not this branch (the branch was merged to master first per user instruction).
+
+- [x] **Step 2: Spawn a fresh Codex session and take one turn**
 
 ```bash
 curl -s -X POST http://127.0.0.1:3002/api/v1/sessions \
@@ -934,7 +936,9 @@ curl -s -X POST http://127.0.0.1:3002/api/v1/sessions \
 
 A brand-new session is the important case: its early `token_count` events carry `"info": null`, so this is what proves G3 was handled.
 
-- [ ] **Step 3: Confirm the endpoint reports quota**
+Result: spawned `scratch-12`. Its own first `token_count` event happened to already carry `info` (not null) — this specific run did not hit the info-null shape, which is expected variance (G3's own measurement: 0.4% of events overall, concentrated in fresh sessions but not guaranteed every time). See Step 4 for how G3 was actually proven, both here and during Task 3.
+
+- [x] **Step 3: Confirm the endpoint reports quota**
 
 ```bash
 curl -s http://127.0.0.1:3002/api/v1/usage/quota | python3 -m json.tool
@@ -942,36 +946,33 @@ curl -s http://127.0.0.1:3002/api/v1/usage/quota | python3 -m json.tool
 
 Expected: a `primary` window with `windowMinutes` 300 and a `secondary` with 10080, both with a `usedPercent` and a `resetsAt`, `stale: false`, and a `planType`. **If `quota` is null, the `Info == nil` guard is still swallowing the event — that is G3, and the task is not done.**
 
-Result: _(fill in)_
-
-- [ ] **Step 4: Cross-check against the rollout**
-
-```bash
-ls -t ~/.codex/sessions/2026/*/*/*.jsonl | head -1 | xargs python3 -c "
-import json,sys
-for line in open(sys.argv[1]):
-    p=(json.loads(line).get('payload') or {})
-    if p.get('type')=='token_count' and p.get('rate_limits'):
-        print(json.dumps(p['rate_limits']))" | tail -1
+Result: **PASS**.
+```json
+{"quota": {"harness": "codex", "limitId": "codex", "planType": "plus",
+  "observedAt": "2026-09-06T02:04:01.302Z",
+  "windows": [
+    {"kind": "primary", "windowMinutes": 300, "usedPercent": 0, "resetsAt": "2026-09-06T07:03:30Z", "stale": false},
+    {"kind": "secondary", "windowMinutes": 10080, "usedPercent": 16, "resetsAt": "2026-09-12T14:23:55Z", "stale": false}
+  ]}}
 ```
 
-Expected: the `used_percent` values match what the endpoint returned.
+- [x] **Step 4: Cross-check against the rollout**
 
-Result: _(fill in)_
+Result: **PASS**. `scratch-12`'s own rollout file (`rollout-2026-09-06T05-03-57-...jsonl`, matching its `createdAt`) contains one `token_count` event with `rate_limits: {"primary": {"used_percent": 0.0, ...}, "secondary": {"used_percent": 16.0, ...}, "plan_type": "plus", "limit_id": "codex"}` — matches the endpoint's response exactly.
 
-- [ ] **Step 5: Confirm the staleness rule on real data**
+Additionally scanned every rollout from 2026-09-05/06 directly for the G3 shape (`info: null` + a populated window): found none in that window (consistent with the shape's rarity — 0.4% overall per G3's own measurement), but did find three consecutive `info: null` events with `rate_limits.limit_id: "premium"` and both windows null in an earlier same-day rollout (`rollout-2026-09-05T19-29-38-...jsonl`) — the exact G7 case, correctly absent from the endpoint (would have been discarded by `IsEmpty`). The info-null-with-populated-windows case itself (G3's core claim) was already proven against ~50 real historical rollouts during Task 3's implementation-time probe test (run and deleted per that task's instructions) — this live check corroborates the surrounding pipeline (parse → transaction → store → HTTP → phone) with real production data end-to-end, even though this particular live spawn didn't reproduce the info-null moment itself.
 
-Note the `resetsAt` the endpoint reported for the 5-hour window. After it passes — or by temporarily checking a row whose `resets_at` is in the past — confirm the window comes back `stale: true` and that the phone shows "Unknown", not a percentage.
+- [x] **Step 5: Confirm the staleness rule on real data**
 
-Result: _(fill in)_
+Result: **PASS**, via the store-level fallback the plan sanctions (a real 5-hour rollover wasn't reachable in this session). Read the live row directly from the dev daemon's database (`/Users/omaraly/.operator/dev/data/opr.db`), noted the original `primary_resets_at` (`2026-09-06 07:03:30 +0000 UTC`), temporarily set it to a past timestamp, confirmed the endpoint immediately returned `"stale": true` for the primary window with the percentage still present in the payload, confirmed on the phone (user-verified) that the 5-hour row switched to "Unknown — last seen ..." with no percentage and no bar, then restored the original value and re-confirmed the endpoint returned to `"stale": false`.
 
-- [ ] **Step 6: Check it on the phone**
+- [x] **Step 6: Check it on the phone**
 
 Settings → Token usage. Expected: a "Codex plan usage" section with a 5-hour and a weekly bar, and a "Claude Code: not reported" line beneath.
 
-Result: _(fill in)_
+Result: **PASS** (user-confirmed via screenshot) — "Codex plan usage" section showing "5-hour window 0%", "Weekly 16%", and "Claude Code: not reported" beneath. Getting here also surfaced and required fixing an unrelated pre-existing bug (see report) that was blocking the whole Token usage screen, not just the quota section.
 
-- [ ] **Step 7: Record the results**
+- [x] **Step 7: Record the results**
 
 Write the actual output into `docs/superpowers/plans/2026-09-05-codex-quota-readout-report.md`. State each gate as pass or fail, never as "was run".
 

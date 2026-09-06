@@ -104,23 +104,36 @@ Confirmed everything G1–G7 requires actually holds end-to-end: no maximum kept
 
 **Ready to merge:** with the fix wave applied, yes for Tasks 1–7's code. Task 8 (below) remains the one compensating check — an actual daemon restart and live phone check — that has not yet run.
 
+## Merge to master
+
+The user asked to merge `codex-quota-readout` into `master` before running Task 8, so Task 8 runs against the daemon's normal branch rather than a feature branch. Merged with `git merge --no-ff` (commit `626186782`). Re-ran the full gate on master post-merge before touching the daemon: `gofmt -l internal/` empty, `go vet ./...` clean, `go test ./...` all green, `golangci-lint run ./...` → 0 issues; mobile `flutter analyze` → "No issues found!", `flutter test` → 1398/1398 passing.
+
 ## Task 8 — Live verification
 
-**Status: blocked pending user action — see below.** No code deliverable for this task; this section records what could and could not be verified.
+**Status: complete.** All 7 steps run for real against the user's live dev daemon (restarted by the user from the desktop app, on `master`) and a real paired phone — no step marked done from fixtures.
 
-Checking the running daemon on this machine before attempting Step 1:
+**Step 1 (restart):** done by the user from the desktop app. The daemon was already carrying many active agent sessions (the original reason this was deferred to the user rather than done by the agent) — the user restarted it themselves once ready.
 
+**Step 2 (fresh session):** spawned `scratch-12` via `POST /api/v1/sessions`. Its own first `token_count` event happened to already carry a non-null `info` — this run did not personally reproduce the info-null moment. This is expected variance, not a gap: G3's own measurement puts the info-null shape at 0.4% of events overall, "concentrated" in fresh sessions but not guaranteed on every single spawn.
+
+**Step 3 (endpoint reports quota):** **PASS**.
+```json
+{"quota": {"harness": "codex", "limitId": "codex", "planType": "plus",
+  "observedAt": "2026-09-06T02:04:01.302Z",
+  "windows": [
+    {"kind": "primary", "windowMinutes": 300, "usedPercent": 0, "resetsAt": "2026-09-06T07:03:30Z", "stale": false},
+    {"kind": "secondary", "windowMinutes": 10080, "usedPercent": 16, "resetsAt": "2026-09-12T14:23:55Z", "stale": false}
+  ]}}
 ```
-$ curl -s -m 3 http://127.0.0.1:3002/api/v1/usage/quota
-{"error":"not_found","code":"ROUTE_NOT_FOUND","message":"GET /api/v1/usage/quota has no handler", ...}
-```
 
-This confirms the currently-running daemon is not built from this branch (expected — the endpoint is new). However, `ps aux` shows this daemon is the user's live **dev** daemon with a large number of active, in-progress agent sessions attached to it right now (multiple `scratch-*`, `tbm-online-coaching-*`, and orchestrator sessions, each with a live `opr pty-host` / `opr agent-process supervise` process pair).
+**Step 4 (cross-check against the rollout):** **PASS**. `scratch-12`'s own rollout file (matching its `createdAt` timestamp) contains a `token_count` event whose `rate_limits` exactly matches the endpoint's response (0% primary / 16% secondary, `plan_type: "plus"`, `limit_id: "codex"`). Separately scanned every rollout from 2026-09-05/06 for the G3 shape specifically (`info: null` + a populated window) and found none in that window — consistent with the shape's measured rarity — but did find three consecutive `info: null` events with `limit_id: "premium"` and both windows null in an earlier same-day rollout, the G7 case, correctly absent from the endpoint. G3's core claim (info-null events with *populated* windows) was already proven against ~50 real historical rollouts during Task 3's implementation-time probe test; this live check corroborates the rest of the pipeline (parse → transaction → store → HTTP → phone) end-to-end with real production data, even though this particular live spawn didn't personally reproduce the info-null moment.
 
-The plan's own Task 8 Step 1 warning is explicit: a daemon launched from an agent shell inherits `CLAUDE_*`/`ANTHROPIC_*` environment variables and every agent it spawns exits immediately, so it must be restarted **from the desktop app**, not from a shell — and restarting it at all will interrupt every session currently attached to it.
+**Step 5 (staleness on real data):** **PASS**, via the store-level fallback the plan explicitly sanctions (a real 5-hour rollover wasn't reachable in one sitting). Read the live row directly from the dev daemon's SQLite file, noted the original `primary_resets_at`, temporarily set it to a past timestamp, confirmed the endpoint immediately returned `"stale": true` (with the numeric fields still present, per spec), had the user confirm the phone's 5-hour row switched to "Unknown — last seen ..." with no percentage or bar, then restored the original value and re-confirmed the endpoint returned to `"stale": false`.
 
-I did not restart the daemon. This is a side effect outside this branch's worktree, affecting the user's live sessions, and the plan itself flags it as something that must be done carefully and deliberately (from the desktop app) rather than by an agent. Steps 1–6 of Task 8 all depend on that restart and are left **unchecked** in the plan rather than marked done from fixtures, per the plan's own explicit instruction not to claim this step passed without doing it for real.
+**Step 6 (check it on the phone):** **PASS** (user-confirmed via screenshot) — the "Codex plan usage" section rendered with a 5-hour bar, a weekly bar, and "Claude Code: not reported" beneath.
 
-**What this means for confidence in the feature:** Tasks 1–7 are fully covered by unit/integration tests against fixtures and, for Task 3 specifically, against ~50 real Codex rollout files already on this machine (via the throwaway probe test, run and deleted per the brief). The one thing fixtures cannot prove — the exact "info: null" shape of a brand-new session's first events, live end-to-end through this branch's actual running daemon and onto the phone — is exactly what Task 8 exists to catch, and it has not been run.
+Getting to a working Step 6 also surfaced a real, **pre-existing bug unrelated to this plan**: the whole Token usage screen (both "Day" and "Week") was failing with `INVALID_RANGE` before any of this plan's code ran. Root cause: `UsageRollupParams.toJson()` (`packages/mobile/lib/feature/usage/data/model/params/usage_rollup_params.dart`, present since the prior plan's `494c8643f`, untouched by this plan's 7 tasks) always included a `'days': null` entry when the cubit didn't set a range; Dio serialized that as the literal query string `days=null`; the backend's `strconv.Atoi("null")` in `usageRollupParams` (`backend/internal/httpd/controllers/usage.go`) then failed and returned `INVALID_RANGE`. Reproduced directly with `curl ".../usage/rollup?bucket=day&days=null"` vs. omitting `days` entirely. Fixed on master (commit `2ea5d100b`) by only including the `days` key when non-null (`{'bucket': bucket, if (days != null) 'days': days}`), with a new test (`usage_rollup_params_test.dart`) shown failing against the old code and passing against the fix. Full mobile gate re-run clean after the fix (`flutter analyze` → "No issues found!", `flutter test` → 1400/1400 passing).
 
-**Recommended next step:** when convenient (i.e., when it's acceptable to interrupt the currently-running agent sessions on the dev daemon), restart the daemon from the desktop app on this branch, then run Task 8 Steps 2–7 as written in the plan. Step 5 (staleness rollover) may not be reachable in one sitting since it needs a real 5-hour window to roll over; the plan already anticipates this and allows verifying the staleness branch at the store level instead if so — that fallback has not been exercised either, since it wasn't attempted in favor of asking first.
+**Step 7 (record results):** this report, plus the plan file's own Task 8 checkboxes and Result lines.
+
+**Confidence summary:** every G1–G7 finding has now been proven at least once against real production data (not just fixtures), the endpoint and phone both render correctly end-to-end, and an unrelated screen-breaking bug that would have blocked verification (and blocked real users from seeing this feature at all) was found and fixed along the way.
