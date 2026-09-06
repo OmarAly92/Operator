@@ -129,7 +129,6 @@ type sessionLifecycle interface {
 	// SessionMutationInProgress suppresses observation-driven termination while
 	// Session Manager deliberately replaces or relaunches a provider process.
 	SessionMutationInProgress(id domain.SessionID) bool
-	// SetTerminalInputGate prevents mux input from racing a TUI-to-Chat handoff.
 	SetTerminalInputGate(gate sessionmanager.TerminalInputGate)
 	// SetReviewerTerminator late-binds worker lifecycle teardown to the review
 	// service, which is built alongside the controller-facing service below.
@@ -141,9 +140,9 @@ type sessionLifecycle interface {
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so
 // the fully-wired manager can replace the boot-time pane messenger once ready.
-// None of the daemon-internal sends this feeds (interface-transition drains,
-// lifecycle nudges) carry an attachment, so it is always nil here; the
-// attachment-aware send path only exists at the HTTP /send endpoint.
+// None of the daemon-internal sends this feeds (lifecycle nudges) carry an
+// attachment, so it is always nil here; the attachment-aware send path only
+// exists at the HTTP /send endpoint.
 type sessionLifecycleMessenger struct {
 	sessionLifecycle
 }
@@ -294,7 +293,7 @@ func newSessionMessenger(store *sqlite.Store, runtime runtimeMessageSender, _ *s
 // modeAwareMessenger lets lifecycle start before the session manager while
 // ensuring every reaction crosses the same persisted-mode dispatcher as an
 // explicit `opr send`. A send in the short boot window waits for Bind instead of
-// falling through to the terminal runtime, which would be wrong for Chat sessions.
+// falling through to the terminal runtime.
 type modeAwareMessenger struct {
 	mu     sync.RWMutex
 	target ports.AgentMessenger
