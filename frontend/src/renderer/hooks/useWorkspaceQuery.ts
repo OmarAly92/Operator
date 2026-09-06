@@ -92,6 +92,8 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						reviewerHarness: toReviewerHarnessId(session.reviewerHarness),
 						kind: session.kind === "orchestrator" ? "orchestrator" : session.kind === "worker" ? "worker" : undefined,
 						branch: session.branch || undefined,
+						workspaceMode: session.workspaceMode,
+						workspacePath: session.workspacePath,
 						status,
 						scmStatus,
 						isTerminated: session.isTerminated,

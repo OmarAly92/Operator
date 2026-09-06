@@ -7,6 +7,7 @@ import {
 	AlertTriangle,
 	Check,
 	Copy,
+	FolderOpen,
 	GitBranch,
 	LoaderCircle,
 	Plus,
@@ -843,6 +844,10 @@ function SessionCard({
 	const issueId = canonicalTrackerIssueId(session.issueId);
 	const branch = session.branch || "";
 	const showBranch = branch !== "" && !sameLabel(branch, session.title) && !sameLabel(branch, session.id);
+	const inPlace = session.workspaceMode === "in_place";
+	const workspacePath = session.workspacePath || "";
+	const location = inPlace ? workspacePath : workspacePath.split("/").filter(Boolean).pop() || "";
+	const showLocation = showBranch || location !== "";
 	const prSummaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
 	const termination = useTerminateSessionState(session.id);
 	const showTerminate = interactive && session.isTerminated !== true && onTerminate;
@@ -925,10 +930,25 @@ function SessionCard({
 					>
 						{session.title}
 					</div>
-					{showBranch && (
+					{showLocation && (
 						<div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-2xs text-passive">
-							<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />
-							<span className="truncate">{branch}</span>
+							{showBranch && (
+								<>
+									<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />
+									<span className="min-w-0 truncate">{branch}</span>
+								</>
+							)}
+							{location !== "" && (
+								<>
+									{inPlace && <FolderOpen aria-hidden="true" className="size-icon-2xs shrink-0 text-warning" />}
+									<span
+										className="min-w-0 truncate"
+										data-testid={inPlace ? "session-location-in-place" : undefined}
+									>
+										{location}
+									</span>
+								</>
+							)}
 							{branchAction}
 						</div>
 					)}

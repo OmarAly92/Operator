@@ -267,6 +267,55 @@ describe("SessionsBoard", () => {
 		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-semibold", "line-clamp-2");
 	});
 
+	it("shows the branch and worktree directory for a worktree session", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "opr-1",
+						title: "worktree worker",
+						status: "working",
+						branch: "opr/opr-1",
+						workspaceMode: "worktree",
+						workspacePath: "/Users/me/.operator/worktrees/session-foo",
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("opr/opr-1")).toBeInTheDocument();
+		expect(screen.getByText("session-foo")).toBeInTheDocument();
+	});
+
+	it("marks an in-place session as running in the project checkout", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "opr-2",
+						title: "in-place worker",
+						status: "working",
+						branch: "master",
+						workspaceMode: "in_place",
+						workspacePath: "/Users/me/dev/Operator",
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByTestId("session-location-in-place")).toBeInTheDocument();
+		expect(screen.getByText("master")).toBeInTheDocument();
+		expect(screen.getByText("/Users/me/dev/Operator")).toBeInTheDocument();
+	});
+
 	it("shows compact token usage on active and archived cards and hides empty totals", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [
