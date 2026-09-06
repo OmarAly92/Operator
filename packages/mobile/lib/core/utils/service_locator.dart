@@ -5,13 +5,8 @@ import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
-import 'package:operator_mobile/core/events/conversation_event_bus.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_source.dart';
-import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
-import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
-import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
 import 'package:operator_mobile/feature/dictation/device_provider.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
@@ -21,7 +16,6 @@ import 'package:operator_mobile/feature/blocks/data/data_source/session_control_
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/session_control_repository.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
-import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/conversation_blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
 import 'package:operator_mobile/feature/notification/data/data_source/notification_remote_data_source.dart';
@@ -69,7 +63,6 @@ class ServiceLocator {
     _orchestratorFeatureSetup();
     _spawnFeatureSetup();
     _settingsFeatureSetup();
-    _chatFeatureSetup();
     _terminalFeatureSetup();
     _usageFeatureSetup();
     _blocksFeatureSetup();
@@ -97,10 +90,6 @@ class ServiceLocator {
     sl.registerLazySingleton<MuxClient>(
       () => MuxClient(sl<ServerConfigStore>()),
     );
-    sl.registerLazySingleton<ConversationEventBus>(
-      () => ConversationEventBus(sl<ChatEventDataSource>()),
-    );
-
     sl.registerLazySingleton<GlobalKey<NavigatorState>>(
       () => GlobalKey<NavigatorState>(),
     );
@@ -199,26 +188,6 @@ class ServiceLocator {
     );
   }
 
-  static void _chatFeatureSetup() {
-    sl.registerFactoryParam<ChatCubit, String, void>(
-      (sessionId, _) => ChatCubit(
-        sl<ChatRepository>(),
-        sessionId,
-        eventBus: sl<ConversationEventBus>(),
-      ),
-    );
-
-    sl.registerLazySingleton<ChatRepository>(
-      () => ChatRepositoryImp(sl<ChatRemoteDataSource>(), sl<NetworkStatus>()),
-    );
-    sl.registerLazySingleton<ChatRemoteDataSource>(
-      () => ChatRemoteDataSourceImp(sl<ApiConsumer>()),
-    );
-    sl.registerLazySingleton<ChatEventDataSource>(
-      () => ChatEventDataSourceImp(sl<ApiConsumer>()),
-    );
-  }
-
   static void _terminalFeatureSetup() {
     sl.registerFactoryParam<TerminalCubit, TerminalArgs, void>(
       (args, _) => TerminalCubit(
@@ -255,13 +224,6 @@ class ServiceLocator {
         sl<BlocksRepository>(),
         sessionId,
         harness: harness,
-      ),
-    );
-    sl.registerFactoryParam<ConversationBlocksCubit, String, void>(
-      (sessionId, _) => ConversationBlocksCubit(
-        sl<ChatRepository>(),
-        sl<ConversationEventBus>(),
-        sessionId,
       ),
     );
     sl.registerFactoryParam<SessionViewCubit, TerminalArgs, void>(
