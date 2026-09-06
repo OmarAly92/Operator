@@ -184,7 +184,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 	// workspace root survives a reset or fresh migration — either can already
 	// hold the id MAX(num)+1 just produced, and the spawn then dies at launch or
 	// on a dirty workspace. Let the allocator skip those.
-	store.SetSessionIDInUse(sessionIDClaimProbe(log, runtime, ws))
+	store.SetSessionIDInUse(sessionIDClaimProbe(log, runtime, ws, agentSessionIDClaims{agents: agents}))
 	mgr := sessionmanager.New(sessionmanager.Deps{
 		Runtime:             runtime,
 		Agents:              agents,

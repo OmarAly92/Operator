@@ -48,3 +48,44 @@ func sessionIDClaimProbe(log *slog.Logger, sources ...any) func(context.Context,
 		return false
 	}
 }
+
+// agentSessionIDClaims asks every resolvable agent adapter that implements the
+// capability whether it already holds an id in its own provider namespace. A
+// provider's session store is a third namespace, independent of the pty-host
+// registry and the workspace root: Claude Code derives a stable UUID from the
+// Operator session id and keeps its transcript under the config dir, so a
+// number whose workspace was cleaned can still be unusable.
+//
+// One adapter failing is not the whole answer, so probing continues and the
+// first error surfaces only when no adapter claimed the id.
+type agentSessionIDClaims struct {
+	agents ports.AgentResolver
+}
+
+func (a agentSessionIDClaims) IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error) {
+	if a.agents == nil {
+		return false, nil
+	}
+	var firstErr error
+	for _, harness := range domain.AllHarnesses {
+		agent, ok := a.agents.Agent(harness)
+		if !ok {
+			continue
+		}
+		checker, ok := agent.(ports.SessionIDClaimChecker)
+		if !ok {
+			continue
+		}
+		claimed, err := checker.IsSessionIDClaimed(ctx, sessionID)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if claimed {
+			return true, nil
+		}
+	}
+	return false, firstErr
+}
