@@ -16,8 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
 	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
 	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
@@ -41,7 +39,6 @@ import (
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
 	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
-	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
 	devimportsvc "github.com/OmarAly92/operator/backend/internal/service/devimport"
 	importsvc "github.com/OmarAly92/operator/backend/internal/service/importer"
 	notificationsvc "github.com/OmarAly92/operator/backend/internal/service/notification"
@@ -192,11 +189,7 @@ func Run() error {
 
 	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, log)
 
-	// Wire the controller-facing session service over the same store + LCM, the
-	// selected runtime, routed git/scratch workspaces, the per-session agent
-	// resolver (OPERATOR_AGENT validated here for compatibility), and the agent
-	// messenger, then mount it on the API.
-	chatDrivers := chatdriverregistry.Build(log)
+	_ = chatdriverregistry.Build(log)
 
 	// Daemon-owned preferences. The store's type is field-compatible with the
 	// service's, adapted here so neither package imports the other.
@@ -219,53 +212,7 @@ func Run() error {
 		cfg.DataDir,
 	}})
 
-	// Chat service. The driver registry is the capability gate: a harness with no
-	// registered driver cannot start in chat mode, so an unsupported request fails
-	// loudly instead of silently becoming a TUI session.
-	chatSvc := chatsvc.New(chatsvc.Options{
-		Store:    store,
-		Sessions: store,
-		// Adapts the store's own snapshot type, so the chat service never has to
-		// import the storage layer.
-		Reader: chatsvc.SnapshotReaderFunc(func(ctx context.Context, conversationID string) (chatsvc.ConversationRows, error) {
-			rows, err := store.LoadConversationSnapshot(ctx, conversationID)
-			if err != nil {
-				return chatsvc.ConversationRows{}, err
-			}
-			return chatsvc.ConversationRows{
-				Conversation:               rows.Conversation,
-				Turns:                      rows.Turns,
-				Messages:                   rows.Messages,
-				Activities:                 rows.Activities,
-				BranchPoints:               rows.BranchPoints,
-				BranchedFromEarlierMessage: rows.BranchedFromEarlierMessage,
-			}, nil
-		}),
-		PageReader: chatsvc.SnapshotPageReaderFunc(func(ctx context.Context, conversationID string, beforeSequence, limit int64) (chatsvc.ConversationRows, error) {
-			rows, err := store.LoadConversationSnapshotPage(ctx, conversationID, beforeSequence, limit)
-			if err != nil {
-				return chatsvc.ConversationRows{}, err
-			}
-			return chatsvc.ConversationRows{
-				Conversation:               rows.Conversation,
-				Turns:                      rows.Turns,
-				Messages:                   rows.Messages,
-				Activities:                 rows.Activities,
-				BranchPoints:               rows.BranchPoints,
-				BranchedFromEarlierMessage: rows.BranchedFromEarlierMessage,
-				OldestSequence:             rows.OldestSequence,
-				HasMoreBefore:              rows.HasMoreBefore,
-			}, nil
-		}),
-		Drivers: chatDrivers,
-		// The LCM satisfies ActivityRecorder directly: a chat turn is a pure
-		// lifecycle reduction, same as a hook signal from a terminal session.
-		Activity: lcStack.LCM,
-		Log:      log,
-		NewID:    uuid.NewString,
-	})
-
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, standaloneBrowser, browserAuthority, chatLauncher{svc: chatSvc}, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, standaloneBrowser, browserAuthority, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -517,12 +464,6 @@ func Run() error {
 	stop()
 	managedPreview.Close()
 	<-previewDone
-	// Close chat controllers before the lifecycle stack: each owns an app-server
-	// child process, and closing them also settles any turn left in flight so a
-	// restart does not read a half-finished turn as still working.
-	chatStopCtx, chatCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
-	chatSvc.StopAll(chatStopCtx)
-	chatCancel()
 	if usageDone != nil {
 		<-usageDone
 	}

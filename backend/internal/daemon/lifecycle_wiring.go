@@ -23,7 +23,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
-	chatsvc "github.com/OmarAly92/operator/backend/internal/service/chat"
 	reviewsvc "github.com/OmarAly92/operator/backend/internal/service/review"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
@@ -158,7 +157,7 @@ func (m sessionLifecycleMessenger) Send(ctx context.Context, id domain.SessionID
 // LCM, the per-session agent resolver, and the agent messenger. The returned
 // service is mounted at httpd APIDeps.Sessions. It also returns the manager so
 // the caller can wire Reconcile into the boot sequence.
-func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, chat sessionmanager.ChatLauncher, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
+func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
 	gitWS, err := gitworktree.New(gitworktree.Options{
 		// Per-session worktrees live under the data dir, so a single OPERATOR_DATA_DIR
 		// override moves all durable per-user state together.
@@ -194,7 +193,6 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Workspace:           ws,
 		Store:               store,
 		Messenger:           messenger,
-		Chat:                chat,
 		Lifecycle:           lcm,
 		Preview:             previewLifecycle,
 		Browser:             browserLifecycle,
@@ -431,94 +429,4 @@ func (r projectRepoResolver) RepoPath(projectID domain.ProjectID) (string, error
 		return "", fmt.Errorf("project %q has no repo path on record: %w", projectID, sessionmanager.ErrProjectNotResolvable)
 	}
 	return rec.Path, nil
-}
-
-// chatLauncher adapts the chat service to session_manager.ChatLauncher.
-//
-// The two packages define their own request/result types on purpose so neither
-// depends on the other's; this is the one place that knows both, which keeps the
-// translation in the wiring rather than in either domain.
-type chatLauncher struct{ svc *chatsvc.Service }
-
-var _ sessionmanager.ChatLauncher = chatLauncher{}
-var _ interface {
-	PrepareChatHandoff(context.Context, domain.SessionID, domain.SessionInterfaceTransitionPolicy) error
-	AbortChatHandoff(domain.SessionID)
-} = chatLauncher{}
-
-func (c chatLauncher) PreflightChat(ctx context.Context, harness domain.AgentHarness) error {
-	return c.svc.PreflightChat(ctx, harness)
-}
-
-func (c chatLauncher) StartChat(ctx context.Context, cfg sessionmanager.ChatStart) (sessionmanager.ChatStarted, error) {
-	out, err := c.svc.StartChat(ctx, chatsvc.StartRequest{
-		SessionID:              cfg.SessionID,
-		ProjectID:              cfg.ProjectID,
-		Kind:                   cfg.Kind,
-		Harness:                cfg.Harness,
-		DataDir:                cfg.DataDir,
-		WorkspacePath:          cfg.WorkspacePath,
-		Env:                    cfg.Env,
-		Model:                  cfg.Model,
-		Permissions:            cfg.Permissions,
-		SystemPrompt:           cfg.SystemPrompt,
-		AdditionalDirectories:  cfg.AdditionalDirectories,
-		ProviderConversationID: cfg.ProviderConversationID,
-		ControllerReady: func(out chatsvc.StartResult) error {
-			if cfg.ControllerReady == nil {
-				return nil
-			}
-			return cfg.ControllerReady(sessionmanager.ChatStarted{
-				ProviderConversationID: out.ProviderConversationID,
-				ControllerGeneration:   out.ControllerGeneration,
-			})
-		},
-	})
-	if err != nil {
-		return sessionmanager.ChatStarted{}, err
-	}
-	return sessionmanager.ChatStarted{
-		ProviderConversationID: out.ProviderConversationID,
-		ControllerGeneration:   out.ControllerGeneration,
-	}, nil
-}
-
-func (c chatLauncher) StartChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error) {
-	return c.svc.StartChatTurn(ctx, id, text)
-}
-
-func (c chatLauncher) RelayChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error) {
-	return c.svc.RelayChatTurn(ctx, id, text)
-}
-
-func (c chatLauncher) RelayChatTurnWithID(
-	ctx context.Context,
-	id domain.SessionID,
-	text, clientMessageID string,
-) (string, error) {
-	return c.svc.RelayChatTurnWithID(ctx, id, text, clientMessageID)
-}
-
-func (c chatLauncher) HasLiveChatController(id domain.SessionID) bool {
-	return c.svc.HasLiveChatController(id)
-}
-
-// PrepareChatHandoff closes Chat intake and waits for the controller to become
-// quiescent before Session Manager stops it. These methods intentionally live
-// on the wiring adapter: Session Manager's handoff capability is optional, but
-// wrapping the concrete Chat service must not erase it.
-func (c chatLauncher) PrepareChatHandoff(
-	ctx context.Context,
-	id domain.SessionID,
-	policy domain.SessionInterfaceTransitionPolicy,
-) error {
-	return c.svc.PrepareChatHandoff(ctx, id, policy)
-}
-
-func (c chatLauncher) AbortChatHandoff(id domain.SessionID) {
-	c.svc.AbortChatHandoff(id)
-}
-
-func (c chatLauncher) StopChat(ctx context.Context, id domain.SessionID) error {
-	return c.svc.StopChat(ctx, id)
 }
