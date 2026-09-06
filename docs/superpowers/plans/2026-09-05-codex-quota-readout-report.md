@@ -86,6 +86,24 @@ Commits: `1a6afcc93` (initial), `6f87e0e45` (fix round 1).
 
 Status: **complete**.
 
+## Final whole-branch review
+
+Dispatched on Opus over the full 10-commit branch diff (`3128f83b7..4a274b458`), after all 7 tasks were individually reviewed and approved. This review specifically traced each of G1–G7 end-to-end across the Go/SQL/JSON/Dart boundary — checking things a single-task review cannot, such as whether the parser's `parseCodex`/`Ingest` call chain has any short-circuit that would skip a quota-only chunk, and whether any layer along the full path recomputes, rescales, or collapses 0%/absent.
+
+Findings:
+- **I1 (Important):** the production write path for quota (`ingestor.go:289` → `ApplyUsageChunkWithContext` → unexported `saveUsageQuota`) had zero automated coverage. The existing tests only called the exported `SaveUsageQuota`, which production never calls — so the seam connecting Task 3's parser output to Task 4's stored row was held together only by the type checker, not a test.
+- **M1 (Minor):** `usageQuotaWindowFromGen` returned nil only when *both* the percent and minutes columns were NULL rather than checking each independently — one condition away from silently rendering "not reported" as a real 0%.
+- **M2 (Minor):** the mobile UI relied on array order rather than each window's `kind` field to decide which visual slot it renders in — latent, since the backend always emits primary-then-secondary today, but not contractually guaranteed.
+- **M3–M7 (Minor, triaged non-blocking):** a pre-existing repo-wide OpenAPI nullability limitation this branch inherits (not introduces); a dangling-space edge case in "Unknown — last seen " unreachable since `observedAt` is a required wire field on the only server that exists; a fresh-but-days-old reading showing no age indicator (a design choice already reviewed and approved in Task 7's copy rules); a quota-fetch failure blanking the whole section on refresh (matches specified never-observed behavior, but conflates a real error with a 404); single-`limit_id`-per-chunk narrowing (unreachable today since the only other observed `limit_id`, "premium", always has both windows null and is discarded).
+
+Confirmed everything G1–G7 requires actually holds end-to-end: no maximum kept anywhere for `used_percent`, no rescaling beyond a `usedPercent / 100.0` UI progress-bar conversion, 0% and absent never collapse at any of the five layers (four independent tests pin this), the G3 ordering survives the surrounding `parseCodex`/`Ingest` control flow (no short-circuit skips a quota-only chunk), the quota write shares the chunk's transaction, and both backward-compatibility cases that matter (an old daemon, an empty table) degrade to "section doesn't render" rather than crashing.
+
+**Fix wave** (commit `afbc067c1`, one dispatch covering all three): I1 fixed with a new integration test, `TestIngestorPersistsQuotaFromAnInfolessRateLimitEvent`, that writes a rollout line in the exact G3 shape, runs the real production `Ingest()`, and asserts `GetUsageQuota` returns the expected values — proven to fail when `parsed.Quota` isn't wired through and pass with the real code. M1 fixed (both `.Valid` checks now independently required). M2 fixed (windows ordered by `kind`, with a regression test feeding secondary-before-primary on the wire and asserting primary still renders first).
+
+**Re-review:** all three findings independently verified ADDRESSED — including tracing the new I1 test through the real production call chain rather than accepting a shortcut through the store directly — no new breakage, full backend gate (`gofmt`/`go vet`/`go test`/`golangci-lint`) and full mobile gate (`flutter analyze` → "No issues found!", `flutter test` → 1398 tests) both green.
+
+**Ready to merge:** with the fix wave applied, yes for Tasks 1–7's code. Task 8 (below) remains the one compensating check — an actual daemon restart and live phone check — that has not yet run.
+
 ## Task 8 — Live verification
 
 **Status: blocked pending user action — see below.** No code deliverable for this task; this section records what could and could not be verified.
