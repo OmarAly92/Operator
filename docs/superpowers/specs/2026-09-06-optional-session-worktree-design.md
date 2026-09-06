@@ -67,9 +67,11 @@ So the mode is recorded on the session and the router keys off it.
 
 ### The mode
 
-`domain.WorkspaceMode` with values `worktree` and `in_place`, and a `WithDefault()`
-that maps empty to `worktree` — matching how `domain.ProjectKind` already handles the
-same problem. It is carried on:
+`domain.WorkspaceMode` with values `worktree` and `in_place`. Deliberately **no
+`WithDefault()`**, unlike `domain.ProjectKind`: that helper exists to absorb rows
+predating a column, and this design leaves no such rows behind (see the migration
+below). An empty mode reaching the workspace layer is a programming error and is
+rejected, not silently coerced. It is carried on:
 
 - `ports.SpawnConfig` — the request.
 - `ports.WorkspaceConfig` — what the adapter is asked to build.
@@ -79,9 +81,26 @@ same problem. It is carried on:
 `SessionMetadata` is **not** a JSON blob: its fields are individual columns on
 `sessions` (`branch` and `workspace_path` land at
 [`0001_init.sql:38`](../../../backend/internal/storage/sqlite/migrations/0001_init.sql)).
-So this needs migration `0101_session_workspace_mode.sql` adding
-`workspace_mode TEXT NOT NULL DEFAULT ''`, the query updates, and `npm run sqlc`. The
-empty default is what makes every existing row read as `worktree` without a backfill.
+So this needs a migration, the query updates, and `npm run sqlc`.
+
+**The migration clears session data rather than defaulting it.** Operator is
+pre-release with no installs to preserve, and a defaulted column is exactly the kind
+of fallback that outlives the reason for it: every later reader would have to keep
+answering "what does empty mean?". Migration `0101_session_workspace_mode.go` follows
+the precedent of
+[`0094_clear_pre_release_data.go`](../../../backend/internal/storage/sqlite/0094_clear_pre_release_data.go)
+— a Go migration that deletes session-scoped rows, then adds
+
+```sql
+workspace_mode TEXT NOT NULL CHECK (workspace_mode IN ('worktree', 'in_place'))
+```
+
+with no `DEFAULT`. Every surviving row must name its mode explicitly, and the database
+refuses anything else. Existing sessions and their worktrees on disk are orphaned by
+this; that is the accepted cost of the clean column. It must also be registered in the
+burned-versions registry in
+[`migrate_burned_versions_test.go`](../../../backend/internal/storage/sqlite/migrate_burned_versions_test.go)
+as `101: "0101_session_workspace_mode.go"`.
 
 ### The in-place adapter
 
@@ -158,8 +177,10 @@ restore marker, not a claim that a worktree exists.
 
 ### API
 
-`POST /api/v1/sessions` accepts an optional `workspaceMode`. Absent means `worktree`,
-so existing clients are unaffected. The session DTO
+`POST /api/v1/sessions` accepts `workspaceMode`. Absent means `worktree` — this is the
+one place a default is correct, because it is an API compatibility boundary rather
+than stored state, and it keeps `opr session spawn` and orchestrator spawns unchanged.
+The controller resolves it to an explicit mode before anything durable is written. The session DTO
 ([`dto.go:173`](../../../backend/internal/httpd/controllers/dto.go)) gains
 `workspaceMode` and `workspacePath` so clients can show where a session lives.
 Regenerate with `npm run api`.
