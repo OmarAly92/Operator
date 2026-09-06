@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestMigration0102AddsWorkspaceModeWithoutDefault(t *testing.T) {
+func TestMigration0103AddsWorkspaceModeWithoutDefault(t *testing.T) {
 	db := openMigratedTestDB(t)
 	var ddl string
 	if err := db.QueryRowContext(context.Background(),
@@ -24,7 +24,7 @@ func TestMigration0102AddsWorkspaceModeWithoutDefault(t *testing.T) {
 	}
 }
 
-func TestMigration0102RejectsAnUnknownMode(t *testing.T) {
+func TestMigration0103RejectsAnUnknownMode(t *testing.T) {
 	db := openMigratedTestDB(t)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO sessions (id, project_id, workspace_mode) VALUES ('s-1', 'p-1', 'nonsense')`)

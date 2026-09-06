@@ -48,10 +48,5 @@ func addSessionWorkspaceMode(ctx context.Context, tx *sql.Tx) error {
 			return fmt.Errorf("clear table %s: %w", table, err)
 		}
 	}
-	if _, err := tx.ExecContext(ctx,
-		`ALTER TABLE sessions ADD COLUMN workspace_mode TEXT NOT NULL CHECK (workspace_mode IN ('worktree', 'in_place'))`,
-	); err != nil {
-		return fmt.Errorf("add sessions.workspace_mode: %w", err)
-	}
 	return nil
 }

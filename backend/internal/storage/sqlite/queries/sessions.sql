@@ -5,7 +5,7 @@ SELECT COALESCE(MAX(num), 0) + 1 AS next FROM sessions WHERE project_id = ?;
 INSERT INTO sessions (
     id, project_id, num, issue_id, kind, harness, reviewer_harness, display_name,
     activity_state, activity_last_at, first_signal_at, is_terminated,
-    branch, workspace_path, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
+    branch, workspace_path, workspace_mode, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
@@ -15,14 +15,14 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: UpdateSession :exec
 UPDATE sessions SET
     issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, display_name = ?,
     activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
-    branch = ?, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
+    branch = ?, workspace_path = ?, workspace_mode = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
     latest_user_prompt = ?, latest_assistant_update = ?, native_transcript_path = ?,
     preview_url = ?, preview_revision = ?, preview_opened_revision = ?, terminate_on_pr_merge = ?,
@@ -41,7 +41,7 @@ WHERE id = sqlc.arg(id)
 
 -- name: GetSession :one
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
@@ -53,7 +53,7 @@ FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
@@ -65,7 +65,7 @@ FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,

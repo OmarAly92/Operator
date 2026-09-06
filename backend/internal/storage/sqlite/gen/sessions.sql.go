@@ -15,7 +15,7 @@ import (
 
 const getSession = `-- name: GetSession :one
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
@@ -38,6 +38,7 @@ type GetSessionRow struct {
 	IsTerminated              bool
 	Branch                    string
 	WorkspacePath             string
+	WorkspaceMode             string
 	RuntimeHandleID           string
 	AgentSessionID            string
 	Prompt                    string
@@ -81,6 +82,7 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.IsTerminated,
 		&i.Branch,
 		&i.WorkspacePath,
+		&i.WorkspaceMode,
 		&i.RuntimeHandleID,
 		&i.AgentSessionID,
 		&i.Prompt,
@@ -115,7 +117,7 @@ const insertSession = `-- name: InsertSession :exec
 INSERT INTO sessions (
     id, project_id, num, issue_id, kind, harness, reviewer_harness, display_name,
     activity_state, activity_last_at, first_signal_at, is_terminated,
-    branch, workspace_path, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
+    branch, workspace_path, workspace_mode, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
@@ -125,7 +127,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -144,6 +146,7 @@ type InsertSessionParams struct {
 	IsTerminated              bool
 	Branch                    string
 	WorkspacePath             string
+	WorkspaceMode             string
 	WorkspaceRepoPath         string
 	DiffBaseSha               string
 	DiffBaseRef               string
@@ -185,6 +188,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.IsTerminated,
 		arg.Branch,
 		arg.WorkspacePath,
+		arg.WorkspaceMode,
 		arg.WorkspaceRepoPath,
 		arg.DiffBaseSha,
 		arg.DiffBaseRef,
@@ -214,7 +218,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 
 const listAllSessions = `-- name: ListAllSessions :many
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
@@ -237,6 +241,7 @@ type ListAllSessionsRow struct {
 	IsTerminated              bool
 	Branch                    string
 	WorkspacePath             string
+	WorkspaceMode             string
 	RuntimeHandleID           string
 	AgentSessionID            string
 	Prompt                    string
@@ -286,6 +291,7 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.IsTerminated,
 			&i.Branch,
 			&i.WorkspacePath,
+			&i.WorkspaceMode,
 			&i.RuntimeHandleID,
 			&i.AgentSessionID,
 			&i.Prompt,
@@ -328,7 +334,7 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 
 const listSessionsByProject = `-- name: ListSessionsByProject :many
 SELECT id, project_id, num, issue_id, kind, harness,
-    activity_state, activity_last_at, is_terminated, branch, workspace_path,
+    activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
     runtime_handle_id, agent_session_id, prompt,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
@@ -351,6 +357,7 @@ type ListSessionsByProjectRow struct {
 	IsTerminated              bool
 	Branch                    string
 	WorkspacePath             string
+	WorkspaceMode             string
 	RuntimeHandleID           string
 	AgentSessionID            string
 	Prompt                    string
@@ -400,6 +407,7 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.IsTerminated,
 			&i.Branch,
 			&i.WorkspacePath,
+			&i.WorkspaceMode,
 			&i.RuntimeHandleID,
 			&i.AgentSessionID,
 			&i.Prompt,
@@ -653,7 +661,7 @@ const updateSession = `-- name: UpdateSession :exec
 UPDATE sessions SET
     issue_id = ?, kind = ?, harness = ?, reviewer_harness = ?, display_name = ?,
     activity_state = ?, activity_last_at = ?, first_signal_at = ?, is_terminated = ?,
-    branch = ?, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
+    branch = ?, workspace_path = ?, workspace_mode = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
     latest_user_prompt = ?, latest_assistant_update = ?, native_transcript_path = ?,
     preview_url = ?, preview_revision = ?, preview_opened_revision = ?, terminate_on_pr_merge = ?,
@@ -675,6 +683,7 @@ type UpdateSessionParams struct {
 	IsTerminated              bool
 	Branch                    string
 	WorkspacePath             string
+	WorkspaceMode             string
 	WorkspaceRepoPath         string
 	DiffBaseSha               string
 	DiffBaseRef               string
@@ -713,6 +722,7 @@ func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) er
 		arg.IsTerminated,
 		arg.Branch,
 		arg.WorkspacePath,
+		arg.WorkspaceMode,
 		arg.WorkspaceRepoPath,
 		arg.DiffBaseSha,
 		arg.DiffBaseRef,
