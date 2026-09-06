@@ -22,6 +22,7 @@ class SpawnCubit extends Cubit<SpawnState> {
   String harness = '';
   String name = '';
   String prompt = '';
+  bool useWorktree = false;
 
   List<RankedAgent> get agents => rankAgents(_catalog);
 
@@ -32,6 +33,11 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   void setHarness(String next) {
     harness = next;
+    _bump();
+  }
+
+  void setUseWorktree(bool value) {
+    useWorktree = value;
     _bump();
   }
 
@@ -80,6 +86,7 @@ class SpawnCubit extends Cubit<SpawnState> {
       prompt: prompt.trim(),
       issueId: name.trim(),
       harness: harness,
+      workspaceMode: useWorktree ? 'worktree' : 'in_place',
     ));
     TelemetryRuntime.featureUsed('spawn', succeeded: result.isSuccess);
     result.when(

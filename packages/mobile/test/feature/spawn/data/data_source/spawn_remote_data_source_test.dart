@@ -61,7 +61,7 @@ void main() {
 
     final body = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body')))
         .captured.single as Map<String, dynamic>;
-    expect(body, {'projectId': 'p', 'kind': 'worker'});
+    expect(body, {'projectId': 'p', 'workspaceMode': 'in_place', 'kind': 'worker'});
   });
 
   test('sends every field it was given', () async {
@@ -82,6 +82,7 @@ void main() {
       'prompt': 'fix the test',
       'issueId': 'flaky login',
       'harness': 'codex',
+      'workspaceMode': 'in_place',
       'kind': 'worker',
     });
   });

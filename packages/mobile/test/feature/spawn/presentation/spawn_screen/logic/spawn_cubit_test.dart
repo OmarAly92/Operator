@@ -21,6 +21,18 @@ AgentCatalog get _catalog => AgentCatalog(
 );
 
 void main() {
+  group('SpawnSessionParams', () {
+    test('defaults to in_place so no worktree is created', () {
+      final params = SpawnSessionParams(projectId: 'p-1');
+      expect(params.toJson()['workspaceMode'], 'in_place');
+    });
+
+    test('sends worktree when the toggle is on', () {
+      final params = SpawnSessionParams(projectId: 'p-1', workspaceMode: 'worktree');
+      expect(params.toJson()['workspaceMode'], 'worktree');
+    });
+  });
+
   late _MockSpawnRepository repository;
 
   SpawnCubit buildCubit() {
@@ -133,5 +145,31 @@ void main() {
       await cubit.submit();
     },
     verify: (cubit) => expect((cubit.state as SpawnFailureState).failure.message, 'branch is busy'),
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'emits when the worktree toggle changes',
+    build: () => SpawnCubit(repository),
+    act: (cubit) => cubit.setUseWorktree(true),
+    expect: () => [isA<CatalogReadyState>().having((s) => s.revision, 'revision', 1)],
+    verify: (cubit) => expect(cubit.useWorktree, isTrue),
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'defaults to in_place and sends worktree only when toggled on',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit.setProject('p');
+      cubit.setUseWorktree(true);
+      cubit.name = 'flaky login';
+      cubit.prompt = 'fix it';
+      await cubit.submit();
+    },
+    verify: (cubit) {
+      final params = verify(() => repository.spawn(captureAny())).captured.single
+          as SpawnSessionParams;
+      expect(params.workspaceMode, 'worktree');
+    },
   );
 }
