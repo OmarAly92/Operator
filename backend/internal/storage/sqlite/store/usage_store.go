@@ -569,7 +569,7 @@ func usageQuotaFromGen(row gen.UsageQuotum) domain.UsageQuota {
 }
 
 func usageQuotaWindowFromGen(usedPercent sql.NullFloat64, windowMinutes sql.NullInt64, resetsAt sql.NullTime) *domain.UsageQuotaWindow {
-	if !usedPercent.Valid && !windowMinutes.Valid {
+	if !usedPercent.Valid || !windowMinutes.Valid {
 		return nil
 	}
 	return &domain.UsageQuotaWindow{

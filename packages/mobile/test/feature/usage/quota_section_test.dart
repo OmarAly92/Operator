@@ -43,6 +43,26 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
+  testWidgets('orders windows by kind rather than array order', (tester) async {
+    await tester.pumpWidget(_wrap(QuotaSection(quota: UsageQuotaModel.fromJson(const {
+      'harness': 'codex', 'planType': 'plus',
+      'windows': [
+        {'kind': 'secondary', 'windowMinutes': 10080, 'usedPercent': 12, 'stale': false},
+        {'kind': 'primary', 'windowMinutes': 300, 'usedPercent': 77, 'stale': false},
+      ],
+    }))));
+    final labels = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((w) => w.data)
+        .whereType<String>()
+        .toList();
+    final primaryIndex = labels.indexOf('5-hour window');
+    final secondaryIndex = labels.indexOf('Weekly');
+    expect(primaryIndex, greaterThanOrEqualTo(0));
+    expect(secondaryIndex, greaterThanOrEqualTo(0));
+    expect(primaryIndex, lessThan(secondaryIndex));
+  });
+
   testWidgets('renders nothing when quota was never observed', (tester) async {
     await tester.pumpWidget(_wrap(const QuotaSection(quota: null)));
     expect(find.text('Codex plan usage'), findsNothing);

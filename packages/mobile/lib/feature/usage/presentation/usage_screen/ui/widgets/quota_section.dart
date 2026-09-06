@@ -11,12 +11,20 @@ class QuotaSection extends StatelessWidget {
 
   final UsageQuotaModel? quota;
 
+  static List<UsageQuotaWindowModel> _orderedByKind(List<UsageQuotaWindowModel> windows) {
+    final primary = windows.where((w) => w.kind == 'primary');
+    final secondary = windows.where((w) => w.kind == 'secondary');
+    final other = windows.where((w) => w.kind != 'primary' && w.kind != 'secondary');
+    return [...primary, ...secondary, ...other];
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = quota;
     if (current == null) return const SizedBox.shrink();
 
     final skin = context.skin;
+    final orderedWindows = _orderedByKind(current.windows);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       padding: const EdgeInsets.all(14),
@@ -32,7 +40,7 @@ class QuotaSection extends StatelessWidget {
             style: AppTextStyle.style13SemiBold.copyWith(color: skin.textPrimary),
           ),
           const SizedBox(height: 10),
-          for (final window in current.windows)
+          for (final window in orderedWindows)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _QuotaWindowRow(window: window, observedAt: current.observedAt),
