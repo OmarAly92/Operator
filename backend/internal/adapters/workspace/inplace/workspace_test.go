@@ -57,6 +57,9 @@ func TestCreateReturnsTheProjectPathAndCurrentBranch(t *testing.T) {
 	if info.Branch == "" {
 		t.Fatal("want the currently checked out branch recorded")
 	}
+	if info.Mode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want Mode=%q, got %q", domain.WorkspaceModeInPlace, info.Mode)
+	}
 }
 
 func TestCreateRejectsABranchRequest(t *testing.T) {
@@ -83,7 +86,7 @@ func TestCreateRejectsANonRepository(t *testing.T) {
 func TestDestroyNeverRemovesTheProjectDirectory(t *testing.T) {
 	repo := newRepo(t)
 	w := newWorkspace(t, repo)
-	info := ports.WorkspaceInfo{Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1"}
+	info := ports.WorkspaceInfo{Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1", Mode: domain.WorkspaceModeInPlace}
 	if err := w.Destroy(context.Background(), info); err != nil {
 		t.Fatalf("Destroy must succeed as a no-op, got %v", err)
 	}
@@ -95,7 +98,7 @@ func TestDestroyNeverRemovesTheProjectDirectory(t *testing.T) {
 func TestForceDestroyNeverRemovesTheProjectDirectory(t *testing.T) {
 	repo := newRepo(t)
 	w := newWorkspace(t, repo)
-	info := ports.WorkspaceInfo{Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1"}
+	info := ports.WorkspaceInfo{Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1", Mode: domain.WorkspaceModeInPlace}
 	if err := w.ForceDestroy(context.Background(), info); err != nil {
 		t.Fatalf("ForceDestroy must succeed as a no-op, got %v", err)
 	}
@@ -111,7 +114,7 @@ func TestStashUncommittedNeverPreserves(t *testing.T) {
 	repo := newRepo(t)
 	w := newWorkspace(t, repo)
 	ref, err := w.StashUncommitted(context.Background(), ports.WorkspaceInfo{
-		Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1",
+		Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1", Mode: domain.WorkspaceModeInPlace,
 	})
 	if err != nil || ref != "" {
 		t.Fatalf("want (\"\", nil): the user owns this directory, got %q %v", ref, err)
@@ -122,7 +125,7 @@ func TestObserveWorkspaceReportsRealGitState(t *testing.T) {
 	repo := newRepo(t)
 	w := newWorkspace(t, repo)
 	obs, err := w.ObserveWorkspace(context.Background(), ports.WorkspaceInfo{
-		Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1",
+		Path: repo, RepoPath: repo, ProjectID: "p-1", SessionID: "s-1", Mode: domain.WorkspaceModeInPlace,
 	})
 	if err != nil {
 		t.Fatal(err)

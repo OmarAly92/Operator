@@ -68,6 +68,7 @@ func (w *Workspace) resolve(ctx context.Context, cfg ports.WorkspaceConfig) (por
 		Branch:    branch,
 		SessionID: cfg.SessionID,
 		ProjectID: cfg.ProjectID,
+		Mode:      domain.WorkspaceModeInPlace,
 	}, nil
 }
 
