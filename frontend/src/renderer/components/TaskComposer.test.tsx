@@ -124,8 +124,9 @@ describe("TaskComposer", () => {
 		);
 
 		expect(task()).toHaveAttribute("placeholder", "e.g. Fix the flaky checkout test (optional)…");
-		expect(screen.getByRole("button", { name: "Start task" })).toBeEnabled();
-		fireEvent.click(screen.getByText("Start task"));
+		const startButton = await screen.findByRole("button", { name: "Start task" });
+		await waitFor(() => expect(startButton).toBeEnabled());
+		fireEvent.click(startButton);
 
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
@@ -189,7 +190,9 @@ describe("TaskComposer", () => {
 		);
 
 		fireEvent.change(task(), { target: { value: "Do the thing" } });
-		fireEvent.click(screen.getByText("Start task"));
+		const startButton = await screen.findByRole("button", { name: "Start task" });
+		await waitFor(() => expect(startButton).toBeEnabled());
+		fireEvent.click(startButton);
 
 		await waitFor(() => expect(onSubmittingChange).toHaveBeenLastCalledWith(true));
 		expect(h.post).toHaveBeenCalledWith(
@@ -266,7 +269,9 @@ describe("TaskComposer", () => {
 			target: { files: [new File([new Uint8Array([1, 2, 3])], "slow.txt", { type: "text/plain" })] },
 		});
 		fireEvent.change(task(), { target: { value: "Use the slow file" } });
-		fireEvent.click(screen.getByText("Start task"));
+		const startButton = await screen.findByRole("button", { name: "Start task" });
+		await waitFor(() => expect(startButton).toBeEnabled());
+		fireEvent.click(startButton);
 
 		expect(h.post).not.toHaveBeenCalled();
 
@@ -312,10 +317,40 @@ describe("TaskComposer", () => {
 		);
 
 		fireEvent.change(task(), { target: { value: "B" } });
-		fireEvent.click(screen.getByText("Start task"));
+		const startButton = await screen.findByRole("button", { name: "Start task" });
+		await waitFor(() => expect(startButton).toBeEnabled());
+		fireEvent.click(startButton);
 
 		await waitFor(() => expect(screen.getByText("nope")).toBeInTheDocument());
 		expect(onSubmittingChange).toHaveBeenLastCalledWith(false);
+	});
+
+	it("disables submission until the project lookup resolves, so a single_repo task cannot silently get a worktree", async () => {
+		let resolveProject!: (value: { data: { status: string; project: { kind: string; config: object } } }) => void;
+		h.get.mockImplementation(async (path: string) => {
+			if (path.includes("/models")) {
+				return {
+					data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true, refreshRecommended: false },
+				};
+			}
+			return new Promise((resolve) => (resolveProject = resolve));
+		});
+
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+
+		const startButton = screen.getByRole("button", { name: "Start task" });
+		expect(startButton).toBeDisabled();
+		fireEvent.click(startButton);
+		expect(h.post).not.toHaveBeenCalled();
+
+		await act(async () =>
+			resolveProject({ data: { status: "ok", project: { kind: "single_repo", config: {} } } }),
+		);
+		await waitFor(() => expect(startButton).toBeEnabled());
 	});
 
 	it("reports dirty then clears it on unmount", () => {

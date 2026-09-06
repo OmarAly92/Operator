@@ -316,6 +316,30 @@ describe("SessionsBoard", () => {
 		expect(screen.getByText("/Users/me/dev/Operator")).toBeInTheDocument();
 	});
 
+	it("hides a location that only restates the session id, same as it hides such a branch", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "opr-3",
+						title: "worktree worker",
+						status: "working",
+						branch: "",
+						workspaceMode: "worktree",
+						workspacePath: "/Users/me/.operator/worktrees/opr-3",
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("worktree worker")).toBeInTheDocument();
+		expect(screen.queryByText("opr-3")).not.toBeInTheDocument();
+	});
+
 	it("shows compact token usage on active and archived cards and hides empty totals", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [

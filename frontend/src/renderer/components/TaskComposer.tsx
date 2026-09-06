@@ -182,6 +182,7 @@ export function TaskComposer({
 
 	const submitTask = async () => {
 		if (!projectId || isSubmitting) return;
+		if (projectQuery.isFetching && projectQuery.data === undefined) return;
 
 		const cleanModel = model.trim();
 		const cleanMode = mode.trim();
@@ -390,7 +391,7 @@ export function TaskComposer({
 					type="submit"
 					variant="primary"
 					size="none"
-					disabled={isSubmitting || !projectId}
+					disabled={isSubmitting || !projectId || (projectQuery.isFetching && projectQuery.data === undefined)}
 					className="h-(--size-settings-action-height) min-w-(--size-composer-start-button) px-3"
 				>
 					{isSubmitting ? <Loader2 className="size-icon-base animate-spin" aria-hidden="true" /> : null}

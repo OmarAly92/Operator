@@ -846,7 +846,11 @@ function SessionCard({
 	const showBranch = branch !== "" && !sameLabel(branch, session.title) && !sameLabel(branch, session.id);
 	const inPlace = session.workspaceMode === "in_place";
 	const workspacePath = session.workspacePath || "";
-	const location = inPlace ? workspacePath : workspacePath.split("/").filter(Boolean).pop() || "";
+	const rawLocation = inPlace ? workspacePath : workspacePath.split("/").filter(Boolean).pop() || "";
+	const location =
+		rawLocation !== "" && !sameLabel(rawLocation, session.title) && !sameLabel(rawLocation, session.id)
+			? rawLocation
+			: "";
 	const showLocation = showBranch || location !== "";
 	const prSummaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
 	const termination = useTerminateSessionState(session.id);
