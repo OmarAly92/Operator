@@ -130,4 +130,32 @@ void main() {
     expect(find.text('/repos/proj'), findsOneWidget);
     expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
   });
+
+  testWidgets('still renders the issue badge for an in-place session with no workspace path yet', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Fix auth',
+      status: 'working',
+      workspaceMode: 'in_place',
+      issueId: 'github:42',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('github:42'), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsNothing);
+  });
 }
