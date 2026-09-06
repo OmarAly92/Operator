@@ -3348,6 +3348,7 @@ func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 
 	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{
 		WorkspacePath:          "/ws",
+		WorkspaceMode:          "in_place",
 		ProviderConversationID: "thread-abc",
 		ControllerGeneration:   "gen-1",
 	}); err != nil {
@@ -3364,6 +3365,9 @@ func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	}
 	if got.Metadata.ControllerGeneration != "gen-1" {
 		t.Fatalf("controller generation = %q", got.Metadata.ControllerGeneration)
+	}
+	if got.Metadata.WorkspaceMode != "in_place" {
+		t.Fatalf("workspace mode = %q, want in_place", got.Metadata.WorkspaceMode)
 	}
 
 	// A relaunch rotates the generation: the new value must replace the old, or

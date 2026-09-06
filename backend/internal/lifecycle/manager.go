@@ -1212,6 +1212,9 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 		}
 	}
 	set(&base.Branch, in.Branch)
+	if in.WorkspaceMode != "" {
+		base.WorkspaceMode = in.WorkspaceMode
+	}
 	set(&base.WorkspacePath, in.WorkspacePath)
 	set(&base.WorkspaceRepoPath, in.WorkspaceRepoPath)
 	set(&base.RuntimeHandleID, in.RuntimeHandleID)
