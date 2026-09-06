@@ -647,7 +647,8 @@ type DelegateTaskRequest struct {
 	// brief. Each carries bytes as standard base64 (no data: URL prefix). The
 	// daemon writes them into the spawned worker worktree and appends path
 	// references to the worker prompt.
-	Attachments []AttachmentInput `json:"attachments,omitempty"`
+	Attachments   []AttachmentInput `json:"attachments,omitempty"`
+	WorkspaceMode string            `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
 }
 
 // DelegateTaskResponse confirms which worker was spawned and, when available,

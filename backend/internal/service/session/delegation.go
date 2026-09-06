@@ -29,6 +29,7 @@ type DelegateTaskInput struct {
 	RequestedAgent domain.AgentHarness
 	Model          string
 	Attachments    []ports.SpawnAttachment
+	WorkspaceMode  domain.WorkspaceMode
 }
 
 // DelegateTaskOutcome identifies the spawned worker. OrchestratorID remains
@@ -56,13 +57,14 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	}
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
-		ProjectID:   in.ProjectID,
-		Kind:        domain.KindWorker,
-		Harness:     in.RequestedAgent,
-		Prompt:      prompt,
-		DisplayName: delegatedTaskDisplayName(in.Brief),
-		AgentConfig: ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
-		Attachments: in.Attachments,
+		ProjectID:     in.ProjectID,
+		Kind:          domain.KindWorker,
+		Harness:       in.RequestedAgent,
+		Prompt:        prompt,
+		DisplayName:   delegatedTaskDisplayName(in.Brief),
+		AgentConfig:   ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
+		Attachments:   in.Attachments,
+		WorkspaceMode: in.WorkspaceMode,
 	})
 	if err != nil {
 		return DelegateTaskOutcome{}, toAPIError(err)

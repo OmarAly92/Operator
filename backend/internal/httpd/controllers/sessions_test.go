@@ -2192,6 +2192,42 @@ func TestSessionsAPI_DelegateTaskValidationAndServiceError(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
+func TestDelegateTaskAcceptsInPlaceWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it","workspaceMode":"in_place"}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.delegationInput.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want in_place forwarded, got %q", svc.delegationInput.WorkspaceMode)
+	}
+}
+
+func TestDelegateTaskDefaultsToWorktreeWhenOmitted(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it"}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.delegationInput.WorkspaceMode != domain.WorkspaceModeWorktree {
+		t.Fatalf("an omitted mode must resolve to worktree, got %q", svc.delegationInput.WorkspaceMode)
+	}
+}
+
+func TestDelegateTaskRejectsAnUnknownWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it","workspaceMode":"nonsense"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("want 400 for an unknown mode, got %d", status)
+	}
+}
+
 func TestSessionsAPI_DelegateTaskRejectsInvalidAttachments(t *testing.T) {
 	tests := []struct {
 		name string

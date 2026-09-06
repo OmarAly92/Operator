@@ -1671,6 +1671,8 @@ export interface components {
             brief: string;
             model?: string;
             projectId: string;
+            /** @enum {string} */
+            workspaceMode?: "worktree" | "in_place";
         };
         DelegateTaskResponse: {
             ok: boolean;

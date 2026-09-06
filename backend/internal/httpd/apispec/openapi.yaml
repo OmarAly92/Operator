@@ -4810,6 +4810,11 @@ components:
           type: string
         projectId:
           type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - in_place
+          type: string
       required:
       - projectId
       - brief
