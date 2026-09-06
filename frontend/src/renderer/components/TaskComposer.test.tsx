@@ -62,6 +62,31 @@ function Wrap({ children }: { children: ReactNode }) {
 
 const task = () => screen.getByRole("textbox", { name: "Task" });
 
+function renderComposer(options?: { projectKind?: "single_repo" | "workspace" | "scratch" }) {
+	const projectKind = options?.projectKind ?? "single_repo";
+	h.get.mockImplementation(async (path: string) => {
+		if (path.includes("/models")) {
+			return {
+				data: {
+					agent: "codex",
+					selectionMode: "text",
+					models: [],
+					allowCustom: true,
+					refreshRecommended: false,
+				},
+			};
+		}
+		return { data: { status: "ok", project: { kind: projectKind, agent: "codex", config: {} } } };
+	});
+	const onCreated = vi.fn();
+	render(
+		<Wrap>
+			<TaskComposer projectId="proj-1" onCreated={onCreated} />
+		</Wrap>,
+	);
+	return { onCreated };
+}
+
 beforeEach(() => {
 	h.get.mockImplementation(async (path: string) => {
 		if (path.includes("/models")) {
@@ -531,5 +556,43 @@ describe("TaskComposer", () => {
 				}),
 			),
 		);
+	});
+
+	it("does not create a worktree unless the box is checked", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-in-place" } });
+		renderComposer({ projectKind: "single_repo" });
+
+		await userEvent.type(task(), "do the thing");
+		await userEvent.click(screen.getByRole("button", { name: /start task/i }));
+
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ workspaceMode: "in_place" }) }),
+			),
+		);
+	});
+
+	it("creates a worktree when the box is checked", async () => {
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-worktree" } });
+		renderComposer({ projectKind: "single_repo" });
+
+		await userEvent.click(await screen.findByRole("checkbox", { name: /worktree/i }));
+		await userEvent.type(task(), "do the thing");
+		await userEvent.click(screen.getByRole("button", { name: /start task/i }));
+
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ workspaceMode: "worktree" }) }),
+			),
+		);
+	});
+
+	it("hides the checkbox for a scratch project", async () => {
+		renderComposer({ projectKind: "scratch" });
+
+		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex"));
+		expect(screen.queryByRole("checkbox", { name: /worktree/i })).not.toBeInTheDocument();
 	});
 });

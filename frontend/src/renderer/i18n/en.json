@@ -343,6 +343,7 @@
 	"newTask.cancel": "Cancel",
 	"newTask.close": "Close new task dialog",
 	"newTask.configUnavailable": "Project config is unavailable.",
+	"newTask.createWorktree": "Create a git worktree",
 	"newTask.description": "Start a worker directly from this project.",
 	"newTask.image": "Image {{number}}",
 	"newTask.noSession": "Task creation returned no session",
