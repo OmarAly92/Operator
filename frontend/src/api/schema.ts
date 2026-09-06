@@ -1633,8 +1633,6 @@ export interface components {
             isTerminated: boolean;
             issueId?: string;
             kind: string;
-            /** @enum {string} */
-            mode: "chat" | "tui";
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */
