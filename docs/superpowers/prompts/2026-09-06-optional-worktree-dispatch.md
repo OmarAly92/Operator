@@ -19,7 +19,7 @@ The mechanism: a `domain.WorkspaceMode` (`worktree` | `in_place`) recorded on th
 
 Use **superpowers:subagent-driven-development**. One fresh subagent per task, two-stage review between tasks. Do not batch tasks into one agent — Task 7 is a safety gate and every task must be independently rejectable.
 
-Work in a git worktree via **superpowers:using-git-worktrees**. Branch from `master` at `8d6b6a899`.
+Work in a git worktree via **superpowers:using-git-worktrees**. Branch from `master` at `3463b4a76`.
 
 Tick each `- [ ]` checkbox in the plan file as its step completes, and commit the plan file's checkbox updates along with the task's own commit.
 
@@ -27,13 +27,15 @@ Tasks 1–8 are strictly sequential; each consumes the one before. Tasks 9, 10 a
 
 ## Repository state as of dispatch
 
-- Repo: `/Users/omaraly/development/AI/Operator`, branch `master`, HEAD `8d6b6a899`, working tree clean, in sync with `origin/master`.
+- Repo: `/Users/omaraly/development/AI/Operator`, branch `master`, HEAD `3463b4a76`, working tree clean, 2 commits ahead of `origin/master`.
 - Go 1.25.12, golangci-lint 2.12.2, Flutter 3.44.5.
 - `cd backend && go build ./...` succeeds at HEAD.
 - No implementation code for this feature exists yet — only its spec, plan and this prompt.
 
 **`master` has moved since this feature was planned.** The phase-4 ACP removal merged at
-`8d6b6a899`, and the plan has been re-synced against it. What that merge changed under
+`8d6b6a899`, and the plan has been re-synced against it. A later spawn fix (`3463b4a76`)
+touched the Claude Code adapter and daemon wiring but left every anchor in this plan
+intact; it is verified current at `3463b4a76`. What that merge changed under
 this feature's feet, already accounted for in the plan:
 
 - **Migration `0101` is taken** by `0101_drop_conversations.sql`. This feature's
@@ -48,6 +50,9 @@ this feature's feet, already accounted for in the plan:
 - Mobile lost its `chat` feature and gained `dictation` and `usage`. The spawn screen,
   its params class and the stale isolation copy at `spawn_body.dart:156` are all
   unchanged and still match the plan.
+- The workspace router is constructed at `backend/internal/daemon/lifecycle_wiring.go:177`
+  and the same `ws` value is passed to `sessionIDClaimProbe` on the following line —
+  Task 7 Step 3 covers both.
 
 ## The migration destroys data on purpose
 

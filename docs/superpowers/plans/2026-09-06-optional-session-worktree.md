@@ -1144,18 +1144,27 @@ Expected: FAIL — the fake workspace is still called for in-place sessions.
 
 - [ ] **Step 3: Wire the in-place adapter into the router at construction**
 
-Find where `router.New(router.Deps{...})` is called (grep for `router.New` under
-`backend/`) and add the in-place adapter:
+The router is constructed once, at
+`backend/internal/daemon/lifecycle_wiring.go:177`. Immediately before it, beside the
+existing `gitWS` and `scratchWS` construction, add:
 
 ```go
-	inPlaceWorkspace, err := inplace.New(inplace.Deps{Projects: store})
+	inPlaceWS, err := inplaceworkspace.New(inplaceworkspace.Deps{Projects: store})
 	if err != nil {
-		return nil, fmt.Errorf("in-place workspace: %w", err)
+		return nil, nil, nil, fmt.Errorf("in-place session workspace: %w", err)
 	}
 ```
 
-then pass `InPlace: inPlaceWorkspace` alongside the existing `Git` and `Scratch`
-entries. Match the surrounding error-handling style of that constructor.
+matching that function's four-value error returns, then add `InPlace: inPlaceWS,` to
+the `workspacerouter.Deps` literal alongside `Git`, `Scratch` and `Projects`. Import
+the package with the `inplaceworkspace` alias, matching how `scratchworkspace` and
+`workspacerouter` are already aliased in that file.
+
+Note that `ws` is also handed to `sessionIDClaimProbe` on the line after — that probe
+calls `IsSessionIDClaimed`, which the router fans out over its adapters. The in-place
+adapter does not implement `ports.SessionIDClaimChecker`, so the router must skip it
+there rather than erroring; confirm `IsSessionIDClaimed` still passes its existing
+tests after the new adapter is wired in.
 
 - [ ] **Step 4: Run the full backend suite**
 
