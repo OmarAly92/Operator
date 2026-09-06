@@ -198,7 +198,6 @@ class BlocksBodyState extends State<BlocksBody> {
 
         _syncCollapsed(cubit.sessionId);
         final actionContext = BlockActionContext(
-          mode: 'tui',
           canSend: widget.onRerun != null,
         );
         final allBlocks = cubit.blocks;

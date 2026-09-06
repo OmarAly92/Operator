@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 
 void main() {
-  group('conversation endpoints', () {
+  group('session and terminal endpoints', () {
     test('address the daemon session routes', () {
       expect(EndPoints.events, '/api/v1/events');
       expect(EndPoints.sessionAttachments('w-1'), '/api/v1/sessions/w-1/attachments');

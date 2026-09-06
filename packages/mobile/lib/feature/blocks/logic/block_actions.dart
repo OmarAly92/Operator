@@ -1,25 +1,19 @@
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 
-enum BlockActionKind { copyBlock, copyCommand, copyOutput, rerun, rewind }
+enum BlockActionKind { copyBlock, copyCommand, copyOutput, rerun }
 
 class BlockActionContext extends Equatable {
   const BlockActionContext({
-    required this.mode,
-    this.capabilities = const [],
     this.canSend = false,
     this.turnInFlight = false,
-    this.rollbackableTurnIds = const [],
   });
 
-  final String mode;
-  final List<String> capabilities;
   final bool canSend;
   final bool turnInFlight;
-  final List<String> rollbackableTurnIds;
 
   @override
-  List<Object?> get props => [mode, capabilities, canSend, turnInFlight, rollbackableTurnIds];
+  List<Object?> get props => [canSend, turnInFlight];
 }
 
 class BlockAction extends Equatable {
@@ -49,14 +43,6 @@ sealed class BlockActions {
     }
     if (ctx.canSend && block.kind == BlockKind.prompt && block.body.isNotEmpty && !ctx.turnInFlight) {
       actions.add(BlockAction(kind: BlockActionKind.rerun, payload: block.body));
-    }
-    if (ctx.mode == 'chat' &&
-        ctx.capabilities.contains('rollback') &&
-        !ctx.turnInFlight &&
-        block.turnId != null &&
-        block.turnId!.isNotEmpty &&
-        ctx.rollbackableTurnIds.contains(block.turnId)) {
-      actions.add(BlockAction(kind: BlockActionKind.rewind, turnId: block.turnId));
     }
     return actions;
   }

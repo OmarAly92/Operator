@@ -21,11 +21,8 @@ void main() {
         BlockActions.forBlock(
           blockFromFixture((item['block'] as Map).cast<String, dynamic>()),
           BlockActionContext(
-            mode: context['mode'] as String? ?? 'tui',
-            capabilities: (context['capabilities'] as List<dynamic>? ?? const []).cast<String>(),
             canSend: context['canSend'] as bool? ?? false,
             turnInFlight: context['turnInFlight'] as bool? ?? false,
-            rollbackableTurnIds: (context['rollbackableTurnIds'] as List<dynamic>? ?? const []).cast<String>(),
           ),
         ),
         expected,
