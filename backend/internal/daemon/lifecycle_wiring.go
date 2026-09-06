@@ -14,6 +14,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters/reviewer"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
 	"github.com/OmarAly92/operator/backend/internal/adapters/workspace/gitworktree"
+	inplaceworkspace "github.com/OmarAly92/operator/backend/internal/adapters/workspace/inplace"
 	workspacerouter "github.com/OmarAly92/operator/backend/internal/adapters/workspace/router"
 	scratchworkspace "github.com/OmarAly92/operator/backend/internal/adapters/workspace/scratch"
 	"github.com/OmarAly92/operator/backend/internal/config"
@@ -174,9 +175,14 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("scratch session workspace: %w", err)
 	}
+	inPlaceWS, err := inplaceworkspace.New(inplaceworkspace.Deps{Projects: store})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("in-place session workspace: %w", err)
+	}
 	ws := workspacerouter.New(workspacerouter.Deps{
 		Git:      gitWS,
 		Scratch:  scratchWS,
+		InPlace:  inPlaceWS,
 		Projects: store,
 	})
 	// Session ids name things that outlive the database that allocates them. A

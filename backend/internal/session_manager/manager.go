@@ -1118,7 +1118,7 @@ func (m *Manager) Kill(ctx context.Context, id domain.SessionID) (bool, error) {
 		if cleaned {
 			m.cleanupAgentWorkspace(ctx, rec, ws.Path)
 		}
-	} else if ws.Path != "" {
+	} else if ws.Mode != domain.WorkspaceModeInPlace && ws.Path != "" {
 		if err := m.workspace.Destroy(ctx, ws); err != nil {
 			if errors.Is(err, ports.ErrWorkspaceDirty) {
 				if err := m.store.DeleteSessionWorktrees(ctx, id); err != nil {
@@ -1580,9 +1580,14 @@ func (m *Manager) saveAndTeardownOne(ctx context.Context, rec domain.SessionReco
 
 	// 1. Capture uncommitted work (ref may be "" for clean worktrees).
 	ws := workspaceInfo(rec)
-	ref, err := m.workspace.StashUncommitted(ctx, ws)
-	if err != nil {
-		return fmt.Errorf("save %s: stash: %w", rec.ID, err)
+	isInPlace := ws.Mode == domain.WorkspaceModeInPlace
+	var ref string
+	if !isInPlace {
+		var err error
+		ref, err = m.workspace.StashUncommitted(ctx, ws)
+		if err != nil {
+			return fmt.Errorf("save %s: stash: %w", rec.ID, err)
+		}
 	}
 
 	// 2. Write the shutdown-saved marker to the DB. The row's presence (even
@@ -1622,10 +1627,12 @@ func (m *Manager) saveAndTeardownOne(ctx context.Context, rec domain.SessionReco
 
 	// 6. Force-remove the worktree (safe: work is captured in step 1 and the
 	// DB write in step 2 is already committed).
-	if err := m.workspace.ForceDestroy(ctx, ws); err != nil {
-		m.logger.Warn("save-teardown-all: force destroy failed", "sessionID", rec.ID, "error", err)
-	} else {
-		m.cleanupAgentWorkspace(ctx, rec, ws.Path)
+	if !isInPlace {
+		if err := m.workspace.ForceDestroy(ctx, ws); err != nil {
+			m.logger.Warn("save-teardown-all: force destroy failed", "sessionID", rec.ID, "error", err)
+		} else {
+			m.cleanupAgentWorkspace(ctx, rec, ws.Path)
+		}
 	}
 	return nil
 }

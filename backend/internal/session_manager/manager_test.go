@@ -674,6 +674,10 @@ type fakeWorkspace struct {
 	forceDestroyErr error
 	// stashCalls counts StashUncommitted invocations.
 	stashCalls int
+	// destroyCalls counts Destroy invocations.
+	destroyCalls int
+	// forceDestroyCalls counts ForceDestroy invocations.
+	forceDestroyCalls int
 	// excludePatterns records patterns passed to AddExclude; addExcludeErr, when
 	// set, is returned so best-effort handling can be exercised.
 	excludePatterns []string
@@ -694,7 +698,7 @@ func (w *fakeWorkspace) Create(_ context.Context, cfg ports.WorkspaceConfig) (po
 	if path == "" {
 		path = "/ws/" + string(cfg.SessionID)
 	}
-	return ports.WorkspaceInfo{Path: path, Branch: cfg.Branch, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID, RepoPath: w.createRepoPath}, nil
+	return ports.WorkspaceInfo{Path: path, Branch: cfg.Branch, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID, RepoPath: w.createRepoPath, Mode: cfg.Mode}, nil
 }
 func (w *fakeWorkspace) CreateWorkspaceProject(_ context.Context, cfg ports.WorkspaceProjectConfig) (ports.WorkspaceProjectInfo, error) {
 	if w.projectErr != nil {
@@ -737,6 +741,7 @@ func (w *fakeWorkspace) CreateWorkspaceProject(_ context.Context, cfg ports.Work
 	return out, nil
 }
 func (w *fakeWorkspace) Destroy(_ context.Context, info ports.WorkspaceInfo) error {
+	w.destroyCalls++
 	w.lastDestroyInfo = info
 	if info.RepoPath != "" {
 		entry := "Destroy:" + fakeWorkspaceRepoName(info)
@@ -765,6 +770,7 @@ func (w *fakeWorkspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) 
 	return w.Create(ctx, cfg)
 }
 func (w *fakeWorkspace) ForceDestroy(_ context.Context, info ports.WorkspaceInfo) error {
+	w.forceDestroyCalls++
 	entry := "ForceDestroy:" + string(info.SessionID)
 	if info.RepoPath != "" {
 		entry = "ForceDestroy:" + fakeWorkspaceRepoName(info)
@@ -1141,6 +1147,84 @@ func TestSaveAndTeardownAllWritesARestoreMarkerForInPlaceSessions(t *testing.T) 
 	}
 	if rows[0].PreservedRef != "" {
 		t.Fatalf("an in-place session preserves nothing, got ref %q", rows[0].PreservedRef)
+	}
+}
+
+type testManagerProject struct {
+	ID domain.ProjectID
+}
+
+type testManagerDeps struct {
+	store     *fakeStore
+	runtime   *fakeRuntime
+	workspace *fakeWorkspace
+	project   testManagerProject
+}
+
+// newTestManager wires a Manager with a bare fakeWorkspace standing in for
+// the "real" workspace adapter directly (no router in between), so a safety
+// test can prove the manager itself never asks that adapter to destroy,
+// force-destroy, or stash an in-place session.
+func newTestManager(t *testing.T) (*Manager, testManagerDeps) {
+	t.Helper()
+	st := newFakeStore()
+	project := domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	st.projects[project.ID] = project
+	rt := &fakeRuntime{}
+	ws := &fakeWorkspace{}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: rt, Agents: fakeAgents{}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+	return m, testManagerDeps{store: st, runtime: rt, workspace: ws, project: testManagerProject{ID: domain.ProjectID(project.ID)}}
+}
+
+func TestKillLeavesAnInPlaceWorkspaceUntouched(t *testing.T) {
+	m, deps := newTestManager(t)
+	rec, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID:     deps.project.ID,
+		Kind:          domain.KindWorker,
+		Harness:       domain.HarnessClaudeCode,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	freed, err := m.Kill(context.Background(), rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if freed {
+		t.Fatal("an in-place kill frees no workspace")
+	}
+	if deps.workspace.destroyCalls != 0 {
+		t.Fatalf("the git adapter must not be asked to destroy an in-place session, got %d calls", deps.workspace.destroyCalls)
+	}
+	got, ok, err := m.store.GetSession(context.Background(), rec.ID)
+	if err != nil || !ok {
+		t.Fatalf("GetSession: %v %v", ok, err)
+	}
+	if !got.IsTerminated {
+		t.Fatal("the session must still be terminated")
+	}
+}
+
+func TestSaveAndTeardownAllNeverForceDestroysAnInPlaceSession(t *testing.T) {
+	m, deps := newTestManager(t)
+	if _, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID:     deps.project.ID,
+		Kind:          domain.KindWorker,
+		Harness:       domain.HarnessClaudeCode,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveAndTeardownAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if deps.workspace.forceDestroyCalls != 0 {
+		t.Fatalf("shutdown must never force-destroy an in-place workspace, got %d calls", deps.workspace.forceDestroyCalls)
+	}
+	if deps.workspace.stashCalls != 0 {
+		t.Fatalf("shutdown must not stash an in-place workspace, got %d calls", deps.workspace.stashCalls)
 	}
 }
 
