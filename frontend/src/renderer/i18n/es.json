@@ -345,6 +345,7 @@
 	"newTask.cancel": "Cancelar",
 	"newTask.close": "Cerrar diálogo de nueva tarea",
 	"newTask.configUnavailable": "La configuración del proyecto no está disponible.",
+	"newTask.createWorktree": "Crear un worktree de Git",
 	"newTask.description": "Inicia un worker directamente desde este proyecto.",
 	"newTask.image": "Imagen {{number}}",
 	"newTask.noSession": "La creación de la tarea no devolvió ninguna sesión",

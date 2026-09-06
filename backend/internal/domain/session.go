@@ -25,15 +25,16 @@ const (
 // SessionMetadata is the typed, off-status metadata for a session: operational
 // handles and seed inputs used by Session Manager and reaper.
 type SessionMetadata struct {
-	Branch            string `json:"branch,omitempty"`
-	WorkspacePath     string `json:"workspacePath,omitempty"`
-	WorkspaceRepoPath string `json:"workspaceRepoPath,omitempty"`
-	DiffBaseSHA       string `json:"diffBaseSha,omitempty"`
-	DiffBaseRef       string `json:"diffBaseRef,omitempty"`
-	RuntimeHandleID   string `json:"runtimeHandleId,omitempty"`
-	RuntimeLaunchID   string `json:"runtimeLaunchId,omitempty"`
-	AgentSessionID    string `json:"agentSessionId,omitempty"`
-	Prompt            string `json:"prompt,omitempty"`
+	Branch            string        `json:"branch,omitempty"`
+	WorkspacePath     string        `json:"workspacePath,omitempty"`
+	WorkspaceMode     WorkspaceMode `json:"workspaceMode,omitempty"`
+	WorkspaceRepoPath string        `json:"workspaceRepoPath,omitempty"`
+	DiffBaseSHA       string        `json:"diffBaseSha,omitempty"`
+	DiffBaseRef       string        `json:"diffBaseRef,omitempty"`
+	RuntimeHandleID   string        `json:"runtimeHandleId,omitempty"`
+	RuntimeLaunchID   string        `json:"runtimeLaunchId,omitempty"`
+	AgentSessionID    string        `json:"agentSessionId,omitempty"`
+	Prompt            string        `json:"prompt,omitempty"`
 	// LatestUserPrompt is the latest real user-authored task direction observed
 	// for this Operator session. Internal Operator coordination messages (for example an
 	// agent-switch handoff request) must not replace it.

@@ -56,6 +56,7 @@ type fakeSessionService struct {
 	workspaceFile    sessionsvc.WorkspaceFileDetail
 	workspacePaths   []string
 	spawnErr         error
+	lastSpawnConfig  ports.SpawnConfig
 	claimErr         error
 	listPRErr        error
 	workspaceErr     error
@@ -153,6 +154,7 @@ func (f *fakeSessionService) List(_ context.Context, filter sessionsvc.ListFilte
 }
 
 func (f *fakeSessionService) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error) {
+	f.lastSpawnConfig = cfg
 	if f.spawnErr != nil {
 		return domain.Session{}, 0, 0, f.spawnErr
 	}
@@ -786,6 +788,42 @@ func TestSessionsRoutes_DefaultToStubsWithoutService(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusNotImplemented, "NOT_IMPLEMENTED")
 }
 
+func TestCreateSessionAcceptsInPlaceWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions",
+		`{"projectId":"opr","kind":"worker","harness":"claude-code","workspaceMode":"in_place"}`)
+	if status != http.StatusOK && status != http.StatusCreated {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.lastSpawnConfig.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want in_place forwarded, got %q", svc.lastSpawnConfig.WorkspaceMode)
+	}
+}
+
+func TestCreateSessionDefaultsToWorktreeWhenOmitted(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions",
+		`{"projectId":"opr","kind":"worker","harness":"claude-code"}`)
+	if status != http.StatusOK && status != http.StatusCreated {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.lastSpawnConfig.WorkspaceMode != domain.WorkspaceModeWorktree {
+		t.Fatalf("an omitted mode must resolve to worktree, got %q", svc.lastSpawnConfig.WorkspaceMode)
+	}
+}
+
+func TestCreateSessionRejectsAnUnknownWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions",
+		`{"projectId":"opr","kind":"worker","harness":"claude-code","workspaceMode":"nonsense"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("want 400 for an unknown mode, got %d", status)
+	}
+}
+
 func TestSessionsAPI_ListSpawnGetAndActions(t *testing.T) {
 	svc := newFakeSessionService()
 	s := svc.sessions["opr-1"]
@@ -808,15 +846,15 @@ func TestSessionsAPI_ListSpawnGetAndActions(t *testing.T) {
 	if list.Sessions[0].Branch != "qa/modal-worker" {
 		t.Fatalf("branch = %q, want qa/modal-worker", list.Sessions[0].Branch)
 	}
+	if list.Sessions[0].WorkspacePath != "/tmp/private-worktree" {
+		t.Fatalf("workspacePath = %q, want /tmp/private-worktree", list.Sessions[0].WorkspacePath)
+	}
 	var rawList struct {
 		Sessions []map[string]any `json:"sessions"`
 	}
 	mustJSON(t, body, &rawList)
 	if _, ok := rawList.Sessions[0]["metadata"]; ok {
 		t.Fatalf("list leaked metadata: %s", body)
-	}
-	if _, ok := rawList.Sessions[0]["workspacePath"]; ok {
-		t.Fatalf("list leaked workspacePath: %s", body)
 	}
 	if _, ok := rawList.Sessions[0]["prompt"]; ok {
 		t.Fatalf("list leaked prompt: %s", body)
@@ -2154,6 +2192,42 @@ func TestSessionsAPI_DelegateTaskValidationAndServiceError(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusBadRequest, "SESSION_MODE_REMOVED")
 }
 
+func TestDelegateTaskAcceptsInPlaceWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it","workspaceMode":"in_place"}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.delegationInput.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want in_place forwarded, got %q", svc.delegationInput.WorkspaceMode)
+	}
+}
+
+func TestDelegateTaskDefaultsToWorktreeWhenOmitted(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it"}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.delegationInput.WorkspaceMode != domain.WorkspaceModeWorktree {
+		t.Fatalf("an omitted mode must resolve to worktree, got %q", svc.delegationInput.WorkspaceMode)
+	}
+}
+
+func TestDelegateTaskRejectsAnUnknownWorkspaceMode(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	_, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/orchestrators/delegate",
+		`{"projectId":"opr","brief":"Fix it","workspaceMode":"nonsense"}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("want 400 for an unknown mode, got %d", status)
+	}
+}
+
 func TestSessionsAPI_DelegateTaskRejectsInvalidAttachments(t *testing.T) {
 	tests := []struct {
 		name string
@@ -2311,6 +2385,8 @@ type sessionBody struct {
 	Harness          string `json:"harness"`
 	DisplayName      string `json:"displayName"`
 	Branch           string `json:"branch"`
+	WorkspaceMode    string `json:"workspaceMode"`
+	WorkspacePath    string `json:"workspacePath"`
 	Status           string `json:"status"`
 	SCMStatus        string `json:"scmStatus"`
 	TerminalHandleID string `json:"terminalHandleId"`

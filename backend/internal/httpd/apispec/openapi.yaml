@@ -4722,6 +4722,13 @@ components:
         updatedAt:
           format: date-time
           type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - in_place
+          type: string
+        workspacePath:
+          type: string
       required:
       - id
       - projectId
@@ -4802,6 +4809,11 @@ components:
           maxLength: 256
           type: string
         projectId:
+          type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - in_place
           type: string
       required:
       - projectId
@@ -6597,6 +6609,11 @@ components:
           type: string
         prompt:
           maxLength: 4096
+          type: string
+        workspaceMode:
+          enum:
+          - worktree
+          - in_place
           type: string
       required:
       - projectId

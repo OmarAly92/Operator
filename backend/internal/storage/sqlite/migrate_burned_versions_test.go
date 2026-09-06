@@ -106,6 +106,8 @@ var shippedMigrations = map[int64]string{
 	99:  "0099_usage_context_model.sql",
 	100: "0100_usage_quota.sql",
 	101: "0101_drop_conversations.sql",
+	102: "0102_session_workspace_mode.go",
+	103: "0103_add_sessions_workspace_mode.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -219,6 +221,7 @@ INSERT INTO projects (
 		Metadata: domain.SessionMetadata{
 			Branch:        "opr/mer-1/root",
 			WorkspacePath: `C:\Users\mer\.operator\data\worktrees\mer\mer-1`,
+			WorkspaceMode: domain.WorkspaceModeWorktree,
 			DiffBaseSHA:   "0f0e0d0c0b0a09080706050403020100ffeeddcc",
 			DiffBaseRef:   "refs/remotes/origin/main",
 		},

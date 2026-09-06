@@ -300,6 +300,7 @@ type Session struct {
 	LatestAssistantUpdate     string
 	NativeTranscriptPath      string
 	PreviewOpenedRevision     int64
+	WorkspaceMode             string
 }
 
 type SessionCleanupFact struct {

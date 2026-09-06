@@ -67,7 +67,7 @@
 - Consumes: nothing.
 - Produces: `domain.WorkspaceMode` (string type), constants `domain.WorkspaceModeWorktree = "worktree"` and `domain.WorkspaceModeInPlace = "in_place"`, `func ParseWorkspaceMode(string) (WorkspaceMode, error)`, `func (m WorkspaceMode) Valid() bool`, and `var ErrInvalidWorkspaceMode = errors.New("invalid workspace mode")`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 package domain
@@ -114,12 +114,12 @@ func TestWorkspaceModeValid(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/domain/ -run TestParseWorkspaceMode -v`
 Expected: FAIL — build error, `undefined: ParseWorkspaceMode`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```go
 package domain
@@ -151,12 +151,12 @@ func ParseWorkspaceMode(raw string) (WorkspaceMode, error) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && go test ./internal/domain/ -v -run WorkspaceMode`
 Expected: PASS, all four tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/domain/workspacemode.go backend/internal/domain/workspacemode_test.go
@@ -184,7 +184,7 @@ naming them here would be dead weight. `migrationTableExists` still guards every
 so a table missing on some profile is skipped rather than fatal — verify the list
 against `sqlite3 <db> .tables` before trusting it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 package sqlite
@@ -239,12 +239,12 @@ If `openMigratedTestDB` does not already exist in this package, read
 and reuse whatever helper it uses to open a fully migrated database; do not add a
 second helper that does the same thing.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/storage/sqlite/ -run TestMigration0102 -v`
 Expected: FAIL — `sessions is missing workspace_mode`.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 ```go
 package sqlite
@@ -313,7 +313,7 @@ to the table-rebuild form: create `sessions_new` with the full column list plus
 TABLE sessions`, `ALTER TABLE sessions_new RENAME TO sessions`, then recreate the
 indexes the original table had. Do **not** resolve it by adding a `DEFAULT`.
 
-- [ ] **Step 4: Register the version in the burned-versions map**
+- [x] **Step 4: Register the version in the burned-versions map**
 
 In `migrate_burned_versions_test.go`, add to the map after the `101:` entry:
 
@@ -321,12 +321,12 @@ In `migrate_burned_versions_test.go`, add to the map after the `101:` entry:
 	102: "0102_session_workspace_mode.go",
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && go test ./internal/storage/sqlite/ -v`
 Expected: PASS, including `TestMigration0102*` and the existing burned-version tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/storage/sqlite/
@@ -347,7 +347,7 @@ git commit -m "feat(storage): add a fallback-free sessions.workspace_mode"
 - Consumes: `domain.WorkspaceMode` (Task 1), the `workspace_mode` column (Task 2).
 - Produces: `domain.SessionMetadata.WorkspaceMode` of type `domain.WorkspaceMode`, JSON tag `workspaceMode`, round-tripped by `CreateSession`/`GetSession`/`UpdateSession`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `store_test.go`, following the surrounding table-test style:
 
@@ -376,12 +376,12 @@ func TestSessionStoreRoundTripsWorkspaceMode(t *testing.T) {
 Use whatever store constructor the neighboring tests in this file already use in place
 of `newTestStore` if the name differs, and the same `SessionKind` constant they use.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/storage/sqlite/store/ -run TestSessionStoreRoundTripsWorkspaceMode -v`
 Expected: FAIL — `unknown field WorkspaceMode in struct literal`.
 
-- [ ] **Step 3: Add the field, the query columns, and the mapping**
+- [x] **Step 3: Add the field, the query columns, and the mapping**
 
 In `domain/session.go`, inside `SessionMetadata`, next to `WorkspacePath`:
 
@@ -407,18 +407,18 @@ and to the read mapping beside `WorkspacePath`:
 			WorkspaceMode: domain.WorkspaceMode(row.WorkspaceMode),
 ```
 
-- [ ] **Step 4: Regenerate sqlc**
+- [x] **Step 4: Regenerate sqlc**
 
 Run: `npm run sqlc` from the repo root.
 Expected: `backend/internal/storage/sqlite/gen/` picks up `WorkspaceMode` on the
 session row and param structs. Commit the generated files.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && go build ./... && go test ./internal/storage/...`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/domain/session.go backend/internal/storage/sqlite/
@@ -439,7 +439,7 @@ git commit -m "feat(storage): persist the session workspace mode"
 
 Read [`scratch/workspace.go`](../../../backend/internal/adapters/workspace/scratch/workspace.go) first for the house style of a non-git workspace adapter.
 
-- [ ] **Step 1: Write the failing safety tests**
+- [x] **Step 1: Write the failing safety tests**
 
 ```go
 package inplace
@@ -566,12 +566,12 @@ func TestStashUncommittedNeverPreserves(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && go test ./internal/adapters/workspace/inplace/ -v`
 Expected: FAIL — the package does not exist yet.
 
-- [ ] **Step 3: Write the adapter**
+- [x] **Step 3: Write the adapter**
 
 ```go
 package inplace
@@ -704,12 +704,12 @@ is at `<path>/.git/info/exclude` directly rather than behind a gitdir pointer; h
 both by resolving `git -C <path> rev-parse --git-dir` and joining `info/exclude` onto
 the result.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && go test ./internal/adapters/workspace/inplace/ -v`
 Expected: PASS, all six tests, especially the two `NeverRemoves` ones.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/adapters/workspace/inplace/
@@ -730,7 +730,7 @@ git commit -m "feat(workspace): add the in-place adapter with no-op teardown"
 - Consumes: `domain.WorkspaceMode` (Task 1), `inplace.Workspace` (Task 4).
 - Produces: `ports.WorkspaceConfig.Mode`, `ports.WorkspaceInfo.Mode`, `ports.SpawnConfig.WorkspaceMode`, all of type `domain.WorkspaceMode`; `router.Deps.InPlace ports.Workspace`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `router_test.go`:
 
@@ -791,12 +791,12 @@ func TestRouterErrorsWhenInPlaceIsUnconfigured(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && go test ./internal/adapters/workspace/router/ -v`
 Expected: FAIL — `unknown field Mode` and `unknown field InPlace`.
 
-- [ ] **Step 3: Add the fields and the routing**
+- [x] **Step 3: Add the fields and the routing**
 
 In `ports/outbound.go`, add to both `WorkspaceConfig` and `WorkspaceInfo`:
 
@@ -835,12 +835,12 @@ of which now carry `Mode`; change each call site from
 Leave `adapterForProject` in place — `adapterForMode` delegates to it, and the
 `WorkspaceProject` methods still use it directly.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && go build ./... && go test ./internal/adapters/workspace/... -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/ports/ backend/internal/adapters/workspace/router/
@@ -859,7 +859,7 @@ git commit -m "feat(workspace): route teardown by session workspace mode"
 - Consumes: `domain.WorkspaceMode`, `ports.SpawnConfig.WorkspaceMode`, `ports.WorkspaceInfo.Mode`, `domain.SessionMetadata.WorkspaceMode`.
 - Produces: `session_manager.ErrInPlaceUnsupported`; `workspaceInfo(rec)` stamped with `rec.Metadata.WorkspaceMode`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `manager_test.go`, using the file's existing fixture helpers rather than new ones:
 
@@ -933,12 +933,12 @@ func TestWorkspaceInfoCarriesTheStoredMode(t *testing.T) {
 the top of that file and match it, and extend the existing `fakeWorkspace` with a
 `lastCreateConfig ports.WorkspaceConfig` field recorded in its `Create`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && go test ./internal/session_manager/ -run 'InPlace|WorkspaceMode|workspaceInfo|TestSpawnDefaults' -v`
 Expected: FAIL — `undefined: ErrInPlaceUnsupported`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Declare the error beside the existing `ErrScratchBranchUnsupported`:
 
@@ -1012,7 +1012,7 @@ Then find every other construction of `ports.WorkspaceConfig` in this file — e
 `Mode: rec.Metadata.WorkspaceMode` to each. Restore must route the same way teardown
 does.
 
-- [ ] **Step 4: Keep the restore marker honest for in-place sessions**
+- [x] **Step 4: Keep the restore marker honest for in-place sessions**
 
 `RestoreAll` skips any session without a `session_worktrees` row, so an in-place
 session needs one too or it silently fails to come back after a daemon restart. The
@@ -1053,12 +1053,12 @@ session has. The `StashUncommitted` call returns `""` via the in-place adapter a
 `ForceDestroy` call is a no-op, so the sequence needs no branching — verify that with
 the test rather than adding a special case. Only add code here if the test fails.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && go build ./... && go test ./internal/session_manager/ -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/session_manager/
@@ -1077,7 +1077,7 @@ git commit -m "feat(session): resolve and persist the workspace mode at spawn"
 - Consumes: everything from Tasks 4–6.
 - Produces: no new API. This task is the safety gate for the whole design.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```go
 func TestKillLeavesAnInPlaceWorkspaceUntouched(t *testing.T) {
@@ -1137,12 +1137,12 @@ Extend the existing `fakeWorkspace` in `manager_test.go` with `destroyCalls`,
 `cfg.Mode` by returning `WorkspaceInfo{Mode: cfg.Mode, ...}` so the fake routes the
 way the real router does.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && go test ./internal/session_manager/ -run 'InPlaceWorkspaceUntouched|NeverForceDestroys' -v`
 Expected: FAIL — the fake workspace is still called for in-place sessions.
 
-- [ ] **Step 3: Wire the in-place adapter into the router at construction**
+- [x] **Step 3: Wire the in-place adapter into the router at construction**
 
 The router is constructed once, at
 `backend/internal/daemon/lifecycle_wiring.go:177`. Immediately before it, beside the
@@ -1166,12 +1166,12 @@ adapter does not implement `ports.SessionIDClaimChecker`, so the router must ski
 there rather than erroring; confirm `IsSessionIDClaimed` still passes its existing
 tests after the new adapter is wired in.
 
-- [ ] **Step 4: Run the full backend suite**
+- [x] **Step 4: Run the full backend suite**
 
 Run: `cd backend && go build ./... && go vet ./... && go test ./...`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/
@@ -1192,7 +1192,7 @@ git commit -m "test(session): pin that in-place teardown never touches the proje
 - Consumes: `ports.SpawnConfig.WorkspaceMode`, `domain.ParseWorkspaceMode`.
 - Produces: request field `workspaceMode` on `POST /api/v1/sessions`; response fields `workspaceMode` and `workspacePath` on the session DTO.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestCreateSessionAcceptsInPlaceWorkspaceMode(t *testing.T) {
@@ -1233,12 +1233,12 @@ Match the file's existing server fixture and request helper names; `sessions_tes
 already has a `doRequest` helper, so reuse it and whatever spawn-recording fake the
 neighboring create-session tests use.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && go test ./internal/httpd/controllers/ -run TestCreateSession -v`
 Expected: FAIL — the mode is not forwarded.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to the spawn request struct in `dto.go`:
 
@@ -1277,17 +1277,17 @@ In `specgen/build.go`, add `workspaceMode` to the create-session request schema 
 enum of `worktree` and `in_place`) and `workspaceMode`/`workspacePath` to the session
 response schema, matching how neighboring optional string fields are declared.
 
-- [ ] **Step 4: Regenerate the API contract**
+- [x] **Step 4: Regenerate the API contract**
 
 Run: `npm run api` from the repo root.
 Expected: `frontend/src/api/schema.ts` gains the fields. Commit the regenerated files.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && go test ./internal/httpd/... && npm run frontend:typecheck`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/httpd/ frontend/src/api/
@@ -1306,7 +1306,7 @@ git commit -m "feat(api): accept and report the session workspace mode"
 - Consumes: the `workspaceMode` request field (Task 8), `projectQuery.data.kind`.
 - Produces: `CreateTaskInput.workspaceMode?: "worktree" | "in_place"`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 it("does not create a worktree unless the box is checked", async () => {
@@ -1333,12 +1333,12 @@ it("hides the checkbox for a scratch project", async () => {
 Follow the existing `TaskComposer.test.tsx` setup for `renderComposer` and the query
 mocks; extend its project fixture with `kind` rather than inventing a new harness.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd frontend && npx vitest run src/renderer/components/TaskComposer.test.tsx`
 Expected: FAIL — no checkbox in the document.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add state beside the existing `agent`/`model` state:
 
@@ -1361,12 +1361,12 @@ In `submitTask`, add to the `createTask` argument:
 and extend `CreateTaskInput` with the optional field, forwarding it in the mutation's
 request body.
 
-- [ ] **Step 4: Run tests and the typecheck**
+- [x] **Step 4: Run tests and the typecheck**
 
 Run: `cd frontend && npx vitest run src/renderer/components/TaskComposer.test.tsx && npm run typecheck && npm run frontend:lint`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/renderer/components/TaskComposer.tsx frontend/src/renderer/components/TaskComposer.test.tsx
@@ -1385,7 +1385,7 @@ git commit -m "feat(desktop): choose the worktree per task, defaulting to off"
 - Consumes: `session.workspaceMode`, `session.workspacePath`, `session.branch` (Task 8).
 - Produces: no new API.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 it("shows the branch and worktree directory for a worktree session", () => {
@@ -1417,12 +1417,12 @@ it("marks an in-place session as running in the project checkout", () => {
 
 Reuse the file's existing `renderBoard` and session factory helpers.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd frontend && npx vitest run src/renderer/components/SessionsBoard.test.tsx`
 Expected: FAIL — `session-location-in-place` not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the `showBranch` block at lines 928-934 with a location row that keeps the
 existing `GitBranch` icon and truncation behavior and adds the location:
@@ -1440,12 +1440,12 @@ icon (`FolderOpen`) so the real checkout is visually separable from a worktree a
 glance. Keep the row a single truncating flex line so long paths cannot widen the
 card.
 
-- [ ] **Step 4: Run tests, typecheck and lint**
+- [x] **Step 4: Run tests, typecheck and lint**
 
 Run: `cd frontend && npx vitest run src/renderer/components/SessionsBoard.test.tsx && npm run typecheck && npm run frontend:lint`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/renderer/components/SessionsBoard.tsx frontend/src/renderer/components/SessionsBoard.test.tsx
@@ -1466,7 +1466,7 @@ git commit -m "feat(desktop): show where each session's workspace lives"
 - Consumes: the `workspaceMode` request field (Task 8), `ProjectModel.kind`.
 - Produces: `SpawnSessionParams.workspaceMode` (a `String`), `SpawnCubit.useWorktree` (a `bool`, default `false`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 void main() {
@@ -1484,12 +1484,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd packages/mobile && flutter test test/feature/spawn/spawn_cubit_test.dart`
 Expected: FAIL — `No named parameter with the name 'workspaceMode'`.
 
-- [ ] **Step 3: Implement the params**
+- [x] **Step 3: Implement the params**
 
 ```dart
 class SpawnSessionParams extends Equatable {
@@ -1521,7 +1521,7 @@ class SpawnSessionParams extends Equatable {
 }
 ```
 
-- [ ] **Step 4: Add the cubit flag**
+- [x] **Step 4: Add the cubit flag**
 
 In `spawn_cubit.dart`, add a mutable `bool useWorktree = false;` beside the existing
 `harness` and `name` fields, and pass
@@ -1529,7 +1529,7 @@ In `spawn_cubit.dart`, add a mutable `bool useWorktree = false;` beside the exis
 `SpawnSessionParams` in `submit`. Emit the existing catalog-ready state after
 toggling so the UI rebuilds, matching how `setProject` already signals a rebuild.
 
-- [ ] **Step 5: Add the row and fix the copy**
+- [x] **Step 5: Add the row and fix the copy**
 
 In `spawn_body.dart`, add a third `SettingsRow` inside the existing `SettingsGroup`,
 after the Agent row, shown only when the selected project's `kind == 'single_repo'`:
@@ -1561,12 +1561,12 @@ AppText(
 Add `void setUseWorktree(bool value)` to the cubit rather than assigning the field
 from the widget, matching how `setProject` is exposed.
 
-- [ ] **Step 6: Run the mobile gate**
+- [x] **Step 6: Run the mobile gate**
 
 Run: `cd packages/mobile && flutter analyze && flutter test`
 Expected: `No issues found!` and a green suite.
 
-- [ ] **Step 7: Show the location on the mobile session card**
+- [x] **Step 7: Show the location on the mobile session card**
 
 The spec requires the mobile session card to carry the same distinction as the desktop
 board. Find the card widget under `packages/mobile/lib/feature/sessions/presentation/`
@@ -1576,12 +1576,12 @@ and render the project path with a distinct icon when the mode is `in_place` and
 branch plus worktree directory name otherwise. Add a widget test asserting both forms
 render, following the layout of the existing session-card tests.
 
-- [ ] **Step 8: Re-run the mobile gate**
+- [x] **Step 8: Re-run the mobile gate**
 
 Run: `cd packages/mobile && flutter analyze && flutter test`
 Expected: `No issues found!` and a green suite.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/mobile/
@@ -1594,7 +1594,7 @@ git commit -m "feat(mobile): choose the worktree at spawn, defaulting to off"
 
 **Files:** none modified unless a gate fails.
 
-- [ ] **Step 1: Run every gate**
+- [x] **Step 1: Run every gate**
 
 ```bash
 npm run lint
@@ -1621,13 +1621,13 @@ live. Confirm the project directory survives shutdown untouched, and that
 `refs/opr/preserved/` gained no ref for that session:
 `git -C <project> for-each-ref refs/opr/preserved/`.
 
-- [ ] **Step 4: Update the docs**
+- [x] **Step 4: Update the docs**
 
 Add the two workspace modes to `docs/architecture.md` wherever session workspaces are
 described, and note in `AGENTS.md` that in-place sessions exist and that their
 teardown is a deliberate no-op.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/ AGENTS.md

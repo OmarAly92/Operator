@@ -724,6 +724,7 @@ func TestUsageRowsCascadeWhenSeedSessionDeleted(t *testing.T) {
 		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
+		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

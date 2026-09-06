@@ -31,6 +31,12 @@ class SessionCard extends StatelessWidget {
     final visual = statusVisual(skin, session.status);
     final title = sessionTitle(session);
     final branch = showBranch(session.branch, title) ? session.branch : null;
+    final isInPlace = session.workspaceMode == 'in_place';
+    final rawPath = session.workspacePath;
+    final location = isInPlace
+        ? (rawPath != null && rawPath.isNotEmpty ? rawPath : null)
+        : _worktreeDirName(rawPath);
+    final showLocation = branch != null || location != null;
     final issue = trackerIssueId(session.issueId);
     final prs = prLine(session);
     final when = relativeTime(session.updatedAt);
@@ -54,15 +60,47 @@ class SessionCard extends StatelessWidget {
                   AppText(session.projectId!, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
               ],
             ),
-            if (branch != null || issue != null) ...[
+            if (showLocation || issue != null) ...[
               const VerticalSpace(6),
               Padding(
                 padding: const EdgeInsets.only(left: 29),
                 child: Row(
                   children: [
-                    if (branch != null)
+                    if (showLocation)
                       Expanded(
-                        child: AppText(branch, style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint)),
+                        child: Row(
+                          children: [
+                            if (branch != null) ...[
+                              Icon(Icons.call_split, size: 12, color: skin.textFaint),
+                              const HorizontalSpace(4),
+                              Expanded(
+                                child: AppText(
+                                  branch,
+                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                ),
+                              ),
+                            ],
+                            if (location != null) ...[
+                              if (branch != null) const HorizontalSpace(6),
+                              if (isInPlace) ...[
+                                Icon(Icons.folder_outlined, size: 12, color: skin.textFaint),
+                                const HorizontalSpace(4),
+                              ],
+                              if (branch == null)
+                                Expanded(
+                                  child: AppText(
+                                    location,
+                                    style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                  ),
+                                )
+                              else
+                                AppText(
+                                  location,
+                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                ),
+                            ],
+                          ],
+                        ),
                       ),
                     if (issue != null)
                       Container(
@@ -101,4 +139,10 @@ class SessionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _worktreeDirName(String? workspacePath) {
+  if (workspacePath == null || workspacePath.isEmpty) return null;
+  final segments = workspacePath.split('/').where((s) => s.isNotEmpty).toList();
+  return segments.isEmpty ? null : segments.last;
 }

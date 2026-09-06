@@ -1,6 +1,6 @@
 # Operator Architecture
 
-Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and runs its agent's terminal UI inside a pty-host runtime. Desktop renders that terminal directly; mobile renders blocks derived from agent hooks and the session's native transcript by default with a device-local raw-terminal toggle. The daemon coordinates both clients through the same session, lifecycle, workspace, storage, and observation boundaries.
+Operator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Each session runs its agent's terminal UI inside a pty-host runtime, in a workspace that is either an isolated git worktree (the default for `opr session spawn` and every orchestrator/reviewer spawn) or, when a human explicitly opts in on the desktop composer or the mobile spawn screen, the project's own checkout in place. Desktop renders that terminal directly; mobile renders blocks derived from agent hooks and the session's native transcript by default with a device-local raw-terminal toggle. The daemon coordinates both clients through the same session, lifecycle, workspace, storage, and observation boundaries.
 
 ## Table of Contents
 
@@ -343,6 +343,15 @@ flowchart TD
     Trigger2 --> Done([Session running])
 
 ```
+
+### Workspace Modes
+
+Every session records a `domain.WorkspaceMode`, either `worktree` or `in_place`, on `sessions.workspace_mode` (`NOT NULL`, `CHECK`-constrained, no `DEFAULT` — an empty mode reaching the workspace layer is a programming error, not a value to coerce). The workspace router (`adapters/workspace/router`) picks the adapter by mode first, falling back to project kind for `worktree` sessions:
+
+- **`worktree`** (the default everywhere except the two manual composer surfaces) — a `git worktree` on a generated branch under the managed root, via `adapters/workspace/gitworktree`. `opr session spawn` and every orchestrator/reviewer-driven spawn always get this.
+- **`in_place`** — the agent runs directly in `project.Path`, on whatever branch is already checked out there. No branch is created. Nothing session-scoped is created under Operator's managed root, but the shared spawn sequence still installs the agent's own hook files into the project's checkout (e.g. Claude Code's entries in `.claude/settings.local.json`) and adds one line to `.git/info/exclude`; neither is removed on teardown, since teardown for `in_place` never touches the checkout at all. `adapters/workspace/inplace` implements this: `Destroy`, `ForceDestroy`, `StashUncommitted`, and `ApplyPreserved` are all unconditional no-ops, so tearing down an in-place session can never touch, stash, or delete the user's real checkout. Only `single_repo` projects may use it; a `workspace` (multi-repo) project always gets per-repo worktrees, and `scratch` projects never had a worktree to begin with, so the control is hidden for both.
+
+`session_manager.Spawn` resolves and validates the mode before the session row is created (rejecting `in_place` on a non-`single_repo` project or alongside an explicit branch), and `Kill`/`Cleanup`/`SaveAndTeardownAll` all check the stored mode before calling into the workspace port, so an in-place session's real checkout is protected at both the manager layer and the router/adapter layer. `POST /api/v1/sessions` and the task-delegation endpoint both default an omitted `workspaceMode` to `worktree`, which is the only place besides `Spawn` itself where an empty value is resolved — this keeps every existing caller (CLI, orchestrator, older clients) on today's behavior.
 
 ### Session Interface Handoff
 
@@ -1079,6 +1088,7 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 8. **Adapters are leaves** — Adapters never import core packages, only ports and domain
 9. **Hooks are gitignored** — Every file an adapter writes must be in .gitignore
 10. **Migrations never change** — Add new migrations, never modify existing ones
+11. **In-place teardown never touches the filesystem** — An `in_place` session's `Destroy`, `ForceDestroy`, `StashUncommitted`, and `ApplyPreserved` are unconditional no-ops; the real project checkout is never deleted, stashed, or modified by Operator
 
 ---
 
@@ -1090,7 +1100,7 @@ Operator's architecture is designed around:
 - **Port-based design** — Core code depends on interfaces, not implementations
 - **Durable minimalism** — Store only facts, compute everything else
 - **Event-driven updates** — CDC broadcasts changes to all subscribers
-- **Isolation** — Each session owns a worktree and exactly one live controller: its agent terminal
+- **Isolation** — Each session owns exactly one live controller (its agent terminal) and, by default, an isolated worktree; a session may opt into running in the project's own checkout instead, with teardown that never touches it
 - **Safety** — Conservative termination, path validation, gitignored hooks
 
 This architecture enables parallel AI agents to work safely while maintaining complete visibility and control.

@@ -41,17 +41,18 @@ type sessionRenameRequest struct {
 }
 
 type sessionDTO struct {
-	ID           string          `json:"id"`
-	ProjectID    string          `json:"projectId"`
-	IssueID      string          `json:"issueId,omitempty"`
-	Kind         string          `json:"kind"`
-	Harness      string          `json:"harness,omitempty"`
-	DisplayName  string          `json:"displayName,omitempty"`
-	Activity     sessionActivity `json:"activity"`
-	IsTerminated bool            `json:"isTerminated"`
-	CreatedAt    time.Time       `json:"createdAt"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
-	Status       string          `json:"status"`
+	ID            string          `json:"id"`
+	ProjectID     string          `json:"projectId"`
+	IssueID       string          `json:"issueId,omitempty"`
+	Kind          string          `json:"kind"`
+	Harness       string          `json:"harness,omitempty"`
+	DisplayName   string          `json:"displayName,omitempty"`
+	Activity      sessionActivity `json:"activity"`
+	IsTerminated  bool            `json:"isTerminated"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	UpdatedAt     time.Time       `json:"updatedAt"`
+	Status        string          `json:"status"`
+	WorkspaceMode string          `json:"workspaceMode,omitempty"`
 }
 
 type sessionActivity struct {
@@ -598,7 +599,15 @@ func (c *commandContext) previewCleanupSessions(ctx context.Context, project str
 	if err := c.getJSON(ctx, apiPath("sessions", params), &res); err != nil {
 		return nil, err
 	}
-	return filterAndSortSessions(res.Sessions, true), nil
+	sessions := filterAndSortSessions(res.Sessions, true)
+	cleanable := make([]sessionDTO, 0, len(sessions))
+	for _, sess := range sessions {
+		if sess.WorkspaceMode == "in_place" {
+			continue
+		}
+		cleanable = append(cleanable, sess)
+	}
+	return cleanable, nil
 }
 
 func (c *commandContext) fetchScopedSession(ctx context.Context, id, project string) (sessionDTO, error) {

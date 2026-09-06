@@ -99,6 +99,7 @@ For code entry points:
 - Do not store derived/display session status. Status is derived from durable facts (`activity_state`, `is_terminated`, PR/check/comment facts) at service read time.
 - Do not treat failed/unknown runtime probes as proof a session is dead.
 - Do not force-delete dirty registered worktrees.
+- A session's workspace is either an isolated `worktree` or, when explicitly chosen on the desktop composer or mobile spawn screen, `in_place` in the project's own checkout. `in_place` teardown (`Destroy`, `ForceDestroy`, `StashUncommitted`, `ApplyPreserved`) is a deliberate, unconditional no-op — never make it touch the filesystem. `opr session spawn` and orchestrator/reviewer spawns always get `worktree`; do not change that default.
 - Do not modify already-merged SQLite migrations. Add a new migration instead.
 - Do not hand-edit `backend/internal/storage/sqlite/gen/*`; change `backend/internal/storage/sqlite/queries/*` or migrations and run `npm run sqlc`.
 - SQLite change events come from DB triggers into `change_log`; do not add parallel manual CDC emission from store methods unless the architecture changes explicitly.

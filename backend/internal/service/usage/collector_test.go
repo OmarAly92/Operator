@@ -635,6 +635,7 @@ func TestCollectorIgnoresUsageSignalFromStaleRuntimeLaunch(t *testing.T) {
 		Metadata: domain.SessionMetadata{
 			AgentSessionID:  "native-fenced",
 			RuntimeLaunchID: "launch-current",
+			WorkspaceMode:   domain.WorkspaceModeWorktree,
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -1777,6 +1778,7 @@ func collectorTestSessionWithActivity(
 		IsTerminated: terminated,
 		Metadata: domain.SessionMetadata{
 			AgentSessionID: nativeID,
+			WorkspaceMode:  domain.WorkspaceModeWorktree,
 		},
 		CreatedAt: now,
 		UpdatedAt: now,

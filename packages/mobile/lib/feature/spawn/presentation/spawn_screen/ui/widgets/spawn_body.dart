@@ -56,9 +56,13 @@ class _SpawnBodyState extends State<SpawnBody> {
 
     final activeProjectId = _sessionsCubit.activeProjectId;
     if (activeProjectId != kAllProjects) {
-      _cubit.setProject(activeProjectId);
+      _cubit.setProject(
+        activeProjectId,
+        kind: _projectById(_sessionsCubit.projects, activeProjectId)?.kind,
+      );
     } else if (_sessionsCubit.projects.length == 1) {
-      _cubit.setProject(_sessionsCubit.projects.first.id);
+      final only = _sessionsCubit.projects.first;
+      _cubit.setProject(only.id, kind: only.kind);
     }
     _cubit.loadCatalog();
   }
@@ -79,7 +83,9 @@ class _SpawnBodyState extends State<SpawnBody> {
       title: 'Project',
       subtitle: 'Where this agent gets its workspace.',
     );
-    if (chosen != null && context.mounted) _cubit.setProject(chosen);
+    if (chosen != null && context.mounted) {
+      _cubit.setProject(chosen, kind: _projectById(_sessionsCubit.projects, chosen)?.kind);
+    }
   }
 
   Future<void> _openAgentPicker(BuildContext context, SpawnState state) async {
@@ -153,7 +159,9 @@ class _SpawnBodyState extends State<SpawnBody> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppText(
-                'Spawn a worker agent. It gets its own isolated workspace, then starts on the task you give it.',
+                _cubit.useWorktree
+                    ? 'Spawn a worker agent. It gets its own isolated worktree, then starts on the task you give it.'
+                    : 'Spawn a worker agent. It works directly in the project checkout, on the branch already there.',
                 style: AppTextStyle.style13Regular.copyWith(color: skin.textSecondary),
                 maxLines: 3,
               ),
@@ -173,6 +181,15 @@ class _SpawnBodyState extends State<SpawnBody> {
                     leading: AgentLogo(harness: _cubit.harness.isEmpty ? null : _cubit.harness, size: 20),
                     onTap: () => _openAgentPicker(context, state),
                   ),
+                  if (project?.kind == 'single_repo')
+                    SettingsRow(
+                      icon: Icons.call_split,
+                      label: 'Create a git worktree',
+                      trailing: Switch(
+                        value: _cubit.useWorktree,
+                        onChanged: (value) => _cubit.setUseWorktree(value),
+                      ),
+                    ),
                 ],
               ),
               const VerticalSpace(20),

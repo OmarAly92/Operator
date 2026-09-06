@@ -62,6 +62,7 @@ func TestObserverIntegrationReconcilesRealPtyHostOutputIntoSQLite(t *testing.T) 
 				Kind:          domain.KindWorker,
 				Harness:       domain.HarnessCodex,
 				Activity:      domain.Activity{State: domain.ActivityActive, LastActivityAt: staleAt},
+				Metadata:      domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 				FirstSignalAt: staleAt,
 				CreatedAt:     staleAt,
 				UpdatedAt:     staleAt,

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
+import { Checkbox } from "./ui/checkbox";
 import { cn } from "../lib/utils";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
 import type { components } from "../../api/schema";
@@ -37,6 +38,7 @@ type CreateTaskInput = {
 	agent?: DelegateAgent;
 	model?: string;
 	attachments?: FileAttachmentPayload[];
+	workspaceMode?: "worktree" | "in_place";
 };
 
 export type TaskComposerProps = {
@@ -59,12 +61,14 @@ export function TaskComposer({
 	const promptId = useId();
 	const modelId = useId();
 	const agentId = useId();
+	const worktreeId = useId();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState("");
 	const [mode, setMode] = useState("");
 	const [agent, setAgent] = useState("");
 	const [agentTouched, setAgentTouched] = useState(false);
+	const [useWorktree, setUseWorktree] = useState(false);
 	const [modelTouched, setModelTouched] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | undefined>();
@@ -88,6 +92,7 @@ export function TaskComposer({
 						brief: input.brief,
 						agent: input.agent,
 						model: input.model,
+						workspaceMode: input.workspaceMode,
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
 				});
@@ -118,6 +123,7 @@ export function TaskComposer({
 			return data.project as Project;
 		},
 	});
+	const canChooseWorktree = projectQuery.data?.kind === "single_repo";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	// Freshen the inventory on open so a just-installed or just-authenticated agent
 	// is present without the user asking for it.
@@ -176,6 +182,7 @@ export function TaskComposer({
 
 	const submitTask = async () => {
 		if (!projectId || isSubmitting) return;
+		if (projectQuery.isFetching && projectQuery.data === undefined) return;
 
 		const cleanModel = model.trim();
 		const cleanMode = mode.trim();
@@ -196,6 +203,7 @@ export function TaskComposer({
 				agent: selectedAgent ? (selectedAgent as CreateTaskInput["agent"]) : undefined,
 				model: requestedModel,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
+				workspaceMode: canChooseWorktree ? (useWorktree ? "worktree" : "in_place") : undefined,
 			});
 			onCreated(sessionId);
 		} catch (err) {
@@ -365,6 +373,12 @@ export function TaskComposer({
 						/>
 					</div>
 				</div>
+				{canChooseWorktree && (
+					<label htmlFor={worktreeId} className="flex items-center gap-1.5 text-caption text-muted-foreground">
+						<Checkbox id={worktreeId} checked={useWorktree} onCheckedChange={(checked) => setUseWorktree(checked === true)} />
+						{t("newTask.createWorktree")}
+					</label>
+				)}
 				<button
 					type="button"
 					className="grid size-(--size-settings-action-height) place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -377,7 +391,7 @@ export function TaskComposer({
 					type="submit"
 					variant="primary"
 					size="none"
-					disabled={isSubmitting || !projectId}
+					disabled={isSubmitting || !projectId || (projectQuery.isFetching && projectQuery.data === undefined)}
 					className="h-(--size-settings-action-height) min-w-(--size-composer-start-button) px-3"
 				>
 					{isSubmitting ? <Loader2 className="size-icon-base animate-spin" aria-hidden="true" /> : null}

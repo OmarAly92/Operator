@@ -45,7 +45,7 @@ func TestUsageTablesKeepOnlyDurableCollectionState(t *testing.T) {
 func TestMigration0098AddsUsageTimeAndContextSnapshot(t *testing.T) {
 	db := openMigratedTestDB(t)
 
-	if _, err := db.Exec(`INSERT INTO projects (id, path, registered_at) VALUES ('usage-test', '/tmp/usage-test', CURRENT_TIMESTAMP); INSERT INTO sessions (id, project_id, num, activity_last_at, created_at, updated_at) VALUES ('usage-test-1', 'usage-test', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`); err != nil {
+	if _, err := db.Exec(`INSERT INTO projects (id, path, registered_at) VALUES ('usage-test', '/tmp/usage-test', CURRENT_TIMESTAMP); INSERT INTO sessions (id, project_id, num, activity_last_at, created_at, updated_at, workspace_mode) VALUES ('usage-test-1', 'usage-test', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'worktree');`); err != nil {
 		t.Fatalf("seed usage session: %v", err)
 	}
 	if _, err := db.Exec(`INSERT INTO usage_bindings (session_id, harness, native_root_id, state, updated_at) VALUES ('usage-test-1', 'codex', 'root-test', 'active', CURRENT_TIMESTAMP)`); err != nil {
@@ -314,8 +314,8 @@ func TestMigrateRepairsSkippedMuseHarnessConstraint(t *testing.T) {
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
 VALUES ('operator', '/repo/operator', ?, '{}');
-INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('operator-1', 'operator', 1, 'muse', ?, ?, ?);
+INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at, workspace_mode)
+VALUES ('operator-1', 'operator', 1, 'muse', ?, ?, ?, 'worktree');
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("insert muse session after repair: %v", err)
 	}

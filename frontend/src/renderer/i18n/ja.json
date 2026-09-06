@@ -343,6 +343,7 @@
 	"newTask.cancel": "キャンセル",
 	"newTask.close": "新規タスクのダイアログを閉じる",
 	"newTask.configUnavailable": "プロジェクト設定を利用できません。",
+	"newTask.createWorktree": "Git worktree を作成する",
 	"newTask.description": "このプロジェクトからワーカーを直接開始します。",
 	"newTask.image": "画像 {{number}}",
 	"newTask.noSession": "タスク作成でセッションが返されませんでした",

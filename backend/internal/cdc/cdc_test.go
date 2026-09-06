@@ -33,6 +33,7 @@ func seedSession(t *testing.T, s *sqlite.Store) domain.SessionRecord {
 	r, err := s.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "mer", Kind: domain.KindWorker,
 		Activity:  domain.Activity{State: domain.ActivityActive, LastActivityAt: now},
+		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now, UpdatedAt: now,
 	})
 	if err != nil {

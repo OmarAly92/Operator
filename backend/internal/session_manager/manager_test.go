@@ -673,7 +673,9 @@ type fakeWorkspace struct {
 	applyErr        error
 	forceDestroyErr error
 	// stashCalls counts StashUncommitted invocations.
-	stashCalls int
+	stashCalls        int
+	destroyCalls      int
+	forceDestroyCalls int
 	// excludePatterns records patterns passed to AddExclude; addExcludeErr, when
 	// set, is returned so best-effort handling can be exercised.
 	excludePatterns []string
@@ -694,7 +696,7 @@ func (w *fakeWorkspace) Create(_ context.Context, cfg ports.WorkspaceConfig) (po
 	if path == "" {
 		path = "/ws/" + string(cfg.SessionID)
 	}
-	return ports.WorkspaceInfo{Path: path, Branch: cfg.Branch, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID, RepoPath: w.createRepoPath}, nil
+	return ports.WorkspaceInfo{Path: path, Branch: cfg.Branch, SessionID: cfg.SessionID, ProjectID: cfg.ProjectID, RepoPath: w.createRepoPath, Mode: cfg.Mode}, nil
 }
 func (w *fakeWorkspace) CreateWorkspaceProject(_ context.Context, cfg ports.WorkspaceProjectConfig) (ports.WorkspaceProjectInfo, error) {
 	if w.projectErr != nil {
@@ -737,6 +739,7 @@ func (w *fakeWorkspace) CreateWorkspaceProject(_ context.Context, cfg ports.Work
 	return out, nil
 }
 func (w *fakeWorkspace) Destroy(_ context.Context, info ports.WorkspaceInfo) error {
+	w.destroyCalls++
 	w.lastDestroyInfo = info
 	if info.RepoPath != "" {
 		entry := "Destroy:" + fakeWorkspaceRepoName(info)
@@ -765,6 +768,7 @@ func (w *fakeWorkspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) 
 	return w.Create(ctx, cfg)
 }
 func (w *fakeWorkspace) ForceDestroy(_ context.Context, info ports.WorkspaceInfo) error {
+	w.forceDestroyCalls++
 	entry := "ForceDestroy:" + string(info.SessionID)
 	if info.RepoPath != "" {
 		entry = "ForceDestroy:" + fakeWorkspaceRepoName(info)
@@ -1054,6 +1058,162 @@ func seedTerminal(st *fakeStore, id domain.SessionID, meta domain.SessionMetadat
 }
 func mkLive(id domain.SessionID) domain.SessionRecord {
 	return domain.SessionRecord{ID: id, ProjectID: "mer", Metadata: domain.SessionMetadata{WorkspacePath: "/ws/" + string(id), RuntimeHandleID: "h1"}, Activity: domain.Activity{State: domain.ActivityActive}}
+}
+
+func TestSpawnRejectsInPlaceOnAWorkspaceProject(t *testing.T) {
+	m, st, _, _ := newManager()
+	proj := st.projects["mer"]
+	proj.Kind = domain.ProjectKindWorkspace
+	st.projects["mer"] = proj
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if !errors.Is(err, ErrInPlaceUnsupported) {
+		t.Fatalf("want ErrInPlaceUnsupported, got %v", err)
+	}
+}
+
+func TestSpawnDefaultsToWorktreeWhenTheModeIsAbsent(t *testing.T) {
+	m, _, _, _ := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID: "mer",
+		Kind:      domain.KindWorker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Metadata.WorkspaceMode != domain.WorkspaceModeWorktree {
+		t.Fatalf("an unset spawn mode must resolve to worktree, got %q", rec.Metadata.WorkspaceMode)
+	}
+}
+
+func TestSpawnInPlaceRecordsTheModeAndCreatesNoBranch(t *testing.T) {
+	m, _, _, ws := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Metadata.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want in_place recorded, got %q", rec.Metadata.WorkspaceMode)
+	}
+	if ws.lastCfg.Branch != "" {
+		t.Fatalf("in-place must request no branch, got %q", ws.lastCfg.Branch)
+	}
+	if ws.lastCfg.Mode != domain.WorkspaceModeInPlace {
+		t.Fatalf("the mode must reach the adapter, got %q", ws.lastCfg.Mode)
+	}
+}
+
+func TestWorkspaceInfoCarriesTheStoredMode(t *testing.T) {
+	info := workspaceInfo(domain.SessionRecord{
+		ID: "s-1",
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/tmp/x",
+			WorkspaceMode: domain.WorkspaceModeInPlace,
+		},
+	})
+	if info.Mode != domain.WorkspaceModeInPlace {
+		t.Fatalf("teardown would route to the wrong adapter: got %q", info.Mode)
+	}
+}
+
+func TestSaveAndTeardownAllWritesARestoreMarkerForInPlaceSessions(t *testing.T) {
+	m, st, _, _ := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveAndTeardownAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := st.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want one restore marker so RestoreAll does not skip the session, got %d", len(rows))
+	}
+	if rows[0].PreservedRef != "" {
+		t.Fatalf("an in-place session preserves nothing, got ref %q", rows[0].PreservedRef)
+	}
+}
+
+type testManagerProject struct {
+	ID domain.ProjectID
+}
+
+type testManagerDeps struct {
+	store     *fakeStore
+	runtime   *fakeRuntime
+	workspace *fakeWorkspace
+	project   testManagerProject
+}
+
+func newTestManager(t *testing.T) (*Manager, testManagerDeps) {
+	t.Helper()
+	m, st, rt, ws := newManager()
+	return m, testManagerDeps{store: st, runtime: rt, workspace: ws, project: testManagerProject{ID: domain.ProjectID(st.projects["mer"].ID)}}
+}
+
+func TestKillLeavesAnInPlaceWorkspaceUntouched(t *testing.T) {
+	m, deps := newTestManager(t)
+	rec, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID:     deps.project.ID,
+		Kind:          domain.KindWorker,
+		Harness:       domain.HarnessClaudeCode,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	freed, err := m.Kill(context.Background(), rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if freed {
+		t.Fatal("an in-place kill frees no workspace")
+	}
+	if deps.workspace.destroyCalls != 0 {
+		t.Fatalf("the git adapter must not be asked to destroy an in-place session, got %d calls", deps.workspace.destroyCalls)
+	}
+	got, ok, err := m.store.GetSession(context.Background(), rec.ID)
+	if err != nil || !ok {
+		t.Fatalf("GetSession: %v %v", ok, err)
+	}
+	if !got.IsTerminated {
+		t.Fatal("the session must still be terminated")
+	}
+}
+
+func TestSaveAndTeardownAllNeverForceDestroysAnInPlaceSession(t *testing.T) {
+	m, deps := newTestManager(t)
+	if _, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID:     deps.project.ID,
+		Kind:          domain.KindWorker,
+		Harness:       domain.HarnessClaudeCode,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveAndTeardownAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if deps.workspace.forceDestroyCalls != 0 {
+		t.Fatalf("shutdown must never force-destroy an in-place workspace, got %d calls", deps.workspace.forceDestroyCalls)
+	}
+	if deps.workspace.stashCalls != 0 {
+		t.Fatalf("shutdown must not stash an in-place workspace, got %d calls", deps.workspace.stashCalls)
+	}
 }
 
 func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
@@ -2565,6 +2725,24 @@ func TestCleanup_ReclaimsTerminalWorkspaces(t *testing.T) {
 	}
 	if ws.destroyed != 1 {
 		t.Fatal("live workspace must not be destroyed")
+	}
+}
+
+func TestCleanupDoesNotReportAnInPlaceSessionAsReclaimed(t *testing.T) {
+	m, st, _, ws := newManager()
+	seedTerminal(st, "mer-1", domain.SessionMetadata{WorkspacePath: "/repo/mer", WorkspaceMode: domain.WorkspaceModeInPlace})
+	res, err := m.Cleanup(ctx, "mer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Cleaned) != 0 {
+		t.Fatalf("an in-place session must not be reported as reclaimed, got %v", res.Cleaned)
+	}
+	if len(res.Skipped) != 0 {
+		t.Fatalf("an in-place session is not a refused teardown either, got %v", res.Skipped)
+	}
+	if ws.destroyCalls != 0 {
+		t.Fatalf("the git adapter must not be asked to destroy an in-place session, got %d calls", ws.destroyCalls)
 	}
 }
 

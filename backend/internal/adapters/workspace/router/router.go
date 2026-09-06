@@ -19,6 +19,7 @@ type ProjectStore interface {
 type Deps struct {
 	Git      ports.Workspace
 	Scratch  ports.Workspace
+	InPlace  ports.Workspace
 	Projects ProjectStore
 }
 
@@ -27,6 +28,7 @@ type Deps struct {
 type Workspace struct {
 	git      ports.Workspace
 	scratch  ports.Workspace
+	inPlace  ports.Workspace
 	projects ProjectStore
 }
 
@@ -40,6 +42,7 @@ func New(deps Deps) *Workspace {
 	return &Workspace{
 		git:      deps.Git,
 		scratch:  deps.Scratch,
+		inPlace:  deps.InPlace,
 		projects: deps.Projects,
 	}
 }
@@ -47,7 +50,7 @@ func New(deps Deps) *Workspace {
 // Create delegates session workspace creation to the project-appropriate
 // workspace adapter.
 func (w *Workspace) Create(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {
-	adapter, err := w.adapterForProject(ctx, cfg.ProjectID)
+	adapter, err := w.adapterForMode(ctx, cfg.Mode, cfg.ProjectID)
 	if err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
@@ -57,7 +60,7 @@ func (w *Workspace) Create(ctx context.Context, cfg ports.WorkspaceConfig) (port
 // Restore delegates session workspace restoration to the project-appropriate
 // workspace adapter.
 func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (ports.WorkspaceInfo, error) {
-	adapter, err := w.adapterForProject(ctx, cfg.ProjectID)
+	adapter, err := w.adapterForMode(ctx, cfg.Mode, cfg.ProjectID)
 	if err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
@@ -67,7 +70,7 @@ func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (por
 // Destroy delegates normal session workspace cleanup to the
 // project-appropriate workspace adapter.
 func (w *Workspace) Destroy(ctx context.Context, info ports.WorkspaceInfo) error {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -77,7 +80,7 @@ func (w *Workspace) Destroy(ctx context.Context, info ports.WorkspaceInfo) error
 // ForceDestroy delegates forced session workspace cleanup to the
 // project-appropriate workspace adapter.
 func (w *Workspace) ForceDestroy(ctx context.Context, info ports.WorkspaceInfo) error {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -87,7 +90,7 @@ func (w *Workspace) ForceDestroy(ctx context.Context, info ports.WorkspaceInfo) 
 // StashUncommitted delegates preservation of dirty workspace state to the
 // project-appropriate workspace adapter.
 func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceInfo) (string, error) {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return "", err
 	}
@@ -97,7 +100,7 @@ func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceIn
 // ApplyPreserved delegates restored dirty workspace state application to the
 // project-appropriate workspace adapter.
 func (w *Workspace) ApplyPreserved(ctx context.Context, info ports.WorkspaceInfo, ref string) error {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -107,7 +110,7 @@ func (w *Workspace) ApplyPreserved(ctx context.Context, info ports.WorkspaceInfo
 // AddExclude delegates local workspace ignore updates to the project-appropriate
 // workspace adapter.
 func (w *Workspace) AddExclude(ctx context.Context, info ports.WorkspaceInfo, patterns ...string) error {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -118,7 +121,7 @@ func (w *Workspace) AddExclude(ctx context.Context, info ports.WorkspaceInfo, pa
 // project adapter. Adapters that cannot observe state return a clear error
 // instead of fabricating repository facts.
 func (w *Workspace) ObserveWorkspace(ctx context.Context, info ports.WorkspaceInfo) (ports.WorkspaceObservation, error) {
-	adapter, err := w.adapterForProject(ctx, info.ProjectID)
+	adapter, err := w.adapterForMode(ctx, info.Mode, info.ProjectID)
 	if err != nil {
 		return ports.WorkspaceObservation{}, err
 	}
@@ -169,6 +172,19 @@ func (w *Workspace) adapterForProject(ctx context.Context, projectID domain.Proj
 		return nil, errors.New("workspace router: git workspace is not configured")
 	}
 	return w.git, nil
+}
+
+func (w *Workspace) adapterForMode(ctx context.Context, mode domain.WorkspaceMode, projectID domain.ProjectID) (ports.Workspace, error) {
+	if w == nil {
+		return nil, errors.New("workspace router: nil router")
+	}
+	if mode == domain.WorkspaceModeInPlace {
+		if w.inPlace == nil {
+			return nil, errors.New("workspace router: in-place workspace is not configured")
+		}
+		return w.inPlace, nil
+	}
+	return w.adapterForProject(ctx, projectID)
 }
 
 func (w *Workspace) gitWorkspaceProject() (ports.WorkspaceProject, error) {

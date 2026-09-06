@@ -16,11 +16,12 @@ type SpawnConfig struct {
 	IssueID   domain.IssueID
 	// IssueContext is optional pre-fetched tracker context for the task prompt.
 	// Standing rules stay in SystemPrompt; issue facts belong to the user task.
-	IssueContext string
-	Kind         domain.SessionKind
-	Harness      domain.AgentHarness
-	Branch       string
-	Prompt       string
+	IssueContext  string
+	Kind          domain.SessionKind
+	Harness       domain.AgentHarness
+	Branch        string
+	Prompt        string
+	WorkspaceMode domain.WorkspaceMode
 	// AgentConfig overrides the resolved project/role agent config for this
 	// single spawn. Empty fields keep the project defaults.
 	AgentConfig AgentConfig

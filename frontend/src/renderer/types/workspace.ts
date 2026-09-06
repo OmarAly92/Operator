@@ -134,6 +134,8 @@ export type WorkspaceSession = {
 	reviewerHarness?: ReviewerHarnessId;
 	kind?: SessionKind;
 	branch?: string;
+	workspaceMode?: "worktree" | "in_place";
+	workspacePath?: string;
 	status: SessionStatus;
 	/** Stack-aware PR context derived by the daemon independently of runtime activity. */
 	scmStatus?: SessionStatus;

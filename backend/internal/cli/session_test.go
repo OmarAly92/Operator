@@ -104,17 +104,22 @@ func sessionCommandServer(t *testing.T) (*httptest.Server, *sessionRequestLog) {
 }
 
 func sessionJSON(id, project, kind, status string, terminated bool) string {
+	return sessionJSONWithMode(id, project, kind, status, terminated, "worktree")
+}
+
+func sessionJSONWithMode(id, project, kind, status string, terminated bool, workspaceMode string) string {
 	b, _ := json.Marshal(map[string]any{
-		"id":           id,
-		"projectId":    project,
-		"kind":         kind,
-		"harness":      "codex",
-		"displayName":  "Current Name",
-		"activity":     map[string]any{"state": "idle", "lastActivityAt": "2026-06-02T12:00:00Z"},
-		"isTerminated": terminated,
-		"createdAt":    "2026-06-02T11:00:00Z",
-		"updatedAt":    "2026-06-02T12:00:00Z",
-		"status":       status,
+		"id":            id,
+		"projectId":     project,
+		"kind":          kind,
+		"harness":       "codex",
+		"displayName":   "Current Name",
+		"activity":      map[string]any{"state": "idle", "lastActivityAt": "2026-06-02T12:00:00Z"},
+		"isTerminated":  terminated,
+		"createdAt":     "2026-06-02T11:00:00Z",
+		"updatedAt":     "2026-06-02T12:00:00Z",
+		"status":        status,
+		"workspaceMode": workspaceMode,
 	})
 	return string(b)
 }
@@ -438,6 +443,44 @@ func TestSessionCleanup_ReportsSkippedWorkspaces(t *testing.T) {
 		"Skipped: demo-orch (workspace has uncommitted changes)",
 		"Cleanup complete. 1 session cleaned, 1 skipped.",
 	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("cleanup output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestSessionCleanup_SkipsInPlaceSessionsInPreview: Manager.Cleanup never adds
+// in-place sessions to Cleaned or Skipped, so listing them as "would clean"
+// only sets up a confusing "0 sessions cleaned" with no explanation. The CLI
+// preview must filter them out before they ever reach the "Would clean" list.
+func TestSessionCleanup_SkipsInPlaceSessionsInPreview(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
+			_, _ = io.WriteString(w, `{"sessions":[`+
+				sessionJSONWithMode("demo-old", "demo", "worker", "terminated", true, "worktree")+`,`+
+				sessionJSONWithMode("demo-inplace", "demo", "worker", "terminated", true, "in_place")+`]}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/cleanup":
+			_, _ = io.WriteString(w, `{"ok":true,"cleaned":["demo-old"],"skipped":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, errOut, err := executeCLI(t, Deps{
+		ProcessAlive: func(int) bool { return true },
+	}, "session", "cleanup", "--project", "demo", "--yes")
+	if err != nil {
+		t.Fatalf("session cleanup failed: %v\nstderr=%s", err, errOut)
+	}
+	if strings.Contains(out, "demo-inplace") {
+		t.Fatalf("in-place session must never appear in the cleanup preview:\n%s", out)
+	}
+	for _, want := range []string{"Would clean demo-old", "Cleaned: demo-old", "Cleanup complete. 1 session cleaned."} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("cleanup output missing %q:\n%s", want, out)
 		}
