@@ -67,7 +67,7 @@ Dictation is live: `terminal_composer.dart` uses `VoiceInputCubit`, `MicKey` and
 - Consumes: nothing from earlier tasks.
 - Produces: `package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart` exporting `VoiceInputCubit` and `VoiceInputState`; `.../feature/dictation/ui/mic_key.dart` exporting `MicKey`; `.../feature/dictation/ui/voice_strip.dart` exporting `VoiceStrip`; `.../feature/dictation/device_provider.dart`, `.../speech_recognizer.dart`, `.../voice_types.dart`. Class names and signatures are unchanged — this is a move, not a rewrite. Task 4 relies on `feature/chat/voice/` no longer existing.
 
-- [ ] **Step 1: Record the current test count as the baseline**
+- [x] **Step 1: Record the current test count as the baseline**
 
 ```bash
 cd packages/mobile && flutter test 2>&1 | tail -3
@@ -75,7 +75,7 @@ cd packages/mobile && flutter test 2>&1 | tail -3
 
 Write the number down. Every later task compares against it: a move must not change it, a deletion must only subtract the tests it deletes.
 
-- [ ] **Step 2: Find every importer of the voice subsystem**
+- [x] **Step 2: Find every importer of the voice subsystem**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -84,7 +84,7 @@ grep -rn "feature/chat/voice" packages/mobile/lib packages/mobile/test | sort
 
 Expected: `service_locator.dart` (5 imports), `terminal_composer.dart` (3), the two voice tests, and any importer inside `feature/chat/` itself. The in-chat importers are fixed here too so the tree stays green; they are deleted in Task 4.
 
-- [ ] **Step 3: Move the files with `git mv`, preserving history**
+- [x] **Step 3: Move the files with `git mv`, preserving history**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -101,7 +101,7 @@ git mv test/feature/chat/voice/mic_key_test.dart         test/feature/dictation/
 rmdir lib/feature/chat/voice/logic lib/feature/chat/voice/ui lib/feature/chat/voice test/feature/chat/voice 2>/dev/null || true
 ```
 
-- [ ] **Step 4: Rewrite every import path**
+- [x] **Step 4: Rewrite every import path**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -115,7 +115,7 @@ grep -rn "feature/chat/voice" lib test | sort
 
 Expected from the final grep: no output.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -125,7 +125,7 @@ flutter test 2>&1 | tail -3
 
 Expected: `No issues found!`, and the same test count as Step 1. A move changes no behaviour, so any delta is a mistake.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -158,13 +158,13 @@ Six lines that `terminal_body.dart` depends on. It is a pure layout helper with 
 - Consumes: nothing.
 - Produces: `package:operator_mobile/core/utils/keyboard_inset.dart`, exporting the same symbol under the same name. Task 4 relies on `feature/chat/logic/keyboard_inset.dart` being gone.
 
-- [ ] **Step 1: Read the file so the move is verifiably verbatim**
+- [x] **Step 1: Read the file so the move is verifiably verbatim**
 
 ```bash
 cat packages/mobile/lib/feature/chat/logic/keyboard_inset.dart
 ```
 
-- [ ] **Step 2: Move it**
+- [x] **Step 2: Move it**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -178,7 +178,7 @@ grep -rn "chat/logic/keyboard_inset" lib test
 
 Expected from the final grep: no output.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -187,7 +187,7 @@ flutter analyze && flutter test 2>&1 | tail -3
 
 Expected: `No issues found!` and the Task 1 baseline count.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -217,7 +217,7 @@ MSG
 - Consumes: nothing.
 - Produces: `block_actions.dart` and `turn_grouping.dart` with no `feature/chat` imports. Task 4 relies on this: with these two files clean, no file outside `feature/chat/` and the four chat-side blocks files imports chat.
 
-- [ ] **Step 1: Enumerate what the live widgets actually use from each file**
+- [x] **Step 1: Enumerate what the live widgets actually use from each file**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -230,7 +230,7 @@ done
 
 Everything printed must survive. Everything in the two logic files that is *not* printed and *is* conversation-typed is removed.
 
-- [ ] **Step 2: Confirm the live widgets touch no conversation types**
+- [x] **Step 2: Confirm the live widgets touch no conversation types**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -240,11 +240,11 @@ grep -rn "Conversation" lib/feature/blocks/presentation/blocks_screen/ui/widgets
 
 Expected: no output. If this prints anything, stop — the seam is not where this plan says it is, and the split needs redesigning before proceeding.
 
-- [ ] **Step 3: Delete the conversation-typed declarations and their imports**
+- [x] **Step 3: Delete the conversation-typed declarations and their imports**
 
 Remove from each file every top-level function, class, extension and typedef whose signature or body names one of the conversation types listed under **Files**, then delete the now-unused `package:operator_mobile/feature/chat/...` imports at the top. Leave every other declaration byte-for-byte unchanged.
 
-- [ ] **Step 4: Prove the chat imports are gone**
+- [x] **Step 4: Prove the chat imports are gone**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -253,7 +253,7 @@ grep -rn "feature/chat" lib/feature/blocks/logic/
 
 Expected: no output.
 
-- [ ] **Step 5: Remove the tests that covered the deleted halves**
+- [x] **Step 5: Remove the tests that covered the deleted halves**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -263,7 +263,7 @@ flutter analyze
 
 `flutter analyze` names every remaining test that references a deleted symbol. Delete exactly those `group(...)`/`test(...)` blocks from `turn_grouping_transcript_test.dart` and `turn_grouping_fixtures_test.dart`, leaving the transcript-driven cases — those cover the live path — intact.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -272,7 +272,7 @@ flutter analyze && flutter test 2>&1 | tail -3
 
 Expected: `No issues found!`, and a test count *below* the Task 1 baseline by exactly the number of deleted cases. Record the new baseline.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -311,7 +311,7 @@ With Tasks 1–3 landed, nothing outside `feature/chat/` and its four chat-side 
 - Consumes: `feature/dictation/*` and `core/utils/keyboard_inset.dart` from Tasks 1–2; clean `blocks/logic/*` from Task 3.
 - Produces: a mobile tree with no `feature/chat`, no `/conversation` endpoint strings, and no `ConversationEventBus`. Task 6 relies on mobile having stopped calling the eighteen routes.
 
-- [ ] **Step 1: Snapshot the deletion set**
+- [x] **Step 1: Snapshot the deletion set**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -319,7 +319,7 @@ find lib/feature/chat test/feature/chat -type f | wc -l
 grep -rn "RoutesStrings" lib/core/routing/*.dart | grep -i chat
 ```
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -335,7 +335,7 @@ git rm test/feature/blocks/presentation/chat_blocks_body_test.dart
 git rm test/feature/blocks/presentation/conversation_blocks_cubit_test.dart
 ```
 
-- [ ] **Step 3: Let the analyzer drive the cleanup**
+- [x] **Step 3: Let the analyzer drive the cleanup**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -344,7 +344,7 @@ flutter analyze 2>&1 | head -60
 
 Every reported error is a dangling reference in `service_locator.dart`, the routing table, or a test. Fix them by deletion, not by stubbing. Repeat until clean.
 
-- [ ] **Step 4: Remove the conversation endpoints**
+- [x] **Step 4: Remove the conversation endpoints**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -359,7 +359,7 @@ grep -rn "conversation" lib/core/api/ && echo "STILL PRESENT" || echo "clean"
 
 Expected: `clean`.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/packages/mobile
@@ -369,7 +369,7 @@ grep -rn "feature/chat\|ConversationEventBus\|/conversation" lib | sort
 
 Expected: `No issues found!`, a green suite, and no output from the grep.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -404,7 +404,7 @@ MSG
 - Consumes: nothing.
 - Produces: a renderer with no conversation types. Task 6 regenerates `frontend/src/api/schema.ts`, which still contains conversation schemas until then — that is expected and is fixed there, not here.
 
-- [ ] **Step 1: Confirm the panes are unreachable**
+- [x] **Step 1: Confirm the panes are unreachable**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -413,7 +413,7 @@ grep -rn "SessionBlocksPane" frontend/src --include='*.tsx' --include='*.ts' | g
 
 Expected: no output. If this prints a caller, stop and report — the desktop surface is live and this task needs redesigning.
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -424,7 +424,7 @@ git rm frontend/src/renderer/lib/chat-fixture.ts
 git rm frontend/src/renderer/types/conversation.ts
 ```
 
-- [ ] **Step 3: Let the type checker drive the cleanup**
+- [x] **Step 3: Let the type checker drive the cleanup**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/frontend && npm run typecheck 2>&1 | head -40
@@ -432,7 +432,7 @@ cd /Users/omaraly/development/AI/Operator/frontend && npm run typecheck 2>&1 | h
 
 Fix each error by deleting the dangling code. In `CenterPane.tsx` that means removing both pane functions and the five `useConversation*` imports; in `event-transport.ts` and `BlockComposer.tsx` it means removing the conversation branches, not stubbing them.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/frontend
@@ -442,7 +442,7 @@ grep -rn "components/chat\|useConversation\|conversation-blocks" src | sort
 
 Expected: clean type check, clean lint, green tests, and no output from the grep other than `src/api/schema.ts` (regenerated in Task 6).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -473,7 +473,7 @@ MSG
 - Consumes: mobile (Task 4) and desktop (Task 5) no longer call these routes.
 - Produces: an `APIDeps` with no `Conversations` field. Task 7 removes the wiring in `daemon.go` that used to populate it.
 
-- [ ] **Step 1: Record the route list being removed**
+- [x] **Step 1: Record the route list being removed**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -482,7 +482,7 @@ sed -n '62,80p' backend/internal/httpd/controllers/conversations.go
 
 Eighteen registrations. All eighteen go.
 
-- [ ] **Step 2: Delete the controller files**
+- [x] **Step 2: Delete the controller files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -497,11 +497,11 @@ git rm backend/internal/httpd/controllers/conversations.go \
        backend/internal/httpd/controllers/conversation_provider_state_test.go
 ```
 
-- [ ] **Step 3: Unwire the controller and remove the DTOs**
+- [x] **Step 3: Unwire the controller and remove the DTOs**
 
 Remove the `Conversations` field and its comment from `APIDeps`, the `conversations` field from the API struct, its construction, and the `a.conversations.Register(r)` call. Then delete the `/* ---- chat conversations ---- */` block from `dto.go`.
 
-- [ ] **Step 4: Let the compiler find the rest**
+- [x] **Step 4: Let the compiler find the rest**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head -30
@@ -509,7 +509,7 @@ cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head 
 
 Fix each error by deletion. `service/chat` is still present at this point and still compiles; only its HTTP callers are gone.
 
-- [ ] **Step 5: Remove the operations from the spec registry and regenerate**
+- [x] **Step 5: Remove the operations from the spec registry and regenerate**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -525,7 +525,7 @@ grep -c conversation backend/internal/httpd/apispec/openapi.yaml
 
 Expected from the final grep: `0`.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -540,7 +540,7 @@ cd /Users/omaraly/development/AI/Operator && grep -c conversation frontend/src/a
 
 Expected: `0`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -569,7 +569,7 @@ MSG
 - Consumes: the `APIDeps.Conversations` field is already gone (Task 6).
 - Produces: a daemon that constructs no chat service. Task 8 deletes the drivers it used to hold.
 
-- [ ] **Step 1: Confirm the only remaining importers are the two daemon files**
+- [x] **Step 1: Confirm the only remaining importers are the two daemon files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -578,13 +578,13 @@ grep -rln "internal/service/chat" backend --include='*.go' | grep -v "internal/s
 
 Expected: exactly `backend/internal/daemon/daemon.go` and `backend/internal/daemon/lifecycle_wiring.go`. Anything else means Task 6 left a caller behind — fix that first.
 
-- [ ] **Step 2: Delete the package**
+- [x] **Step 2: Delete the package**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator && git rm -r backend/internal/service/chat
 ```
 
-- [ ] **Step 3: Unwire the daemon**
+- [x] **Step 3: Unwire the daemon**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head -30
@@ -592,7 +592,7 @@ cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head 
 
 Remove each reported reference from `daemon.go` and `lifecycle_wiring.go` by deletion. The `chatdriver` registry construction stays for now — it is deleted in Task 8 — but anything that only existed to hand drivers to the chat service goes here.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -601,7 +601,7 @@ gofmt -l internal/ && go vet ./... && go test ./... 2>&1 | grep -E "^(FAIL|ok +g
 
 Expected: no `FAIL` lines.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -629,7 +629,7 @@ MSG
 - Consumes: nothing constructs a driver after Task 7 except `daemon.go`.
 - Produces: no package imports `acp-go-sdk`. Task 9 removes the runtime resource the Claude driver used to resolve.
 
-- [ ] **Step 1: Confirm the importer set**
+- [x] **Step 1: Confirm the importer set**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -638,14 +638,14 @@ grep -rln "adapters/chatdriver" backend --include='*.go' | grep -v "internal/ada
 
 Expected: exactly `backend/cmd/gencodexproto/main.go` and `backend/internal/daemon/daemon.go`.
 
-- [ ] **Step 2: Delete**
+- [x] **Step 2: Delete**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
 git rm -r backend/internal/adapters/chatdriver backend/cmd/gencodexproto
 ```
 
-- [ ] **Step 3: Unwire and drop the dependency**
+- [x] **Step 3: Unwire and drop the dependency**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -660,7 +660,7 @@ cd /Users/omaraly/development/AI/Operator/backend && go mod tidy && git diff --s
 
 Expected: `github.com/coder/acp-go-sdk` dropped from `go.mod`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -669,7 +669,7 @@ gofmt -l internal/ && go vet ./... && go build ./... && go test ./... 2>&1 | gre
 
 Expected: `0`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -703,7 +703,7 @@ The runtime is a bundled npm package resolved by the deleted Claude driver. It i
 - Consumes: the driver that resolved `resources/acp-runtime` is gone (Task 8).
 - Produces: no build step named `build:acp-runtime`. Nothing depends on this task.
 
-- [ ] **Step 1: Enumerate every reference**
+- [x] **Step 1: Enumerate every reference**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -711,18 +711,18 @@ grep -rn "acp-runtime" --include='*.json' --include='*.mjs' --include='*.sh' --i
   package.json frontend .github | grep -v node_modules
 ```
 
-- [ ] **Step 2: Delete the package and its build script**
+- [x] **Step 2: Delete the package and its build script**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
 git rm -r frontend/acp-runtime frontend/scripts/build-acp-runtime.mjs
 ```
 
-- [ ] **Step 3: Remove the script entries, the resource, the verifier lines and the CI steps**
+- [x] **Step 3: Remove the script entries, the resource, the verifier lines and the CI steps**
 
 Delete the `"build:acp-runtime"` line from both `package.json` files, the `"../resources/acp-runtime/": "acp-runtime/"` entry from `tauri.conf.json`, `acp-runtime` from both resource lists in `verify-tauri-artifacts.sh`, and the `npm run build:acp-runtime` step (with its `- run:` / `run:` wrapper) from all six workflows.
 
-- [ ] **Step 4: Verify nothing references it**
+- [x] **Step 4: Verify nothing references it**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -732,7 +732,7 @@ grep -rn "acp-runtime\|acp_runtime" --include='*.json' --include='*.mjs' --inclu
 
 Expected: no output.
 
-- [ ] **Step 5: Confirm the JSON is still valid and the app still builds**
+- [x] **Step 5: Confirm the JSON is still valid and the app still builds**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -740,7 +740,7 @@ node -e "JSON.parse(require('fs').readFileSync('package.json'));JSON.parse(requi
 cd frontend && npm run typecheck 2>&1 | tail -5
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -772,7 +772,7 @@ MSG
 - Consumes: no chat service remains to drive a transition (Task 7).
 - Produces: a session manager that only spawns TUI sessions. Task 11 removes `SessionMode` itself, which this task's deletions make unreferenced in the manager.
 
-- [ ] **Step 1: Map the references before cutting**
+- [x] **Step 1: Map the references before cutting**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -781,7 +781,7 @@ grep -rn "InterfaceTransition" backend/internal/session_manager/manager.go \
 grep -rn "chatSpawn\|ChatSpawn\|chatAttachments" backend/internal/session_manager/manager.go
 ```
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -795,7 +795,7 @@ git rm backend/internal/session_manager/interface_transition.go \
        backend/internal/domain/session_interface_transition.go
 ```
 
-- [ ] **Step 3: Let the compiler drive**
+- [x] **Step 3: Let the compiler drive**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go build ./... && go vet ./... 2>&1 | head -30
@@ -803,7 +803,7 @@ cd /Users/omaraly/development/AI/Operator/backend && go build ./... && go vet ./
 
 Delete each dangling reference. In `manager.go` this removes the mode branch from session creation; in `service/session/service.go` it removes the transition calls. Do not leave a mode parameter that is now always `tui` — remove the parameter.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -812,7 +812,7 @@ gofmt -l internal/ && go vet ./... && go test ./... 2>&1 | grep -c "^FAIL"
 
 Expected: `0`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -842,7 +842,7 @@ MSG
 - Consumes: nothing outside these files still names `ports.Chat*` or `domain.SessionMode` after Tasks 6, 7 and 10.
 - Produces: a domain with no conversation concept. Task 12 drops the tables these types mapped to.
 
-- [ ] **Step 1: Confirm the remaining reference set**
+- [x] **Step 1: Confirm the remaining reference set**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -852,7 +852,7 @@ grep -rln "SessionModeChat\|SessionModeTUI\|domain\.SessionMode" backend --inclu
 
 Everything printed must be in the **Files** list above. If a file appears that is not listed, stop and report it before deleting — an unlisted reader means the mode is load-bearing somewhere this plan did not find.
 
-- [ ] **Step 2: Delete the type files**
+- [x] **Step 2: Delete the type files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -865,7 +865,7 @@ git rm backend/internal/ports/chat.go \
        backend/internal/storage/sqlite/store/conversation_history_store_test.go
 ```
 
-- [ ] **Step 3: Collapse the mode reads in the five remaining files**
+- [x] **Step 3: Collapse the mode reads in the five remaining files**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head -30
@@ -873,7 +873,7 @@ cd /Users/omaraly/development/AI/Operator/backend && go build ./... 2>&1 | head 
 
 Each reported site branched on chat versus TUI. Keep the TUI branch and delete the branch itself — do not leave an `if true`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -883,7 +883,7 @@ cd /Users/omaraly/development/AI/Operator && grep -rn "ports\.Chat\|domain\.Sess
 
 Expected: `0` failures and `0` references.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -916,7 +916,7 @@ Nine tables plus two columns. The store was emptied in Phase 1 — the productio
 - Consumes: no Go code reads these tables after Task 11.
 - Produces: the final schema. Nothing depends on this task.
 
-- [ ] **Step 1: Confirm the tables are empty in the live databases**
+- [x] **Step 1: Confirm the tables are empty in the live databases**
 
 ```bash
 for DB in ~/.operator/data/opr.db ~/.operator/dev/data/opr.db; do
@@ -928,7 +928,7 @@ done
 
 Expected: zero everywhere. A non-zero count means Phase 1's clear did not run on that database — stop and report rather than dropping rows.
 
-- [ ] **Step 2: Write the migration**
+- [x] **Step 2: Write the migration**
 
 ```sql
 -- +goose Up
@@ -949,7 +949,7 @@ SELECT 1;
 
 The down migration is deliberately inert: the spec records Phase 4 as irreversible in practice, and a down that recreated nine empty tables would be a lie about recoverability.
 
-- [ ] **Step 3: Delete the queries and regenerate**
+- [x] **Step 3: Delete the queries and regenerate**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -960,11 +960,11 @@ git rm backend/internal/storage/sqlite/queries/conversations.sql \
 cd /Users/omaraly/development/AI/Operator && npm run sqlc && gofmt -l backend/internal/
 ```
 
-- [ ] **Step 4: Register the migration in the burned-versions test**
+- [x] **Step 4: Register the migration in the burned-versions test**
 
 Add `101: "0101_drop_conversations.sql"` to the map in `migrate_burned_versions_test.go`. If `gofmt` realigns the map because the keys changed width, that realignment is expected and belongs in this commit.
 
-- [ ] **Step 5: Verify the migration applies to a real database**
+- [x] **Step 5: Verify the migration applies to a real database**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -998,7 +998,7 @@ sqlite3 /tmp/phase4-check/opr.db "pragma integrity_check;"
 
 Expected: `migrations applied`, version `101`, table count `0`, `ok`. Delete `/tmp/phase4-check*` afterwards, and confirm `git status --short` shows no stray `internal/tmpmigratecheck`.
 
-- [ ] **Step 6: Verify the suite**
+- [x] **Step 6: Verify the suite**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator/backend
@@ -1007,7 +1007,7 @@ gofmt -l internal/ && go vet ./... && go test ./... 2>&1 | grep -c "^FAIL"
 
 Expected: `0`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -1037,7 +1037,7 @@ MSG
 - Consumes: every prior task.
 - Produces: the completion report.
 
-- [ ] **Step 1: Prove no reference survives anywhere**
+- [x] **Step 1: Prove no reference survives anywhere**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -1048,7 +1048,7 @@ grep -rn "chatdriver\|ChatDriver\|acp-runtime\|SessionModeChat\|/conversation" \
 
 Expected: no output. Any hit is unfinished work, not an acceptable remnant.
 
-- [ ] **Step 2: Run every gate**
+- [x] **Step 2: Run every gate**
 
 ```bash
 R=/Users/omaraly/development/AI/Operator
@@ -1062,7 +1062,7 @@ cd $R && npm run api && git diff --stat backend/internal/httpd/apispec/openapi.y
 
 Expected: `0` Go failures, `0 issues` from lint after the cache clean, `No issues found!` from Flutter, green Dart and TS suites, and an **empty** diff from `npm run api` — a non-empty diff means Task 6 did not regenerate.
 
-- [ ] **Step 3: Update the documentation**
+- [x] **Step 3: Update the documentation**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -1071,11 +1071,11 @@ grep -rn -i "chat mode\|chat driver\|ACP\|session mode" CLAUDE.md AGENTS.md DESI
 
 Rewrite each hit to describe the single-mode architecture. Do not leave "chat mode is deprecated" wording — the mode does not exist.
 
-- [ ] **Step 4: Write the report**
+- [x] **Step 4: Write the report**
 
 Create `docs/superpowers/plans/2026-09-06-phase-4-report.md` recording: the measured line count deleted per area, the final gate output verbatim, the migration verification from Task 12 Step 5, and anything that diverged from this plan. No placeholders.
 
-- [ ] **Step 5: Measure what was actually removed**
+- [x] **Step 5: Measure what was actually removed**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator
@@ -1084,7 +1084,7 @@ git diff --shortstat <first-commit-of-this-branch>^..HEAD
 
 Put the number in the report.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/omaraly/development/AI/Operator

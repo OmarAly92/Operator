@@ -94,7 +94,6 @@ jobs:
         run: |
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
-          npm run build:acp-runtime
       - name: Build bundles (unsigned, no publish)
         shell: bash
         # The production feed base URL is baked by tauri.release.conf.json; this

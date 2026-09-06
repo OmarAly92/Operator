@@ -42,11 +42,9 @@ surface (`npm run sqlc`, `npm run api`).
   (list/spawn/get) are wired too.
 - One session kind. Every session runs the agent's own terminal UI in the
   pty-host runtime; there is no chat controller to choose and no interface
-  handoff. The ACP/chat subsystem is still in the tree but unreachable, and is
-  deleted in Phase 4 of `docs/superpowers/specs/2026-09-04-single-session-interface-design.md`.
-- The dormant ACP/chat implementation and its schema remain compilable during
-  the staged removal, but no spawn, route, desktop surface, or mobile surface can
-  select it. Phase 4 removes it.
+  handoff. The ACP/chat subsystem was removed in Phase 4 of
+  `docs/superpowers/specs/2026-09-04-single-session-interface-design.md`
+  (see `docs/superpowers/plans/2026-09-06-phase-4-report.md`).
 - Project CRUD plus per-project config (`PUT /projects/{id}/config`).
 - PR action engine wired into the API: `POST /prs/{id}/merge` and
   `/prs/{id}/resolve-comments`.
@@ -131,8 +129,8 @@ surface (`npm run sqlc`, `npm run api`).
 - Shell: sidebar (projects + sessions, add/remove project), sessions board,
   session view + inspector, project settings, pull-requests page,
   spawn-orchestrator flow.
-- SessionView always renders the agent's live terminal. There is no desktop
-  blocks view, Chat composer, interface picker, or interface-switch action.
+- SessionView always renders the agent's live terminal. There is no other
+  session interface to pick or switch to — the desktop has no blocks view.
 - Desktop status and SCM summary V1: session status comes from
   `GET /api/v1/sessions`; visible/active PR context comes from
   `GET /api/v1/sessions/{sessionId}/pr`; `GET /api/v1/events` is kept open as

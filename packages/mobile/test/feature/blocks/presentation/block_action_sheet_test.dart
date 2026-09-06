@@ -84,7 +84,6 @@ void main() {
         BlockAction(kind: BlockActionKind.copyCommand, payload: 'ls'),
         BlockAction(kind: BlockActionKind.copyOutput, payload: 'file.txt'),
         BlockAction(kind: BlockActionKind.rerun, payload: 'do the thing'),
-        BlockAction(kind: BlockActionKind.rewind, turnId: 't-1'),
       ],
     );
 
@@ -92,7 +91,6 @@ void main() {
     expect(find.text('Copy command'), findsOneWidget);
     expect(find.text('Copy output'), findsOneWidget);
     expect(find.text('Re-run this prompt'), findsOneWidget);
-    expect(find.text('Rewind the conversation'), findsOneWidget);
   });
 
   testWidgets('tapping a copy row copies the payload and shows a snackbar', (tester) async {

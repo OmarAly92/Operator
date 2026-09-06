@@ -50,9 +50,6 @@ type APIDeps struct {
 	Import              controllers.ImportService
 	ShellTerminals      controllers.ShellTerminalService
 	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
-	// Conversations is nil until a Chat driver is wired; the controller then
-	// answers 501 rather than panicking, matching the other optional surfaces.
-	Conversations controllers.ConversationService
 	// Settings is the daemon-owned preference surface.
 	Settings controllers.SettingsService
 	// DesktopPreview records the external preview-open acknowledgements sent by
@@ -84,7 +81,6 @@ type API struct {
 	push          *controllers.PushController
 	imports       *controllers.ImportController
 	shellTerms    *controllers.ShellTerminalsController
-	conversations *controllers.ConversationsController
 	settings      *controllers.SettingsController
 	dev           *controllers.DevController
 	browser       *controllers.BrowserController
@@ -120,7 +116,6 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		push:          &controllers.PushController{Registry: deps.Push},
 		imports:       &controllers.ImportController{Svc: deps.Import},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
-		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
 		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
 		browser:       &controllers.BrowserController{Svc: deps.Browser},
@@ -156,7 +151,6 @@ func (a *API) Register(root chi.Router) {
 			a.push.Register(r)
 			a.imports.Register(r)
 			a.shellTerms.Register(r)
-			a.conversations.Register(r)
 			a.settings.Register(r)
 			a.dev.Register(r)
 			a.browser.Register(r)

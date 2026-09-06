@@ -14,27 +14,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-func TestNativeConversationIDRequiresCapturedCodexThreadForTUI(t *testing.T) {
-	p := &Plugin{}
-	if id, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "opr-session-1", Metadata: map[string]string{},
-	}, domain.SessionModeTUI, ""); err != nil || ok || id != "" {
-		t.Fatalf("uncaptured TUI native id = %q ok=%v err=%v", id, ok, err)
-	}
-	tuiID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID:       "opr-session-1",
-		Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "codex-thread-1"},
-	}, domain.SessionModeTUI, "")
-	if err != nil || !ok || tuiID != "codex-thread-1" {
-		t.Fatalf("captured TUI native id = %q ok=%v err=%v", tuiID, ok, err)
-	}
-	chatID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{},
-		domain.SessionModeChat, tuiID)
-	if err != nil || !ok || chatID != tuiID {
-		t.Fatalf("Chat native id = %q ok=%v err=%v", chatID, ok, err)
-	}
-}
-
 func TestCodexAuthStatusFromOutputRequiresAffirmativeEvidence(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -53,67 +32,6 @@ func TestCodexAuthStatusFromOutputRequiresAffirmativeEvidence(t *testing.T) {
 				t.Fatalf("auth output = (%q, %v), want (%q, %v)", status, known, tt.wantStatus, tt.wantKnown)
 			}
 		})
-	}
-}
-
-func TestNativeConversationExistsRequiresActivePersistedCodexRollout(t *testing.T) {
-	p := &Plugin{}
-	id := "019fc430-1234-7abc-8def-0123456789ab"
-	codexHome := t.TempDir()
-	t.Setenv("CODEX_HOME", t.TempDir())
-	env := map[string]string{"CODEX_HOME": codexHome}
-
-	exists, err := p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exists {
-		t.Fatal("reserved Codex thread without a rollout reported as persisted")
-	}
-
-	activeDir := filepath.Join(codexHome, "sessions", "2026", "08", "08")
-	if err := os.MkdirAll(activeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rollout := filepath.Join(activeDir, "rollout-2026-08-08T10-00-00-"+id+".jsonl")
-	if err := os.WriteFile(rollout, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	exists, err = p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, env)
-	if err != nil || exists {
-		t.Fatalf("empty rollout: exists=%v err=%v", exists, err)
-	}
-	if err := os.WriteFile(rollout, []byte("{\"type\":\"session_meta\"}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	exists, err = p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, env)
-	if err != nil || !exists {
-		t.Fatalf("active rollout: exists=%v err=%v", exists, err)
-	}
-
-	if err := os.Remove(rollout); err != nil {
-		t.Fatal(err)
-	}
-	archivedDir := filepath.Join(codexHome, "archived_sessions")
-	if err := os.MkdirAll(archivedDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	archived := filepath.Join(archivedDir, "rollout-2026-08-08T10-00-00-"+id+".jsonl")
-	if err := os.WriteFile(archived, []byte("{\"type\":\"session_meta\"}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	exists, err = p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, env)
-	if err != nil || exists {
-		t.Fatalf("archived rollout: exists=%v err=%v", exists, err)
-	}
-
-	compressed := rollout + ".zst"
-	if err := os.WriteFile(compressed, []byte("compressed"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	exists, err = p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, env)
-	if err != nil || !exists {
-		t.Fatalf("compressed active rollout: exists=%v err=%v", exists, err)
 	}
 }
 

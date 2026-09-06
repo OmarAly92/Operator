@@ -183,27 +183,6 @@ func (l *fakeLCM) MarkSpawned(_ context.Context, id domain.SessionID, metadata d
 	return nil
 }
 
-func (l *fakeLCM) CommitControllerEpoch(
-	_ context.Context,
-	id domain.SessionID,
-	source, target domain.SessionMode,
-	nativeConversationID string,
-	_ bool,
-) (bool, error) {
-	rec, ok := l.store.sessions[id]
-	if !ok || rec.IsTerminated || domain.NormalizeSessionMode(rec.Mode) != source {
-		return false, nil
-	}
-	rec.Mode = target
-	rec.Metadata.RuntimeHandleID = ""
-	rec.Metadata.RuntimeLaunchID = ""
-	rec.Metadata.AgentSessionID = nativeConversationID
-	rec.Metadata.ProviderConversationID = nativeConversationID
-	rec.Metadata.ControllerGeneration = ""
-	rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()}
-	l.store.sessions[id] = rec
-	return true, nil
-}
 func (l *fakeLCM) ConfirmAgentSwitchSourceStopped(ctx context.Context, confirmation domain.AgentSwitchSourceStopConfirmation) (bool, error) {
 	store, ok := l.store.agentSwitchStore.(interface {
 		ConfirmAgentSwitchSourceStopped(context.Context, domain.AgentSwitchSourceStopConfirmation) (bool, error)
@@ -1088,12 +1067,9 @@ func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
 	lookPath := func(string) (string, error) { return "/bin/true", nil }
 	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
 
-	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if rec.Mode != domain.SessionModeTUI {
-		t.Fatalf("spawned mode = %q, want every session recorded as tui", rec.Mode)
 	}
 	if rt.lastCfg.Env[EnvSessionID] == "" {
 		t.Fatal("a tui session must launch the terminal runtime")
@@ -1430,50 +1406,6 @@ func TestResumeAgent_RejectsConcurrentRequest(t *testing.T) {
 	close(runtime.release)
 	if err := <-firstDone; err != nil {
 		t.Fatalf("first resume: %v", err)
-	}
-}
-
-func TestResumeAgent_ReleasesInputGateAfterInterfaceTransitionRejection(t *testing.T) {
-	tests := []struct {
-		name       string
-		activeErr  error
-		transition domain.SessionInterfaceTransition
-		wantError  string
-	}{
-		{
-			name:      "transition lookup error",
-			activeErr: errors.New("transition store unavailable"),
-			wantError: "transition store unavailable",
-		},
-		{
-			name: "active transition",
-			transition: domain.SessionInterfaceTransition{
-				ID: "transition-1", SessionID: "mer-1", Phase: domain.SessionInterfaceTransitionDraining,
-			},
-			wantError: ErrInterfaceTransitionInProgress.Error(),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
-			agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
-			manager, store, _ := newExitedResumeManager(t, runtime, agent)
-			transitionStore := newTransitionStore()
-			transitionStore.projects = store.projects
-			transitionStore.sessions = store.sessions
-			transitionStore.activeErr = tt.activeErr
-			if tt.transition.ID != "" {
-				transitionStore.transitions[tt.transition.ID] = tt.transition
-			}
-			manager.store = transitionStore
-
-			if _, err := manager.ResumeAgentWithMode(ctx, "mer-1"); err == nil || !strings.Contains(err.Error(), tt.wantError) {
-				t.Fatalf("ResumeAgentWithMode error = %v, want %q", err, tt.wantError)
-			}
-			if manager.SessionMutationInProgress("mer-1") {
-				t.Fatal("interface-transition rejection left input admission closed")
-			}
-		})
 	}
 }
 

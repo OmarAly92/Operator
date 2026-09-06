@@ -30,7 +30,7 @@ npm --prefix frontend install
 Build the sidecars once before the first run so the packaged resources exist:
 
 ```bash
-npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime
+npm run build:daemon && npm run browser-runtime:prepare
 ```
 
 Then run the frontend and backend together:

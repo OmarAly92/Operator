@@ -24,7 +24,7 @@ const execFileAsync = promisify(execFile);
 const frontendRoot = fileURLToPath(new URL("../", import.meta.url));
 const macVerifier = fileURLToPath(new URL("./verify-mac-artifact.sh", import.meta.url));
 const releaseTrustPath = fileURLToPath(new URL("./phase0-release-trust.json", import.meta.url));
-const expectedComponents = Object.freeze({ agentBrowser: "0.33.1", node: "22.23.2", acp: "0.64.2" });
+const expectedComponents = Object.freeze({ agentBrowser: "0.33.1" });
 const expectedRuntime = Object.freeze({ electron: "33.4.11", chromium: "130.0.6723.191" });
 
 function optionalPackageArguments(env) {
@@ -463,10 +463,11 @@ function commonAncestor(firstPath, secondPath) {
 
 async function discoverTauriApplicationRoot(extractionRoot, platform) {
 	const executableName = platform === "win32" ? "operator.exe" : "operator";
-	const acpPackages = await findFiles(extractionRoot, (target) => target.endsWith(`${path.sep}acp-runtime${path.sep}package.json`) || path.relative(extractionRoot, target).split(path.sep).slice(-2).join("/") === "acp-runtime/package.json");
-	if (acpPackages.length !== 1) throw new Error(`tauri bundle must contain exactly one packaged ACP runtime, found ${acpPackages.length}`);
-	const resourcesRoot = path.dirname(path.dirname(acpPackages[0]));
-	const daemons = await findFiles(resourcesRoot, (target) => path.basename(target).toLowerCase() === (platform === "win32" ? "opr.exe" : "opr"));
+	const daemonName = platform === "win32" ? "opr.exe" : "opr";
+	const allDaemons = await findFiles(extractionRoot, (target) => path.basename(target).toLowerCase() === daemonName);
+	if (allDaemons.length !== 1) throw new Error(`tauri bundle must contain exactly one packaged daemon binary, found ${allDaemons.length}`);
+	const resourcesRoot = path.dirname(path.dirname(allDaemons[0]));
+	const daemons = await findFiles(resourcesRoot, (target) => path.basename(target).toLowerCase() === daemonName);
 	if (daemons.length !== 1) throw new Error("tauri bundle must contain exactly one packaged daemon binary");
 	const agentBrowsers = await findFiles(resourcesRoot, (target) => path.basename(target).toLowerCase() === (platform === "win32" ? "agent-browser.exe" : "agent-browser"));
 	if (agentBrowsers.length !== 1) throw new Error("tauri bundle must contain exactly one packaged agent-browser binary");
@@ -494,16 +495,10 @@ async function discoverTauriApplicationRoot(extractionRoot, platform) {
 }
 
 function tauriComponentLayout(discovered) {
-	const { resourcesRoot } = discovered;
-	const acpRuntimePackage = path.join(resourcesRoot, "acp-runtime", "package.json");
 	return {
 		executable: discovered.executable,
 		daemon: discovered.daemon,
 		agentBrowser: discovered.agentBrowser,
-		node: path.join(resourcesRoot, "acp-runtime", "node", process.platform === "win32" ? "node.exe" : path.join("bin", "node")),
-		acpAdapter: path.join(resourcesRoot, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js"),
-		acpPackage: path.join(resourcesRoot, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "package.json"),
-		acpRuntimePackage,
 	};
 }
 
@@ -638,16 +633,10 @@ function installedReleaseLayout(installedApp, platform) {
 	const executable = platform === "darwin"
 		? path.join(installedApp, "Contents", "MacOS", "operator")
 		: path.join(installedApp, platform === "win32" ? "operator.exe" : "operator");
-	const acpRoot = path.join(resources, "acp-runtime");
-	const acpPackageRoot = path.join(acpRoot, "node_modules", "@agentclientprotocol", "claude-agent-acp");
 	return {
 		executable,
 		daemon: path.join(resources, "daemon", platform === "win32" ? "opr.exe" : "opr"),
 		agentBrowser: path.join(resources, "agent-browser", platform === "win32" ? "agent-browser.exe" : "agent-browser"),
-		node: path.join(acpRoot, "node", platform === "win32" ? "node.exe" : path.join("bin", "node")),
-		acpAdapter: path.join(acpPackageRoot, "dist", "index.js"),
-		acpPackage: path.join(acpPackageRoot, "package.json"),
-		acpRuntimePackage: path.join(acpRoot, "package.json"),
 	};
 }
 
@@ -681,40 +670,22 @@ async function verifyPackagedComponents(layout, dependencies = {}) {
 	const packagedFiles = Object.values(layout);
 	const packagedFileMetadata = await Promise.all(packagedFiles.map((target) => lstat(target)));
 	if (packagedFileMetadata.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
-		throw new Error("installed Electron release is missing the executable, daemon, agent-browser, or ACP runtime contents");
+		throw new Error("installed Electron release is missing the executable, daemon, or agent-browser contents");
 	}
 	const commandOutput = dependencies.commandOutput ?? execFileAsync;
-	const [daemonVersionOutput, daemonHelp, agentBrowserVersion, nodeVersion, acpVersion] = await Promise.all([
+	const [daemonVersionOutput, daemonHelp, agentBrowserVersion] = await Promise.all([
 		commandStdout(commandOutput, layout.daemon, ["version"]),
 		commandStdout(commandOutput, layout.daemon, ["--help"]),
 		commandStdout(commandOutput, layout.agentBrowser, ["--version"]),
-		commandStdout(commandOutput, layout.node, ["--version"]),
-		commandStdout(commandOutput, layout.node, [layout.acpAdapter, "--version"]),
 	]);
 	const daemonVersion = daemonVersionOutput.split(/\s+/)[0];
 	if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(daemonVersion) || !daemonHelp.includes("Operator")) {
 		throw new Error("packaged daemon must identify as Operator opr with a release semantic version instead of dev");
 	}
 	if (agentBrowserVersion !== `agent-browser ${expectedComponents.agentBrowser}`) throw new Error(`packaged agent-browser must report exactly agent-browser ${expectedComponents.agentBrowser}`);
-	if (nodeVersion !== `v${expectedComponents.node}`) throw new Error(`packaged Node runtime must identify as v${expectedComponents.node}`);
-	if (acpVersion !== expectedComponents.acp) throw new Error(`packaged ACP executable must report exactly ${expectedComponents.acp} through the packaged Node runtime`);
-	const runtimePackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpRuntimePackage, "utf8"));
-	const adapterPackage = JSON.parse(await (dependencies.readFile ?? readFile)(layout.acpPackage, "utf8"));
-	if (runtimePackage.name !== "@operator-dev/acp-runtime" || runtimePackage.dependencies?.["@agentclientprotocol/claude-agent-acp"] !== expectedComponents.acp) {
-		throw new Error(`packaged ACP runtime must pin @agentclientprotocol/claude-agent-acp ${expectedComponents.acp}`);
-	}
-	if (
-		adapterPackage.name !== "@agentclientprotocol/claude-agent-acp" ||
-		adapterPackage.version !== expectedComponents.acp ||
-		adapterPackage.bin?.["claude-agent-acp"] !== "dist/index.js"
-	) {
-		throw new Error(`packaged ACP adapter executable must identify as @agentclientprotocol/claude-agent-acp ${expectedComponents.acp} at dist/index.js`);
-	}
 	return {
 		daemon: `opr ${daemonVersion}`,
 		agentBrowser: agentBrowserVersion,
-		node: nodeVersion,
-		acp: `${adapterPackage.name} ${adapterPackage.version}`,
 	};
 }
 

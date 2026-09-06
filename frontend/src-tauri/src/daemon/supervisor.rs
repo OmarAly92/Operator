@@ -1,7 +1,7 @@
 use crate::daemon::discovery::{
-    keep_daemon_alive, parse_daemon_probe, parse_run_file, resolve_acp_runtime_dir,
-    resolve_agent_browser_binary_path, resolve_daemon_launch, resolve_data_dir,
-    resolve_run_file_path, should_link_on_attach, supervisor_addr, DaemonProbe, ListenPortScanner,
+    keep_daemon_alive, parse_daemon_probe, parse_run_file, resolve_agent_browser_binary_path,
+    resolve_daemon_launch, resolve_data_dir, resolve_run_file_path, should_link_on_attach,
+    supervisor_addr, DaemonProbe, ListenPortScanner,
 };
 use crate::daemon::{DaemonLaunchSpec, DaemonStatus};
 use std::collections::HashMap;
@@ -243,7 +243,6 @@ impl Drop for Inner {
 pub struct DaemonConfig {
     pub run_file: PathBuf,
     pub data_dir: PathBuf,
-    pub acp_runtime_dir: PathBuf,
     pub app_version: String,
     pub resources_dir: PathBuf,
     pub home_dir: PathBuf,
@@ -274,8 +273,6 @@ impl DaemonConfig {
             .unwrap_or(home.join(".operator").join("running.json"));
         let data_dir = resolve_data_dir(process_env, &home, is_packaged)
             .unwrap_or(home.join(".operator").join("data"));
-        let acp_runtime_dir =
-            resolve_acp_runtime_dir(process_env, is_packaged, &resources, &app_path);
         let app_run_id = process_env
             .get("OPERATOR_APP_RUN_ID")
             .cloned()
@@ -284,7 +281,6 @@ impl DaemonConfig {
         Self {
             run_file,
             data_dir,
-            acp_runtime_dir,
             app_version,
             resources_dir: resources,
             home_dir: home,
@@ -1110,10 +1106,6 @@ impl DaemonManager {
         overrides.insert(
             "OPERATOR_DATA_DIR".to_string(),
             self.config.data_dir.to_string_lossy().to_string(),
-        );
-        overrides.insert(
-            "OPERATOR_ACP_RUNTIME_DIR".to_string(),
-            self.config.acp_runtime_dir.to_string_lossy().to_string(),
         );
         let agent_browser_path = resolve_agent_browser_binary_path(
             env,

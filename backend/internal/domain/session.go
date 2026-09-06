@@ -45,17 +45,16 @@ type SessionMetadata struct {
 	// active native agent session when its provider exposes one. Retained
 	// provider-specific paths also live on AgentNativeSession records.
 	NativeTranscriptPath string `json:"nativeTranscriptPath,omitempty"`
-	// ProviderConversationID is the opaque handle a Chat driver needs to resume
-	// this session's provider conversation after a restart (a Codex thread id
-	// today). Normally empty for TUI sessions. It remains a distinct field from
-	// AgentSessionID because most harnesses do not prove those protocol identities
-	// interchangeable; the interface-transition coordinator copies one value into
-	// both only after the adapter explicitly declares that equivalence.
+	// ProviderConversationID is an opaque provider-side conversation/thread
+	// handle, distinct from AgentSessionID because the two protocol identities
+	// are not proven interchangeable across harnesses. No current code path
+	// populates it.
 	ProviderConversationID string `json:"providerConversationId,omitempty"`
-	// ControllerGeneration is rotated each time a Chat controller is started for
-	// this session. Events carrying an older generation are rejected, so a
-	// controller that is dying cannot mutate the session that replaced it. Not
-	// the same fence as RuntimeLaunchID, which covers terminal runtimes.
+	// ControllerGeneration is a fencing token for a runtime-less controller
+	// generation, distinct from RuntimeLaunchID which covers terminal runtimes.
+	// ApplyActivitySignal rejects a signal carrying a non-empty value here, but
+	// no current code path sets or rotates it: the field and its lifecycle
+	// check remain for wire/storage compatibility.
 	ControllerGeneration string `json:"controllerGeneration,omitempty"`
 	// PreviewURL is the browser preview target the desktop app opens for this
 	// session. Set via `opr preview` (POST /sessions/{id}/preview); persisted so
@@ -91,13 +90,7 @@ type SessionRecord struct {
 	// the project configuration.
 	ReviewerHarness ReviewerHarness `json:"reviewerHarness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
 	DisplayName     string          `json:"displayName,omitempty"`
-	// Mode is the session's currently committed conversation controller. Every
-	// send, restore, kill, and reaper decision dispatches from it. Only the
-	// durable interface-transition coordinator may change it; the daemon default
-	// never changes an existing session. Rows written before Chat mode existed
-	// read back as SessionModeTUI.
-	Mode     SessionMode `json:"mode" enum:"chat,tui"`
-	Activity Activity    `json:"activity"`
+	Activity        Activity        `json:"activity"`
 	// FirstSignalAt is when the FIRST agent hook callback arrived for the
 	// current spawn/restore: raw signal receipt, independent of the derived
 	// activity state. Zero means no hook has ever reported, which deriveStatus

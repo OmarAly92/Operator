@@ -62,7 +62,6 @@ jobs:
         run: |
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
-          npm run build:acp-runtime
       - name: Build (unsigned)
         run: npm run tauri:build -- --debug
       - name: Collect bundle outputs

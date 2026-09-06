@@ -87,7 +87,6 @@ jobs:
       - name: Build the terminal package the renderer imports
         run: npm run terminal:build
       - run: npm run build:daemon
-      - run: npm run build:acp-runtime
       - name: unit-test the build-contract helpers
         run: node --test scripts/e2e-tauri-build-contract.test.mjs
       - name: build the normal (feature-less) shell and snapshot it

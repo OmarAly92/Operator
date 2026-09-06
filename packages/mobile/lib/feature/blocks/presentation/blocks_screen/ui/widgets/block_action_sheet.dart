@@ -12,7 +12,6 @@ String _labelFor(BlockAction action) => switch (action.kind) {
   BlockActionKind.copyCommand => 'Copy command',
   BlockActionKind.copyOutput => 'Copy output',
   BlockActionKind.rerun => 'Re-run this prompt',
-  BlockActionKind.rewind => 'Rewind the conversation',
 };
 
 bool _isCopy(BlockAction action) => switch (action.kind) {
@@ -20,7 +19,7 @@ bool _isCopy(BlockAction action) => switch (action.kind) {
   BlockActionKind.copyCommand ||
   BlockActionKind.copyOutput =>
     true,
-  BlockActionKind.rerun || BlockActionKind.rewind => false,
+  BlockActionKind.rerun => false,
 };
 
 Future<BlockAction?> showBlockActionSheet(

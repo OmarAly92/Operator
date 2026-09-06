@@ -142,42 +142,6 @@ describe("createEventTransport", () => {
 		}
 	});
 
-	it("invalidates only the named conversation for conversation CDC", () => {
-		vi.useFakeTimers();
-		try {
-			const queryClient = fakeQueryClient();
-			createEventTransport(queryClient).connect();
-			EventSourceStub.instances[0].emit(
-				"session_updated",
-				JSON.stringify({
-					seq: 42,
-					projectId: "proj-1",
-					sessionId: "chat-1",
-					type: "session_updated",
-					payload: {
-						id: "chat-1",
-						sessionId: "chat-1",
-						conversationId: "conv-1",
-						activity: "active",
-						isTerminated: false,
-					},
-					createdAt: "2026-08-04T15:15:14Z",
-				}),
-			);
-
-			vi.advanceTimersByTime(200);
-			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-				queryKey: ["conversation", "chat-1"],
-			});
-			expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["workspaces"] });
-			expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith({
-				queryKey: ["session-scm-summary"],
-			});
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
 	it("tears down the source and the daemon listener on disconnect", () => {
 		const disconnect = createEventTransport(fakeQueryClient()).connect();
 

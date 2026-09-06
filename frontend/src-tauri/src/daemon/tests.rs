@@ -1,6 +1,6 @@
 use crate::daemon::discovery::{
     bundled_daemon_binary_name, configured_shell_invocation, keep_daemon_alive,
-    parse_daemon_listen_port, parse_daemon_probe, parse_run_file, resolve_acp_runtime_dir,
+    parse_daemon_listen_port, parse_daemon_probe, parse_run_file,
     resolve_agent_browser_binary_path, resolve_daemon_launch, resolve_data_dir,
     resolve_run_file_path, should_link_on_attach, supervisor_addr, with_fallback_path,
     with_fallback_path_for, ListenPortScanner,
@@ -196,25 +196,10 @@ fn daemon_discovery_agent_browser_dev_and_packaged() {
 }
 
 #[test]
-fn daemon_discovery_acp_runtime_dev_and_packaged() {
-    let env = env_from(&[]);
-    let resources = PathBuf::from("/resources");
-    let app_path = PathBuf::from("/repo/frontend");
-    let dev = resolve_acp_runtime_dir(&env, false, &resources, &app_path);
-    assert!(dev.to_string_lossy().contains("resources/acp-runtime"));
-    let prod = resolve_acp_runtime_dir(&env, true, &resources, &app_path);
-    assert_eq!(prod, PathBuf::from("/resources/acp-runtime"));
-}
-
-#[test]
 fn daemon_discovery_dev_paths_ignore_src_tauri_cwd() {
     let env = env_from(&[]);
     let resources = PathBuf::from("/resources");
     let app_path = PathBuf::from("/repo/frontend/src-tauri");
-    assert_eq!(
-        resolve_acp_runtime_dir(&env, false, &resources, &app_path),
-        PathBuf::from("/repo/frontend/resources/acp-runtime")
-    );
     let browser = resolve_agent_browser_binary_path(&env, false, &resources, &app_path, "darwin");
     assert!(browser
         .to_string_lossy()
@@ -395,7 +380,6 @@ async fn daemon_healthy_attachment_via_runfile_and_probe() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -430,7 +414,6 @@ async fn daemon_stale_runfile_treated_as_missing() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -481,7 +464,6 @@ async fn daemon_one_start_concurrency() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -538,7 +520,6 @@ async fn daemon_readiness_timeout() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -587,7 +568,6 @@ async fn daemon_captured_error_output() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -639,7 +619,6 @@ async fn exited_child_is_reaped_and_a_later_start_can_spawn_again() {
     let config = DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -693,7 +672,6 @@ async fn spawned_daemon_does_not_claim_a_fresh_runfile_from_another_process() {
     let config = DaemonConfig {
         run_file,
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -746,7 +724,6 @@ async fn ready_child_exit_is_observed_and_published() {
     let config = DaemonConfig {
         run_file,
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -813,7 +790,6 @@ async fn shutdown_hook_terminates_the_owned_process_group() {
     let config = DaemonConfig {
         run_file,
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -883,7 +859,6 @@ async fn dropping_the_last_manager_terminates_its_owned_process() {
     let config = DaemonConfig {
         run_file,
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -981,7 +956,6 @@ async fn daemon_keep_daemon_env_disables_supervisor() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1097,7 +1071,6 @@ async fn daemon_close_behavior() {
     let config = DaemonConfig {
         run_file: run_file.clone(),
         data_dir: data_dir.clone(),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1135,7 +1108,6 @@ async fn stop_cancels_an_inflight_start_without_a_late_error() {
     let config = DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1190,7 +1162,6 @@ async fn shutdown_cancels_an_inflight_start_as_stopped() {
     let config = DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1244,7 +1215,6 @@ async fn daemon_missing_resource_error() {
     let config = DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1280,7 +1250,6 @@ async fn daemon_status_transitions_are_published() {
     let config = DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),
@@ -1304,7 +1273,6 @@ fn daemon_env_passes_required_keys() {
     let config = DaemonConfig {
         run_file: PathBuf::from("/tmp/.operator/running.json"),
         data_dir: PathBuf::from("/tmp/.operator/data"),
-        acp_runtime_dir: PathBuf::from("/tmp/acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: PathBuf::from("/resources"),
         home_dir: PathBuf::from("/tmp"),
@@ -1321,7 +1289,6 @@ async fn daemon_env_uses_original_process_home_without_fake_stdin_token() {
     let config = DaemonConfig {
         run_file: PathBuf::from("/original-home/.operator/running.json"),
         data_dir: PathBuf::from("/original-home/.operator/data"),
-        acp_runtime_dir: PathBuf::from("/resources/acp-runtime"),
         app_version: "1.2.3".to_string(),
         resources_dir: PathBuf::from("/resources"),
         home_dir: PathBuf::from("/original-home"),
@@ -1448,7 +1415,6 @@ async fn daemon_environment_stamps_dev_origin_only_when_unpackaged() {
     let config_for = |is_packaged: bool| DaemonConfig {
         run_file: tmp.join("running.json"),
         data_dir: tmp.join("data"),
-        acp_runtime_dir: tmp.join("acp"),
         app_version: "0.10.3".to_string(),
         resources_dir: tmp.clone(),
         home_dir: tmp.clone(),

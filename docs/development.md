@@ -171,7 +171,6 @@ sidecars so the resources exist:
 cd frontend
 npm run build:daemon              # Go daemon binary into ../daemon/
 npm run browser-runtime:prepare   # checksum-pinned agent-browser into ../agent-browser/
-npm run build:acp-runtime         # Node 22.23.2 ACP runtime into ../resources/acp-runtime/
 ```
 
 ### Renderer only, no desktop shell
@@ -193,7 +192,7 @@ npm run tauri:build   # unsigned bundle for the current OS (app+dmg on macOS)
 
 `bundle.targets` in `src-tauri/tauri.conf.json` covers every release form:
 macOS `.app` + `.dmg`, Windows NSIS `.exe`, Linux AppImage/deb/rpm. Every bundle
-carries the Go daemon, agent-browser, the ACP runtime, licenses, and icons.
+carries the Go daemon, agent-browser, licenses, and icons.
 `npm run tauri:release` builds with `src-tauri/tauri.release.conf.json`, which
 enables signed updater artifacts and bakes the production feed base URL; it
 needs the minisign signing key material a minimal setup does not have. Release
@@ -349,7 +348,7 @@ go run ./cmd/opr --help
 | ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------- |
 | `npm run typecheck` has type errors       | API types out of sync           | Run `npm run api` from repo root to regenerate                             |
 | `cargo build` uses the wrong toolchain    | rustup did not pick up the pin  | Confirm `frontend/rust-toolchain.toml` exists; run `rustup toolchain install 1.96.0` |
-| `tauri:dev` cannot find sidecar resources | Sidecars not built              | Run `build:daemon`, `browser-runtime:prepare`, `build:acp-runtime` once     |
+| `tauri:dev` cannot find sidecar resources | Sidecars not built              | Run `build:daemon`, `browser-runtime:prepare` once                          |
 | `npm install` or `npm ci` fails           | Node.js version too old         | Use Node 20.19+ (CI pins 24 for checks / 22 for build legs)                |
 
 ### Code generation drift

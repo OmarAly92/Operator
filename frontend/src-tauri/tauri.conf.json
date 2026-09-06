@@ -23,8 +23,7 @@
 		"icon": ["../assets/icon.png", "../assets/icon.icns", "../assets/icon.ico"],
 		"resources": {
 			"../daemon/": "daemon/",
-			"../agent-browser/": "agent-browser/",
-			"../resources/acp-runtime/": "acp-runtime/"
+			"../agent-browser/": "agent-browser/"
 		},
 		"createUpdaterArtifacts": false,
 		"publisher": "Operator",

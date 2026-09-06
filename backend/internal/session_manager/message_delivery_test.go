@@ -25,7 +25,6 @@ func TestWaitForMessageDeliveryReadyWaitsForTerminalIdleMarker(t *testing.T) {
 		ProjectID: "opr",
 		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
-		Mode:      domain.SessionModeTUI,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 		Metadata:  domain.SessionMetadata{RuntimeHandleID: "orch"},
 	}
@@ -47,7 +46,6 @@ func TestWaitForMessageDeliveryReadyHonorsContextWhileTerminalStarts(t *testing.
 		ProjectID: "opr",
 		Kind:      domain.KindOrchestrator,
 		Harness:   domain.HarnessCodex,
-		Mode:      domain.SessionModeTUI,
 		Activity:  domain.Activity{State: domain.ActivityIdle},
 		Metadata:  domain.SessionMetadata{RuntimeHandleID: "orch"},
 	}

@@ -351,7 +351,6 @@ async function deriveArtifactSection(results, platform, resultsDir, consumed, co
 			sha256: statement.artifactSha256,
 		};
 		if (shell === "tauri") {
-			section.includesACP = contents.some((component) => typeof component === "string" && component.startsWith("@agentclientprotocol/"));
 			section.includesDaemon = contents.some((component) => typeof component === "string" && component.startsWith("opr "));
 			section.includesBrowser = contents.some((component) => typeof component === "string" && component.startsWith("agent-browser "));
 			if (platform === "linux") {

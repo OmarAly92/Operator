@@ -1709,52 +1709,6 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	background: linear-gradient(to top, var(--color-bg-primary) 76%, color-mix(in srgb, var(--color-bg-primary) 92%, transparent));
 }
 
-.cursor-chat-composer {
-	background: color-mix(in srgb, var(--color-bg-secondary) 94%, var(--color-bg-elevated));
-	box-shadow: var(--elevation-sm);
-}
-
-.cursor-chat-composer:focus-within {
-	border-color: color-mix(in srgb, var(--color-logo-accent) 45%, var(--color-border-strong));
-	background: var(--color-bg-secondary);
-	box-shadow: var(--elevation-md);
-}
-
-/* The draft grows to seven lines before it becomes its own scroll surface. A
-   narrow inset thumb keeps long prompts legible without the platform scrollbar
-   competing with the composer controls. */
-.chat-composer-scrollbar {
-	scrollbar-width: thin;
-	scrollbar-color: var(--color-scrollbar-board) transparent;
-}
-
-.chat-composer-scrollbar::-webkit-scrollbar {
-	width: 8px;
-}
-
-.chat-composer-scrollbar::-webkit-scrollbar-button {
-	display: none;
-	width: 0;
-	height: 0;
-}
-
-.chat-composer-scrollbar::-webkit-scrollbar-track,
-.chat-composer-scrollbar::-webkit-scrollbar-corner {
-	background: transparent;
-}
-
-.chat-composer-scrollbar::-webkit-scrollbar-thumb {
-	border: 2px solid transparent;
-	border-radius: var(--radius-full);
-	background: var(--color-scrollbar-board);
-	background-clip: content-box;
-}
-
-.chat-composer-scrollbar::-webkit-scrollbar-thumb:hover {
-	background: var(--color-scrollbar-board-hover);
-	background-clip: content-box;
-}
-
 .cursor-chat-human-message {
 	background: color-mix(in srgb, var(--color-bg-elevated) 72%, var(--color-bg-secondary));
 	border-color: color-mix(in srgb, var(--color-border-strong) 85%, transparent);
@@ -1784,26 +1738,12 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 }
 
 :root[data-theme="light"] .cursor-chat-surface .text-passive,
-:root[data-theme="light"] .cursor-chat-composer textarea::placeholder,
 :root[data-theme="light"] .cursor-chat-mode-badge {
 	color: color-mix(in oklch, var(--color-text-primary) 48%, transparent);
 }
 
 :root[data-theme="light"] .cursor-chat-header {
 	background: color-mix(in srgb, var(--color-bg-sidebar) 86%, var(--color-bg-primary));
-}
-
-:root[data-theme="light"] .cursor-chat-composer {
-	background: color-mix(in srgb, var(--color-bg-secondary) 98%, var(--color-bg-tertiary));
-	border-color: color-mix(in oklch, var(--color-text-primary) 18%, transparent);
-	box-shadow:
-		0 1px 0 color-mix(in oklch, var(--color-text-primary) 4%, transparent),
-		0 10px 28px color-mix(in oklch, var(--color-text-primary) 8%, transparent);
-}
-
-:root[data-theme="light"] .cursor-chat-composer:focus-within {
-	border-color: color-mix(in srgb, var(--color-logo-accent) 48%, var(--color-border-strong));
-	background: var(--color-bg-secondary);
 }
 
 :root[data-theme="light"] .cursor-chat-human-message {

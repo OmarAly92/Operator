@@ -1,9 +1,0 @@
-{
-	"name": "@operator-dev/acp-runtime",
-	"version": "0.1.0",
-	"private": true,
-	"description": "Pinned ACP adapters packaged with the Operator desktop app (provider CLIs are not included)",
-	"dependencies": {
-		"@agentclientprotocol/claude-agent-acp": "0.64.2"
-	}
-}

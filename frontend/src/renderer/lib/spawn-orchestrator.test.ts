@@ -94,8 +94,8 @@ describe("spawnOrchestrator", () => {
 		(apiClient.POST as ReturnType<typeof vi.fn>).mockResolvedValue({
 			data: undefined,
 			error: {
-				code: "CHAT_DRIVER_UNAVAILABLE",
-				message: "chat driver is unavailable",
+				code: "AGENT_NOT_RESPONDING",
+				message: "agent is not responding",
 				requestId: "request-42",
 			},
 			response: { status: 400 },
@@ -104,10 +104,10 @@ describe("spawnOrchestrator", () => {
 		const error = await spawnOrchestrator("proj", "board").catch((caught: unknown) => caught);
 		expect(error).toBeInstanceOf(OrchestratorSpawnError);
 		expect(error).toMatchObject({
-			code: "CHAT_DRIVER_UNAVAILABLE",
+			code: "AGENT_NOT_RESPONDING",
 			requestId: "request-42",
 			status: 400,
 		});
-		expect((error as Error).message).toBe("chat driver is unavailable (CHAT_DRIVER_UNAVAILABLE)");
+		expect((error as Error).message).toBe("agent is not responding (AGENT_NOT_RESPONDING)");
 	});
 });

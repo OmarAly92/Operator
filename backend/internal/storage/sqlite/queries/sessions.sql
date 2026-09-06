@@ -9,13 +9,13 @@ INSERT INTO sessions (
     runtime_launch_id, agent_session_id, prompt,
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
-    session_mode, provider_conversation_id, controller_generation,
+    provider_conversation_id, controller_generation,
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: UpdateSession :exec
@@ -39,36 +39,6 @@ WHERE id = sqlc.arg(id)
   AND is_terminated = 0
   AND updated_at <= sqlc.arg(updated_at);
 
--- name: ClaimChatControllerGeneration :execrows
--- A Chat controller claims ownership before its event goroutine starts. Provider
--- projections compare against this value in the same transaction as their write,
--- so an older controller cannot mutate a session after a replacement takes over.
-UPDATE sessions
-SET controller_generation = ?, updated_at = ?
-WHERE id = ? AND session_mode = 'chat';
-
--- name: ActivateConversationBranchSession :execrows
-UPDATE sessions
-SET provider_conversation_id = ?, controller_generation = ?, updated_at = ?
-WHERE id = ? AND session_mode = 'chat' AND is_terminated = 0;
-
--- name: CommitSessionControllerEpoch :execrows
--- Lifecycle Manager owns this controller-epoch fact. The source-mode CAS keeps
--- a stale transition from replacing a newer controller, while clearing every
--- process-specific handle prevents either interface from inheriting the
--- other's writer identity.
-UPDATE sessions
-SET session_mode = ?,
-    runtime_handle_id = '',
-    runtime_launch_id = '',
-    agent_session_id = ?,
-    provider_conversation_id = ?,
-    controller_generation = '',
-    activity_state = 'idle',
-    activity_last_at = ?,
-    updated_at = ?
-WHERE id = ? AND session_mode = ? AND is_terminated = 0;
-
 -- name: GetSession :one
 SELECT id, project_id, num, issue_id, kind, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path,
@@ -77,7 +47,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
+    provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review
 FROM sessions WHERE id = ?;
 
@@ -89,7 +59,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
+    provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review
 FROM sessions WHERE project_id = ? ORDER BY num;
 
@@ -101,7 +71,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     preview_revision, preview_opened_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation, browser_capability_verifier,
+    provider_conversation_id, controller_generation, browser_capability_verifier,
     latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review
 FROM sessions ORDER BY project_id, num;
 

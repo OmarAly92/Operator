@@ -19,7 +19,6 @@ func TestMigrateRecognizesPreRenumberedChatSchema(t *testing.T) {
 	// migrations were numbered 0052-0065. Remove main's current 0052 schema so
 	// its burned version must be released and applied under its real meaning.
 	if _, err := db.Exec(`
-UPDATE app_settings SET default_session_mode = 'chat';
 DROP TRIGGER IF EXISTS usage_sources_cdc_update;
 DROP TRIGGER IF EXISTS usage_bindings_cdc_update;
 DROP TRIGGER IF EXISTS usage_bindings_cdc_insert;
@@ -45,13 +44,6 @@ DELETE FROM goose_db_version WHERE version_id = 52 OR version_id BETWEEN 66 AND 
 		t.Fatalf("migrate pre-renumbered Chat database: %v", err)
 	}
 
-	var defaultMode string
-	if err := db.QueryRow(`SELECT default_session_mode FROM app_settings WHERE id = 1`).Scan(&defaultMode); err != nil {
-		t.Fatalf("read preserved app setting: %v", err)
-	}
-	if defaultMode != "chat" {
-		t.Fatalf("default mode = %q, want preserved chat", defaultMode)
-	}
 	for table, wantColumns := range expectedUsageTableColumns {
 		if got := tableColumns(t, db, table); !reflect.DeepEqual(got, wantColumns) {
 			t.Errorf("%s columns = %v, want %v", table, got, wantColumns)

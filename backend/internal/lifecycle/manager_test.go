@@ -78,29 +78,6 @@ func (f *fakeStore) UpdateSessionFromActivitySignal(_ context.Context, rec domai
 	return true, nil
 }
 
-func (f *fakeStore) CommitSessionControllerEpoch(
-	_ context.Context,
-	id domain.SessionID,
-	source, target domain.SessionMode,
-	nativeConversationID string,
-	now time.Time,
-) (bool, error) {
-	rec, ok := f.sessions[id]
-	if !ok || rec.IsTerminated || domain.NormalizeSessionMode(rec.Mode) != source {
-		return false, nil
-	}
-	rec.Mode = target
-	rec.Metadata.RuntimeHandleID = ""
-	rec.Metadata.RuntimeLaunchID = ""
-	rec.Metadata.AgentSessionID = nativeConversationID
-	rec.Metadata.ProviderConversationID = nativeConversationID
-	rec.Metadata.ControllerGeneration = ""
-	rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}
-	rec.UpdatedAt = now
-	f.sessions[id] = rec
-	return true, nil
-}
-
 func (f *fakeStore) GetPRLastNudgeSignature(_ context.Context, prURL string) (string, error) {
 	return f.signatures[prURL], nil
 }
@@ -1500,71 +1477,6 @@ func TestMarkSpawnedStoresRuntimeMetadata(t *testing.T) {
 	}
 	if got.Metadata.WorkspaceRepoPath != metadata.WorkspaceRepoPath {
 		t.Fatalf("workspace repo path = %q, want %q", got.Metadata.WorkspaceRepoPath, metadata.WorkspaceRepoPath)
-	}
-}
-
-func TestCommitControllerEpochOwnsModeAndActivityFacts(t *testing.T) {
-	m, st, _ := newManager()
-	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Mode: domain.SessionModeTUI,
-		Activity: domain.Activity{State: domain.ActivityWaitingInput, LastActivityAt: time.Unix(10, 0)},
-		Metadata: domain.SessionMetadata{
-			RuntimeHandleID: "runtime-1", RuntimeLaunchID: "launch-1",
-			AgentSessionID: "native-1",
-		},
-	}
-
-	changed, err := m.CommitControllerEpoch(
-		ctx, "mer-1", domain.SessionModeTUI, domain.SessionModeChat, "native-1", false,
-	)
-	if err != nil || !changed {
-		t.Fatalf("CommitControllerEpoch: changed=%v err=%v", changed, err)
-	}
-	got := st.sessions["mer-1"]
-	if got.Mode != domain.SessionModeChat || got.Activity.State != domain.ActivityIdle {
-		t.Fatalf("controller facts = mode:%q activity:%q", got.Mode, got.Activity.State)
-	}
-	if got.Metadata.RuntimeHandleID != "" || got.Metadata.RuntimeLaunchID != "" ||
-		got.Metadata.AgentSessionID != "native-1" ||
-		got.Metadata.ProviderConversationID != "native-1" ||
-		got.Metadata.ControllerGeneration != "" {
-		t.Fatalf("controller metadata = %+v", got.Metadata)
-	}
-	changed, err = m.CommitControllerEpoch(
-		ctx, "mer-1", domain.SessionModeTUI, domain.SessionModeChat, "native-1", false,
-	)
-	if err != nil || changed {
-		t.Fatalf("stale controller epoch: changed=%v err=%v", changed, err)
-	}
-}
-
-func TestCommitControllerEpochAllowsExplicitFreshHandoff(t *testing.T) {
-	m, st, _ := newManager()
-	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Mode: domain.SessionModeTUI,
-		Activity: domain.Activity{State: domain.ActivityIdle},
-		Metadata: domain.SessionMetadata{
-			RuntimeHandleID: "runtime-1", RuntimeLaunchID: "launch-1",
-			AgentSessionID: "reserved-but-empty",
-		},
-	}
-
-	changed, err := m.CommitControllerEpoch(
-		ctx, "mer-1", domain.SessionModeTUI, domain.SessionModeChat, "", true,
-	)
-	if err != nil || !changed {
-		t.Fatalf("CommitControllerEpoch fresh: changed=%v err=%v", changed, err)
-	}
-	got := st.sessions["mer-1"]
-	if got.Mode != domain.SessionModeChat || got.Metadata.AgentSessionID != "" ||
-		got.Metadata.ProviderConversationID != "" {
-		t.Fatalf("fresh controller facts = %+v", got)
-	}
-
-	if _, err := m.CommitControllerEpoch(
-		ctx, "mer-1", domain.SessionModeChat, domain.SessionModeTUI, "", false,
-	); err == nil {
-		t.Fatal("blank native id without explicit fresh handoff was accepted")
 	}
 }
 
@@ -3431,7 +3343,7 @@ func TestRuntimeObservation_WorkloadDeathAloneDoesNotReap(t *testing.T) {
 func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	ctx := context.Background()
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Mode: domain.SessionModeChat}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	m := New(st, nil)
 
 	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{
@@ -3466,47 +3378,5 @@ func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	got, _, _ = st.GetSession(ctx, "mer-1")
 	if got.Metadata.ControllerGeneration != "gen-2" {
 		t.Fatalf("generation = %q after relaunch, want it rotated to gen-2", got.Metadata.ControllerGeneration)
-	}
-}
-
-func TestActivitySignalRejectsStaleChatControllerGenerationAcrossHandoff(t *testing.T) {
-	ctx := context.Background()
-	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Mode: domain.SessionModeChat,
-		Metadata: domain.SessionMetadata{ControllerGeneration: "chat-generation-2"},
-		Activity: domain.Activity{State: domain.ActivityIdle},
-	}
-	m := New(st, nil)
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{
-		Valid: true, State: domain.ActivityActive, ControllerGeneration: "chat-generation-1",
-	}); err != nil {
-		t.Fatalf("stale signal: %v", err)
-	}
-	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityIdle {
-		t.Fatalf("stale generation changed activity to %q", got)
-	}
-
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{
-		Valid: true, State: domain.ActivityActive, ControllerGeneration: "chat-generation-2",
-	}); err != nil {
-		t.Fatalf("current signal: %v", err)
-	}
-	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityActive {
-		t.Fatalf("current generation left activity at %q", got)
-	}
-
-	rec := st.sessions["mer-1"]
-	rec.Mode = domain.SessionModeTUI
-	rec.Activity.State = domain.ActivityIdle
-	st.sessions["mer-1"] = rec
-	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{
-		Valid: true, State: domain.ActivityActive, ControllerGeneration: "chat-generation-2",
-	}); err != nil {
-		t.Fatalf("post-handoff stale signal: %v", err)
-	}
-	if got := st.sessions["mer-1"].Activity.State; got != domain.ActivityIdle {
-		t.Fatalf("old Chat controller changed TUI activity to %q", got)
 	}
 }

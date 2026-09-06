@@ -83,7 +83,6 @@ jobs:
         run: |
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
-          npm run build:acp-runtime
       - name: macOS signing setup
         if: startsWith(matrix.os, 'macos')
         uses: ./.github/actions/macos-signing-setup
@@ -266,7 +265,6 @@ jobs:
       - run: |
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
-          npm run build:acp-runtime
       - name: macOS signing setup
         uses: ./.github/actions/macos-signing-setup
         with:
