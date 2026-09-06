@@ -315,7 +315,16 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", attachErr.code, attachErr.message, nil)
 		return
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments})
+	workspaceMode := domain.WorkspaceModeWorktree
+	if raw := strings.TrimSpace(in.WorkspaceMode); raw != "" {
+		parsed, err := domain.ParseWorkspaceMode(raw)
+		if err != nil {
+			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_WORKSPACE_MODE", err.Error(), nil)
+			return
+		}
+		workspaceMode = parsed
+	}
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1926,6 +1935,8 @@ func sessionView(s domain.Session) SessionView {
 	return SessionView{
 		Session:               s,
 		Branch:                s.Metadata.Branch,
+		WorkspaceMode:         string(s.Metadata.WorkspaceMode),
+		WorkspacePath:         s.Metadata.WorkspacePath,
 		PreviewURL:            s.Metadata.PreviewURL,
 		PreviewRevision:       s.Metadata.PreviewRevision,
 		PreviewOpenedRevision: s.Metadata.PreviewOpenedRevision,

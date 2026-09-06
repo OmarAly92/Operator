@@ -1652,6 +1652,9 @@ export interface components {
             terminateOnPrMerge: boolean;
             /** Format: date-time */
             updatedAt: string;
+            /** @enum {string} */
+            workspaceMode?: "worktree" | "in_place";
+            workspacePath?: string;
         };
         DegradedProject: {
             id: string;
@@ -2360,6 +2363,8 @@ export interface components {
             kind?: "worker" | "orchestrator";
             projectId: string;
             prompt?: string;
+            /** @enum {string} */
+            workspaceMode?: "worktree" | "in_place";
         };
         SpawnSessionResponse: {
             promptBytes: number;
