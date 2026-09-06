@@ -846,7 +846,7 @@ function SessionCard({
 	const showBranch = branch !== "" && !sameLabel(branch, session.title) && !sameLabel(branch, session.id);
 	const inPlace = session.workspaceMode === "in_place";
 	const workspacePath = session.workspacePath || "";
-	const rawLocation = inPlace ? workspacePath : workspacePath.split("/").filter(Boolean).pop() || "";
+	const rawLocation = workspacePath.split("/").filter(Boolean).pop() || "";
 	const location =
 		rawLocation !== "" && !sameLabel(rawLocation, session.title) && !sameLabel(rawLocation, session.id)
 			? rawLocation
@@ -935,23 +935,25 @@ function SessionCard({
 						{session.title}
 					</div>
 					{showLocation && (
-						<div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-2xs text-passive">
+						<div className="mt-1.5 flex min-w-0 items-center gap-1 font-mono text-micro leading-normal text-passive">
 							{showBranch && (
-								<>
-									<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />
+								<span className="flex min-w-0 items-center gap-1" title={branch}>
+									<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0 opacity-60" />
 									<span className="min-w-0 truncate">{branch}</span>
-								</>
+								</span>
 							)}
 							{location !== "" && (
-								<>
-									{inPlace && <FolderOpen aria-hidden="true" className="size-icon-2xs shrink-0 text-warning" />}
-									<span
-										className="min-w-0 truncate"
-										data-testid={inPlace ? "session-location-in-place" : undefined}
-									>
-										{location}
-									</span>
-								</>
+								<span
+									className={cn(
+										"inline-flex max-w-[55%] shrink-0 items-center gap-1 rounded-sm px-1 py-px",
+										inPlace ? "bg-warning/10 text-warning" : "text-passive/70",
+									)}
+									data-testid={inPlace ? "session-location-in-place" : undefined}
+									title={workspacePath}
+								>
+									{inPlace && <FolderOpen aria-hidden="true" className="size-icon-2xs shrink-0" />}
+									<span className="truncate">{location}</span>
+								</span>
 							)}
 							{branchAction}
 						</div>

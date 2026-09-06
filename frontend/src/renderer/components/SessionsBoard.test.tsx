@@ -313,7 +313,8 @@ describe("SessionsBoard", () => {
 
 		expect(screen.getByTestId("session-location-in-place")).toBeInTheDocument();
 		expect(screen.getByText("master")).toBeInTheDocument();
-		expect(screen.getByText("/Users/me/dev/Operator")).toBeInTheDocument();
+		expect(screen.getByText("Operator")).toBeInTheDocument();
+		expect(screen.getByTitle("/Users/me/dev/Operator")).toBeInTheDocument();
 	});
 
 	it("hides a location that only restates the session id, same as it hides such a branch", () => {
