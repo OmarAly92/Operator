@@ -19,6 +19,16 @@ grep -rn "chatdriver\|ChatDriver\|acp-runtime\|SessionModeChat\|/conversation" \
   .github package.json 2>/dev/null | grep -v node_modules | sort
 ```
 
+**Scope gap in this exact command, found post-hoc by review and fixed in
+this same task (see "Post-review finding" below): this grep never covered
+`frontend/src-tauri/src` — the Tauri/Rust supervisor and daemon-discovery
+code.** The brief's literal command, copied above, omits that directory, and
+this task ran it exactly as specified without noticing the omission. A
+reviewer caught live, fully-wired dead ACP code there that the grep's scope
+simply never touched. A future reader auditing this subsystem again should
+run the grep with `frontend/src-tauri/src` included, as this task now does
+(see below).
+
 First run (before any Task 13 fix), output:
 
 ```
@@ -529,6 +539,117 @@ the current tip of the branch before this task's commit.
   in place. Caught by `golangci-lint`'s `unused` check during Step 2, not by
   the Step 1 grep pattern (the identifiers don't contain any of the grep's
   literal search strings). Fixed by deletion; see Step 1 above.
+- **This task (13)'s own Step 1 grep had a scope gap**, caught by a
+  post-completion review after this report's first draft: the brief's exact
+  grep command (and every earlier task's file-list, per the recurring
+  blind-spot pattern already listed above for Tasks 6/9/10/11/12) never
+  covered `frontend/src-tauri/src` — the Tauri/Rust supervisor and
+  daemon-discovery code. Task 9's brief covered the *build* pipeline that
+  produced the ACP runtime resource, not the *runtime consumption* code in
+  Rust that resolved and threaded that resource's path into every daemon
+  spawn. See "Post-review finding: dead ACP runtime resolution in the Tauri
+  supervisor" below for the full fix.
+
+## Post-review finding: dead ACP runtime resolution in the Tauri supervisor
+
+After this report's first draft, a reviewer found live, fully-wired dead code
+in `frontend/src-tauri/src/daemon/` that Step 1's grep never had a chance to
+catch, because that directory was never in the grep's search path (see the
+note under Step 1 above). Confirmed findings, all now fixed:
+
+- `frontend/src-tauri/src/daemon/discovery.rs` (formerly lines 178-204) —
+  `resolve_acp_runtime_dir()` resolved a packaged or dev-mode
+  `resources/acp-runtime` directory path, reading an
+  `OPERATOR_ACP_RUNTIME_DIR` env-var override first.
+- `frontend/src-tauri/src/daemon/supervisor.rs` — `DaemonConfig` carried an
+  `acp_runtime_dir: PathBuf` field (formerly line 246), computed on every
+  `DaemonConfig::from_runtime` call via `resolve_acp_runtime_dir(...)`
+  (formerly lines 277-278), and stamped into the spawned daemon's environment
+  as `OPERATOR_ACP_RUNTIME_DIR` (formerly lines 1114-1117) on every daemon
+  spawn.
+
+**Confirmed dead before touching anything:**
+`grep -rn "OPERATOR_ACP_RUNTIME_DIR\|acp_runtime\|acp-runtime" backend/internal`
+returned nothing — the Go daemon never reads this env var. Task 9 (which
+removed the `build:acp-runtime` npm script that used to populate the resource
+directory) never touched this file:
+`git log --oneline b71cafb0a..HEAD -- frontend/src-tauri/src/daemon/` was
+empty before this fix, because no task in the 13-task phase named this file
+in its brief.
+
+**Fix (deletion only, no stubbing):**
+1. Deleted `resolve_acp_runtime_dir()` from `discovery.rs` in full, after
+   confirming its only callers were `supervisor.rs` and its own test in
+   `tests.rs` (`grep -rn "resolve_acp_runtime_dir" frontend/src-tauri/src`).
+2. Deleted the `acp_runtime_dir` field from `DaemonConfig`, its computation
+   in `DaemonConfig::from_runtime`, its entry in the `Self { ... }`
+   constructor, and the `OPERATOR_ACP_RUNTIME_DIR` env-var stamping block in
+   `supervisor.rs`. Removed `resolve_acp_runtime_dir` from the `use` import
+   list at the top of the file.
+3. Followed the compiler from there, as instructed — `cargo check` (and
+   later `cargo build`/`cargo test`) surfaced every remaining reference in
+   `frontend/src-tauri/src/daemon/tests.rs`:
+   - Removed `resolve_acp_runtime_dir` from that file's `use` import list.
+   - Deleted the dedicated test `daemon_discovery_acp_runtime_dev_and_packaged`
+     in full (it existed only to test the deleted function).
+   - Removed the two `resolve_acp_runtime_dir(...)` assertion lines from
+     `daemon_discovery_dev_paths_ignore_src_tauri_cwd`, keeping the rest of
+     that test (its `agent-browser` path assertion is untouched and still
+     passes).
+   - Removed all 18 `acp_runtime_dir: tmp.join("acp")` /
+     `acp_runtime_dir: PathBuf::from(...)` field initializers from
+     `DaemonConfig { ... }` struct literals across the test file (mechanical,
+     one line each, no other field or assertion touched).
+4. Fixed the stale sentence at `docs/development.md:195` — "Every bundle
+   carries the Go daemon, agent-browser, the ACP runtime, licenses, and
+   icons" no longer matched `bundle.resources` in
+   `frontend/src-tauri/tauri.conf.json` (which only lists `../daemon/` and
+   `../agent-browser/` — confirmed by reading the file directly). Reworded to
+   drop "the ACP runtime,".
+
+**Re-ran Step 1's audit grep with `frontend/src-tauri/src` added to scope:**
+
+```bash
+grep -rn "chatdriver\|ChatDriver\|acp-runtime\|SessionModeChat\|/conversation" \
+  backend/internal backend/cmd frontend/src packages/mobile/lib packages/mobile/test \
+  frontend/src-tauri/src \
+  .github package.json 2>/dev/null | grep -v node_modules | sort
+```
+
+Output: the same two `hooks_test.go` lines already documented above as a
+confirmed false positive (the `/tmp/conversation.jsonl` fixture path), and
+nothing else. Also ran a broader case-insensitive sweep,
+`grep -rni "acp" frontend/src-tauri/src`, which returned no output at all.
+
+**Compilation/test verification.** This environment has `cargo` on PATH.
+Before verifying, the packaged sidecar resources
+(`frontend/daemon/`, `frontend/agent-browser/`) did not exist, which made
+`cargo check`/`cargo build` fail in `build.rs` at
+`resource path "../agent-browser" doesn't exist` — a pre-existing local-setup
+requirement (`docs/development.md`'s own "build the sidecars once" step),
+unrelated to this fix. Ran `npm run build:daemon` and
+`npm run browser-runtime:prepare` from `frontend/` to populate them, then:
+
+```
+$ cargo check --locked --manifest-path Cargo.toml   # from frontend/src-tauri
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.80s
+
+$ cargo build --locked --manifest-path src-tauri/Cargo.toml   # from frontend/, the exact command .github/workflows/tauri-webdriver.yml:98 runs in CI
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.48s
+
+$ cargo test --locked --manifest-path Cargo.toml   # from frontend/src-tauri
+test result: ok. 218 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+```
+
+Both the exact CI build command and the full unit test suite are clean after
+the deletion — not merely a manual trace of callers, though that trace (grep
+for every reference before and after) was also done and is recorded above.
+
+**Fix commit:** `fix(desktop): remove the dead ACP runtime resolution in the
+Tauri supervisor` (see the commit log for this branch for the SHA — created
+after this report was finalized, as a separate commit from Task 13's primary
+commit `ea3971811`, per the coordinator's explicit request to keep it
+separate).
 
 ## Checkbox left unticked, and why
 
@@ -564,6 +685,19 @@ is ticked.
   command output or a `git diff --shortstat` result run in this session.
 - All checkboxes for Tasks 1-13 are ticked in the plan file except Task 13's
   own Step 7, left unticked per the brief's explicit instruction.
+- **This report's own Step 1 claim was not initially airtight.** A
+  post-completion reviewer found a real gap this task's own audit missed
+  (dead ACP runtime resolution in `frontend/src-tauri/src/daemon/`), because
+  the brief's grep command never included `frontend/src-tauri/src` and this
+  task ran it exactly as written without independently widening the scope.
+  Fixed in full once flagged (see "Post-review finding" above): the two
+  functions and the field were deleted, every reference the compiler then
+  surfaced was fixed by deletion (never stubbed), `cargo check`, the exact
+  CI `cargo build` command, and `cargo test` (218/218) were all run and
+  pasted verbatim, and the audit grep was re-run with the wider scope and
+  confirmed clean. This is recorded here rather than silently folded into
+  the "before" narrative, so a future reader can see that the first pass
+  was incomplete and exactly how it was corrected.
 
 ## Concerns
 
@@ -577,3 +711,9 @@ is ticked.
 2. Task 13 Step 7 (live verification) is explicitly not attempted by this
    agent, per the brief and per the standing rule against agents restarting
    the daemon. See "Checkbox left unticked" above.
+3. **Step 1's original audit grep scope was incomplete** — it never covered
+   `frontend/src-tauri/src`, and a reviewer (not this task's own process)
+   caught the resulting gap. See "Post-review finding" above for the full
+   fix and re-verification. Flagging explicitly per the coordinator's
+   request, rather than treating it as quietly folded into a clean first
+   pass.

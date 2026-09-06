@@ -175,34 +175,6 @@ pub fn resolve_agent_browser_binary_path(
     }
 }
 
-pub fn resolve_acp_runtime_dir(
-    env: &HashMap<String, String>,
-    is_packaged: bool,
-    resources_path: &Path,
-    app_path: &Path,
-) -> PathBuf {
-    if let Some(raw) = env.get("OPERATOR_ACP_RUNTIME_DIR") {
-        let trimmed = raw.trim();
-        if !trimmed.is_empty() {
-            let p = PathBuf::from(trimmed);
-            if p.is_absolute() {
-                return p;
-            }
-            if let Ok(cwd) = std::env::current_dir() {
-                return cwd.join(p);
-            }
-            return p;
-        }
-    }
-    if is_packaged {
-        resources_path.join("acp-runtime")
-    } else {
-        dev_frontend_root(app_path)
-            .join("resources")
-            .join("acp-runtime")
-    }
-}
-
 pub fn default_run_file_path(home_dir: &Path) -> Option<PathBuf> {
     if home_dir.as_os_str().is_empty() {
         return None;

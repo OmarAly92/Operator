@@ -192,7 +192,7 @@ npm run tauri:build   # unsigned bundle for the current OS (app+dmg on macOS)
 
 `bundle.targets` in `src-tauri/tauri.conf.json` covers every release form:
 macOS `.app` + `.dmg`, Windows NSIS `.exe`, Linux AppImage/deb/rpm. Every bundle
-carries the Go daemon, agent-browser, the ACP runtime, licenses, and icons.
+carries the Go daemon, agent-browser, licenses, and icons.
 `npm run tauri:release` builds with `src-tauri/tauri.release.conf.json`, which
 enables signed updater artifacts and bakes the production feed base URL; it
 needs the minisign signing key material a minimal setup does not have. Release
