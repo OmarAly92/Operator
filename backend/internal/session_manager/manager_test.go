@@ -673,10 +673,8 @@ type fakeWorkspace struct {
 	applyErr        error
 	forceDestroyErr error
 	// stashCalls counts StashUncommitted invocations.
-	stashCalls int
-	// destroyCalls counts Destroy invocations.
-	destroyCalls int
-	// forceDestroyCalls counts ForceDestroy invocations.
+	stashCalls        int
+	destroyCalls      int
 	forceDestroyCalls int
 	// excludePatterns records patterns passed to AddExclude; addExcludeErr, when
 	// set, is returned so best-effort handling can be exercised.
@@ -1161,20 +1159,10 @@ type testManagerDeps struct {
 	project   testManagerProject
 }
 
-// newTestManager wires a Manager with a bare fakeWorkspace standing in for
-// the "real" workspace adapter directly (no router in between), so a safety
-// test can prove the manager itself never asks that adapter to destroy,
-// force-destroy, or stash an in-place session.
 func newTestManager(t *testing.T) (*Manager, testManagerDeps) {
 	t.Helper()
-	st := newFakeStore()
-	project := domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
-	st.projects[project.ID] = project
-	rt := &fakeRuntime{}
-	ws := &fakeWorkspace{}
-	lookPath := func(string) (string, error) { return "/bin/true", nil }
-	m := New(Deps{Runtime: rt, Agents: fakeAgents{}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
-	return m, testManagerDeps{store: st, runtime: rt, workspace: ws, project: testManagerProject{ID: domain.ProjectID(project.ID)}}
+	m, st, rt, ws := newManager()
+	return m, testManagerDeps{store: st, runtime: rt, workspace: ws, project: testManagerProject{ID: domain.ProjectID(st.projects["mer"].ID)}}
 }
 
 func TestKillLeavesAnInPlaceWorkspaceUntouched(t *testing.T) {
@@ -2737,6 +2725,24 @@ func TestCleanup_ReclaimsTerminalWorkspaces(t *testing.T) {
 	}
 	if ws.destroyed != 1 {
 		t.Fatal("live workspace must not be destroyed")
+	}
+}
+
+func TestCleanupDoesNotReportAnInPlaceSessionAsReclaimed(t *testing.T) {
+	m, st, _, ws := newManager()
+	seedTerminal(st, "mer-1", domain.SessionMetadata{WorkspacePath: "/repo/mer", WorkspaceMode: domain.WorkspaceModeInPlace})
+	res, err := m.Cleanup(ctx, "mer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Cleaned) != 0 {
+		t.Fatalf("an in-place session must not be reported as reclaimed, got %v", res.Cleaned)
+	}
+	if len(res.Skipped) != 0 {
+		t.Fatalf("an in-place session is not a refused teardown either, got %v", res.Skipped)
+	}
+	if ws.destroyCalls != 0 {
+		t.Fatalf("the git adapter must not be asked to destroy an in-place session, got %d calls", ws.destroyCalls)
 	}
 }
 

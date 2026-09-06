@@ -2522,6 +2522,10 @@ func (m *Manager) Cleanup(ctx context.Context, project domain.ProjectID) (Cleanu
 		if h := runtimeHandle(rec.Metadata); h.ID != "" {
 			_ = m.runtime.Destroy(ctx, h) // best effort; usually already gone
 		}
+		if ws.Mode == domain.WorkspaceModeInPlace {
+			m.cleanupSystemPromptDir(rec.ID)
+			continue
+		}
 		if reason := m.cleanupOne(ctx, rec, ws); reason != "" {
 			result.Skipped = append(result.Skipped, CleanupSkip{SessionID: rec.ID, Reason: reason})
 			continue
