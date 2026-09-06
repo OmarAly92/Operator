@@ -72,4 +72,62 @@ void main() {
     expect(find.text('Fix auth'), findsOneWidget);
     expect(find.text(''), findsNothing);
   });
+
+  testWidgets('renders the branch and worktree directory for a worktree session', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Fix auth',
+      status: 'working',
+      branch: 'fix/auth-timeouts',
+      workspaceMode: 'worktree',
+      workspacePath: '/repos/proj/.worktrees/fix-auth-timeouts',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('fix/auth-timeouts'), findsOneWidget);
+    expect(find.text('fix-auth-timeouts'), findsOneWidget);
+    expect(find.byIcon(Icons.call_split), findsOneWidget);
+  });
+
+  testWidgets('renders the project path in place of a branch for an in-place session', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Fix auth',
+      status: 'working',
+      workspaceMode: 'in_place',
+      workspacePath: '/repos/proj',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('/repos/proj'), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+  });
 }
