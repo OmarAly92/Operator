@@ -73,7 +73,6 @@ function basePlatformEvidence(rendererKind = "webgl") {
     artifact: {
       electron: { downloadBytes: 150000000, installedBytes: 300000000, sha256: "ef".repeat(32) },
       tauri: { downloadBytes: 80000000, installedBytes: 150000000, sha256: "12".repeat(32) },
-      includesACP: true,
       includesDaemon: true,
       includesBrowser: true,
       rpmExists: true,
@@ -269,14 +268,6 @@ test("active terminal memory regression produces stop-port", () => {
   assert.equal(result.decision, "stop-port");
 });
 
-test("missing ACP runtime produces stop-port", () => {
-  const evidence = validEvidence();
-  evidence.platforms.darwin.artifact.includesACP = false;
-  const result = evaluateDecision(evidence);
-  assert.equal(result.decision, "stop-port");
-  assert.match(result.reasons.join(" "), /ACP/);
-});
-
 test("missing RPM produces stop-port", () => {
   const evidence = validEvidence();
   evidence.platforms.linux.artifact.rpmExists = false;
@@ -444,7 +435,7 @@ test("malformed and incomplete evidence cannot produce continue", () => {
     cors: { passed: true },
     browser: { passed: true },
     terminal: { electron: {}, tauri: { rendererKind: "webgl" } },
-    artifact: { includesACP: true, includesDaemon: true, includesBrowser: true, rpmExists: true },
+    artifact: { includesDaemon: true, includesBrowser: true, rpmExists: true },
     legacyUpdate: { success: true },
     updaterSigning: {},
   };
