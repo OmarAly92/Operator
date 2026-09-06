@@ -20,12 +20,29 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/chat/data/model/activity_detail_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_item_model.dart';
+import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_approval_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/resolve_input_params.dart';
 import 'package:operator_mobile/feature/chat/data/model/params/rollback_turn_params.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/user_input_card.dart';
+
+bool _turnIsRollbackable(ConversationTurnModel turn) {
+  if (turn.id == null || turn.id!.isEmpty) return false;
+  if (turn.state == 'running' || turn.state == 'queued') return false;
+  if (turn.rolledBack == true) return false;
+  if (turn.providerTurnId == null || turn.providerTurnId!.isEmpty) return false;
+  return true;
+}
+
+List<String> rollbackableTurnIds(ConversationSnapshotModel? snapshot) {
+  if (snapshot == null) return const [];
+  return [
+    for (final turn in snapshot.turns)
+      if (_turnIsRollbackable(turn)) turn.id!,
+  ];
+}
 
 class ChatBlocksBody extends StatefulWidget {
   const ChatBlocksBody({
