@@ -774,7 +774,7 @@ func isPostToolUseEvent(event string) bool {
 // composer, and a turn cannot end (or the session exit) with one on screen.
 func isTurnBoundaryEvent(event string) bool {
 	return event == "user-prompt-submit" || event == "stop" || event == "session-end" ||
-		event == "process-exited" || event == "chat.controller.stopped"
+		event == "process-exited"
 }
 
 // applyToolPrecedenceLocked folds an event-tagged activity signal through the
@@ -1222,9 +1222,6 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 	set(&base.LatestAssistantUpdate, in.LatestAssistantUpdate)
 	set(&base.NativeTranscriptPath, in.NativeTranscriptPath)
 	set(&base.BrowserCapabilityVerifier, in.BrowserCapabilityVerifier)
-	// The chat controller's resume handle. Without this a restart has no thread to
-	// resume and the conversation is stranded — the provider still holds it, but
-	// Operator no longer knows its id.
 	set(&base.ProviderConversationID, in.ProviderConversationID)
 	// Assigned rather than set: a relaunch rotates the generation, and the whole
 	// point is that the new value replaces the old one so events from the

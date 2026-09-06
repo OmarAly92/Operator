@@ -49,9 +49,8 @@ replays rather than derives lives in its own tables: `block_events` (the blocks
 view), `transcript_offsets` (the tailer's cursor), `terminal_blocks` (durable
 shell replay), and the `usage_*` family (token accounting).
 
-The legacy `session_mode`, conversation, and interface-transition schema remains
-temporarily so the dormant ACP packages compile. New sessions are always `tui`,
-the pre-release reset removes legacy rows, and Phase 4 deletes that schema.
+The `session_mode`, conversation, and interface-transition schema was deleted
+in Phase 4. Every session is `tui`; there is no other session kind.
 
 ### What is NOT Durable
 
@@ -218,8 +217,7 @@ backend/internal/
 │   ├── notification/    # Desktop notification fan-out
 │   ├── browser/         # agent-browser capability issuance
 │   ├── importer/        # External session import
-│   ├── devimport/       # Development import helpers
-│   └── chat/            # Dormant until removal in Phase 4
+│   └── devimport/       # Development import helpers
 ├── session_manager/     # Internal session command engine
 ├── lifecycle/           # Durable session fact reducer
 ├── observe/             # Observation loops, one package per lane
@@ -266,8 +264,7 @@ backend/internal/
     ├── reviewer/        # Reviewer harnesses
     ├── container/       # Container runtime
     ├── projectscan/     # Project discovery
-    ├── telemetry/       # Telemetry sink
-    └── chatdriver/      # Dormant until removal in Phase 4
+    └── telemetry/       # Telemetry sink
 ```
 
 The agent registry in `adapters/agent/registry/registry.go` is the single edit
@@ -422,13 +419,6 @@ sequenceDiagram
 erDiagram
     projects ||--o{ sessions : owns
     projects ||--o{ workspace_repos : registers
-    projects ||--o| conversations : legacy_chat_schema
-    sessions ||--o| conversations : legacy_chat_schema
-    sessions ||--o{ session_interface_transitions : legacy_handoff_schema
-    session_interface_transitions ||--o{ session_interface_transition_messages : legacy_handoff_schema
-    conversations ||--o{ conversation_turns : legacy_chat_schema
-    conversations ||--o{ conversation_messages : legacy_chat_schema
-    conversations ||--o{ conversation_activities : legacy_chat_schema
     sessions ||--o{ pr : owns
     pr ||--o{ pr_checks : has
     pr ||--o{ pr_review_threads : has
@@ -460,22 +450,12 @@ erDiagram
         string id PK
         string project_id FK
         string harness
-        string session_mode
         string runtime_handle_id
         string provider_conversation_id
         string controller_generation
         string activity_state
         boolean is_terminated
         jsonb metadata
-    }
-
-    conversations {
-        string id PK
-        string scope
-        string project_id FK
-        string session_id FK
-        string current_session_id FK
-        integer latest_sequence
     }
 
     pr {
@@ -525,8 +505,9 @@ erDiagram
 
 The diagram shows the load-bearing tables, not every table. `app_settings`,
 `agent_model_catalog`, `review`/`review_run`, and `telemetry_event` are
-standalone; the `conversations*` and `session_interface_*` families are the
-dormant legacy schema Phase 4 deletes.
+standalone. The `conversations*` and `session_interface_*` families, plus
+`sessions.session_mode` and `app_settings.default_session_mode`, were the
+ACP/chat schema and were dropped in Phase 4.
 
 ### CDC Pipeline
 

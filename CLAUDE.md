@@ -37,7 +37,8 @@ diverges from **agent-orchestrator** — do **not** re-flag old design-reference
 
 A Flutter thin client for the daemon, pubspec name `operator_mobile`. It runs no
 agents — it talks to a paired daemon over REST, one multiplexed WebSocket, and SSE
-for chat. It replaced an Expo/React Native app that was deleted at milestone M6;
+for the daemon's event stream (blocks, terminal). It replaced an Expo/React Native
+app that was deleted at milestone M6;
 `docs/mobile-parity-ledger.md` records where each of that app's 99 source files went
 and is the answer to "was this ever ported?".
 
@@ -67,9 +68,11 @@ flutter build ios --release --no-codesign
 
 `lib/core/` holds what every feature needs; `lib/feature/<feature>/` is split
 `data/` (data sources, models, `model/params/`, repositories), `logic/` (pure
-functions), `presentation/<screen>_screen/{logic,ui}` (cubit + widgets). Twelve
-features: `pairing`, `onboarding`, `sessions`, `pull_request`, `orchestrator`,
-`spawn`, `chat`, `terminal`, `preview`, `notification`, `settings`, `blocks`.
+functions), `presentation/<screen>_screen/{logic,ui}` (cubit + widgets).
+Thirteen features: `pairing`, `onboarding`, `sessions`, `pull_request`,
+`orchestrator`, `spawn`, `terminal`, `preview`, `notification`, `settings`,
+`blocks`, `dictation`, `usage`. There is no `chat` feature — every session runs
+the agent's own terminal UI; the ACP/chat subsystem was removed in Phase 4.
 
 **`ServerConfig` is the spine.** The API base URL does not exist until pairing
 completes, so no data source ever sees host/port/password. `ServerConfigStore` holds

@@ -14,6 +14,11 @@ a subsystem deliberately left for later, or it is Expo plumbing with no product 
 `packages/mobile/test/parity_ledger_test.dart` verifies this document against both trees. It was
 deleted with the RN tree at M6; the tables below are its final output.
 
+Phase 4 (2026-09-06) subsequently deleted the mobile `chat` feature and its ACP-driven
+voice/interface-transition support. Rows whose Dart destination was inside `lib/feature/chat/`
+(or the `core/error_handling/chat_preflight.dart` classifier it grew) are annotated below as
+either removed outright or moved again to `dictation`/`core` before the removal.
+
 ## Source files
 
 | RN source | Dart destination | Note |
@@ -22,7 +27,7 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/api.ts` | `lib/core/api/api_request_helpers/end_points.dart` | The path catalogue. The 674 lines of fetch wrappers are the 11 `*_remote_data_source.dart` files; `ApiError` is `ServerFailure`. |
 | `lib/mux.ts` | `lib/core/mux/mux_client.dart` | Protocol-for-protocol, with `mux_socket.dart` and `mux_backoff.dart` splitting out the transport and the retry curve. |
 | `lib/connectionError.ts` | `lib/core/error_handling/connection_error.dart` | 1:1. |
-| `lib/chatError.ts` | `lib/core/error_handling/chat_preflight.dart` | Renamed on the way: the module is about preflight codes, not chat errors generally. `isChatPreflightError` became `isChatPreflightFailure` because it takes a `Failure`, not an `Error`. |
+| `lib/chatError.ts` | `lib/core/error_handling/chat_preflight.dart` | Renamed on the way: the module is about preflight codes, not chat errors generally. `isChatPreflightError` became `isChatPreflightFailure` because it takes a `Failure`, not an `Error`. Removed in Phase 4 (the ACP/chat subsystem). |
 | `lib/agentError.ts` | `lib/core/error_handling/connection_error.dart` | Its whole body is one call to `describeConnectionFailure(classifyConnectionFailure(status))`. In Dart that composition is at the call site; a one-line indirection whose only reason for existing in RN was reading `Platform.OS` outside a pure module carries nothing over. |
 | `lib/theme.ts` | `lib/core/app_themes/colors/app_skin.dart` | The 31 tokens, with `light_skin.dart` / `dark_skin.dart` holding the values and `terminal_palette.dart` the terminal's own palette. |
 | `lib/themePreference.ts` | `lib/core/app_themes/colors/theme_preference.dart` | 1:1. |
@@ -79,36 +84,36 @@ deleted with the RN tree at M6; the tables below are its final output.
 | `lib/ThemePickerSheet.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | |
 | `app/sheets/theme.tsx` | `lib/core/widgets/pickers/theme_picker_sheet.dart` | Route wrapper collapsed, as above. |
 | `app/(tabs)/settings.tsx` | `lib/feature/settings/presentation/settings_screen/ui/widgets/settings_body.dart` | Daemon settings, theme picker, agent picker, project switcher, the notifications section and disconnect. |
-| `lib/chat/api.ts` | `lib/feature/chat/data/data_source/chat_remote_data_source.dart` | Every conversation call. The catalogue calls (`models`, `skills`, `config-options`) are `chat_catalog_model.dart`. |
-| `lib/chat/types.ts` | `lib/feature/chat/data/model/conversation_item_model.dart` | With `conversation_turn_model.dart`, `activity_detail_model.dart`, `chat_attachment_model.dart` and `workspace_paths_model.dart`. |
-| `lib/chat/sse.ts` | `lib/feature/chat/data/sse.dart` | `takeSseFrames` and `parseSseFrame` as pure functions over a `ResponseType.stream` Dio response. CRLF boundaries, the `id:` fallback for daemons with no `seq`, and dropping malformed `data` all survive. |
-| `lib/chat/snapshot.ts` | `lib/feature/chat/data/model/conversation_snapshot_model.dart` | 1:1. |
-| `lib/chat/timelineModel.ts` | `lib/feature/chat/logic/timeline_model.dart` | 1:1. |
-| `lib/chat/conversationChrome.ts` | `lib/feature/chat/logic/conversation_chrome.dart` | 1:1. |
-| `lib/chat/conversationErrors.ts` | `lib/feature/chat/logic/conversation_errors.dart` | 1:1. |
-| `lib/chat/elicitationModel.ts` | `lib/feature/chat/logic/elicitation_model.dart` | 1:1. |
-| `lib/chat/composerSuggestions.ts` | `lib/feature/chat/logic/composer_suggestions.dart` | 1:1. |
-| `lib/chat/markdownBlocks.ts` | `lib/feature/chat/logic/markdown_blocks.dart` | 1:1. |
-| `lib/chat/syntaxHighlight.ts` | `lib/feature/chat/logic/syntax_highlight.dart` | 1:1. |
-| `lib/chat/ansi.ts` | `lib/feature/chat/logic/ansi.dart` | 1:1. |
-| `lib/chat/useConversation.ts` | `lib/feature/chat/presentation/chat_screen/logic/chat_cubit.dart` | The stream lifecycle, reconnect, optimistic send and the pending-request set. Paging is `conversation_pages.dart`. |
-| `lib/chat/ChatSessionScreen.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart` | With `chat_meta_bar.dart`, `conversation_banners.dart`, `conversation_menu_sheet.dart` and `conversation_map_sheet.dart`. `MenuRow` is inside the menu sheet. |
-| `lib/chat/ChatTimeline.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_timeline.dart` | Split by item type: `timeline_item.dart`, `activity_row.dart`, `activity_run.dart`, `activity_meta.dart`, `turn_summary.dart`, `live_turn_bar.dart`, `plan_card.dart`, `approval_card.dart`, `user_input_card.dart`, `file_change_list.dart`, `inline_banner.dart`, `chat_atoms.dart`. |
-| `lib/chat/ChatComposer.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart` | With `suggestion_sheet.dart`; attachment picking is `logic/attachment_picker.dart`. |
-| `lib/chat/ChatMarkdown.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_markdown.dart` | |
-| `lib/chat/HighlightedCodeText.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/highlighted_code_text.dart` | |
-| `lib/chat/ChatSettingsModal.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_settings_sheet.dart` | Model, mode and config-option pickers. |
-| `lib/voice/types.ts` | `lib/feature/chat/voice/voice_types.dart` | 1:1. |
-| `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras are ported via the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposed none of the three, so M6 Tasks 13–17 forked and extended it. |
-| `lib/voice/useVoiceInput.ts` | `lib/feature/chat/voice/logic/voice_input_cubit.dart` | Push-to-talk and latched, with the same state machine. |
-| `lib/voice/MicKey.tsx` | `lib/feature/chat/voice/ui/mic_key.dart` | With `voice_strip.dart` for the transcript strip. |
+| `lib/chat/api.ts` | `lib/feature/chat/data/data_source/chat_remote_data_source.dart` | Every conversation call. The catalogue calls (`models`, `skills`, `config-options`) are `chat_catalog_model.dart`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/types.ts` | `lib/feature/chat/data/model/conversation_item_model.dart` | With `conversation_turn_model.dart`, `activity_detail_model.dart`, `chat_attachment_model.dart` and `workspace_paths_model.dart`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/sse.ts` | `lib/feature/chat/data/sse.dart` | `takeSseFrames` and `parseSseFrame` as pure functions over a `ResponseType.stream` Dio response. CRLF boundaries, the `id:` fallback for daemons with no `seq`, and dropping malformed `data` all survive. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/snapshot.ts` | `lib/feature/chat/data/model/conversation_snapshot_model.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/timelineModel.ts` | `lib/feature/chat/logic/timeline_model.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/conversationChrome.ts` | `lib/feature/chat/logic/conversation_chrome.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/conversationErrors.ts` | `lib/feature/chat/logic/conversation_errors.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/elicitationModel.ts` | `lib/feature/chat/logic/elicitation_model.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/composerSuggestions.ts` | `lib/feature/chat/logic/composer_suggestions.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/markdownBlocks.ts` | `lib/feature/chat/logic/markdown_blocks.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/syntaxHighlight.ts` | `lib/feature/chat/logic/syntax_highlight.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ansi.ts` | `lib/feature/chat/logic/ansi.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/useConversation.ts` | `lib/feature/chat/presentation/chat_screen/logic/chat_cubit.dart` | The stream lifecycle, reconnect, optimistic send and the pending-request set. Paging is `conversation_pages.dart`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ChatSessionScreen.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart` | With `chat_meta_bar.dart`, `conversation_banners.dart`, `conversation_menu_sheet.dart` and `conversation_map_sheet.dart`. `MenuRow` is inside the menu sheet. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ChatTimeline.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_timeline.dart` | Split by item type: `timeline_item.dart`, `activity_row.dart`, `activity_run.dart`, `activity_meta.dart`, `turn_summary.dart`, `live_turn_bar.dart`, `plan_card.dart`, `approval_card.dart`, `user_input_card.dart`, `file_change_list.dart`, `inline_banner.dart`, `chat_atoms.dart`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ChatComposer.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart` | With `suggestion_sheet.dart`; attachment picking is `logic/attachment_picker.dart`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ChatMarkdown.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_markdown.dart` | Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/HighlightedCodeText.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/highlighted_code_text.dart` | Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ChatSettingsModal.tsx` | `lib/feature/chat/presentation/chat_screen/ui/widgets/chat_settings_sheet.dart` | Model, mode and config-option pickers. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/voice/types.ts` | `lib/feature/chat/voice/voice_types.dart` | 1:1. Moved again in Phase 4 to `lib/feature/dictation/voice_types.dart` when the chat feature was removed. |
+| `lib/voice/deviceProvider.ts` | `lib/feature/chat/voice/device_provider.dart` | Behind the `SpeechRecognizer` seam in `speech_recognizer.dart`. The coding-vocabulary bias, the two iOS audio-session configurations and the Android silence extras are ported via the vendored fork in `packages/mobile/packages/speech_to_text` — pub's `speech_to_text` exposed none of the three, so M6 Tasks 13–17 forked and extended it. Moved again in Phase 4 to `lib/feature/dictation/device_provider.dart` when the chat feature was removed. |
+| `lib/voice/useVoiceInput.ts` | `lib/feature/chat/voice/logic/voice_input_cubit.dart` | Push-to-talk and latched, with the same state machine. Moved again in Phase 4 to `lib/feature/dictation/logic/voice_input_cubit.dart` when the chat feature was removed. |
+| `lib/voice/MicKey.tsx` | `lib/feature/chat/voice/ui/mic_key.dart` | With `voice_strip.dart` for the transcript strip. Moved again in Phase 4 to `lib/feature/dictation/ui/mic_key.dart` when the chat feature was removed. |
 | `lib/session/TerminalSessionScreen.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_body.dart` | Split by concern: `terminal_surface.dart` (the `xterm.dart` view), `terminal_status_bar.dart`, `terminal_composer.dart`, `terminal_dead_overlay.dart`, `terminal_preview_globe.dart`, `interface_switch_overlay.dart`, `interface_switch_sheet.dart`. The injected CSS/JS that made a WebView usable has no counterpart — the spike passed on `xterm.dart`, so the fallback was never taken. |
 | `lib/session/keys.ts` | `lib/feature/terminal/logic/keys.dart` | 1:1. |
 | `lib/session/KeyRow.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart` | |
 | `lib/session/Composer.tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart` | |
 | `lib/session/sendRoute.ts` | `lib/feature/terminal/logic/send_route.dart` | 1:1. Filed under `terminal` rather than the spec's `sessions` because the terminal composer is its only consumer. |
-| `lib/session/keyboardInset.ts` | `lib/feature/chat/logic/keyboard_inset.dart` | Adapted — `MediaQuery.viewInsets`. |
-| `lib/session/useInterfaceTransition.ts` | `lib/feature/terminal/logic/interface_transition.dart` | With `interface_switch_cubit.dart` driving it. |
+| `lib/session/keyboardInset.ts` | `lib/feature/chat/logic/keyboard_inset.dart` | Adapted — `MediaQuery.viewInsets`. Moved again in Phase 4 to `lib/core/utils/keyboard_inset.dart` when the chat feature was removed. |
+| `lib/session/useInterfaceTransition.ts` | `lib/feature/terminal/logic/interface_transition.dart` | With `interface_switch_cubit.dart` driving it. Removed in Phase 4 (the ACP/chat subsystem). |
 | `app/shell/[handleId].tsx` | `lib/feature/terminal/presentation/terminal_screen/ui/terminal_screen.dart` | |
 | `app/preview/[id].tsx` | `lib/feature/preview/presentation/preview_screen/ui/widgets/preview_body.dart` | With `preview_browser.dart` wrapping `webview_flutter`, and `logic/preview_url.dart` for `mobileReachablePreviewURL`. |
 | `lib/notificationView.ts` | `lib/feature/notification/logic/notification_view.dart` | 1:1, except `notificationTarget` percent-encodes the session id — see "Divergences". |
@@ -130,18 +135,18 @@ column below is where they actually are, and the note says why it moved.
 | `lib/agentsView.test.ts` | `test/feature/sessions/logic/agents_view_test.dart` | 1:1. |
 | `lib/appInfo.test.ts` | `test/core/utils/app_info_test.dart` | Adapted — `package_info_plus`. |
 | `lib/cameraLens.test.ts` | `test/feature/pairing/logic/camera_lens_test.dart` | Adapted — `mobile_scanner`. |
-| `lib/chat/ChatMarkdown.test.ts` | `test/feature/chat/logic/chat_markdown_test.dart` | 1:1. |
-| `lib/chat/ansi.test.ts` | `test/feature/chat/logic/ansi_test.dart` | 1:1. |
-| `lib/chat/composerSuggestions.test.ts` | `test/feature/chat/logic/composer_suggestions_test.dart` | 1:1. |
-| `lib/chat/conversationAction.test.ts` | `test/feature/chat/logic/conversation_action_test.dart` | 1:1. |
-| `lib/chat/conversationChrome.test.ts` | `test/feature/chat/logic/conversation_chrome_test.dart` | 1:1. |
-| `lib/chat/elicitationModel.test.ts` | `test/feature/chat/logic/elicitation_model_test.dart` | 1:1. |
-| `lib/chat/snapshot.test.ts` | `test/feature/chat/logic/snapshot_test.dart` | 1:1. |
-| `lib/chat/sse.test.ts` | `test/feature/chat/data/sse_test.dart` | 1:1 — CRLF frames, the `id:` fallback and dropping malformed `data`. |
-| `lib/chat/syntaxHighlight.test.ts` | `test/feature/chat/logic/syntax_highlight_test.dart` | 1:1. |
-| `lib/chat/timelineModel.test.ts` | `test/feature/chat/logic/timeline_model_test.dart` | 1:1. |
-| `lib/chatError.test.ts` | `test/core/error_handling/chat_preflight_test.dart` | **Moved.** The spec predicted `feature/chat/logic/chat_error_test.dart`; the module is a `Failure` classifier used by spawn and orchestrator as well as chat, so it is core. |
-| `lib/chatModeApi.test.ts` | `test/feature/chat/data/data_source/chat_remote_data_source_test.dart` | **Moved.** The spec predicted `feature/chat/data/chat_mode_api_test.dart`; there is no separate mode API in Dart — the calls are methods on the chat data source, and `test/feature/chat/presentation/chat_screen/ui/chat_sheets_test.dart` covers the picker that drives them. |
+| `lib/chat/ChatMarkdown.test.ts` | `test/feature/chat/logic/chat_markdown_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/ansi.test.ts` | `test/feature/chat/logic/ansi_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/composerSuggestions.test.ts` | `test/feature/chat/logic/composer_suggestions_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/conversationAction.test.ts` | `test/feature/chat/logic/conversation_action_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/conversationChrome.test.ts` | `test/feature/chat/logic/conversation_chrome_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/elicitationModel.test.ts` | `test/feature/chat/logic/elicitation_model_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/snapshot.test.ts` | `test/feature/chat/logic/snapshot_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/sse.test.ts` | `test/feature/chat/data/sse_test.dart` | 1:1 — CRLF frames, the `id:` fallback and dropping malformed `data`. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/syntaxHighlight.test.ts` | `test/feature/chat/logic/syntax_highlight_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chat/timelineModel.test.ts` | `test/feature/chat/logic/timeline_model_test.dart` | 1:1. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chatError.test.ts` | `test/core/error_handling/chat_preflight_test.dart` | **Moved.** The spec predicted `feature/chat/logic/chat_error_test.dart`; the module is a `Failure` classifier used by spawn and orchestrator as well as chat, so it is core. Removed in Phase 4 (the ACP/chat subsystem). |
+| `lib/chatModeApi.test.ts` | `test/feature/chat/data/data_source/chat_remote_data_source_test.dart` | **Moved.** The spec predicted `feature/chat/data/chat_mode_api_test.dart`; there is no separate mode API in Dart — the calls are methods on the chat data source, and `test/feature/chat/presentation/chat_screen/ui/chat_sheets_test.dart` covers the picker that drives them. Removed in Phase 4 (the ACP/chat subsystem). |
 | `lib/connectionError.test.ts` | `test/core/error_handling/connection_error_test.dart` | 1:1. |
 | `lib/disconnect.test.ts` | `test/feature/pairing/logic/disconnect_test.dart` | 1:1. |
 | `lib/githubLink.test.ts` | `test/feature/pull_request/logic/github_link_test.dart` | 1:1. |
@@ -151,7 +156,7 @@ column below is where they actually are, and the note says why it moved.
 | `lib/orchestratorView.test.ts` | `test/feature/orchestrator/logic/orchestrator_view_test.dart` | 1:1. |
 | `lib/prView.test.ts` | `test/feature/pull_request/logic/pr_view_test.dart` | 1:1. |
 | `lib/pushStatus.test.ts` | `test/feature/notification/logic/push_status_test.dart` | 1:1, two enum names changed. |
-| `lib/session/keyboardInset.test.ts` | `test/feature/chat/logic/keyboard_inset_test.dart` | Adapted — `MediaQuery.viewInsets`. |
+| `lib/session/keyboardInset.test.ts` | `test/feature/chat/logic/keyboard_inset_test.dart` | Adapted — `MediaQuery.viewInsets`. Moved again in Phase 4 to `test/core/utils/keyboard_inset_test.dart` when the chat feature was removed. |
 | `lib/session/sendRoute.test.ts` | `test/feature/terminal/logic/send_route_test.dart` | **Moved.** The spec predicted `feature/sessions/`; the terminal composer is the only consumer. |
 | `lib/sessionStatus.test.ts` | `test/feature/sessions/logic/session_status_test.dart` | 1:1. |
 | `lib/sheetResult.test.ts` | OMITTED | **The only dropped row, and the module it covers is dropped with it.** It tests parking and releasing a callback in a module-level map — a mechanism `Navigator.push<T>`'s return value makes unnecessary. There is no Dart code to cover. The behavior it protected (a sheet dismissed without a choice must not leak its closure) is a property of the framework here, not of our code. |
@@ -162,7 +167,7 @@ column below is where they actually are, and the note says why it moved.
 | `lib/telemetry/telemetry.test.ts` | `test/core/telemetry/telemetry_test.dart` | Adapted — the sink is the abstract `MobileTelemetryClient`. |
 | `lib/theme.test.ts` | `test/core/app_themes/skin_test.dart` | Extended — pins the `rgba()`→8-digit-ARGB conversions. |
 | `lib/themePreference.test.ts` | `test/core/app_themes/skin_cubit_test.dart` | `bloc_test`. |
-| `lib/voice/deviceProvider.test.ts` | `test/feature/chat/voice/device_provider_test.dart` | Adapted — the vendored `speech_to_text`. |
+| `lib/voice/deviceProvider.test.ts` | `test/feature/chat/voice/device_provider_test.dart` | Adapted — the vendored `speech_to_text`. Moved again in Phase 4 to `test/feature/dictation/device_provider_test.dart` when the chat feature was removed. |
 
 **36 ported, 1 dropped with its module, 37 accounted for.**
 
