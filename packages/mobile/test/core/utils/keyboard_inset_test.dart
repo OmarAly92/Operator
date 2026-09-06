@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
+import 'package:operator_mobile/core/utils/keyboard_inset.dart';
 
 void main() {
   group('dockInset', () {
