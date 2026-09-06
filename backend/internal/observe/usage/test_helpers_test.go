@@ -48,7 +48,7 @@ func seedUsageTestSession(
 		Kind:      domain.KindWorker,
 		Harness:   harness,
 		Activity:  domain.Activity{State: activity, LastActivityAt: now},
-		Metadata:  domain.SessionMetadata{AgentSessionID: nativeID},
+		Metadata:  domain.SessionMetadata{AgentSessionID: nativeID, WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

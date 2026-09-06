@@ -313,7 +313,7 @@ func testCollectorCodexBudgetFinalizationWaitsThenPersistsPartialAcrossRestart(t
 		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessCodex,
 		Activity:  domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
-		Metadata:  domain.SessionMetadata{AgentSessionID: testCodexRootID},
+		Metadata:  domain.SessionMetadata{AgentSessionID: testCodexRootID, WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

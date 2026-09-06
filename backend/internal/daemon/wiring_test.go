@@ -54,6 +54,7 @@ func TestWiring_WriteFlowsToBroadcaster(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "mer", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -428,7 +429,7 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata: domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0"},
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0", WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -472,6 +473,7 @@ func TestWiring_SessionMessengerRequiresRuntimeHandle(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -498,7 +500,7 @@ func TestWiring_SessionMessengerRejectsTerminatedSession(t *testing.T) {
 		ProjectID: "p", Kind: domain.KindWorker,
 		IsTerminated: true,
 		Activity:     domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata:     domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0"},
+		Metadata:     domain.SessionMetadata{RuntimeHandleID: "opr-1/terminal_0", WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -548,6 +550,7 @@ func TestWiring_StartLifecycleThreadsMessengerIntoLCM(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
+		Metadata: domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 	})
 	if err != nil {
 		t.Fatal(err)

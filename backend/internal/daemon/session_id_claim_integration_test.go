@@ -56,6 +56,7 @@ func TestSessionIDAllocationSkipsIDsHeldByALivePtyHost(t *testing.T) {
 		ProjectID: project,
 		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
+		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	})
@@ -110,6 +111,7 @@ func TestSessionIDAllocationSkipsNumbersHeldByAScratchWorkspace(t *testing.T) {
 		ProjectID: project,
 		Kind:      domain.KindWorker,
 		Harness:   domain.HarnessClaudeCode,
+		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	})
