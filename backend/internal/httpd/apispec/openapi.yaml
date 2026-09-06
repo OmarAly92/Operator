@@ -4640,11 +4640,6 @@ components:
           type: string
         kind:
           type: string
-        mode:
-          enum:
-          - chat
-          - tui
-          type: string
         pinnedAt:
           format: date-time
           type:
@@ -4731,7 +4726,6 @@ components:
       - id
       - projectId
       - kind
-      - mode
       - activity
       - isTerminated
       - terminateOnPrMerge

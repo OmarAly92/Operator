@@ -91,13 +91,7 @@ type SessionRecord struct {
 	// the project configuration.
 	ReviewerHarness ReviewerHarness `json:"reviewerHarness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
 	DisplayName     string          `json:"displayName,omitempty"`
-	// Mode is the session's currently committed conversation controller. Every
-	// send, restore, kill, and reaper decision dispatches from it. Only the
-	// durable interface-transition coordinator may change it; the daemon default
-	// never changes an existing session. Rows written before Chat mode existed
-	// read back as SessionModeTUI.
-	Mode     SessionMode `json:"mode" enum:"chat,tui"`
-	Activity Activity    `json:"activity"`
+	Activity        Activity        `json:"activity"`
 	// FirstSignalAt is when the FIRST agent hook callback arrived for the
 	// current spawn/restore: raw signal receipt, independent of the derived
 	// activity state. Zero means no hook has ever reported, which deriveStatus

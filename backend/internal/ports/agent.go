@@ -79,7 +79,6 @@ type AgentInterfaceHandoff interface {
 	NativeConversationID(
 		ctx context.Context,
 		session SessionRef,
-		currentMode domain.SessionMode,
 		providerConversationID string,
 	) (id string, ok bool, err error)
 }

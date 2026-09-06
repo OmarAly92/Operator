@@ -2567,7 +2567,6 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		Harness:          cfg.Harness,
 		DisplayName:      cfg.DisplayName,
 		Activity:         domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
-		Mode:             domain.SessionModeTUI,
 		AutoInjectReview: true,
 	}
 }

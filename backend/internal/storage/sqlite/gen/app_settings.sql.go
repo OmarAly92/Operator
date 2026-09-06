@@ -31,7 +31,7 @@ func (q *Queries) ClaimAppLegacyDesktopImport(ctx context.Context, arg ClaimAppL
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at, ui_locale, update_opt_in, update_channel, update_nightly_ack, update_feature_pr, keybindings_json, migration_json, legacy_desktop_imported_at FROM app_settings WHERE id = 1
+SELECT id, updated_at, ui_locale, update_opt_in, update_channel, update_nightly_ack, update_feature_pr, keybindings_json, migration_json, legacy_desktop_imported_at FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -43,7 +43,6 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 	var i AppSetting
 	err := row.Scan(
 		&i.ID,
-		&i.DefaultSessionMode,
 		&i.UpdatedAt,
 		&i.UiLocale,
 		&i.UpdateOptIn,

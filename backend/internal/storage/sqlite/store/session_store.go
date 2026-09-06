@@ -71,19 +71,17 @@ func (s *Store) UpdateSessionFromActivitySignal(ctx context.Context, rec domain.
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	rows, err := s.qw.UpdateSessionFromActivitySignal(ctx, gen.UpdateSessionFromActivitySignalParams{
-		ActivityState:                activity.State,
-		ActivityLastAt:               activity.LastActivityAt,
-		FirstSignalAt:                timeToNullTime(rec.FirstSignalAt),
-		AgentSessionID:               rec.Metadata.AgentSessionID,
-		LatestUserPrompt:             rec.Metadata.LatestUserPrompt,
-		LatestAssistantUpdate:        rec.Metadata.LatestAssistantUpdate,
-		NativeTranscriptPath:         rec.Metadata.NativeTranscriptPath,
-		UpdatedAt:                    rec.UpdatedAt,
-		ID:                           rec.ID,
-		ExpectedHarness:              rec.Harness,
-		ExpectedSessionMode:          domain.NormalizeSessionMode(rec.Mode),
-		ExpectedRuntimeLaunchID:      rec.Metadata.RuntimeLaunchID,
-		ExpectedControllerGeneration: rec.Metadata.ControllerGeneration,
+		ActivityState:           activity.State,
+		ActivityLastAt:          activity.LastActivityAt,
+		FirstSignalAt:           timeToNullTime(rec.FirstSignalAt),
+		AgentSessionID:          rec.Metadata.AgentSessionID,
+		LatestUserPrompt:        rec.Metadata.LatestUserPrompt,
+		LatestAssistantUpdate:   rec.Metadata.LatestAssistantUpdate,
+		NativeTranscriptPath:    rec.Metadata.NativeTranscriptPath,
+		UpdatedAt:               rec.UpdatedAt,
+		ID:                      rec.ID,
+		ExpectedHarness:         rec.Harness,
+		ExpectedRuntimeLaunchID: rec.Metadata.RuntimeLaunchID,
 	})
 	if err != nil {
 		return false, fmt.Errorf("update session %s from activity signal: %w", rec.ID, err)
@@ -105,31 +103,6 @@ func (s *Store) RecordSessionLatestUserPrompt(ctx context.Context, id domain.Ses
 		return false, fmt.Errorf("record latest user prompt for session %s: %w", id, err)
 	}
 	return rows > 0, nil
-}
-
-// ClaimChatControllerGeneration makes generation the only Chat controller that
-// may project provider events for this session. The narrow update avoids writing
-// a stale full SessionRecord over lifecycle facts changed by another goroutine.
-func (s *Store) ClaimChatControllerGeneration(
-	ctx context.Context,
-	id domain.SessionID,
-	generation string,
-	updatedAt time.Time,
-) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	rows, err := s.qw.ClaimChatControllerGeneration(ctx, gen.ClaimChatControllerGenerationParams{
-		ControllerGeneration: generation,
-		UpdatedAt:            updatedAt,
-		ID:                   id,
-	})
-	if err != nil {
-		return fmt.Errorf("claim chat controller generation for %s: %w", id, err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("claim chat controller generation for %s: chat session not found", id)
-	}
-	return nil
 }
 
 // RenameSession updates only the user-facing display name for an existing
@@ -383,7 +356,6 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		Harness:         row.Harness,
 		ReviewerHarness: row.ReviewerHarness,
 		DisplayName:     row.DisplayName,
-		Mode:            domain.NormalizeSessionMode(row.SessionMode),
 		Activity: domain.Activity{
 			State:          row.ActivityState,
 			LastActivityAt: row.ActivityLastAt,
@@ -468,7 +440,6 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		AutoInjectReview:          rec.AutoInjectReview,
 		CleanupGeneration:         rec.CleanupGeneration,
 		BrowserCapabilityVerifier: rec.Metadata.BrowserCapabilityVerifier,
-		SessionMode:               domain.NormalizeSessionMode(rec.Mode),
 		ProviderConversationID:    rec.Metadata.ProviderConversationID,
 		ControllerGeneration:      rec.Metadata.ControllerGeneration,
 		CreatedAt:                 rec.CreatedAt,

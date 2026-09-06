@@ -3343,7 +3343,7 @@ func TestRuntimeObservation_WorkloadDeathAloneDoesNotReap(t *testing.T) {
 func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	ctx := context.Background()
 	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Mode: domain.SessionModeChat}
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}
 	m := New(st, nil)
 
 	if err := m.MarkSpawned(ctx, "mer-1", domain.SessionMetadata{

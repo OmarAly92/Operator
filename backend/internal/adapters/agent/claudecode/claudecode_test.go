@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/hooksjson"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
@@ -20,7 +19,7 @@ func TestNativeConversationIDUsesTheSameClaudeUUIDAcrossInterfaces(t *testing.T)
 	p := &Plugin{}
 	tuiID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
 		ID: "opr-session-1", Metadata: map[string]string{},
-	}, domain.SessionModeTUI, "")
+	}, "")
 	if err != nil || !ok || tuiID != claudeSessionUUID("opr-session-1") {
 		t.Fatalf("TUI native id = %q ok=%v err=%v", tuiID, ok, err)
 	}

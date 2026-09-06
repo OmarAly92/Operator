@@ -61,7 +61,6 @@ type AgentSwitch struct {
 
 type AppSetting struct {
 	ID                      int64
-	DefaultSessionMode      domain.SessionMode
 	UpdatedAt               time.Time
 	UiLocale                string
 	UpdateOptIn             bool
@@ -293,7 +292,6 @@ type Session struct {
 	ReviewerHarness           domain.ReviewerHarness
 	IsPinned                  bool
 	PinnedAt                  sql.NullTime
-	SessionMode               domain.SessionMode
 	ProviderConversationID    string
 	ControllerGeneration      string
 	BrowserCapabilityVerifier string

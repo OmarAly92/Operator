@@ -34,7 +34,6 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/terminalui"
-	"github.com/OmarAly92/operator/backend/internal/domain"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
 )
@@ -313,7 +312,6 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 func (p *Plugin) NativeConversationID(
 	ctx context.Context,
 	session ports.SessionRef,
-	currentMode domain.SessionMode,
 	providerConversationID string,
 ) (string, bool, error) {
 	if err := ctx.Err(); err != nil {

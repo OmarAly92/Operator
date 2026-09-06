@@ -1067,12 +1067,9 @@ func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
 	lookPath := func(string) (string, error) { return "/bin/true", nil }
 	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
 
-	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if rec.Mode != domain.SessionModeTUI {
-		t.Fatalf("spawned mode = %q, want every session recorded as tui", rec.Mode)
 	}
 	if rt.lastCfg.Env[EnvSessionID] == "" {
 		t.Fatal("a tui session must launch the terminal runtime")
