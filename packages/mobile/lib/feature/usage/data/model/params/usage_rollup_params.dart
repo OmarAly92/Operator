@@ -6,7 +6,7 @@ class UsageRollupParams extends Equatable {
 
   const UsageRollupParams({required this.bucket, this.days});
 
-  Map<String, dynamic> toJson() => {'bucket': bucket, 'days': days};
+  Map<String, dynamic> toJson() => {'bucket': bucket, if (days != null) 'days': days};
 
   @override
   List<Object?> get props => [bucket, days];
