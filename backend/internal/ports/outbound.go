@@ -338,6 +338,7 @@ type WorkspaceConfig struct {
 	ProjectID domain.ProjectID
 	SessionID domain.SessionID
 	Kind      domain.SessionKind
+	Mode      domain.WorkspaceMode
 	// SessionPrefix is the human-readable project prefix used to name the
 	// orchestrator worktree. Defaults to a truncation of ProjectID when empty.
 	SessionPrefix string
@@ -357,6 +358,7 @@ type WorkspaceInfo struct {
 	Branch    string
 	SessionID domain.SessionID
 	ProjectID domain.ProjectID
+	Mode      domain.WorkspaceMode
 	// RepoPath optionally overrides ProjectID-based repo resolution. It is used
 	// when the normal workspace lifecycle primitives operate on one child repo
 	// inside a workspace project.
