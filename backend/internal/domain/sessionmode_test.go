@@ -75,22 +75,3 @@ func TestDefaultSessionModeIsTUIForUpgradeCompatibility(t *testing.T) {
 			DefaultSessionMode, SessionModeTUI)
 	}
 }
-
-func TestTurnStateTerminal(t *testing.T) {
-	for _, tc := range []struct {
-		state TurnState
-		want  bool
-	}{
-		{TurnStateQueued, false},
-		{TurnStateRunning, false},
-		{TurnStateCompleted, true},
-		// Interrupted is terminal but is not a failure: the provider reports it
-		// as its own status and Operator must not relabel it as an error.
-		{TurnStateInterrupted, true},
-		{TurnStateFailed, true},
-	} {
-		if got := tc.state.Terminal(); got != tc.want {
-			t.Errorf("TurnState(%q).Terminal() = %v, want %v", tc.state, got, tc.want)
-		}
-	}
-}

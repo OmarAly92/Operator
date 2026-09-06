@@ -640,7 +640,6 @@ func (f *fakeSessionLifecycle) RestoreAll(_ context.Context) error {
 	return f.restoreErr
 }
 
-func (f *fakeSessionLifecycle) SetTerminalInputGate(sessionmanager.TerminalInputGate) {}
 func (f *fakeSessionLifecycle) AcquireSessionInput(domain.SessionID) (func(), bool) {
 	return func() {}, true
 }

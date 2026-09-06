@@ -162,21 +162,9 @@ type lifecycleRecorder interface {
 	CancelLaunch(id domain.SessionID, launchID string)
 	ReleaseLaunch(id domain.SessionID, launchID string)
 	MarkSpawned(ctx context.Context, id domain.SessionID, metadata domain.SessionMetadata) error
-	CommitControllerEpoch(ctx context.Context, id domain.SessionID, source, target domain.SessionMode, nativeConversationID string, startFresh bool) (bool, error)
 	ConfirmAgentSwitchSourceStopped(ctx context.Context, confirmation domain.AgentSwitchSourceStopConfirmation) (bool, error)
 	ActivateAgentSwitchTarget(ctx context.Context, activation domain.AgentSwitchTargetActivation) (bool, error)
 	MarkTerminated(ctx context.Context, id domain.SessionID) error
-}
-
-// TerminalInputGate closes the raw terminal input path while an interface
-// transition drains and stops a TUI controller. It is separate from Messenger:
-// xterm keystrokes travel over the terminal mux and never pass through Send.
-type TerminalInputGate interface {
-	// BeginInputDrain atomically blocks later writes and returns the time of the
-	// newest write that was accepted before the block. Session Manager uses that
-	// barrier to avoid trusting an idle hook which predates already-buffered PTY
-	// input.
-	BeginInputDrain(terminalID string) (lastInputAt time.Time, release func())
 }
 
 // ReviewerTerminator tears down a worker's reviewer pane when the worker leaves
@@ -330,9 +318,6 @@ type Manager struct {
 	sendConfirm sendConfirmConfig
 	logger      *slog.Logger
 
-	terminalInputGateMu sync.Mutex
-	terminalInputGate   TerminalInputGate
-
 	reviewersMu sync.Mutex
 	reviewers   ReviewerTerminator
 
@@ -348,31 +333,6 @@ type Manager struct {
 // resurrect stale harness/runtime ownership read before the pane write.
 type latestUserPromptRecorder interface {
 	RecordSessionLatestUserPrompt(context.Context, domain.SessionID, string, time.Time) (bool, error)
-}
-
-// SetTerminalInputGate late-binds the daemon's terminal mux after Session
-// Manager is constructed. Nil preserves the no-op behavior used by narrow tests.
-func (m *Manager) SetTerminalInputGate(gate TerminalInputGate) {
-	m.terminalInputGateMu.Lock()
-	defer m.terminalInputGateMu.Unlock()
-	m.terminalInputGate = gate
-}
-
-func (m *Manager) beginTerminalInputDrain(rec domain.SessionRecord) (lastInputAt time.Time, release func()) {
-	if domain.NormalizeSessionMode(rec.Mode) != domain.SessionModeTUI {
-		return time.Time{}, nil
-	}
-	handle := runtimeHandle(rec.Metadata)
-	if handle.ID == "" {
-		return time.Time{}, nil
-	}
-	m.terminalInputGateMu.Lock()
-	gate := m.terminalInputGate
-	m.terminalInputGateMu.Unlock()
-	if gate == nil {
-		return time.Time{}, nil
-	}
-	return gate.BeginInputDrain(handle.ID)
 }
 
 // SetReviewerTerminator wires worker lifecycle paths to the worker's reviewer

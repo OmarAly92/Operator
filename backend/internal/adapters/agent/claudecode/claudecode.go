@@ -319,10 +319,6 @@ func (p *Plugin) NativeConversationID(
 	if err := ctx.Err(); err != nil {
 		return "", false, err
 	}
-	if currentMode == domain.SessionModeChat {
-		id := strings.TrimSpace(providerConversationID)
-		return id, id != "", nil
-	}
 	id := strings.TrimSpace(session.Metadata[ports.MetadataKeyAgentSessionID])
 	if id == "" && session.ID != "" {
 		id = claudeSessionUUID(session.ID)

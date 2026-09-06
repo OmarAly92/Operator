@@ -28,11 +28,6 @@ func TestNativeConversationIDRequiresCapturedCodexThreadForTUI(t *testing.T) {
 	if err != nil || !ok || tuiID != "codex-thread-1" {
 		t.Fatalf("captured TUI native id = %q ok=%v err=%v", tuiID, ok, err)
 	}
-	chatID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{},
-		domain.SessionModeChat, tuiID)
-	if err != nil || !ok || chatID != tuiID {
-		t.Fatalf("Chat native id = %q ok=%v err=%v", chatID, ok, err)
-	}
 }
 
 func TestCodexAuthStatusFromOutputRequiresAffirmativeEvidence(t *testing.T) {

@@ -129,7 +129,6 @@ type sessionLifecycle interface {
 	// SessionMutationInProgress suppresses observation-driven termination while
 	// Session Manager deliberately replaces or relaunches a provider process.
 	SessionMutationInProgress(id domain.SessionID) bool
-	SetTerminalInputGate(gate sessionmanager.TerminalInputGate)
 	// SetReviewerTerminator late-binds worker lifecycle teardown to the review
 	// service, which is built alongside the controller-facing service below.
 	SetReviewerTerminator(terminator sessionmanager.ReviewerTerminator)

@@ -24,12 +24,6 @@ func TestNativeConversationIDUsesTheSameClaudeUUIDAcrossInterfaces(t *testing.T)
 	if err != nil || !ok || tuiID != claudeSessionUUID("opr-session-1") {
 		t.Fatalf("TUI native id = %q ok=%v err=%v", tuiID, ok, err)
 	}
-	chatID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "opr-session-1", Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "stale"},
-	}, domain.SessionModeChat, tuiID)
-	if err != nil || !ok || chatID != tuiID {
-		t.Fatalf("Chat native id = %q ok=%v err=%v", chatID, ok, err)
-	}
 }
 
 func TestNativeConversationExistsRequiresPersistedClaudeTranscript(t *testing.T) {

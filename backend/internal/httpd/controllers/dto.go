@@ -3,7 +3,6 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/devimport"
@@ -1358,28 +1357,6 @@ type MigrationState struct {
 	CompletedAt   string                       `json:"completedAt,omitempty" format:"date-time"`
 	Report        *settingssvc.MigrationReport `json:"report,omitempty"`
 	Error         string                       `json:"error,omitempty"`
-}
-
-// capabilityNames lists the abilities a provider has, sorted so a client sees a
-// stable list rather than Go's map order. Only true entries are named: a
-// capability the driver reports as false is one it cannot do, which is the same
-// answer as not naming it, and listing both states would invite a client to read
-// presence rather than value.
-func capabilityNames(caps ports.ChatCapabilities) []string {
-	if len(caps) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(caps))
-	for name, has := range caps {
-		if has {
-			names = append(names, string(name))
-		}
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	sort.Strings(names)
-	return names
 }
 
 // TriggerReviewRequest is the optional body of the review trigger route. An
