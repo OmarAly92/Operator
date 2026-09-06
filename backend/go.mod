@@ -7,7 +7,6 @@ require (
 	github.com/OmarAly92/operator/packages/terminal/go/bootstrap v0.0.0-00010101000000-000000000000
 	github.com/OmarAly92/operator/packages/terminal/go/marks v0.0.0-20260830224913-37738ae237a0
 	github.com/aymanbagabas/go-pty v0.2.3
-	github.com/coder/acp-go-sdk v0.13.5
 	github.com/coder/websocket v1.8.14
 	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.10.1

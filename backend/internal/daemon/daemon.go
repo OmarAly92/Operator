@@ -18,7 +18,6 @@ import (
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/modelcatalog"
 	agentbrowser "github.com/OmarAly92/operator/backend/internal/adapters/agentbrowser"
-	chatdriverregistry "github.com/OmarAly92/operator/backend/internal/adapters/chatdriver/registry"
 	"github.com/OmarAly92/operator/backend/internal/adapters/projectscan"
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/runtimeselect"
 	"github.com/OmarAly92/operator/backend/internal/config"
@@ -188,8 +187,6 @@ func Run() error {
 	}
 
 	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, log)
-
-	_ = chatdriverregistry.Build(log)
 
 	// Daemon-owned preferences. The store's type is field-compatible with the
 	// service's, adapted here so neither package imports the other.
