@@ -253,3 +253,6 @@ Stated plainly, because the default is off:
   predates the session reads as session output in the diff and PR views.
 - A mobile spawn runs on the daemon's host, so an in-place session started from the
   phone edits the checkout on the user's machine, on whatever branch it is on.
+- The shared spawn sequence still installs the agent's own hook files (e.g. Claude
+  Code's entries in `.claude/settings.local.json`) and a `.git/info/exclude` line into
+  the real checkout; neither is cleaned up on teardown.
