@@ -11,8 +11,8 @@ import 'package:operator_mobile/feature/chat/data/model/conversation_snapshot_mo
 import 'package:operator_mobile/feature/chat/data/model/conversation_turn_model.dart';
 import 'package:operator_mobile/feature/chat/logic/attachment_picker.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_composer.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakePicker implements AttachmentPicker {

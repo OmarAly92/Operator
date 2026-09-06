@@ -18,9 +18,9 @@ import 'package:operator_mobile/feature/chat/logic/attachment_picker.dart';
 import 'package:operator_mobile/feature/chat/logic/composer_suggestions.dart';
 import 'package:operator_mobile/feature/chat/logic/keyboard_inset.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/suggestion_sheet.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/ui/mic_key.dart';
-import 'package:operator_mobile/feature/chat/voice/ui/voice_strip.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
+import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
 
 class ChatComposer extends StatefulWidget {
   const ChatComposer({

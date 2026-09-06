@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 
 part 'voice_input_state.dart';
 

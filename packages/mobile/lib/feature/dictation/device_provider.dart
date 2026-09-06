@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 
 /// Long enough that the finger, not a silence timer, decides when a phrase ends —
 /// the closest `speech_to_text` gets to RN's continuous mode.

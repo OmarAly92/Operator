@@ -4,10 +4,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/ui/mic_key.dart';
-import 'package:operator_mobile/feature/chat/voice/ui/voice_strip.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
+import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 
 class _FakeProvider implements VoiceProvider {
   _FakeProvider({this.availableValue = true});

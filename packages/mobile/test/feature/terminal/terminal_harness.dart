@@ -20,8 +20,8 @@ import 'package:operator_mobile/feature/blocks/data/repository/session_control_r
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_view_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/preview/data/repository/preview_repository.dart';
 import 'package:operator_mobile/feature/preview/presentation/preview_screen/logic/preview_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';

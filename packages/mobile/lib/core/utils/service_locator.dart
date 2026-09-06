@@ -12,10 +12,10 @@ import 'package:operator_mobile/feature/chat/data/data_source/chat_event_data_so
 import 'package:operator_mobile/feature/chat/data/data_source/chat_remote_data_source.dart';
 import 'package:operator_mobile/feature/chat/data/repository/chat_repository.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/device_provider.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/blocks_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/data_source/session_control_remote_data_source.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';

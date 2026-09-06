@@ -27,8 +27,8 @@ import 'package:operator_mobile/feature/chat/presentation/chat_screen/logic/chat
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/chat_screen.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/chat_body.dart';
 import 'package:operator_mobile/feature/chat/presentation/chat_screen/ui/widgets/live_turn_bar.dart';
-import 'package:operator_mobile/feature/chat/voice/logic/voice_input_cubit.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';

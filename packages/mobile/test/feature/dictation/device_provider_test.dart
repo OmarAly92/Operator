@@ -1,8 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
-import 'package:operator_mobile/feature/chat/voice/speech_recognizer.dart';
-import 'package:operator_mobile/feature/chat/voice/voice_types.dart';
+import 'package:operator_mobile/feature/dictation/device_provider.dart';
+import 'package:operator_mobile/feature/dictation/speech_recognizer.dart';
+import 'package:operator_mobile/feature/dictation/voice_types.dart';
 
 class FakeRecognizer implements SpeechRecognizer {
   FakeRecognizer({this.availableValue = true, this.permission = true});

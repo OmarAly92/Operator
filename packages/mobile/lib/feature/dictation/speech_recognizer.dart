@@ -1,4 +1,4 @@
-import 'package:operator_mobile/feature/chat/voice/device_provider.dart';
+import 'package:operator_mobile/feature/dictation/device_provider.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
