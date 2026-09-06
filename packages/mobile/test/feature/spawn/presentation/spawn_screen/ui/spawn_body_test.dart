@@ -101,6 +101,41 @@ void main() {
     );
   }
 
+  void stubProjectKind(String? kind) {
+    when(() => sessionsRepository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: BoardSnapshot(projects: [ProjectModel(id: 'p1', name: 'Alpha', kind: kind)]),
+        ),
+      ),
+    );
+  }
+
+  testWidgets('a project that never uses a worktree is not described as the project checkout', (tester) async {
+    stubCatalog();
+    stubProjectKind('scratch');
+    buildSessionsCubit();
+
+    await pumpBody(tester, SpawnCubit(spawnRepository));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('project checkout'), findsNothing);
+    expect(find.textContaining('isolated workspace'), findsOneWidget);
+    expect(find.byType(Switch), findsNothing);
+  });
+
+  testWidgets('a single-repo project defaults to working in the project checkout', (tester) async {
+    stubCatalog();
+    stubProjectKind('single_repo');
+    buildSessionsCubit();
+
+    await pumpBody(tester, SpawnCubit(spawnRepository));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('project checkout'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
+  });
+
   testWidgets('submitting with an empty name shows the required message and calls no repository', (tester) async {
     stubCatalog();
     buildSessionsCubit();

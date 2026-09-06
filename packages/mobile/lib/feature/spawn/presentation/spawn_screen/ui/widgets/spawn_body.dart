@@ -159,7 +159,9 @@ class _SpawnBodyState extends State<SpawnBody> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppText(
-                _cubit.useWorktree
+                project?.kind != 'single_repo'
+                    ? 'Spawn a worker agent. It gets its own isolated workspace, then starts on the task you give it.'
+                    : _cubit.useWorktree
                     ? 'Spawn a worker agent. It gets its own isolated worktree, then starts on the task you give it.'
                     : 'Spawn a worker agent. It works directly in the project checkout, on the branch already there.',
                 style: AppTextStyle.style13Regular.copyWith(color: skin.textSecondary),
