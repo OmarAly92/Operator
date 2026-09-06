@@ -22,8 +22,13 @@ AgentCatalog get _catalog => AgentCatalog(
 
 void main() {
   group('SpawnSessionParams', () {
-    test('defaults to in_place so no worktree is created', () {
+    test('omits workspaceMode when not given, so the server default applies', () {
       final params = SpawnSessionParams(projectId: 'p-1');
+      expect(params.toJson().containsKey('workspaceMode'), isFalse);
+    });
+
+    test('sends in_place when explicitly chosen', () {
+      final params = SpawnSessionParams(projectId: 'p-1', workspaceMode: 'in_place');
       expect(params.toJson()['workspaceMode'], 'in_place');
     });
 
@@ -160,7 +165,7 @@ void main() {
     build: buildCubit,
     act: (cubit) async {
       await cubit.loadCatalog();
-      cubit.setProject('p');
+      cubit.setProject('p', kind: 'single_repo');
       cubit.setUseWorktree(true);
       cubit.name = 'flaky login';
       cubit.prompt = 'fix it';
@@ -170,6 +175,25 @@ void main() {
       final params = verify(() => repository.spawn(captureAny())).captured.single
           as SpawnSessionParams;
       expect(params.workspaceMode, 'worktree');
+    },
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'omits workspaceMode for a non-single_repo project regardless of the toggle',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit.setProject('p', kind: 'workspace');
+      cubit.setUseWorktree(true);
+      cubit.name = 'flaky login';
+      cubit.prompt = 'fix it';
+      await cubit.submit();
+    },
+    verify: (cubit) {
+      final params = verify(() => repository.spawn(captureAny())).captured.single
+          as SpawnSessionParams;
+      expect(params.workspaceMode, isNull);
+      expect(params.toJson().containsKey('workspaceMode'), isFalse);
     },
   );
 }

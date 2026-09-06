@@ -131,6 +131,37 @@ void main() {
     expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
   });
 
+  testWidgets('renders both the branch and the project path for an in-place session', (tester) async {
+    const session = SessionModel(
+      id: 'proj-1',
+      projectId: 'proj',
+      displayName: 'Fix auth',
+      status: 'working',
+      branch: 'fix/auth-timeouts',
+      workspaceMode: 'in_place',
+      workspacePath: '/repos/proj',
+    );
+
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          home: SkinScope(
+            skin: const DarkSkin(),
+            child: Scaffold(
+              body: SessionCard(session: session, showProject: true, onTap: () {}, onLongPress: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('fix/auth-timeouts'), findsOneWidget);
+    expect(find.text('/repos/proj'), findsOneWidget);
+    expect(find.byIcon(Icons.call_split), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+  });
+
   testWidgets('still renders the issue badge for an in-place session with no workspace path yet', (tester) async {
     const session = SessionModel(
       id: 'proj-1',

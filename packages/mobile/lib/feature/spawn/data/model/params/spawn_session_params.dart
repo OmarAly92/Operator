@@ -6,21 +6,21 @@ class SpawnSessionParams extends Equatable {
     this.prompt,
     this.issueId,
     this.harness,
-    this.workspaceMode = 'in_place',
+    this.workspaceMode,
   });
 
   final String projectId;
   final String? prompt;
   final String? issueId;
   final String? harness;
-  final String workspaceMode;
+  final String? workspaceMode;
 
   Map<String, dynamic> toJson() => {
     'projectId': projectId,
     if (prompt != null && prompt!.isNotEmpty) 'prompt': prompt,
     if (issueId != null && issueId!.isNotEmpty) 'issueId': issueId,
     if (harness != null && harness!.isNotEmpty) 'harness': harness,
-    'workspaceMode': workspaceMode,
+    if (workspaceMode != null) 'workspaceMode': workspaceMode,
     'kind': 'worker',
   };
 

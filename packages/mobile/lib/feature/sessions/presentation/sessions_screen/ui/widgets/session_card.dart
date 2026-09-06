@@ -32,8 +32,11 @@ class SessionCard extends StatelessWidget {
     final title = sessionTitle(session);
     final branch = showBranch(session.branch, title) ? session.branch : null;
     final isInPlace = session.workspaceMode == 'in_place';
-    final worktreeDirName = _worktreeDirName(session.workspacePath);
-    final showLocation = isInPlace ? session.workspacePath != null : branch != null;
+    final rawPath = session.workspacePath;
+    final location = isInPlace
+        ? (rawPath != null && rawPath.isNotEmpty ? rawPath : null)
+        : _worktreeDirName(rawPath);
+    final showLocation = branch != null || location != null;
     final issue = trackerIssueId(session.issueId);
     final prs = prLine(session);
     final when = relativeTime(session.updatedAt);
@@ -65,38 +68,39 @@ class SessionCard extends StatelessWidget {
                   children: [
                     if (showLocation)
                       Expanded(
-                        child: isInPlace
-                            ? Row(
-                                children: [
-                                  Icon(Icons.folder_outlined, size: 12, color: skin.textFaint),
-                                  const HorizontalSpace(4),
-                                  Expanded(
-                                    child: AppText(
-                                      session.workspacePath!,
-                                      style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Icon(Icons.call_split, size: 12, color: skin.textFaint),
-                                  const HorizontalSpace(4),
-                                  Expanded(
-                                    child: AppText(
-                                      branch!,
-                                      style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
-                                    ),
-                                  ),
-                                  if (worktreeDirName != null) ...[
-                                    const HorizontalSpace(6),
-                                    AppText(
-                                      worktreeDirName,
-                                      style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
-                                    ),
-                                  ],
-                                ],
+                        child: Row(
+                          children: [
+                            if (branch != null) ...[
+                              Icon(Icons.call_split, size: 12, color: skin.textFaint),
+                              const HorizontalSpace(4),
+                              Expanded(
+                                child: AppText(
+                                  branch,
+                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                ),
                               ),
+                            ],
+                            if (location != null) ...[
+                              if (branch != null) const HorizontalSpace(6),
+                              if (isInPlace) ...[
+                                Icon(Icons.folder_outlined, size: 12, color: skin.textFaint),
+                                const HorizontalSpace(4),
+                              ],
+                              if (branch == null)
+                                Expanded(
+                                  child: AppText(
+                                    location,
+                                    style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                  ),
+                                )
+                              else
+                                AppText(
+                                  location,
+                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                ),
+                            ],
+                          ],
+                        ),
                       ),
                     if (issue != null)
                       Container(

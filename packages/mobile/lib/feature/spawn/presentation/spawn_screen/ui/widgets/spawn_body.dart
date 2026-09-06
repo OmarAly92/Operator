@@ -56,9 +56,13 @@ class _SpawnBodyState extends State<SpawnBody> {
 
     final activeProjectId = _sessionsCubit.activeProjectId;
     if (activeProjectId != kAllProjects) {
-      _cubit.setProject(activeProjectId);
+      _cubit.setProject(
+        activeProjectId,
+        kind: _projectById(_sessionsCubit.projects, activeProjectId)?.kind,
+      );
     } else if (_sessionsCubit.projects.length == 1) {
-      _cubit.setProject(_sessionsCubit.projects.first.id);
+      final only = _sessionsCubit.projects.first;
+      _cubit.setProject(only.id, kind: only.kind);
     }
     _cubit.loadCatalog();
   }
@@ -79,7 +83,9 @@ class _SpawnBodyState extends State<SpawnBody> {
       title: 'Project',
       subtitle: 'Where this agent gets its workspace.',
     );
-    if (chosen != null && context.mounted) _cubit.setProject(chosen);
+    if (chosen != null && context.mounted) {
+      _cubit.setProject(chosen, kind: _projectById(_sessionsCubit.projects, chosen)?.kind);
+    }
   }
 
   Future<void> _openAgentPicker(BuildContext context, SpawnState state) async {

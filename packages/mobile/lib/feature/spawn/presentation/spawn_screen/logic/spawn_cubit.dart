@@ -19,6 +19,7 @@ class SpawnCubit extends Cubit<SpawnState> {
   int _revision = 0;
 
   String? projectId;
+  String? projectKind;
   String harness = '';
   String name = '';
   String prompt = '';
@@ -26,8 +27,9 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   List<RankedAgent> get agents => rankAgents(_catalog);
 
-  void setProject(String? next) {
+  void setProject(String? next, {String? kind}) {
     projectId = next;
+    projectKind = kind;
     _bump();
   }
 
@@ -86,7 +88,7 @@ class SpawnCubit extends Cubit<SpawnState> {
       prompt: prompt.trim(),
       issueId: name.trim(),
       harness: harness,
-      workspaceMode: useWorktree ? 'worktree' : 'in_place',
+      workspaceMode: projectKind == 'single_repo' ? (useWorktree ? 'worktree' : 'in_place') : null,
     ));
     TelemetryRuntime.featureUsed('spawn', succeeded: result.isSuccess);
     result.when(
