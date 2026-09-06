@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **No fallback values for the stored mode.** `domain.WorkspaceMode` has no `WithDefault()`. An empty mode reaching the workspace layer is a programming error and must return an error, never be coerced to `worktree`.
-- **The column is `workspace_mode TEXT NOT NULL CHECK (workspace_mode IN ('worktree', 'in_place'))` with no `DEFAULT`.** Migration `0101` clears session-scoped rows rather than backfilling.
+- **The column is `workspace_mode TEXT NOT NULL CHECK (workspace_mode IN ('worktree', 'in_place'))` with no `DEFAULT`.** Migration `0102` clears session-scoped rows rather than backfilling.
 - **`in_place` teardown must never touch the filesystem.** `Destroy`, `ForceDestroy`, `StashUncommitted`, `ApplyPreserved` are no-ops. No `os.RemoveAll`, no `git worktree remove`, no `git worktree prune`, no preserve ref.
 - **`in_place` is `single_repo` only.** Rejected for `workspace` projects; control hidden for `scratch`.
 - **Default off on the two manual surfaces only.** `opr session spawn` and orchestrator/reviewer spawns keep creating worktrees.
@@ -29,7 +29,7 @@
 
 **Backend — new:**
 - `backend/internal/domain/workspacemode.go` — the mode type and its parser.
-- `backend/internal/storage/sqlite/0101_session_workspace_mode.go` — clearing migration + column.
+- `backend/internal/storage/sqlite/0102_session_workspace_mode.go` — clearing migration + column.
 - `backend/internal/adapters/workspace/inplace/workspace.go` — the adapter.
 - `backend/internal/adapters/workspace/inplace/workspace_test.go` — adapter tests, including the two safety tests.
 
@@ -168,7 +168,7 @@ git commit -m "feat(domain): add WorkspaceMode with no default"
 ## Task 2: The clearing migration and the column
 
 **Files:**
-- Create: `backend/internal/storage/sqlite/0101_session_workspace_mode.go`
+- Create: `backend/internal/storage/sqlite/0102_session_workspace_mode.go`
 - Create: `backend/internal/storage/sqlite/migrate_workspace_mode_test.go`
 - Modify: `backend/internal/storage/sqlite/migrate_burned_versions_test.go` (append `101` to the registry map)
 
@@ -177,6 +177,12 @@ git commit -m "feat(domain): add WorkspaceMode with no default"
 - Produces: a `sessions.workspace_mode` column, `TEXT NOT NULL CHECK (workspace_mode IN ('worktree','in_place'))`, no `DEFAULT`.
 
 Read [`0094_clear_pre_release_data.go`](../../../backend/internal/storage/sqlite/0094_clear_pre_release_data.go) before starting: this task copies its shape (goose Go migration, `PRAGMA defer_foreign_keys`, skip tables that do not exist).
+
+The list below deliberately omits the `conversation*` and `session_interface_transition*`
+tables that `0094` clears: migration `0101_drop_conversations.sql` dropped them, so
+naming them here would be dead weight. `migrationTableExists` still guards every entry,
+so a table missing on some profile is skipped rather than fatal — verify the list
+against `sqlite3 <db> .tables` before trusting it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -189,7 +195,7 @@ import (
 	"testing"
 )
 
-func TestMigration0101AddsWorkspaceModeWithoutDefault(t *testing.T) {
+func TestMigration0102AddsWorkspaceModeWithoutDefault(t *testing.T) {
 	db := openMigratedTestDB(t)
 	var ddl string
 	if err := db.QueryRowContext(context.Background(),
@@ -207,7 +213,7 @@ func TestMigration0101AddsWorkspaceModeWithoutDefault(t *testing.T) {
 	}
 }
 
-func TestMigration0101RejectsAnUnknownMode(t *testing.T) {
+func TestMigration0102RejectsAnUnknownMode(t *testing.T) {
 	db := openMigratedTestDB(t)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO sessions (id, project_id, workspace_mode) VALUES ('s-1', 'p-1', 'nonsense')`)
@@ -216,7 +222,7 @@ func TestMigration0101RejectsAnUnknownMode(t *testing.T) {
 	}
 }
 
-func TestMigration0101ClearsSessions(t *testing.T) {
+func TestMigration0102ClearsSessions(t *testing.T) {
 	db := openMigratedTestDB(t)
 	var count int
 	if err := db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions`).Scan(&count); err != nil {
@@ -235,7 +241,7 @@ second helper that does the same thing.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd backend && go test ./internal/storage/sqlite/ -run TestMigration0101 -v`
+Run: `cd backend && go test ./internal/storage/sqlite/ -run TestMigration0102 -v`
 Expected: FAIL — `sessions is missing workspace_mode`.
 
 - [ ] **Step 3: Write the migration**
@@ -256,14 +262,6 @@ var workspaceModeClearedTables = []string{
 	"block_events",
 	"terminal_blocks",
 	"shell_terminals",
-	"conversation_branches",
-	"conversation_provider_events",
-	"conversation_activities",
-	"conversation_messages",
-	"conversation_turns",
-	"conversations",
-	"session_interface_transition_messages",
-	"session_interface_transitions",
 	"agent_switches",
 	"agent_native_sessions",
 	"pr_review_threads",
@@ -317,16 +315,16 @@ indexes the original table had. Do **not** resolve it by adding a `DEFAULT`.
 
 - [ ] **Step 4: Register the version in the burned-versions map**
 
-In `migrate_burned_versions_test.go`, add to the map after the `100:` entry:
+In `migrate_burned_versions_test.go`, add to the map after the `101:` entry:
 
 ```go
-	101: "0101_session_workspace_mode.go",
+	102: "0102_session_workspace_mode.go",
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && go test ./internal/storage/sqlite/ -v`
-Expected: PASS, including `TestMigration0101*` and the existing burned-version tests.
+Expected: PASS, including `TestMigration0102*` and the existing burned-version tests.
 
 - [ ] **Step 6: Commit**
 
@@ -393,8 +391,8 @@ In `domain/session.go`, inside `SessionMetadata`, next to `WorkspacePath`:
 
 In `queries/sessions.sql`, add `workspace_mode` to the insert column list and its
 value placeholder, to the `UPDATE ... SET` list as `workspace_mode = ?`, and to every
-`SELECT` column list that already names `workspace_path` (lines around 8, 25, 74, 86
-and 98 — check each one; the file has several near-identical select lists and all of
+`SELECT` column list that already names `workspace_path` (lines around 8, 25, 44, 56
+and 68 — check each one; the file has several near-identical select lists and all of
 them must stay in sync).
 
 In `store/session_store.go`, add to the write mapping beside `WorkspacePath`:
@@ -970,13 +968,15 @@ existing scratch/branch guard, resolve the mode once and rewrite `cfg`:
 
 This sits **before** `m.store.CreateSession`, so a rejected spawn leaves no row.
 
-In `seedRecord`, carry the mode onto the seed row:
+In `seedRecord` (`manager.go:2560`), carry the mode onto the seed row. After the ACP
+removal this function sets **no** `Metadata` field at all, so add one:
 
 ```go
-		Metadata: domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
+		Metadata:         domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
 ```
 
-merging with whatever `seedRecord` already sets on `Metadata` rather than replacing it.
+placed after `AutoInjectReview: true,` and aligned with the existing keys. Do not
+remove or reorder any field already there.
 
 In `Spawn`, guard the branch derivation:
 
@@ -1007,8 +1007,8 @@ In `workspaceInfo`, stamp the mode so teardown routes correctly:
 		Mode: rec.Metadata.WorkspaceMode,
 ```
 
-Then find every other construction of `ports.WorkspaceConfig` in this file — the three
-`m.workspace.Restore` call sites around lines 1999, 2105 and 2317 — and add
+Then find every other construction of `ports.WorkspaceConfig` in this file — every
+`m.workspace.Restore` call site (grep `m.workspace.Restore(` in this file) — and add
 `Mode: rec.Metadata.WorkspaceMode` to each. Restore must route the same way teardown
 does.
 
@@ -1369,7 +1369,7 @@ git commit -m "feat(desktop): choose the worktree per task, defaulting to off"
 ## Task 10: Show where a session lives on the board
 
 **Files:**
-- Modify: `frontend/src/renderer/components/SessionsBoard.tsx:844-932`
+- Modify: `frontend/src/renderer/components/SessionsBoard.tsx:844-932` (the `showBranch` block at 928-934)
 - Test: `frontend/src/renderer/components/SessionsBoard.test.tsx`
 
 **Interfaces:**
@@ -1415,7 +1415,7 @@ Expected: FAIL — `session-location-in-place` not found.
 
 - [ ] **Step 3: Implement**
 
-Replace the `showBranch` block around line 930 with a location row that keeps the
+Replace the `showBranch` block at lines 928-934 with a location row that keeps the
 existing `GitBranch` icon and truncation behavior and adds the location:
 
 ```tsx

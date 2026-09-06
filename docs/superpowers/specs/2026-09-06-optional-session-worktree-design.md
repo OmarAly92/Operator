@@ -86,7 +86,7 @@ So this needs a migration, the query updates, and `npm run sqlc`.
 **The migration clears session data rather than defaulting it.** Operator is
 pre-release with no installs to preserve, and a defaulted column is exactly the kind
 of fallback that outlives the reason for it: every later reader would have to keep
-answering "what does empty mean?". Migration `0101_session_workspace_mode.go` follows
+answering "what does empty mean?". Migration `0102_session_workspace_mode.go` follows
 the precedent of
 [`0094_clear_pre_release_data.go`](../../../backend/internal/storage/sqlite/0094_clear_pre_release_data.go)
 — a Go migration that deletes session-scoped rows, then adds
@@ -100,7 +100,7 @@ refuses anything else. Existing sessions and their worktrees on disk are orphane
 this; that is the accepted cost of the clean column. It must also be registered in the
 burned-versions registry in
 [`migrate_burned_versions_test.go`](../../../backend/internal/storage/sqlite/migrate_burned_versions_test.go)
-as `101: "0101_session_workspace_mode.go"`.
+as `102: "0102_session_workspace_mode.go"`.
 
 ### The in-place adapter
 

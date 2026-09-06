@@ -19,7 +19,7 @@ The mechanism: a `domain.WorkspaceMode` (`worktree` | `in_place`) recorded on th
 
 Use **superpowers:subagent-driven-development**. One fresh subagent per task, two-stage review between tasks. Do not batch tasks into one agent — Task 7 is a safety gate and every task must be independently rejectable.
 
-Work in a git worktree via **superpowers:using-git-worktrees**. Branch from `master` at `d72a3a2ff`.
+Work in a git worktree via **superpowers:using-git-worktrees**. Branch from `master` at `8d6b6a899`.
 
 Tick each `- [ ]` checkbox in the plan file as its step completes, and commit the plan file's checkbox updates along with the task's own commit.
 
@@ -27,10 +27,27 @@ Tasks 1–8 are strictly sequential; each consumes the one before. Tasks 9, 10 a
 
 ## Repository state as of dispatch
 
-- Repo: `/Users/omaraly/development/AI/Operator`, branch `master`, HEAD `d72a3a2ff`, working tree clean, **5 commits ahead of `origin/master`**.
+- Repo: `/Users/omaraly/development/AI/Operator`, branch `master`, HEAD `8d6b6a899`, working tree clean, in sync with `origin/master`.
 - Go 1.25.12, golangci-lint 2.12.2, Flutter 3.44.5.
 - `cd backend && go build ./...` succeeds at HEAD.
-- The three commits at the top of `master` are this feature's spec, its correction, and its plan. No implementation code exists yet.
+- No implementation code for this feature exists yet — only its spec, plan and this prompt.
+
+**`master` has moved since this feature was planned.** The phase-4 ACP removal merged at
+`8d6b6a899`, and the plan has been re-synced against it. What that merge changed under
+this feature's feet, already accounted for in the plan:
+
+- **Migration `0101` is taken** by `0101_drop_conversations.sql`. This feature's
+  migration is **`0102_session_workspace_mode.go`**, registered as
+  `102:` in the burned-versions map.
+- `domain.SessionMode` and the whole chat/conversation vocabulary are gone. `Spawn`
+  (now `manager.go:518`) no longer branches on mode, and `seedRecord`
+  (`manager.go:2560`) no longer sets a `Metadata` field at all — Task 6 adds one.
+- The `conversation*` and `session_interface_transition*` tables were dropped, so
+  Task 2's clear-list omits them.
+- `queries/sessions.sql` select lists moved to lines 8, 25, 44, 56 and 68.
+- Mobile lost its `chat` feature and gained `dictation` and `usage`. The spawn screen,
+  its params class and the stale isolation copy at `spawn_body.dart:156` are all
+  unchanged and still match the plan.
 
 ## The migration destroys data on purpose
 
