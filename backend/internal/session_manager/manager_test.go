@@ -1056,6 +1056,94 @@ func mkLive(id domain.SessionID) domain.SessionRecord {
 	return domain.SessionRecord{ID: id, ProjectID: "mer", Metadata: domain.SessionMetadata{WorkspacePath: "/ws/" + string(id), RuntimeHandleID: "h1"}, Activity: domain.Activity{State: domain.ActivityActive}}
 }
 
+func TestSpawnRejectsInPlaceOnAWorkspaceProject(t *testing.T) {
+	m, st, _, _ := newManager()
+	proj := st.projects["mer"]
+	proj.Kind = domain.ProjectKindWorkspace
+	st.projects["mer"] = proj
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if !errors.Is(err, ErrInPlaceUnsupported) {
+		t.Fatalf("want ErrInPlaceUnsupported, got %v", err)
+	}
+}
+
+func TestSpawnDefaultsToWorktreeWhenTheModeIsAbsent(t *testing.T) {
+	m, _, _, _ := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID: "mer",
+		Kind:      domain.KindWorker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Metadata.WorkspaceMode != domain.WorkspaceModeWorktree {
+		t.Fatalf("an unset spawn mode must resolve to worktree, got %q", rec.Metadata.WorkspaceMode)
+	}
+}
+
+func TestSpawnInPlaceRecordsTheModeAndCreatesNoBranch(t *testing.T) {
+	m, _, _, ws := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Metadata.WorkspaceMode != domain.WorkspaceModeInPlace {
+		t.Fatalf("want in_place recorded, got %q", rec.Metadata.WorkspaceMode)
+	}
+	if ws.lastCfg.Branch != "" {
+		t.Fatalf("in-place must request no branch, got %q", ws.lastCfg.Branch)
+	}
+	if ws.lastCfg.Mode != domain.WorkspaceModeInPlace {
+		t.Fatalf("the mode must reach the adapter, got %q", ws.lastCfg.Mode)
+	}
+}
+
+func TestWorkspaceInfoCarriesTheStoredMode(t *testing.T) {
+	info := workspaceInfo(domain.SessionRecord{
+		ID: "s-1",
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/tmp/x",
+			WorkspaceMode: domain.WorkspaceModeInPlace,
+		},
+	})
+	if info.Mode != domain.WorkspaceModeInPlace {
+		t.Fatalf("teardown would route to the wrong adapter: got %q", info.Mode)
+	}
+}
+
+func TestSaveAndTeardownAllWritesARestoreMarkerForInPlaceSessions(t *testing.T) {
+	m, st, _, _ := newManager()
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID:     "mer",
+		Kind:          domain.KindWorker,
+		WorkspaceMode: domain.WorkspaceModeInPlace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SaveAndTeardownAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := st.ListSessionWorktrees(ctx, rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want one restore marker so RestoreAll does not skip the session, got %d", len(rows))
+	}
+	if rows[0].PreservedRef != "" {
+		t.Fatalf("an in-place session preserves nothing, got ref %q", rows[0].PreservedRef)
+	}
+}
+
 func TestSpawnAlwaysRecordsTUIMode(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{

@@ -57,6 +57,7 @@ var (
 	// ErrScratchBranchUnsupported means a caller tried to force git branch
 	// semantics onto a scratch project.
 	ErrScratchBranchUnsupported = errors.New("session: scratch projects do not support branches")
+	ErrInPlaceUnsupported       = errors.New("in-place sessions are only supported for single-repo projects")
 	// ErrNotResumable means a terminated session cannot be relaunched: its adapter
 	// cannot natively resume it AND it has no prompt to fresh-launch from, and it is
 	// not an orchestrator (orchestrators are promptless by design and relaunch fresh
@@ -524,6 +525,20 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if projectKind == domain.ProjectKindScratch && strings.TrimSpace(cfg.Branch) != "" {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", ErrScratchBranchUnsupported)
 	}
+	if cfg.WorkspaceMode == "" {
+		cfg.WorkspaceMode = domain.WorkspaceModeWorktree
+	}
+	if !cfg.WorkspaceMode.Valid() {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", domain.ErrInvalidWorkspaceMode, cfg.WorkspaceMode)
+	}
+	if cfg.WorkspaceMode == domain.WorkspaceModeInPlace {
+		if projectKind != domain.ProjectKindSingleRepo {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", ErrInPlaceUnsupported)
+		}
+		if strings.TrimSpace(cfg.Branch) != "" {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: an in-place session cannot take a branch", ErrInPlaceUnsupported)
+		}
+	}
 	// A per-project role override picks the harness when the spawn names none,
 	// so a project can default workers to one agent and orchestrators to another.
 	cfg.Harness = effectiveHarness(cfg.Harness, cfg.Kind, project.Config)
@@ -561,7 +576,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	branch := cfg.Branch
-	if branch == "" {
+	if branch == "" && cfg.WorkspaceMode != domain.WorkspaceModeInPlace {
 		branch = DefaultSpawnBranch(id, cfg.Kind, sessionPrefix(project), projectKind, m.dataDir)
 	}
 	ws, workspaceProject, err := m.createSessionWorkspace(ctx, project, cfg, id, branch)
@@ -684,6 +699,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		Prompt:                    prompt,
 		LatestUserPrompt:          prompt,
 		BrowserCapabilityVerifier: browserCapabilityVerifier,
+		WorkspaceMode:             cfg.WorkspaceMode,
 	}
 	if projectKind == domain.ProjectKindSingleRepo {
 		metadata.DiffBaseSHA, metadata.DiffBaseRef = resolveSpawnDiffBase(ctx, ws.Path, project.Config.WithDefaults().DefaultBranch)
@@ -743,6 +759,7 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 			SessionPrefix: sessionPrefix(project),
 			Branch:        branch,
 			BaseBranch:    baseBranch,
+			Mode:          cfg.WorkspaceMode,
 		})
 		return ws, nil, err
 	}
@@ -1537,7 +1554,10 @@ func (m *Manager) SaveAndTeardownAll(ctx context.Context) error {
 		if rec.IsTerminated {
 			continue
 		}
-		if rec.Metadata.WorkspacePath == "" || rec.Metadata.Branch == "" {
+		if rec.Metadata.WorkspacePath == "" {
+			continue
+		}
+		if rec.Metadata.Branch == "" && rec.Metadata.WorkspaceMode != domain.WorkspaceModeInPlace {
 			continue
 		}
 		if err := m.saveAndTeardownOne(ctx, rec, true); err != nil {
@@ -1806,6 +1826,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 				SessionPrefix: sessionPrefix(project),
 				Branch:        rec.Metadata.Branch,
 				Path:          rec.Metadata.WorkspacePath,
+				Mode:          rec.Metadata.WorkspaceMode,
 			})
 			if restoreErr != nil {
 				m.logger.Error("restore-all: workspace restore failed", "sessionID", rec.ID, "error", restoreErr)
@@ -1912,6 +1933,7 @@ func (m *Manager) restoreSessionWorkspace(ctx context.Context, project domain.Pr
 			SessionPrefix: sessionPrefix(project),
 			Branch:        rec.Metadata.Branch,
 			Path:          rec.Metadata.WorkspacePath,
+			Mode:          rec.Metadata.WorkspaceMode,
 		})
 	}
 	rows, err := m.workspaceProjectRestoreRows(ctx, project, rec)
@@ -2568,6 +2590,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		DisplayName:      cfg.DisplayName,
 		Activity:         domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		AutoInjectReview: true,
+		Metadata:         domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
 	}
 }
 
@@ -3788,6 +3811,7 @@ func workspaceInfo(rec domain.SessionRecord) ports.WorkspaceInfo {
 		SessionID: rec.ID,
 		ProjectID: rec.ProjectID,
 		RepoPath:  rec.Metadata.WorkspaceRepoPath,
+		Mode:      rec.Metadata.WorkspaceMode,
 	}
 }
 
