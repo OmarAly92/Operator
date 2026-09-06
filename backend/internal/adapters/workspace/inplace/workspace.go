@@ -73,9 +73,12 @@ func (w *Workspace) resolve(ctx context.Context, cfg ports.WorkspaceConfig) (por
 }
 
 func (w *Workspace) currentBranch(ctx context.Context, path string) (string, error) {
-	out, err := exec.CommandContext(ctx, "git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD").Output()
-	if err != nil {
+	if err := exec.CommandContext(ctx, "git", "-C", path, "rev-parse", "--git-dir").Run(); err != nil {
 		return "", fmt.Errorf("inplace workspace: %q is not a git work tree: %w", path, err)
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", path, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("inplace workspace: %q has a detached HEAD; check out a branch before starting an in-place session", path)
 	}
 	branch := strings.TrimSpace(string(out))
 	if branch == "" {

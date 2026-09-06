@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -15,6 +16,14 @@ type stubProjects struct{ rec domain.ProjectRecord }
 
 func (s stubProjects) GetProject(context.Context, string) (domain.ProjectRecord, bool, error) {
 	return s.rec, true, nil
+}
+
+func run(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
 
 func newRepo(t *testing.T) string {
@@ -132,5 +141,35 @@ func TestObserveWorkspaceReportsRealGitState(t *testing.T) {
 	}
 	if obs.Branch == "" {
 		t.Fatal("want the real branch reported, not a fabricated blank")
+	}
+}
+
+func TestCreateRejectsADetachedHead(t *testing.T) {
+	repo := newRepo(t)
+	run(t, repo, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "--allow-empty", "-m", "second")
+	run(t, repo, "checkout", "--detach", "HEAD~1")
+	w := newWorkspace(t, repo)
+	_, err := w.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "p-1", SessionID: "s-1"})
+	if err == nil {
+		t.Fatal("want an error: a detached HEAD has no branch for an in-place session to work on")
+	}
+	if strings.Contains(err.Error(), "is not a git work tree") {
+		t.Fatalf("the message must name the detached HEAD, not deny the repository: %v", err)
+	}
+}
+
+func TestCreateSucceedsOnARepositoryWithNoCommits(t *testing.T) {
+	dir := t.TempDir()
+	run(t, dir, "init")
+	w, err := New(Deps{Projects: stubProjects{rec: domain.ProjectRecord{ID: "p-1", Path: dir}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := w.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "p-1", SessionID: "s-1"})
+	if err != nil {
+		t.Fatalf("a freshly initialised repository is a valid in-place workspace: %v", err)
+	}
+	if info.Branch == "" {
+		t.Fatal("want the unborn branch name resolved")
 	}
 }
