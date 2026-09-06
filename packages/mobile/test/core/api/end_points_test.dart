@@ -10,6 +10,10 @@ void main() {
       expect(EndPoints.sessionResumeAgent('w-1'), '/api/v1/sessions/w-1/resume-agent');
     });
 
+    test('escape identifiers so a slash cannot forge a route', () {
+      expect(EndPoints.sessionAttachments('a/b'), '/api/v1/sessions/a%2Fb/attachments');
+    });
+
     test('builds the terminal paths', () {
       expect(EndPoints.shellTerminals, '/api/v1/shell-terminals');
       expect(EndPoints.shellTerminal('handle 1'), '/api/v1/shell-terminals/handle%201');

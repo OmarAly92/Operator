@@ -237,17 +237,6 @@ func runtimeSettingsArgs(dataDir, sessionID string, mode ports.PermissionMode, m
 	return []string{"--settings", path}, nil
 }
 
-// PrepareRuntimeSettingsArgs exposes the same process-scoped settings overlay
-// to Droid's native ACP binding. Keeping this here prevents Chat and TUI modes
-// from inventing different model or autonomy mappings for the same harness.
-func PrepareRuntimeSettingsArgs(
-	dataDir, sessionID string,
-	mode ports.PermissionMode,
-	model string,
-) ([]string, error) {
-	return runtimeSettingsArgs(dataDir, sessionID, mode, model)
-}
-
 // runtimeSettingsPath is the deterministic path for a session's process-scoped
 // runtime settings file, rooted under the Operator data directory rather than the OS
 // temp dir (AGENTS.md / docs/architecture.md require app state under

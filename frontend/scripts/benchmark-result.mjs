@@ -60,7 +60,6 @@ export const REQUIRED_WARMUPS = Object.freeze({
 const BINDING_ENVIRONMENT_PREFIXES = Object.freeze([
 	"OPERATOR_",
 	"AGENT_BROWSER_",
-	"ACP_",
 	"TAURI_",
 	"ELECTRON_",
 ]);

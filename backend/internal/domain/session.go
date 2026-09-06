@@ -50,10 +50,11 @@ type SessionMetadata struct {
 	// are not proven interchangeable across harnesses. No current code path
 	// populates it.
 	ProviderConversationID string `json:"providerConversationId,omitempty"`
-	// ControllerGeneration is rotated each time a Chat controller is started for
-	// this session. Events carrying an older generation are rejected, so a
-	// controller that is dying cannot mutate the session that replaced it. Not
-	// the same fence as RuntimeLaunchID, which covers terminal runtimes.
+	// ControllerGeneration is a fencing token for a runtime-less controller
+	// generation, distinct from RuntimeLaunchID which covers terminal runtimes.
+	// ApplyActivitySignal rejects a signal carrying a non-empty value here, but
+	// no current code path sets or rotates it: the field and its lifecycle
+	// check remain for wire/storage compatibility.
 	ControllerGeneration string `json:"controllerGeneration,omitempty"`
 	// PreviewURL is the browser preview target the desktop app opens for this
 	// session. Set via `opr preview` (POST /sessions/{id}/preview); persisted so

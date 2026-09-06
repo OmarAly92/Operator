@@ -126,7 +126,7 @@ function validatePlatformShape(data, platform, sourceCommit, reasons) {
       !finiteNonnegative(data.artifact.electron.downloadBytes) || !finiteNonnegative(data.artifact.electron.installedBytes) ||
       !finiteNonnegative(data.artifact.tauri.downloadBytes) || !finiteNonnegative(data.artifact.tauri.installedBytes) ||
       !/^[0-9a-f]{64}$/.test(data.artifact.electron.sha256 ?? "") || !/^[0-9a-f]{64}$/.test(data.artifact.tauri.sha256 ?? "") ||
-      data.artifact.includesACP !== true || data.artifact.includesDaemon !== true || data.artifact.includesBrowser !== true ||
+      data.artifact.includesDaemon !== true || data.artifact.includesBrowser !== true ||
       (platform === "linux" && data.artifact.rpmExists !== true)) {
     pushReason(reasons, `artifact evidence is malformed on ${platform}`);
   }
@@ -261,9 +261,6 @@ export function evaluateDecision(evidence) {
     if (!data.artifact) {
       pushReason(reasons, `missing artifact evidence on ${platform}`);
     } else {
-      if (data.artifact.includesACP !== true) {
-        pushReason(reasons, `missing ACP runtime on ${platform}`);
-      }
       if (data.artifact.includesDaemon !== true) {
         pushReason(reasons, `missing daemon on ${platform}`);
       }

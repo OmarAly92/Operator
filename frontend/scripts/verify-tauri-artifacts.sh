@@ -57,7 +57,7 @@
 # updater archive (.app.tar.gz) and the DMG, extracting each with its
 # seal-preserving tool (ditto -x -k for zips per AGENTS.md; tar for the
 # updater archive; hdiutil for DMGs) and checking the bundled daemon,
-# agent-browser, ACP runtime, licenses and icon inside EVERY one of them.
+# agent-browser, licenses and icon inside EVERY one of them.
 #
 # Exit codes: 0 all checks applicable to the declared scope passed (gates
 # recorded), 1 any FAIL (including a trust failure under --strict-trust),
