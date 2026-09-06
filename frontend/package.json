@@ -12,7 +12,6 @@
     "url": "https://github.com/OmarAly92/operator"
   },
   "scripts": {
-    "build:acp-runtime": "node ./scripts/build-acp-runtime.mjs",
     "browser-runtime:prepare": "node ./scripts/prepare-agent-browser.mjs",
     "build:daemon": "node ./scripts/build-daemon.mjs",
     "terminal:build": "npm --prefix ../packages/terminal run build",

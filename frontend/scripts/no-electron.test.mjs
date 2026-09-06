@@ -46,7 +46,6 @@ const forgePackagePattern = /^@electron-forge\//;
 const removedScripts = new Set(["dev", "predev", "package", "prepackage", "make", "premake", "publish"]);
 
 const requiredScripts = [
-	"build:acp-runtime",
 	"browser-runtime:prepare",
 	"build:daemon",
 	"check:desktop-parity",
@@ -158,7 +157,6 @@ test("repository root forwards the desktop development and preparation commands"
 		"tauri:dev": "npm --prefix frontend run tauri:dev",
 		"build:daemon": "npm --prefix frontend run build:daemon",
 		"browser-runtime:prepare": "npm --prefix frontend run browser-runtime:prepare",
-		"build:acp-runtime": "npm --prefix frontend run build:acp-runtime",
 	};
 	for (const [scriptName, command] of Object.entries(expectedForwarders)) {
 		assert.equal(manifest.scripts?.[scriptName], command, `scripts.${scriptName} must forward to frontend`);
@@ -288,10 +286,10 @@ test("tsconfig stops referencing deleted electron configs", async () => {
 	}
 });
 
-test("the tauri bundle keeps all three sidecar resource entries", async () => {
+test("the tauri bundle keeps both sidecar resource entries", async () => {
 	const conf = JSON.parse(await readFile(path.join(frontendRoot, "src-tauri/tauri.conf.json"), "utf8"));
 	const resources = conf.bundle?.resources ?? {};
-	for (const sidecar of ["daemon/", "agent-browser/", "acp-runtime/"]) {
+	for (const sidecar of ["daemon/", "agent-browser/"]) {
 		assert.ok(Object.values(resources).includes(sidecar), `bundle.resources must map onto ${sidecar}`);
 	}
 });

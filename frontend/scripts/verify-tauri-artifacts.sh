@@ -337,12 +337,12 @@ check_sig_sidecar() {
 
 check_bundle_resources() {
 	local bundle="$1" origin="$2"
-	for resource in daemon agent-browser acp-runtime; do
+	for resource in daemon agent-browser; do
 		if [[ -d "$bundle/Contents/Resources/$resource" ]] &&
 			[[ -n "$(ls -A "$bundle/Contents/Resources/$resource" 2>/dev/null)" ]]; then
 			pass "$origin bundles Resources/$resource"
 		else
-			fail "$origin is missing Resources/$resource (daemon/agent-browser/ACP runtime are not droppable)"
+			fail "$origin is missing Resources/$resource (daemon/agent-browser are not droppable)"
 		fi
 	done
 	# License notices ship inside the bundled resources (e.g.
@@ -676,7 +676,7 @@ if [[ "$PLATFORM" == "linux" ]]; then
 		: # absence already failed above; nothing left to inspect
 	elif command -v dpkg-deb >/dev/null 2>&1; then
 		LISTING=$(dpkg-deb -c "$DEB_DIR/$DEB_NAME")
-		for member in "usr/bin/operator" "daemon" "agent-browser" "acp-runtime" "LICENSE"; do
+		for member in "usr/bin/operator" "daemon" "agent-browser" "LICENSE"; do
 			if printf '%s' "$LISTING" | grep -q "$member"; then
 				pass "deb packages $member"
 			else

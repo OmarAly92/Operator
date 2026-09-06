@@ -529,7 +529,7 @@ test("the results collector still refuses unrecognized evidence files dropped in
 	const root = await mkdtemp(path.join(os.tmpdir(), "operator-phase0-summary-unknown-"));
 	try {
 		const tree = await buildValidEvidenceTree(root);
-		await writeFile(path.join(tree.resultsDir, "acp-runtime-manifest.json"), `${JSON.stringify({ someDependencyManifest: true })}\n`);
+		await writeFile(path.join(tree.resultsDir, "dependency-manifest.json"), `${JSON.stringify({ someDependencyManifest: true })}\n`);
 		await assert.rejects(() => derivePlatformSummary(tree), /is not a recognized evidence file/);
 	} finally {
 		await rm(root, { recursive: true, force: true });

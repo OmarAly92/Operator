@@ -55,28 +55,16 @@ async function createMacReleaseFixture(temporaryRoot) {
 	const resources = path.join(installedApp, "Contents", "Resources");
 	const daemon = path.join(resources, "daemon", "opr");
 	const agentBrowser = path.join(resources, "agent-browser", "agent-browser");
-	const node = path.join(resources, "acp-runtime", "node", "bin", "node");
-	const adapterRoot = path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp");
-	const adapter = path.join(adapterRoot, "dist", "index.js");
 	await writeFile(artifact, "signed-release");
 	for (const [target, source] of [
 		[executable, "process.stdout.write('Operator desktop\\n');"],
 		[daemon, "process.stdout.write(process.argv.includes('version') ? '1.2.3\\n' : 'Operator opr\\n');"],
 		[agentBrowser, "process.stdout.write('agent-browser 0.33.1\\n');"],
-		[node, "if (process.argv[2]?.endsWith('dist/index.js')) { const { status } = require('node:child_process').spawnSync(process.execPath, process.argv.slice(2), { stdio: 'inherit' }); process.exit(status ?? 1); } process.stdout.write('v22.23.2\\n');"],
 	]) {
 		await mkdir(path.dirname(target), { recursive: true });
 		await writeFile(target, `#!/usr/bin/env node\n${source}\n`);
 		await chmod(target, 0o755);
 	}
-	await mkdir(path.dirname(adapter), { recursive: true });
-	await writeFile(adapter, "if (process.argv.includes('--version')) process.stdout.write('0.64.2\\n');\n");
-	await writeFile(path.join(adapterRoot, "package.json"), JSON.stringify({
-		name: "@agentclientprotocol/claude-agent-acp",
-		version: "0.64.2",
-		bin: { "claude-agent-acp": "dist/index.js" },
-	}));
-	await writeFile(path.join(resources, "acp-runtime", "package.json"), JSON.stringify({ name: "@operator-dev/acp-runtime", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.64.2" } }));
 	return { artifact, installedApp };
 }
 
@@ -789,8 +777,6 @@ test("artifact preflight verifies signed identity, packaged contents, and runtim
 		assert.deepEqual(preflight.components, {
 			daemon: "opr 1.2.3",
 			agentBrowser: "agent-browser 0.33.1",
-			node: "v22.23.2",
-			acp: "@agentclientprotocol/claude-agent-acp 0.64.2",
 		});
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
@@ -903,41 +889,6 @@ test("artifact preflight rejects expected-path files with false component identi
 				},
 			),
 			/agent-browser 0\.33\.1/,
-		);
-	} finally {
-		await rm(temporaryRoot, { recursive: true, force: true });
-	}
-});
-
-test("artifact preflight rejects an ACP package whose executable mapping is not the packaged adapter", async () => {
-	const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
-	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-acp-refusal-"));
-	try {
-		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
-		const acpPackage = path.join(installedApp, "Contents", "Resources", "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "package.json");
-		await writeFile(acpPackage, JSON.stringify({
-			name: "@agentclientprotocol/claude-agent-acp",
-			version: "0.64.2",
-			bin: { "claude-agent-acp": "dist/other.js" },
-		}));
-		await assert.rejects(
-			preflightArtifactBenchmark(
-				{ shell: "electron", signedArtifact: artifact, installedApp },
-				{
-					platform: "darwin",
-					trustAnchor: releaseTrustAnchor(),
-					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
-					verifyArtifactBinding: async () => {},
-					collectRuntimeMetadata: async () => ({
-						source: "installed-release-launch",
-						architecture: process.arch,
-						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
-						rendererKind: "chromium",
-						displayScale: 2,
-					}),
-				},
-			),
-			/ACP adapter executable/,
 		);
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
@@ -1070,38 +1021,6 @@ test("artifact preflight pins the installed Electron and Chromium runtime versio
 				/expected Electron 33\.4\.11 and Chromium 130\.0\.6723\.191/,
 			);
 		}
-	} finally {
-		await rm(temporaryRoot, { recursive: true, force: true });
-	}
-});
-
-test("artifact preflight executes the packaged ACP adapter with the packaged Node runtime", async () => {
-	const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
-	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "operator-benchmark-acp-version-"));
-	try {
-		const { artifact, installedApp } = await createMacReleaseFixture(temporaryRoot);
-		const adapter = path.join(installedApp, "Contents", "Resources", "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js");
-		await writeFile(adapter, "process.stdout.write('0.64.3\\n');\n");
-		await assert.rejects(
-			preflightArtifactBenchmark(
-				{ shell: "electron", signedArtifact: artifact, installedApp },
-				{
-					platform: "darwin",
-					trustAnchor: releaseTrustAnchor(),
-					verifySignature: async () => ({ identity: "Developer ID Application: Operator", teamId: "TEAM123456" }),
-					verifyArtifactBinding: async () => {},
-					collectRuntimeMetadata: async () => ({
-						source: "installed-release-launch",
-						architecture: process.arch,
-						applicationVersion: "1.2.3",
-						webviewRuntimeVersion: "Electron 33.4.11 / Chromium 130.0.6723.191",
-						rendererKind: "chromium",
-						displayScale: 2,
-					}),
-				},
-			),
-			/ACP executable must report exactly 0\.64\.2/,
-		);
 	} finally {
 		await rm(temporaryRoot, { recursive: true, force: true });
 	}
@@ -1619,16 +1538,11 @@ test("tauri artifact preflight extracts discovers and verifies the bundled compo
 			[executable, "process.stdout.write('operator 0.10.3\\n');"],
 			[path.join(resources, "daemon", "opr"), "process.stdout.write(process.argv.includes('version') ? '0.10.3\\n' : 'Operator opr\\n');"],
 			[path.join(resources, "agent-browser", "agent-browser"), "process.stdout.write('agent-browser 0.33.1\\n');"],
-			[path.join(resources, "acp-runtime", "node", "bin", "node"), "if (process.argv[2]?.endsWith('dist/index.js')) { const { status } = require('node:child_process').spawnSync(process.execPath, process.argv.slice(2), { stdio: 'inherit' }); process.exit(status ?? 1); } process.stdout.write('v22.23.2\\n');"],
 		]) {
 			await mkdir(path.dirname(target), { recursive: true });
 			await writeFile(target, `#!/usr/bin/env node\n${source}\n`);
 			await chmod(target, 0o755);
 		}
-		await mkdir(path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist"), { recursive: true });
-		await writeFile(path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js"), "if (process.argv.includes('--version')) process.stdout.write('0.64.2\\n');\n");
-		await writeFile(path.join(resources, "acp-runtime", "node_modules", "@agentclientprotocol", "claude-agent-acp", "package.json"), JSON.stringify({ name: "@agentclientprotocol/claude-agent-acp", version: "0.64.2", bin: { "claude-agent-acp": "dist/index.js" } }));
-		await writeFile(path.join(resources, "acp-runtime", "package.json"), JSON.stringify({ name: "@operator-dev/acp-runtime", dependencies: { "@agentclientprotocol/claude-agent-acp": "0.64.2" } }));
 
 		const { preflightArtifactBenchmark } = await import("./benchmark-artifact.mjs");
 		const preflight = await preflightArtifactBenchmark({
@@ -1646,9 +1560,6 @@ test("tauri artifact preflight extracts discovers and verifies the bundled compo
 			}),
 			commandOutput: async (file_, args_) => {
 				const stdout = (() => {
-					if (String(file_).includes(`acp-runtime${path.sep}node`) || String(file_).includes("acp-runtime/node")) {
-						return args_?.[0]?.endsWith("dist/index.js") ? "0.64.2" : "v22.23.2";
-					}
 					if (String(file_).endsWith("agent-browser")) return "agent-browser 0.33.1";
 					if (String(file_).endsWith("opr")) return args_?.includes("--help") ? "Operator opr" : "0.10.3";
 					if (args_?.[0] === "--version") return "operator 0.10.3";
