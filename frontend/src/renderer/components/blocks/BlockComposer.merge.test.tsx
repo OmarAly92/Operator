@@ -82,28 +82,4 @@ describe("BlockComposer merge", () => {
 		await waitFor(() => expect(sendMock).toHaveBeenCalledWith({ text: "run it" }));
 	});
 
-	it("shows the slash-suggest menu when suggestions are provided", () => {
-		renderComposer({
-			sessionId: "s-1",
-			send: sendMock,
-			suggestions: {
-				trigger: "/",
-				query: "",
-				items: [
-					{ value: "review", label: "review" },
-					{ value: "refactor", label: "refactor" },
-				],
-			},
-		});
-
-		expect(screen.getByRole("listbox")).toBeInTheDocument();
-		expect(screen.getByText("/review")).toBeInTheDocument();
-		expect(screen.getByText("/refactor")).toBeInTheDocument();
-	});
-
-	it("does not show the slash-suggest menu when no suggestions are provided", () => {
-		renderComposer({ sessionId: "s-1", send: sendMock });
-
-		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-	});
 });

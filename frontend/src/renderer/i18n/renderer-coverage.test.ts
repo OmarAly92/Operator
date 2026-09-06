@@ -36,17 +36,7 @@ const approvedLiterals: Record<string, readonly string[]> = {
 	"components/settings/UpdatesSection.tsx": ["PR #"],
 };
 
-// The Chat surface predates this coverage gate and is intentionally being
-// localized as a follow-up. Keep the deferral scoped to the new surface so
-// hardcoded chrome elsewhere in the renderer still fails this test.
-const deferredLocalizationFiles = new Set([
-	"components/chat/ChatComposer.tsx",
-	"components/chat/ChatStatusBanners.tsx",
-	"components/chat/ComposerSuggestMenu.tsx",
-	"components/chat/ContextMeter.tsx",
-	"components/chat/ElicitationCard.tsx",
-	"components/chat/TurnSettingsBar.tsx",
-]);
+const deferredLocalizationFiles = new Set<string>([]);
 
 function rendererFiles(directory: string): string[] {
 	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
