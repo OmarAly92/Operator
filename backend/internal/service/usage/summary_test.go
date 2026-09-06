@@ -18,7 +18,9 @@ type usageSummaryStoreStub struct {
 	context    domain.SessionContext
 	hasContext bool
 	rollup     []domain.UsageRollupBucket
-	calls      [6]int
+	quota      domain.UsageQuota
+	hasQuota   bool
+	calls      [7]int
 }
 
 func (s *usageSummaryStoreStub) ListCompactSessionUsage(_ context.Context, id domain.ProjectID) ([]domain.CompactSessionUsage, error) {
@@ -44,6 +46,10 @@ func (s *usageSummaryStoreStub) GetSessionContext(context.Context, domain.Sessio
 func (s *usageSummaryStoreStub) UsageRollup(context.Context, time.Time, time.Time, string) ([]domain.UsageRollupBucket, error) {
 	s.calls[5]++
 	return s.rollup, nil
+}
+func (s *usageSummaryStoreStub) GetUsageQuota(context.Context) (domain.UsageQuota, bool, error) {
+	s.calls[6]++
+	return s.quota, s.hasQuota, nil
 }
 
 func TestSummaryReaderListCompactUsesOneBatchRead(t *testing.T) {
@@ -94,7 +100,7 @@ func TestSummaryReaderGetAggregatesModelsAndIntegrity(t *testing.T) {
 	if len(got.Harnesses) != 2 || got.Harnesses[0].Models[0].ModelID != "gpt-5.6" {
 		t.Fatalf("harnesses = %+v", got.Harnesses)
 	}
-	if store.calls != [6]int{0, 1, 1, 1, 1, 0} {
+	if store.calls != [7]int{0, 1, 1, 1, 1, 0, 0} {
 		t.Fatalf("store calls = %v", store.calls)
 	}
 }
@@ -137,5 +143,29 @@ func TestSummaryReaderGetReturnsUnavailableMetricsWithoutEvents(t *testing.T) {
 	mustNoError(t, err)
 	if got.Totals.InputTokens != nil || got.Totals.OutputTokens != nil || len(got.Harnesses) != 0 {
 		t.Fatalf("empty usage = %+v", got)
+	}
+}
+
+func TestSummaryReaderQuotaPassesThroughTheStore(t *testing.T) {
+	want := domain.UsageQuota{
+		LimitID: "codex", Harness: "codex", PlanType: "plus",
+		Primary: &domain.UsageQuotaWindow{UsedPercent: 77, WindowMinutes: 300},
+	}
+	store := &usageSummaryStoreStub{quota: want, hasQuota: true}
+	got, ok, err := NewSummaryReader(store).Quota(context.Background())
+	mustNoError(t, err)
+	if !ok || got.LimitID != "codex" || got.Primary == nil || got.Primary.UsedPercent != 77 {
+		t.Fatalf("quota = %+v, ok = %v", got, ok)
+	}
+	if store.calls[6] != 1 {
+		t.Fatalf("quota calls = %d, want 1", store.calls[6])
+	}
+}
+
+func TestSummaryReaderQuotaReportsAbsence(t *testing.T) {
+	_, ok, err := NewSummaryReader(&usageSummaryStoreStub{}).Quota(context.Background())
+	mustNoError(t, err)
+	if ok {
+		t.Fatal("want ok = false when quota was never observed")
 	}
 }

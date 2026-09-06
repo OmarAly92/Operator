@@ -25,6 +25,8 @@ type fakeUsageSummaryService struct {
 	rollupFrom   time.Time
 	rollupTo     time.Time
 	rollupBucket string
+	quota        domain.UsageQuota
+	hasQuota     bool
 	err          error
 }
 
@@ -43,6 +45,10 @@ func (f *fakeUsageSummaryService) Rollup(_ context.Context, from, to time.Time, 
 	f.rollupTo = to
 	f.rollupBucket = bucket
 	return f.rollup, f.err
+}
+
+func (f *fakeUsageSummaryService) Quota(context.Context) (domain.UsageQuota, bool, error) {
+	return f.quota, f.hasQuota, f.err
 }
 
 func newUsageTestServer(t *testing.T, svc *fakeUsageSummaryService) *httptest.Server {
@@ -228,6 +234,54 @@ func TestRollupRejectsInvalidRange(t *testing.T) {
 			body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/usage/rollup?bucket=day&days="+test.days, "")
 			assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_RANGE")
 		})
+	}
+}
+
+func TestQuotaMarksARolledWindowStale(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	svc := &fakeUsageSummaryService{
+		quota: domain.UsageQuota{
+			LimitID: "codex", Harness: "codex", PlanType: "plus",
+			ObservedAt: past.Add(-time.Hour),
+			Primary:    &domain.UsageQuotaWindow{UsedPercent: 77, WindowMinutes: 300, ResetsAt: past},
+		},
+		hasQuota: true,
+	}
+	srv := newUsageTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/usage/quota", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", status, body)
+	}
+	var got struct {
+		Quota *struct {
+			Windows []struct {
+				Stale bool `json:"stale"`
+			} `json:"windows"`
+		} `json:"quota"`
+	}
+	mustJSON(t, body, &got)
+	if got.Quota == nil || len(got.Quota.Windows) != 1 {
+		t.Fatalf("quota = %+v", got.Quota)
+	}
+	if !got.Quota.Windows[0].Stale {
+		t.Fatal("a window whose resetsAt has passed must be reported stale")
+	}
+}
+
+func TestQuotaReturnsNullWhenNeverObserved(t *testing.T) {
+	srv := newUsageTestServer(t, &fakeUsageSummaryService{hasQuota: false})
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/usage/quota", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200 with a null quota rather than an error; body=%s", status, body)
+	}
+	var got struct {
+		Quota *struct{} `json:"quota"`
+	}
+	mustJSON(t, body, &got)
+	if got.Quota != nil {
+		t.Fatal("want null so the client can say 'not observed' rather than 0%")
 	}
 }
 

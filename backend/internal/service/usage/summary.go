@@ -16,6 +16,7 @@ type usageSummaryStore interface {
 	GetUsageSessionIncomplete(context.Context, domain.SessionID) (bool, error)
 	GetSessionContext(context.Context, domain.SessionID) (domain.SessionContext, bool, error)
 	UsageRollup(context.Context, time.Time, time.Time, string) ([]domain.UsageRollupBucket, error)
+	GetUsageQuota(context.Context) (domain.UsageQuota, bool, error)
 }
 
 // SummaryReader derives token summaries from normalized usage events.
@@ -73,6 +74,15 @@ func (r *SummaryReader) Rollup(ctx context.Context, from, to time.Time, bucket s
 		return nil, fmt.Errorf("unsupported usage rollup bucket %q", bucket)
 	}
 	return r.store.UsageRollup(ctx, from, to, bucket)
+}
+
+// Quota returns the account's latest Codex quota position, when one has ever
+// been observed.
+func (r *SummaryReader) Quota(ctx context.Context) (domain.UsageQuota, bool, error) {
+	if r == nil || r.store == nil {
+		return domain.UsageQuota{}, false, fmt.Errorf("usage summary store is unavailable")
+	}
+	return r.store.GetUsageQuota(ctx)
 }
 
 func usageTotals(models []domain.UsageModelAggregate) domain.UsageMetricTotals {

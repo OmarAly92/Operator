@@ -303,6 +303,9 @@ var schemaNames = map[string]string{
 	"ControllersUsageRollupBucketResponse":          "UsageRollupBucketResponse",
 	"ControllersUsageRollupResponse":                "UsageRollupResponse",
 	"ControllersSessionUsageResponse":               "SessionUsageResponse",
+	"ControllersUsageQuotaWindowResponse":           "UsageQuotaWindowResponse",
+	"ControllersUsageQuotaResponse":                 "UsageQuotaResponse",
+	"ControllersUsageQuotaEnvelope":                 "UsageQuotaEnvelope",
 	// httpd/controllers — standalone shell terminal wire envelopes
 	"ControllersShellTerminalHandleIDParam": "ShellTerminalHandleIDParam",
 	"ControllersOpenShellTerminalRequest":   "OpenShellTerminalRequest",
@@ -538,6 +541,15 @@ func usageOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.UsageRollupResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/usage/quota", id: "getUsageQuota", tag: "usage",
+			summary: "Get the account's latest Codex quota position",
+			resps: []respUnit{
+				{http.StatusOK, controllers.UsageQuotaEnvelope{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

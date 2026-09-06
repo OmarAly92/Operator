@@ -75,6 +75,32 @@ func TestIngestorPersistsRootCodexSessionContext(t *testing.T) {
 	}
 }
 
+func TestIngestorPersistsQuotaFromAnInfolessRateLimitEvent(t *testing.T) {
+	ctx := context.Background()
+	store, source, path, now := seedCodexIngestionSource(t, t.TempDir())
+	content := string(codexRateLimitLine(t, "2026-09-05T16:29:43Z", 77.0, 1788636235)) + "\n"
+	mustNoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+	ingestor := NewIngestor(store, IngestorConfig{Clock: func() time.Time { return now }})
+	if _, err := ingestor.Ingest(ctx, source.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := store.GetUsageQuota(ctx)
+	if err != nil || !ok {
+		t.Fatalf("get usage quota: ok=%v err=%v", ok, err)
+	}
+	if got.LimitID != "codex" || got.PlanType != "plus" {
+		t.Fatalf("limit/plan = %q/%q, want codex/plus", got.LimitID, got.PlanType)
+	}
+	if got.Primary == nil || got.Primary.UsedPercent != 77 || got.Primary.WindowMinutes != 300 {
+		t.Fatalf("primary = %+v, want 77%% over a 300-minute window", got.Primary)
+	}
+	if got.Secondary == nil || got.Secondary.UsedPercent != 12 || got.Secondary.WindowMinutes != 10080 {
+		t.Fatalf("secondary = %+v, want 12%% over a 10080-minute window", got.Secondary)
+	}
+}
+
 func TestIngestorRejectsInvalidPersistedParserStateWithoutAdvancing(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -1022,12 +1048,13 @@ func (s *applyInterleavingStore) ApplyUsageChunkWithContext(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 	sessionContext *domain.SessionContext,
+	quota *domain.UsageQuota,
 ) error {
 	if beforeApply := s.beforeApply; beforeApply != nil {
 		s.beforeApply = nil
 		beforeApply()
 	}
-	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
+	return s.Store.ApplyUsageChunkWithContext(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext, quota)
 }
 
 func assertTokenAggregate(t *testing.T, store *sqlite.Store, sessionID domain.SessionID, total int64) {

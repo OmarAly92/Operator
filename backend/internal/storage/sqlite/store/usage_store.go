@@ -359,7 +359,7 @@ func (s *Store) ApplyUsageChunk(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 ) error {
-	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, nil)
+	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, nil, nil)
 }
 
 func (s *Store) ApplyUsageChunkWithContext(
@@ -369,8 +369,9 @@ func (s *Store) ApplyUsageChunkWithContext(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 	sessionContext *domain.SessionContext,
+	quota *domain.UsageQuota,
 ) error {
-	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext)
+	return s.applyUsageChunk(ctx, sourceID, expectedOffset, expectedRevision, nextState, events, sessionContext, quota)
 }
 
 func (s *Store) applyUsageChunk(
@@ -380,6 +381,7 @@ func (s *Store) applyUsageChunk(
 	nextState domain.SourceCursorState,
 	events []domain.ModelUsageEvent,
 	sessionContext *domain.SessionContext,
+	quota *domain.UsageQuota,
 ) error {
 	if nextState.ParserStateJSON != "" {
 		if err := validateParserStateObject(nextState.ParserStateJSON); err != nil {
@@ -446,7 +448,12 @@ func (s *Store) applyUsageChunk(
 			}
 		}
 		if sessionContext != nil {
-			return saveSessionContext(ctx, q, source.BindingID, *sessionContext)
+			if err := saveSessionContext(ctx, q, source.BindingID, *sessionContext); err != nil {
+				return err
+			}
+		}
+		if quota != nil {
+			return saveUsageQuota(ctx, q, *quota)
 		}
 		return nil
 	})
@@ -504,6 +511,93 @@ func (s *Store) GetSessionContext(ctx context.Context, sessionID domain.SessionI
 		Window:     row.ContextWindow,
 		ObservedAt: row.ContextAt.Time.UTC(),
 	}, true, nil
+}
+
+// SaveUsageQuota upserts the account's quota position, keyed on limit_id.
+// Newest observation wins at the SQL level (see usage_quota.sql); a stale
+// reading arriving late is silently dropped rather than overwriting a newer one.
+func (s *Store) SaveUsageQuota(ctx context.Context, q domain.UsageQuota) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return saveUsageQuota(ctx, s.qw, q)
+}
+
+func saveUsageQuota(ctx context.Context, queries *gen.Queries, q domain.UsageQuota) error {
+	err := queries.UpsertUsageQuota(ctx, gen.UpsertUsageQuotaParams{
+		LimitID:                q.LimitID,
+		Harness:                q.Harness,
+		PlanType:               q.PlanType,
+		ObservedAt:             q.ObservedAt.UTC(),
+		PrimaryUsedPercent:     usageQuotaWindowUsedPercent(q.Primary),
+		PrimaryWindowMinutes:   usageQuotaWindowMinutes(q.Primary),
+		PrimaryResetsAt:        usageQuotaWindowResetsAt(q.Primary),
+		SecondaryUsedPercent:   usageQuotaWindowUsedPercent(q.Secondary),
+		SecondaryWindowMinutes: usageQuotaWindowMinutes(q.Secondary),
+		SecondaryResetsAt:      usageQuotaWindowResetsAt(q.Secondary),
+	})
+	if err != nil {
+		return fmt.Errorf("save usage quota for limit %q: %w", q.LimitID, err)
+	}
+	return nil
+}
+
+// GetUsageQuota returns the newest quota observation across every limit id.
+func (s *Store) GetUsageQuota(ctx context.Context) (domain.UsageQuota, bool, error) {
+	row, err := s.qr.GetLatestUsageQuota(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.UsageQuota{}, false, nil
+	}
+	if err != nil {
+		return domain.UsageQuota{}, false, fmt.Errorf("get usage quota: %w", err)
+	}
+	return usageQuotaFromGen(row), true, nil
+}
+
+func usageQuotaFromGen(row gen.UsageQuotum) domain.UsageQuota {
+	return domain.UsageQuota{
+		LimitID:    row.LimitID,
+		Harness:    row.Harness,
+		PlanType:   row.PlanType,
+		ObservedAt: row.ObservedAt.UTC(),
+		Primary: usageQuotaWindowFromGen(
+			row.PrimaryUsedPercent, row.PrimaryWindowMinutes, row.PrimaryResetsAt,
+		),
+		Secondary: usageQuotaWindowFromGen(
+			row.SecondaryUsedPercent, row.SecondaryWindowMinutes, row.SecondaryResetsAt,
+		),
+	}
+}
+
+func usageQuotaWindowFromGen(usedPercent sql.NullFloat64, windowMinutes sql.NullInt64, resetsAt sql.NullTime) *domain.UsageQuotaWindow {
+	if !usedPercent.Valid || !windowMinutes.Valid {
+		return nil
+	}
+	return &domain.UsageQuotaWindow{
+		UsedPercent:   usedPercent.Float64,
+		WindowMinutes: int(windowMinutes.Int64),
+		ResetsAt:      resetsAt.Time.UTC(),
+	}
+}
+
+func usageQuotaWindowUsedPercent(w *domain.UsageQuotaWindow) sql.NullFloat64 {
+	if w == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: w.UsedPercent, Valid: true}
+}
+
+func usageQuotaWindowMinutes(w *domain.UsageQuotaWindow) sql.NullInt64 {
+	if w == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(w.WindowMinutes), Valid: true}
+}
+
+func usageQuotaWindowResetsAt(w *domain.UsageQuotaWindow) sql.NullTime {
+	if w == nil {
+		return sql.NullTime{}
+	}
+	return ptrTimeToNullTime(&w.ResetsAt)
 }
 
 func (s *Store) UsageRollup(ctx context.Context, from, to time.Time, bucket string) ([]domain.UsageRollupBucket, error) {

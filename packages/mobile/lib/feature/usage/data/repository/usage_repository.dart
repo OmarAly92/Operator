@@ -1,6 +1,7 @@
 import 'package:operator_mobile/feature/usage/data/data_source/usage_remote_data_source.dart';
 import 'package:operator_mobile/feature/usage/data/model/params/usage_rollup_params.dart';
 import 'package:operator_mobile/feature/usage/data/model/session_context_model.dart';
+import 'package:operator_mobile/feature/usage/data/model/usage_quota_model.dart';
 import 'package:operator_mobile/feature/usage/data/model/usage_rollup_model.dart';
 
 class UsageRepository {
@@ -18,5 +19,12 @@ class UsageRepository {
   Future<UsageRollupModel> rollup(UsageRollupParams params) async {
     final response = await _remoteDataSource.rollup(params);
     return response.data ?? const UsageRollupModel();
+  }
+
+  Future<UsageQuotaModel?> quota() async {
+    final response = await _remoteDataSource.quota();
+    final quota = response.data?['quota'];
+    if (quota is! Map) return null;
+    return UsageQuotaModel.fromJson(Map<String, dynamic>.from(quota));
   }
 }

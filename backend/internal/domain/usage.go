@@ -127,6 +127,36 @@ type ModelUsageEvent struct {
 	OccurredAt     time.Time
 }
 
+// UsageQuotaWindow is one rate-limit window as the provider reported it.
+// UsedPercent arrives pre-computed; there is no limit value to divide by.
+type UsageQuotaWindow struct {
+	UsedPercent   float64
+	WindowMinutes int
+	ResetsAt      time.Time
+}
+
+// IsStale reports that the window has rolled over since this reading, which
+// makes UsedPercent meaningless rather than merely old. Quota is only observed
+// while a Codex session runs, so a reading can outlive its window by days.
+func (w UsageQuotaWindow) IsStale(now time.Time) bool {
+	return !w.ResetsAt.IsZero() && now.After(w.ResetsAt)
+}
+
+// UsageQuota is the account's position, not a session's. Every Codex rollout
+// reports the same counter.
+type UsageQuota struct {
+	LimitID    string
+	Harness    string
+	PlanType   string
+	ObservedAt time.Time
+	Primary    *UsageQuotaWindow
+	Secondary  *UsageQuotaWindow
+}
+
+// IsEmpty reports an observation carrying no window at all, which Codex emits
+// under some limit ids and which is not worth storing.
+func (q UsageQuota) IsEmpty() bool { return q.Primary == nil && q.Secondary == nil }
+
 type SessionContext struct {
 	Harness    string
 	ModelID    string

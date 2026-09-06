@@ -7,6 +7,7 @@ import 'package:operator_mobile/feature/usage/data/model/usage_rollup_model.dart
 abstract class UsageRemoteDataSource {
   Future<GlobalResponse<Map<String, dynamic>>> sessionContext(String sessionId);
   Future<GlobalResponse<UsageRollupModel>> rollup(UsageRollupParams params);
+  Future<GlobalResponse<Map<String, dynamic>>> quota();
 }
 
 class UsageRemoteDataSourceImp implements UsageRemoteDataSource {
@@ -38,6 +39,16 @@ class UsageRemoteDataSourceImp implements UsageRemoteDataSource {
       Map<String, dynamic>.from(response.data as Map),
       withDataKey: false,
       fromJsonT: UsageRollupModel.fromJson,
+    );
+  }
+
+  @override
+  Future<GlobalResponse<Map<String, dynamic>>> quota() async {
+    final response = await _apiConsumer.get(EndPoints.usageQuota);
+    return GlobalResponse<Map<String, dynamic>>.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+      withDataKey: false,
+      fromJsonT: (json) => json,
     );
   }
 }
