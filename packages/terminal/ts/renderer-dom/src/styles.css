@@ -241,6 +241,25 @@
 	color: inherit;
 }
 
+/* Block elements (U+2580..U+259F) are drawn as cell-filling rectangles rather
+   than from the font. A font glyph fills one em, the row box is line-height,
+   and CSS splits the difference as half-leading -- so stacked blocks show a
+   seam on every row. Warp draws its box-drawing range procedurally for the
+   same reason (grid_renderer/box_drawing.rs, BoxDrawingGlyphs). The character
+   stays in the DOM, transparent, so selection and copy still see it. */
+.terminal-block-glyph {
+	position: relative;
+	display: inline-block;
+	vertical-align: top;
+	height: var(--terminal-line-height);
+	color: transparent;
+	letter-spacing: 0;
+}
+
+.terminal-block-glyph > i {
+	position: absolute;
+}
+
 .terminal-block-actions {
 	position: absolute;
 	top: 4px;

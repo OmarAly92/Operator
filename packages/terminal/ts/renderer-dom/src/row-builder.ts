@@ -1,4 +1,5 @@
 import { STYLE_RUN_WORDS } from "@operator/terminal-core";
+import { blockGlyph, type BlockGlyph, isFullBlock } from "./block-glyphs.js";
 import {
 	styleCodeIsBold,
 	styleCodeIsDim,
@@ -42,7 +43,8 @@ export function buildRowNode(
 		const run = document.createElement("span");
 		run.dataset.terminalRun = String(pairIndex);
 		run.className = CLASS_RUN;
-		run.style.color = styleCodeToCssVar(styleCode);
+		const foreground = styleCodeToCssVar(styleCode);
+		run.style.color = foreground;
 		const background = styleCodeToBackgroundCss(backgroundCode);
 		if (background !== null) {
 			run.style.backgroundColor = background;
@@ -53,13 +55,63 @@ export function buildRowNode(
 		if (styleCodeIsDim(styleCode)) {
 			run.style.opacity = "0.55";
 		}
-		run.textContent = decoder.decode(slice);
+		appendRunText(run, decoder.decode(slice), foreground);
 		rowNode.append(run);
 		rowCursor = pairRunEnd;
 	}
 	if (rowCursor < rowLength) {
 		const tail = content.subarray(rowContentStart + rowCursor, rowContentStart + rowLength);
-		rowNode.append(document.createTextNode(decoder.decode(tail)));
+		appendRunText(rowNode, decoder.decode(tail), "var(--terminal-foreground)");
 	}
 	return rowNode;
+}
+
+export const CLASS_GLYPH = "terminal-block-glyph";
+
+const BLOCK_GLYPH_PATTERN = /[\u2580-\u259f]/;
+
+function appendRunText(run: HTMLElement, text: string, foreground: string): void {
+	if (!BLOCK_GLYPH_PATTERN.test(text)) {
+		run.append(text);
+		return;
+	}
+	let plain = "";
+	for (const character of text) {
+		const glyph = blockGlyph(character.codePointAt(0) ?? 0);
+		if (glyph === null) {
+			plain += character;
+			continue;
+		}
+		if (plain !== "") {
+			run.append(document.createTextNode(plain));
+			plain = "";
+		}
+		run.append(glyphNode(character, glyph, foreground));
+	}
+	if (plain !== "") {
+		run.append(document.createTextNode(plain));
+	}
+}
+
+function glyphNode(character: string, glyph: BlockGlyph, foreground: string): HTMLElement {
+	const node = document.createElement("span");
+	node.className = CLASS_GLYPH;
+	node.textContent = character;
+	if (glyph.opacity !== 1) {
+		node.style.opacity = String(glyph.opacity);
+	}
+	if (isFullBlock(glyph)) {
+		node.style.background = foreground;
+		return node;
+	}
+	for (const rect of glyph.rects) {
+		const fill = document.createElement("i");
+		fill.style.left = `${rect.x}%`;
+		fill.style.top = `${rect.y}%`;
+		fill.style.width = `${rect.width}%`;
+		fill.style.height = `${rect.height}%`;
+		fill.style.background = foreground;
+		node.append(fill);
+	}
+	return node;
 }

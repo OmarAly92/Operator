@@ -17,6 +17,13 @@ Background colours reach the renderer.
   the theme background.
 - The DOM renderer paints `background-color` per run, leaving the default
   background unset so the terminal's own ground shows through.
+- Block elements (`U+2580..U+259F`) are drawn as cell-filling rectangles rather
+  than from the font. A font glyph fills one em while the row box is
+  `line-height`, and CSS spends the difference as half-leading, so stacked
+  blocks showed a seam on every row -- visible as a sliced-up Claude Code logo.
+  Warp draws its own box-drawing range procedurally for the same reason
+  (`grid_renderer/box_drawing.rs`). The character stays in the DOM, transparent,
+  so selection and copy are unchanged.
 
 ## 0.3.0 - 2026-08-30
 
