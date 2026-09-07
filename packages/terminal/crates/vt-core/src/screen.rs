@@ -7,7 +7,7 @@ pub use snapshot::AltSnapshot;
 
 use unicode_width::UnicodeWidthChar;
 
-use crate::style::StyleCode;
+use crate::style::{CellStyle, StyleCode};
 
 pub const MAX_DIMENSION: usize = 1000;
 
@@ -29,7 +29,7 @@ pub const MAX_GRAPHEME_BYTES: usize = 256;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
-    pub style: StyleCode,
+    pub style: CellStyle,
     #[allow(clippy::box_collection)]
     extra: Option<Box<String>>,
 }
@@ -37,11 +37,19 @@ pub struct Cell {
 impl Cell {
     pub const BLANK: Self = Self {
         ch: ' ',
-        style: StyleCode::DEFAULT,
+        style: CellStyle::DEFAULT,
         extra: None,
     };
 
-    pub const fn new(ch: char, style: StyleCode) -> Self {
+    pub const fn blank_with_background(bg: StyleCode) -> Self {
+        Self {
+            ch: ' ',
+            style: CellStyle::new(StyleCode::DEFAULT, bg),
+            extra: None,
+        }
+    }
+
+    pub const fn new(ch: char, style: CellStyle) -> Self {
         Self {
             ch,
             style,
@@ -57,7 +65,7 @@ impl Cell {
     }
 
     pub fn is_blank(&self) -> bool {
-        matches!(self.ch, ' ' | '\0') && self.extra.is_none()
+        matches!(self.ch, ' ' | '\0') && self.extra.is_none() && self.style.is_default_paint()
     }
 
     pub(crate) fn push_zerowidth(&mut self, ch: char) {
@@ -89,6 +97,7 @@ pub struct ScreenGrid {
     records_eviction: bool,
     reflow_on_resize: bool,
     clear_policy: ClearPolicy,
+    erase_background: StyleCode,
     evicted: Vec<Vec<Cell>>,
 }
 
@@ -116,8 +125,17 @@ impl ScreenGrid {
             records_eviction: false,
             reflow_on_resize: true,
             clear_policy: ClearPolicy::Scroll,
+            erase_background: StyleCode::DEFAULT_BACKGROUND,
             evicted: Vec::new(),
         }
+    }
+
+    pub fn set_erase_background(&mut self, bg: StyleCode) {
+        self.erase_background = bg;
+    }
+
+    pub(crate) fn erased_cell(&self) -> Cell {
+        Cell::blank_with_background(self.erase_background)
     }
 
     pub fn set_records_eviction(&mut self, on: bool) {
@@ -200,7 +218,8 @@ impl ScreenGrid {
             return;
         }
         let start = self.phys_start(row);
-        self.cells[start..start + self.cols].fill(Cell::BLANK);
+        let blank = self.erased_cell();
+        self.cells[start..start + self.cols].fill(blank);
     }
 
     // Logical row -> physical byte offset. The grid is a ring of rows: a
@@ -294,7 +313,7 @@ impl ScreenGrid {
         }
     }
 
-    pub fn print(&mut self, ch: char, style: StyleCode) {
+    pub fn print(&mut self, ch: char, style: CellStyle) {
         let width = UnicodeWidthChar::width(ch).unwrap_or(0);
         if width == 0 {
             self.attach_zerowidth(ch);

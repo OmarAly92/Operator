@@ -1,0 +1,5 @@
+export const STYLE_RUN_WORDS = 3;
+
+export const STYLE_DEFAULT_FOREGROUND = 255;
+
+export const STYLE_DEFAULT_BACKGROUND = 254;

@@ -1,4 +1,5 @@
 export const DEFAULT_FOREGROUND_CODE = 255;
+export const DEFAULT_BACKGROUND_CODE = 254;
 
 const TAG_INDEXED = 0x0100_0000;
 const TAG_RGB = 0x0200_0000;
@@ -27,7 +28,17 @@ export function styleCodeToCssVar(code: number): string {
 	if (plain === DEFAULT_FOREGROUND_CODE) {
 		return "var(--terminal-foreground)";
 	}
+	if (plain === DEFAULT_BACKGROUND_CODE) {
+		return "var(--terminal-background)";
+	}
 	throw new Error(`unsupported style code ${code}`);
+}
+
+export function styleCodeToBackgroundCss(code: number): string | null {
+	if (code === DEFAULT_BACKGROUND_CODE) {
+		return null;
+	}
+	return styleCodeToCssVar(code);
 }
 
 function indexedToCss(index: number): string {

@@ -1,5 +1,5 @@
 use crate::screen::ScreenGrid;
-use crate::style::StyleCode;
+use crate::style::CellStyle;
 
 pub struct AltSnapshot {
     pub rows: usize,
@@ -7,7 +7,7 @@ pub struct AltSnapshot {
     pub content: Vec<u8>,
     pub row_ranges: Vec<(u32, u32)>,
     pub run_ranges: Vec<(u32, u32)>,
-    pub style_pairs: Vec<(u32, StyleCode)>,
+    pub style_pairs: Vec<(u32, CellStyle)>,
     pub cursor_row: usize,
     pub cursor_col: usize,
     pub cursor_visible: bool,
@@ -18,13 +18,13 @@ impl ScreenGrid {
         let mut content: Vec<u8> = Vec::new();
         let mut row_ranges: Vec<(u32, u32)> = Vec::with_capacity(self.rows());
         let mut run_ranges: Vec<(u32, u32)> = Vec::with_capacity(self.rows());
-        let mut style_pairs: Vec<(u32, StyleCode)> = Vec::new();
+        let mut style_pairs: Vec<(u32, CellStyle)> = Vec::new();
         let mut buffer = [0u8; 4];
 
         for row in 0..self.rows() {
             let row_start = content.len() as u32;
             let pair_start = style_pairs.len() as u32;
-            let mut run_style: Option<StyleCode> = None;
+            let mut run_style: Option<CellStyle> = None;
             for col in 0..self.cols() {
                 let cell = self.cell(row, col);
                 if cell.ch == '\0' {

@@ -99,8 +99,8 @@ fn sgr_inside_the_alt_screen_colours_the_cells_it_precedes() {
     let mut c = core();
     c.feed(b"\x1b[?1049h\x1b[31mR\x1b[0mD");
     let alt = c.alt_grid().expect("alt");
-    assert_eq!(alt.cell(0, 0).style, StyleCode::ansi(1));
-    assert_eq!(alt.cell(0, 1).style, StyleCode::DEFAULT);
+    assert_eq!(alt.cell(0, 0).style.fg, StyleCode::ansi(1));
+    assert_eq!(alt.cell(0, 1).style.fg, StyleCode::DEFAULT);
 }
 
 #[test]

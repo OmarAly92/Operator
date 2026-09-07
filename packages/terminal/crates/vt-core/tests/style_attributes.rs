@@ -5,7 +5,7 @@ fn style_of(bytes: &[u8]) -> StyleCode {
     core.resize(40, 10);
     core.feed(b"\x1b[?1049h");
     core.feed(bytes);
-    core.alt_grid().expect("alt").cell(0, 0).style
+    core.alt_grid().expect("alt").cell(0, 0).style.fg
 }
 
 #[test]

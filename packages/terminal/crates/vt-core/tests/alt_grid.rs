@@ -1,5 +1,5 @@
 use vt_core::alt::AltGrid;
-use vt_core::StyleCode;
+use vt_core::{CellStyle, StyleCode};
 
 fn grid() -> AltGrid {
     AltGrid::new(4, 8)
@@ -7,7 +7,7 @@ fn grid() -> AltGrid {
 
 fn print(g: &mut AltGrid, text: &str) {
     for ch in text.chars() {
-        g.print(ch, StyleCode::DEFAULT);
+        g.print(ch, CellStyle::from_fg(StyleCode::DEFAULT));
     }
 }
 
@@ -84,7 +84,7 @@ fn tab_advances_to_the_next_eight_column_stop() {
 #[test]
 fn a_wide_character_occupies_two_cells() {
     let mut g = grid();
-    g.print('世', StyleCode::DEFAULT);
+    g.print('世', CellStyle::from_fg(StyleCode::DEFAULT));
     assert_eq!(g.cursor(), (0, 2));
     assert_eq!(g.row_text(0), "世      ");
 }
@@ -93,7 +93,7 @@ fn a_wide_character_occupies_two_cells() {
 fn a_wide_character_that_does_not_fit_wraps_rather_than_splitting() {
     let mut g = AltGrid::new(2, 3);
     print(&mut g, "ab");
-    g.print('世', StyleCode::DEFAULT);
+    g.print('世', CellStyle::from_fg(StyleCode::DEFAULT));
     assert_eq!(g.row_text(0), "ab ");
     assert_eq!(g.row_text(1), "世 ");
 }
@@ -102,16 +102,16 @@ fn a_wide_character_that_does_not_fit_wraps_rather_than_splitting() {
 fn a_zero_width_character_is_dropped_rather_than_consuming_a_cell() {
     let mut g = grid();
     print(&mut g, "a");
-    g.print('\u{0301}', StyleCode::DEFAULT);
+    g.print('\u{0301}', CellStyle::from_fg(StyleCode::DEFAULT));
     assert_eq!(g.cursor(), (0, 1));
 }
 
 #[test]
 fn printing_keeps_the_style_it_was_given() {
     let mut g = grid();
-    g.print('x', StyleCode::ansi(2));
-    assert_eq!(g.cell(0, 0).style, StyleCode::ansi(2));
-    assert_eq!(g.cell(0, 1).style, StyleCode::DEFAULT);
+    g.print('x', CellStyle::from_fg(StyleCode::ansi(2)));
+    assert_eq!(g.cell(0, 0).style.fg, StyleCode::ansi(2));
+    assert_eq!(g.cell(0, 1).style.fg, StyleCode::DEFAULT);
 }
 
 #[test]

@@ -11,7 +11,10 @@ fn flattens_rows_and_runs_as_u32_pairs() {
     assert_eq!(buffers.content(), b"red okplain");
     assert_eq!(buffers.rows(), &[0, 6, 6, 11]);
     assert_eq!(buffers.run_ranges(), &[0, 2, 2, 3]);
-    assert_eq!(buffers.style_pairs(), &[3, 1, 6, 255, 5, 255]);
+    assert_eq!(
+        buffers.style_pairs(),
+        &[3, 1, 254, 6, 255, 254, 5, 255, 254]
+    );
 }
 
 #[test]

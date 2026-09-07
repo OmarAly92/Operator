@@ -1,4 +1,4 @@
-use crate::screen::{Cell, ClearPolicy, ScreenGrid};
+use crate::screen::{ClearPolicy, ScreenGrid};
 
 impl ScreenGrid {
     pub fn erase_in_display(&mut self, mode: u16) {
@@ -8,7 +8,7 @@ impl ScreenGrid {
         match mode {
             0 => {
                 for c in col..cols {
-                    self.set(row, c, Cell::BLANK);
+                    self.set(row, c, self.erased_cell());
                 }
                 for r in (row + 1)..rows {
                     self.blank_row(r);
@@ -19,7 +19,7 @@ impl ScreenGrid {
                     self.blank_row(r);
                 }
                 for c in 0..=col {
-                    self.set(row, c, Cell::BLANK);
+                    self.set(row, c, self.erased_cell());
                 }
             }
             2 => match self.clear_policy {
@@ -45,12 +45,12 @@ impl ScreenGrid {
         match mode {
             0 => {
                 for c in col..cols {
-                    self.set(row, c, Cell::BLANK);
+                    self.set(row, c, self.erased_cell());
                 }
             }
             1 => {
                 for c in 0..=col {
-                    self.set(row, c, Cell::BLANK);
+                    self.set(row, c, self.erased_cell());
                 }
             }
             _ => self.blank_row(row),
@@ -69,7 +69,7 @@ impl ScreenGrid {
             self.set(row, c, cell);
         }
         for c in col..(col + count) {
-            self.set(row, c, Cell::BLANK);
+            self.set(row, c, self.erased_cell());
         }
     }
 
@@ -85,7 +85,7 @@ impl ScreenGrid {
             self.set(row, c, cell);
         }
         for c in (cols - count)..cols {
-            self.set(row, c, Cell::BLANK);
+            self.set(row, c, self.erased_cell());
         }
     }
 
@@ -94,7 +94,7 @@ impl ScreenGrid {
         let cols = self.cols();
         let count = count.min(cols - col);
         for c in col..(col + count) {
-            self.set(row, c, Cell::BLANK);
+            self.set(row, c, self.erased_cell());
         }
     }
 

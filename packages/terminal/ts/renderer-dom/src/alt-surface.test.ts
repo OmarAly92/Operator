@@ -3,6 +3,7 @@ import type { AltScreenView } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
 
 const DEFAULT_STYLE_CODE = 255;
+const DEFAULT_BACKGROUND_CODE = 254;
 const ROW_ENCODER = new TextEncoder();
 
 function buildAltView(
@@ -24,7 +25,11 @@ function buildAltView(
 		chunks.push(bytes);
 		rowRanges.push(cursor, cursor + bytes.byteLength);
 		runRanges.push(pairIndex, pairIndex + 1);
-		stylePairs.push(bytes.byteLength, rowStyleCodes[i] ?? DEFAULT_STYLE_CODE);
+		stylePairs.push(
+			bytes.byteLength,
+			rowStyleCodes[i] ?? DEFAULT_STYLE_CODE,
+			DEFAULT_BACKGROUND_CODE,
+		);
 		pairIndex += 1;
 		cursor += bytes.byteLength;
 	}

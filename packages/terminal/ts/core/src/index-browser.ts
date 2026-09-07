@@ -37,6 +37,11 @@ export type {
 export { defaultStrings, validateRowRange } from "./types.js";
 export { createCompositionTarget, type CompositionTarget } from "./composition-target.js";
 export { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+export {
+	STYLE_DEFAULT_BACKGROUND,
+	STYLE_DEFAULT_FOREGROUND,
+	STYLE_RUN_WORDS,
+} from "./style-runs.js";
 export { FIND_STEP_BUDGET } from "./terminal-core.js";
 export { TerminalCore };
 

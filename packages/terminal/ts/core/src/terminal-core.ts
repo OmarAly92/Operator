@@ -1,5 +1,6 @@
 import { WasmTerminalCore } from "../wasm/vt_core.js";
 import { BLOCK_RECORD_WORDS, decodeBlocks } from "./blocks.js";
+import { STYLE_RUN_WORDS } from "./style-runs.js";
 import {
 	getMemory,
 	isInitialized,
@@ -101,7 +102,7 @@ export class TerminalCore {
 		const blockTextLen = this.inner.block_text_len();
 		validateEvenLength("rows", rowsLen);
 		validateEvenLength("runRanges", runRangesLen);
-		validateEvenLength("stylePairs", stylePairsLen);
+		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
 		if (blocksLen % BLOCK_RECORD_WORDS !== 0) {
 			throw new Error(
 				`blocks length ${blocksLen} is not a multiple of ${BLOCK_RECORD_WORDS}`,
@@ -275,6 +276,12 @@ export class TerminalCore {
 function validateEvenLength(name: string, length: number): void {
 	if (length % 2 !== 0) {
 		throw new Error(`${name} length ${length} is not even`);
+	}
+}
+
+function validateMultipleOf(name: string, length: number, words: number): void {
+	if (length % words !== 0) {
+		throw new Error(`${name} length ${length} is not a multiple of ${words}`);
 	}
 }
 

@@ -7,18 +7,18 @@ use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::screen::{ClearPolicy, ScreenGrid};
-use crate::style::StyleCode;
+use crate::style::{CellStyle, StyleCode};
 
 pub(crate) struct Parser {
     width: usize,
     content: Content,
     rows: RowIndex,
-    styles: AttributeMap<StyleCode>,
-    pending_style: StyleCode,
+    styles: AttributeMap<CellStyle>,
+    pending_style: CellStyle,
     grid: BlockGrid,
     screen: ScreenGrid,
     alt: Option<AltGrid>,
-    saved_style: StyleCode,
+    saved_style: CellStyle,
     app_cursor: bool,
     sgr_mouse: bool,
     bracketed_paste: bool,
@@ -34,12 +34,12 @@ impl Parser {
             width,
             content: Content::new(),
             rows: RowIndex::new(0),
-            styles: AttributeMap::new(StyleCode::DEFAULT),
-            pending_style: StyleCode::DEFAULT,
+            styles: AttributeMap::new(CellStyle::DEFAULT),
+            pending_style: CellStyle::DEFAULT,
             grid: BlockGrid::new(),
             screen,
             alt: None,
-            saved_style: StyleCode::DEFAULT,
+            saved_style: CellStyle::DEFAULT,
             app_cursor: false,
             sgr_mouse: false,
             bracketed_paste: false,
@@ -56,7 +56,7 @@ impl Parser {
         &self.rows
     }
 
-    pub fn styles(&self) -> &AttributeMap<StyleCode> {
+    pub fn styles(&self) -> &AttributeMap<CellStyle> {
         &self.styles
     }
 
@@ -103,12 +103,14 @@ impl Parser {
         alt.set_clear_policy(ClearPolicy::ClearInPlace);
         self.alt = Some(alt);
         self.saved_style = self.pending_style;
-        self.pending_style = StyleCode::DEFAULT;
+        self.pending_style = CellStyle::DEFAULT;
+        self.sync_erase_background();
     }
 
     pub fn leave_alt(&mut self) {
         self.alt = None;
         self.pending_style = self.saved_style;
+        self.sync_erase_background();
     }
 
     pub fn alt(&self) -> Option<&AltGrid> {
@@ -250,49 +252,68 @@ impl Parser {
     fn apply_sgr(&mut self, params: &Params) {
         let groups: Vec<Vec<u16>> = params.iter().map(|sub| sub.to_vec()).collect();
         if groups.is_empty() {
-            self.pending_style = StyleCode::DEFAULT;
+            self.set_pending_style(CellStyle::DEFAULT);
             return;
         }
         let mut index = 0;
         while index < groups.len() {
             let group = &groups[index];
             let code = group.first().copied().unwrap_or(0);
-            // A group carrying its own sub-parameters is the colon form
-            // (`38:5:196`) and is self-contained. A bare 38/48/58 is the
-            // semicolon form, and the parameters that follow belong to it --
-            // consuming them is what stops `48;5;31` from being read as SGR 31
-            // and repainting the foreground.
             if matches!(code, 38 | 48 | 58) {
                 let (colour, consumed) = read_extended_colour(&groups, index);
-                if code == 38 {
-                    if let Some(style) = colour {
-                        self.pending_style = self.pending_style.with_colour(style);
+                if let Some(style) = colour {
+                    match code {
+                        38 => self.pending_style.fg = self.pending_style.fg.with_colour(style),
+                        48 => self.pending_style.bg = style,
+                        _ => {}
                     }
                 }
                 index += consumed;
                 continue;
             }
             match code {
-                0 => self.pending_style = StyleCode::DEFAULT,
-                1 => self.pending_style = self.pending_style.with_bold(true),
-                2 => self.pending_style = self.pending_style.with_dim(true),
+                0 => self.set_pending_style(CellStyle::DEFAULT),
+                1 => self.pending_style.fg = self.pending_style.fg.with_bold(true),
+                2 => self.pending_style.fg = self.pending_style.fg.with_dim(true),
+                7 => self.pending_style.fg = self.pending_style.fg.with_reverse(true),
                 22 => {
-                    self.pending_style = self.pending_style.with_bold(false).with_dim(false);
+                    self.pending_style.fg = self.pending_style.fg.with_bold(false).with_dim(false);
                 }
+                27 => self.pending_style.fg = self.pending_style.fg.with_reverse(false),
                 30..=37 => {
-                    self.pending_style = self
+                    self.pending_style.fg = self
                         .pending_style
+                        .fg
                         .with_colour(StyleCode::ansi((code - 30) as u8));
                 }
-                39 => self.pending_style = self.pending_style.with_colour(StyleCode::DEFAULT),
+                39 => {
+                    self.pending_style.fg = self.pending_style.fg.with_colour(StyleCode::DEFAULT);
+                }
+                40..=47 => self.pending_style.bg = StyleCode::ansi((code - 40) as u8),
+                49 => self.pending_style.bg = StyleCode::DEFAULT_BACKGROUND,
                 90..=97 => {
-                    self.pending_style = self
+                    self.pending_style.fg = self
                         .pending_style
+                        .fg
                         .with_colour(StyleCode::ansi((code - 90 + 8) as u8));
                 }
+                100..=107 => self.pending_style.bg = StyleCode::ansi((code - 100 + 8) as u8),
                 _ => {}
             }
             index += 1;
+        }
+        self.sync_erase_background();
+    }
+
+    fn set_pending_style(&mut self, style: CellStyle) {
+        self.pending_style = style;
+    }
+
+    fn sync_erase_background(&mut self) {
+        let bg = self.pending_style.bg;
+        self.screen.set_erase_background(bg);
+        if let Some(alt) = self.alt.as_mut() {
+            alt.set_erase_background(bg);
         }
     }
 }
@@ -361,7 +382,7 @@ fn narrow(value: u16) -> u8 {
 
 impl Perform for Parser {
     fn print(&mut self, c: char) {
-        let style = self.pending_style;
+        let style = self.pending_style.resolved();
         self.active_screen_mut().print(c, style);
     }
 

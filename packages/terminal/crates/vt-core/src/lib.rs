@@ -27,7 +27,7 @@ pub use block_selection::{BlockSelection, SelectionPoint};
 pub use block_tree::{BlockSummary, BlockTree};
 pub use find::{FindCursor, FindMatch, FindQuery};
 pub use line_editor::LineEditorState;
-pub use style::StyleCode;
+pub use style::{CellStyle, StyleCode};
 
 use terminal_marks::{MarkDecoder, MarkEvent};
 use vte::Parser as VteParser;

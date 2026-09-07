@@ -15,8 +15,20 @@ import (
 // Injectable for tests: replace this field on Options before calling New.
 type hostSpawner func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (addr string, pid int, err error)
 
+var terminalEnvironment = [][2]string{
+	{"TERM", "xterm-256color"},
+	{"COLORTERM", "truecolor"},
+	{"TERM_PROGRAM", "Operator"},
+}
+
 func processEnvironment(overrides map[string]string) []string {
 	env := append([]string(nil), os.Environ()...)
+	for _, pair := range terminalEnvironment {
+		if _, ok := overrides[pair[0]]; ok {
+			continue
+		}
+		env = append(env, pair[0]+"="+pair[1])
+	}
 	for key, value := range overrides {
 		env = append(env, key+"="+value)
 	}

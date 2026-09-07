@@ -1,4 +1,4 @@
-import type { AltScreenView } from "@operator/terminal-core";
+import { type AltScreenView, STYLE_RUN_WORDS } from "@operator/terminal-core";
 import { buildRowNode, type RowSource } from "./row-builder.js";
 
 const SURFACE_ATTR = "data-terminal-alt-surface";
@@ -84,7 +84,7 @@ function fingerprintRow(source: RowSource, row: number): RowFingerprint {
 	const pairEnd = source.runRanges[rangeIndex + 1] ?? pairStart;
 	return {
 		content: source.content.slice(contentStart, contentEnd),
-		stylePairs: source.stylePairs.slice(pairStart * 2, pairEnd * 2),
+		stylePairs: source.stylePairs.slice(pairStart * STYLE_RUN_WORDS, pairEnd * STYLE_RUN_WORDS),
 	};
 }
 
@@ -95,7 +95,12 @@ function rowMatches(source: RowSource, row: number, fingerprint: RowFingerprint)
 	if (!rangeMatches(source.content, contentStart, contentEnd, fingerprint.content)) return false;
 	const runStart = source.runRanges[rangeIndex] ?? 0;
 	const runEnd = source.runRanges[rangeIndex + 1] ?? runStart;
-	return rangeMatches(source.stylePairs, runStart * 2, runEnd * 2, fingerprint.stylePairs);
+	return rangeMatches(
+		source.stylePairs,
+		runStart * STYLE_RUN_WORDS,
+		runEnd * STYLE_RUN_WORDS,
+		fingerprint.stylePairs,
+	);
 }
 
 function rangeMatches(

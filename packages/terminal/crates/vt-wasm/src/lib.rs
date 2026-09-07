@@ -90,9 +90,10 @@ impl ExportBuffers {
             self.run_ranges.push(end);
         }
 
-        for &(end, code) in &snapshot.style_pairs {
+        for &(end, style) in &snapshot.style_pairs {
             self.style_pairs.push(end);
-            self.style_pairs.push(code.value());
+            self.style_pairs.push(style.fg.value());
+            self.style_pairs.push(style.bg.value());
         }
 
         if let Some(alt) = snapshot.alt.as_ref() {
@@ -111,9 +112,10 @@ impl ExportBuffers {
                 self.alt_run_ranges.push(start);
                 self.alt_run_ranges.push(end);
             }
-            for &(end, code) in &alt.style_pairs {
+            for &(end, style) in &alt.style_pairs {
                 self.alt_style_pairs.push(end);
-                self.alt_style_pairs.push(code.value());
+                self.alt_style_pairs.push(style.fg.value());
+                self.alt_style_pairs.push(style.bg.value());
             }
         }
 

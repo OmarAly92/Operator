@@ -21,7 +21,7 @@ describe("TerminalCore", () => {
 		expect(snapshot.runRanges).toBeInstanceOf(Uint32Array);
 		expect(new TextDecoder().decode(snapshot.content)).toBe("red caféplain");
 		expect([...snapshot.rows]).toEqual([0, 9, 9, 14]);
-		expect([...snapshot.stylePairs]).toEqual([3, 1, 9, 255, 5, 255]);
+		expect([...snapshot.stylePairs]).toEqual([3, 1, 254, 9, 255, 254, 5, 255, 254]);
 	});
 
 	it("creates independent instances that do not share state", () => {

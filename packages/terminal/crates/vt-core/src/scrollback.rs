@@ -2,13 +2,13 @@ use crate::attribute_map::AttributeMap;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::screen::Cell;
-use crate::style::StyleCode;
+use crate::style::CellStyle;
 
 pub(crate) fn commit_row(
     cells: &[Cell],
     content: &mut Content,
     rows: &mut RowIndex,
-    styles: &mut AttributeMap<StyleCode>,
+    styles: &mut AttributeMap<CellStyle>,
 ) {
     let width = cells
         .iter()
@@ -32,20 +32,20 @@ mod tests {
     use crate::content::Content;
     use crate::row_index::RowIndex;
     use crate::screen::Cell;
-    use crate::style::StyleCode;
+    use crate::style::{CellStyle, StyleCode};
 
     fn row(text: &str, width: usize) -> Vec<Cell> {
         let mut cells = vec![Cell::BLANK; width];
         for (index, ch) in text.chars().enumerate() {
-            cells[index] = Cell::new(ch, StyleCode::DEFAULT);
+            cells[index] = Cell::new(ch, CellStyle::DEFAULT);
         }
         cells
     }
 
-    fn commit(cells: &[Cell]) -> (Content, RowIndex, AttributeMap<StyleCode>) {
+    fn commit(cells: &[Cell]) -> (Content, RowIndex, AttributeMap<CellStyle>) {
         let mut content = Content::new();
         let mut rows = RowIndex::new(0);
-        let mut styles = AttributeMap::new(StyleCode::DEFAULT);
+        let mut styles = AttributeMap::new(CellStyle::DEFAULT);
         commit_row(cells, &mut content, &mut rows, &mut styles);
         (content, rows, styles)
     }
@@ -80,12 +80,15 @@ mod tests {
     #[test]
     fn style_runs_follow_the_cells() {
         let mut cells = row("ab", 40);
-        cells[0].style = StyleCode::ansi(1);
+        cells[0].style = CellStyle::new(StyleCode::ansi(1), StyleCode::DEFAULT_BACKGROUND);
         let (content, _, styles) = commit(&cells);
         let runs = styles.runs(0, content.end_offset());
         assert_eq!(
             runs.first().map(|(_, style)| *style),
-            Some(StyleCode::ansi(1))
+            Some(CellStyle::new(
+                StyleCode::ansi(1),
+                StyleCode::DEFAULT_BACKGROUND
+            ))
         );
     }
 

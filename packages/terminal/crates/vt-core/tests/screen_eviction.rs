@@ -1,12 +1,12 @@
 use vt_core::testing::ScreenGrid;
-use vt_core::StyleCode;
+use vt_core::{CellStyle, StyleCode};
 
 #[test]
 fn full_screen_scroll_reports_the_evicted_row() {
     let mut screen = ScreenGrid::new(3, 10);
     screen.set_records_eviction(true);
     for ch in "top".chars() {
-        screen.print(ch, StyleCode::DEFAULT);
+        screen.print(ch, CellStyle::from_fg(StyleCode::DEFAULT));
     }
     screen.scroll_up(1);
     let evicted = screen.take_evicted();

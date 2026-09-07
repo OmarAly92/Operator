@@ -1,4 +1,10 @@
-import { styleCodeIsBold, styleCodeIsDim, styleCodeToCssVar } from "./style-code.js";
+import { STYLE_RUN_WORDS } from "@operator/terminal-core";
+import {
+	styleCodeIsBold,
+	styleCodeIsDim,
+	styleCodeToBackgroundCss,
+	styleCodeToCssVar,
+} from "./style-code.js";
 
 export const CLASS_ROW = "terminal-row";
 export const CLASS_RUN = "terminal-run";
@@ -28,14 +34,19 @@ export function buildRowNode(
 	rowNode.className = CLASS_ROW;
 	let rowCursor = 0;
 	for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
-		const elementIndex = pairIndex * 2;
+		const elementIndex = pairIndex * STYLE_RUN_WORDS;
 		const pairRunEnd = stylePairs[elementIndex] ?? rowCursor;
 		const styleCode = stylePairs[elementIndex + 1] ?? 255;
+		const backgroundCode = stylePairs[elementIndex + 2] ?? 254;
 		const slice = content.subarray(rowContentStart + rowCursor, rowContentStart + pairRunEnd);
 		const run = document.createElement("span");
 		run.dataset.terminalRun = String(pairIndex);
 		run.className = CLASS_RUN;
 		run.style.color = styleCodeToCssVar(styleCode);
+		const background = styleCodeToBackgroundCss(backgroundCode);
+		if (background !== null) {
+			run.style.backgroundColor = background;
+		}
 		if (styleCodeIsBold(styleCode)) {
 			run.style.fontWeight = "700";
 		}

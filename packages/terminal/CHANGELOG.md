@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+Background colours reach the renderer.
+
+- `vt-core` keeps a cell's background alongside its foreground (`CellStyle`)
+  instead of parsing SGR `48`/`40-47`/`100-107`/`49` only to discard them, and
+  handles reverse video (`7`/`27`) by swapping the pair when a cell is written.
+- Erase, scroll, and insert/delete now paint the current background rather than
+  a hard-coded blank, matching Warp's `cursor.template.bg` behaviour, and a
+  trailing run of spaces that carries a background is no longer trimmed off the
+  row.
+- **Wire format change:** the exported `style_pairs` buffer is now triples of
+  `(runEnd, foreground, background)` rather than `(runEnd, style)` pairs.
+  `STYLE_RUN_WORDS` names the stride. Code 255 is the theme foreground and 254
+  the theme background.
+- The DOM renderer paints `background-color` per run, leaving the default
+  background unset so the terminal's own ground shows through.
+
 ## 0.3.0 - 2026-08-30
 
 Phase 2 replaces shell line editing with the package-owned editor and prompt row.

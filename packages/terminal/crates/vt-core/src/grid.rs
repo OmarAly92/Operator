@@ -5,7 +5,7 @@ use crate::block_grid::BlockGrid;
 use crate::content::Content;
 use crate::row_index::RowIndex;
 use crate::screen::ScreenGrid;
-use crate::style::StyleCode;
+use crate::style::CellStyle;
 use crate::{CoreError, LineEditorState};
 
 /// Narrows a snapshot-local length to the `u32` the export buffers carry.
@@ -21,7 +21,7 @@ pub struct GridSnapshot {
     pub content: Vec<u8>,
     pub rows: Vec<(u32, u32)>,
     pub run_ranges: Vec<(u32, u32)>,
-    pub style_pairs: Vec<(u32, StyleCode)>,
+    pub style_pairs: Vec<(u32, CellStyle)>,
     pub blocks: Vec<BlockRecord>,
     pub block_text: Vec<u8>,
     pub line_editor_state: u32,
@@ -59,7 +59,7 @@ impl GridSnapshot {
             .expect("row is valid utf-8")
     }
 
-    pub fn row_style_pairs(&self, index: usize) -> &[(u32, StyleCode)] {
+    pub fn row_style_pairs(&self, index: usize) -> &[(u32, CellStyle)] {
         let (start, end) = self.run_ranges[index];
         &self.style_pairs[start as usize..end as usize]
     }
@@ -68,7 +68,7 @@ impl GridSnapshot {
 pub(crate) fn build_snapshot(
     content: &Content,
     rows: &RowIndex,
-    styles: &AttributeMap<StyleCode>,
+    styles: &AttributeMap<CellStyle>,
     grid: &BlockGrid,
     screen: &ScreenGrid,
     line_editor_state: LineEditorState,
@@ -76,7 +76,7 @@ pub(crate) fn build_snapshot(
 ) -> Result<GridSnapshot, CoreError> {
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
-    let mut style_pairs: Vec<(u32, StyleCode)> = Vec::new();
+    let mut style_pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut run_ranges: Vec<(u32, u32)> = Vec::new();
     let mut ctx = SnapshotCtx {
         all_content: &mut all_content,
@@ -179,14 +179,14 @@ fn append_block_text(buffer: &mut Vec<u8>, text: &str) -> Result<TextSpan, CoreE
 struct SnapshotCtx<'a> {
     all_content: &'a mut Vec<u8>,
     row_ranges: &'a mut Vec<(u32, u32)>,
-    style_pairs: &'a mut Vec<(u32, StyleCode)>,
+    style_pairs: &'a mut Vec<(u32, CellStyle)>,
     run_ranges: &'a mut Vec<(u32, u32)>,
 }
 
 fn append_row(
     ctx: &mut SnapshotCtx,
     content: &Content,
-    styles: &AttributeMap<StyleCode>,
+    styles: &AttributeMap<CellStyle>,
     row_start: u64,
     row_end: u64,
 ) -> Result<(), CoreError> {

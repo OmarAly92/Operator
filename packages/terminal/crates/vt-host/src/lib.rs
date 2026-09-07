@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use vt_core::{StyleCode, TerminalCore};
+use vt_core::{CellStyle, StyleCode, TerminalCore};
 
 thread_local! {
     static CORES: RefCell<HashMap<u32, TerminalCore>> = RefCell::new(HashMap::new());
@@ -152,7 +152,7 @@ pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_ca
     })
 }
 
-fn write_styled_row(text: &mut String, row_bytes: &[u8], pairs: &[(u32, StyleCode)]) {
+fn write_styled_row(text: &mut String, row_bytes: &[u8], pairs: &[(u32, CellStyle)]) {
     let mut start = 0usize;
     for (end, style) in pairs {
         let end = *end as usize;
@@ -175,32 +175,41 @@ fn write_styled_row(text: &mut String, row_bytes: &[u8], pairs: &[(u32, StyleCod
 const TAG_INDEXED: u32 = 0x0100_0000;
 const TAG_RGB: u32 = 0x0200_0000;
 
-fn style_sgr_params(style: StyleCode) -> Option<String> {
+fn colour_params(colour: StyleCode, base: u32, extended: u32) -> String {
+    let value = colour.value();
+    if value & TAG_RGB != 0 {
+        let rgb = value & 0x00ff_ffff;
+        format!(
+            "{};2;{};{};{}",
+            extended,
+            (rgb >> 16) & 0xff,
+            (rgb >> 8) & 0xff,
+            rgb & 0xff
+        )
+    } else if value & TAG_INDEXED != 0 {
+        format!("{};5;{}", extended, value & 0xff)
+    } else if value < 8 {
+        format!("{}", base + value)
+    } else {
+        format!("{}", base + 60 + (value - 8))
+    }
+}
+
+fn style_sgr_params(style: CellStyle) -> Option<String> {
     let mut params = Vec::new();
-    if style.is_bold() {
+    if style.fg.is_bold() {
         params.push("1".to_string());
     }
-    if style.is_dim() {
+    if style.fg.is_dim() {
         params.push("2".to_string());
     }
-    let colour = style.colour();
-    if colour != StyleCode::DEFAULT.colour() {
-        let value = colour.value();
-        if value & TAG_RGB != 0 {
-            let rgb = value & 0x00ff_ffff;
-            params.push(format!(
-                "38;2;{};{};{}",
-                (rgb >> 16) & 0xff,
-                (rgb >> 8) & 0xff,
-                rgb & 0xff
-            ));
-        } else if value & TAG_INDEXED != 0 {
-            params.push(format!("38;5;{}", value & 0xff));
-        } else if value < 8 {
-            params.push(format!("{}", 30 + value));
-        } else {
-            params.push(format!("{}", 90 + (value - 8)));
-        }
+    let foreground = style.fg.colour();
+    if foreground != StyleCode::DEFAULT.colour() {
+        params.push(colour_params(foreground, 30, 38));
+    }
+    let background = style.bg.colour();
+    if background != StyleCode::DEFAULT_BACKGROUND.colour() {
+        params.push(colour_params(background, 40, 48));
     }
     if params.is_empty() {
         None
