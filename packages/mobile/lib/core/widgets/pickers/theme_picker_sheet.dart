@@ -1,21 +1,22 @@
+import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/theme_preference.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
 Future<ThemeMode?> showThemePickerSheet(BuildContext context, {required ThemeMode selected}) {
   final skin = context.skin;
-  return showModalBottomSheet<ThemeMode>(
+  return showExpressiveSheet<ThemeMode>(
     context: context,
-    backgroundColor: skin.bgSurface,
-    builder: (sheetContext) => SafeArea(
+    builder: (sheetContext) => AppSheetChrome(
       child: ListView(
         shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.zero,
         children: [
           AppText('Theme', style: AppTextStyle.style17SemiBold),
           const VerticalSpace(4),
@@ -58,7 +59,7 @@ class _ThemeOption extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: AppText(label, style: AppTextStyle.style15Medium)),
-          if (selected) Icon(Icons.check, size: 18, color: skin.blue),
+          if (selected) Icon(Icons.check, size: 18, color: skin.accent),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/usage/logic/context_readout.dart';
 
@@ -18,7 +19,7 @@ class ContextReadoutChip extends StatelessWidget {
     final readoutColor = switch (current.severity) {
       ContextSeverity.critical => skin.red,
       ContextSeverity.warn => skin.amber,
-      ContextSeverity.normal => skin.blue,
+      ContextSeverity.normal => skin.accent,
     };
     final percentLabel = current.percentLabel;
 
@@ -27,7 +28,7 @@ class ContextReadoutChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: skin.bgElevated,
         border: Border.all(color: skin.borderSubtle),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
       ),
       child: percentLabel == null
           ? AppText(

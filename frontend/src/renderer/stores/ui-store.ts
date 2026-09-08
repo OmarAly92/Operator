@@ -115,8 +115,19 @@ function initialSidebarOpen() {
 	return getLocalStorage()?.getItem(sidebarStorageKey) !== "false";
 }
 
-function inspectorState(sessions: Record<string, InspectorSessionState>, sessionId: string): InspectorSessionState {
-	return sessions[sessionId] ?? { isOpen: true, view: "summary" };
+const inspectorStorageKey = "opr.inspector.open";
+
+function initialInspectorOpen() {
+	return getLocalStorage()?.getItem(inspectorStorageKey) !== "false";
+}
+
+let defaultInspectorOpen = initialInspectorOpen();
+
+export function inspectorState(
+	sessions: Record<string, InspectorSessionState>,
+	sessionId: string,
+): InspectorSessionState {
+	return sessions[sessionId] ?? { isOpen: defaultInspectorOpen, view: "summary" };
 }
 
 const initialThemePreference = readStoredThemePreference();
@@ -189,10 +200,13 @@ export const useUiStore = create<UiState>((set, get) => ({
 	toggleInspector: (sessionId) =>
 		set((state) => {
 			const current = inspectorState(state.inspectorSessions, sessionId);
+			const isOpen = !current.isOpen;
+			defaultInspectorOpen = isOpen;
+			getLocalStorage()?.setItem(inspectorStorageKey, String(isOpen));
 			return {
 				inspectorSessions: {
 					...state.inspectorSessions,
-					[sessionId]: { ...current, isOpen: !current.isOpen },
+					[sessionId]: { ...current, isOpen },
 				},
 			};
 		}),

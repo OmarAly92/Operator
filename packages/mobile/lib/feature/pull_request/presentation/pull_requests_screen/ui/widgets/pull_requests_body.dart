@@ -73,18 +73,21 @@ class PullRequestsBody extends StatelessWidget {
                           label: 'Open $openCount',
                           active: prCubit.filter == PrFilter.open,
                           onTap: () => prCubit.setFilter(PrFilter.open),
+                          dense: true,
                         ),
                         const SizedBox(width: 8),
                         AppPill(
                           label: 'Merged $mergedCount',
                           active: prCubit.filter == PrFilter.merged,
                           onTap: () => prCubit.setFilter(PrFilter.merged),
+                          dense: true,
                         ),
                         const SizedBox(width: 8),
                         AppPill(
                           label: 'All $allCount',
                           active: prCubit.filter == PrFilter.all,
                           onTap: () => prCubit.setFilter(PrFilter.all),
+                          dense: true,
                         ),
                       ],
                     ),
@@ -101,14 +104,16 @@ class PullRequestsBody extends StatelessWidget {
                             ),
                     )
                   else
-                    for (final entry in filtered)
+                    for (var i = 0; i < filtered.length; i++)
                       PrCard(
-                        pr: entry.pr,
-                        session: entry.session,
-                        summary: prCubit.summaryFor(entry.session.id ?? '', entry.pr.number ?? 0),
+                        key: ValueKey('${prCubit.filter}-${filtered[i].session.id}-${filtered[i].pr.number}'),
+                        pr: filtered[i].pr,
+                        session: filtered[i].session,
+                        summary: prCubit.summaryFor(filtered[i].session.id ?? '', filtered[i].pr.number ?? 0),
+                        index: i,
                         onOpenSession: () => Navigator.of(context).pushNamed(
                           RoutesStrings.session,
-                          arguments: {'sessionId': entry.session.id},
+                          arguments: {'sessionId': filtered[i].session.id},
                         ),
                       ),
                 ],

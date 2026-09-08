@@ -114,17 +114,17 @@ class TerminalStatusBar extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
                       decoration: BoxDecoration(
-                        color: skin.tintBlue,
+                        color: skin.accentTint,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         spacing: 4,
                         children: [
-                          Icon(Icons.restart_alt, size: 12, color: skin.blue),
+                          Icon(Icons.restart_alt, size: 12, color: skin.accent),
                           AppText(
                             cubit.restoring ? 'Restoring...' : 'Restore',
-                            style: AppTextStyle.style12Bold.copyWith(color: skin.blue),
+                            style: AppTextStyle.style12Bold.copyWith(color: skin.accent),
                           ),
                         ],
                       ),

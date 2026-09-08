@@ -11,6 +11,8 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/notifications_screen.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/onboarding_screen.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/ui/connections_screen.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/ui/manual_connect_screen.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
@@ -46,6 +48,12 @@ sealed class AppRouter {
       case RoutesStrings.manualConnect:
         return MaterialPageRoute<bool>(
           builder: (context) => BlocProvider(create: (_) => sl<ManualConnectCubit>(), child: const ManualConnectScreen()),
+          settings: settings,
+        );
+
+      case RoutesStrings.connections:
+        return MaterialPageRoute(
+          builder: (context) => BlocProvider(create: (_) => sl<ConnectionsCubit>(), child: const ConnectionsScreen()),
           settings: settings,
         );
 

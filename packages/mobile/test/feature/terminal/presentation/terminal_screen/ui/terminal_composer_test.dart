@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -17,7 +19,24 @@ void main() {
   Future<void> pumpComposer(WidgetTester tester) =>
       harness.pump(tester, const TerminalComposer());
 
-  testWidgets('shows a remote draft as prefill while the field is empty', (tester) async {
+  testWidgets('typing swaps the microphone for send and clearing restores it', (
+    tester,
+  ) async {
+    await pumpComposer(tester);
+    expect(find.byType(MicKey), findsOneWidget);
+    expect(find.bySemanticsLabel('Send'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Hello');
+    await tester.pump();
+    expect(find.byType(MicKey), findsNothing);
+    expect(find.bySemanticsLabel('Send'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pump();
+    expect(find.byType(MicKey), findsOneWidget);
+  });
+
+  testWidgets('shows a remote draft as prefill while the field is empty', (
+    tester,
+  ) async {
     harness.cubit.draft = 'run the sample task';
 
     await pumpComposer(tester);
@@ -25,7 +44,9 @@ void main() {
     expect(find.text('run the sample task'), findsOneWidget);
   });
 
-  testWidgets('hides the remote draft once the user has typed something', (tester) async {
+  testWidgets('hides the remote draft once the user has typed something', (
+    tester,
+  ) async {
     harness.cubit.draft = 'run the sample task';
     harness.cubit.composer.text = 'already typing';
 
@@ -34,7 +55,9 @@ void main() {
     expect(find.text('run the sample task'), findsNothing);
   });
 
-  testWidgets('tapping the remote draft fills the field without sending', (tester) async {
+  testWidgets('tapping the remote draft fills the field without sending', (
+    tester,
+  ) async {
     harness.cubit.draft = 'run the sample task';
 
     await pumpComposer(tester);
@@ -43,15 +66,22 @@ void main() {
 
     expect(harness.cubit.composer.text, 'run the sample task');
     verifyNever(
-      () => harness.mux.sendInput(any(), any(), projectId: any(named: 'projectId')),
+      () => harness.mux.sendInput(
+        any(),
+        any(),
+        projectId: any(named: 'projectId'),
+      ),
     );
   });
 
   // In the running app fetchDraft() always resolves AFTER the composer's first
   // build, so a hint that reads cubit.draft once at build time never appears.
-  testWidgets('a draft that arrives after the first build still shows', (tester) async {
-    when(() => harness.terminalRepository.getDraft(any()))
-        .thenAnswer((_) async => Result.success('run the sample task'));
+  testWidgets('a draft that arrives after the first build still shows', (
+    tester,
+  ) async {
+    when(
+      () => harness.terminalRepository.getDraft(any()),
+    ).thenAnswer((_) async => Result.success('run the sample task'));
 
     await pumpComposer(tester);
     expect(find.text('run the sample task'), findsNothing);
@@ -70,7 +100,10 @@ void main() {
 
     expect(find.byType(TerminalComposerDraftHint), findsOneWidget);
     expect(
-      find.descendant(of: find.byType(TerminalComposerDraftHint), matching: find.byType(AppText)),
+      find.descendant(
+        of: find.byType(TerminalComposerDraftHint),
+        matching: find.byType(AppText),
+      ),
       findsNothing,
     );
   });

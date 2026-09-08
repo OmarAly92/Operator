@@ -58,3 +58,16 @@ StatusVisual statusVisual(AppSkin skin, String? status) {
       return StatusVisual(color: skin.textTertiary, label: status ?? 'unknown');
   }
 }
+
+/// The status chip's tinted background (`docs/design/sessions_board/
+/// sessions_board.md`): matched to the status color, falling back to
+/// `bgSubtle` for the neutral-colored statuses that have no dedicated tint.
+Color statusChipTint(AppSkin skin, Color statusColor) {
+  if (statusColor == skin.blue) return skin.tintBlue;
+  if (statusColor == skin.orange) return skin.tintOrange;
+  if (statusColor == skin.amber) return skin.tintAmber;
+  if (statusColor == skin.red) return skin.tintRed;
+  if (statusColor == skin.green) return skin.tintGreen;
+  if (statusColor == skin.purple) return skin.tintPurple;
+  return skin.bgSubtle;
+}

@@ -182,6 +182,8 @@ void main() {
                   const Scaffold(body: Text('Notifications screen')),
               RoutesStrings.usage: (_) =>
                   const Scaffold(body: Text('Usage screen')),
+              RoutesStrings.connections: (_) =>
+                  const Scaffold(body: Text('Connections screen')),
             },
             home: MultiBlocProvider(
               providers: [
@@ -362,6 +364,14 @@ void main() {
     expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
   });
 
+  testWidgets('the Saved connections row opens the connections route', (tester) async {
+    await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+    await tester.tap(find.text('Saved connections'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connections screen'), findsOneWidget);
+  });
+
   testWidgets('the History row opens the notifications route', (tester) async {
     when(() => serverConfigStore.current).thenReturn(_pairedConfig);
 
@@ -380,6 +390,13 @@ void main() {
 
   testWidgets('the Token usage row opens the usage route', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
+
+    await tester.dragUntilVisible(
+      find.text('Token usage'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Token usage'));
     await tester.pumpAndSettle();
 

@@ -207,6 +207,8 @@ class _SpawnBodyState extends State<SpawnBody> {
                 label: 'TASK',
                 hintText: 'What should this agent do?',
                 onChanged: (value) => _cubit.prompt = value,
+                minLines: 3,
+                maxLines: 6,
               ),
               if (errorText != null) ...[
                 const VerticalSpace(12),

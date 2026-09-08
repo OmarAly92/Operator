@@ -65,6 +65,8 @@ void main() {
     );
     await tester.pump();
 
+    expect(tester.getSize(find.byType(TextField)).width, greaterThan(220));
+    expect(tester.getSize(find.byType(BlockFindBar)).height, lessThanOrEqualTo(46));
     await tester.enterText(find.byType(TextField), 'foo');
     await tester.pump();
 
@@ -169,7 +171,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
+    await tester.tap(find.byIcon(Icons.filter_alt_off_outlined));
     await tester.pump();
     expect(toggles, [true]);
   });

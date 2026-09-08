@@ -20,7 +20,7 @@ import { cn } from "../lib/utils";
 import { isOrchestratorSession, sessionIsActive } from "../types/workspace";
 import { terminalTargetBelongsToSession, type TerminalTarget } from "../types/terminal";
 import { matchesRendererShortcut } from "../stores/keybindings-store";
-import { useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
+import { inspectorState, useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
 
 const INSPECTOR_MIN_PERCENT = 30;
 const INSPECTOR_MAX_PERCENT = 45;
@@ -70,7 +70,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const workspaceQuery = useWorkspaceQuery();
 	const workspaces = workspaceQuery.data ?? [];
 	const theme = useResolvedTheme();
-	const isInspectorOpen = useUiStore((state) => state.inspectorSessions[sessionId]?.isOpen ?? true);
+	const isInspectorOpen = useUiStore((state) => inspectorState(state.inspectorSessions, sessionId).isOpen);
 	const inspectorView = useUiStore((state) => state.inspectorSessions[sessionId]?.view ?? "summary");
 	const setInspectorOpenForSession = useUiStore((state) => state.setInspectorOpen);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
@@ -261,7 +261,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 			if (inspectorSeparatorRef.current?.getAttribute("data-separator") !== "active") return;
 			if (size.asPercentage <= 0) return;
 			window.localStorage?.setItem(inspectorSplitStorageKey, String(size.asPercentage));
-			const currentOpen = useUiStore.getState().inspectorSessions[sessionId]?.isOpen ?? true;
+			const currentOpen = inspectorState(useUiStore.getState().inspectorSessions, sessionId).isOpen;
 			if (!currentOpen) toggleInspector(sessionId);
 		},
 		[sessionId, toggleInspector],

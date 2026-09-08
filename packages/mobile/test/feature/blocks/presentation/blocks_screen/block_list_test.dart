@@ -143,7 +143,7 @@ void main() {
     expect(find.text('Bash 3'), findsOneWidget);
   });
 
-  testWidgets('renders finished and running turn group status', (tester) async {
+  testWidgets('keeps turn bookkeeping out of the conversation timeline', (tester) async {
     await pumpList(tester, [
       block(1, kind: BlockKind.prompt, createdAt: '2026-08-28T10:00:00Z'),
       block(2, kind: BlockKind.assistant, createdAt: '2026-08-28T10:00:05Z'),
@@ -155,8 +155,8 @@ void main() {
       ),
     ]);
 
-    expect(find.text('FINISHED · 5s'), findsOneWidget);
-    expect(find.textContaining('RUNNING'), findsOneWidget);
+    expect(find.text('FINISHED · 5s'), findsNothing);
+    expect(find.textContaining('RUNNING'), findsNothing);
   });
 
   testWidgets('builds only a window of a long session', (tester) async {
@@ -538,19 +538,26 @@ void main() {
         tester,
         [block(1)],
         sticky: sticky,
-        renderStickyHeader: false,
       );
       final state = tester.state<BlockListState>(find.byType(BlockList));
       state.controller.jumpTo(0);
       await tester.pumpAndSettle();
       expect(sticky.value?.block.kind, BlockKind.tool);
-      expect(find.text('tool'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(StickyBlockHeader), matching: find.text('Bash 1')),
+        findsOneWidget,
+        reason: 'a tool block has a natural header row, so the sticky header pins its title',
+      );
 
       harness.switchSession('s-2', [block(1, kind: BlockKind.prompt)]);
       await tester.pumpAndSettle();
 
       expect(sticky.value?.block.kind, BlockKind.prompt);
-      expect(find.text('you'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(StickyBlockHeader), matching: find.text('Bash 1')),
+        findsNothing,
+        reason: 'a user-turn block has no header row, so the sticky header renders nothing for it',
+      );
     },
   );
 

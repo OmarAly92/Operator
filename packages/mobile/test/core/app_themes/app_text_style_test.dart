@@ -20,7 +20,7 @@ void main() {
     expect(AppTextStyle.style13Medium.fontWeight, FontWeight.w500);
   });
 
-  testWidgets('mono styles fall back to platform monospace', (tester) async {
+  testWidgets('mono styles use JetBrains Mono, falling back to platform monospace', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ScreenUtilInit(
@@ -31,6 +31,6 @@ void main() {
     );
 
     expect(AppTextStyle.mono11Bold.fontFamilyFallback, contains('monospace'));
-    expect(AppTextStyle.mono11Bold.fontFamily, isNull);
+    expect(AppTextStyle.mono11Bold.fontFamily, 'JetBrains Mono');
   });
 }

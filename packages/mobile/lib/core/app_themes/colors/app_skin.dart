@@ -147,4 +147,24 @@ abstract class AppSkin {
   /// the per-session state hues. Example: the dot on the notifications
   /// bell icon when there are unread notifications.
   Color get attention;
+
+  /// A warm tertiary hue distinct from [orange] and [amber], for content
+  /// that needs its own identity outside the six state hues. Example: an
+  /// accent used sparingly in illustrative or decorative chrome.
+  Color get coral;
+
+  /// The base color of a shimmer/skeleton loading gradient, sitting behind
+  /// [shimmerHi]. Example: the resting tone of a skeleton row while a
+  /// session card's content is still loading.
+  Color get shimmerBase;
+
+  /// The highlight color sweeping across a shimmer/skeleton loading
+  /// gradient. Example: the bright band that travels across a skeleton
+  /// row while a session card's content is still loading.
+  Color get shimmerHi;
+
+  /// The fill of chrome surfaces that sit apart from ordinary content,
+  /// such as toggle tracks or segmented-control backgrounds. Example: the
+  /// background behind the light/dark theme toggle control.
+  Color get bgChrome;
 }

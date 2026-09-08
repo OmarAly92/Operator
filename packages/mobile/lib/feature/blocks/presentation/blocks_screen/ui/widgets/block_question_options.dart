@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
@@ -101,8 +102,8 @@ class _BlockQuestionOptionsState extends State<BlockQuestionOptions> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: skin.bgElevated,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: selected ? skin.blue : skin.borderSubtle),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: selected ? skin.accent : skin.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

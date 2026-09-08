@@ -1,7 +1,9 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -79,74 +81,81 @@ class PrimaryButton extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: ElevatedButton(
-                style: buildButtonStyleFrom(context),
-                onPressed: isLoading ? () {} : _onPressed,
-                child: isLoading
-                    ? Center(
-                        child: SpinKitThreeBounce(
-                          color: foregroundColor ?? context.skin.onAccent,
-                          size: 35,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (icon != null) ...[
-                            icon!,
-                            const HorizontalSpace(8),
-                          ],
-                          Flexible(
-                            child: AppText(
-                              text,
-                              style:
-                                  textStyle ??
-                                  AppTextStyle.style17Medium.copyWith(
-                                    color: textColor ?? context.skin.onAccent,
-                                  ),
-                            ),
+              child: PressScale(
+                enabled: !isLoading,
+                child: ElevatedButton(
+                  style: buildButtonStyleFrom(context),
+                  onPressed: isLoading ? () {} : _onPressed,
+                  child: isLoading
+                      ? Center(
+                          child: SpinKitThreeBounce(
+                            color: foregroundColor ?? context.skin.onAccent,
+                            size: 35,
                           ),
-                          if (trailingIcon != null) ...[
-                            const HorizontalSpace(8),
-                            trailingIcon!,
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (icon != null) ...[
+                              icon!,
+                              const HorizontalSpace(8),
+                            ],
+                            Flexible(
+                              child: AppText(
+                                text,
+                                style:
+                                    textStyle ??
+                                    AppTextStyle.style17Medium.copyWith(
+                                      color:
+                                          textColor ?? context.skin.onAccent,
+                                    ),
+                              ),
+                            ),
+                            if (trailingIcon != null) ...[
+                              const HorizontalSpace(8),
+                              trailingIcon!,
+                            ],
                           ],
-                        ],
-                      ),
+                        ),
+                ),
               ),
             ),
           ],
         ),
       );
     } else {
-      return ElevatedButton(
-        style: buildButtonStyleFrom(context),
-        onPressed: isLoading ? () {} : _onPressed,
-        child: isLoading
-            ? SpinKitThreeBounce(
-                color: foregroundColor ?? context.skin.onAccent,
-                size: 35,
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[icon!, const SizedBox(width: 8)],
-                  Flexible(
-                    child: AppText(
-                      text,
-                      style:
-                          textStyle ??
-                          AppTextStyle.style17Medium.copyWith(
-                            color: textColor ?? context.skin.onAccent,
-                          ),
+      return PressScale(
+        enabled: !isLoading,
+        child: ElevatedButton(
+          style: buildButtonStyleFrom(context),
+          onPressed: isLoading ? () {} : _onPressed,
+          child: isLoading
+              ? SpinKitThreeBounce(
+                  color: foregroundColor ?? context.skin.onAccent,
+                  size: 35,
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (icon != null) ...[icon!, const SizedBox(width: 8)],
+                    Flexible(
+                      child: AppText(
+                        text,
+                        style:
+                            textStyle ??
+                            AppTextStyle.style17Medium.copyWith(
+                              color: textColor ?? context.skin.onAccent,
+                            ),
+                      ),
                     ),
-                  ),
-                  if (trailingIcon != null) ...[
-                    const HorizontalSpace(8),
-                    trailingIcon!,
+                    if (trailingIcon != null) ...[
+                      const HorizontalSpace(8),
+                      trailingIcon!,
+                    ],
                   ],
-                ],
-              ),
+                ),
+        ),
       );
     }
   }
@@ -154,12 +163,12 @@ class PrimaryButton extends StatelessWidget {
   ButtonStyle buildButtonStyleFrom(BuildContext context) {
     return ElevatedButton.styleFrom(
       padding: padding,
-      fixedSize: fixedSize ?? const Size.fromHeight(48),
+      fixedSize: fixedSize ?? const Size.fromHeight(50),
       foregroundColor: foregroundColor ?? context.skin.onAccent,
       backgroundColor: backgroundColor ?? context.skin.accent,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: borderRadius ?? BorderRadius.circular(12),
+        borderRadius: borderRadius ?? BorderRadius.circular(AppConstants.radiusButton),
       ),
     );
   }

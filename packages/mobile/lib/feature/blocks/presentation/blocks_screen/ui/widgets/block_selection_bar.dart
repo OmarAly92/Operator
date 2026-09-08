@@ -67,7 +67,7 @@ class BlockSelectionBar extends StatelessWidget {
             child: AppText(
               'Copy',
               style: AppTextStyle.style12SemiBold.copyWith(
-                color: selectedIds.isEmpty ? skin.textFaint : skin.blue,
+                color: selectedIds.isEmpty ? skin.textFaint : skin.accent,
               ),
             ),
           ),

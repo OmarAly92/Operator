@@ -103,6 +103,9 @@ class _SessionRouteScreenState extends State<SessionRouteScreen> {
             sessionId: session.id,
             title: session.title,
             projectId: session.projectId,
+            projectName: context.read<SessionsCubit>().projects
+                .where((project) => project.id == session.projectId)
+                .firstOrNull?.name,
             previewUrl: session.previewUrl,
             harness: session.harness,
           );

@@ -25,6 +25,7 @@ import 'package:operator_mobile/feature/pull_request/logic/open_github.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_cubit.dart';
 import 'package:operator_mobile/feature/settings/presentation/settings_screen/logic/settings_state.dart';
+import 'package:operator_mobile/feature/settings/presentation/settings_screen/ui/widgets/test_connection_row.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -206,7 +207,7 @@ class _SettingsBodyState extends State<SettingsBody> {
 
         return ListView(
           controller: HomeShell.controllerFor(3),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: [
             SettingsGroup(
               footer: "Your PC's Tailscale name / 100.x address, or its LAN IP on the same Wi-Fi.",
@@ -225,12 +226,15 @@ class _SettingsBodyState extends State<SettingsBody> {
                   onTap: () => _openConnection(context),
                 ),
                 SettingsRow(
-                  icon: Icons.wifi_tethering,
-                  label: 'Test connection',
-                  value: testValue,
-                  valueColor: testValueColor,
+                  icon: Icons.devices_other,
+                  label: 'Saved connections',
+                  onTap: () => Navigator.of(context).pushNamed(RoutesStrings.connections),
+                ),
+                TestConnectionRow(
                   loading: state is PingLoadingState,
                   disabled: config == null,
+                  value: testValue,
+                  valueColor: testValueColor,
                   onTap: () => context.read<SettingsCubit>().testConnection(),
                 ),
               ],

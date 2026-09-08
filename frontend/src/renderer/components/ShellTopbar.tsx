@@ -15,7 +15,7 @@ import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery
 import { useProjectTerminateSessionStates } from "../hooks/useTerminateSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
-import { useUiStore } from "../stores/ui-store";
+import { inspectorState, useUiStore } from "../stores/ui-store";
 import { OrchestratorIcon } from "./icons";
 import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { getAgentActivityView } from "../lib/session-presentation";
@@ -55,7 +55,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
 	const currentSessionId = params.sessionId;
 	const isInspectorOpen = useUiStore((state) =>
-		currentSessionId ? (state.inspectorSessions[currentSessionId]?.isOpen ?? true) : false,
+		currentSessionId ? inspectorState(state.inspectorSessions, currentSessionId).isOpen : false,
 	);
 	const toggleInspector = useUiStore((state) => state.toggleInspector);
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);

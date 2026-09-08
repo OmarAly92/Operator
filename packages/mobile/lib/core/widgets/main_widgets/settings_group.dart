@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -36,7 +37,11 @@ class SettingsGroup extends StatelessWidget {
         ],
         Container(
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: skin.bgSurface, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: skin.bgSurface,
+            borderRadius: BorderRadius.circular(AppConstants.radiusCard),
+            border: Border.all(color: skin.borderDefault),
+          ),
           child: Column(children: rows),
         ),
         if (footer != null) ...[
@@ -164,8 +169,9 @@ class SettingsToggle extends StatelessWidget {
             if (busy) ...[const AppLoader(strokeWidth: 2), const HorizontalSpace(10)],
             Switch(
               value: value,
-              activeThumbColor: skin.onAccent,
-              activeTrackColor: skin.blue,
+              activeThumbColor: Colors.white,
+              activeTrackColor: skin.accent,
+              inactiveTrackColor: skin.bgSubtle,
               onChanged: disabled || busy ? null : onChanged,
             ),
           ],

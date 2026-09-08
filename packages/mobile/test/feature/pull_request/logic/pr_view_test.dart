@@ -151,8 +151,8 @@ void main() {
   });
 
   group('stateVisualOf', () {
-    test('gives merged its own hue, distinct from open', () {
-      expect(stateVisualOf(skin, PrLifecycle.merged).color, skin.purple);
+    test('matches the design system: merged reads the same green as open', () {
+      expect(stateVisualOf(skin, PrLifecycle.merged).color, skin.green);
       expect(stateVisualOf(skin, PrLifecycle.open).color, skin.green);
       expect(stateVisualOf(skin, PrLifecycle.closed).color, skin.red);
       expect(stateVisualOf(skin, PrLifecycle.draft).color, skin.textTertiary);

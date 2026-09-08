@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/relative_time.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/status_dot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/logic/agents_view.dart';
 import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
@@ -37,13 +39,17 @@ class SessionCard extends StatelessWidget {
         ? (rawPath != null && rawPath.isNotEmpty ? rawPath : null)
         : _worktreeDirName(rawPath);
     final showLocation = branch != null || location != null;
+    final project = showProject ? session.projectId : null;
     final issue = trackerIssueId(session.issueId);
     final prs = prLine(session);
     final when = relativeTime(session.updatedAt);
 
     return AppContainer(
       onTap: onTap,
-      padding: const EdgeInsets.all(12),
+      pressScale: true,
+      padding: const EdgeInsets.all(13),
+      borderRadius: BorderRadius.circular(AppConstants.radiusCard),
+      border: Border.all(color: skin.borderDefault),
       child: GestureDetector(
         onLongPress: onLongPress,
         behavior: HitTestBehavior.opaque,
@@ -51,88 +57,168 @@ class SessionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AgentLogo(harness: session.harness, size: 20),
                 const HorizontalSpace(9),
-                Expanded(child: AppText(title, style: AppTextStyle.style15SemiBold, maxLines: 2)),
-                if (showProject && session.projectId != null)
-                  AppText(session.projectId!, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                AppText(
+                  title,
+                  style: AppTextStyle.style15SemiBold,
+                  maxLines: 2,
+                ),
+                const HorizontalSpace(9),
+                if (project != null) ...[
+                  Expanded(
+                    child: AppText(
+                      project,
+                      style: AppTextStyle.mono11Regular.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                    ),
+                  ),
+                ],
+                Container(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 9, 4),
+                  decoration: BoxDecoration(
+                    color: statusChipTint(skin, visual.color),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusPill,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      StatusDot(
+                        color: visual.color,
+                        size: 7,
+                        breathing: visual.breathing,
+                      ),
+                      const HorizontalSpace(6),
+                      AppText(
+                        visual.label,
+                        style: AppTextStyle.style11p5SemiBold.copyWith(
+                          color: visual.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-            if (showLocation || issue != null) ...[
-              const VerticalSpace(6),
+            if (project != null ||
+                showLocation ||
+                issue != null ||
+                when.isNotEmpty) ...[
+              const VerticalSpace(7),
               Padding(
                 padding: const EdgeInsets.only(left: 29),
                 child: Row(
                   children: [
                     if (showLocation)
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (branch != null) ...[
-                              Icon(Icons.call_split, size: 12, color: skin.textFaint),
+                      if (branch != null) ...[
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 9, 4),
+                          decoration: BoxDecoration(
+                            color: skin.bgColumn,
+                            borderRadius: BorderRadius.circular(
+                              AppConstants.radiusPill,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.call_split, size: 12, color: skin.green),
                               const HorizontalSpace(4),
-                              Expanded(
-                                child: AppText(
-                                  branch,
-                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                              AppText(
+                                branch,
+                                style: AppTextStyle.mono11Regular.copyWith(
+                                  color: skin.green,
                                 ),
                               ),
-                            ],
-                            if (location != null) ...[
-                              if (branch != null) const HorizontalSpace(6),
-                              if (isInPlace) ...[
-                                Icon(Icons.folder_outlined, size: 12, color: skin.textFaint),
-                                const HorizontalSpace(4),
-                              ],
-                              if (branch == null)
-                                Expanded(
-                                  child: AppText(
-                                    location,
-                                    style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
-                                  ),
-                                )
-                              else
+
+                              if (when.isNotEmpty) ...[
+                                const HorizontalSpace(6),
                                 AppText(
-                                  location,
-                                  style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint),
+                                  when,
+                                  style: AppTextStyle.mono11Regular.copyWith(
+                                    color: skin.green,
+                                  ),
                                 ),
+                              ],
                             ],
-                          ],
+                          ),
+                        ),
+                      ],
+                    if (issue != null) ...[
+                      const HorizontalSpace(6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: skin.tintBlue,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: AppText(
+                          issue,
+                          style: AppTextStyle.mono10Regular.copyWith(
+                            color: skin.blue,
+                          ),
                         ),
                       ),
-                    if (issue != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: skin.tintBlue, borderRadius: BorderRadius.circular(5)),
-                        child: AppText(issue, style: AppTextStyle.mono10Regular.copyWith(color: skin.blue)),
-                      ),
+                    ],
+
                   ],
                 ),
               ),
             ],
-            const VerticalSpace(10),
-            Container(height: 1, color: skin.borderSubtle),
-            const VerticalSpace(8),
-            Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(color: visual.color, shape: BoxShape.circle),
-                ),
-                const HorizontalSpace(6),
-                Expanded(
-                  child: AppText(visual.label, style: AppTextStyle.style12SemiBold.copyWith(color: visual.color)),
-                ),
-                if (when.isNotEmpty)
-                  AppText(when, style: AppTextStyle.mono11Regular.copyWith(color: skin.textFaint)),
-              ],
+            VerticalSpace(3),
+            Padding(
+              padding: const EdgeInsets.only(left: 23),
+              child: Row(
+                crossAxisAlignment: .start,
+                children: [
+                  if (location != null) ...[
+                    if (branch != null) const HorizontalSpace(6),
+                    if (isInPlace) ...[
+                      Icon(
+                        Icons.folder_outlined,
+                        size: 12,
+                        color: skin.textFaint,
+                      ),
+                      const HorizontalSpace(4),
+                    ],
+                    Expanded(
+                      child: AppText(
+                        location,
+                        maxLines: 2,
+                        style: AppTextStyle.mono11Regular.copyWith(
+                          color: skin.textFaint,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
+
             if (prs != null) ...[
-              const VerticalSpace(5),
-              AppText(prs.text, style: AppTextStyle.mono11Regular.copyWith(color: skin.textSecondary)),
+              const VerticalSpace(9),
+              Container(height: 1, color: skin.borderSubtle),
+              const VerticalSpace(9),
+              Row(
+                children: [
+                  Icon(Icons.call_merge, size: 14, color: skin.green),
+                  const HorizontalSpace(6),
+                  Expanded(
+                    child: AppText(
+                      prs.text,
+                      style: AppTextStyle.mono11Regular.copyWith(
+                        color: skin.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ],
         ),

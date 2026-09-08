@@ -1,7 +1,9 @@
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
 
 class AppContainer extends StatelessWidget {
   const AppContainer({
@@ -19,6 +21,7 @@ class AppContainer extends StatelessWidget {
     this.backgroundColor,
     this.boxShadow,
     this.hapticsOnTap = true,
+    this.pressScale = false,
   });
 
   final Widget child;
@@ -35,6 +38,13 @@ class AppContainer extends StatelessWidget {
   final List<BoxShadow>? boxShadow;
   final bool hapticsOnTap;
 
+  /// Applies the prototype's `CARD_SURFACE` press feedback
+  /// (`AppMotion.pressScaleDefault` + `AppMotion.spring`,
+  /// `docs/design/components.md`) when this container is tappable. Opt-in —
+  /// defaults to `false` so existing non-card call sites (buttons, rows,
+  /// chips with their own press treatment) are unaffected.
+  final bool pressScale;
+
   void Function()? get _onTap {
     final handler = onTap;
     if (handler == null) return null;
@@ -47,32 +57,36 @@ class AppContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = Material(
+      color: backgroundColor ?? context.skin.bgSurface,
+      borderRadius: borderRadius ?? BorderRadius.circular(AppConstants.radiusButton),
+      child: AppInkWell(
+        borderRadius: borderRadius ?? BorderRadius.circular(AppConstants.radiusButton),
+        onTap: _onTap,
+        child: Container(
+          width: width,
+          height: height,
+          padding:
+              padding ??
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          constraints: constraints,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius ?? BorderRadius.circular(AppConstants.radiusButton),
+            border: border,
+            boxShadow: boxShadow,
+          ),
+          child: child,
+        ),
+      ),
+    );
+
     return Opacity(
       opacity: disable ? .5 : 1,
       child: Padding(
         padding: margin ?? EdgeInsets.zero,
-        child: Material(
-          color: backgroundColor ?? context.skin.bgSurface,
-          borderRadius: borderRadius ?? BorderRadius.circular(12),
-          child: AppInkWell(
-            borderRadius: borderRadius ?? BorderRadius.circular(12),
-            onTap: _onTap,
-            child: Container(
-              width: width,
-              height: height,
-              padding:
-                  padding ??
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              constraints: constraints,
-              decoration: BoxDecoration(
-                borderRadius: borderRadius ?? BorderRadius.circular(12),
-                border: border,
-                boxShadow: boxShadow,
-              ),
-              child: child,
-            ),
-          ),
-        ),
+        child: pressScale && onTap != null
+            ? PressScale(child: content)
+            : content,
       ),
     );
   }

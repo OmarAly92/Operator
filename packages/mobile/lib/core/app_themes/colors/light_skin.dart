@@ -8,95 +8,107 @@ class LightSkin extends AppSkin {
   ThemeMode get themeMode => ThemeMode.light;
 
   @override
-  Color get bgBase => const Color(0xFFF2F2F7);
+  Color get bgBase => const Color(0xFFFAF7F2);
 
   @override
-  Color get bgSide => const Color(0xFFECEEF2);
+  Color get bgSide => const Color(0xFFFFFFFF);
 
   @override
-  Color get bgColumn => const Color(0xFFF7F7FA);
+  Color get bgColumn => const Color(0xFFFAF7F2);
 
   @override
   Color get bgSurface => const Color(0xFFFFFFFF);
 
   @override
-  Color get bgElevated => const Color(0xFFFFFFFF);
+  Color get bgElevated => const Color(0xFFF4EFE6);
 
   @override
-  Color get bgElevatedHover => const Color(0xFFECECF0);
+  Color get bgElevatedHover => const Color(0xFFEBE4D6);
 
   @override
-  Color get bgSubtle => const Color(0x0A000000);
+  Color get bgSubtle => const Color(0x0D1A1612);
 
   @override
-  Color get textPrimary => const Color(0xFF1A1A1A);
+  Color get textPrimary => const Color(0xFF1A1612);
 
   @override
-  Color get textSecondary => const Color(0xFF666666);
+  Color get textSecondary => const Color(0xFF3D362E);
 
   @override
-  Color get textTertiary => const Color(0xFF8E8E93);
+  Color get textTertiary => const Color(0xFF6B6354);
 
   @override
-  Color get textFaint => const Color(0xFFB8B8BD);
+  Color get textFaint => const Color(0xFF9C9381);
 
   @override
-  Color get borderSubtle => const Color(0x0F000000);
+  Color get borderSubtle => const Color(0x0F1A1612);
 
   @override
-  Color get borderDefault => const Color(0x1F000000);
+  Color get borderDefault => const Color(0xFFEBE4D6);
 
   @override
-  Color get borderStrong => const Color(0x33000000);
+  Color get borderStrong => const Color(0xFFD8CEBD);
 
   @override
-  Color get blue => const Color(0xFF2563EB);
+  Color get blue => const Color(0xFF1F8EE0);
 
   @override
-  Color get orange => const Color(0xFFB45309);
+  Color get orange => const Color(0xFF96590D);
 
   @override
-  Color get amber => const Color(0xFF946200);
+  Color get amber => const Color(0xFF856010);
 
   @override
-  Color get red => const Color(0xFFC0392B);
+  Color get red => const Color(0xFFC43A3A);
 
   @override
-  Color get purple => const Color(0xFF7C3AED);
+  Color get purple => const Color(0xFF1A6FB0);
 
   @override
-  Color get green => const Color(0xFF2F7D32);
+  Color get green => const Color(0xFF1F8A5B);
 
   @override
-  Color get tintBlue => const Color(0x1F2563EB);
+  Color get tintBlue => const Color(0x1A1F8EE0);
 
   @override
-  Color get tintOrange => const Color(0x1FB45309);
+  Color get tintOrange => const Color(0x24E89527);
 
   @override
-  Color get tintAmber => const Color(0x1F946200);
+  Color get tintAmber => const Color(0x24E89527);
 
   @override
-  Color get tintRed => const Color(0x1FC0392B);
+  Color get tintRed => const Color(0x1AC43A3A);
 
   @override
-  Color get tintGreen => const Color(0x1F2F7D32);
+  Color get tintGreen => const Color(0x241ACB64);
 
   @override
-  Color get tintPurple => const Color(0x1F7C3AED);
+  Color get tintPurple => const Color(0x1A1F8EE0);
 
   @override
-  Color get onAccent => const Color(0xFFFFFFFF);
+  Color get onAccent => const Color(0xFF18171C);
 
   @override
-  Color get scrim => const Color(0x73000000);
+  Color get scrim => const Color(0x8C1A1612);
 
   @override
-  Color get accent => const Color(0xFF2563EB);
+  Color get accent => const Color(0xFF1ACB64);
 
   @override
-  Color get accentTint => const Color(0x1F2563EB);
+  Color get accentTint => const Color(0x241ACB64);
 
   @override
-  Color get attention => const Color(0xFF946200);
+  Color get attention => const Color(0xFF1ACB64);
+
+  @override
+  Color get coral => const Color(0xFFC47A18);
+
+  @override
+  Color get shimmerBase => const Color(0xFFEFE9DD);
+
+  @override
+  Color get shimmerHi => const Color(0xFFFBF9F5);
+
+  @override
+  Color get bgChrome => const Color(0xFFFDFCFA);
 }

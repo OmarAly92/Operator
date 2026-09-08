@@ -43,7 +43,7 @@ class _BlockResultSectionState extends State<BlockResultSection> {
               onTap: () => setState(() => _expanded = !_expanded),
               child: AppText(
                 _expanded ? 'Show less' : 'Show full result',
-                style: AppTextStyle.style10SemiBold.copyWith(color: skin.blue),
+                style: AppTextStyle.style10SemiBold.copyWith(color: skin.accent),
               ),
             ),
           ),

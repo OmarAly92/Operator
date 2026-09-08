@@ -11,7 +11,9 @@ String appendTranscript(String existing, String spoken) =>
     existing.trim().isEmpty ? spoken : '${existing.trimRight()} $spoken';
 
 class MicKey extends StatefulWidget {
-  const MicKey({super.key});
+  const MicKey({super.key, this.prominent = false});
+
+  final bool prominent;
 
   @override
   State<MicKey> createState() => _MicKeyState();
@@ -60,14 +62,18 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
         final disabled = denied || unavailable;
         _syncPulse(live);
 
-        final fill = live
+        final fill = widget.prominent && !live && !denied
+            ? skin.accent
+            : live
             ? skin.red
             : denied
             ? skin.tintRed
             : unavailable
             ? skin.bgElevated
             : skin.tintBlue;
-        final ink = live
+        final ink = widget.prominent && !live && !denied
+            ? skin.onAccent
+            : live
             ? skin.textPrimary
             : denied
             ? skin.red
@@ -76,8 +82,8 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
             : skin.blue;
 
         return SizedBox(
-          width: kMicSize,
-          height: kMicSize,
+          width: widget.prominent ? 46 : kMicSize,
+          height: widget.prominent ? 46 : kMicSize,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -87,11 +93,11 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                   child: ScaleTransition(
                     scale: Tween<double>(begin: 1, end: 1.45).animate(_pulse),
                     child: Container(
-                      width: kMicSize,
-                      height: kMicSize,
+                      width: widget.prominent ? 46 : kMicSize,
+                      height: widget.prominent ? 46 : kMicSize,
                       decoration: BoxDecoration(
                         color: skin.red,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(widget.prominent ? 23 : 12),
                       ),
                     ),
                   ),
@@ -114,21 +120,21 @@ class _MicKeyState extends State<MicKey> with SingleTickerProviderStateMixin {
                   onTapUp: disabled ? null : (_) => cubit.pressOut(),
                   onTapCancel: disabled ? null : cubit.pressCancel,
                   child: Container(
-                    width: kMicSize,
-                    height: kMicSize,
+                    width: widget.prominent ? 46 : kMicSize,
+                    height: widget.prominent ? 46 : kMicSize,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: fill,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(widget.prominent ? 23 : 12),
                       border: latched
                           ? Border.all(color: skin.textPrimary, width: 2)
-                          : unavailable
+                          : unavailable && !widget.prominent
                           ? Border.all(color: skin.borderSubtle)
                           : null,
                     ),
                     child: Icon(
-                      disabled ? Icons.mic_off : Icons.mic,
-                      size: 18,
+                      disabled && !widget.prominent ? Icons.mic_off : Icons.mic_none,
+                      size: widget.prominent ? 22 : 18,
                       color: ink,
                     ),
                   ),

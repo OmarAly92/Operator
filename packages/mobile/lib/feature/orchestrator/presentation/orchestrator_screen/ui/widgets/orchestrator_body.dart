@@ -81,10 +81,12 @@ class _OrchestratorBodyState extends State<OrchestratorBody> {
               controller: HomeShell.controllerFor(1),
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                ...projects.map((project) {
+                ...projects.asMap().entries.map((entry) {
+                  final project = entry.value;
                   final link = _linkFor(sessionsCubit.orchestrators, project.id);
                   final sessionId = link?.id;
                   return OrchestratorCard(
+                    index: entry.key,
                     projectId: project.id ?? '',
                     projectName: project.name ?? project.id ?? '',
                     link: link,

@@ -91,7 +91,7 @@ class _TurnGroupStatusState extends State<TurnGroupStatus> {
                 child: AppText(
                   'Rollback',
                   style: AppTextStyle.style10SemiBold.copyWith(
-                    color: context.skin.blue,
+                    color: context.skin.accent,
                   ),
                 ),
               ),

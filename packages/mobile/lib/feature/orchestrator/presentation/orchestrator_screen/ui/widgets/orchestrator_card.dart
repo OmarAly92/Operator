@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/app_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/dialog/app_dialog.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/status_dot.dart';
 import 'package:operator_mobile/feature/orchestrator/logic/orchestrator_view.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_state.dart';
@@ -36,6 +39,7 @@ class OrchestratorCard extends StatefulWidget {
     required this.workers,
     required this.onOpenBoard,
     this.onOpen,
+    this.index = 0,
   });
 
   final String projectId;
@@ -44,12 +48,35 @@ class OrchestratorCard extends StatefulWidget {
   final List<SessionModel> workers;
   final VoidCallback onOpenBoard;
   final VoidCallback? onOpen;
+  final int index;
 
   @override
   State<OrchestratorCard> createState() => _OrchestratorCardState();
 }
 
-class _OrchestratorCardState extends State<OrchestratorCard> {
+class _OrchestratorCardState extends State<OrchestratorCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _entranceController;
+  late final Animation<double> _entrance;
+
+  @override
+  void initState() {
+    super.initState();
+    final delay = AppMotion.staggerDelay(widget.index);
+    final total = delay + AppMotion.slow;
+    _entranceController = AnimationController(vsync: this, duration: total);
+    _entrance = CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(delay.inMicroseconds / total.inMicroseconds, 1, curve: AppMotion.easeOut),
+    );
+    _entranceController.forward();
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    super.dispose();
+  }
+
   Future<void> _onLaunch() async {
     final intent = launchIntent(orchestratorStateOf(widget.link));
     if (intent.confirm) {
@@ -81,9 +108,31 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
     final launchState = context.watch<OrchestratorCubit>().state;
     final isLaunching = launchState is LaunchLoadingState && launchState.projectId == widget.projectId;
 
+    return AnimatedBuilder(
+      animation: _entrance,
+      builder: (context, child) => Opacity(
+        opacity: _entrance.value,
+        child: Transform.translate(
+          offset: Offset(0, AppMotion.fadeUpOffset * (1 - _entrance.value)),
+          child: child,
+        ),
+      ),
+      child: _card(skin, status, intent, counts, isLaunching),
+    );
+  }
+
+  Widget _card(
+    AppSkin skin,
+    OrchestratorStatus status,
+    LaunchIntent intent,
+    Map<AttentionLevel, int> counts,
+    bool isLaunching,
+  ) {
     return AppContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(12),
+      borderRadius: BorderRadius.circular(AppConstants.radiusCard),
+      border: Border.all(color: skin.borderDefault),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -100,11 +149,7 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
                     const VerticalSpace(4),
                     Row(
                       children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(color: status.color, shape: BoxShape.circle),
-                        ),
+                        StatusDot(color: status.color, size: 7),
                         const HorizontalSpace(6),
                         AppText(status.label, style: AppTextStyle.style12SemiBold.copyWith(color: status.color)),
                         if (widget.link?.harness != null)
@@ -137,25 +182,27 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
                 ),
               ),
               if (widget.onOpen != null)
-                IconButton(
-                  icon: const Icon(Icons.forum_outlined),
+                _actionIcon(
+                  icon: Icons.forum_outlined,
                   tooltip: 'Open orchestrator',
+                  color: skin.textSecondary,
                   onPressed: widget.onOpen,
                 ),
               if (intent.confirm)
-                IconButton(
-                  icon: const Icon(Icons.refresh),
+                _actionIcon(
+                  icon: Icons.refresh,
                   tooltip: 'Restart orchestrator',
+                  color: skin.textSecondary,
                   onPressed: isLaunching ? null : _onLaunch,
                 )
               else
-                ElevatedButton(
-                  onPressed: isLaunching ? null : _onLaunch,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: skin.blue,
-                    foregroundColor: skin.onAccent,
-                    elevation: 0,
-                  ),
+                AppContainer(
+                  onTap: isLaunching ? null : _onLaunch,
+                  pressScale: true,
+                  hapticsOnTap: false,
+                  backgroundColor: skin.accent,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   child: AppText(
                     isLaunching ? 'Starting…' : 'Start orchestrator',
                     style: AppTextStyle.style12SemiBold.copyWith(color: skin.onAccent),
@@ -177,12 +224,12 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
         onTap: _onZoneTap,
         hapticsOnTap: false,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppConstants.radiusPill),
         backgroundColor: meta.tint,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 6, height: 6, decoration: BoxDecoration(color: meta.color, shape: BoxShape.circle)),
+            StatusDot(color: meta.color, size: 6),
             const HorizontalSpace(4),
             AppText('$count', style: AppTextStyle.mono12Bold.copyWith(color: meta.color)),
             const HorizontalSpace(4),
@@ -192,4 +239,19 @@ class _OrchestratorCardState extends State<OrchestratorCard> {
       ),
     );
   }
+
+  Widget _actionIcon({
+    required IconData icon,
+    required String tooltip,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) => IconButton(
+    icon: Icon(icon),
+    iconSize: 20,
+    color: color,
+    tooltip: tooltip,
+    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+    padding: EdgeInsets.zero,
+    onPressed: onPressed,
+  );
 }

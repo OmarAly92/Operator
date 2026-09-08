@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
+import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/extensions.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/global_appbar.dart';
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/ui/widgets/notification_bell.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -19,12 +21,19 @@ class SessionsScreen extends StatelessWidget {
     },
     child: Scaffold(
       backgroundColor: context.skin.bgBase,
-      appBar: const GlobalAppbar.main(actions: [NotificationBell()]),
+      appBar: GlobalAppbar.main(
+        backgroundColor: context.skin.bgChrome,
+        hasBorder: true,
+        title: AppText('Agents', style: AppTextStyle.style19SemiBold.copyWith(letterSpacing: -0.3)),
+        actions: const [NotificationBell()],
+      ),
       body: const SessionsBody(),
       floatingActionButton: FloatingActionButton(
         backgroundColor: context.skin.accent,
+        elevation: 4,
+        shape: const CircleBorder(),
         onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.spawn),
-        child: Icon(Icons.add, color: context.skin.onAccent),
+        child: Icon(Icons.add, color: context.skin.onAccent, size: 24),
       ),
     ),
   );

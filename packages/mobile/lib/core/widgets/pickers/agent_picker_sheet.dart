@@ -1,9 +1,11 @@
+import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/loading_widget/app_loader.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_ink_well.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/ui/widgets/agent_logo.dart';
@@ -18,10 +20,8 @@ Future<String?> showAgentPickerSheet(
   String? error,
 }) {
   final skin = context.skin;
-  return showModalBottomSheet<String>(
+  return showExpressiveSheet<String>(
     context: context,
-    backgroundColor: skin.bgSurface,
-    isScrollControlled: true,
     builder: (sheetContext) {
       var isRefreshing = refreshing;
       return StatefulBuilder(
@@ -33,10 +33,8 @@ Future<String?> showAgentPickerSheet(
             setState(() => isRefreshing = false);
           }
 
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
+          return AppSheetChrome(
+            child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -64,7 +62,7 @@ Future<String?> showAgentPickerSheet(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           child: isRefreshing
                               ? const SizedBox(width: 16, height: 16, child: AppLoader(strokeWidth: 2))
-                              : AppText('Refresh', style: AppTextStyle.style13Regular.copyWith(color: skin.blue)),
+                              : AppText('Refresh', style: AppTextStyle.style13Regular.copyWith(color: skin.accent)),
                         ),
                       ),
                     ],
@@ -104,8 +102,7 @@ Future<String?> showAgentPickerSheet(
                     ),
                 ],
               ),
-            ),
-          );
+            );
         },
       );
     },
@@ -139,14 +136,14 @@ class _AgentOption extends StatelessWidget {
               children: [
                 AppText(
                   agent.label,
-                  style: AppTextStyle.style15Medium.copyWith(color: selected ? skin.blue : skin.textPrimary),
+                  style: AppTextStyle.style15Medium.copyWith(color: selected ? skin.accent : skin.textPrimary),
                 ),
                 if (agent.status.isNotEmpty)
                   AppText(agent.status, style: AppTextStyle.style12Regular.copyWith(color: statusColor)),
               ],
             ),
           ),
-          if (selected) Icon(Icons.check, size: 18, color: skin.blue),
+          if (selected) Icon(Icons.check, size: 18, color: skin.accent),
         ],
       ),
     );

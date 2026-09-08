@@ -52,35 +52,45 @@ class _HomeShellState extends State<HomeShell> {
           SettingsScreen(onOpenBoard: () => HomeShell.selectedTab.value = 0),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: HomeShell.selectedTab.value,
-        onTap: (next) {
-          Haptics.select();
-          if (next == HomeShell.selectedTab.value) {
-            final controller = HomeShell.controllerFor(next);
-            if (controller.hasClients && controller.offset > 0) {
-              controller.animateTo(
-                0,
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-              );
-            }
-            return;
-          }
-          HomeShell.selectedTab.value = next;
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: skin.bgSurface,
-        selectedItemColor: skin.blue,
-        unselectedItemColor: skin.textTertiary,
-        selectedLabelStyle: AppTextStyle.style11SemiBold,
-        unselectedLabelStyle: AppTextStyle.style11SemiBold,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_outlined), label: 'Agents'),
-          BottomNavigationBarItem(icon: Icon(Icons.hub_outlined), label: 'Orchestrator'),
-          BottomNavigationBarItem(icon: Icon(Icons.merge_outlined), label: 'PRs'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
-        ],
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: skin.bgChrome,
+          border: Border(top: BorderSide(color: skin.borderSubtle)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: BottomNavigationBar(
+            currentIndex: HomeShell.selectedTab.value,
+            onTap: (next) {
+              Haptics.select();
+              if (next == HomeShell.selectedTab.value) {
+                final controller = HomeShell.controllerFor(next);
+                if (controller.hasClients && controller.offset > 0) {
+                  controller.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                  );
+                }
+                return;
+              }
+              HomeShell.selectedTab.value = next;
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: skin.accent,
+            unselectedItemColor: skin.textTertiary,
+            selectedLabelStyle: AppTextStyle.style11SemiBold,
+            unselectedLabelStyle: AppTextStyle.style11SemiBold,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.auto_awesome_motion_outlined), label: 'Agents'),
+              BottomNavigationBarItem(icon: Icon(Icons.hub_outlined), label: 'Orchestrator'),
+              BottomNavigationBarItem(icon: Icon(Icons.call_merge_outlined), label: 'PRs'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+            ],
+          ),
+        ),
       ),
     );
   }

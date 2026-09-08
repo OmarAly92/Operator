@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
@@ -16,6 +17,8 @@ class AppTextField extends StatelessWidget {
     this.onChanged,
     this.autocorrect = true,
     this.enabled = true,
+    this.minLines,
+    this.maxLines = 1,
   });
 
   final TextEditingController controller;
@@ -27,6 +30,8 @@ class AppTextField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final bool autocorrect;
   final bool enabled;
+  final int? minLines;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +51,8 @@ class AppTextField extends StatelessWidget {
           onChanged: onChanged,
           autocorrect: autocorrect,
           enabled: enabled,
+          minLines: minLines,
+          maxLines: maxLines,
           style: AppTextStyle.style15Regular.copyWith(color: skin.textPrimary),
           cursorColor: skin.accent,
           decoration: InputDecoration(
@@ -55,15 +62,15 @@ class AppTextField extends StatelessWidget {
             fillColor: skin.bgElevated,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(color: skin.borderSubtle),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(color: skin.borderSubtle),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppConstants.radiusLg),
               borderSide: BorderSide(color: skin.accent),
             ),
           ),

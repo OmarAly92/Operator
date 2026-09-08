@@ -52,6 +52,17 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
+  // Session cards can render a perpetually-breathing `StatusDot` for
+  // working/detecting sessions (`docs/design/components.md`'s testing note) —
+  // `pumpAndSettle` never terminates while one is mounted, so every pump here
+  // is bounded instead: a handful of short steps is enough to flush the
+  // mocked repository's Future and any one-shot entrance/toggle animation.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
   Future<void> pumpBody(WidgetTester tester, BoardSnapshot snapshot) async {
     when(() => repository.getBoard()).thenAnswer(
       (_) async => Result.success(GlobalResponse(data: snapshot)),
@@ -73,7 +84,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   testWidgets('groups sessions into their board sections with a stat header', (tester) async {
@@ -82,13 +93,13 @@ void main() {
       const BoardSnapshot(
         sessions: [
           SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
-          SessionModel(id: 'b', projectId: 'proj', displayName: 'Needs you', status: 'needs_input'),
+          SessionModel(id: 'b', projectId: 'proj', displayName: 'Needs you: fix login', status: 'needs_input'),
         ],
       ),
     );
 
     expect(find.text('Working one'), findsOneWidget);
-    expect(find.text('Needs you'), findsOneWidget);
+    expect(find.text('Needs you: fix login'), findsOneWidget);
     expect(find.text('Working'), findsWidgets);
   });
 
@@ -114,35 +125,37 @@ void main() {
 
       if (target.archived) {
         await tester.tap(find.text('ARCHIVE'));
-        await tester.pumpAndSettle();
+        await settle(tester);
       }
 
       await tester.tap(find.text(target.title));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text(target.id), findsOneWidget);
     });
   }
 
-  group('stat jump', () {
-    testWidgets('tapping a populated stat clicks and jumps to its section', (tester) async {
+  group('filter chips', () {
+    testWidgets('tapping a filter chip fires a selection haptic and narrows the board', (tester) async {
       await pumpBody(
         tester,
         const BoardSnapshot(
           sessions: [
             SessionModel(id: 'a', projectId: 'proj', displayName: 'Working one', status: 'working'),
-            SessionModel(id: 'b', projectId: 'proj', displayName: 'Needs you', status: 'needs_input'),
+            SessionModel(id: 'b', projectId: 'proj', displayName: 'Needs you: fix login', status: 'needs_input'),
           ],
         ),
       );
 
-      await tester.tap(find.text('need you'));
-      await tester.pumpAndSettle();
+      await tester.tap(find.text('Needs you'));
+      await settle(tester);
 
-      expect(fired, ['HapticFeedbackType.selectionClick']);
+      expect(fired, contains('HapticFeedbackType.selectionClick'));
+      expect(find.text('Needs you: fix login'), findsOneWidget);
+      expect(find.text('Working one'), findsNothing);
     });
 
-    testWidgets('tapping a stat whose section is not on the board stays silent', (tester) async {
+    testWidgets('a filter with no matching sessions shows the empty-filter message', (tester) async {
       await pumpBody(
         tester,
         const BoardSnapshot(
@@ -152,10 +165,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('mergeable'));
-      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mergeable'));
+      await settle(tester);
 
-      expect(fired, isEmpty);
+      expect(find.text('Nothing here right now.'), findsOneWidget);
     });
 
     testWidgets('section elements survive a board refresh', (tester) async {
@@ -171,7 +184,7 @@ void main() {
       final before = tester.element(find.byType(SessionSectionHeader).first);
 
       await tester.element(find.byType(SessionsBody)).read<SessionsCubit>().refresh();
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       final after = tester.element(find.byType(SessionSectionHeader).first);
       expect(identical(before, after), isTrue,
@@ -201,7 +214,7 @@ void main() {
       expect(find.text('Dead one'), findsNothing);
 
       await tester.tap(find.text('ARCHIVE'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('Dead one'), findsOneWidget);
     });

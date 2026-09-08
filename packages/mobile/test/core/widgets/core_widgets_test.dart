@@ -30,6 +30,6 @@ void main() {
     );
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, const Color(0xFF0A0B0D));
+    expect(scaffold.backgroundColor, const Color(0xFF18171C));
   });
 }

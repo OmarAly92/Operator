@@ -9,6 +9,12 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_group_status.dart';
 
+bool _hasFollowingRailItem(List<SessionBlock> blocks, int index) {
+  if (!isRailBlock(blocks[index])) return false;
+  final next = index + 1;
+  return next < blocks.length && isRailBlock(blocks[next]);
+}
+
 class BlockList extends StatefulWidget {
   const BlockList({
     super.key,
@@ -300,15 +306,17 @@ class BlockListState extends State<BlockList> {
         center: centerKey,
         slivers: [
           if (header != null) SliverToBoxAdapter(child: header),
-          const SliverToBoxAdapter(child: SizedBox(height: 6)),
+          const SliverToBoxAdapter(child: SizedBox(height: 14)),
           SliverList.builder(
             key: leadingKey,
             itemCount: pivot,
             itemBuilder: (context, index) {
-              final block = blocks[pivot - 1 - index];
+              final blockIndex = pivot - 1 - index;
+              final block = blocks[blockIndex];
               return _blockWithGroupStatus(
                 block,
                 groupEndingByBlockId[block.id],
+                _hasFollowingRailItem(blocks, blockIndex),
               );
             },
           ),
@@ -316,10 +324,12 @@ class BlockListState extends State<BlockList> {
             key: centerKey,
             itemCount: blocks.length - pivot,
             itemBuilder: (context, index) {
-              final block = blocks[pivot + index];
+              final blockIndex = pivot + index;
+              final block = blocks[blockIndex];
               return _blockWithGroupStatus(
                 block,
                 groupEndingByBlockId[block.id],
+                _hasFollowingRailItem(blocks, blockIndex),
               );
             },
           ),
@@ -329,11 +339,12 @@ class BlockListState extends State<BlockList> {
     );
   }
 
-  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group) {
+  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group, bool hasFollowingRailItem) {
     final ctx = widget.actionContext;
     final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
     return Column(
       key: ValueKey(block.id),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         BlockCard(
           block: block,
@@ -355,8 +366,9 @@ class BlockListState extends State<BlockList> {
           onLongPressHeader: widget.onLongPressHeader == null
               ? null
               : () => widget.onLongPressHeader!(block.id),
+          hasFollowingRailItem: hasFollowingRailItem,
         ),
-        if (group != null)
+        if (group != null && widget.canRollbackTurn?.call(group) == true)
           TurnGroupStatus(
             group: group,
             onRollback: widget.onRollbackTurn == null || widget.canRollbackTurn == null

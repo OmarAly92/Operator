@@ -185,8 +185,7 @@ void main() {
 
       await _pump(tester, cubit);
 
-      final promptHeaders = find.text('Prompt');
-      await tester.longPress(promptHeaders.last);
+      await tester.longPress(find.byKey(const ValueKey('bubble-timestamp-p-2')));
       await tester.pumpAndSettle();
       expect(find.text('1 selected'), findsOneWidget);
 
@@ -305,7 +304,7 @@ void main() {
 
       await _pump(tester, cubit);
 
-      await tester.longPress(find.text('Prompt').first);
+      await tester.longPress(find.byKey(const ValueKey('bubble-timestamp-p-1')));
       await tester.pumpAndSettle();
       expect(find.text('1 selected'), findsOneWidget);
 

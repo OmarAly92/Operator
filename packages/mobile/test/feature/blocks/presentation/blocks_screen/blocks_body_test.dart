@@ -123,7 +123,6 @@ void main() {
     await _pump(tester, cubit);
 
     expect(find.byType(BlockCard), findsNWidgets(2));
-    expect(find.text('Prompt'), findsOneWidget);
     expect(find.text('run the tests'), findsOneWidget);
     expect(find.text('ok 42 tests'), findsOneWidget);
   });
@@ -179,7 +178,7 @@ void main() {
 
     await _pump(tester, cubit);
 
-    expect(find.text('Permission requested'), findsOneWidget);
+    expect(find.text('Agent wants to run a command'), findsOneWidget);
     expect(find.textContaining('git branch -D feat/x'), findsOneWidget);
   });
 
@@ -280,16 +279,16 @@ void main() {
     );
 
     await _pump(tester, cubit);
-    expect(find.text('Jump to latest'), findsNothing);
+    expect(find.bySemanticsLabel('Jump to latest'), findsNothing);
 
     final state = tester.state<BlockListState>(find.byType(BlockList));
     state.controller.jumpTo(0);
     await tester.pumpAndSettle();
 
-    expect(find.text('Jump to latest'), findsOneWidget);
-    await tester.tap(find.text('Jump to latest'));
+    expect(find.bySemanticsLabel('Jump to latest'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Jump to latest'));
     await tester.pumpAndSettle();
-    expect(find.text('Jump to latest'), findsNothing);
+    expect(find.bySemanticsLabel('Jump to latest'), findsNothing);
   });
 
   testWidgets(
@@ -367,9 +366,10 @@ void main() {
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'tests');
     await tester.pump();
+    expect(tester.widget<BlockFindBar>(find.byType(BlockFindBar)).currentIndex, 1);
     await tester.tap(find.byIcon(Icons.arrow_downward));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
+    await tester.tap(find.byTooltip('Filter to matches'));
     await tester.pump();
 
     expect(find.byType(BlockFindBar), findsOneWidget);
@@ -404,7 +404,7 @@ void main() {
     expect(find.byType(BlockFindBar), findsNothing);
     expect(find.byType(TextField), findsNothing);
     expect(find.byIcon(Icons.filter_alt), findsNothing);
-    expect(find.byIcon(Icons.filter_alt_outlined), findsNothing);
+    expect(find.byTooltip('Filter to matches'), findsNothing);
 
     final sameState = tester.state<BlocksBodyState>(find.byType(BlocksBody));
     expect(identical(sameState, state), isTrue);

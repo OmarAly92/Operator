@@ -29,6 +29,7 @@ import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrato
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
+import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/pairing_scan_screen/logic/pairing_scan_cubit.dart';
 import 'package:operator_mobile/feature/preview/data/data_source/preview_remote_data_source.dart';
@@ -110,6 +111,7 @@ class ServiceLocator {
       () =>
           ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()),
     );
+    sl.registerFactory<ConnectionsCubit>(() => ConnectionsCubit());
 
     sl.registerLazySingleton<PairingRepository>(
       () => PairingRepositoryImp(

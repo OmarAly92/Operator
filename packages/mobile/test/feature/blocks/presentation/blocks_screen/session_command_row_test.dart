@@ -285,7 +285,7 @@ void main() {
     },
   );
 
-  testWidgets('the row is absent in raw mode and present in blocks mode', (
+  testWidgets('session actions open from the composer instead of occupying the chat dock', (
     tester,
   ) async {
     await tester.pumpWidget(_terminalBody(mode: SessionViewMode.raw));
@@ -294,8 +294,12 @@ void main() {
 
     await tester.pumpWidget(_terminalBody(mode: SessionViewMode.blocks));
     await tester.pumpAndSettle();
-    expect(find.byType(SessionCommandRow), findsOneWidget);
+    expect(find.byType(SessionCommandRow), findsNothing);
     expect(find.byType(TerminalKeyRow), findsNothing);
+    await tester.tap(find.byTooltip('Session actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('SESSION ACTIONS'), findsOneWidget);
+    expect(find.text('Compact'), findsOneWidget);
   });
 }
 

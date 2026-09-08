@@ -125,6 +125,19 @@ void main() {
 
   tearDown(() => sl.reset());
 
+  // A board full of `working` sessions renders a perpetually-breathing
+  // `StatusDot` on each card (`docs/design/components.md`'s testing note) —
+  // `pumpAndSettle` never terminates while one is mounted, so every pump here
+  // is bounded instead.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
+  Finder tabLabel(String label) =>
+      find.descendant(of: find.byType(BottomNavigationBar), matching: find.text(label));
+
   Future<void> pumpShell(WidgetTester tester) async {
     await tester.pumpWidget(
       SkinScope(
@@ -150,14 +163,14 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   testWidgets('offers all four tabs', (tester) async {
     await pumpShell(tester);
 
     for (final label in ['Agents', 'Orchestrator', 'PRs', 'Settings']) {
-      expect(find.text(label), findsOneWidget);
+      expect(tabLabel(label), findsOneWidget);
     }
   });
 
@@ -170,8 +183,8 @@ void main() {
   testWidgets('switches tabs on tap', (tester) async {
     await pumpShell(tester);
 
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
+    await tester.tap(tabLabel('Settings'));
+    await settle(tester);
 
     expect(tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar)).currentIndex, 3);
   });
@@ -205,8 +218,8 @@ void main() {
     await tester.pump();
     expect(controller.offset, 400);
 
-    await tester.tap(find.text('Agents'));
-    await tester.pumpAndSettle();
+    await tester.tap(tabLabel('Agents'));
+    await settle(tester);
     expect(controller.offset, 0);
   });
 
@@ -229,8 +242,8 @@ void main() {
     agents.jumpTo(400);
     await tester.pump();
 
-    await tester.tap(find.text('PRs'));
-    await tester.pumpAndSettle();
+    await tester.tap(tabLabel('PRs'));
+    await settle(tester);
 
     expect(HomeShell.selectedTab.value, 2);
     expect(agents.offset, 400);

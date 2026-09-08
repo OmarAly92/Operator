@@ -129,3 +129,61 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
+    - family: Anthropic Sans Text
+      fonts:
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-300.otf
+          weight: 300
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-400.otf
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-400-Italic.otf
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-500.otf
+          weight: 500
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-500-Italic.otf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-600.otf
+          weight: 600
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-700.otf
+          weight: 700
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-700-Italic.otf
+          weight: 700
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-800.otf
+          weight: 800
+        - asset: assets/fonts/anthropic_sans/AnthropicSansText-800-Italic.otf
+          weight: 800
+          style: italic
+    - family: Anthropic Sans Display
+      fonts:
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-300.otf
+          weight: 300
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-400.otf
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-400-Italic.otf
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-500.otf
+          weight: 500
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-500-Italic.otf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-600.otf
+          weight: 600
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-700.otf
+          weight: 700
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-700-Italic.otf
+          weight: 700
+          style: italic
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-800.otf
+          weight: 800
+        - asset: assets/fonts/anthropic_sans/AnthropicSansDisplay-800-Italic.otf
+          weight: 800
+          style: italic

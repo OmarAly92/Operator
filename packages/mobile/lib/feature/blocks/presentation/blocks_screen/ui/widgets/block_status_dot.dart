@@ -11,16 +11,24 @@ Color blockStatusColor(AppSkin skin, BlockStatus status) => switch (status) {
 };
 
 class BlockStatusDot extends StatelessWidget {
-  const BlockStatusDot({super.key, required this.status});
+  const BlockStatusDot({super.key, required this.status, this.overrideColor, this.size = 6});
 
   final BlockStatus status;
 
+  /// A fixed rail-node color for kinds whose dot color is dictated by kind
+  /// rather than by [status] (reasoning, plan, permission, MCP tool calls —
+  /// see `docs/design/session_detail/session_detail.md`). Null keeps the
+  /// existing [blockStatusColor] status→color vocabulary.
+  final Color? overrideColor;
+
+  final double size;
+
   @override
   Widget build(BuildContext context) => Container(
-    width: 6,
-    height: 6,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
-      color: blockStatusColor(context.skin, status),
+      color: overrideColor ?? blockStatusColor(context.skin, status),
       shape: BoxShape.circle,
     ),
   );

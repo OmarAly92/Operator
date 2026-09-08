@@ -27,6 +27,7 @@ class TerminalArgs extends Equatable {
     required this.sessionId,
     required this.title,
     this.projectId,
+    this.projectName,
     this.shellOnly = false,
     this.previewUrl,
     this.harness,
@@ -37,6 +38,7 @@ class TerminalArgs extends Equatable {
   final String sessionId;
   final String title;
   final String? projectId;
+  final String? projectName;
   final bool shellOnly;
   final String? previewUrl;
 
@@ -45,7 +47,7 @@ class TerminalArgs extends Equatable {
   final String? harness;
 
   @override
-  List<Object?> get props => [id, sessionId, title, projectId, shellOnly, previewUrl, harness];
+  List<Object?> get props => [id, sessionId, title, projectId, projectName, shellOnly, previewUrl, harness];
 }
 
 class _TerminalWriteSink implements Sink<String> {

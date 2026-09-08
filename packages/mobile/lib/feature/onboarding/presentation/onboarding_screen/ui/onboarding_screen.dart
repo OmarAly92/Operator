@@ -48,35 +48,48 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Image.asset('assets/images/mascot.png', width: 28, height: 28),
-                    const HorizontalSpace(8),
-                    AppText('Operator', style: AppTextStyle.style15SemiBold),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => _skip(context),
-                      child: AppText('Skip', style: AppTextStyle.style13Medium.copyWith(color: skin.textSecondary)),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    children: [
+                      Image.asset('assets/images/mascot.png', width: 28, height: 28),
+                      const HorizontalSpace(8),
+                      AppText(
+                        'Operator',
+                        style: AppTextStyle.style15SemiBold.copyWith(letterSpacing: -0.2),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => _skip(context),
+                        child: AppText(
+                          'Skip',
+                          style: AppTextStyle.style13Medium.copyWith(color: skin.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 24, bottom: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const VerticalSpace(24),
-                        AppText('Connect your desktop', style: AppTextStyle.style24Bold, maxLines: 2),
+                        AppText(
+                          'Connect your desktop',
+                          style: AppTextStyle.style24BoldDisplay.copyWith(letterSpacing: -0.4),
+                          maxLines: 2,
+                        ),
                         const VerticalSpace(10),
                         AppText(
                           'Pair with Operator on your computer to check on your agents, jump into any '
                           'terminal, and drive work from your phone.',
-                          style: AppTextStyle.style14Regular.copyWith(color: skin.textSecondary),
+                          style: AppTextStyle.style14Regular.copyWith(color: skin.textSecondary, height: 1.4),
                           maxLines: 4,
                         ),
                         const VerticalSpace(20),
                         PrimaryButton(text: 'Pair Desktop', onPressed: () => _pair(context)),
-                        const VerticalSpace(36),
+                        const VerticalSpace(28),
                         AppText(
                           'HOW IT WORKS',
                           style: AppTextStyle.style11SemiBold.copyWith(color: skin.textTertiary),

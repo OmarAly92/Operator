@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/tone.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/utils/short_label.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -15,28 +17,79 @@ import 'package:operator_mobile/feature/sessions/logic/session_status.dart';
 
 const int _projectLabelMax = 12;
 
-class PrCard extends StatelessWidget {
-  const PrCard({super.key, required this.pr, required this.session, this.summary, this.onOpenSession});
+String _lifecycleLabel(PrLifecycle life) {
+  final name = life.name;
+  return name[0].toUpperCase() + name.substring(1);
+}
+
+class PrCard extends StatefulWidget {
+  const PrCard({
+    super.key,
+    required this.pr,
+    required this.session,
+    this.summary,
+    this.onOpenSession,
+    this.index = 0,
+  });
 
   final SessionPrModel pr;
   final SessionModel session;
   final SessionPrSummaryModel? summary;
   final VoidCallback? onOpenSession;
+  final int index;
 
   @override
-  Widget build(BuildContext context) {
-    final skin = context.skin;
-    final richSummary = summary;
+  State<PrCard> createState() => _PrCardState();
+}
 
-    final state = richSummary != null
-        ? stateVisualOf(skin, prLifecycleFromName(richSummary.state))
-        : prStateVisual(skin, pr);
+class _PrCardState extends State<PrCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _entrance;
+
+  @override
+  void initState() {
+    super.initState();
+    final delay = AppMotion.staggerDelay(widget.index);
+    final total = delay + AppMotion.slow;
+    _controller = AnimationController(vsync: this, duration: total)..forward();
+    final startFraction = delay.inMicroseconds / total.inMicroseconds;
+    _entrance = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(startFraction, 1, curve: AppMotion.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _entrance,
+    builder: (context, child) => Opacity(
+      opacity: _entrance.value,
+      child: Transform.translate(offset: Offset(0, AppMotion.fadeUpOffset * (1 - _entrance.value)), child: child),
+    ),
+    child: _card(context),
+  );
+
+  Widget _card(BuildContext context) {
+    final skin = context.skin;
+    final richSummary = widget.summary;
+    final pr = widget.pr;
+    final session = widget.session;
+
+    final life = richSummary != null ? prLifecycleFromName(richSummary.state) : prLifecycleOf(pr);
+    final fallbackVisual = stateVisualOf(skin, life);
 
     final rawTitle = richSummary?.title?.trim();
     final title = (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : prTitle(pr, sessionTitle(session));
 
     final atoms = richSummary != null ? prStatusAtoms(richSummary) : [prSummaryLine(pr)];
     final blocker = richSummary != null ? prBlockerLine(richSummary) : null;
+    final headerColor = atoms.isNotEmpty ? toneColor(skin, atoms.first.tone) : fallbackVisual.color;
 
     final changedFiles = richSummary?.changedFiles ?? 0;
     final additions = richSummary?.additions ?? 0;
@@ -53,16 +106,18 @@ class PrCard extends StatelessWidget {
     return AppContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(12),
+      borderRadius: BorderRadius.circular(AppConstants.radiusCard),
+      border: Border.all(color: skin.borderDefault),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.merge_outlined, size: 16, color: state.color),
+              Icon(Icons.call_merge, size: 16, color: headerColor),
               const HorizontalSpace(6),
               AppText('#${pr.number}', style: AppTextStyle.mono12Bold),
               const HorizontalSpace(6),
-              AppText(state.label.name, style: AppTextStyle.style12SemiBold.copyWith(color: state.color)),
+              AppText(_lifecycleLabel(life), style: AppTextStyle.style12SemiBold.copyWith(color: headerColor)),
               const Spacer(),
               AppText(
                 shortLabel(richSummary?.repo ?? session.projectId ?? '', max: _projectLabelMax),
@@ -111,11 +166,11 @@ class PrCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onOpenSession != null)
+              if (widget.onOpenSession != null)
                 IconButton(
                   icon: const Icon(Icons.forum_outlined),
                   tooltip: 'Open session',
-                  onPressed: onOpenSession,
+                  onPressed: widget.onOpenSession,
                 ),
               IconButton(
                 icon: const Icon(Icons.open_in_new),

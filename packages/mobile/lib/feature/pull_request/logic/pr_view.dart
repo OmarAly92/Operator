@@ -120,7 +120,7 @@ class PrStateVisual {
 PrStateVisual stateVisualOf(AppSkin skin, PrLifecycle life) {
   switch (life) {
     case PrLifecycle.merged:
-      return PrStateVisual(label: life, color: skin.purple, tint: skin.tintPurple);
+      return PrStateVisual(label: life, color: skin.green, tint: skin.tintGreen);
     case PrLifecycle.closed:
       return PrStateVisual(label: life, color: skin.red, tint: skin.tintRed);
     case PrLifecycle.draft:

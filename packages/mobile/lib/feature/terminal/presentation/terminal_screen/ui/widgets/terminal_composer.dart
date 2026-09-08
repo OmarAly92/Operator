@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
+import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
-import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/press_scale.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/session_command_row.dart';
 import 'package:operator_mobile/feature/dictation/logic/voice_input_cubit.dart';
 import 'package:operator_mobile/feature/dictation/ui/mic_key.dart';
 import 'package:operator_mobile/feature/dictation/ui/voice_strip.dart';
@@ -51,6 +54,64 @@ class _TerminalComposerState extends State<TerminalComposer> {
     super.dispose();
   }
 
+  void _openActions(BuildContext context) {
+    final commands = context.read<SessionCommandCubit>();
+    final terminal = context.read<TerminalCubit>();
+    final skin = context.skin;
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close session actions',
+      barrierColor: skin.scrim,
+      pageBuilder: (dialogContext, _, animation) => SafeArea(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              0,
+              12,
+              MediaQuery.viewInsetsOf(context).bottom + 72,
+            ),
+            child: Material(
+              color: skin.bgSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: skin.borderDefault),
+              ),
+              child: BlocProvider.value(
+                value: commands,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SessionCommandRow(menu: true),
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.swap_horiz, size: 19),
+                      title: Text(
+                        terminal.sendTarget == SendTarget.agent
+                            ? 'Send to terminal'
+                            : 'Message the agent',
+                      ),
+                      onTap: () {
+                        terminal.setSendTarget(
+                          terminal.sendTarget == SendTarget.agent
+                              ? SendTarget.terminal
+                              : SendTarget.agent,
+                        );
+                        Navigator.pop(dialogContext);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
@@ -69,9 +130,9 @@ class _TerminalComposerState extends State<TerminalComposer> {
               final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(8, 2, 8, 7),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: Row(
-                  spacing: 7,
+                  spacing: 8,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
@@ -80,7 +141,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                           minHeight: 40,
                           maxHeight: 108,
                         ),
-                        padding: const EdgeInsets.only(left: 11, right: 4),
+                        padding: const EdgeInsets.only(left: 12, right: 4),
                         decoration: BoxDecoration(
                           color: skin.bgElevated,
                           border: Border.all(color: skin.borderDefault),
@@ -98,18 +159,23 @@ class _TerminalComposerState extends State<TerminalComposer> {
                                     style: AppTextStyle.style15Regular.copyWith(
                                       color: skin.textPrimary,
                                     ),
-                                    cursorColor: skin.blue,
+                                    cursorColor: skin.accent,
                                     decoration: InputDecoration(
                                       border: InputBorder.none,
                                       isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
                                       hintText: toTerminal
                                           ? 'Send to terminal...'
                                           : 'Message the agent...',
                                       hintStyle: AppTextStyle.style15Regular
-                                          .copyWith(color: skin.textFaint),
+                                          .copyWith(
+                                            color: skin.textPrimary.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                          ),
                                     ),
                                   ),
                                   const TerminalComposerDraftHint(),
@@ -118,26 +184,29 @@ class _TerminalComposerState extends State<TerminalComposer> {
                             ),
                             if (!cubit.args.shellOnly)
                               IconButton(
-                                tooltip: toTerminal
-                                    ? 'Switch to chat'
-                                    : 'Switch to terminal',
-                                onPressed: () => cubit.setSendTarget(
-                                  toTerminal
-                                      ? SendTarget.agent
-                                      : SendTarget.terminal,
+                                style: IconButton.styleFrom(
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
+                                tooltip: 'Session actions',
+                                onPressed: () => _openActions(context),
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 32,
+                                  height: 40,
+                                ),
+                                padding: EdgeInsets.zero,
                                 icon: Icon(
-                                  toTerminal
-                                      ? Icons.chat_bubble_outline
-                                      : Icons.terminal,
-                                  size: 15,
-                                  color: toTerminal
-                                      ? skin.textTertiary
-                                      : skin.blue,
+                                  Icons.bolt_outlined,
+                                  size: 19,
+                                  color: skin.textTertiary,
                                 ),
                               ),
                             if (keyboardUp)
                               IconButton(
+                                style: IconButton.styleFrom(
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
                                 tooltip: 'Hide keyboard',
                                 onPressed: () => SystemChannels.textInput
                                     .invokeMethod<void>('TextInput.hide'),
@@ -151,29 +220,35 @@ class _TerminalComposerState extends State<TerminalComposer> {
                         ),
                       ),
                     ),
-                    const MicKey(),
-                    const HorizontalSpace(7),
-                    Semantics(
-                      button: true,
-                      label: 'Send',
-                      child: InkWell(
-                        onTap: cubit.sending ? null : cubit.send,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: skin.blue,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.send,
-                            size: 17,
-                            color: skin.onAccent,
-                          ),
-                        ),
-                      ),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: cubit.composer,
+                      builder: (context, value, _) => value.text.trim().isEmpty
+                          ? const MicKey(prominent: true)
+                          : PressScale(
+                              scale: AppMotion.pressScaleSend,
+                              child: Semantics(
+                                button: true,
+                                label: 'Send',
+                                child: InkWell(
+                                  onTap: cubit.sending ? null : cubit.send,
+                                  borderRadius: BorderRadius.circular(23),
+                                  child: Container(
+                                    width: 46,
+                                    height: 46,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: skin.accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_upward,
+                                      size: 22,
+                                      color: skin.onAccent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                   ],
                 ),

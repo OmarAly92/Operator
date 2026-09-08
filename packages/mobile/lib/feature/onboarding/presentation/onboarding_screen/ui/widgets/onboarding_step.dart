@@ -21,8 +21,8 @@ class OnboardingStep extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 12,
-            backgroundColor: skin.tintBlue,
-            child: AppText('$n', style: AppTextStyle.style12SemiBold.copyWith(color: skin.blue)),
+            backgroundColor: skin.tintGreen,
+            child: AppText('$n', style: AppTextStyle.style12SemiBold.copyWith(color: skin.green)),
           ),
           const HorizontalSpace(12),
           Expanded(
@@ -31,7 +31,11 @@ class OnboardingStep extends StatelessWidget {
               children: [
                 AppText(title, style: AppTextStyle.style14SemiBold, maxLines: 2),
                 const VerticalSpace(2),
-                AppText(hint, style: AppTextStyle.style12Regular.copyWith(color: skin.textSecondary), maxLines: 3),
+                AppText(
+                  hint,
+                  style: AppTextStyle.style12Regular.copyWith(color: skin.textSecondary, height: 1.35),
+                  maxLines: 3,
+                ),
               ],
             ),
           ),

@@ -69,28 +69,61 @@ Widget _card(SessionBlock block, {MockSessionCommandCubit? cubit}) {
 }
 
 void main() {
-  testWidgets('a permission block offers allow and deny', (tester) async {
-    await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1')));
-
-    expect(find.text('Allow'), findsOneWidget);
-    expect(find.text('Deny'), findsOneWidget);
+  testWidgets('short user messages align with the right conversation edge', (tester) async {
+    await tester.pumpWidget(_card(const SessionBlock(
+      id: 'prompt', firstSeq: 1, lastSeq: 1, kind: BlockKind.prompt,
+      status: BlockStatus.ok, title: '', body: 'Hello',
+    )));
+    final bubbleText = tester.getRect(find.text('Hello'));
+    final screen = tester.getSize(find.byType(Scaffold));
+    expect(bubbleText.right, closeTo(screen.width - 16 - 14, 1));
   });
 
-  testWidgets('allow calls decide with the block interaction id', (tester) async {
+  testWidgets('a permission block offers deny, allow once, and a visual-only always', (tester) async {
+    await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1')));
+
+    expect(find.text('Deny'), findsOneWidget);
+    expect(find.text('Allow once'), findsOneWidget);
+    expect(find.text('Always'), findsOneWidget);
+  });
+
+  testWidgets('allow once calls decide with the block interaction id', (tester) async {
     final cubit = MockSessionCommandCubit();
     when(() => cubit.decide(any(), any())).thenAnswer((_) async {});
 
     await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1'), cubit: cubit));
-    await tester.tap(find.text('Allow'));
+    await tester.tap(find.text('Allow once'));
     await tester.pump();
 
     verify(() => cubit.decide('i1', 'allow')).called(1);
   });
 
+  testWidgets('always is visually present but does not call decide', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.decide(any(), any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1'), cubit: cubit));
+    await tester.tap(find.text('Always'));
+    await tester.pump();
+
+    verifyNever(() => cubit.decide(any(), any()));
+  });
+
+  testWidgets('deny calls decide with deny', (tester) async {
+    final cubit = MockSessionCommandCubit();
+    when(() => cubit.decide(any(), any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(_card(_permissionBlock(interactionId: 'i1'), cubit: cubit));
+    await tester.tap(find.text('Deny'));
+    await tester.pump();
+
+    verify(() => cubit.decide('i1', 'deny')).called(1);
+  });
+
   testWidgets('a permission block with no interaction id is not actionable', (tester) async {
     await tester.pumpWidget(_card(_permissionBlock(interactionId: null)));
 
-    expect(find.text('Allow'), findsNothing);
+    expect(find.text('Allow once'), findsNothing);
     expect(find.text('Answer in the terminal'), findsOneWidget);
   });
 

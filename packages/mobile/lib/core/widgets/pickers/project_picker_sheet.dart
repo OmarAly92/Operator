@@ -1,8 +1,10 @@
+import 'package:expressive_sheet/expressive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
 import 'package:operator_mobile/core/utils/haptics.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
+import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
@@ -17,13 +19,12 @@ Future<String?> showProjectPickerSheet(
   String subtitle = 'Scopes the Agents and PRs tabs.',
 }) {
   final skin = context.skin;
-  return showModalBottomSheet<String>(
+  return showExpressiveSheet<String>(
     context: context,
-    backgroundColor: skin.bgSurface,
-    builder: (sheetContext) => SafeArea(
+    builder: (sheetContext) => AppSheetChrome(
       child: ListView(
         shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.zero,
         children: [
           AppText(title, style: AppTextStyle.style17SemiBold),
           const VerticalSpace(4),
@@ -84,7 +85,7 @@ class _ProjectOption extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: selected ? skin.blue : skin.textTertiary),
+          Icon(icon, size: 18, color: selected ? skin.accent : skin.textTertiary),
           const HorizontalSpace(10),
           Expanded(
             child: Column(
@@ -96,7 +97,7 @@ class _ProjectOption extends StatelessWidget {
               ],
             ),
           ),
-          if (selected) Icon(Icons.check, size: 18, color: skin.blue),
+          if (selected) Icon(Icons.check, size: 18, color: skin.accent),
         ],
       ),
     );

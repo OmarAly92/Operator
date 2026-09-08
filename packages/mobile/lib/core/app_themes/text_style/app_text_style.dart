@@ -4,11 +4,25 @@ import 'package:operator_mobile/core/app_themes/text_style/font_weight_helper.da
 
 sealed class AppTextStyle {
   static TextStyle _textStyle(double size, FontWeight weight) {
-    return TextStyle(fontSize: size.spMin, fontWeight: weight);
+    return TextStyle(
+      fontFamily: 'Anthropic Sans Text',
+      fontSize: size.spMin,
+      fontWeight: weight,
+    );
+  }
+
+  static TextStyle _displayStyle(double size, FontWeight weight) {
+    return TextStyle(
+      fontFamily: 'Anthropic Sans Display',
+      fontFamilyFallback: const ['Anthropic Sans Text'],
+      fontSize: size.spMin,
+      fontWeight: weight,
+    );
   }
 
   static TextStyle _monoStyle(double size, FontWeight weight) {
     return TextStyle(
+      fontFamily: 'JetBrains Mono',
       fontSize: size.spMin,
       fontWeight: weight,
       fontFamilyFallback: const ['Menlo', 'Courier New', 'monospace'],
@@ -65,16 +79,34 @@ sealed class AppTextStyle {
   static TextStyle get style26Bold => _textStyle(26, FontWeightHelper.bold);
   static TextStyle get style32Bold => _textStyle(32, FontWeightHelper.bold);
 
+  // Display family — onboarding/spawn headlines only (docs/design/typography.md).
+  static TextStyle get style20Bold => _displayStyle(20, FontWeightHelper.bold);
+  static TextStyle get style21Bold => _displayStyle(21, FontWeightHelper.bold);
+  static TextStyle get style24BoldDisplay => _displayStyle(24, FontWeightHelper.bold);
+
+  // Half-point sizes from the Operator Mobile design sync (docs/design/typography.md).
+  static TextStyle get style10p5Regular => _textStyle(10.5, FontWeightHelper.regular);
+  static TextStyle get style11p5SemiBold => _textStyle(11.5, FontWeightHelper.semiBold);
+  static TextStyle get style12p5Medium => _textStyle(12.5, FontWeightHelper.medium);
+  static TextStyle get style12p5SemiBold => _textStyle(12.5, FontWeightHelper.semiBold);
+  static TextStyle get style13p5Regular => _textStyle(13.5, FontWeightHelper.regular);
+  static TextStyle get style13p5Medium => _textStyle(13.5, FontWeightHelper.medium);
+  static TextStyle get style14p5SemiBold => _textStyle(14.5, FontWeightHelper.semiBold);
+  static TextStyle get style16p5Bold => _textStyle(16.5, FontWeightHelper.bold);
+
   static TextStyle get mono10Regular => _monoStyle(10, FontWeightHelper.regular);
   static TextStyle get mono10Bold => _monoStyle(10, FontWeightHelper.bold);
+  static TextStyle get mono10p5Regular => _monoStyle(10.5, FontWeightHelper.regular);
 
   static TextStyle get mono11Regular => _monoStyle(11, FontWeightHelper.regular);
   static TextStyle get mono11Bold => _monoStyle(11, FontWeightHelper.bold);
+  static TextStyle get mono11p5Regular => _monoStyle(11.5, FontWeightHelper.regular);
 
   static TextStyle get mono12Regular => _monoStyle(12, FontWeightHelper.regular);
   static TextStyle get mono12Bold => _monoStyle(12, FontWeightHelper.bold);
 
   static TextStyle get mono13Regular => _monoStyle(13, FontWeightHelper.regular);
   static TextStyle get mono13Bold => _monoStyle(13, FontWeightHelper.bold);
+  static TextStyle get mono13p5Regular => _monoStyle(13.5, FontWeightHelper.regular);
   static TextStyle get mono24Bold => _monoStyle(24, FontWeightHelper.bold);
 }

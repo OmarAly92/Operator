@@ -116,7 +116,7 @@ class BlocksBodyState extends State<BlocksBody> {
   void _onQueryChanged(String value) {
     setState(() {
       _query = value;
-      _activeMatchId = null;
+      _activeMatchId = BlockFind.matches(context.read<BlocksCubit>().blocks, value).firstOrNull?.blockId;
     });
   }
 
@@ -331,14 +331,9 @@ class BlocksBodyState extends State<BlocksBody> {
                 bottom: 12,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _pinned,
-                  builder: (context, pinned, _) => _selectionMode
+                  builder: (context, pinned, _) => _selectionMode || pinned
                       ? const SizedBox.shrink()
                       : BlockNavControls(
-                          onPrevious: () => _listKey.currentState
-                              ?.scrollToBoundary(forward: false),
-                          onNext: () => _listKey.currentState?.scrollToBoundary(
-                            forward: true,
-                          ),
                           onLatest: () => _listKey.currentState?.jumpToLatest(),
                           showLatest: !pinned,
                         ),
