@@ -22,9 +22,10 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, postMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
+		postMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
@@ -63,7 +64,7 @@ vi.mock("../lib/bridge", async (importOriginal) => {
 });
 
 vi.mock("../lib/api-client", () => ({
-	apiClient: { GET: getMock },
+	apiClient: { GET: getMock, POST: postMock },
 	apiErrorMessage: (error: unknown) => {
 		if (error instanceof Error) return error.message;
 		if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
@@ -166,6 +167,15 @@ function renderSidebar({
 		</QueryClientProvider>,
 	);
 	return onRemoveProject;
+}
+
+/**
+ * Session actions live only in the row's context menu — the row itself shows
+ * nothing but the status dot and the title.
+ */
+async function openSessionMenu(title: string, item: string) {
+	fireEvent.contextMenu(screen.getByLabelText(`Open ${title}`));
+	await userEvent.click(await screen.findByRole("menuitem", { name: item }));
 }
 
 /** Projects render collapsed; open one to list all of its sessions. */
@@ -448,6 +458,115 @@ describe("Sidebar", () => {
 		expect(screen.queryByText("other task")).not.toBeInTheDocument();
 		expect(screen.getByText("fix login")).toBeInTheDocument();
 		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	// The kebab and the context menu are the same list; a project action that
+	// only exists in one of them is a bug, not a shortcut.
+	it("offers the project terminal from the kebab and the context menu alike", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		await user.click(screen.getByLabelText("Project actions for Project One"));
+		const kebab = await screen.findByRole("menu");
+		expect(within(kebab).getByRole("menuitem", { name: "Open terminal" })).toBeInTheDocument();
+		await user.keyboard("{Escape}");
+
+		fireEvent.contextMenu(screen.getByText("Project One"));
+		const contextMenu = await screen.findByRole("menu");
+		expect(within(contextMenu).getByRole("menuitem", { name: "Open terminal" })).toBeInTheDocument();
+	});
+
+	// The orchestrator is a session like any other, so the daemon resolves its
+	// directory from the id — the sidebar never sends a path.
+	it("opens the project terminal in the orchestrator's workspace when one is running", async () => {
+		const orchestrator: WorkspaceSession = {
+			...session,
+			id: "proj-1-orc",
+			title: "Orchestrator",
+			kind: "orchestrator",
+		};
+		postMock.mockResolvedValue({
+			data: { shellTerminal: { handleId: "shellterm-1", sessionId: "proj-1-orc", createdAt: "2026-06-30T00:00:00Z" } },
+		});
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [orchestrator] }] });
+
+		await userEvent.click(screen.getByRole("button", { name: "Open a terminal in Project One" }));
+
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/shell-terminals", { body: { sessionId: "proj-1-orc" } }),
+		);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "proj-1-orc" },
+		});
+	});
+
+	// No orchestrator means no session view to host a tab, so the shell is
+	// project-scoped and lives on the standalone terminals screen instead.
+	it("falls back to the project root when no orchestrator is running", async () => {
+		postMock.mockResolvedValue({
+			data: { shellTerminal: { handleId: "shellterm-1", projectId: "proj-1", createdAt: "2026-06-30T00:00:00Z" } },
+		});
+		renderSidebar();
+
+		await userEvent.click(screen.getByRole("button", { name: "Open a terminal in Project One" }));
+
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/shell-terminals", { body: { projectId: "proj-1" } }),
+		);
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/terminals" });
+	});
+
+	it("shows only the terminal button on the row and puts every action in the context menu", async () => {
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		// Two buttons and no more: open the session, and open a terminal in it.
+		// Nothing is revealed on hover, so nothing reserves width from the title.
+		const row = screen.getByLabelText("Open fix login").closest("[data-session-row]");
+		const buttons = within(row as HTMLElement).getAllByRole("button");
+		expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+			"Open a terminal in fix login",
+			"Open fix login",
+		]);
+
+		fireEvent.contextMenu(screen.getByLabelText("Open fix login"));
+
+		const menu = await screen.findByRole("menu");
+		expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+			"Open terminal",
+			"Pin session",
+			"Rename session",
+			"Kill session",
+		]);
+	});
+
+	it("opens a shell in the session's own workspace and selects it", async () => {
+		postMock.mockResolvedValue({
+			data: {
+				shellTerminal: {
+					handleId: "shellterm-1",
+					sessionId: "proj-1-1",
+					projectId: "proj-1",
+					workingDir: "/worktrees/proj-1-1",
+					title: "proj-1-1",
+					createdAt: "2026-06-30T00:00:00Z",
+				},
+			},
+		});
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await userEvent.click(screen.getByRole("button", { name: "Open a terminal in fix login" }));
+
+		// The id, never a path: the daemon owns where a session lives on disk.
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/shell-terminals", { body: { sessionId: "proj-1-1" } }),
+		);
+		await waitFor(() => expect(useUiStore.getState().activeShellTerminalHandleId).toBe("shellterm-1"));
+		// ...and the session view has to be on screen for its tab strip to show it.
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-1", sessionId: "proj-1-1" },
+		});
 	});
 
 	it("navigates to the project board when the project row button is clicked", async () => {
@@ -1028,7 +1147,7 @@ describe("Sidebar", () => {
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
 
-		await user.click(screen.getByLabelText("Rename fix login"));
+		await openSessionMenu("fix login", "Rename session");
 		const input = screen.getByLabelText("Rename fix login");
 		await user.clear(input);
 		await user.type(input, "polish login{Enter}");
@@ -1037,11 +1156,10 @@ describe("Sidebar", () => {
 	});
 
 	it("caps the inline rename input at 20 characters", async () => {
-		const user = userEvent.setup();
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
 
-		await user.click(screen.getByLabelText("Rename fix login"));
+		await openSessionMenu("fix login", "Rename session");
 		expect(screen.getByLabelText("Rename fix login")).toHaveAttribute("maxlength", "20");
 	});
 
@@ -1050,7 +1168,7 @@ describe("Sidebar", () => {
 		const workspaceWithSession = { ...workspace, sessions: [session] };
 		renderSidebar({ workspaces: [workspaceWithSession] });
 
-		await user.click(screen.getByLabelText("Rename fix login"));
+		await openSessionMenu("fix login", "Rename session");
 		const input = screen.getByLabelText("Rename fix login");
 		await user.clear(input);
 		await user.type(input, "discard me{Escape}");
@@ -1069,7 +1187,16 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(2);
+		// Terminal, orchestrator, kebab — the row reserves width for all three.
+		expect(
+			within(actionCluster as HTMLElement)
+				.getAllByRole("button")
+				.map((button) => button.getAttribute("aria-label")),
+		).toEqual([
+			"Open a terminal in Project One",
+			"Spawn Project One orchestrator",
+			"Project actions for Project One",
+		]);
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");
 	});
 

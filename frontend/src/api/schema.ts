@@ -1916,6 +1916,8 @@ export interface components {
         OpenShellTerminalRequest: {
             /** @description Project whose root the shell starts in. Omitted opens the shell in the daemon data dir. */
             projectId?: string;
+            /** @description Session whose workspace the shell starts in - its worktree, or the project checkout for an in-place session. Takes precedence over projectId, and attributes the shell to that session. */
+            sessionId?: string;
         };
         OrchestratorResponse: {
             id: string;
@@ -2336,6 +2338,8 @@ export interface components {
             durableBlocks: boolean;
             handleId: string;
             projectId?: string;
+            /** @description Session this shell was opened from. Absent for a shell opened outside any session. */
+            sessionId?: string;
             title: string;
             workingDir: string;
         };

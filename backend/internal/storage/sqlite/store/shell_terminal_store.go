@@ -20,6 +20,7 @@ func (s *Store) InsertShellTerminal(ctx context.Context, rec shelltermsvc.ShellT
 	_, err := s.qw.InsertShellTerminal(ctx, gen.InsertShellTerminalParams{
 		HandleID:   rec.HandleID,
 		ProjectID:  optionalProjectID(rec.ProjectID),
+		SessionID:  optionalSessionID(rec.SessionID),
 		WorkingDir: rec.WorkingDir,
 		Title:      rec.Title,
 		AppRunID:   rec.AppRunID,
@@ -114,6 +115,16 @@ func optionalProjectID(id domain.ProjectID) *domain.ProjectID {
 	return &id
 }
 
+// optionalSessionID mirrors optionalProjectID for the nullable session column:
+// a shell opened outside any session stores NULL rather than an empty string
+// that would violate the sessions FK.
+func optionalSessionID(id domain.SessionID) *domain.SessionID {
+	if id == "" {
+		return nil
+	}
+	return &id
+}
+
 func shellTerminalFromGen(row gen.ShellTerminal) shelltermsvc.ShellTerminalRecord {
 	rec := shelltermsvc.ShellTerminalRecord{
 		HandleID:   row.HandleID,
@@ -124,6 +135,9 @@ func shellTerminalFromGen(row gen.ShellTerminal) shelltermsvc.ShellTerminalRecor
 	}
 	if row.ProjectID != nil {
 		rec.ProjectID = *row.ProjectID
+	}
+	if row.SessionID != nil {
+		rec.SessionID = *row.SessionID
 	}
 	return rec
 }

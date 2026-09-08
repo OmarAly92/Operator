@@ -60,6 +60,7 @@ vi.mock("../lib/platform", async (importOriginal) => {
 });
 
 import { SessionsBoard } from "./SessionsBoard";
+import { useUiStore } from "../stores/ui-store";
 import { TooltipProvider } from "./ui/tooltip";
 
 function renderBoard(projectId?: string) {
@@ -260,8 +261,10 @@ describe("SessionsBoard", () => {
 			.getByText("brand-font-pipeline")
 			.closest('[data-testid="board-session-card"]') as HTMLElement;
 		expect(within(idleCard).getByText("Idle")).toBeInTheDocument();
+		// Both corner controls are always on screen: nothing about a card's state
+		// is discoverable only by hovering it.
 		const terminateButton = within(idleCard).getByRole("button", { name: "Terminate brand-font-pipeline" });
-		expect(terminateButton).toHaveClass("opacity-0", "group-hover:opacity-100", "group-focus-within:opacity-100");
+		expect(terminateButton).not.toHaveClass("opacity-0");
 		expect(terminateButton.querySelector("svg")).toHaveClass("lucide-trash-2");
 		expect(within(idleCard).getByText("Idle").parentElement).toHaveClass("flex", "justify-between");
 		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-semibold", "line-clamp-2");
@@ -417,6 +420,34 @@ describe("SessionsBoard", () => {
 		const card = screen.getByText("active-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
 		const working = within(card).getByText("Working").closest("span") as HTMLElement;
 		expect(working.querySelector("span")).toHaveClass("bg-status-working", "animate-status-pulse");
+	});
+
+	// Same contract as the sidebar row's terminal action: an id goes to the
+	// daemon, never a path, and the board then opens the session so the new shell
+	// is on screen as a tab beside the agent.
+	it("opens a terminal in the session's own workspace from the card", async () => {
+		const user = userEvent.setup();
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([boardSession({ id: "s-term", title: "terminal-card-task", status: "working" })])],
+			isError: false,
+			isSuccess: true,
+		});
+		postMock.mockResolvedValue({
+			data: { shellTerminal: { handleId: "shellterm-1", sessionId: "s-term", createdAt: "2026-01-01T00:00:00Z" } },
+		});
+
+		renderBoard("p1");
+		const card = screen.getByText("terminal-card-task").closest('[data-testid="board-session-card"]') as HTMLElement;
+		await user.click(within(card).getByRole("button", { name: "Open a terminal in terminal-card-task" }));
+
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/shell-terminals", { body: { sessionId: "s-term" } }),
+		);
+		expect(useUiStore.getState().activeShellTerminalHandleId).toBe("shellterm-1");
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "p1", sessionId: "s-term" },
+		});
 	});
 
 	it("keeps a spawning card labeled Working when raw activity has not become active", () => {
@@ -1246,7 +1277,6 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		const terminateButton = screen.getByRole("button", { name: "Terminate merged worker" });
-		expect(terminateButton).toHaveClass("opacity-100");
 		expect(terminateButton).not.toHaveClass("opacity-0");
 		await userEvent.click(terminateButton);
 		expect(navigateMock).not.toHaveBeenCalled();
@@ -1287,7 +1317,7 @@ describe("SessionsBoard", () => {
 		);
 
 		expect(screen.getByRole("button", { name: "Killing worker one" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Killing worker one" })).toHaveClass("opacity-100");
+		expect(screen.getByRole("button", { name: "Killing worker one" })).not.toHaveClass("opacity-0");
 		expect(screen.getByRole("button", { name: "Terminate worker two" })).toBeEnabled();
 		expect(postMock).toHaveBeenCalledTimes(1);
 

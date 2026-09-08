@@ -34,6 +34,17 @@ type ProjectRootLocator interface {
 	ProjectRoot(ctx context.Context, id domain.ProjectID) (string, error)
 }
 
+// SessionWorkspaceLocator resolves a session id to the directory a shell
+// opened from that session should start in, plus the project it belongs to.
+//
+// The session service already stores one path per session that is the worktree
+// for a worktree session and the project checkout for an in-place one, so this
+// port needs no mode of its own: "the session's directory" is a single fact.
+// An unknown session returns ok=false so the caller can answer 404.
+type SessionWorkspaceLocator interface {
+	SessionWorkspace(ctx context.Context, id domain.SessionID) (path string, projectID domain.ProjectID, ok bool, err error)
+}
+
 type BlockCaptureLifecycle interface {
 	Start(context.Context, ShellTerminalRecord) error
 	StopAndDrain(context.Context, string) error
@@ -52,6 +63,7 @@ type Service struct {
 	runtime  ShellRuntime
 	store    Store
 	projects ProjectRootLocator
+	sessions SessionWorkspaceLocator
 	capture  BlockCaptureLifecycle
 	dataDir  string
 	appRunID string
@@ -66,7 +78,7 @@ type Service struct {
 // NewService builds the shell terminal service. dataDir is the fallback working
 // directory for a shell opened with no project context. A nil logger falls back
 // to slog.Default.
-func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, capture BlockCaptureLifecycle, dataDir, appRunID string, log *slog.Logger) *Service {
+func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, sessions SessionWorkspaceLocator, capture BlockCaptureLifecycle, dataDir, appRunID string, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -74,6 +86,7 @@ func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, 
 		runtime:     runtime,
 		store:       store,
 		projects:    projects,
+		sessions:    sessions,
 		capture:     capture,
 		dataDir:     dataDir,
 		appRunID:    appRunID,
@@ -88,7 +101,7 @@ func NewService(runtime ShellRuntime, store Store, projects ProjectRootLocator, 
 // write fails, so a persisted row always names a PTY that actually exists —
 // otherwise a restart would try to re-attach to a handle that was never spawned.
 func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInput) (ShellTerminal, error) {
-	workingDir, projectID, err := s.resolveShellTerminalWorkingDir(ctx, in.ProjectID)
+	workingDir, projectID, err := s.resolveShellTerminalWorkingDir(ctx, in)
 	if err != nil {
 		return ShellTerminal{}, err
 	}
@@ -123,6 +136,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	rec := ShellTerminalRecord{
 		HandleID:   handle.ID,
 		ProjectID:  projectID,
+		SessionID:  in.SessionID,
 		WorkingDir: workingDir,
 		Title:      shellTerminalTitle(workingDir),
 		AppRunID:   s.appRunID,
@@ -342,15 +356,45 @@ func (s *Service) destroyConfirmed(ctx context.Context, handleID string) (stillA
 	return false, nil
 }
 
-// resolveShellTerminalWorkingDir picks where the shell starts: the project
-// root when a project is named, else the daemon's data dir. It also returns
-// the project the shell ended up attributed to.
-func (s *Service) resolveShellTerminalWorkingDir(ctx context.Context, projectID domain.ProjectID) (workingDir string, resolvedProjectID domain.ProjectID, err error) {
-	dir, err := s.resolveProjectRootOrDataDir(ctx, projectID)
+// resolveShellTerminalWorkingDir picks where the shell starts: the session's
+// own workspace when a session is named, else the project root, else the
+// daemon's data dir. It also returns the project the shell ended up attributed
+// to — for a session shell that is the session's project, not whatever the
+// caller passed, so the two can never disagree.
+func (s *Service) resolveShellTerminalWorkingDir(ctx context.Context, in OpenShellTerminalInput) (workingDir string, resolvedProjectID domain.ProjectID, err error) {
+	if in.SessionID != "" {
+		return s.resolveSessionWorkspace(ctx, in.SessionID)
+	}
+	dir, err := s.resolveProjectRootOrDataDir(ctx, in.ProjectID)
 	if err != nil {
 		return "", "", err
 	}
-	return dir, projectID, nil
+	return dir, in.ProjectID, nil
+}
+
+// resolveSessionWorkspace resolves the directory a session's shell starts in.
+// A session with no path on disk yet (spawning, or torn down) is rejected
+// rather than silently downgraded to the project root: the point of the action
+// is to land in that session's own tree, and a shell in the wrong tree is
+// worse than no shell.
+func (s *Service) resolveSessionWorkspace(ctx context.Context, sessionID domain.SessionID) (string, domain.ProjectID, error) {
+	if s.sessions == nil {
+		return "", "", apierr.Internal("SHELL_TERMINAL_NO_SESSION_LOOKUP",
+			"Session lookup is unavailable")
+	}
+	path, projectID, ok, err := s.sessions.SessionWorkspace(ctx, sessionID)
+	if err != nil {
+		return "", "", fmt.Errorf("open shell terminal: resolve session %s: %w", sessionID, err)
+	}
+	if !ok {
+		return "", "", apierr.NotFound("SHELL_TERMINAL_SESSION_NOT_FOUND",
+			"No such session: "+string(sessionID))
+	}
+	if path == "" {
+		return "", "", apierr.Conflict("SHELL_TERMINAL_SESSION_NO_WORKSPACE",
+			"Session "+string(sessionID)+" has no workspace on disk yet", nil)
+	}
+	return path, projectID, nil
 }
 
 // resolveProjectRootOrDataDir picks the project root when a project is named,
@@ -414,6 +458,7 @@ func shellTerminalFromRecord(rec ShellTerminalRecord) ShellTerminal {
 	return ShellTerminal{
 		HandleID:   rec.HandleID,
 		ProjectID:  rec.ProjectID,
+		SessionID:  rec.SessionID,
 		WorkingDir: rec.WorkingDir,
 		Title:      rec.Title,
 		CreatedAt:  rec.CreatedAt,

@@ -7,15 +7,23 @@ enum BlockMatchField { displayName, summary }
 const int findContextBlocks = 1;
 
 class BlockMatch extends Equatable {
-  const BlockMatch({required this.blockId, required this.field, required this.score, required this.ranges});
+  const BlockMatch({required this.blockId, required this.field, required this.score, required this.ranges, this.fieldRanges = const {}});
 
   final String blockId;
   final BlockMatchField field;
   final MatchScore score;
   final List<MatchRange> ranges;
+  final Map<BlockMatchField, List<MatchRange>> fieldRanges;
+
+  BlockMatch? forField(BlockMatchField requested) {
+    final matches = fieldRanges[requested] ?? (field == requested ? ranges : const <MatchRange>[]);
+    if (matches.isEmpty) return null;
+    return BlockMatch(blockId: blockId, field: requested, score: score, ranges: matches);
+  }
+
 
   @override
-  List<Object?> get props => [blockId, field, score, ranges];
+  List<Object?> get props => [blockId, field, score, ranges, fieldRanges.isEmpty ? {field: ranges} : fieldRanges];
 }
 
 class BlockFilterResult extends Equatable {
@@ -54,14 +62,22 @@ sealed class BlockFind {
 
   static BlockMatch? _matchBlock(SessionBlock block, String query) {
     BlockMatch? best;
+    final fieldRanges = <BlockMatchField, List<MatchRange>>{};
     for (final entry in searchFields(block).asMap().entries) {
       final score = TextMatch.score(query, entry.value, subsequence: false);
       if (score == null) continue;
+      final field = entry.key == 0 ? BlockMatchField.displayName : BlockMatchField.summary;
+      final ranges = RegExp(RegExp.escape(query), caseSensitive: false)
+          .allMatches(entry.value)
+          .map((match) => MatchRange(start: match.start, length: match.end - match.start))
+          .toList();
+      fieldRanges[field] = ranges;
       final candidate = BlockMatch(
         blockId: block.id,
         field: entry.key == 0 ? BlockMatchField.displayName : BlockMatchField.summary,
         score: score,
-        ranges: TextMatch.ranges(query, entry.value, score),
+        ranges: ranges,
+        fieldRanges: fieldRanges,
       );
       if (best == null || TextMatch.compare(candidate.score, best.score) < 0) best = candidate;
     }

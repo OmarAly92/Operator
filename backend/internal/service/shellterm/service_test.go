@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +15,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
-func TestOpenShellTerminalHasNoSessionScope(t *testing.T) {
+func TestOpenShellTerminalWithNoSessionOrProjectUsesDataDir(t *testing.T) {
 	rt := newFakeShellRuntime()
 	st := &fakeShellTerminalStore{}
 	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
@@ -27,9 +26,141 @@ func TestOpenShellTerminalHasNoSessionScope(t *testing.T) {
 	if got.HandleID == "" {
 		t.Fatal("Open() returned an empty handle id")
 	}
-	if reflect.TypeOf(OpenShellTerminalInput{}).NumField() != 1 {
-		t.Fatalf("OpenShellTerminalInput has %d fields, want 1 (ProjectID)",
-			reflect.TypeOf(OpenShellTerminalInput{}).NumField())
+	if got.SessionID != "" {
+		t.Fatalf("SessionID = %q, want empty for a shell opened outside a session", got.SessionID)
+	}
+	if got.WorkingDir != svc.dataDir {
+		t.Fatalf("WorkingDir = %q, want the data dir %q", got.WorkingDir, svc.dataDir)
+	}
+}
+
+// A session shell must land in the session's OWN tree. The locator returns one
+// path per session — the worktree for a worktree session, the project checkout
+// for an in-place one — so this covers both modes.
+func TestOpenShellTerminalStartsInTheSessionWorkspace(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	sessions := &fakeSessionWorkspaceLocator{
+		workspaces: map[domain.SessionID]sessionWorkspace{
+			"sess-worktree": {path: "/worktrees/feature-a", projectID: "portfolio"},
+			"sess-in-place": {path: "/repos/portfolio", projectID: "portfolio"},
+		},
+	}
+	svc := newTestServiceWithSessions(t, rt, st, &fakeProjectRootLocator{}, sessions)
+
+	for _, tc := range []struct {
+		name      string
+		sessionID domain.SessionID
+		wantDir   string
+	}{
+		{"worktree session", "sess-worktree", "/worktrees/feature-a"},
+		{"in-place session", "sess-in-place", "/repos/portfolio"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: tc.sessionID})
+			if err != nil {
+				t.Fatalf("Open() error = %v", err)
+			}
+			if got.WorkingDir != tc.wantDir {
+				t.Fatalf("WorkingDir = %q, want %q", got.WorkingDir, tc.wantDir)
+			}
+			if got.SessionID != tc.sessionID {
+				t.Fatalf("SessionID = %q, want %q", got.SessionID, tc.sessionID)
+			}
+			if got.ProjectID != "portfolio" {
+				t.Fatalf("ProjectID = %q, want the session's project", got.ProjectID)
+			}
+			last := rt.created[len(rt.created)-1]
+			if last.WorkspacePath != tc.wantDir {
+				t.Fatalf("runtime WorkspacePath = %q, want %q", last.WorkspacePath, tc.wantDir)
+			}
+		})
+	}
+}
+
+// The session is the more specific request, and its project is authoritative:
+// a caller passing both must never land in the project root, nor have the
+// shell attributed to a project the session does not belong to.
+func TestOpenShellTerminalPrefersSessionOverProject(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	projects := &fakeProjectRootLocator{roots: map[domain.ProjectID]string{"other": "/repos/other"}}
+	sessions := &fakeSessionWorkspaceLocator{
+		workspaces: map[domain.SessionID]sessionWorkspace{
+			"sess-1": {path: "/worktrees/feature-a", projectID: "portfolio"},
+		},
+	}
+	svc := newTestServiceWithSessions(t, rt, st, projects, sessions)
+
+	got, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{
+		ProjectID: "other",
+		SessionID: "sess-1",
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if got.WorkingDir != "/worktrees/feature-a" {
+		t.Fatalf("WorkingDir = %q, want the session workspace", got.WorkingDir)
+	}
+	if got.ProjectID != "portfolio" {
+		t.Fatalf("ProjectID = %q, want the session's project, not the requested one", got.ProjectID)
+	}
+}
+
+func TestOpenShellTerminalRejectsUnknownSession(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	svc := newTestServiceWithSessions(t, rt, st, &fakeProjectRootLocator{}, &fakeSessionWorkspaceLocator{})
+
+	_, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "ghost"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "SHELL_TERMINAL_SESSION_NOT_FOUND" {
+		t.Fatalf("err = %v, want SHELL_TERMINAL_SESSION_NOT_FOUND", err)
+	}
+	if len(rt.created) != 0 {
+		t.Fatalf("runtime spawned %d PTYs for an unknown session, want 0", len(rt.created))
+	}
+}
+
+// A session that has no directory yet (still spawning, or torn down) must fail
+// loudly rather than silently opening somewhere else.
+func TestOpenShellTerminalRejectsSessionWithoutWorkspace(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	sessions := &fakeSessionWorkspaceLocator{
+		workspaces: map[domain.SessionID]sessionWorkspace{"sess-1": {projectID: "portfolio"}},
+	}
+	svc := newTestServiceWithSessions(t, rt, st, &fakeProjectRootLocator{}, sessions)
+
+	_, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "sess-1"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "SHELL_TERMINAL_SESSION_NO_WORKSPACE" {
+		t.Fatalf("err = %v, want SHELL_TERMINAL_SESSION_NO_WORKSPACE", err)
+	}
+	if len(rt.created) != 0 {
+		t.Fatalf("runtime spawned %d PTYs for a workspace-less session, want 0", len(rt.created))
+	}
+}
+
+// The session id must survive the round trip through storage, or a tab strip
+// rebuilt after a daemon restart would lose its shells.
+func TestListShellTerminalsKeepsSessionScope(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	sessions := &fakeSessionWorkspaceLocator{
+		workspaces: map[domain.SessionID]sessionWorkspace{"sess-1": {path: "/worktrees/feature-a", projectID: "portfolio"}},
+	}
+	svc := newTestServiceWithSessions(t, rt, st, &fakeProjectRootLocator{}, sessions)
+	if _, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{SessionID: "sess-1"}); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	got, err := svc.ListShellTerminalsForCurrentAppRun(context.Background())
+	if err != nil {
+		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)
+	}
+	if len(got) != 1 || got[0].SessionID != "sess-1" {
+		t.Fatalf("terminals = %+v, want one scoped to sess-1", got)
 	}
 }
 
@@ -175,6 +306,24 @@ func (f *fakeProjectRootLocator) ProjectRoot(_ context.Context, id domain.Projec
 	return f.roots[id], nil
 }
 
+type sessionWorkspace struct {
+	path      string
+	projectID domain.ProjectID
+}
+
+type fakeSessionWorkspaceLocator struct {
+	workspaces map[domain.SessionID]sessionWorkspace
+	err        error
+}
+
+func (f *fakeSessionWorkspaceLocator) SessionWorkspace(_ context.Context, id domain.SessionID) (string, domain.ProjectID, bool, error) {
+	if f.err != nil {
+		return "", "", false, f.err
+	}
+	ws, ok := f.workspaces[id]
+	return ws.path, ws.projectID, ok, nil
+}
+
 type callLog struct {
 	mu sync.Mutex
 	ev []string
@@ -240,9 +389,19 @@ func newTestService(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalSto
 	return newTestServiceWithCapture(t, rt, st, projects, nil)
 }
 
+func newTestServiceWithSessions(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator) *Service {
+	t.Helper()
+	return newTestServiceWith(t, rt, st, projects, sessions, nil)
+}
+
 func newTestServiceWithCapture(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, capture BlockCaptureLifecycle) *Service {
 	t.Helper()
-	svc := NewService(rt, st, projects, capture, t.TempDir(), testAppRunID, testLogger())
+	return newTestServiceWith(t, rt, st, projects, nil, capture)
+}
+
+func newTestServiceWith(t *testing.T, rt *fakeShellRuntime, st *fakeShellTerminalStore, projects ProjectRootLocator, sessions SessionWorkspaceLocator, capture BlockCaptureLifecycle) *Service {
+	t.Helper()
+	svc := NewService(rt, st, projects, sessions, capture, t.TempDir(), testAppRunID, testLogger())
 	var n int
 	svc.newHandleID = func() (string, error) {
 		n++
@@ -523,7 +682,7 @@ func TestListShellTerminalsForCurrentAppRunReturnsSurvivingTerminals(t *testing.
 
 	// A fresh Service over the SAME store and runtime stands in for the daemon
 	// coming back up within one app run.
-	restarted := NewService(rt, st, &fakeProjectRootLocator{}, nil, svc.dataDir, testAppRunID, testLogger())
+	restarted := NewService(rt, st, &fakeProjectRootLocator{}, nil, nil, svc.dataDir, testAppRunID, testLogger())
 	got, err := restarted.ListShellTerminalsForCurrentAppRun(context.Background())
 	if err != nil {
 		t.Fatalf("ListShellTerminalsForCurrentAppRun: %v", err)

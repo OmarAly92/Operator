@@ -27,6 +27,7 @@ import (
 type ShellTerminal struct {
 	HandleID   string           `json:"handleId"`
 	ProjectID  domain.ProjectID `json:"projectId,omitempty"`
+	SessionID  domain.SessionID `json:"sessionId,omitempty"`
 	WorkingDir string           `json:"workingDir"`
 	Title      string           `json:"title"`
 	CreatedAt  time.Time        `json:"createdAt"`
@@ -34,11 +35,19 @@ type ShellTerminal struct {
 	DurableBlocks bool `json:"durableBlocks"`
 }
 
-// OpenShellTerminalInput is the request to open a new shell pane. An empty
-// ProjectID opens the shell in the daemon's data dir instead of a project root,
-// which is what the topbar action does when no project is selected.
+// OpenShellTerminalInput is the request to open a new shell pane.
+//
+// SessionID wins over ProjectID when both are set: a shell opened from a
+// session row starts in that session's own workspace — its worktree when it
+// has one, the project checkout when it runs in place — and is attributed to
+// the session so the session's tab strip can find it again.
+//
+// With no SessionID, an empty ProjectID opens the shell in the daemon's data
+// dir instead of a project root, which is what the topbar action does when no
+// project is selected.
 type OpenShellTerminalInput struct {
 	ProjectID domain.ProjectID `json:"projectId,omitempty"`
+	SessionID domain.SessionID `json:"sessionId,omitempty"`
 }
 
 // shellTerminalTitle labels a tab by the directory the shell started in, which

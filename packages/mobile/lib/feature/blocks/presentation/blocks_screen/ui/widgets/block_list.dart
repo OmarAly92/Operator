@@ -31,6 +31,7 @@ class BlockList extends StatefulWidget {
     this.onRollbackTurn,
     this.canRollbackTurn,
     this.highlights = const {},
+    this.activeMatchId,
     this.selectedIds = const {},
     this.selectionMode = false,
     this.onToggleSelect,
@@ -52,6 +53,7 @@ class BlockList extends StatefulWidget {
   final Set<String> collapsedIds;
   final void Function(String blockId)? onToggleCollapse;
   final Map<String, BlockMatch> highlights;
+  final String? activeMatchId;
   final Set<String> selectedIds;
   final bool selectionMode;
   final void Function(String blockId, bool selected)? onToggleSelect;
@@ -358,6 +360,9 @@ class BlockListState extends State<BlockList> {
               ? null
               : () => widget.onToggleCollapse!(block.id),
           highlight: widget.highlights[block.id],
+          activeMatch: widget.activeMatchId == block.id,
+          searchMatches: widget.highlights,
+          activeMatchId: widget.activeMatchId,
           selected: widget.selectedIds.contains(block.id),
           onToggleSelect: widget.onToggleSelect == null
               ? null

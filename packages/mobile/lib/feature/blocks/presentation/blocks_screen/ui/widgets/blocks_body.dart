@@ -296,11 +296,8 @@ class BlocksBodyState extends State<BlocksBody> {
                           }
                           if (!_collapsed.add(id)) _collapsed.remove(id);
                         }),
-                        highlights: highlight == null
-                            ? const <String, BlockMatch>{}
-                            : <String, BlockMatch>{
-                                highlight.blockId: highlight,
-                              },
+                        highlights: {for (final match in matches) match.blockId: match},
+                        activeMatchId: _activeMatchId,
                         selectedIds: _selected,
                         selectionMode: _selectionMode,
                         onToggleSelect: _toggleSelected,

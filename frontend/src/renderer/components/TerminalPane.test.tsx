@@ -534,6 +534,49 @@ describe("TerminalCacheProvider", () => {
 		}
 	});
 
+	// The sidebar's per-session terminal button lands here: the session view
+	// mounts on the agent, then swaps to the shell as soon as the newly opened
+	// shell reaches the query. Coming back to the agent tab must show it.
+	it("shows the agent terminal again after a shell took over its first activation", async () => {
+		const shell: ShellTerminal = {
+			handleId: "shell-handle",
+			sessionId: sessionA.id,
+			workingDir: "/repo/my-app",
+			title: "my-app",
+			createdAt: "2026-07-30T00:00:00Z",
+		};
+		const shellTarget: TerminalTarget = {
+			generation: shell.createdAt,
+			kind: "shell",
+			handleId: shell.handleId,
+			sessionId: sessionA.id,
+			title: shell.title,
+		};
+		const view = renderCachedPane({
+			session: sessionA,
+			sessions: [sessionA],
+			shellTerminals: [shell],
+			terminalTarget: { kind: "worker" },
+		});
+		try {
+			const workerAttachment = await waitFor(() => activeAttachment());
+			const workerHost = workerAttachment.closest("[data-terminal-cache-key]") as HTMLElement;
+			expect(workerHost.dataset.terminalCacheKey).toContain("worker");
+
+			view.show(sessionA, shellTarget);
+			await waitFor(() => expect(activeAttachment()).not.toBe(workerAttachment));
+
+			view.show(sessionA, { kind: "worker" });
+
+			await waitFor(() =>
+				expect(workerHost.dataset.terminalActivationPhase).toBe("visible"),
+			);
+			expect(workerHost.style.visibility).not.toBe("hidden");
+		} finally {
+			view.restore();
+		}
+	});
+
 	it("does not retain reviewer terminals in the worker cache", async () => {
 		const reviewer = {
 			handleId: "stable-reviewer-handle",

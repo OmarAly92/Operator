@@ -78,6 +78,15 @@ const worker = {
 	prs: [],
 } satisfies WorkspaceSession;
 
+const sessionShell = {
+	handleId: "shellterm-1",
+	sessionId: "sess-1",
+	projectId: "proj-1",
+	workingDir: "/worktrees/sess-1",
+	title: "worktree-a",
+	createdAt: "2026-06-10T00:00:00Z",
+};
+
 function renderCenterPane(props: Partial<ComponentProps<typeof CenterPane>> = {}) {
 	return render(
 		<TooltipProvider>
@@ -226,6 +235,53 @@ describe("CenterPane toolbar session label", () => {
 
 		fireEvent.click(screen.getByRole("tab", { name: "Reviewer" }));
 		expect(onSelectReviewerTerminal).toHaveBeenCalledWith({ handleId: "review-sess-1", harness: "codex" });
+	});
+
+	it("renders a session's shells after its agent tab and selects one on click", () => {
+		const onSelectShellTerminal = vi.fn();
+		renderCenterPane({
+			session: worker,
+			shellTerminals: [sessionShell],
+			onSelectShellTerminal,
+		});
+
+		const tabs = screen.getAllByRole("tab");
+		expect(tabs.map((tab) => tab.textContent)).toEqual(["do the thing", "worktree-a"]);
+
+		fireEvent.click(screen.getByRole("tab", { name: "worktree-a" }));
+		expect(onSelectShellTerminal).toHaveBeenCalledWith(sessionShell);
+	});
+
+	it("marks the shell tab active and takes the agent tab off, so one surface shows at a time", () => {
+		renderCenterPane({
+			session: worker,
+			shellTerminals: [sessionShell],
+			terminalTarget: {
+				generation: sessionShell.createdAt,
+				kind: "shell",
+				handleId: sessionShell.handleId,
+				sessionId: worker.id,
+				title: sessionShell.title,
+			},
+		});
+
+		expect(screen.getByRole("tab", { name: "worktree-a" })).toHaveAttribute("aria-current", "true");
+		expect(screen.getByRole("tab", { name: /^do the thing/ })).not.toHaveAttribute("aria-current", "true");
+	});
+
+	it("closes a shell from its tab without selecting it", () => {
+		const onCloseShellTerminal = vi.fn();
+		const onSelectShellTerminal = vi.fn();
+		renderCenterPane({
+			session: worker,
+			shellTerminals: [sessionShell],
+			onCloseShellTerminal,
+			onSelectShellTerminal,
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "Close terminal worktree-a" }));
+		expect(onCloseShellTerminal).toHaveBeenCalledWith("shellterm-1");
+		expect(onSelectShellTerminal).not.toHaveBeenCalled();
 	});
 
 	it("shows 'Orchestrator' for an orchestrator session", () => {

@@ -94,6 +94,9 @@ class BlockCard extends StatelessWidget {
     this.collapsed = false,
     this.onToggleCollapse,
     this.highlight,
+    this.activeMatch = false,
+    this.searchMatches = const {},
+    this.activeMatchId,
     this.selected = false,
     this.onToggleSelect,
     this.selectionMode = false,
@@ -108,6 +111,9 @@ class BlockCard extends StatelessWidget {
   final bool collapsed;
   final VoidCallback? onToggleCollapse;
   final BlockMatch? highlight;
+  final bool activeMatch;
+  final Map<String, BlockMatch> searchMatches;
+  final String? activeMatchId;
   final bool selected;
   final ValueChanged<bool>? onToggleSelect;
   final bool selectionMode;
@@ -136,8 +142,12 @@ class BlockCard extends StatelessWidget {
     final skin = context.skin;
     final kind = railKindOf(block);
     final display = blockDisplay(block);
-    final summaryHighlight = highlight?.field == BlockMatchField.summary ? highlight : null;
-    final nameHighlight = highlight?.field == BlockMatchField.displayName ? highlight : null;
+    final parentSearch = context.dependOnInheritedWidgetOfExactType<_SearchHighlight>();
+    final matches = searchMatches.isNotEmpty ? searchMatches : parentSearch?.matches ?? const <String, BlockMatch>{};
+    final match = highlight ?? matches[block.id];
+    final currentMatchId = activeMatchId ?? parentSearch?.activeMatchId;
+    final summaryHighlight = match?.forField(BlockMatchField.summary);
+    final nameHighlight = match?.forField(BlockMatchField.displayName);
     final actionsWidget = actionsBuilder?.call(block);
 
     final Widget core = switch (kind) {
@@ -188,7 +198,11 @@ class BlockCard extends StatelessWidget {
           )
         : content;
 
-    return Container(
+    return _SearchHighlight(
+      color: activeMatch || currentMatchId == block.id ? skin.searchMatchActive : skin.searchMatch,
+      matches: matches,
+      activeMatchId: currentMatchId,
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: selectionMode ? const EdgeInsets.all(4) : EdgeInsets.zero,
       decoration: selected
@@ -213,6 +227,7 @@ class BlockCard extends StatelessWidget {
               ],
             )
           : selectable,
+      ),
     );
   }
 }
@@ -1033,7 +1048,7 @@ Text _highlightedField({
       spans.add(
         TextSpan(
           text: text.substring(start, end),
-          style: base.copyWith(backgroundColor: skin.tintAmber),
+          style: base.copyWith(backgroundColor: context.dependOnInheritedWidgetOfExactType<_SearchHighlight>()?.color ?? skin.searchMatch),
         ),
       );
     }
@@ -1089,4 +1104,15 @@ class BlockActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SearchHighlight extends InheritedWidget {
+  const _SearchHighlight({required this.color, required this.matches, required this.activeMatchId, required super.child});
+
+  final Color color;
+  final Map<String, BlockMatch> matches;
+  final String? activeMatchId;
+
+  @override
+  bool updateShouldNotify(_SearchHighlight oldWidget) => oldWidget.color != color || oldWidget.matches != matches || oldWidget.activeMatchId != activeMatchId;
 }

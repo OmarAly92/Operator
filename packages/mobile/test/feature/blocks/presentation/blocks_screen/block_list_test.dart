@@ -736,7 +736,7 @@ void main() {
     expect(richTextFinder, findsWidgets);
     final highlighted = richTextFinder.evaluate().any((element) {
       final rich = element.widget as RichText;
-      return _hasHighlightedSpan(rich, skin.tintAmber);
+      return _hasHighlightedSpan(rich, skin.searchMatch);
     });
     expect(
       highlighted,

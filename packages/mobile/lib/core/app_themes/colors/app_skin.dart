@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 abstract class AppSkin {
   const AppSkin();
 
+  Color get searchMatch => green.withValues(alpha: 0.16);
+  Color get searchMatchActive => green.withValues(alpha: 0.30);
+
   /// The Material [ThemeMode] this skin drives — [ThemeMode.light] or
   /// [ThemeMode.dark]. [MaterialApp] receives it as its themeMode so the
   /// framework picks the matching [ThemeData]. Example: LightSkin returns

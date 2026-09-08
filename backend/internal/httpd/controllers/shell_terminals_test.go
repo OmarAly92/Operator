@@ -351,6 +351,33 @@ func TestShellTerminalsAPI_OpenAcceptsEmptyBody(t *testing.T) {
 	}
 }
 
+// The sidebar's per-session terminal action sends a sessionId and nothing
+// else; the daemon resolves that session's own directory, so a dropped field
+// here would silently open the shell in the wrong tree.
+func TestShellTerminalsAPI_OpenForwardsSessionID(t *testing.T) {
+	opened := sampleShellTerminal()
+	opened.SessionID = "sess-1"
+	svc := &fakeShellTerminalService{opened: opened}
+	srv := newShellTerminalTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/shell-terminals", `{"sessionId":"sess-1"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", status, body)
+	}
+	if svc.gotOpenInput.SessionID != "sess-1" {
+		t.Errorf("session id = %q, want sess-1", svc.gotOpenInput.SessionID)
+	}
+	var resp struct {
+		ShellTerminal struct {
+			SessionID string `json:"sessionId"`
+		} `json:"shellTerminal"`
+	}
+	mustJSON(t, body, &resp)
+	if resp.ShellTerminal.SessionID != "sess-1" {
+		t.Errorf("response session id = %q, want sess-1 so the tab strip can claim it", resp.ShellTerminal.SessionID)
+	}
+}
+
 func TestShellTerminalsAPI_OpenRejectsMalformedBody(t *testing.T) {
 	srv := newShellTerminalTestServer(t, &fakeShellTerminalService{opened: sampleShellTerminal()})
 

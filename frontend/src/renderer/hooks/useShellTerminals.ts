@@ -1,7 +1,11 @@
-// Standalone shell terminals: shells the user opens by hand from the topbar or
-// ⌘T / Ctrl+T, with no agent session behind them. They are deliberately kept out of
-// the workspaces query — they are not sessions, never appear on the board, and
-// must not invalidate session state when they come and go.
+// Shell terminals: shells the user opens by hand — from the topbar, ⌘T /
+// Ctrl+T, or the terminal button on a session row. A shell is a PTY, never an
+// agent; the ones opened from a session are only *scoped* to it, so they can
+// appear beside its agent tab and start in its workspace.
+//
+// They are deliberately kept out of the workspaces query — they are not
+// sessions, never appear on the board, and must not invalidate session state
+// when they come and go.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../api/schema";
@@ -12,6 +16,8 @@ export type ShellTerminal = {
 	/** Runtime handle the terminal mux attaches to, exactly like a session pane's. */
 	handleId: string;
 	projectId?: string;
+	/** Session this shell was opened from; absent for one opened outside any session. */
+	sessionId?: string;
 	workingDir: string;
 	title: string;
 	createdAt: string;
@@ -25,6 +31,7 @@ function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): She
 	return {
 		handleId: t.handleId,
 		projectId: t.projectId,
+		sessionId: t.sessionId,
 		workingDir: t.workingDir,
 		title: t.title,
 		createdAt: t.createdAt,
@@ -64,21 +71,27 @@ export function useShellTerminals() {
 	return useQuery(shellTerminalsQueryOptions);
 }
 
-export type OpenShellTerminalInput = { projectId?: string };
+export type OpenShellTerminalInput = { projectId?: string; sessionId?: string };
 
 /**
- * Opens a shell in the given project's root (or the daemon data dir when
- * omitted). Every shell is standalone and appears on /terminals.
+ * Opens a shell in the given session's own workspace, or — with no session —
+ * in the project's root, or the daemon data dir when neither is given.
+ *
+ * The daemon resolves a session's directory itself (worktree, or the project
+ * checkout for an in-place session), so callers pass an id, never a path.
+ * Session shells appear beside that session's agent tab; the rest live on
+ * /terminals.
  */
 export function useOpenShellTerminal() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async ({ projectId }: OpenShellTerminalInput = {}): Promise<ShellTerminal> => {
+		mutationFn: async ({ projectId, sessionId }: OpenShellTerminalInput = {}): Promise<ShellTerminal> => {
 			if (usePreviewData) {
 				previewShellSeq += 1;
 				const shell: ShellTerminal = {
 					handleId: `shellterm-preview-${previewShellSeq}`,
 					projectId,
+					sessionId,
 					workingDir: `/Users/demo/Projects/${projectId ?? "opr"}`,
 					title: projectId ?? "shell",
 					createdAt: new Date().toISOString(),
@@ -88,6 +101,7 @@ export function useOpenShellTerminal() {
 			}
 			const body: OpenShellTerminalInput = {};
 			if (projectId) body.projectId = projectId;
+			if (sessionId) body.sessionId = sessionId;
 			const { data, error } = await apiClient.POST("/api/v1/shell-terminals", { body });
 			if (error) throw error;
 			if (!data) throw new Error("Daemon returned no shell terminal");

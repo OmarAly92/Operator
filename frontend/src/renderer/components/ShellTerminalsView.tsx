@@ -28,7 +28,10 @@ export function ShellTerminalsView() {
 	const { t } = useTranslation();
 	const { daemonStatus } = useShell();
 	const theme = useResolvedTheme();
-	const shellTerminals = useShellTerminals().data ?? [];
+	// Session-scoped shells are excluded: their home is the tab strip beside
+	// that session's agent pane. Listing them here too would give one PTY two
+	// independent tabs whose selection and close controls fight each other.
+	const shellTerminals = (useShellTerminals().data ?? []).filter((shell) => !shell.sessionId);
 	const closeShellTerminal = useCloseShellTerminal();
 	const renameShellTerminal = useRenameShellTerminal();
 	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);

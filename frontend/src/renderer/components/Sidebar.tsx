@@ -13,6 +13,7 @@ import {
 	RefreshCw,
 	Search,
 	Settings,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
@@ -33,6 +34,7 @@ import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
 import { useTerminateSession } from "../hooks/useTerminateSession";
+import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useResizable } from "../hooks/useResizable";
 import { useShellMaybe } from "../lib/shell-context";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
@@ -482,6 +484,7 @@ function ProjectItem({
 	onRemoveProject: (projectId: string) => Promise<void>;
 }) {
 	const { t } = useTranslation();
+	const navigate = useNavigate();
 	const prefersReducedMotion = useReducedMotion();
 	const activeProjectMatches = selection.activeProjectId === workspace.id;
 	const dashboardActive = activeProjectMatches && !selection.activeSessionId;
@@ -516,6 +519,26 @@ function ProjectItem({
 	// The project's live orchestrator (if any) backs the hover Orchestrator
 	// button: navigate to it when present, otherwise spawn one first.
 	const orchestrator = newestActiveOrchestrator(workspace.sessions);
+	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
+	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
+
+	// A terminal for the project, scoped to the orchestrator when there is one:
+	// the orchestrator is a session like any other, so the daemon resolves its
+	// directory, and the shell lands as a tab beside the orchestrator's own
+	// terminal. With no orchestrator there is no session view to host a tab, so
+	// the shell opens against the project root and lives on /terminals.
+	const openProjectTerminal = () => {
+		openShellTerminal(
+			orchestrator ? { sessionId: orchestrator.id } : { projectId: workspace.id },
+			{
+				onSuccess: (shell) => {
+					setActiveShellTerminal(shell.handleId);
+					if (orchestrator) selection.goSession(workspace.id, orchestrator.id);
+					else void navigate({ to: "/terminals" });
+				},
+			},
+		);
+	};
 
 	// Mirrors ShellTopbar's launcher: attach to the running orchestrator, or
 	// spawn one via the daemon and follow it once the workspace refetches.
@@ -700,6 +723,20 @@ function ProjectItem({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<button
+						aria-label={t("shell.openProjectTerminal", { name: workspace.name })}
+						className={HOVER_ACTION_CLASS}
+						disabled={isOpeningShell}
+						onClick={() => openProjectTerminal()}
+						type="button"
+					>
+						<SquareTerminal aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("shell.openSessionTerminalAction")}</TooltipContent>
+			</Tooltip>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
 						aria-current={orchestratorActive ? "page" : undefined}
 						aria-label={
 							orchestrator
@@ -734,6 +771,10 @@ function ProjectItem({
 					<DropdownMenuItem disabled={isProjectRestarting} onSelect={() => requestNewTask(workspace.id)}>
 						<Plus aria-hidden="true" />
 						{t("shell.newSession")}
+					</DropdownMenuItem>
+					<DropdownMenuItem disabled={isOpeningShell} onSelect={() => openProjectTerminal()}>
+						<SquareTerminal aria-hidden="true" />
+						{t("shell.openSessionTerminalAction")}
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem onSelect={() => selection.goSettings(workspace.id)}>
@@ -818,6 +859,10 @@ function ProjectItem({
 				<Plus aria-hidden="true" />
 				{t("shell.newSession")}
 			</ContextMenuItem>
+			<ContextMenuItem disabled={isOpeningShell} onSelect={() => openProjectTerminal()}>
+				<SquareTerminal aria-hidden="true" />
+				{t("shell.openSessionTerminalAction")}
+			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem onSelect={() => selection.goSettings(workspace.id)}>
 				<Settings aria-hidden="true" />
@@ -862,6 +907,26 @@ function SessionRow({
 	const { mutate: pinSession } = usePinSession();
 	const { mutate: unpinSession } = useUnpinSession();
 	const { mutate: terminateSession, isPending: isKilling } = useTerminateSession();
+	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
+	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
+
+	// Open a shell in this session's own directory and show it beside the
+	// session's agent tab. The path is the daemon's to resolve — it holds one
+	// per session (the worktree, or the project checkout in place) — so this
+	// sends an id and never a path. Navigating first would land on the agent
+	// tab and then jump; selecting the shell before the route change means the
+	// session view opens already showing it.
+	const openTerminal = () => {
+		openShellTerminal(
+			{ sessionId: session.id },
+			{
+				onSuccess: (shell) => {
+					setActiveShellTerminal(shell.handleId);
+					if (!active) onOpen();
+				},
+			},
+		);
+	};
 
 	const startEditing = () => {
 		setDraft(session.title);
@@ -916,91 +981,90 @@ function SessionRow({
 	}
 
 	return (
-		<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-			<div
-				className={cn(
-					"group/session-row flex h-8 w-full items-center rounded-lg transition-[background-color,color]",
-					"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
-					active && "bg-interactive-active text-foreground",
-				)}
-				data-session-row=""
-			>
-				{/* Scale wrapper — only around the open button so action buttons don't trigger press animation */}
-				<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
-					<button
-						aria-current={active ? "page" : undefined}
-						aria-label={t("shell.openSession", { title: session.title })}
-						className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-						onClick={onOpen}
-						type="button"
+		<ContextMenu>
+			<ContextMenuTrigger asChild>
+				<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
+					{/* Nothing is revealed on hover: every action lives in the context
+					    menu below. The terminal button leads the row instead, because
+					    opening a shell in the session's own tree is the one action worth
+					    a click rather than a right-click. It is a sibling of the open
+					    button, never nested inside it — nesting buttons is invalid HTML
+					    and breaks keyboard traversal. */}
+					<div
+						className={cn(
+							"group/session-row flex h-8 w-full items-center gap-0.5 rounded-lg pl-2 transition-[background-color,color]",
+							"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
+							active && "bg-interactive-active text-foreground",
+						)}
+						data-session-row=""
 					>
-						<SessionStatusDot session={session} />
-						<span className="min-w-0 flex-1">
-							<span
-								className={cn(
-									"block truncate transition-colors",
-									active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
-								)}
+						<button
+							aria-label={t("shell.openSessionTerminal", { title: session.title })}
+							className={cn(
+								"grid h-5 w-5 shrink-0 place-items-center rounded-md text-passive transition-colors",
+								"hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
+							)}
+							disabled={isOpeningShell}
+							onClick={openTerminal}
+							title={t("shell.openSessionTerminalAction")}
+							type="button"
+						>
+							<SquareTerminal aria-hidden="true" />
+						</button>
+						<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
+							<button
+								aria-current={active ? "page" : undefined}
+								aria-label={t("shell.openSession", { title: session.title })}
+								className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg pr-2.5 pl-1.5 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								onClick={onOpen}
+								type="button"
 							>
-								{session.title}
-							</span>
-						</span>
-					</button>
-				</div>{/* end scale wrapper */}
-				{/* Pin, rename, kill: outside scale wrapper so clicking them doesn't trigger press animation */}
-				<button
-					aria-label={session.isPinned ? t("shell.unpinSession") : t("shell.pinSession")}
-					className={cn(
-						"grid h-5 w-0 shrink-0 place-items-center overflow-hidden rounded-md text-passive opacity-0",
-						"transition-[width,margin,background-color,color,opacity] hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
-						"group-hover/session-row:w-5 group-hover/session-row:opacity-100",
-						"group-focus-within/session-row:w-5 group-focus-within/session-row:opacity-100",
-						session.isPinned && "text-foreground",
-					)}
-					onClick={(e) => {
-						e.stopPropagation();
+								<SessionStatusDot session={session} />
+								<span className="min-w-0 flex-1">
+									<span
+										className={cn(
+											"block truncate transition-colors",
+											active ? "text-foreground" : "text-muted-foreground group-hover/session-row:text-foreground",
+										)}
+									>
+										{session.title}
+									</span>
+								</span>
+							</button>
+						</div>
+					</div>
+				</SidebarMenuSubItem>
+			</ContextMenuTrigger>
+			<ContextMenuContent className="min-w-44">
+				<ContextMenuItem disabled={isOpeningShell} onSelect={openTerminal}>
+					<SquareTerminal aria-hidden="true" />
+					{t("shell.openSessionTerminalAction")}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					onSelect={() => {
 						if (session.isPinned) unpinSession(session);
 						else pinSession(session);
 					}}
-					type="button"
 				>
 					{session.isPinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
-				</button>
-				<button
-					aria-label={t("shell.renameSession", { title: session.title })}
-					className={cn(
-						"grid h-5 w-0 shrink-0 place-items-center overflow-hidden rounded-md text-passive opacity-0",
-						"transition-[width,margin,background-color,color,opacity] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
-						"group-hover/session-row:mr-0.5 group-hover/session-row:w-5 group-hover/session-row:opacity-100",
-						"group-focus-within/session-row:mr-0.5 group-focus-within/session-row:w-5 group-focus-within/session-row:opacity-100",
-					)}
-					onClick={(e) => {
-						e.stopPropagation();
-						startEditing();
-					}}
-					type="button"
-				>
+					{session.isPinned ? t("shell.unpinSession") : t("shell.pinSession")}
+				</ContextMenuItem>
+				<ContextMenuItem onSelect={() => startEditing()}>
 					<Pencil aria-hidden="true" />
-				</button>
-				<button
-					aria-label={t("shell.killSession")}
-					className={cn(
-						"grid h-5 w-0 shrink-0 place-items-center overflow-hidden rounded-md text-passive opacity-0",
-						"transition-[width,margin,background-color,color,opacity] hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
-						"group-hover/session-row:mr-1 group-hover/session-row:w-5 group-hover/session-row:opacity-100",
-						"group-focus-within/session-row:mr-1 group-focus-within/session-row:w-5 group-focus-within/session-row:opacity-100",
-					)}
-				disabled={isKilling}
-				onClick={(e) => {
-					e.stopPropagation();
-					terminateSession(session);
-				}}
-					type="button"
+					{t("shell.renameSessionAction")}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					className="text-destructive focus:text-destructive [&_svg]:text-destructive"
+					disabled={isKilling}
+					onSelect={() => terminateSession(session)}
 				>
 					<Trash2 aria-hidden="true" />
-				</button>
-			</div>
-		</SidebarMenuSubItem>
+					{t("shell.killSession")}
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
 	);
 }
 

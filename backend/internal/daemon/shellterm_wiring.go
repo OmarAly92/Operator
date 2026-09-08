@@ -35,6 +35,7 @@ func startShellTerminals(
 		runtime,
 		store,
 		&projectRootLocator{projects: projects},
+		&sessionWorkspaceLocator{store: store},
 		capture,
 		cfg.DataDir,
 		cfg.AppRunID,
@@ -55,6 +56,31 @@ func startShellTerminals(
 		}
 	}
 	return svc
+}
+
+// sessionWorkspaceLocator adapts the session store to the narrow lookup a
+// session-scoped shell needs: an id in, the session's directory out.
+//
+// It reads the store rather than the session service on purpose. The service's
+// Get derives the whole read model — status, PR facts, activity — none of
+// which a shell's working directory depends on, and the durable record already
+// holds the one fact that matters.
+type sessionWorkspaceLocator struct {
+	store *sqlite.Store
+}
+
+// SessionWorkspace returns the session's own directory: its worktree when it
+// has one, the project checkout when it runs in place. Session Manager writes
+// both into the same field, so there is no mode to branch on here.
+func (l *sessionWorkspaceLocator) SessionWorkspace(ctx context.Context, id domain.SessionID) (string, domain.ProjectID, bool, error) {
+	if l.store == nil {
+		return "", "", false, nil
+	}
+	rec, ok, err := l.store.GetSession(ctx, id)
+	if err != nil || !ok {
+		return "", "", false, err
+	}
+	return rec.Metadata.WorkspacePath, rec.ProjectID, true, nil
 }
 
 // projectRootLocator adapts the project service to the narrow lookup the shell

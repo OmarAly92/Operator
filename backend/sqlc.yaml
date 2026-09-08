@@ -313,3 +313,10 @@ sql:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "ProjectID"
               pointer: true
+          # Nullable: a shell opened outside a session (topbar, /terminals)
+          # belongs to no session.
+          - column: "shell_terminals.session_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+              pointer: true

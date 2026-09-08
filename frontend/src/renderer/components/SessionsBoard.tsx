@@ -40,6 +40,7 @@ import {
 	type SessionUsageSummary,
 } from "../hooks/useSessionUsageSummaries";
 import { useRestoreSession } from "../hooks/useRestoreSession";
+import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import {
 	clearTerminateSessionState,
 	useTerminateSession,
@@ -842,6 +843,8 @@ function SessionCard({
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 	const [confirmOpen, setConfirmOpen] = useState(false);
+	const { mutate: openShellTerminal, isPending: isOpeningShell } = useOpenShellTerminal();
+	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
 	const badge = getSessionStatusView(session.status, t);
 	const activity = getAgentActivityView(session.activity, t);
 	const showLiveActivity = session.status === "working" && activity.state === "active";
@@ -859,7 +862,30 @@ function SessionCard({
 	const prSummaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
 	const termination = useTerminateSessionState(session.id);
 	const showTerminate = interactive && session.isTerminated !== true && onTerminate;
-	const keepTerminateVisible = session.status === "merged";
+	// Same action as the sidebar row's: the daemon owns where the session lives,
+	// so this sends an id and never a path. A terminated session has no workspace
+	// left to open a shell in.
+	const showOpenTerminal = interactive && session.isTerminated !== true && onOpen;
+	// The title clears whatever the corner cluster occupies: one control, two, or
+	// just the `action` slot.
+	const cornerControlPadding = action
+		? "pr-6"
+		: showOpenTerminal && showTerminate
+			? "pr-16"
+			: showOpenTerminal || showTerminate
+				? "pr-8"
+				: undefined;
+	const openTerminal = () => {
+		openShellTerminal(
+			{ sessionId: session.id },
+			{
+				onSuccess: (shell) => {
+					setActiveShellTerminal(shell.handleId);
+					onOpen?.();
+				},
+			},
+		);
+	};
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (!interactive || !onOpen) return;
 		if (event.currentTarget !== event.target) return;
@@ -886,44 +912,60 @@ function SessionCard({
 			data-testid="board-session-card"
 			data-session-id={session.id}
 		>
-			{showTerminate ? (
-				<SessionTerminationPopover
-					onConfirm={() => {
-						setConfirmOpen(false);
-						onTerminate();
-					}}
-					onOpenChange={setConfirmOpen}
-					open={confirmOpen}
-					session={session}
-					trigger={
+			{/* One cluster, so the terminal and kill controls share a baseline by
+			    construction instead of by matching offsets in two places. */}
+			{showOpenTerminal || showTerminate ? (
+				<div className="absolute right-2 top-1.5 z-10 flex items-center gap-0.5">
+					{showOpenTerminal ? (
 						<button
-							aria-label={
-								termination.isPending
-									? t("shell.killingNamedAria", { title: session.title })
-									: t("shell.terminateNamed", { title: session.title })
-							}
-							className={cn(
-								"absolute right-2 top-1.5 z-10 inline-flex size-control-md items-center justify-center rounded-sm text-passive transition-[color,background-color,opacity] hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-								keepTerminateVisible || termination.isPending
-									? "opacity-100"
-									: "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
-							)}
+							aria-label={t("shell.openSessionTerminal", { title: session.title })}
+							className="inline-flex size-control-md items-center justify-center rounded-sm text-passive transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+							disabled={isOpeningShell}
 							onClick={(event) => {
 								event.stopPropagation();
-								clearTerminateSessionState(queryClient, session.id);
+								openTerminal();
 							}}
-							disabled={termination.isPending}
-							title={termination.isPending ? t("shell.killingSession") : t("shell.terminateSession")}
+							title={t("shell.openSessionTerminalAction")}
 							type="button"
 						>
-							{termination.isPending ? (
-								<LoaderCircle className="size-icon-sm animate-spin" aria-hidden="true" />
-							) : (
-								<Trash2 className="size-icon-sm" aria-hidden="true" />
-							)}
+							<SquareTerminal aria-hidden="true" className="size-icon-sm" />
 						</button>
-					}
-				/>
+					) : null}
+					{showTerminate ? (
+						<SessionTerminationPopover
+							onConfirm={() => {
+								setConfirmOpen(false);
+								onTerminate();
+							}}
+							onOpenChange={setConfirmOpen}
+							open={confirmOpen}
+							session={session}
+							trigger={
+								<button
+									aria-label={
+										termination.isPending
+											? t("shell.killingNamedAria", { title: session.title })
+											: t("shell.terminateNamed", { title: session.title })
+									}
+									className="inline-flex size-control-md items-center justify-center rounded-sm text-passive transition-[color,background-color] hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+									onClick={(event) => {
+										event.stopPropagation();
+										clearTerminateSessionState(queryClient, session.id);
+									}}
+									disabled={termination.isPending}
+									title={termination.isPending ? t("shell.killingSession") : t("shell.terminateSession")}
+									type="button"
+								>
+									{termination.isPending ? (
+										<LoaderCircle className="size-icon-sm animate-spin" aria-hidden="true" />
+									) : (
+										<Trash2 className="size-icon-sm" aria-hidden="true" />
+									)}
+								</button>
+							}
+						/>
+					) : null}
+				</div>
 			) : null}
 			{action ? <div className="absolute right-2 top-1.5 z-10">{action}</div> : null}
 			<div className="flex items-start gap-2.5 px-3.5 pb-2.5 pt-3">
@@ -932,7 +974,7 @@ function SessionCard({
 					<div
 						className={cn(
 							"line-clamp-2 overflow-hidden text-sm-md font-semibold leading-tight tracking-tight text-foreground",
-							(showTerminate || action) && "pr-6",
+							cornerControlPadding,
 						)}
 						title={session.title}
 					>

@@ -163,3 +163,49 @@ func TestSelectAndDeleteShellTerminalsFromPreviousAppRuns(t *testing.T) {
 		t.Errorf("remaining = %+v, want the current run's shell untouched", remaining)
 	}
 }
+
+// A shell opened from a session stores that session, and the FK holds it to a
+// real row: an id with no session would violate the sessions foreign key the
+// same way an empty project id would violate the projects one.
+func TestInsertShellTerminalWithSessionRoundTrips(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "portfolio")
+	session, err := s.CreateSession(ctx, sampleRecord("portfolio"))
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	rec := shellTerminalRecord("shellterm-session", "run-1")
+	rec.ProjectID = "portfolio"
+	rec.SessionID = session.ID
+	if err := s.InsertShellTerminal(ctx, rec); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	got, found, err := s.SelectShellTerminalByHandleID(ctx, "shellterm-session")
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false, want true")
+	}
+	if got.SessionID != session.ID {
+		t.Fatalf("session id = %q, want %q", got.SessionID, session.ID)
+	}
+}
+
+// The sessions foreign key is what keeps a shell's scope honest: a row
+// pointing at a session that does not exist would survive every reaper and
+// show up in no tab strip.
+func TestInsertShellTerminalRejectsUnknownSession(t *testing.T) {
+	s := newTestStore(t)
+	seedProject(t, s, "portfolio")
+
+	rec := shellTerminalRecord("shellterm-ghost", "run-1")
+	rec.ProjectID = "portfolio"
+	rec.SessionID = "no-such-session"
+	if err := s.InsertShellTerminal(context.Background(), rec); err == nil {
+		t.Fatal("insert succeeded for an unknown session, want a foreign key error")
+	}
+}

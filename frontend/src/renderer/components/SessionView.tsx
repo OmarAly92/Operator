@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
@@ -10,6 +10,12 @@ import { SessionInspector } from "./SessionInspector";
 import { ShellTopbar } from "./ShellTopbar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
 import { useExternalPreview } from "../hooks/useExternalPreview";
+import {
+	useCloseShellTerminal,
+	useRenameShellTerminal,
+	useShellTerminals,
+	type ShellTerminal,
+} from "../hooks/useShellTerminals";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
@@ -79,6 +85,16 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const inspectorRef = useRef<PanelImperativeHandle | null>(null);
 	const inspectorSeparatorRef = useRef<HTMLDivElement | null>(null);
 	const [terminalTarget, setTerminalTarget] = useState<TerminalTarget>({ kind: "worker" });
+	const shellTerminalsQuery = useShellTerminals();
+	const closeShellTerminal = useCloseShellTerminal();
+	const renameShellTerminal = useRenameShellTerminal();
+	const activeShellHandleId = useUiStore((state) => state.activeShellTerminalHandleId);
+	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
+	// Applied once, by handle: the store's active shell is a REQUEST to show one
+	// (the sidebar sets it before navigating here), not a running description of
+	// what the pane shows. Without this, selecting the agent tab again would be
+	// undone on the next render by a request that was already honoured.
+	const appliedShellHandleRef = useRef<string | null>(null);
 	const [filesPoppedOut, setFilesPoppedOut] = useState(false);
 	const isNativeFullScreen = useWindowFullScreen();
 
@@ -112,6 +128,41 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const selectReviewerTerminal = useCallback((target: ReviewerTerminalTarget) => {
 		setTerminalTarget({ kind: "reviewer", handleId: target.handleId, harness: target.harness, sessionId });
 	}, [sessionId]);
+
+	// Shells this session owns. A shell opened from the topbar or ⌘T belongs to
+	// no session and stays on /terminals, so it never appears here.
+	const sessionShells = useMemo(
+		() => (shellTerminalsQuery.data ?? []).filter((shell) => shell.sessionId === sessionId),
+		[shellTerminalsQuery.data, sessionId],
+	);
+
+	const selectShellTerminal = useCallback(
+		(shell: ShellTerminal) => {
+			appliedShellHandleRef.current = shell.handleId;
+			setActiveShellTerminal(shell.handleId);
+			setTerminalTarget({
+				// createdAt is stable per shell and changes when a handle is reused,
+				// which is what keeps a new PTY from inheriting the old one's buffer.
+				generation: shell.createdAt,
+				kind: "shell",
+				handleId: shell.handleId,
+				sessionId,
+				title: shell.title,
+			});
+		},
+		[sessionId, setActiveShellTerminal],
+	);
+
+	// Honour a shell requested from elsewhere (the sidebar's per-session terminal
+	// button) once the newly opened shell actually shows up in the list — the
+	// open mutation only invalidates the query, so the request usually lands a
+	// render before the shell it names.
+	useEffect(() => {
+		if (!activeShellHandleId || appliedShellHandleRef.current === activeShellHandleId) return;
+		const shell = sessionShells.find((candidate) => candidate.handleId === activeShellHandleId);
+		if (!shell) return;
+		selectShellTerminal(shell);
+	}, [activeShellHandleId, selectShellTerminal, sessionShells]);
 
 	useEffect(() => {
 		setTerminalTarget((current) =>
@@ -148,9 +199,14 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	// Route props change one render before the passive reset above. Reject the
 	// previous session's shell/reviewer synchronously so its handle can never be
 	// cached under the destination session.
-	const routedTerminalTarget = terminalTargetBelongsToSession(terminalTarget, sessionId)
-		? terminalTarget
-		: ({ kind: "worker" } satisfies TerminalTarget);
+	// A shell that is gone — closed here, or reaped daemon-side — is rejected the
+	// same way and for the same reason: the pane must never be left bound to a
+	// handle nothing can attach to.
+	const routedTerminalTarget =
+		terminalTargetBelongsToSession(terminalTarget, sessionId) &&
+		(terminalTarget.kind !== "shell" || sessionShells.some((shell) => shell.handleId === terminalTarget.handleId))
+			? terminalTarget
+			: ({ kind: "worker" } satisfies TerminalTarget);
 
 	// The pane shows one terminal at a time, so selecting a shell or the reviewer
 	// takes the agent's terminal off screen while the route still points here.
@@ -286,9 +342,13 @@ export function SessionView({ sessionId }: SessionViewProps) {
 					<div className="relative h-full min-h-0">
 						<CenterPane
 							daemonReady={daemonStatus.state === "ready"}
+							onCloseShellTerminal={(handleId) => closeShellTerminal.mutate(handleId)}
+							onRenameShellTerminal={(handleId, title) => renameShellTerminal.mutate({ handleId, title })}
 							onSelectSessionTerminal={selectSessionTerminal}
 							onSelectReviewerTerminal={selectReviewerTerminal}
+							onSelectShellTerminal={selectShellTerminal}
 							reviewerTerminal={reviewerTerminal}
+							shellTerminals={sessionShells}
 							session={session}
 							terminalTarget={routedTerminalTarget}
 							theme={theme}

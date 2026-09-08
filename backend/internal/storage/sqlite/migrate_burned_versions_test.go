@@ -108,6 +108,7 @@ var shippedMigrations = map[int64]string{
 	101: "0101_drop_conversations.sql",
 	102: "0102_session_workspace_mode.go",
 	103: "0103_add_sessions_workspace_mode.sql",
+	104: "0104_shell_terminal_session_id.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

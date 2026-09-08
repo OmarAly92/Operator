@@ -5438,6 +5438,11 @@ components:
           description: Project whose root the shell starts in. Omitted opens the shell
             in the daemon data dir.
           type: string
+        sessionId:
+          description: Session whose workspace the shell starts in - its worktree,
+            or the project checkout for an in-place session. Takes precedence over
+            projectId, and attributes the shell to that session.
+          type: string
       type: object
     OrchestratorResponse:
       properties:
@@ -6509,6 +6514,10 @@ components:
         handleId:
           type: string
         projectId:
+          type: string
+        sessionId:
+          description: Session this shell was opened from. Absent for a shell opened
+            outside any session.
           type: string
         title:
           type: string

@@ -109,6 +109,41 @@ void main() {
     when(() => cubit.loadOlder()).thenAnswer((_) async {});
   });
 
+  testWidgets('all search occurrences stay green while arrows change the active match', (tester) async {
+    when(() => cubit.blocks).thenReturn([
+      _block(id: 'first', kind: BlockKind.assistant, body: 'Rafeeq and rafeeq'),
+      _block(id: 'second', firstSeq: 2, kind: BlockKind.assistant, body: 'Rafeeq too'),
+    ]);
+    await _pump(tester, cubit);
+    tester.state<BlocksBodyState>(find.byType(BlocksBody)).openFind();
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'rafeeq');
+    await tester.pump();
+
+    List<Color> highlights() {
+      final colors = <Color>[];
+      for (final text in tester.widgetList<Text>(find.byType(Text))) {
+        text.textSpan?.visitChildren((span) {
+          if (span is TextSpan && span.text?.toLowerCase() == 'rafeeq') {
+            final color = span.style?.backgroundColor;
+            if (color != null) colors.add(color);
+          }
+          return true;
+        });
+      }
+      return colors;
+    }
+
+    const skin = DarkSkin();
+    expect(highlights(), [skin.searchMatchActive, skin.searchMatchActive, skin.searchMatch]);
+    await tester.tap(find.byTooltip('Next match'));
+    await tester.pump();
+    expect(highlights(), [skin.searchMatch, skin.searchMatch, skin.searchMatchActive]);
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pump();
+    expect(highlights(), isEmpty);
+  });
+
   testWidgets('renders one card per block', (tester) async {
     when(() => cubit.blocks).thenReturn([
       _block(

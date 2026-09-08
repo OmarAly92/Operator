@@ -169,7 +169,7 @@ class TerminalChatHeader extends StatelessWidget {
                             padding: EdgeInsets.zero,
                             icon: Icon(
                               Icons.search,
-                              size: 19,
+                              size: 16,
                               color: skin.textSecondary,
                             ),
                           ),
@@ -190,7 +190,7 @@ class TerminalChatHeader extends StatelessWidget {
                               blocks
                                   ? Icons.terminal
                                   : Icons.view_agenda_outlined,
-                              size: 20,
+                              size: 18,
                               color: skin.blue,
                             ),
                           ),

@@ -16,11 +16,13 @@ import { isLinuxPlatform, isMacPlatform, windowDragRegion } from "../lib/platfor
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
 import { useUiStore, type Theme } from "../stores/ui-store";
+import type { ShellTerminal } from "../hooks/useShellTerminals";
 import type { TerminalTarget } from "../types/terminal";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { TerminalPane } from "./TerminalPane";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
+import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 
 type CenterPaneProps = {
@@ -31,6 +33,11 @@ type CenterPaneProps = {
 	reviewerTerminal?: { handleId: string; harness: string };
 	onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
 	onSelectSessionTerminal?: () => void;
+	/** Shells opened from this session, oldest first. */
+	shellTerminals?: ShellTerminal[];
+	onSelectShellTerminal?: (shell: ShellTerminal) => void;
+	onCloseShellTerminal?: (handleId: string) => void;
+	onRenameShellTerminal?: (handleId: string, title: string) => void;
 	/** Session actions consolidated into the terminal bar by SessionView. */
 	topbarActions?: ReactNode;
 };
@@ -56,6 +63,10 @@ export function CenterPane({
 	reviewerTerminal,
 	onSelectReviewerTerminal,
 	onSelectSessionTerminal,
+	shellTerminals,
+	onSelectShellTerminal,
+	onCloseShellTerminal,
+	onRenameShellTerminal,
 	topbarActions,
 }: CenterPaneProps) {
 	const { t } = useTranslation();
@@ -63,7 +74,12 @@ export function CenterPane({
 	const [fontSize] = useState(initialTerminalFontSize);
 	const [terminalBounds, setTerminalBounds] = useState({ width: 0 });
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
-	const tabsOverflow = useOverflowScroll<HTMLDivElement>(session?.id ?? "");
+	const shells = shellTerminals ?? [];
+	// Re-measure when a shell tab is added or removed, not only on a session
+	// change: opening a shell is exactly what pushes the strip into overflow.
+	const tabsOverflow = useOverflowScroll<HTMLDivElement>(
+		`${session?.id ?? ""}|${shells.map((shell) => shell.handleId).join(",")}`,
+	);
 	const agentSwitchesQuery = useAgentSwitches(session?.id ?? "");
 	const agentSwitches = agentSwitchesQuery.data ?? [];
 	const activeAgentSwitch = findActiveAgentSwitch(agentSwitches);
@@ -87,8 +103,13 @@ export function CenterPane({
 			? t("shell.orchestrator")
 			: session.title
 		: t("terminal.noSession");
+	const activeShellHandleId = target.kind === "shell" ? target.handleId : undefined;
 	const activeTerminalLabel =
-		target.kind === "reviewer" ? `${t("terminal.reviewer")} · ${target.harness}` : sessionTabLabel;
+		target.kind === "reviewer"
+			? `${t("terminal.reviewer")} · ${target.harness}`
+			: target.kind === "shell"
+				? target.title
+				: sessionTabLabel;
 
 	useEffect(() => {
 		if (!switchMutation.isPending || activeAgentSwitch || recoveryAgentSwitch) return;
@@ -177,6 +198,20 @@ export function CenterPane({
 									title={reviewerTerminal.harness}
 								/>
 							) : null}
+							{/* Shells this session owns, right after the agent's own tab: the
+							    connected treatment continues into the pane below, so a shell
+							    reads as another surface of this session, not a separate screen. */}
+							{shells.map((shell) => (
+								<ShellTerminalTab
+									key={shell.handleId}
+									appearance="connected"
+									isActive={shell.handleId === activeShellHandleId}
+									onClose={() => onCloseShellTerminal?.(shell.handleId)}
+									onRename={(title) => onRenameShellTerminal?.(shell.handleId, title)}
+									onSelect={() => onSelectShellTerminal?.(shell)}
+									shell={shell}
+								/>
+							))}
 						</div>
 						{tabsOverflow.canScrollRight ? (
 							<button
