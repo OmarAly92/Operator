@@ -153,6 +153,17 @@ export function BlockTerminal({
 	// streaming. Bytes that arrive first are held here and replayed in order
 	// once the core exists, so early output is never dropped.
 	const pendingBytesRef = useRef<Uint8Array[]>([]);
+	// A core is created at DEFAULT_COLUMNS x the parser's default rows and only
+	// takes the pane's real grid when TerminalSurface measures a laid-out host.
+	// Until that happens the core is the wrong size, so bytes wait in
+	// pendingBytesRef with the pre-core ones: an agent's replay is a full-screen
+	// TUI redraw addressed to an exact grid, and parsing it into the wrong one
+	// clips every row past the default and leaves a pane that looks empty. The
+	// later resize cannot reconstruct rows the core never stored.
+	//
+	// A pane mounted behind another tab is exactly this case: no client box, so
+	// no measurement, while its attachment is already streaming the replay.
+	const gridSizedRef = useRef(false);
 	const transportRef = useRef(transport);
 	transportRef.current = transport;
 	const agentTuiRef = useRef(agentTui ?? false);
@@ -166,6 +177,19 @@ export function BlockTerminal({
 	}, []);
 	const onGeometry = useCallback((columns: number, rows: number) => {
 		transportRef.current.resize?.(columns, rows);
+		// TerminalSurface resizes the core immediately before reporting, so the
+		// core is correctly sized by the time this runs and the held bytes can be
+		// parsed against the grid they were written for.
+		gridSizedRef.current = true;
+		const core = coreRef.current;
+		if (!core) return;
+		const pending = pendingBytesRef.current;
+		if (pending.length === 0) return;
+		pendingBytesRef.current = [];
+		terminalDebug("block-terminal", "grid sized", { columns, rows, buffered: pending.length });
+		for (const bytes of pending) {
+			feedToCore(core, bytes, historyIdsRef.current);
+		}
 	}, []);
 
 	useEffect(() => {
@@ -175,6 +199,7 @@ export function BlockTerminal({
 			const host = root?.querySelector(".terminal-host") as HTMLElement | null;
 			const slots = root ? [...root.querySelectorAll(".terminal-alt-slot")] : [];
 			terminalDebug("block-terminal", "geometry", {
+				sessionId,
 				rootH: root ? Math.round(root.getBoundingClientRect().height) : null,
 				rootW: root ? Math.round(root.getBoundingClientRect().width) : null,
 				hostH: host ? Math.round(host.getBoundingClientRect().height) : null,
@@ -216,11 +241,18 @@ export function BlockTerminal({
 				created.setAgentTuiMode(agentTuiRef.current);
 				coreRef.current = created;
 				feedHistory(created, historyBlocksRef.current, historyIdsRef.current);
-				const pending = pendingBytesRef.current;
-				pendingBytesRef.current = [];
-				terminalDebug("block-terminal", "core created", { buffered: pending.length });
-				for (const bytes of pending) {
-					feedToCore(created, bytes, historyIdsRef.current);
+				terminalDebug("block-terminal", "core created", {
+					buffered: pendingBytesRef.current.length,
+					gridSized: gridSizedRef.current,
+				});
+				// Still unsized: the surface has not mounted yet (it renders only
+				// once `core` is state), so the bytes stay held for onGeometry.
+				if (gridSizedRef.current) {
+					const pending = pendingBytesRef.current;
+					pendingBytesRef.current = [];
+					for (const bytes of pending) {
+						feedToCore(created, bytes, historyIdsRef.current);
+					}
 				}
 				setCore(created);
 			} catch (error) {
@@ -235,6 +267,7 @@ export function BlockTerminal({
 			created?.dispose();
 			coreRef.current = null;
 			pendingBytesRef.current = [];
+			gridSizedRef.current = false;
 			historyIdsRef.current = new Set();
 			setCore(null);
 		};
@@ -272,7 +305,7 @@ export function BlockTerminal({
 					head: previewBytes(bytes),
 				});
 			}
-			if (coreRef.current) {
+			if (coreRef.current && gridSizedRef.current) {
 				feedToCore(coreRef.current, bytes, historyIdsRef.current);
 			} else {
 				pendingBytesRef.current.push(bytes);

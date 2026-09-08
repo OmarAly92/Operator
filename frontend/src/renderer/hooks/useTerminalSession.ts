@@ -873,7 +873,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				const published = r.lastPublishedGrid;
 				if (published?.cols === cols && published.rows === rows) return;
 				r.lastPublishedGrid = { cols, rows };
-				terminalDebug("mux", "resize from surface", { cols, rows });
+				terminalDebug("mux", "resize from surface", { handle: r.handle, cols, rows });
 				r.mux.resize(r.handle, cols, rows);
 			},
 			dispose: () => {

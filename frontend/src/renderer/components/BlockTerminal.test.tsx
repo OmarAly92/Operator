@@ -19,6 +19,7 @@ const mockState = vi.hoisted(() => {
 		altScreenSurfaceProvided: false,
 		altScreen: null as unknown,
 		core: undefined as MockCore | undefined,
+		emitGeometry: undefined as ((columns: number, rows: number) => void) | undefined,
 		coreOverrides: undefined as Partial<MockCore> | undefined,
 		host: undefined as { writeClipboard: (text: string) => Promise<void>; openLink: (url: string) => Promise<void> } | undefined,
 		font: undefined as { family?: string; lineHeight?: number } | undefined,
@@ -27,6 +28,11 @@ const mockState = vi.hoisted(() => {
 		onSendRaw: undefined as ((data: string) => void) | undefined,
 		revision: 0,
 		wasmInits: 0,
+		// The real surface only reports geometry once its host has a non-zero
+		// client box. Off means "mounted but never laid out", which is what a
+		// pane behind another tab looks like.
+		reportGeometry: true,
+		lastGeometry: undefined as { columns: number; rows: number } | undefined,
 	};
 });
 
@@ -134,7 +140,8 @@ vi.mock("@operator/terminal-react", () => {
 			if (props.strings) mockState.strings = props.strings;
 			mockState.onSend = props.onSend;
 			mockState.onSendRaw = props.onSendRaw;
-			props.onGeometry?.(80, 24);
+			mockState.emitGeometry = props.onGeometry;
+			if (mockState.reportGeometry) props.onGeometry?.(80, 24);
 			return <MockSurface altScreenActive={props.altScreenActive} altScreenSurface={props.altScreenSurface} />;
 		},
 		warpDarkTheme: {
@@ -306,10 +313,40 @@ beforeEach(() => {
 	mockState.onSend = undefined;
 	mockState.onSendRaw = undefined;
 	mockState.revision = 0;
+	mockState.reportGeometry = true;
+	mockState.emitGeometry = undefined;
 	subscribers.clear();
 });
 
 describe("BlockTerminal", () => {
+	// A core is born 120x24 and only takes the pane's real grid when the surface
+	// measures a laid-out host. Feeding a replay before then parses a full-screen
+	// TUI redraw into the wrong grid: everything below row 24 is clipped and the
+	// later resize cannot reconstruct it, which shows as an empty pane.
+	it("holds output until the surface has sized the core", async () => {
+		mockState.reportGeometry = false;
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+
+		emit(encode("replayed while unmeasured"));
+		expect(mockState.feeds).toHaveLength(0);
+
+		mockState.emitGeometry?.(80, 37);
+
+		await waitFor(() => expect(mockState.feeds).toHaveLength(1));
+		expect(new TextDecoder().decode(mockState.feeds[0])).toBe("replayed while unmeasured");
+	});
+
+	// Once sized, bytes must flow straight through: buffering live output behind
+	// a second gate would make the agent look frozen.
+	it("feeds output straight through once the core is sized", async () => {
+		renderTerminal({ agentTui: true });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+
+		emit(encode("live"));
+		expect(mockState.feeds).toHaveLength(1);
+	});
+
 	it("puts the core in agent-tui mode when the pane runs an agent", async () => {
 		const setAgentTuiMode = vi.fn();
 		renderTerminal({ agentTui: true, coreOverrides: { setAgentTuiMode } });
