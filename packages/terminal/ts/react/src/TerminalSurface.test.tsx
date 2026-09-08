@@ -316,6 +316,41 @@ describe("TerminalSurface", () => {
 		expect(resize).not.toHaveBeenCalled();
 	});
 
+	// The bug this exists for: a host that parks the surface off screen and shows
+	// it again in a differently sized pane. The box changes without the observer
+	// reporting it, so the grid stays sized for the pane the surface has left and
+	// nothing re-measures until the window itself is resized.
+	it("re-derives the grid from the live box when the host asks for a refit", () => {
+		const { core, host, refit } = renderSurface();
+		setHostSize(host, 1000, 500);
+		const resize = vi.spyOn(core, "resize");
+
+		// A layout change the observer never reports.
+		Object.defineProperty(host, "clientWidth", { value: 600, configurable: true });
+		Object.defineProperty(host, "clientHeight", { value: 300, configurable: true });
+		expect(resize).not.toHaveBeenCalled();
+
+		refit(1);
+
+		expect(resize).toHaveBeenCalled();
+		const [columns, rows] = resize.mock.calls.at(-1)!;
+		expect(columns).toBeGreaterThan(0);
+		expect(rows).toBeGreaterThan(0);
+	});
+
+	// A refit is a question, not an assertion that something changed: it must
+	// reach the core even when the measurement is identical, because the reason
+	// to ask is that something outside this measurement may have moved.
+	it("resizes on a refit even when the measured geometry is unchanged", () => {
+		const { core, host, refit } = renderSurface();
+		setHostSize(host, 1000, 500);
+		const resize = vi.spyOn(core, "resize");
+
+		refit(1);
+
+		expect(resize).toHaveBeenCalledTimes(1);
+	});
+
 	it("hides the editor while the alternate screen is active", () => {
 		const { container, core } = renderSurface();
 		expect(container.querySelector(".terminal-editor-host")?.hasAttribute("hidden")).toBe(false);

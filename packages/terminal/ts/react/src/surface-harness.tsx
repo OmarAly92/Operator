@@ -61,7 +61,7 @@ export function renderSurface(
 	} = {},
 ) {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
-	const result = render(
+	const surfaceWith = (onPaint?: () => void, refitToken?: number) => (
 		<TerminalSurface
 			core={core}
 			theme={theme}
@@ -70,25 +70,16 @@ export function renderSurface(
 			onSend={overrides.onSend ?? ignoreSend}
 			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
 			onGeometry={overrides.onGeometry}
-			onPaint={overrides.onPaint}
-		/>,
+			onPaint={onPaint ?? overrides.onPaint}
+			refitToken={refitToken}
+		/>
 	);
+	const result = render(surfaceWith());
 	const host = screen.getByTestId("terminal-block-list").parentElement as HTMLElement;
 	const surface = host.parentElement as HTMLElement;
-	const rerenderWithPaint = (onPaint: () => void) =>
-		result.rerender(
-			<TerminalSurface
-				core={core}
-				theme={theme}
-				font={font}
-				altScreenActive={false}
-				onSend={overrides.onSend ?? ignoreSend}
-				onSendRaw={overrides.onSendRaw ?? ignoreRaw}
-				onGeometry={overrides.onGeometry}
-				onPaint={onPaint}
-			/>,
-		);
-	return { core, host, surface, rerenderWithPaint, ...result };
+	const rerenderWithPaint = (onPaint: () => void) => result.rerender(surfaceWith(onPaint));
+	const refit = (token: number) => result.rerender(surfaceWith(undefined, token));
+	return { core, host, surface, rerenderWithPaint, refit, ...result };
 }
 
 export function setHostSize(host: HTMLElement, width: number, height: number): void {

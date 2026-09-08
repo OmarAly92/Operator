@@ -28,6 +28,22 @@ export interface TerminalSurfaceProps {
 	onSend(text: string): void;
 	onSendRaw(data: string): void;
 	onGeometry?: (columns: number, rows: number) => void;
+	/**
+	 * Bump to force the surface to re-derive its grid from the live box.
+	 *
+	 * The ResizeObserver below is the steady-state path, but it only reports
+	 * changes it observes. A host that moves this surface between containers --
+	 * a retained-terminal cache parking a pane off screen and showing it again --
+	 * can change the layout under a box the observer sees as unchanged, leaving
+	 * the grid sized for a pane the surface no longer occupies.
+	 *
+	 * Warp has no equivalent hook because it does not need one: its terminal view
+	 * re-derives the grid after every layout pass and drops the update when
+	 * nothing changed (app/src/terminal/view.rs, after_terminal_view_layout). The
+	 * DOM has no such per-layout signal, so hosts that relayout this surface say
+	 * so here instead.
+	 */
+	refitToken?: number;
 	onPaint?: () => void;
 }
 
@@ -70,6 +86,7 @@ export function TerminalSurface({
 	onSendRaw,
 	onGeometry,
 	onPaint,
+	refitToken,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
@@ -160,7 +177,13 @@ export function TerminalSurface({
 		}
 		let lastColumns = 0;
 		let lastRows = 0;
-		const apply = () => {
+		// force skips the unchanged-geometry guard. Warp draws the same
+		// distinction (SizeUpdate::is_refresh): a refresh must reach the model
+		// even when the numbers match, because the reason to ask is that
+		// something outside this measurement may have moved.
+		const apply = (force = false) => {
+			// A pane laid out at zero -- collapsed, or not laid out yet -- is
+			// skipped rather than recorded, so the next observation still applies.
 			if (blockHost.clientWidth <= 0 || blockHost.clientHeight <= 0) {
 				return;
 			}
@@ -175,7 +198,7 @@ export function TerminalSurface({
 			const rows = Math.max(1, Math.floor((blockHost.clientHeight - inset.y) / cellHeight));
 			gridColumnsRef.current = columns;
 			gridRowsRef.current = rows;
-			if (columns === lastColumns && rows === lastRows) {
+			if (!force && columns === lastColumns && rows === lastRows) {
 				return;
 			}
 			lastColumns = columns;
@@ -183,14 +206,14 @@ export function TerminalSurface({
 			core.resize(columns, rows);
 			onGeometry?.(columns, rows);
 		};
-		apply();
+		apply(true);
 		if (typeof ResizeObserver !== "function") {
 			return;
 		}
-		const observer = new ResizeObserver(apply);
+		const observer = new ResizeObserver(() => apply());
 		observer.observe(blockHost);
 		return () => observer.disconnect();
-	}, [core, onGeometry]);
+	}, [core, onGeometry, refitToken]);
 
 	const [altActive, setAltActive] = useState(false);
 	useLayoutEffect(() => {

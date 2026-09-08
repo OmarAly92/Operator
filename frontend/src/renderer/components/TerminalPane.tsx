@@ -276,6 +276,10 @@ function CachedTerminalPortal({
 		<AttachedTerminal
 			{...entry.props}
 			isVisible={active && entry.activationPhase === "visible"}
+			// activationId advances on every park and every show, which is exactly
+			// when the pane this surface sits in may have been relaid out without
+			// its own box appearing to change.
+			refitToken={entry.activationId}
 			onTerminalReady={handleTerminalReady}
 		/>,
 		entry.container,
@@ -858,8 +862,10 @@ function AttachedTerminal({
 	createMux,
 	isVisible = true,
 	onTerminalReady,
+	refitToken,
 }: TerminalPaneProps & {
 	isVisible?: boolean;
+	refitToken?: number;
 	onTerminalReady?: (terminal: AttachableTerminal) => void;
 }) {
 	const { t } = useTranslation();
@@ -1015,6 +1021,7 @@ function AttachedTerminal({
 					sessionId={handleId ?? "no-session"}
 					historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
 					agentTui={terminalTarget?.kind === "worker"}
+					refitToken={refitToken}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
 				/>

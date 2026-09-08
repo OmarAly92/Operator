@@ -40,6 +40,12 @@ export type BlockTerminalProps = {
 	ariaLabel?: string;
 	fontSize?: number;
 	agentTui?: boolean;
+	/**
+	 * Bumped by the retained-terminal cache each time this pane is parked or
+	 * shown, so the surface re-derives its grid from the box it now occupies
+	 * instead of the one it was measured in.
+	 */
+	refitToken?: number;
 };
 
 const DEFAULT_COLUMNS = 120;
@@ -140,6 +146,7 @@ export function BlockTerminal({
 	ariaLabel,
 	fontSize,
 	agentTui,
+	refitToken,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -450,6 +457,7 @@ export function BlockTerminal({
 		onSend,
 		onSendRaw,
 		onGeometry,
+		refitToken,
 	};
 
 	return (
