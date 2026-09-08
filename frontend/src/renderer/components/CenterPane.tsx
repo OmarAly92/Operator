@@ -12,7 +12,7 @@ import { useTruncatedText } from "../hooks/useTruncatedText";
 import { TERMINAL_FONT_SIZE_DEFAULT, TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from "../lib/design-tokens";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { agentLabel } from "../lib/agent-options";
-import { isLinuxPlatform, isMacPlatform } from "../lib/platform";
+import { isLinuxPlatform, isMacPlatform, windowDragRegion } from "../lib/platform";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { cn } from "../lib/utils";
 import { useUiStore, type Theme } from "../stores/ui-store";
@@ -38,6 +38,7 @@ type CenterPaneProps = {
 const terminalFontSizeStorageKey = "opr.terminal.fontSize";
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
+const dragRegion = windowDragRegion();
 
 function initialTerminalFontSize(): number {
 	if (typeof window === "undefined") return TERMINAL_FONT_SIZE_DEFAULT;
@@ -121,7 +122,10 @@ export function CenterPane({
 	}, []);
 
 	const terminalTopbar = (
-		<div className="flex h-inspector-tabs w-full shrink-0 items-stretch bg-sidebar">
+		<div
+			className="flex h-inspector-tabs w-full shrink-0 items-stretch bg-sidebar"
+			data-tauri-drag-region={dragRegion}
+		>
 
 			<div className="session-topbar-surface flex min-w-0 flex-1" data-testid="session-workspace-topbar">
 				<div

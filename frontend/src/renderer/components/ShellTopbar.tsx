@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { GitBranch, PanelRightClose, PanelRightOpen, Plus, SquareTerminal, Trash2 } from "lucide-react";
+import { GitBranch, PanelRightClose, PanelRightOpen, Plus, SquareTerminal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { NotificationCenter } from "./NotificationCenter";
@@ -9,16 +9,10 @@ import {
 	findProjectOrchestrator,
 	hasConfiguredOrchestratorAgent,
 	isOrchestratorSession,
-	sessionIsActive,
 	type WorkspaceSession,
 } from "../types/workspace";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
-import {
-	clearTerminateSessionState,
-	useProjectTerminateSessionStates,
-	useTerminateSession,
-	useTerminateSessionState,
-} from "../hooks/useTerminateSession";
+import { useProjectTerminateSessionStates } from "../hooks/useTerminateSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { useUiStore } from "../stores/ui-store";
@@ -30,7 +24,6 @@ import { cn } from "../lib/utils";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { StatusPill } from "./StatusPill";
 import { TopbarButton, TopbarKillError, topbarHeaderClass, topbarProjectLabelClass } from "./TopbarButton";
-import { SessionTerminationPopover } from "./SessionTerminationPopover";
 
 const isMac = isMacPlatform();
 const boardActionsInPanel = usesBoardActionsInPanel();
@@ -292,40 +285,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 								</TopbarButton>
 							</>
 						) : null}
-						{/* Kill control sits beside the orchestrator link for active workers —
-						    moved here from the inspector's Summary "Danger zone". */}
-						{!isOrchestrator && session && sessionIsActive(session) ? (
-							<TopbarKillButton
-								key={session.id}
-								session={session}
-								orchestratorId={orchestrator?.id}
-								onKilled={(workspaceId, orchestratorId) => {
-									if (orchestratorId) {
-										void navigate({
-											to: "/projects/$projectId/sessions/$sessionId",
-											params: { projectId: workspaceId, sessionId: orchestratorId },
-										});
-										return;
-									}
-									void navigate({ to: "/projects/$projectId", params: { projectId: workspaceId } });
-								}}
-							/>
-						) : null}
-						{!isOrchestrator && (
-							<TopbarButton
-								aria-label={t("shell.openOrchestrator")}
-								disabled={isSpawning || isProjectRestarting}
-								onClick={() => void openOrchestrator()}
-								variant="primary"
-							>
-								<OrchestratorIcon className="size-icon-lg" aria-hidden="true" />
-								{isProjectRestarting
-									? t("shell.restarting")
-									: isSpawning
-										? t("shell.spawning")
-										: t("shell.orchestrator")}
-							</TopbarButton>
-						)}
 						{/* Inspector collapse (worker sessions only — orchestrators have no rail). */}
 						{!isOrchestrator && (
 							<TopbarButton
@@ -381,58 +340,6 @@ function ProjectBoardLabelButton({
 				{label}
 			</motion.span>
 		</button>
-	);
-}
-
-// Confirmation is modal, but teardown progress is not: confirming closes the
-// dialog and returns to the project's orchestrator while the daemon finishes.
-// Mutation-cache state is filtered by worker ID so rapid route switches never
-// carry another worker's Killing/error state into the current topbar.
-export function TopbarKillButton({
-	session,
-	orchestratorId,
-	onKilled,
-}: {
-	session: WorkspaceSession;
-	orchestratorId?: string;
-	onKilled: (workspaceId: string, orchestratorId?: string) => void;
-}) {
-	const { t } = useTranslation();
-	const [confirmOpen, setConfirmOpen] = useState(false);
-	const queryClient = useQueryClient();
-	const kill = useTerminateSession();
-	const { error, isPending } = useTerminateSessionState(session.id);
-
-	const confirmKill = () => {
-		setConfirmOpen(false);
-		kill.mutate(session);
-		onKilled(session.workspaceId, orchestratorId);
-	};
-
-	return (
-		<div className="inline-flex items-center gap-1.5">
-			<SessionTerminationPopover
-				onConfirm={confirmKill}
-				onOpenChange={setConfirmOpen}
-				open={confirmOpen}
-				session={session}
-				trigger={
-					<TopbarButton
-						aria-label={isPending ? t("shell.killing") : t("shell.killSession")}
-						disabled={isPending}
-						onClick={() => {
-							clearTerminateSessionState(queryClient, session.id);
-						}}
-						title={t("shell.killSession")}
-						variant="kill"
-					>
-						<Trash2 className="size-icon-lg" aria-hidden="true" />
-						{isPending ? t("shell.killing") : t("shell.kill")}
-					</TopbarButton>
-				}
-			/>
-			{error ? <TopbarKillError>{error}</TopbarKillError> : null}
-		</div>
 	);
 }
 

@@ -60,7 +60,7 @@ import { formatTokenCount } from "../lib/format-token-count";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
-import { isLinuxPlatform, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
+import { isLinuxPlatform, shellChromeDragRegion, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -309,7 +309,11 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	) : undefined;
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-background text-foreground" data-testid="board">
+		<div
+			className="flex h-full min-h-0 flex-col bg-background text-foreground"
+			data-tauri-drag-region={shellChromeDragRegion()}
+			data-testid="board"
+		>
 			{/* macOS: shell topbar is hidden on board routes, so the project/"Board"
 			    crumb + New task / Orchestrator / bell live in this in-panel row.
 			    Win/Linux keep the crumb and actions in the framed ShellTopbar.

@@ -6,7 +6,7 @@ import { useOverflowScroll } from "../hooks/useOverflowScroll";
 import { useCloseShellTerminal, useRenameShellTerminal, useShellTerminals } from "../hooks/useShellTerminals";
 import { useShell } from "../lib/shell-context";
 import { operatorBridge } from "../lib/bridge";
-import { isMacPlatform } from "../lib/platform";
+import { isMacPlatform, windowDragRegion } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { handleTerminalTabListKeyDown } from "../lib/terminal-tabs";
 import { useResolvedTheme, useUiStore } from "../stores/ui-store";
@@ -21,6 +21,7 @@ import { TerminalPane } from "./TerminalPane";
 // most wants a plain terminal. Inside a session, shells still appear as tabs
 // beside that session's pane; this screen is where they live otherwise.
 const isMac = isMacPlatform();
+const dragRegion = windowDragRegion();
 const newTerminalShortcutLabel = shortcutBindingLabel(defaultShortcutBindings("new-shell-terminal", isMac)[0], isMac);
 
 export function ShellTerminalsView() {
@@ -81,7 +82,10 @@ export function ShellTerminalsView() {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col text-foreground">
-			<div className="flex h-inspector-tabs shrink-0 items-center gap-3 border-b border-border px-5">
+			<div
+				className="flex h-inspector-tabs shrink-0 items-center gap-3 border-b border-border px-5"
+				data-tauri-drag-region={dragRegion}
+			>
 				<span className="shrink-0 font-mono text-caption font-semibold uppercase tracking-wide-lg text-muted-foreground">
 					{t("workbench.terminals")}
 				</span>

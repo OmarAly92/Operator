@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 // Platform is read at module-load time in CenterPanelShell (top-level const),
 // so we must mock before importing the component.
 const mockIsMac = vi.hoisted(() => vi.fn(() => false));
-vi.mock("../lib/platform", () => ({ isMacPlatform: mockIsMac }));
+vi.mock("../lib/platform", () => ({
+	isMacPlatform: mockIsMac,
+	shellChromeDragRegion: () => (mockIsMac() ? "" : undefined),
+}));
 
 vi.mock("../hooks/useWindowFullScreen", () => ({ useWindowFullScreen: () => false }));
 vi.mock("../stores/ui-store", () => ({
@@ -19,6 +22,16 @@ describe("CenterPanelShell platform classes", () => {
 		mockIsMac.mockReturnValue(true);
 		const { container } = render(<CenterPanelShell>x</CenterPanelShell>);
 		expect(container.firstElementChild!.classList.contains("center-panel-shell--mac")).toBe(true);
+	});
+
+	it("marks the panel frame as a bare window-drag region on macOS only", () => {
+		mockIsMac.mockReturnValue(true);
+		const { container: mac } = render(<CenterPanelShell>x</CenterPanelShell>);
+		expect(mac.firstElementChild!.getAttribute("data-tauri-drag-region")).toBe("");
+
+		mockIsMac.mockReturnValue(false);
+		const { container: other } = render(<CenterPanelShell>x</CenterPanelShell>);
+		expect(other.firstElementChild!.hasAttribute("data-tauri-drag-region")).toBe(false);
 	});
 
 	it("does not apply center-panel-shell--mac on Linux", () => {

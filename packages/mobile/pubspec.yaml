@@ -25,6 +25,11 @@ workspace:
   - packages/xterm
   - packages/speech_to_text
   - packages/speech_to_text_platform_interface
+  - packages/expressive_loading_indicator
+  - packages/expressive_refresh_indicator
+  - packages/expressive_sheet
+  - packages/expressive_snack
+  - packages/material_shapes
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -62,6 +67,11 @@ dependencies:
   xterm:
   speech_to_text:
   speech_to_text_platform_interface:
+  expressive_loading_indicator:
+  expressive_refresh_indicator:
+  expressive_sheet:
+  expressive_snack:
+  material_shapes:
   webview_flutter: ^4.14.1
   app_links: ^7.2.1
 

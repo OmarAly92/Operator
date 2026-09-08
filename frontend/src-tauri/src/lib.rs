@@ -416,7 +416,7 @@ fn build_main_window(
     let mut builder = tauri::WebviewWindowBuilder::new(app, window_label, window_url)
         .title("Operator")
         .inner_size(1320.0, 860.0)
-        .min_inner_size(960.0, 640.0)
+        .min_inner_size(560.0, 480.0)
         .background_color(tauri::window::Color(0x0f, 0x10, 0x14, 255))
         .data_directory(state_root.join("webview"))
         .use_https_scheme(false)

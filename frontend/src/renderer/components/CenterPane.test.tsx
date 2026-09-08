@@ -37,6 +37,11 @@ vi.mock("./TerminalSwitchAgentButton", () => ({
 	),
 }));
 
+vi.mock("../lib/platform", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../lib/platform")>();
+	return { ...actual, windowDragRegion: () => "deep" as const };
+});
+
 vi.mock("../lib/bridge", () => ({
 	operatorBridge: {
 		app: {},
@@ -242,6 +247,13 @@ describe("CenterPane toolbar session label", () => {
 		const header = tablist.closest(".h-inspector-tabs");
 		expect(header).toHaveClass("h-inspector-tabs");
 		expect(tablist.parentElement).toHaveClass("h-full");
+	});
+
+	it("marks the session topbar as a window-drag region", () => {
+		renderCenterPane({ session: worker });
+
+		const tablist = screen.getByRole("tablist", { name: "Open terminals" });
+		expect(tablist.closest(".h-inspector-tabs")).toHaveAttribute("data-tauri-drag-region", "deep");
 	});
 
 	it("keeps terminal controls in the measured terminal region and session actions outside it", () => {

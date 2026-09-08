@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/utils";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
-import { isMacPlatform } from "../lib/platform";
+import { isMacPlatform, shellChromeDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 
 /**
@@ -39,6 +39,7 @@ export function CenterPanelShell({
 				align && isFullScreen && "center-panel-shell--fullscreen",
 				className,
 			)}
+			data-tauri-drag-region={shellChromeDragRegion()}
 		>
 			<div className="center-panel-surface">{children}</div>
 		</div>

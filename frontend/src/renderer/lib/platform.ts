@@ -42,6 +42,17 @@ export function windowDragRegion(): "deep" | undefined {
 }
 
 /**
+ * The bare (non-"deep") form of the same region, for full-bleed chrome
+ * containers — the center panel's inset frame, the shell background behind it.
+ * Tauri only starts a drag when such an element is the direct mousedown target,
+ * so marking a container that wraps the whole app drags on its exposed
+ * background without swallowing a single click from anything painted on top.
+ */
+export function shellChromeDragRegion(): "" | undefined {
+	return isMacPlatform() ? "" : undefined;
+}
+
+/**
  * macOS only: shell does not mount ShellTopbar (full-height inset panel).
  * The sidebar toggle lives in the fixed TitlebarNav cluster and board/session
  * actions mount in-panel, with a traffic-light drag strip for window movement. Win/Linux keep the ShellTopbar spanning the window, with the
