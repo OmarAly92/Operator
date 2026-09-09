@@ -13,7 +13,8 @@ export type ThemeStyle =
 	| "rose-pine"
 	| "nord"
 	| "gruvbox"
-	| "solarized";
+	| "solarized"
+	| "warp";
 
 export const themeStorageKey = "opr.theme";
 export const themeStyleStorageKey = "opr.theme-style";
@@ -56,14 +57,15 @@ export function readStoredThemeStyle(): ThemeStyle {
 			stored === "rose-pine" ||
 			stored === "nord" ||
 			stored === "gruvbox" ||
-			stored === "solarized"
+			stored === "solarized" ||
+			stored === "warp"
 		) {
 			return stored;
 		}
 	} catch {
 		// ignore
 	}
-	return "orchestrate";
+	return "warp";
 }
 
 export function applyDocumentTheme(theme: Theme): void {

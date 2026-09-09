@@ -12,6 +12,8 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
+import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
 import { isWebLink, openLinkInSystemBrowser } from "../lib/external-link-policy";
 
@@ -63,8 +65,9 @@ const BEL = 0x07;
 // now deliberately outside it, and warpDarkTheme is its single source. Keeping
 // the bridge was also what produced the white box around every block: it mapped
 // blockBorder to the terminal foreground, where Warp uses the foreground at 10%.
-function terminalTheme(): TerminalTheme {
-	return warpDarkTheme;
+function terminalTheme(background: TerminalBackground): TerminalTheme {
+	const color = terminalBackgroundColor(background);
+	return { ...warpDarkTheme, background: color, blockBackground: color };
 }
 
 function isSourceIdByte(byte: number): boolean {
@@ -327,7 +330,8 @@ export function BlockTerminal({
 		return () => transport.dispose?.();
 	}, [transport]);
 
-	const resolvedTheme = useMemo<TerminalTheme>(() => terminalTheme(), []);
+	const terminalBackground = useUiStore((state) => state.terminalBackground);
+	const resolvedTheme = useMemo<TerminalTheme>(() => terminalTheme(terminalBackground), [terminalBackground]);
 
 	// Publish the terminal's background to :root so everything behind and around
 	// the grid -- the pane surface, the retained xterm slot, the overlays -- paints

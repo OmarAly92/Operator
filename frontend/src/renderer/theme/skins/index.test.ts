@@ -5,7 +5,7 @@ import { lightSkin } from "./light";
 
 const NAMED_STYLES = [
 	"github", "catppuccin", "dracula", "tokyo-night",
-	"rose-pine", "nord", "gruvbox", "solarized",
+	"rose-pine", "nord", "gruvbox", "solarized", "warp",
 ] as const;
 
 const STATUS_SLOTS = [

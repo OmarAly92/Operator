@@ -13,8 +13,16 @@ import {
 	type ThemePreference,
 	type ThemeStyle,
 } from "../lib/theme";
+import {
+	applyTerminalBackground,
+	readStoredTerminalBackground,
+	terminalBackgroundStorageKey,
+	type TerminalBackground,
+} from "../lib/terminal-background";
 
 export type { Theme, ThemePreference, ThemeStyle } from "../lib/theme";
+export type { TerminalBackground } from "../lib/terminal-background";
+export { readStoredTerminalBackground } from "../lib/terminal-background";
 export { readStoredThemePreference, readStoredThemeStyle, resolveTheme } from "../lib/theme";
 
 export type SettingsModal =
@@ -48,6 +56,7 @@ type UiState = {
 	resolvedTheme: Theme;
 	/** Named color style theme (e.g. "catppuccin", "nord") — independent of light/dark mode. */
 	themeStyle: ThemeStyle;
+	terminalBackground: TerminalBackground;
 	restartingProjectIds: ReadonlySet<string>;
 	orchestratorReplacementErrors: Record<string, OrchestratorReplacementFailure>;
 	orchestratorStartupErrors: Record<string, string>;
@@ -78,6 +87,7 @@ type UiState = {
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
+	setTerminalBackground: (background: TerminalBackground) => void;
 	openGlobalSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
 	closeSettings: () => void;
@@ -132,6 +142,7 @@ export function inspectorState(
 
 const initialThemePreference = readStoredThemePreference();
 const initialThemeStyle = readStoredThemeStyle();
+const initialTerminalBackground = readStoredTerminalBackground();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
@@ -142,6 +153,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
 	themeStyle: initialThemeStyle,
+	terminalBackground: initialTerminalBackground,
 	restartingProjectIds: new Set<string>(),
 	orchestratorReplacementErrors: {},
 	orchestratorStartupErrors: {},
@@ -167,6 +179,12 @@ export const useUiStore = create<UiState>((set, get) => ({
 			applyDocumentSkin(themeStyle, get().resolvedTheme);
 			set({ themeStyle });
 		});
+	},
+	setTerminalBackground: (terminalBackground) => {
+		if (get().terminalBackground === terminalBackground) return;
+		getLocalStorage()?.setItem(terminalBackgroundStorageKey, terminalBackground);
+		applyTerminalBackground(terminalBackground);
+		set({ terminalBackground });
 	},
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
 	openProjectSettings: (projectId) => set({ settingsModal: { scope: "project", projectId } }),

@@ -125,13 +125,13 @@ export function SettingsDialog() {
 			<DialogContent
 				className={cn(
 					settingsDialogContentClass,
-					"h-(--size-settings-dialog-height) w-(--size-settings-dialog-wide) max-h-none origin-center overflow-hidden p-0",
+					"h-[min(var(--size-settings-dialog-height),calc(100svh-2*var(--size-traffic-light-clearance)))] w-[min(var(--size-settings-dialog-wide),calc(100vw-2*var(--space-8)))] max-h-none origin-center overflow-hidden p-0",
 				)}
 				showCloseButton={false}
 			>
 				{displaySettings && (
 					<div className="flex h-full min-h-0">
-						<aside className="flex w-48 shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card">
+						<aside className="flex w-[min(12rem,32%)] shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card">
 						<p className="px-3 pb-1 pt-3 text-2xs font-semibold tracking-wider text-muted-foreground/60">{t("settings.title")}</p>
 						<nav aria-label={t("settings.navSectionsAria")} className="flex flex-col gap-0.5 p-2 pt-0">
 							{isProjectSettings
@@ -198,14 +198,14 @@ export function SettingsDialog() {
 
 					{/* Main area — same bg as the app page */}
 					<div className="flex min-w-0 flex-1 flex-col bg-card">
-						<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between border-b-0")}>
-							<DialogTitle className="text-2xl font-bold text-foreground">{activeLabel}</DialogTitle>
+						<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between gap-3 border-b-0")}>
+							<DialogTitle className="min-w-0 truncate text-2xl font-bold text-foreground">{activeLabel}</DialogTitle>
 							<DialogDescription className="sr-only">
 								{isProjectSettings ? t("settings.project.dialogDescription") : t("settings.dialogDescription", { section: activeLabel.toLowerCase() })}
 							</DialogDescription>
 							<DialogClose
 								aria-label={t("settings.close")}
-								className="settings-close-button border border-transparent transition-colors hover:border-(--color-border-settings-input) hover:bg-[var(--color-bg-settings-input)]"
+								className="settings-close-button shrink-0 border border-transparent transition-colors hover:border-(--color-border-settings-input) hover:bg-[var(--color-bg-settings-input)]"
 							>
 								<X aria-hidden="true" className="size-4" />
 							</DialogClose>
@@ -272,7 +272,7 @@ function SettingsNavItem({
 			type="button"
 		>
 			<Icon aria-hidden="true" className="size-4 shrink-0" />
-			{label}
+			<span className="truncate">{label}</span>
 		</button>
 	);
 }

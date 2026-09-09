@@ -3,11 +3,13 @@ import type { ThemePreference, ThemeStyle } from "../../lib/theme";
 import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
+import { TERMINAL_BACKGROUNDS, type TerminalBackground } from "../../lib/terminal-background";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 
 const COLOR_THEME_OPTIONS = [
+	{ value: "warp", label: "Warp" },
 	{ value: "orchestrate", label: "Orchestrate" },
 	{ value: "github", label: "GitHub" },
 	{ value: "catppuccin", label: "Catppuccin" },
@@ -18,6 +20,16 @@ const COLOR_THEME_OPTIONS = [
 	{ value: "gruvbox", label: "Gruvbox" },
 	{ value: "solarized", label: "Solarized" },
 ] satisfies SettingsOption<ThemeStyle>[];
+
+function ColorChip({ color }: { color: string }) {
+	return (
+		<span
+			aria-hidden="true"
+			className="size-3.5 shrink-0 rounded-full border border-white/15"
+			style={{ backgroundColor: color }}
+		/>
+	);
+}
 
 export function GeneralSettingsSection({
 	onConnectMobile,
@@ -31,6 +43,8 @@ export function GeneralSettingsSection({
 	const setThemePreference = useUiStore((state) => state.setThemePreference);
 	const themeStyle = useUiStore((state) => state.themeStyle);
 	const setThemeStyle = useUiStore((state) => state.setThemeStyle);
+	const terminalBackground = useUiStore((state) => state.terminalBackground);
+	const setTerminalBackground = useUiStore((state) => state.setTerminalBackground);
 	const locale = useLocaleStore((state) => state.locale);
 	const setLocale = useLocaleStore((state) => state.setLocale);
 	const localeSaving = useLocaleStore((state) => state.saving);
@@ -44,6 +58,12 @@ export function GeneralSettingsSection({
 			label: t("settings.theme.system"),
 		},
 	] satisfies SettingsOption<ThemePreference>[];
+
+	const terminalColorOptions = TERMINAL_BACKGROUNDS.map((option) => ({
+		value: option.id,
+		label: t(option.labelKey),
+		icon: <ColorChip color={option.color} />,
+	})) satisfies SettingsOption<TerminalBackground>[];
 
 	const languageOptions = [
 		{ value: "en", label: t("settings.language.en") },
@@ -64,6 +84,14 @@ export function GeneralSettingsSection({
 					value={themeStyle}
 					options={COLOR_THEME_OPTIONS}
 					onChange={setThemeStyle}
+				/>
+			</SettingsRow>
+			<SettingsRow label={t("settings.terminalColor")}>
+				<SettingsOptionMenu
+					aria-label={t("settings.terminalColor")}
+					value={terminalBackground}
+					options={terminalColorOptions}
+					onChange={setTerminalBackground}
 				/>
 			</SettingsRow>
 			<SettingsRow label={t("settings.theme")}>

@@ -116,7 +116,7 @@ check for you — do all five steps.
    type error if you skip it.
 4. **`readStoredThemeStyle()` in `lib/theme.ts`** — add the style to the
    `stored === …` chain. This is **not** a type error: without it the style is
-   selectable but silently reverts to `orchestrate` on every reload.
+   selectable but silently reverts to the default style (`warp`) on every reload.
 5. **`COLOR_THEME_OPTIONS` in
    `components/settings/GeneralSettingsSection.tsx`** — add `{ value, label }`.
    Without it the style is not offered in the picker at all.

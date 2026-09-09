@@ -225,6 +225,7 @@ vi.mock("../theme/skin-context", () => ({
 
 
 import { BlockTerminal, type BlockTerminalHistoryBlock } from "./BlockTerminal";
+import { useUiStore } from "../stores/ui-store";
 
 function harness(overrides: Partial<Parameters<typeof BlockTerminal>[0]> = {}) {
 	const listeners: Array<(bytes: Uint8Array) => void> = [];
@@ -369,6 +370,17 @@ describe("BlockTerminal", () => {
 		await waitFor(() =>
 			expect(document.documentElement.style.getPropertyValue("--terminal-background")).toBe("#000000"),
 		);
+	});
+
+	it("repaints the surround when the user picks a terminal colour", async () => {
+		document.documentElement.style.removeProperty("--terminal-background");
+		useUiStore.setState({ terminalBackground: "charcoal" });
+		const { transport } = harness();
+		render(<BlockTerminal transport={transport} sessionId="s1" historyBlocks={[]} />);
+		await waitFor(() =>
+			expect(document.documentElement.style.getPropertyValue("--terminal-background")).toBe("#1d2022"),
+		);
+		useUiStore.setState({ terminalBackground: "black" });
 	});
 
 	it("uses Warp's line-height ratio", async () => {

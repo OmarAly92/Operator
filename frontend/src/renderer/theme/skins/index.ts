@@ -10,6 +10,7 @@ import { nordDark, nordLight } from "./nord";
 import { rosePineDark, rosePineLight } from "./rose-pine";
 import { solarizedDark, solarizedLight } from "./solarized";
 import { tokyoNightDark, tokyoNightLight } from "./tokyo-night";
+import { warpDark, warpLight } from "./warp";
 
 const REGISTRY: Partial<Record<ThemeStyle, { dark: AppSkin; light: AppSkin }>> = {
 	github: { dark: githubDark, light: githubLight },
@@ -20,6 +21,7 @@ const REGISTRY: Partial<Record<ThemeStyle, { dark: AppSkin; light: AppSkin }>> =
 	nord: { dark: nordDark, light: nordLight },
 	gruvbox: { dark: gruvboxDark, light: gruvboxLight },
 	solarized: { dark: solarizedDark, light: solarizedLight },
+	warp: { dark: warpDark, light: warpLight },
 };
 
 export function skinFor(style: ThemeStyle, theme: Theme): AppSkin {

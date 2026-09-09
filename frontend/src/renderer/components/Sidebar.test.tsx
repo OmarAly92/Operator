@@ -435,6 +435,15 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
 	});
 
+	it("opens the new task dialog from the plus button on the project row", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		await user.click(screen.getByLabelText("New task in Project One"));
+
+		expect(useUiStore.getState().newTaskRequest?.projectId).toBe("proj-1");
+	});
+
 	it("toggles project sessions from the folder icon without selecting the project first", async () => {
 		const user = userEvent.setup();
 		const other: WorkspaceSummary = {
@@ -1187,12 +1196,13 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		// Terminal, orchestrator, kebab — the row reserves width for all three.
+		// New task, terminal, orchestrator, kebab — the row reserves width for all four.
 		expect(
 			within(actionCluster as HTMLElement)
 				.getAllByRole("button")
 				.map((button) => button.getAttribute("aria-label")),
 		).toEqual([
+			"New task in Project One",
 			"Open a terminal in Project One",
 			"Spawn Project One orchestrator",
 			"Project actions for Project One",

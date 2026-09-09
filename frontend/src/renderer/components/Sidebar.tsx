@@ -723,6 +723,20 @@ function ProjectItem({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<button
+						aria-label={t("shell.newTaskInProject", { name: workspace.name })}
+						className={HOVER_ACTION_CLASS}
+						disabled={isProjectRestarting}
+						onClick={() => requestNewTask(workspace.id)}
+						type="button"
+					>
+						<Plus aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("shell.newTask")}</TooltipContent>
+			</Tooltip>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
 						aria-label={t("shell.openProjectTerminal", { name: workspace.name })}
 						className={HOVER_ACTION_CLASS}
 						disabled={isOpeningShell}

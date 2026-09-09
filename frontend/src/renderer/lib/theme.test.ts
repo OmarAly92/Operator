@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
+	readStoredThemeStyle,
 	runThemeTransition,
+	themeStyleStorageKey,
 } from "./theme";
 
 describe("runThemeTransition", () => {
@@ -62,5 +64,25 @@ describe("applyDocumentThemeStyle", () => {
 		document.documentElement.dataset.styleTheme = "nord";
 		applyDocumentThemeStyle("orchestrate");
 		expect(document.documentElement.dataset.styleTheme).toBeUndefined();
+	});
+});
+
+describe("readStoredThemeStyle", () => {
+	afterEach(() => {
+		window.localStorage.clear();
+	});
+
+	it("accepts orchestrate", () => {
+		window.localStorage.setItem(themeStyleStorageKey, "orchestrate");
+		expect(readStoredThemeStyle()).toBe("orchestrate");
+	});
+
+	it("falls back to warp for an unknown style", () => {
+		window.localStorage.setItem(themeStyleStorageKey, "nope");
+		expect(readStoredThemeStyle()).toBe("warp");
+	});
+
+	it("defaults to warp when nothing is stored", () => {
+		expect(readStoredThemeStyle()).toBe("warp");
 	});
 });
