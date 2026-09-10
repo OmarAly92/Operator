@@ -487,6 +487,9 @@ func TestOpenShellTerminalWrapsKnownShellWithBootstrapRecipe(t *testing.T) {
 	if cfg.Env["OPERATOR_TERMINAL_INTEGRATION"] != "auto" {
 		t.Errorf("env integration = %q, want auto; full env = %v", cfg.Env["OPERATOR_TERMINAL_INTEGRATION"], cfg.Env)
 	}
+	if cfg.Env["OPERATOR_TERMINAL_SUPPRESS_PROMPT"] != "1" {
+		t.Errorf("prompt suppression = %q, want 1; full env = %v", cfg.Env["OPERATOR_TERMINAL_SUPPRESS_PROMPT"], cfg.Env)
+	}
 }
 
 func TestOpenShellTerminalFallsBackToOsc133OnlyForUnknownShell(t *testing.T) {

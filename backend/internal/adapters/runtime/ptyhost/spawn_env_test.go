@@ -1,7 +1,6 @@
 package ptyhost
 
 import (
-	"os"
 	"slices"
 	"testing"
 )
@@ -59,7 +58,14 @@ func TestProcessEnvironmentKeepsTheInheritedEnvironment(t *testing.T) {
 	if got, ok := envValue(env, "OPERATOR_SPAWN_ENV_PROBE"); !ok || got != "kept" {
 		t.Fatalf("inherited variable lost: %q (present %v)", got, ok)
 	}
-	if len(env) < len(os.Environ()) {
-		t.Fatalf("child environment %d entries, shorter than the parent's %d", len(env), len(os.Environ()))
+}
+
+func TestProcessEnvironmentDoesNotInheritLauncherNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if value, ok := envValue(processEnvironment(nil), "NO_COLOR"); ok {
+		t.Fatalf("launcher NO_COLOR leaked into interactive terminal: %q", value)
+	}
+	if value, ok := envValue(processEnvironment(map[string]string{"NO_COLOR": "1"}), "NO_COLOR"); !ok || value != "1" {
+		t.Fatalf("explicit NO_COLOR override lost: %q", value)
 	}
 }

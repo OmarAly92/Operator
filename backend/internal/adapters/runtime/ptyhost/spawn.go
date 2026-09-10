@@ -22,7 +22,12 @@ var terminalEnvironment = [][2]string{
 }
 
 func processEnvironment(overrides map[string]string) []string {
-	env := append([]string(nil), os.Environ()...)
+	env := make([]string, 0, len(os.Environ()))
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "NO_COLOR=") {
+			env = append(env, entry)
+		}
+	}
 	for _, pair := range terminalEnvironment {
 		if _, ok := overrides[pair[0]]; ok {
 			continue

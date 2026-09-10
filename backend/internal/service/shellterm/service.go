@@ -427,7 +427,7 @@ func (s *Service) resolveProjectRootOrDataDir(ctx context.Context, projectID dom
 func (s *Service) shellBootstrapArgvEnv(shellPath string) ([]string, map[string]string, error) {
 	scriptDir := filepath.Join(s.dataDir, "shell")
 	if kind, ok := shellKindFor(shellPath); ok {
-		argv, env, err := bootstrap.Recipe(kind, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationAuto})
+		argv, env, err := bootstrap.Recipe(kind, scriptDir, bootstrap.Options{Integration: bootstrap.IntegrationAuto, SuppressPrompt: true})
 		if err != nil {
 			return nil, nil, err
 		}
