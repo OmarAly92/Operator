@@ -1,6 +1,6 @@
 export const TERMINAL_BACKGROUNDS = [
-	{ id: "black", labelKey: "settings.terminalColor.black", color: "#000000" },
 	{ id: "charcoal", labelKey: "settings.terminalColor.charcoal", color: "#1d2022" },
+	{ id: "black", labelKey: "settings.terminalColor.black", color: "#000000" },
 	{ id: "graphite", labelKey: "settings.terminalColor.graphite", color: "#22252a" },
 	{ id: "midnight", labelKey: "settings.terminalColor.midnight", color: "#0d1117" },
 	{ id: "slate", labelKey: "settings.terminalColor.slate", color: "#1a1f2b" },
@@ -9,7 +9,7 @@ export const TERMINAL_BACKGROUNDS = [
 export type TerminalBackgroundOption = (typeof TERMINAL_BACKGROUNDS)[number];
 export type TerminalBackground = TerminalBackgroundOption["id"];
 
-export const defaultTerminalBackground: TerminalBackground = "black";
+export const defaultTerminalBackground: TerminalBackground = "charcoal";
 export const terminalBackgroundStorageKey = "opr.terminal-background";
 
 function getLocalStorage() {

@@ -1113,29 +1113,23 @@ describe("Sidebar", () => {
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("opens the command palette when Search is clicked", async () => {
-		const user = userEvent.setup();
-		renderSidebar();
-		expect(useUiStore.getState().isCommandPaletteOpen).toBe(false);
-		await user.click(screen.getByRole("button", { name: /Search/ }));
-		expect(useUiStore.getState().isCommandPaletteOpen).toBe(true);
-		expect(screen.getByRole("button", { name: /Search/ })).toHaveTextContent(/(?:⌘ |Ctrl\+)K/);
+	it("starts a task in the owning project when opened through a global session link", () => {
+		mockParams.sessionId = session.id;
+		mockParams.projectId = undefined;
+		useUiStore.setState({ newTaskRequest: null });
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+		fireEvent.click(screen.getByRole("button", { name: "New task" }));
+		expect(useUiStore.getState().newTaskRequest?.projectId).toBe(workspace.id);
 	});
 
-	it("defers opening the palette until the Search click has been dispatched", async () => {
-		renderSidebar();
-		fireEvent.click(screen.getByRole("button", { name: /Search/ }));
-		// Still closed inside the click's task: the palette dialog must not mount
-		// while the pointer sequence that opened it is still being handled.
-		expect(useUiStore.getState().isCommandPaletteOpen).toBe(false);
-		await act(async () => {});
-		expect(useUiStore.getState().isCommandPaletteOpen).toBe(true);
-	});
-
-	it("hides Search when the command palette feature is disabled", () => {
-		commandPaletteEnabled.current = false;
-		renderSidebar();
-		expect(screen.queryByRole("button", { name: /Search/ })).not.toBeInTheDocument();
+	it("filters project sessions and restores them when the query is cleared", () => {
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session, { ...session, id: "other", title: "Update docs" }] }] });
+		const search = screen.getByRole("textbox", { name: "Search tabs…" });
+		fireEvent.change(search, { target: { value: "login" } });
+		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Open Update docs")).not.toBeInTheDocument();
+		fireEvent.change(search, { target: { value: "" } });
+		expect(screen.getByLabelText("Open Update docs")).toBeInTheDocument();
 	});
 
 	it("shows the project name and context in the ConfirmDialog description", async () => {

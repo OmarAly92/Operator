@@ -148,7 +148,8 @@ vi.mock("../hooks/useAgentsQuery", () => ({
 	useAgentsQuery: () => ({ data: undefined }),
 }));
 
-vi.mock("../components/NotificationCenter", () => ({ NotificationRuntime: () => null }));
+vi.mock("../components/NotificationCenter", () => ({ NotificationRuntime: () => null, NotificationCenter: () => null }));
+vi.mock("../hooks/useCommandPaletteEnabled", () => ({ useCommandPaletteEnabled: () => true }));
 vi.mock("../components/CommandPalette", () => ({ CommandPalette: () => null }));
 vi.mock("../components/OrchestratorReplacementDialog", () => ({ OrchestratorReplacementDialog: () => null }));
 vi.mock("../components/ShellTopbar", () => ({ ShellTopbar: () => null }));

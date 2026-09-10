@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+mod mac_window_controls;
 use std::collections::HashMap;
 use std::{env, error::Error, fs, io, path::Path, path::PathBuf};
 
@@ -434,25 +436,19 @@ fn build_main_window(
                 }
             }
         });
-    // macOS: the window is the app, the way Warp's is. The title bar becomes a
-    // transparent overlay over the content, the title text is hidden, and the
-    // traffic lights move to the position the renderer's chrome is measured
-    // against. tao reads that y as a title-bar container height, not a top
-    // offset: it sizes the container to button_height + y and leaves the button
-    // where it sat inside it, so the dots land at y - 8. 22 puts their 12px tops
-    // at 14, centring them in the 40px clearance band the toggle centres in, and
-    // --size-titlebar-cluster-left clears the 72px-wide row with a gap.
     #[cfg(target_os = "macos")]
     {
         builder = builder
             .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true)
-            .traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0));
+            .hidden_title(true);
     }
     if let Some(script) = audit_script {
         builder = builder.initialization_script(script);
     }
-    builder.build()
+    let window = builder.build()?;
+    #[cfg(target_os = "macos")]
+    mac_window_controls::align(&window)?;
+    Ok(window)
 }
 
 fn rebuild_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn Error>> {
@@ -1226,7 +1222,15 @@ void (async () => {
             if label == shortcuts::MAIN_WINDOW_LABEL =>
         {
             match event {
-                tauri::WindowEvent::Resized(_) => poll_fullscreen_state(app_handle),
+                tauri::WindowEvent::Resized(_) => {
+                    poll_fullscreen_state(app_handle);
+                    #[cfg(target_os = "macos")]
+                    if let Some(window) = app_handle.get_webview_window(shortcuts::MAIN_WINDOW_LABEL) {
+                        if let Err(error) = mac_window_controls::align(&window) {
+                            eprintln!("could not align window controls: {error}");
+                        }
+                    }
+                },
                 tauri::WindowEvent::Focused(focused) => {
                     request_window_focus_state(focused);
                     let app_handle = app_handle.clone();

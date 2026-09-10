@@ -47,12 +47,11 @@ import {
 	useTerminateSessionState,
 } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
-import { NotificationCenter } from "./NotificationCenter";
 import { BoardWelcome, ProjectBoardEmpty } from "./BoardEmptyStates";
 import { OrchestratorIcon } from "./icons";
 import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { AgentAvatar } from "./AgentAvatar";
-import { TopbarButton, TopbarKillError, topbarProjectLabelClass } from "./TopbarButton";
+import { BoardDiff, TopbarButton, TopbarKillError, topbarProjectLabelClass } from "./TopbarButton";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../lib/pr-display";
@@ -61,7 +60,7 @@ import { formatTokenCount } from "../lib/format-token-count";
 import { operatorBridge } from "../lib/bridge";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { cn } from "../lib/utils";
-import { isLinuxPlatform, shellChromeDragRegion, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
+import { shellChromeDragRegion, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -98,8 +97,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const usageBySession = useSessionUsageSummaries(projectId).data ?? emptyUsageBySession;
 	// Evaluated at render so platform mocks in tests can flip the in-panel chrome.
 	const boardActionsInPanel = usesBoardActionsInPanel();
-	/** Bell lives in the board action row when the shell topbar does not host it. */
-	const boardOwnsNotificationCenter = isLinuxPlatform() || boardActionsInPanel;
 	const all = workspaceQuery.data ?? [];
 	const workspaces = projectId ? all.filter((w) => w.id === projectId) : all;
 	const workspace = projectId ? workspaces[0] : undefined;
@@ -303,10 +300,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 							? t("shell.orchestrator")
 							: t("shell.spawnOrchestrator")}
 			</TopbarButton>
-			{boardOwnsNotificationCenter ? <NotificationCenter /> : null}
 		</>
-	) : boardOwnsNotificationCenter ? (
-		<NotificationCenter />
 	) : undefined;
 
 	return (
@@ -327,6 +321,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 				>
 					{boardLabel ? <span className={topbarProjectLabelClass}>{boardLabel}</span> : null}
 					<div className="min-w-0 flex-1" />
+					<BoardDiff workspaces={workspaces} />
 					{actions ? (
 						<div className="flex shrink-0 items-center gap-2">
 							{actions}
@@ -519,7 +514,7 @@ function ZoneColumn({
 			data-testid="board-column"
 			data-column={col.zone}
 		>
-			<div className="flex h-12 shrink-0 items-center gap-2.5 px-4">
+			<div className="flex h-12 shrink-0 items-center gap-2 px-3">
 				<span
 					className="size-dot-sm rounded-full"
 					style={{
@@ -703,7 +698,7 @@ function SplitLaneColumn({
 			data-column={zone}
 			data-testid="board-column"
 		>
-			<div className="flex h-12 shrink-0 items-center gap-2.5 px-4">
+			<div className="flex h-12 shrink-0 items-center gap-2 px-3">
 				<div
 					aria-label={t("shell.laneSummaryAria", { primary: primaryTone.label, secondary: secondaryTone.label })}
 					className="flex min-w-0 items-center gap-2 font-mono text-2xs font-medium uppercase tracking-wide-sm"
@@ -800,7 +795,7 @@ function SecondaryLaneSection({
 			)}
 			role="region"
 		>
-			<div className="flex shrink-0 items-center gap-2.5 px-4 py-2.5">
+			<div className="flex shrink-0 items-center gap-2 px-3 py-2.5">
 				<div className="font-mono text-2xs font-medium uppercase tracking-wide-sm">
 					<LaneStatusLabel tone={tone} />
 				</div>
@@ -905,7 +900,7 @@ function SessionCard({
 		<div
 			{...cardBodyProps}
 			className={cn(
-				"group relative w-full rounded-lg border text-left transition-[border-color,box-shadow]",
+				"group relative w-full rounded-xl border text-left transition-[border-color,box-shadow]",
 				badge.cardClassName ?? "border-border bg-surface",
 				interactive && "cursor-pointer hover:border-border-strong hover:shadow-sm",
 			)}
@@ -973,7 +968,7 @@ function SessionCard({
 				<div className="min-w-0 flex-1">
 					<div
 						className={cn(
-							"line-clamp-2 overflow-hidden text-sm-md font-semibold leading-tight tracking-tight text-foreground",
+							"line-clamp-2 overflow-hidden text-base font-semibold leading-tight tracking-tight text-foreground",
 							cornerControlPadding,
 						)}
 						title={session.title}

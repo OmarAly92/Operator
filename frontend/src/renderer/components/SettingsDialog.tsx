@@ -131,7 +131,7 @@ export function SettingsDialog() {
 			>
 				{displaySettings && (
 					<div className="flex h-full min-h-0">
-						<aside className="flex w-[min(12rem,32%)] shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card">
+						<aside className="flex w-[min(210px,32%)] shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-sidebar">
 						<p className="px-3 pb-1 pt-3 text-2xs font-semibold tracking-wider text-muted-foreground/60">{t("settings.title")}</p>
 						<nav aria-label={t("settings.navSectionsAria")} className="flex flex-col gap-0.5 p-2 pt-0">
 							{isProjectSettings
@@ -197,9 +197,9 @@ export function SettingsDialog() {
 					</aside>
 
 					{/* Main area — same bg as the app page */}
-					<div className="flex min-w-0 flex-1 flex-col bg-card">
-						<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between gap-3 border-b-0")}>
-							<DialogTitle className="min-w-0 truncate text-2xl font-bold text-foreground">{activeLabel}</DialogTitle>
+					<div className="flex min-w-0 flex-1 flex-col bg-popover">
+						<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between gap-3 border-b-0 px-6 pt-5 pb-3.5")}>
+							<DialogTitle className="min-w-0 truncate text-[26px] font-bold text-foreground">{activeLabel}</DialogTitle>
 							<DialogDescription className="sr-only">
 								{isProjectSettings ? t("settings.project.dialogDescription") : t("settings.dialogDescription", { section: activeLabel.toLowerCase() })}
 							</DialogDescription>
@@ -210,7 +210,7 @@ export function SettingsDialog() {
 								<X aria-hidden="true" className="size-4" />
 							</DialogClose>
 						</DialogHeader>
-						<div className={cn(settingsDialogBodyClass, "flex-1")}>
+						<div className={cn(settingsDialogBodyClass, "flex-1 px-6 pt-0 pb-6 [--size-settings-section-gap:22px] [--size-settings-section-inner-gap:2px] [--size-settings-row-padding:0px]")}>
 							{displaySettings?.scope === "project" ? (
 								<ProjectSettingsForm
 									projectId={displaySettings.projectId}

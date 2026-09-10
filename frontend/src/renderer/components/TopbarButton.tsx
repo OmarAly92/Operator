@@ -1,3 +1,5 @@
+import { ArrowDownUp } from "lucide-react";
+import type { WorkspaceSummary } from "../types/workspace";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
@@ -7,9 +9,9 @@ const topbarButtonVariants = cva(
 		variants: {
 			variant: {
 				primary:
-					"h-control-lg gap-1.5 rounded-md bg-accent-strong px-3.5 text-sm font-semibold leading-none text-accent-foreground hover:brightness-110 active:brightness-95",
+					"h-control-lg gap-1.5 rounded-lg border border-border-strong bg-transparent px-2.5 text-sm font-medium leading-none text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
 				accent:
-					"h-control-lg gap-1.5 rounded-md border border-border px-3.5 text-sm font-semibold leading-none bg-raised text-muted-foreground hover:bg-surface hover:text-foreground",
+					"h-control-lg gap-1.5 rounded-lg border border-transparent px-2.5 text-sm font-medium leading-none bg-secondary text-foreground hover:bg-interactive-active",
 				icon: "grid size-control-lg place-items-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
 				kill: "h-control-lg gap-1.5 rounded-md border border-transparent bg-transparent px-3.5 text-sm font-semibold leading-none text-error/80 hover:border-error/50 hover:bg-error/10 hover:text-error",
 				killConfirm:
@@ -39,4 +41,18 @@ export const topbarHeaderClass =
 	"center-panel-titlebar flex h-toolbar shrink-0 items-center gap-3 border-b border-border pr-4 z-chrome";
 
 export const topbarProjectLabelClass =
-	"text-brand font-semibold tracking-tight leading-none text-foreground whitespace-nowrap";
+	"text-md font-semibold tracking-tight leading-none text-foreground whitespace-nowrap";
+
+export function BoardDiff({ workspaces }: { workspaces: WorkspaceSummary[] }) {
+	const knownDiffs = workspaces.flatMap((workspace) => workspace.diff ? [workspace.diff] : []);
+	if (knownDiffs.length === 0) return null;
+	const additions = knownDiffs.reduce((total, diff) => total + diff.additions, 0);
+	const deletions = knownDiffs.reduce((total, diff) => total + diff.deletions, 0);
+	return (
+		<div className="inline-flex items-center gap-1.5 px-1 font-mono text-sm-md">
+			<ArrowDownUp className="size-4 text-passive" aria-hidden="true" />
+			<span className="text-success">+{additions}</span>
+			<span className="text-error">−{deletions}</span>
+		</div>
+	);
+}

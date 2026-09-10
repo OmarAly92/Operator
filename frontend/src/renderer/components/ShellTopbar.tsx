@@ -2,9 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { GitBranch, PanelRightClose, PanelRightOpen, Plus, SquareTerminal } from "lucide-react";
-import { useEffect, useState } from "react";
-import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
-import { NotificationCenter } from "./NotificationCenter";
+import { useState } from "react";
+import { LayoutGroup, motion } from "motion/react";
 import {
 	findProjectOrchestrator,
 	hasConfiguredOrchestratorAgent,
@@ -21,9 +20,8 @@ import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { isMacPlatform, usesBoardActionsInPanel, windowDragRegion } from "../lib/platform";
 import { cn } from "../lib/utils";
-import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { StatusPill } from "./StatusPill";
-import { TopbarButton, TopbarKillError, topbarHeaderClass, topbarProjectLabelClass } from "./TopbarButton";
+import { BoardDiff, TopbarButton, TopbarKillError, topbarHeaderClass, topbarProjectLabelClass } from "./TopbarButton";
 
 const isMac = isMacPlatform();
 const boardActionsInPanel = usesBoardActionsInPanel();
@@ -40,14 +38,6 @@ const dragRegion = windowDragRegion();
 // dashboard crumb plus the Orchestrator launcher when a project is in scope.
 // Embedded mode contributes session actions to the terminal bar — and for
 // orchestrators, the clickable project name that replaces the old Kanban button.
-// Pixel equivalents of the CSS custom properties used for titlebar clearance.
-// --size-titlebar-cluster-left (84) + --size-titlebar-cluster-width (28)
-// + --size-titlebar-content-gap (12) = 124; minus --size-center-panel-inset-mac (6) = 118.
-// Fullscreen: --space-2 (8) + 28 + 12 = 48.
-const PADDING_DEFAULT = 18; // 1.125rem
-const PADDING_CLEARANCE = 118;
-const PADDING_CLEARANCE_FULLSCREEN = 48;
-
 export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
@@ -61,27 +51,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	const requestNewShellTerminal = useUiStore((state) => state.requestNewShellTerminal);
-	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
-	const isFullScreen = useWindowFullScreen();
-	const prefersReducedMotion = useReducedMotion();
-	const mac = isMacPlatform();
-	const targetPaddingLeft =
-		!embedded && mac && !isSidebarOpen
-			? isFullScreen
-				? PADDING_CLEARANCE_FULLSCREEN
-				: PADDING_CLEARANCE
-			: PADDING_DEFAULT;
-	const paddingLeft = useMotionValue(targetPaddingLeft);
-	useEffect(() => {
-		const controls = animate(
-			paddingLeft,
-			targetPaddingLeft,
-			prefersReducedMotion
-				? { duration: 0 }
-				: { type: "spring", stiffness: 420, damping: 40, mass: 0.6 },
-		);
-		return controls.stop;
-	}, [targetPaddingLeft, paddingLeft, prefersReducedMotion]);
 	const [isSpawning, setIsSpawning] = useState(false);
 	// Board-scope spawn failures surface where the board actions render.
 	const [boardSpawnError, setBoardSpawnError] = useState<string | null>(null);
@@ -169,7 +138,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 		<motion.header
 			className={embedded ? "contents" : topbarHeaderClass}
 			data-tauri-drag-region={embedded ? undefined : dragRegion}
-			style={embedded ? undefined : { paddingLeft }}
+			style={embedded ? undefined : { paddingLeft: 18 }}
 		>
 			{!embedded ? (
 				<div className="flex min-w-0 items-center gap-3">
@@ -215,6 +184,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 			{!embedded ? <div className="min-w-0 flex-1" /> : null}
 
 			<div className="flex shrink-0 items-center gap-1.5">
+				{!isSessionRoute && <BoardDiff workspaces={project ? [project] : all} />}
 				{!boardActionsInPanel && isProjectBoardRoute ? (
 					<>
 						{boardSpawnError ? (
@@ -303,8 +273,6 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 						)}
 					</>
 				) : null}
-				{/* The bell always trails the actions row, on every platform. */}
-				<NotificationCenter />
 			</div>
 		</motion.header>
 	</LayoutGroup>

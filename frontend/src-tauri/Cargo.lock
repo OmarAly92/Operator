@@ -2840,6 +2840,8 @@ dependencies = [
  "chrono",
  "global-hotkey",
  "libc",
+ "objc2-app-kit",
+ "objc2-foundation",
  "semver",
  "serde",
  "serde_json",

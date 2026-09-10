@@ -1,6 +1,6 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import {
 	ChevronRight,
 	Folder,
@@ -13,6 +13,7 @@ import {
 	RefreshCw,
 	Search,
 	Settings,
+	SlidersHorizontal,
 	SquareTerminal,
 	Trash2,
 } from "lucide-react";
@@ -28,7 +29,6 @@ import {
 } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { operatorBridge } from "../lib/bridge";
-import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
@@ -38,7 +38,6 @@ import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useResizable } from "../hooks/useResizable";
 import { useShellMaybe } from "../lib/shell-context";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
-import { effectiveShortcutBindings, shortcutBindingKeys } from "../../shared/shortcuts";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -59,7 +58,6 @@ import {
 	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
-	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -70,10 +68,8 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { OrchestratorIcon } from "./icons";
-import operatorLogo from "../../../assets/opr-logo.svg";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store"
-import { useKeybindingsStore } from "../stores/keybindings-store";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateProjectFlow, type CreateProjectInput } from "./CreateProjectFlow";
 import { ResizeHandle } from "./ResizeHandle";
@@ -92,18 +88,18 @@ const HOVER_ACTION_CLASS =
 
 // Shared nav-row chrome (Codex-style): inset pill hover/selected, 14px type, no accent bar.
 const NAV_ROW_CLASS =
-	"h-9 gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
+	"h-[34px] gap-2 rounded-lg px-2.5 text-base font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
 
 // Search + Pinned/Projects section chrome: same type, icon, and row size.
 const SECTION_ROW_CLASS =
-	"flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
+	"flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-base font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
 // Hover fill only for collapsible section headers (Pinned). Projects is a static label.
 const SECTION_ROW_INTERACTIVE_CLASS = "transition-colors hover:bg-interactive-hover hover:text-foreground";
 
 // Mirrors the daemon's display-name cap (maxDisplayNameLen) and the spawn
 // `--name` flag, so inline edits never round-trip a value the API would reject.
 const MAX_DISPLAY_NAME_LEN = 20;
-export const SIDEBAR_DEFAULT_WIDTH = 240;
+export const SIDEBAR_DEFAULT_WIDTH = 250;
 export const SIDEBAR_MIN_WIDTH = 200;
 export const SIDEBAR_MAX_WIDTH = 420;
 
@@ -125,15 +121,16 @@ type SidebarProps = {
 
 // Selection state comes from the URL: which project/session is active is the
 // route params, and clicks navigate rather than mutate a store.
-function useSelection() {
+function useSelection(workspaces: WorkspaceSummary[]) {
 	const navigate = useNavigate();
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const sessionWorkspace = params.sessionId
+		? workspaces.find((workspace) => workspace.sessions.some((session) => session.id === params.sessionId))
+		: undefined;
 	return {
-		isHome: pathname === "/",
-		activeProjectId: params.projectId,
+		activeProjectId: sessionWorkspace?.id ?? params.projectId,
 		activeSessionId: params.sessionId,
 		goHome: () => void navigate({ to: "/" }),
 		// Settings is a modal — open it in place so the current page (session
@@ -176,7 +173,7 @@ export function Sidebar({
 	onRemoveProject,
 }: SidebarProps) {
 	const { t } = useTranslation();
-	const selection = useSelection();
+	const selection = useSelection(workspaces);
 	const { state, setOpen } = useSidebar();
 	const isCollapsed = state === "collapsed";
 	const [expandedChromeVisible, setExpandedChromeVisible] = useState(!isCollapsed);
@@ -185,8 +182,9 @@ export function Sidebar({
 	// Daemon status for the smoke suite's sr-only mirror in the footer. Null when
 	// rendered outside the shell (unit tests) — the mirror simply doesn't render.
 	const daemonStatus = useShellMaybe()?.daemonStatus ?? null;
-	const commandPaletteEnabled = useCommandPaletteEnabled();
-	const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
+	const [sidebarFilter, setSidebarFilter] = useState("");
+	const searchQuery = sidebarFilter.trim().toLocaleLowerCase();
+	const visibleWorkspaces = workspaces.filter((workspace) => workspace.name.toLocaleLowerCase().includes(searchQuery) || workerSessions(workspace.sessions).some((session) => !session.isTerminated && session.title.toLocaleLowerCase().includes(searchQuery)));
 
 	useLayoutEffect(() => {
 		// Offcanvas: the panel slides off-screen on collapse — no need to hide content.
@@ -208,15 +206,6 @@ export function Sidebar({
 		});
 	// Section disclosure: Pinned header collapses its body. Projects stays open.
 	const [pinnedOpen, setPinnedOpen] = useState(true);
-	// Fetch the running app version to derive the build channel. Channel is
-	// identity: derived from the version string, not the update-channel setting
-	// (the setting can be changed mid-session; the binary cannot).
-	const { data: appVersion } = useQuery({
-		queryKey: ["app-version"],
-		queryFn: () => operatorBridge.app.getVersion(),
-		staleTime: Infinity,
-	});
-	const isNightly = typeof appVersion === "string" && appVersion.includes("-nightly.");
 
 	// operator's sidebar resize: drag the right edge (200-420px,
 	// persisted), double-click to reset to 240px. Drives --opr-sidebar-w on :root,
@@ -239,7 +228,7 @@ export function Sidebar({
 
 	const pinnedSessions = workspaces
 		.flatMap((w) => workerSessions(w.sessions))
-		.filter((s) => s.isPinned && s.isTerminated !== true)
+		.filter((s) => s.isPinned && s.isTerminated !== true && (s.title.toLocaleLowerCase().includes(searchQuery) || s.workspaceName.toLocaleLowerCase().includes(searchQuery)))
 		.sort((a, b) => {
 			const aTime = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
 			const bTime = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0;
@@ -265,63 +254,16 @@ export function Sidebar({
 					: "top-(--sidebar-chrome-offset) h-[calc(100svh-var(--sidebar-chrome-offset))]!",
 			)}
 		>
-			<SidebarHeader
-				className={cn(
-					"gap-0 p-0 px-3 pt-2 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:pt-2",
-					isOverlay && underTopbar && "pt-(--sidebar-chrome-offset)!",
-				)}
-			>
-				{/* Brand (project-sidebar__brand); in the icon rail it becomes the old
-            36px board button wrapping the 22px accent mark. */}
-				<div
-					className={cn(
-						"flex shrink-0 items-center gap-1.5 px-0.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pb-2",
-						commandPaletteEnabled ? "pb-2" : "pb-3",
-					)}
-				>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<button
-								aria-label={t("shell.orchestratorBoard")}
-								className={cn(
-									"grid h-5.5 w-5.5 shrink-0 place-items-center",
-									"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
-									selection.isHome
-										? "group-data-[collapsible=icon]:bg-interactive-active"
-										: "group-data-[collapsible=icon]:hover:bg-interactive-hover",
-								)}
-								onClick={selection.goHome}
-								type="button"
-							>
-								<img src={operatorLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
-							</button>
-						</TooltipTrigger>
-						<TooltipContent side="right" hidden={state !== "collapsed"}>
-							{t("shell.orchestratorBoard")}
-						</TooltipContent>
-					</Tooltip>
-					<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden">
-						Operator
-					</span>
-					{isNightly && (
-						<span className="sidebar-expanded-chrome shrink-0 rounded-full bg-purple-subtle px-1.5 py-0.5 text-micro font-semibold leading-none text-purple-accent group-data-[collapsible=icon]:hidden">
-							{t("shell.nightly")}
-						</span>
-					)}
-				</div>
-			</SidebarHeader>
+
 
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
-				{commandPaletteEnabled ? (
-					<SidebarGroup className="p-0 pb-4">
-						<SidebarGroupContent>
-							<SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:gap-1">
-								<SidebarSearchButton onOpen={() => setCommandPaletteOpen(true)} />
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
-				) : null}
+				<div className="sidebar-tab-search group-data-[collapsible=icon]:hidden">
+					<Search aria-hidden="true" />
+					<input aria-label={t("shell.searchTabsPlaceholder")} placeholder={t("shell.searchTabsPlaceholder")} value={sidebarFilter} onChange={(event) => setSidebarFilter(event.target.value)} />
+					<button type="button" aria-label={t("shell.sidebarOptions")} onClick={selection.goGlobalSettings}><SlidersHorizontal aria-hidden="true" /></button>
+					<button type="button" aria-label={t("shell.newTask")} onClick={() => selection.activeProjectId ? useUiStore.getState().requestNewTask(selection.activeProjectId) : useUiStore.getState().requestCreateProject()}><Plus aria-hidden="true" /></button>
+				</div>
 
 				{/* Pinned — collapsible; hidden when empty. */}
 				{pinnedSessions.length > 0 && (
@@ -378,11 +320,12 @@ export function Sidebar({
 							</div>
 						) : workspaces.length === 0 ? null : (
 							<SidebarMenu className="gap-0.5 rounded-lg overflow-hidden group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:overflow-visible">
-								{workspaces.map((workspace) => (
+								{visibleWorkspaces.map((workspace) => (
 									<ProjectItem
 										key={workspace.id}
 										workspace={workspace}
-										expanded={!collapsedIds.has(workspace.id)}
+										expanded={Boolean(searchQuery) || !collapsedIds.has(workspace.id)}
+										searchQuery={searchQuery}
 										selection={selection}
 										onToggle={() => toggleCollapsed(workspace.id)}
 										onRemoveProject={onRemoveProject}
@@ -471,12 +414,14 @@ export function Sidebar({
 type Selection = ReturnType<typeof useSelection>;
 
 function ProjectItem({
+	searchQuery = "",
 	workspace,
 	expanded,
 	selection,
 	onToggle,
 	onRemoveProject,
 }: {
+	searchQuery?: string;
 	workspace: WorkspaceSummary;
 	expanded: boolean;
 	selection: Selection;
@@ -515,7 +460,7 @@ function ProjectItem({
 	// Keep completed PR sessions reachable while their runtime still exists.
 	// Only termination removes a worker from the sidebar; archived sessions stay
 	// reachable through SessionsBoard.
-	const sessions = workerSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
+	const sessions = workerSessions(workspace.sessions).filter((session) => session.isTerminated !== true && (workspace.name.toLocaleLowerCase().includes(searchQuery) || session.title.toLocaleLowerCase().includes(searchQuery)));
 	// The project's live orchestrator (if any) backs the hover Orchestrator
 	// button: navigate to it when present, otherwise spawn one first.
 	const orchestrator = newestActiveOrchestrator(workspace.sessions);
@@ -1232,46 +1177,6 @@ function SectionDisclosure({
 		>
 			{labelRow}
 		</button>
-	);
-}
-
-function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
-	const { t } = useTranslation();
-	const { state } = useSidebar();
-	const isCollapsed = state === "collapsed";
-	const overrides = useKeybindingsStore((store) => store.overrides);
-	const paletteBinding = effectiveShortcutBindings("command-palette", isMac, overrides)[0];
-	const commandPaletteShortcutLabel = paletteBinding
-		? shortcutBindingKeys(paletteBinding, isMac).join(isMac ? " " : "+")
-		: "Unassigned";
-	return (
-		<SidebarMenuItem className="group-data-[collapsible=icon]:mb-0">
-			<SidebarMenuButton
-				aria-label={t("shell.search")}
-				onClick={() => {
-					// Open on the microtask after this click rather than inside it: mounting
-					// the palette dialog while this button's tooltip layer is still tearing
-					// down from the same pointer sequence dismissed it immediately. The
-					// "defers opening" test pins the deferral so it is not dropped as noise.
-					queueMicrotask(onOpen);
-				}}
-				tooltip={isCollapsed ? t("shell.search") : undefined}
-				className={cn(
-					// Filled search trigger (Cursor-style): icon + label.
-					"h-8 gap-2 rounded-lg bg-muted px-2.5 text-sm font-normal text-muted-foreground",
-					"transition-[background-color,color] duration-150 ease-out hover:bg-interactive-hover! hover:text-foreground active:bg-interactive-hover! [&_svg]:size-icon-sm!",
-					"group-data-[collapsible=icon]:size-control-form! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:hover:bg-interactive-hover!",
-				)}
-			>
-				<Search strokeWidth={1.75} aria-hidden="true" />
-				<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-left leading-none group-data-[collapsible=icon]:hidden">
-					{t("shell.search")}
-				</span>
-				<kbd className="sidebar-expanded-chrome ml-auto shrink-0 rounded-sm border border-border-strong/60 bg-surface/50 px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground/80 group-data-[collapsible=icon]:hidden">
-					{commandPaletteShortcutLabel}
-				</kbd>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
 	);
 }
 

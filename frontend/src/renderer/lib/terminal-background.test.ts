@@ -14,19 +14,19 @@ afterEach(() => {
 });
 
 describe("readStoredTerminalBackground", () => {
-	it("falls back to black when nothing is stored", () => {
-		expect(readStoredTerminalBackground()).toBe("black");
-		expect(defaultTerminalBackground).toBe("black");
+	it("falls back to charcoal when nothing is stored", () => {
+		expect(readStoredTerminalBackground()).toBe("charcoal");
+		expect(defaultTerminalBackground).toBe("charcoal");
 	});
 
-	it("falls back to black when the stored value is not a known id", () => {
+	it("falls back to charcoal when the stored value is not a known id", () => {
 		window.localStorage.setItem(terminalBackgroundStorageKey, "chartreuse");
-		expect(readStoredTerminalBackground()).toBe("black");
+		expect(readStoredTerminalBackground()).toBe("charcoal");
 	});
 
 	it("returns a stored id", () => {
-		window.localStorage.setItem(terminalBackgroundStorageKey, "charcoal");
-		expect(readStoredTerminalBackground()).toBe("charcoal");
+		window.localStorage.setItem(terminalBackgroundStorageKey, "black");
+		expect(readStoredTerminalBackground()).toBe("black");
 	});
 });
 
@@ -36,9 +36,9 @@ describe("terminalBackgroundColor", () => {
 		expect(terminalBackgroundColor("charcoal")).toBe("#1d2022");
 	});
 
-	it("lists black first, then charcoal", () => {
-		expect(TERMINAL_BACKGROUNDS[0]?.id).toBe("black");
-		expect(TERMINAL_BACKGROUNDS[1]?.id).toBe("charcoal");
+	it("lists charcoal first, then black", () => {
+		expect(TERMINAL_BACKGROUNDS[0]?.id).toBe("charcoal");
+		expect(TERMINAL_BACKGROUNDS[1]?.id).toBe("black");
 	});
 
 	it("keeps every colour a distinct six-digit hex", () => {

@@ -222,7 +222,7 @@ describe("ShellTopbar orchestrator actions", () => {
 	it("opens the board from the project-name crumb on the full orchestrator topbar", async () => {
 		renderTopbar(orchestrator);
 
-		expect(screen.getByRole("button", { name: "New task" })).toHaveClass("bg-raised");
+		expect(screen.getByRole("button", { name: "New task" })).toBeEnabled();
 		await userEvent.click(screen.getByRole("button", { name: "Open Kanban" }));
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/projects/$projectId",

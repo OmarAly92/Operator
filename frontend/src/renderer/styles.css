@@ -3382,3 +3382,218 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 	padding-inline: var(--space-2_5);
 	padding-block: var(--space-2);
 }
+
+.desktop-titlebar {
+	position: relative;
+	z-index: var(--z-titlebar);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 35px;
+	flex-shrink: 0;
+	padding: 0 8px;
+	border-bottom: 1px solid var(--color-border);
+	background: var(--background);
+}
+
+.desktop-titlebar--mac {
+	padding-left: var(--size-titlebar-cluster-left);
+}
+
+.desktop-titlebar__navigation,
+.desktop-titlebar__account {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.desktop-titlebar__account {
+	margin-left: auto;
+}
+
+.desktop-titlebar__icon {
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 4px;
+	color: var(--color-text-muted);
+}
+
+.desktop-titlebar__icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.desktop-titlebar__icon[aria-pressed="true"] {
+	background: color-mix(in srgb, var(--foreground) 14%, var(--background));
+	color: var(--foreground);
+}
+
+.desktop-titlebar__icon:hover {
+	color: var(--color-text-primary);
+	background: var(--color-interactive-hover);
+}
+
+.desktop-titlebar__search {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: min(320px, calc(100% - 360px));
+	height: 30px;
+	padding: 0 14px;
+	border-radius: 8px;
+	background: var(--secondary);
+	color: var(--color-text-muted);
+	font-size: 12.5px;
+	text-align: left;
+}
+
+.desktop-titlebar__search svg {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+}
+
+.desktop-titlebar__search span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.desktop-titlebar__search:hover {
+	background: var(--color-interactive-active);
+}
+
+.desktop-titlebar__avatar {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	border: 1px solid var(--color-border-strong);
+	border-radius: 50%;
+	background: var(--popover);
+	font-size: 11.5px;
+	font-weight: 600;
+}
+
+.desktop-design {
+	--desktop-chrome-height: 35px;
+}
+
+.desktop-design.platform-windows {
+	--desktop-chrome-height: calc(35px + var(--size-window-titlebar));
+}
+
+.desktop-design [data-topbar-offset] {
+	--sidebar-chrome-offset: var(--desktop-chrome-height);
+}
+
+.desktop-design .center-panel-shell {
+	padding: 0;
+}
+
+.desktop-design .center-panel-surface {
+	border: 0;
+	border-radius: 0;
+}
+
+.desktop-design .center-panel-titlebar {
+	height: 48px;
+	min-height: 48px;
+	padding-left: 18px;
+}
+
+.desktop-design .session-topbar-titlebar-clearance-mac,
+.desktop-design .session-topbar-titlebar-clearance-linux {
+	padding-left: 0;
+}
+
+.desktop-design [data-slot="sidebar-container"] {
+	top: var(--desktop-chrome-height);
+	height: calc(100svh - var(--desktop-chrome-height)) !important;
+	border-right: 1px solid var(--color-border);
+}
+
+.sidebar-tab-search {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 32px;
+	margin: 4px 2px 8px;
+	padding: 0 10px;
+	border-radius: 8px;
+	background: var(--secondary);
+	color: var(--color-text-passive);
+}
+
+.sidebar-tab-search svg {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+}
+
+.sidebar-tab-search input {
+	width: 100%;
+	min-width: 0;
+	border: 0;
+	outline: none;
+	background: transparent;
+	color: var(--foreground);
+	font-size: 13px;
+}
+
+.sidebar-tab-search button:hover {
+	color: var(--foreground);
+}
+
+@media (max-width: 680px) {
+	.desktop-titlebar__search {
+		position: static;
+		transform: none;
+		width: auto;
+		min-width: 30px;
+		flex: 1;
+	}
+}
+
+.desktop-new-task .composer-prompt-surface > textarea {
+	min-height: 104px;
+	padding: 10px 22px 12px;
+}
+
+.desktop-new-task .composer-toolbar {
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 18px 14px;
+	padding: 0 22px 22px;
+}
+
+.desktop-new-task .composer-run-controls {
+	height: 38px;
+	border: 1px solid var(--color-border-strong);
+	border-radius: 10px;
+	background: var(--input);
+}
+
+.desktop-new-task .composer-toolbar > label {
+	font-size: 13px;
+}
+
+.desktop-new-task .composer-toolbar > button[type="button"] {
+	grid-column: 3;
+	width: 20px;
+}
+
+.desktop-new-task .composer-toolbar > button[type="submit"] {
+	grid-column: 1 / -1;
+	height: 40px;
+	border-radius: 10px;
+	font-size: 14px;
+}
+
+.desktop-design [data-session-row] button {
+	font-size: 13px;
+}

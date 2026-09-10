@@ -361,6 +361,7 @@ describe("BlockTerminal", () => {
 	});
 
 	it("publishes the terminal background to :root so the surround tracks one colour", async () => {
+		useUiStore.setState({ terminalBackground: "black" });
 		// Everything behind the grid -- pane surface, retained terminal slot,
 		// overlays -- reads --terminal-background. Without this the surround stayed on the
 		// skin's own terminal colour and drifted from the terminal itself.

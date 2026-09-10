@@ -91,7 +91,7 @@ describe("NewTaskDialog", () => {
 
 		const dialog = screen.getByRole("dialog", { name: "Create a new task" });
 		expect(dialog.querySelector(".composer-prompt-surface")).not.toBeNull();
-		expect(screen.getByText("Create a new task")).toHaveClass("settings-dialog-title");
+		expect(screen.getByRole("heading", { name: "Create a new task" })).toBeVisible();
 		expect(screen.queryByText("Runs with")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Close new task dialog" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();

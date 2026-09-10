@@ -12,11 +12,11 @@ describe("isNightlyBuild", () => {
 });
 
 describe("isCommandPaletteEnabled", () => {
-	it("is on in dev or nightly, off otherwise", () => {
+	it("enables search in identified desktop builds and development", () => {
 		expect(isCommandPaletteEnabled("0.10.3", true)).toBe(true);
 		expect(isCommandPaletteEnabled(undefined, true)).toBe(true);
 		expect(isCommandPaletteEnabled("0.10.4-nightly.202607071200+abc123", false)).toBe(true);
-		expect(isCommandPaletteEnabled("0.10.3", false)).toBe(false);
+		expect(isCommandPaletteEnabled("0.10.3", false)).toBe(true);
 		expect(isCommandPaletteEnabled(undefined, false)).toBe(false);
 	});
 });

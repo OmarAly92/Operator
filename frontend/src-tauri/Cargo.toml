@@ -41,3 +41,7 @@ arboard = { version = "=3.6.1", default-features = false, features = ["wayland-d
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSWindow", "NSButton", "NSView", "NSResponder"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["NSGeometry"] }

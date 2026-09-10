@@ -195,7 +195,7 @@
 	--size-browser-url: 29px;
 	--size-browser-min: 320px;
 	--size-sidebar-icon: 48px;
-	--size-sidebar-default: 240px;
+	--size-sidebar-default: 250px;
 	--size-sidebar-mobile: 288px;
 	/* The traffic-light row ends at 72px (20px inset + 3 dots on a 20px pitch);
 	 * the extra 12px keeps the sidebar toggle off the green dot. */
@@ -263,9 +263,9 @@
 	/* Command palette */
 	--radius-command-palette: 12px;
 	--radius-command-item: 6px;
-	--size-command-palette: 720px;
+	--size-command-palette: 660px;
 	--size-command-palette-top: 14vh;
-	--size-command-palette-list-max: 420px;
+	--size-command-palette-list-max: 380px;
 	--size-command-palette-list-vh: 50vh;
 	--size-command-subtitle-max: 45%;
 	--size-command-pad-x: 20px;
@@ -334,8 +334,8 @@
 	--size-settings-row-value-max-percent: 55%;
 	--size-settings-footer-button-padding-x: 20px;
 	--size-settings-dialog: 575px;
-	--size-settings-dialog-wide: 920px;
-	--size-settings-dialog-height: 680px;
+	--size-settings-dialog-wide: 760px;
+	--size-settings-dialog-height: 470px;
 	--size-settings-dialog-max-h: 680px;
 
 	/* Project / workspace agents sheet — aliases shared chrome where themes match */

@@ -4,7 +4,6 @@ import { useParams } from "@tanstack/react-router";
 import {
 	ArrowUpRight,
 	Bell,
-	BellRing,
 	CheckCheck,
 	CircleAlert,
 	GitMerge,
@@ -289,13 +288,9 @@ export function NotificationCenter({ style }: NotificationCenterProps) {
 					style={style}
 					variant="icon"
 				>
+					<Inbox className="size-4" aria-hidden="true" />
 					{unreadCount > 0 ? (
-						<BellRing className="size-5 fill-current text-foreground" aria-hidden="true" />
-					) : (
-						<Bell className="size-5" aria-hidden="true" />
-					)}
-					{unreadCount > 0 ? (
-						<span className="pointer-events-none absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-foreground px-1 font-mono text-[9px] font-semibold leading-4 text-background shadow-sm">
+						<span className="pointer-events-none absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-status-needs-you px-1 font-mono text-[9px] font-semibold leading-4 text-background shadow-sm">
 							{unreadCount > 99 ? "99+" : unreadCount}
 						</span>
 					) : null}
