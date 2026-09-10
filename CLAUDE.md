@@ -4,6 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Read and follow [`AGENTS.md`](AGENTS.md) for repository layout, commands, coding conventions, and hard rules.
 
+**Terminal work: read [`TERMINAL.md`](TERMINAL.md) first.** Before touching
+`packages/terminal`, the pty-host (`backend/internal/adapters/runtime/ptyhost`),
+`BlockTerminal`/`TerminalPane`/`useTerminalSession`, or any resize, attach or
+replay code, read `TERMINAL.md` end to end. It records the terminal pipeline,
+the bugs already solved and the tests that guard them, the exact verify-and-ship
+recipe (both wasm builds, daemon rebuild), and what is upstream and must not be
+chased again.
+
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.
 
