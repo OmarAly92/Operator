@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { operatorBridge } from "../lib/bridge";
+import { paneGridBody } from "../lib/pane-grid";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
 
 export type RestoreSessionResult =
@@ -15,6 +16,7 @@ export function useRestoreSession(): (sessionId: string) => Promise<RestoreSessi
 			try {
 				const { data, error } = await apiClient.POST("/api/v1/sessions/{sessionId}/restore", {
 					params: { path: { sessionId } },
+					body: paneGridBody(),
 				});
 				if (error) {
 					const code = (error as { code?: string }).code;

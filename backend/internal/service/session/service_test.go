@@ -1210,7 +1210,7 @@ func (*fakeCommander) ListAgentSwitches(context.Context, domain.SessionID) ([]do
 func (*fakeCommander) SubmitAgentHandoff(context.Context, domain.SessionID, domain.AgentSwitchID, domain.AgentGenerationID, json.RawMessage) (domain.AgentSwitch, error) {
 	return domain.AgentSwitch{}, nil
 }
-func (f *fakeCommander) RestoreWithMode(context.Context, domain.SessionID) (sessionmanager.RestoreResult, error) {
+func (f *fakeCommander) RestoreWithMode(context.Context, domain.SessionID, ports.PaneGrid) (sessionmanager.RestoreResult, error) {
 	if f.restoreErr != nil {
 		return sessionmanager.RestoreResult{}, f.restoreErr
 	}
@@ -1817,7 +1817,7 @@ func TestRestoreMapsManagerModeToServiceView(t *testing.T) {
 	}
 	svc := &Service{manager: fc, store: st}
 
-	got, err := svc.Restore(context.Background(), "mer-1")
+	got, err := svc.Restore(context.Background(), "mer-1", ports.PaneGrid{})
 	if err != nil {
 		t.Fatalf("Restore: %v", err)
 	}

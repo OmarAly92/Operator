@@ -1591,6 +1591,12 @@ export interface components {
         ContainerReapConfig: {
             disabled?: boolean;
         };
+        ControllersRestoreSessionRequest: {
+            /** @description Columns of the terminal pane that will show the restored session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
+            cols?: number;
+            /** @description Rows of the terminal pane that will show the restored session; see cols. */
+            rows?: number;
+        };
         ControllersSessionAnswerRequest: {
             requestId: string;
             selections: string[][];
@@ -6173,7 +6179,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ControllersRestoreSessionRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

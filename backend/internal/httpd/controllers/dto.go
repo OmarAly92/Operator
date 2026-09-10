@@ -543,6 +543,12 @@ type SetSessionAutoInjectReviewResponse struct {
 }
 
 // RestoreSessionResponse is the body of POST /api/v1/sessions/{sessionId}/restore.
+// RestoreSessionRequest is the optional body of POST /api/v1/sessions/{sessionId}/restore.
+type RestoreSessionRequest struct {
+	Cols int `json:"cols,omitempty" description:"Columns of the terminal pane that will show the restored session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
+	Rows int `json:"rows,omitempty" description:"Rows of the terminal pane that will show the restored session; see cols." minimum:"1" maximum:"1000"`
+}
+
 type RestoreSessionResponse struct {
 	OK          bool                       `json:"ok"`
 	SessionID   domain.SessionID           `json:"sessionId"`

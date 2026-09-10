@@ -1287,7 +1287,7 @@ func (m *Manager) retireWorkspaceProjectForReplacement(ctx context.Context, rec 
 // native resume, a saved-prompt fallback, or a fresh launch. The fallible I/O
 // runs before any durable session write, so a failure never resurrects the row
 // or destroys the worktree (it may hold the agent's prior work).
-func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (RestoreResult, error) {
+func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (RestoreResult, error) {
 	if err := m.beginAgentOperation(ctx, id, agentOperationRestore); err != nil {
 		if errors.Is(err, errAgentOperationInProgress) {
 			err = ErrSwitchInProgress
@@ -1328,11 +1328,11 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (Res
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("restore %s: workspace: %w", id, err)
 	}
-	return m.relaunchRestoredSession(ctx, rec, project, ws)
+	return m.relaunchRestoredSession(ctx, rec, project, ws, grid)
 }
 
-func (m *Manager) relaunchRestoredSession(ctx context.Context, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo) (RestoreResult, error) {
-	result, err := m.relaunchSession(ctx, "restore", rec, project, ws, nil)
+func (m *Manager) relaunchRestoredSession(ctx context.Context, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, grid ports.PaneGrid) (RestoreResult, error) {
+	result, err := m.relaunchSession(ctx, "restore", rec, project, ws, nil, grid)
 	if err != nil {
 		return RestoreResult{}, err
 	}
@@ -1384,14 +1384,14 @@ func (m *Manager) ResumeAgentWithMode(ctx context.Context, id domain.SessionID) 
 		Mode:      meta.WorkspaceMode,
 	}
 	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
-	return m.relaunchSession(ctx, "resume agent", rec, project, ws, &handle)
+	return m.relaunchSession(ctx, "resume agent", rec, project, ws, &handle, ports.PaneGrid{})
 }
 
-func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle) (RestoreResult, error) {
-	return m.relaunchSessionWithPolicy(ctx, operation, rec, project, ws, restartHandle)
+func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
+	return m.relaunchSessionWithPolicy(ctx, operation, rec, project, ws, restartHandle, grid)
 }
 
-func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle) (RestoreResult, error) {
+func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return RestoreResult{}, fmt.Errorf("%s %s: no agent adapter for harness %q", operation, rec.ID, rec.Harness)
@@ -1453,6 +1453,8 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		WorkspacePath: ws.Path,
 		Argv:          argv,
 		Env:           env,
+		Cols:          grid.Cols,
+		Rows:          grid.Rows,
 	}
 	var handle ports.RuntimeHandle
 	if restartHandle == nil {
@@ -1873,7 +1875,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 		}
 
 		// Step 3: relaunch the agent in the restored workspace.
-		if _, err := m.relaunchRestoredSession(ctx, rec, project, ws); err != nil {
+		if _, err := m.relaunchRestoredSession(ctx, rec, project, ws, ports.PaneGrid{}); err != nil {
 			switch {
 			case errors.Is(err, ErrNotResumable):
 				// A promptless, unresumable worker is intentionally left terminated:

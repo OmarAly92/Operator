@@ -2849,6 +2849,11 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersRestoreSessionRequest'
       responses:
         "200":
           content:
@@ -4538,6 +4543,22 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersRestoreSessionRequest:
+      properties:
+        cols:
+          description: Columns of the terminal pane that will show the restored session,
+            so the pty is born at that width instead of being resized on first attach.
+            Omit when unknown.
+          maximum: 1000
+          minimum: 1
+          type: integer
+        rows:
+          description: Rows of the terminal pane that will show the restored session;
+            see cols.
+          maximum: 1000
+          minimum: 1
+          type: integer
       type: object
     ControllersSessionAnswerRequest:
       properties:

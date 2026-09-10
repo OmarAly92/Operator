@@ -57,7 +57,7 @@ type commander interface {
 	SwitchAgent(ctx context.Context, id domain.SessionID, cfg sessionmanager.SwitchAgentConfig) (domain.AgentSwitch, error)
 	ListAgentSwitches(ctx context.Context, id domain.SessionID) ([]domain.AgentSwitch, error)
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
-	RestoreWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
+	RestoreWithMode(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	RetireForReplacement(ctx context.Context, id domain.SessionID) error
@@ -479,8 +479,8 @@ func (s *Service) lockOrchestratorProject(projectID domain.ProjectID) func() {
 }
 
 // Restore relaunches a terminated session and returns the API-facing read model.
-func (s *Service) Restore(ctx context.Context, id domain.SessionID) (RestoreOutcome, error) {
-	res, err := s.manager.RestoreWithMode(ctx, id)
+func (s *Service) Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (RestoreOutcome, error) {
+	res, err := s.manager.RestoreWithMode(ctx, id, grid)
 	if err != nil {
 		return RestoreOutcome{}, toAPIError(err)
 	}

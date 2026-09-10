@@ -11,6 +11,13 @@ var ErrSessionNotFound = errors.New("session not found")
 
 // SpawnConfig is the request to start a new session: which project/issue, which
 // agent harness, and the branch/prompt the agent launches with.
+// PaneGrid is the size of the terminal pane that will show a session, so a
+// pty can be born at that grid. The zero value means unknown.
+type PaneGrid struct {
+	Cols int
+	Rows int
+}
+
 type SpawnConfig struct {
 	ProjectID domain.ProjectID
 	IssueID   domain.IssueID

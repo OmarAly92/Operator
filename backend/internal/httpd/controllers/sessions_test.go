@@ -57,6 +57,7 @@ type fakeSessionService struct {
 	workspacePaths   []string
 	spawnErr         error
 	lastSpawnConfig  ports.SpawnConfig
+	lastRestoreGrid  ports.PaneGrid
 	claimErr         error
 	listPRErr        error
 	workspaceErr     error
@@ -255,7 +256,8 @@ func (f *fakeSessionService) SetReviewerHarness(_ context.Context, id domain.Ses
 	return s, nil
 }
 
-func (f *fakeSessionService) Restore(_ context.Context, id domain.SessionID) (sessionsvc.RestoreOutcome, error) {
+func (f *fakeSessionService) Restore(_ context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error) {
+	f.lastRestoreGrid = grid
 	s := f.sessions[id]
 	s.IsTerminated = false
 	s.Status = domain.StatusIdle
@@ -2536,5 +2538,31 @@ func TestCreateSessionForwardsThePaneGrid(t *testing.T) {
 	}
 	if svc.lastSpawnConfig.Cols != 132 || svc.lastSpawnConfig.Rows != 43 {
 		t.Fatalf("grid forwarded as %dx%d, want 132x43", svc.lastSpawnConfig.Cols, svc.lastSpawnConfig.Rows)
+	}
+}
+
+func TestRestoreSessionForwardsThePaneGrid(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.sessions["opr-1"] = domain.Session{SessionRecord: domain.SessionRecord{ID: "opr-1", ProjectID: "opr", IsTerminated: true}}
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restore", `{"cols":132,"rows":43}`)
+	if status != http.StatusOK {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.lastRestoreGrid != (ports.PaneGrid{Cols: 132, Rows: 43}) {
+		t.Fatalf("grid forwarded as %+v, want 132x43", svc.lastRestoreGrid)
+	}
+}
+
+func TestRestoreSessionAcceptsAnEmptyBody(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.sessions["opr-1"] = domain.Session{SessionRecord: domain.SessionRecord{ID: "opr-1", ProjectID: "opr", IsTerminated: true}}
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/restore", "")
+	if status != http.StatusOK {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.lastRestoreGrid != (ports.PaneGrid{}) {
+		t.Fatalf("grid = %+v, want zero", svc.lastRestoreGrid)
 	}
 }

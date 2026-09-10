@@ -1366,8 +1366,10 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/restore", id: "restoreSession", tag: "sessions",
-			summary:    "Restore a terminated session",
-			pathParams: []any{controllers.SessionIDParam{}},
+			summary:         "Restore a terminated session",
+			pathParams:      []any{controllers.SessionIDParam{}},
+			reqBody:         controllers.RestoreSessionRequest{},
+			optionalReqBody: true,
 			resps: []respUnit{
 				{http.StatusOK, controllers.RestoreSessionResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
