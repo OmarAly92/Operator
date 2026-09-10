@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
 import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
+import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture.js";
 import {
 	createCompositionTarget,
 	decodeBlocks,
@@ -68,6 +69,10 @@ const VELOCITY_SMOOTHING = 0.3;
 // thousands of pixels per second for an ordinary scroll.
 const MIN_VELOCITY_SAMPLE_MS = 4;
 
+const IS_MAC =
+	typeof navigator !== "undefined" &&
+	/Mac|iPhone|iPad|Darwin/iu.test(`${navigator.platform} ${navigator.userAgent}`);
+
 function accelerationGain(velocityPxPerSec: number): number {
 	const gain = velocityPxPerSec / ACCEL_REFERENCE_PX_PER_SEC;
 	return Math.min(Math.max(gain, 1), ACCEL_MAX_GAIN);
@@ -98,6 +103,8 @@ export function TerminalSurface({
 	const gridColumnsRef = useRef(0);
 	const gridRowsRef = useRef(0);
 	const compositionRef = useRef<CompositionTarget | null>(null);
+	const hostCapsRef = useRef(host);
+	hostCapsRef.current = host;
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
@@ -203,6 +210,7 @@ export function TerminalSurface({
 			}
 			lastColumns = columns;
 			lastRows = rows;
+			renderer.selectionClear();
 			core.resize(columns, rows);
 			onGeometry?.(columns, rows);
 		};
@@ -234,6 +242,9 @@ export function TerminalSurface({
 		});
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
+				return;
+			}
+			if (isCopyChord(event, IS_MAC)) {
 				return;
 			}
 			const data = encodeKey(event, appCursor());
@@ -270,11 +281,70 @@ export function TerminalSurface({
 
 	useLayoutEffect(() => {
 		const blockHost = hostRef.current;
-		if (!blockHost) return;
+		const editorHost = editorHostRef.current;
+		if (!blockHost || !editorHost) return;
 		let pendingWheelLines = 0;
 		let velocityPxPerSec = 0;
 		let lastWheelAt = 0;
 		let dragButton: 0 | 1 | 2 | null = null;
+		let pressOrigin: { x: number; y: number } | null = null;
+		let pressPoint: import("@operator/terminal-renderer-dom").SelectionPoint | null = null;
+		let pressKind: import("@operator/terminal-renderer-dom").SelectionKind = "simple";
+		let dragging = false;
+		let autoScroll: number | null = null;
+		let lastPointer = { x: 0, y: 0 };
+		const renderer = () => rendererRef.current;
+		const stopAutoScroll = () => {
+			if (autoScroll !== null) cancelAnimationFrame(autoScroll);
+			autoScroll = null;
+		};
+		const extendTo = (x: number, y: number) => {
+			const target = renderer();
+			if (!target) return;
+			const bounds = blockHost.getBoundingClientRect();
+			const clampedX = bounds.width > 0 ? Math.min(Math.max(x, bounds.left), bounds.right) : x;
+			const clampedY = bounds.height > 0 ? Math.min(Math.max(y, bounds.top), bounds.bottom) : y;
+			const point = target.pointAt(clampedX, clampedY);
+			if (point) target.selectionUpdate(point);
+		};
+		const autoScrollStep = () => {
+			autoScroll = null;
+			const bounds = blockHost.getBoundingClientRect();
+			const rows = autoScrollRows(lastPointer.y, bounds.top, bounds.bottom);
+			if (rows === 0 || !dragging) return;
+			const cellHeight = renderer()?.measure().cellHeight ?? 0;
+			blockHost.scrollTop += rows * cellHeight;
+			extendTo(lastPointer.x, lastPointer.y);
+			autoScroll = requestAnimationFrame(autoScrollStep);
+		};
+		const onWindowMouseMove = (event: MouseEvent) => {
+			if (!pressOrigin || !pressPoint) return;
+			lastPointer = { x: event.clientX, y: event.clientY };
+			const target = renderer();
+			if (!target) return;
+			if (!dragging) {
+				if (!exceedsDragThreshold(pressOrigin, event.clientX, event.clientY)) return;
+				dragging = true;
+				if (pressKind === "simple") target.selectionBegin(pressPoint, "simple");
+			}
+			extendTo(event.clientX, event.clientY);
+			const bounds = blockHost.getBoundingClientRect();
+			if (autoScrollRows(event.clientY, bounds.top, bounds.bottom) !== 0) {
+				if (autoScroll === null && core.snapshot().altScreen === null) autoScroll = requestAnimationFrame(autoScrollStep);
+			} else {
+				stopAutoScroll();
+			}
+		};
+		const onWindowMouseUp = () => {
+			const target = renderer();
+			if (target && pressOrigin && !dragging && pressKind === "simple") target.selectionClear();
+			pressOrigin = null;
+			pressPoint = null;
+			dragging = false;
+			stopAutoScroll();
+			window.removeEventListener("mousemove", onWindowMouseMove);
+			window.removeEventListener("mouseup", onWindowMouseUp);
+		};
 		const sampleVelocity = (deltaY: number): number => {
 			const now = performance.now();
 			const elapsed = now - lastWheelAt;
@@ -321,10 +391,25 @@ export function TerminalSurface({
 			const button = buttonOf(event);
 			if (button === null) return;
 			const data = reportFor("press", button, event);
-			if (data === null) return;
+			if (data !== null) {
+				event.preventDefault();
+				dragButton = button;
+				onSendRaw(data);
+				return;
+			}
+			if (button !== 0) return;
+			const target = renderer();
+			if (!target) return;
+			const point = target.pointAt(event.clientX, event.clientY);
+			if (!point) return;
 			event.preventDefault();
-			dragButton = button;
-			onSendRaw(data);
+			pressOrigin = { x: event.clientX, y: event.clientY };
+			pressPoint = point;
+			pressKind = kindForClickCount(event.detail);
+			dragging = false;
+			if (pressKind !== "simple") target.selectionBegin(point, pressKind);
+			window.addEventListener("mousemove", onWindowMouseMove);
+			window.addEventListener("mouseup", onWindowMouseUp);
 		};
 		const onMouseMove = (event: MouseEvent) => {
 			const data =
@@ -400,12 +485,29 @@ export function TerminalSurface({
 			if (!core.snapshot().focusReporting) return;
 			onSendRaw("\x1b[O");
 		};
+		const onCopyKey = (event: KeyboardEvent) => {
+			const target = renderer();
+			if (!target || !isCopyChord(event, IS_MAC)) return;
+			const text = target.selectedText();
+			if (text === null) return;
+			event.preventDefault();
+			event.stopPropagation();
+			void hostCapsRef.current?.writeClipboard(text);
+		};
+		const onEditorTyping = (event: KeyboardEvent) => {
+			if (event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta") return;
+			if (isCopyChord(event, IS_MAC)) return;
+			renderer()?.selectionClear();
+		};
 		blockHost.addEventListener("mousedown", onMouseDown);
 		blockHost.addEventListener("mousemove", onMouseMove);
 		window.addEventListener("mouseup", onMouseUp);
 		blockHost.addEventListener("wheel", onWheel, { passive: false });
 		blockHost.addEventListener("focusin", onFocusIn);
 		blockHost.addEventListener("focusout", onFocusOut);
+		blockHost.addEventListener("keydown", onCopyKey);
+		editorHost.addEventListener("keydown", onCopyKey);
+		editorHost.addEventListener("keydown", onEditorTyping);
 		return () => {
 			blockHost.removeEventListener("mousedown", onMouseDown);
 			blockHost.removeEventListener("mousemove", onMouseMove);
@@ -413,6 +515,12 @@ export function TerminalSurface({
 			blockHost.removeEventListener("wheel", onWheel);
 			blockHost.removeEventListener("focusin", onFocusIn);
 			blockHost.removeEventListener("focusout", onFocusOut);
+			blockHost.removeEventListener("keydown", onCopyKey);
+			editorHost.removeEventListener("keydown", onCopyKey);
+			editorHost.removeEventListener("keydown", onEditorTyping);
+			window.removeEventListener("mousemove", onWindowMouseMove);
+			window.removeEventListener("mouseup", onWindowMouseUp);
+			stopAutoScroll();
 		};
 	}, [core, onSendRaw]);
 
@@ -434,8 +542,7 @@ export function TerminalSurface({
 	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
 	// not mousedown, so a drag-select is left alone.
 	const focusEditorFromHost = useCallback(() => {
-		const selection = document.getSelection();
-		if (selection && !selection.isCollapsed) return;
+		if (rendererRef.current?.hasSelection()) return;
 		if (altActive) {
 			compositionRef.current?.focus();
 			return;

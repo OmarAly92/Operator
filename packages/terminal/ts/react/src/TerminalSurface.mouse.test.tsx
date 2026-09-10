@@ -199,7 +199,7 @@ describe("TerminalSurface mouse and wheel", () => {
 		const event = new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true });
 		surface.dispatchEvent(event);
 		expect(onSendRaw).not.toHaveBeenCalled();
-		expect(event.defaultPrevented).toBe(false);
+		expect(event.defaultPrevented).toBe(true);
 	});
 
 	it("measures a normal-buffer click from the painted row, not the host box", async () => {
@@ -337,5 +337,85 @@ describe("TerminalSurface mouse and wheel", () => {
 		surface.dispatchEvent(move);
 		expect(onSendRaw.mock.calls.at(-1)![0]).toMatch(/^\x1b\[<32;\d+;\d+M$/);
 		expect(move.defaultPrevented).toBe(false);
+	});
+});
+
+function layoutRows(container: HTMLElement): HTMLElement[] {
+	const rows = [...container.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+	rows.forEach((row, index) => {
+		row.getBoundingClientRect = () => ({ left: 0, right: 600, width: 600, top: index * cellHeight, bottom: (index + 1) * cellHeight, height: cellHeight, x: 0, y: index * cellHeight, toJSON: () => ({}) }) as DOMRect;
+	});
+	return rows;
+}
+
+function mouse(target: EventTarget, type: string, x: number, y: number, init: MouseEventInit = {}): void {
+	target.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true, ...init }));
+}
+
+describe("TerminalSurface selection", () => {
+	beforeAll(loadWasm);
+	afterEach(() => cleanup());
+
+	it("selects with a drag, keeps it through output, and copies with the platform chord", async () => {
+		const writeClipboard = vi.fn(async () => {});
+		const host = { writeClipboard, readClipboard: async () => "", openLink: async () => {} };
+		const { container, core } = renderSurface({ host });
+		act(() => { feed(core, "alpha\r\nbeta\r\ngamma\r\n"); });
+		await flushRepaint();
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		const rows = layoutRows(container);
+		mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
+		mouse(window, "mousemove", cellWidth * 4, cellHeight * 1.5);
+		mouse(window, "mouseup", cellWidth * 4, cellHeight * 1.5);
+		act(() => { feed(core, "spinner\r\n"); });
+		await flushRepaint();
+		layoutRows(container);
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+		expect(writeClipboard).toHaveBeenCalledWith("alpha\nbeta");
+	});
+
+	it("does not start a selection under the drag threshold and clears on a plain click", async () => {
+		const { container, core } = renderSurface();
+		act(() => { feed(core, "alpha\r\nbeta\r\n"); });
+		await flushRepaint();
+		const rows = layoutRows(container);
+		mouse(rows[0]!, "mousedown", 0, 1, { detail: 1 });
+		mouse(window, "mousemove", cellWidth * 3, cellHeight * 1.5);
+		mouse(window, "mouseup", cellWidth * 3, cellHeight * 1.5);
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		mouse(rows[1]!, "mousedown", 10, cellHeight * 1.5, { detail: 1 });
+		mouse(window, "mousemove", 10.2, cellHeight * 1.5);
+		mouse(window, "mouseup", 10.2, cellHeight * 1.5);
+		expect(rows[0]!.style.backgroundImage).toBe("");
+	});
+
+	it("selects a word on double click and clears when the user types", async () => {
+		const { container, core } = renderSurface();
+		act(() => { feed(core, "see src/row-builder.ts now\r\n"); });
+		await flushRepaint();
+		const rows = layoutRows(container);
+		mouse(rows[0]!, "mousedown", cellWidth * 8, cellHeight * 0.5, { detail: 2 });
+		mouse(window, "mouseup", cellWidth * 8, cellHeight * 0.5);
+		expect(rows[0]!.style.backgroundImage).toContain(`transparent ${cellWidth * 4}px`);
+		const editorHost = container.querySelector(".terminal-editor-host") as HTMLElement;
+		editorHost.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
+		expect(rows[0]!.style.backgroundImage).toBe("");
+	});
+
+	it("leaves the drag to a mouse-reporting app unless shift is held", async () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => { feed(core, "\x1b[?1000h\x1b[?1006halpha\r\n"); });
+		await flushRepaint();
+		const rows = layoutRows(container);
+		mouse(rows[0]!, "mousedown", 0, 1, { detail: 1 });
+		mouse(window, "mousemove", cellWidth * 3, 1);
+		mouse(window, "mouseup", cellWidth * 3, 1);
+		expect(onSendRaw).toHaveBeenCalled();
+		expect(rows[0]!.style.backgroundImage).toBe("");
+		mouse(rows[0]!, "mousedown", 0, 1, { detail: 1, shiftKey: true });
+		mouse(window, "mousemove", cellWidth * 3, 1, { shiftKey: true });
+		mouse(window, "mouseup", cellWidth * 3, 1, { shiftKey: true });
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
 	});
 });

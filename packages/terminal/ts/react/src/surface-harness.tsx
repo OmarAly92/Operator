@@ -6,6 +6,7 @@ import {
 	createTerminalCore,
 	initTerminalCore,
 	type FontConfig,
+	type HostCapabilities,
 	type TerminalCore,
 	type TerminalTheme,
 } from "@operator/terminal-core";
@@ -58,6 +59,7 @@ export function renderSurface(
 		onPaint?: () => void;
 		onSend?: (text: string) => void;
 		onSendRaw?: (data: string) => void;
+		host?: HostCapabilities;
 	} = {},
 ) {
 	const core = createTerminalCore({ columns: 16, scrollback: 100 });
@@ -67,6 +69,7 @@ export function renderSurface(
 			theme={theme}
 			font={font}
 			altScreenActive={false}
+			host={overrides.host}
 			onSend={overrides.onSend ?? ignoreSend}
 			onSendRaw={overrides.onSendRaw ?? ignoreRaw}
 			onGeometry={overrides.onGeometry}
