@@ -11,8 +11,35 @@ fn full_screen_scroll_reports_the_evicted_row() {
     screen.scroll_up(1);
     let evicted = screen.take_evicted();
     assert_eq!(evicted.len(), 1);
-    let text: String = evicted[0].iter().map(|cell| cell.ch).collect();
+    let text: String = evicted[0].cells.iter().map(|cell| cell.ch).collect();
     assert_eq!(text.trim_end(), "top");
+    assert!(!evicted[0].wrapped);
+}
+
+#[test]
+fn a_row_the_printer_wrapped_is_evicted_flagged() {
+    let mut screen = ScreenGrid::new(2, 4);
+    screen.set_records_eviction(true);
+    for ch in "abcdef".chars() {
+        screen.print(ch, CellStyle::from_fg(StyleCode::DEFAULT));
+    }
+    screen.scroll_up(1);
+    let evicted = screen.take_evicted();
+    let text: String = evicted[0].cells.iter().map(|cell| cell.ch).collect();
+    assert_eq!(text, "abcd");
+    assert!(evicted[0].wrapped);
+}
+
+#[test]
+fn blanking_a_row_clears_its_wrap_flag() {
+    let mut screen = ScreenGrid::new(2, 4);
+    for ch in "abcdef".chars() {
+        screen.print(ch, CellStyle::from_fg(StyleCode::DEFAULT));
+    }
+    assert!(screen.row_wrapped(0));
+    screen.move_to(0, 0);
+    screen.erase_in_line(2);
+    assert!(!screen.row_wrapped(0));
 }
 
 #[test]

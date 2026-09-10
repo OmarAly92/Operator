@@ -24,6 +24,7 @@ pub(crate) struct Parser {
     bracketed_paste: bool,
     focus_reporting: bool,
     mouse_tracking: u8,
+    rewrap_pending: bool,
 }
 
 impl Parser {
@@ -45,6 +46,7 @@ impl Parser {
             bracketed_paste: false,
             focus_reporting: false,
             mouse_tracking: 0,
+            rewrap_pending: false,
         }
     }
 
@@ -192,6 +194,9 @@ impl Parser {
     }
 
     pub fn resize(&mut self, columns: usize, rows: usize) {
+        if columns != self.width {
+            self.rewrap_pending = true;
+        }
         self.width = columns;
         if self.alt.is_some() {
             self.screen.resize_without_reflow(rows, columns);
@@ -210,12 +215,17 @@ impl Parser {
         }
         for row in self.screen.take_evicted() {
             crate::scrollback::commit_row(
-                &row,
+                &row.cells,
+                row.wrapped,
                 &mut self.content,
                 &mut self.rows,
                 &mut self.styles,
             );
             self.grid.note_row_completed();
+        }
+        if std::mem::take(&mut self.rewrap_pending) {
+            let map = self.rows.rewrap(&self.content, self.width);
+            self.grid.remap_rows(&map);
         }
         self.grid
             .sync_next_row(self.rows.completed().len() + self.screen.content_rows());

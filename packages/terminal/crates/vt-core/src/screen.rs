@@ -81,10 +81,16 @@ impl Cell {
     }
 }
 
+pub struct EvictedRow {
+    pub cells: Vec<Cell>,
+    pub wrapped: bool,
+}
+
 pub struct ScreenGrid {
     rows: usize,
     cols: usize,
     cells: Vec<Cell>,
+    wrapped: Vec<bool>,
     first: usize,
     row: usize,
     max_cursor_row: usize,
@@ -98,7 +104,7 @@ pub struct ScreenGrid {
     reflow_on_resize: bool,
     clear_policy: ClearPolicy,
     erase_background: StyleCode,
-    evicted: Vec<Vec<Cell>>,
+    evicted: Vec<EvictedRow>,
 }
 
 fn clamp_dimension(value: usize) -> usize {
@@ -113,6 +119,7 @@ impl ScreenGrid {
             rows,
             cols,
             cells: vec![Cell::BLANK; rows * cols],
+            wrapped: vec![false; rows],
             first: 0,
             row: 0,
             max_cursor_row: 0,
@@ -150,7 +157,7 @@ impl ScreenGrid {
         self.clear_policy = policy;
     }
 
-    pub fn take_evicted(&mut self) -> Vec<Vec<Cell>> {
+    pub fn take_evicted(&mut self) -> Vec<EvictedRow> {
         std::mem::take(&mut self.evicted)
     }
 
@@ -159,8 +166,22 @@ impl ScreenGrid {
             return;
         }
         let start = self.phys_start(row);
-        self.evicted
-            .push(self.cells[start..start + self.cols].to_vec());
+        self.evicted.push(EvictedRow {
+            cells: self.cells[start..start + self.cols].to_vec(),
+            wrapped: self.wrapped[self.phys_row(row)],
+        });
+    }
+
+    pub fn row_wrapped(&self, row: usize) -> bool {
+        row < self.rows && self.wrapped[self.phys_row(row)]
+    }
+
+    fn set_row_wrapped(&mut self, row: usize, wrapped: bool) {
+        if row >= self.rows {
+            return;
+        }
+        let index = self.phys_row(row);
+        self.wrapped[index] = wrapped;
     }
 
     pub fn rows(&self) -> usize {
@@ -222,6 +243,9 @@ impl ScreenGrid {
         }
         let index = self.phys_start(row) + col;
         self.cells[index] = cell;
+        if col + 1 == self.cols {
+            self.set_row_wrapped(row, false);
+        }
     }
 
     pub(crate) fn blank_row(&mut self, row: usize) {
@@ -231,6 +255,12 @@ impl ScreenGrid {
         let start = self.phys_start(row);
         let blank = self.erased_cell();
         self.cells[start..start + self.cols].fill(blank);
+        self.set_row_wrapped(row, false);
+    }
+
+    #[inline]
+    fn phys_row(&self, row: usize) -> usize {
+        (row + self.first) % self.rows
     }
 
     // Logical row -> physical byte offset. The grid is a ring of rows: a
@@ -238,7 +268,7 @@ impl ScreenGrid {
     // newline costs O(cols) (one blanked row) rather than O(rows * cols).
     #[inline]
     fn phys_start(&self, row: usize) -> usize {
-        ((row + self.first) % self.rows) * self.cols
+        self.phys_row(row) * self.cols
     }
 
     // Partial scroll regions still move cells; the ring must be unwound first
@@ -247,6 +277,7 @@ impl ScreenGrid {
         if self.first != 0 {
             let shift = self.first * self.cols;
             self.cells.rotate_left(shift);
+            self.wrapped.rotate_left(self.first);
             self.first = 0;
         }
     }
@@ -264,6 +295,7 @@ impl ScreenGrid {
         let start = self.scroll_top * self.cols;
         let end = (self.scroll_bottom + 1) * self.cols;
         self.cells[start..end].rotate_left(count * self.cols);
+        self.wrapped[self.scroll_top..=self.scroll_bottom].rotate_left(count);
     }
 
     pub(crate) fn rotate_region_down(&mut self, count: usize) {
@@ -275,6 +307,7 @@ impl ScreenGrid {
         let start = self.scroll_top * self.cols;
         let end = (self.scroll_bottom + 1) * self.cols;
         self.cells[start..end].rotate_right(count * self.cols);
+        self.wrapped[self.scroll_top..=self.scroll_bottom].rotate_right(count);
     }
 
     pub(crate) fn copy_row(&mut self, from: usize, to: usize) {
@@ -285,6 +318,8 @@ impl ScreenGrid {
             let cell = self.cell(from, col);
             self.set(to, col, cell);
         }
+        let wrapped = self.row_wrapped(from);
+        self.set_row_wrapped(to, wrapped);
     }
 
     pub(crate) fn clear_pending_wrap(&mut self) {
@@ -331,6 +366,7 @@ impl ScreenGrid {
             return;
         }
         if self.pending_wrap || self.col + width > self.cols {
+            self.set_row_wrapped(self.row, true);
             self.carriage_return();
             self.line_feed();
         }
@@ -387,6 +423,7 @@ impl ScreenGrid {
 
     pub fn reset(&mut self) {
         self.cells.fill(Cell::BLANK);
+        self.wrapped.fill(false);
         self.row = 0;
         self.max_cursor_row = 0;
         self.col = 0;
@@ -417,6 +454,8 @@ impl ScreenGrid {
 
     fn reset_cells(&mut self, rows: usize, cols: usize) {
         self.cells = vec![Cell::BLANK; rows * cols];
+        self.wrapped = vec![false; rows];
+        self.first = 0;
         self.rows = rows;
         self.cols = cols;
         self.scroll_top = 0;
@@ -450,12 +489,15 @@ impl ScreenGrid {
             self.record_eviction(row);
         }
         let mut next = vec![Cell::BLANK; rows * cols];
+        let mut wrapped = vec![false; rows];
         for row in 0..rows.min(self.rows - dropped) {
             for col in 0..cols.min(self.cols) {
                 next[row * cols + col] = self.cells[self.phys_start(row + dropped) + col].clone();
             }
+            wrapped[row] = cols == self.cols && self.row_wrapped(row + dropped);
         }
         self.cells = next;
+        self.wrapped = wrapped;
         self.first = 0;
         self.rows = rows;
         self.cols = cols;

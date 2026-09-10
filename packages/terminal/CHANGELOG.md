@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+Scrollback rewraps to the pane width.
+
+- `vt-core` kept every scrollback row at the width it was written at, so after
+  a pane shrank the rows above the screen ran past its right edge and the
+  renderer grew a horizontal scrollbar to reach them. A resize now re-cuts the
+  scrollback to the new column count the way Warp's flat storage does: rows an
+  earlier cut had split are joined back into their line first, lines wider
+  than the pane are cut again on display width with wide characters kept
+  whole, and the screen records which of its rows the printer soft-wrapped so
+  a widened pane rejoins them. Content, style offsets and block ownership are
+  unchanged; only the row boundaries move. Agent TUIs get the same treatment
+  for their scrollback while their live frame is still left for them to
+  repaint.
+- `renderer-dom` clips the block list horizontally. A row can no longer be
+  wider than the grid, and a glyph that renders a hair wider than its cell must
+  not grow a scrollbar either.
+
 Blank rows survive scrolling off the screen.
 
 - `vt-core` dropped any all-blank row the moment it left the screen: the row

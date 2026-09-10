@@ -102,13 +102,7 @@ func TestReplayOfAnUntouchedTerminalIsEmpty(t *testing.T) {
 	}
 }
 
-// vt-core does not reflow on resize, so a shrink leaves every scrollback row at
-// the width it was written at. Replaying such a row verbatim into a client grid
-// of the CURRENT width wraps it: it lands as two rows and pushes every row below
-// it down by one, which is what turns a replayed transcript into a doubled,
-// gap-less mess -- the separator lines between an agent's messages disappear and
-// its full-width prompt bar comes back as two.
-func TestReplayClipsRowsWiderThanTheGrid(t *testing.T) {
+func TestReplayAfterAShrinkFitsTheGridAndKeepsEveryCell(t *testing.T) {
 	const wide, narrow = 90, 85
 	p := newTestParser(t, wide, 5)
 	for i := 0; i < 8; i++ {
@@ -129,12 +123,23 @@ func TestReplayClipsRowsWiderThanTheGrid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	for i, line := range strings.Split(strings.TrimRight(rendered, "\n"), "\n") {
+	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+	for i, line := range lines {
 		if width := len([]rune(line)); width > narrow {
 			t.Fatalf("row %d is %d columns wide in a %d-column grid: %q", i, width, narrow, line)
 		}
 	}
-	if got := strings.Count(rendered, "X"); got != 8*narrow {
-		t.Fatalf("client holds %d cells of content, want %d (rows wrapped or were lost)", got, 8*narrow)
+	const scrolledOff, onScreen = 4, 4
+	if got, want := strings.Count(rendered, "X"), scrolledOff*wide+onScreen*narrow; got != want {
+		t.Fatalf("client holds %d cells of content, want %d (scrollback rewrapped whole, the live frame clipped for the app to repaint)", got, want)
+	}
+	continuations := 0
+	for _, line := range lines {
+		if line == strings.Repeat("X", wide-narrow) {
+			continuations++
+		}
+	}
+	if continuations != scrolledOff {
+		t.Fatalf("want %d continuation rows of %d cells, got %d:\n%s", scrolledOff, wide-narrow, continuations, rendered)
 	}
 }

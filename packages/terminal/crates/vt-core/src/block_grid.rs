@@ -239,6 +239,33 @@ impl BlockGrid {
         }
     }
 
+    pub fn remap_rows(&mut self, map: &[usize]) {
+        let Some((&new_len, old_rows)) = map.split_last() else {
+            return;
+        };
+        let old_len = old_rows.len();
+        let remap = |row: usize| -> usize {
+            match map.get(row) {
+                Some(&new_row) => new_row,
+                None => row - old_len + new_len,
+            }
+        };
+        let mut drained: Vec<Block> = Vec::new();
+        while let Some(block) = self.closed.pop_front() {
+            drained.push(block);
+        }
+        for mut block in drained {
+            let end = remap(block.first_row + block.row_count);
+            block.first_row = remap(block.first_row);
+            block.row_count = end - block.first_row;
+            self.closed.push(block);
+        }
+        if let Some(block) = self.open.as_mut() {
+            block.first_row = remap(block.first_row);
+        }
+        self.next_row = remap(self.next_row);
+    }
+
     /// Every block, closed and open, in insertion order. The open block
     /// is always the last element when present.
     pub fn blocks(&self) -> impl Iterator<Item = &Block> {
@@ -407,6 +434,35 @@ mod tests {
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].first_row, 0);
         assert_eq!(blocks[0].row_count, 3);
+    }
+
+    #[test]
+    fn remapping_rows_moves_every_block_with_the_rows_it_owns() {
+        let mut grid = BlockGrid::new();
+        grid.open_block(BlockSource::Osc133);
+        grid.note_row_completed();
+        grid.note_row_completed();
+        grid.close_block(Some(0));
+        grid.open_block(BlockSource::Osc133);
+        grid.note_row_completed();
+
+        grid.remap_rows(&[0, 3, 4, 6]);
+
+        let blocks: Vec<_> = grid.blocks().collect();
+        assert_eq!((blocks[0].first_row, blocks[0].row_count), (0, 4));
+        assert_eq!(blocks[1].first_row, 4);
+        assert_eq!(grid.next_row, 6);
+    }
+
+    #[test]
+    fn remapping_rows_shifts_a_block_that_starts_on_the_screen() {
+        let mut grid = BlockGrid::new();
+        grid.sync_next_row(5);
+        grid.open_block(BlockSource::Osc133);
+
+        grid.remap_rows(&[0, 2, 4]);
+
+        assert_eq!(grid.blocks().next().unwrap().first_row, 7);
     }
 
     #[test]

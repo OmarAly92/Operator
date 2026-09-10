@@ -85,7 +85,7 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.core = core;
 		ensurePackageStyleTag();
 		container.style.position = "relative";
-		container.style.overflow = "auto";
+		applyScrollOverflow(container);
 		container.style.contain = "strict";
 		const list = document.createElement("div");
 		list.className = "terminal-list";
@@ -220,6 +220,8 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.container.replaceChildren();
 			this.container.style.removeProperty("position");
 			this.container.style.removeProperty("overflow");
+			this.container.style.removeProperty("overflow-x");
+			this.container.style.removeProperty("overflow-y");
 			this.container.style.removeProperty("contain");
 		}
 		this.container = null;
@@ -351,7 +353,7 @@ export class DomBlockRenderer implements BlockRenderer {
 			this.altRoot.hidden = true;
 		}
 		if (this.list) this.list.hidden = false;
-		container.style.overflow = "auto";
+		applyScrollOverflow(container);
 		this.wasAltActive = false;
 
 		const blocks = decodeBlocks(snapshot);
@@ -536,6 +538,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (selection.rangeCount === 0) return;
 		selection.removeAllRanges();
 	}
+}
+
+function applyScrollOverflow(container: HTMLElement): void {
+	container.style.overflowX = "hidden";
+	container.style.overflowY = "auto";
 }
 
 function ensurePackageStyleTag(): HTMLStyleElement {

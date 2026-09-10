@@ -6,14 +6,19 @@ use crate::style::CellStyle;
 
 pub(crate) fn commit_row(
     cells: &[Cell],
+    wrapped: bool,
     content: &mut Content,
     rows: &mut RowIndex,
     styles: &mut AttributeMap<CellStyle>,
 ) {
-    let width = cells
-        .iter()
-        .rposition(|cell| !cell.is_blank())
-        .map_or(0, |index| index + 1);
+    let width = if wrapped {
+        cells.len()
+    } else {
+        cells
+            .iter()
+            .rposition(|cell| !cell.is_blank())
+            .map_or(0, |index| index + 1)
+    };
     for cell in &cells[..width] {
         if cell.ch == '\0' {
             continue;
@@ -22,7 +27,7 @@ pub(crate) fn commit_row(
         let mut buffer = [0u8; 4];
         content.push_char(cell.text(&mut buffer));
     }
-    rows.complete_row(content.end_offset());
+    rows.complete_row(content.end_offset(), wrapped);
 }
 
 #[cfg(test)]
@@ -43,11 +48,23 @@ mod tests {
     }
 
     fn commit(cells: &[Cell]) -> (Content, RowIndex, AttributeMap<CellStyle>) {
+        commit_with(cells, false)
+    }
+
+    fn commit_with(cells: &[Cell], wrapped: bool) -> (Content, RowIndex, AttributeMap<CellStyle>) {
         let mut content = Content::new();
         let mut rows = RowIndex::new(0);
         let mut styles = AttributeMap::new(CellStyle::DEFAULT);
-        commit_row(cells, &mut content, &mut rows, &mut styles);
+        commit_row(cells, wrapped, &mut content, &mut rows, &mut styles);
         (content, rows, styles)
+    }
+
+    #[test]
+    fn a_wrapped_row_keeps_its_trailing_blanks() {
+        let (content, rows, _) = commit_with(&row("hi", 4), true);
+        let range = rows.completed().front().expect("one committed row");
+        assert_eq!(content.copy_range(range.start, range.end), b"hi  ");
+        assert!(range.wrapped);
     }
 
     #[test]

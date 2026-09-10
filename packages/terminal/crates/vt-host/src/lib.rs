@@ -209,13 +209,12 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             if total == 0 || blank {
                 return 0;
             }
-            // Rows are clipped to the grid. A shrink leaves scrollback rows at
-            // the width they were written at -- vt-core keeps them, it does not
-            // reflow -- and a row wider than the receiving grid wraps, so it
-            // lands as two rows and pushes every row below it down by one. That
-            // shift is what turns a replayed transcript into the doubled,
-            // gap-less mess the ring replay used to produce: the client's grid
-            // no longer agrees with the host's about which row is which.
+            // Rows are clipped to the grid. vt-core rewraps scrollback to the
+            // pane width on resize, so a row wider than the grid should not
+            // exist; the clip guards the replay anyway, because a row wider
+            // than the receiving grid wraps, lands as two rows and pushes every
+            // row below it down by one -- the client's grid no longer agrees
+            // with the host's about which row is which.
             let cols = core.columns();
             for i in first..total {
                 let (row_bytes, pairs) = clip_row(
@@ -224,12 +223,7 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                     cols,
                 );
                 let last = i + 1 == total;
-                write_styled_row_with(
-                    &mut text,
-                    row_bytes,
-                    &pairs,
-                    if last { "" } else { "\r\n" },
-                );
+                write_styled_row_with(&mut text, row_bytes, &pairs, if last { "" } else { "\r\n" });
             }
             // The cursor is addressed RELATIVELY, from the last row written.
             // Absolute addressing would be wrong: these rows scroll up into

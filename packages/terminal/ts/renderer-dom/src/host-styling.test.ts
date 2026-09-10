@@ -45,14 +45,16 @@ describe("host element styling", () => {
 		const renderer = new DomBlockRenderer();
 		const container = document.createElement("div");
 		renderer.mount(container, core);
-		expect(container.style.overflow).toBe("auto");
+		expect(container.style.overflowY).toBe("auto");
+		expect(container.style.overflowX).toBe("hidden");
 		expect(container.style.position).toBe("relative");
 		expect(container.style.contain).toBe("strict");
 
 		renderer.setTheme(theme);
 		renderer.setFont(font);
 
-		expect(container.style.overflow).toBe("auto");
+		expect(container.style.overflowY).toBe("auto");
+		expect(container.style.overflowX).toBe("hidden");
 		expect(container.style.position).toBe("relative");
 		expect(container.style.contain).toBe("strict");
 		expect(container.style.getPropertyValue("--terminal-background")).toBe(theme.background);
