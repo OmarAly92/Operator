@@ -315,6 +315,28 @@ describe("useTerminalSession", () => {
 		]);
 	});
 
+	it("sends nothing mid-drag while the pane is still being dragged", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(80, 37));
+		const settled = muxes[0].resizes.length;
+
+		// A real drag reports frames faster than the debounce, for as long as the
+		// user holds the mouse. A window that expires on a schedule rather than on
+		// quiet turns that into one SIGWINCH per window, and an agent leaves a
+		// copy of its transcript behind at every one of them.
+		act(() => {
+			for (let step = 0; step < 20; step += 1) {
+				view.result.current.transport.resize?.(81 + step, 37);
+				vi.advanceTimersByTime(60);
+			}
+		});
+		expect(muxes[0].resizes.slice(settled)).toEqual([]);
+
+		act(() => void vi.advanceTimersByTime(100));
+		expect(muxes[0].resizes.slice(settled)).toEqual([["handle-1", 100, 37]]);
+	});
+
 	it("does not re-send a drag that returns to the grid already published", () => {
 		const { view, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));

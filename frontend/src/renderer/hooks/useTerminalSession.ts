@@ -96,12 +96,15 @@ const OPEN_TIMEOUT_MS = 3_000;
 // is only faithful at the geometry it was rendered for -- so putting the birth
 // grid behind a debounce delays every pane's first paint by the debounce.
 //
-// Trailing: every grid after it waits for the burst to settle. A pane drag
-// reports each intermediate column, and each one costs a socket round trip, a
-// SIGWINCH, and a full repaint from the attached program; one observed sidebar
-// drag published ninety of them. The attached program should get one SIGWINCH
-// when the drag settles (yyork's terminal-panel does the same at its socket
-// layer).
+// Trailing: every grid after it waits for the burst to go QUIET, not for a
+// fixed slice of it. A drag reports each intermediate column, and each one
+// costs a socket round trip, a SIGWINCH, and a full repaint from the attached
+// program. Those repaints are not free and they are not idempotent: an agent
+// redraws its frame at the new width and the frame it drew at the old one stays
+// behind in scrollback, so a drag that publishes twenty grids leaves twenty
+// copies of the transcript. Restarting the window on every frame collapses the
+// whole drag into the one SIGWINCH that matters, the one at the size the user
+// let go at.
 const RESIZE_DEBOUNCE_MS = 100;
 // Initial-replay gate. On attach the runtime replays the pane's state, and the
 // daemon pumps it in 32KB reads (attachment.go copyOut) — so the renderer gets
@@ -188,6 +191,12 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		// separate from xterm's local grid: hidden fits must not resize the PTY, and
 		// repeated identical visible fits must not manufacture another SIGWINCH.
 		lastPublishedGrid: null as { cols: number; rows: number } | null,
+		// Whether publishGrid has run for this attachment. The grid `open`
+		// carries is xterm's, not the block surface's, so the surface's first
+		// measurement still owns the leading edge -- the pty-host holds the
+		// replay until a grid arrives, and a replay is only faithful at the
+		// geometry it was rendered for.
+		gridPublished: false,
 		// Set once the package surface reports a measured pane box. From then on
 		// it is the only publisher of pty geometry: XtermTerminal stays mounted
 		// because it owns the attachment, but it lives in a hidden slot whose
@@ -242,7 +251,35 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			mux.resize(handle, nextCols, nextRows);
 		};
 
-		const flush = () => {
+		const cancel = () => {
+			if (!r.resizeTimer) return;
+			clearTimeout(r.resizeTimer);
+			r.resizeTimer = null;
+		};
+
+		// The leading edge belongs to the attachment's first grid alone: the
+		// pty-host holds the replay until one arrives. Re-arming it per burst
+		// would put a SIGWINCH at the START of every drag as well as its end.
+		if (immediate || !r.gridPublished) {
+			cancel();
+			r.pendingGrid = null;
+			r.gridPublished = true;
+			send(cols, rows);
+			return;
+		}
+
+		const published = r.lastPublishedGrid;
+		if (published && published.cols === cols && published.rows === rows) {
+			// A drag that comes back to the grid already published has nothing
+			// left to say, so the window closes without a redundant SIGWINCH.
+			cancel();
+			r.pendingGrid = null;
+			return;
+		}
+
+		r.pendingGrid = { cols, rows };
+		cancel();
+		r.resizeTimer = setTimeout(() => {
 			const current = runtime.current;
 			current.resizeTimer = null;
 			const pending = current.pendingGrid;
@@ -251,29 +288,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			if (current.mux !== mux || current.handle !== handle) return;
 			if (optionsRef.current.isVisible === false) return;
 			send(pending.cols, pending.rows);
-			current.resizeTimer = setTimeout(flush, RESIZE_DEBOUNCE_MS);
-		};
-
-		if (immediate) {
-			if (r.resizeTimer) {
-				clearTimeout(r.resizeTimer);
-				r.resizeTimer = null;
-			}
-			r.pendingGrid = null;
-			send(cols, rows);
-			return;
-		}
-
-		// Cooling down from a previous send: hold this frame. A drag that comes
-		// back to the grid already published leaves nothing pending, so the
-		// cooldown expires without a redundant SIGWINCH.
-		if (r.resizeTimer) {
-			const published = r.lastPublishedGrid;
-			r.pendingGrid = published?.cols === cols && published.rows === rows ? null : { cols, rows };
-			return;
-		}
-		send(cols, rows);
-		r.resizeTimer = setTimeout(flush, RESIZE_DEBOUNCE_MS);
+		}, RESIZE_DEBOUNCE_MS);
 	}, []);
 
 	const invalidateWorkspaces = useCallback(() => {
@@ -321,6 +336,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		r.replayBytes = 0;
 		r.replayTailPending = false;
 		r.lastPublishedGrid = null;
+		r.gridPublished = false;
 		// Nothing is buffering any more, so nothing should stay covered. connect()
 		// re-arms the gate immediately after calling this, in the same tick, so
 		// the reveal here never flashes. Without it, a teardown that does not
@@ -734,6 +750,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		mux.open(handle, openCols, openRows);
 		r.lastPublishedGrid =
 			openCols > 0 && openRows > 0 ? { cols: openCols, rows: openRows } : null;
+		r.gridPublished = false;
 		r.openTimer = setTimeout(() => {
 			if (!isCurrentAttachment(generation, handle, mux)) return;
 			r.openTimer = null;
