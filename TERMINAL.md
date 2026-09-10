@@ -46,7 +46,8 @@ packages/terminal  (product-independent, see §3)
    ├─ ts/core            TerminalCore wrapper over vt-wasm, snapshot views
    ├─ ts/renderer-dom    DomBlockRenderer: blocks, rows, virtualiser, selection
    │                     (`selection-model.ts` owns it as grid points, not DOM ranges)
-   └─ ts/react           TerminalSurface: grid measurement, wheel, mouse, editor
+   └─ ts/react           TerminalSurface: grid measurement, wheel, mouse, editor,
+                         selection gestures and the copy chord (selection-gesture.ts)
 ```
 
 There is no tmux in the interactive path any more. The old "janky scroll"
@@ -320,6 +321,7 @@ go test ./internal/adapters/runtime/ptyhost/...      # vtwasm must pass
 cd /Users/omaraly/development/AI/Operator/packages/terminal
 npm run build:wasm -- --force && npm run build:ts
 for p in core renderer-dom react; do (cd ts/$p && npx vitest run); done
+npm run bench:selection      # Playwright: a selection must survive 20 repaints
 
 # Frontend + daemon
 cd /Users/omaraly/development/AI/Operator/frontend && npx tsc --noEmit -p .

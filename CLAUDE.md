@@ -6,11 +6,24 @@ Read and follow [`AGENTS.md`](AGENTS.md) for repository layout, commands, coding
 
 **Terminal work: read [`TERMINAL.md`](TERMINAL.md) first.** Before touching
 `packages/terminal`, the pty-host (`backend/internal/adapters/runtime/ptyhost`),
-`BlockTerminal`/`TerminalPane`/`useTerminalSession`, or any resize, attach or
-replay code, read `TERMINAL.md` end to end. It records the terminal pipeline,
-the bugs already solved and the tests that guard them, the exact verify-and-ship
-recipe (both wasm builds, daemon rebuild), and what is upstream and must not be
-chased again.
+`BlockTerminal`/`TerminalPane`/`useTerminalSession`, or any resize, attach,
+replay, selection or copy code, read `TERMINAL.md` end to end. It records the
+terminal pipeline, the bugs already solved and the tests that guard them, the
+exact verify-and-ship recipe (both wasm builds, daemon rebuild, the Playwright
+selection gate), and what is upstream and must not be chased again. The
+reference for every rendering decision is Warp's source at
+`/Users/omaraly/development/AI/warp`; match it and cite the file.
+
+Two facts that are easy to get wrong from the code alone:
+
+- **The transcript selection is the renderer's, not the browser's.**
+  `DomBlockRenderer` owns it as grid points (`selection-model.ts`), paints it from
+  geometry and copies it from the snapshot; `.terminal-block` is `user-select:
+  none`. Never reach for `document.getSelection()` in terminal code.
+- **The desktop shell is Tauri.** `npm run tauri:dev` from the repo root starts
+  the app and supervises the daemon, and rebuilds `packages/terminal` on start.
+  `RUN_APP_COMMANDS.md` is the truth; the `opr-desktop-dev` skill still describes
+  the old Electron shell and is marked stale.
 
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.
