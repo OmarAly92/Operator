@@ -101,6 +101,20 @@ cd frontend && npm run tauri:build
 the signing key material that a minimal setup and `nix develop` do not provide — on a
 fresh machine prefer `npm run tauri:build`.
 
+### macOS DMG release
+
+Build the sidecars first if you have not already (see [Run everything](#run-everything-normal-path)),
+then from `frontend/`:
+
+```bash
+cd frontend && npm run tauri:build -- --bundles dmg
+```
+
+The release `.dmg` lands in
+`frontend/src-tauri/target/release/bundle/dmg/Operator_<version>_<arch>.dmg`. Omit
+`--bundles dmg` to also produce the bare `.app` under `bundle/macos/`. Use the
+`tauri:release` script in place of `tauri:build` for a signed, updater-enabled DMG.
+
 ## Checks
 
 ```bash
