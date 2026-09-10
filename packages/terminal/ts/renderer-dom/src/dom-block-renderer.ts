@@ -15,7 +15,7 @@ import { renderAltSurface } from "./alt-surface.js";
 import { type BlockTextSource } from "./block-actions.js";
 import { populateBlock } from "./block-body.js";
 import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
-import { selectionRowFills } from "./selection-fill.js";
+import { fillGradient, runFill, selectionRowFills } from "./selection-fill.js";
 import { bindActionEvents } from "./action-events.js";
 import { applyFilter, type BlockFilter } from "./block-filter.js";
 import { mountBlockNavFromRenderer, type BlockNavHandle } from "./block-nav.js";
@@ -447,14 +447,22 @@ export class DomBlockRenderer implements BlockRenderer {
 	// scrolls.
 	private paintSelectionFill(): void {
 		const list = this.list;
-		for (const row of this.filledRows) row.style.backgroundImage = "";
+		for (const node of this.filledRows) node.style.backgroundImage = "";
 		this.filledRows = [];
 		if (!list) return;
 		const doc = list.ownerDocument;
+		const colour = "var(--terminal-selection)";
 		for (const fill of selectionRowFills(list, doc.getSelection ? doc.getSelection() : null)) {
-			const colour = "var(--terminal-selection)";
-			fill.row.style.backgroundImage = `linear-gradient(to right, transparent ${fill.left}px, ${colour} ${fill.left}px, ${colour} ${fill.right}px, transparent ${fill.right}px)`;
+			fill.row.style.backgroundImage = fillGradient(fill, colour);
 			this.filledRows.push(fill.row);
+			const rowLeft = fill.row.getBoundingClientRect().left;
+			for (const run of fill.row.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
+				if (run.style.backgroundColor === "") continue;
+				const span = runFill(run.getBoundingClientRect(), rowLeft, fill);
+				if (!span) continue;
+				run.style.backgroundImage = fillGradient(span, colour);
+				this.filledRows.push(run);
+			}
 		}
 	}
 

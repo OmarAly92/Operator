@@ -109,6 +109,21 @@ describe("terminalStyles", () => {
 		expect(rule).not.toMatch(/\n\tcolor:/);
 	});
 
+	// Warp paints a cell's background as a rect the full cell height
+	// (grid_renderer.rs render_background, cell_size from grid_size_util.rs), so
+	// a band that spans several rows -- Claude Code's user message -- is one solid
+	// block. An inline span's background covers only the glyph box, and the
+	// half-leading between rows shows through as a seam on every row.
+	it("fills a painted run to the full line height, the way Warp fills a cell", () => {
+		const rule = terminalStyles.slice(
+			terminalStyles.indexOf(".terminal-run {"),
+			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-run {")),
+		);
+		expect(rule).toContain("display: inline-block");
+		expect(rule).toContain("vertical-align: top");
+		expect(rule).toContain("height: var(--terminal-line-height)");
+	});
+
 	it("gives the transcript no cursor of its own, the way Warp's grid has none", () => {
 		const block = terminalStyles.slice(
 			terminalStyles.indexOf(".terminal-block,"),

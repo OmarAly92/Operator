@@ -238,6 +238,9 @@ export const terminalStyles = `@font-face {
 }
 
 .terminal-run {
+	display: inline-block;
+	vertical-align: top;
+	height: var(--terminal-line-height);
 	color: inherit;
 }
 

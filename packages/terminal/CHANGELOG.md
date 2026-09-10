@@ -28,6 +28,18 @@ Scrollback rewraps to the pane width.
   wider than the grid, and a glyph that renders a hair wider than its cell must
   not grow a scrollbar either.
 
+Selecting a painted band shows the selection.
+
+- A run with its own background colour (Claude Code's user-message band) sat
+  above the row's selection fill and hid it, so the band stayed grey inside a
+  selection. `renderer-dom` now tints such runs with the same selection
+  colour, clipped to the row's fill, the way Warp blends its selection rect
+  over the cell backgrounds with the glyphs drawn on top
+  (`grid_renderer.rs` `render_selection`).
+- A run's background covered only its glyph box, so a band spanning several
+  rows showed a seam of half-leading between every row. Runs now fill the
+  full line height, as Warp fills the whole cell.
+
 Blank rows survive scrolling off the screen.
 
 - `vt-core` dropped any all-blank row the moment it left the screen: the row

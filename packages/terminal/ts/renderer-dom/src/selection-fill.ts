@@ -25,6 +25,18 @@ export function rowFill(row: Box, painted: Box | null, position: RowPosition): F
 	return { left: left - row.left, right: right - row.left };
 }
 
+export function runFill(run: Box, rowLeft: number, span: FillSpan): FillSpan | null {
+	const offset = run.left - rowLeft;
+	const left = Math.max(span.left, offset) - offset;
+	const right = Math.min(span.right, run.right - rowLeft) - offset;
+	if (right - left <= 0.5) return null;
+	return { left, right };
+}
+
+export function fillGradient(span: FillSpan, colour: string): string {
+	return `linear-gradient(to right, transparent ${span.left}px, ${colour} ${span.left}px, ${colour} ${span.right}px, transparent ${span.right}px)`;
+}
+
 function positionOf(index: number, count: number): RowPosition {
 	if (count === 1) return "only";
 	if (index === 0) return "first";

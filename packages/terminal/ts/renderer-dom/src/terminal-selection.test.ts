@@ -71,4 +71,39 @@ describe("the terminal selection", () => {
 		expect(rows[1]!.style.backgroundImage).toBe("");
 		document.getSelection = realGetSelection;
 	});
+
+	// Claude Code paints the user's message as a band with its own background
+	// colour. That colour sits on the run, above the row's fill, so a selection
+	// over the band vanished under it. Warp draws the selection after the cell
+	// backgrounds and before the glyphs, so the band shows through it tinted.
+	it("tints a painted run's background instead of hiding under it", () => {
+		const band = "\x1b[48;5;237m\x1b[38;5;231m> hi\x1b[0m";
+		const { host } = mountWith(`alpha\r\n${band}\r\ngamma`);
+		const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+		rows.forEach((row, index) => {
+			row.getBoundingClientRect = () =>
+				({ left: 0, right: 600, top: index * 17, bottom: index * 17 + 17 }) as DOMRect;
+		});
+		const run = rows[1]!.querySelector<HTMLElement>("[data-terminal-run]")!;
+		expect(run.style.backgroundColor).toBe("rgb(58, 58, 58)");
+		run.getBoundingClientRect = () => ({ left: 20, right: 60, top: 17, bottom: 34 }) as DOMRect;
+		const selection = {
+			isCollapsed: false,
+			rangeCount: 1,
+			getRangeAt: () => ({ intersectsNode: () => true, getClientRects: () => [] }),
+		};
+		const realGetSelection = document.getSelection;
+		document.getSelection = () => selection as unknown as Selection;
+		document.dispatchEvent(new Event("selectionchange"));
+
+		expect(run.style.backgroundImage).toBe(
+			"linear-gradient(to right, transparent 0px, var(--terminal-selection) 0px, var(--terminal-selection) 40px, transparent 40px)",
+		);
+		expect(run.style.backgroundColor).toBe("rgb(58, 58, 58)");
+
+		selection.isCollapsed = true;
+		document.dispatchEvent(new Event("selectionchange"));
+		expect(run.style.backgroundImage).toBe("");
+		document.getSelection = realGetSelection;
+	});
 });
