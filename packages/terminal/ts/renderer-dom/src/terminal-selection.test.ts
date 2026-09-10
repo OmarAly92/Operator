@@ -2,108 +2,116 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-	createTerminalCore,
-	initTerminalCore,
-	type FontConfig,
-	type TerminalCore,
-} from "@operator/terminal-core";
+import { createTerminalCore, initTerminalCore, type FontConfig, type TerminalCore } from "@operator/terminal-core";
 import { DomBlockRenderer, warpDarkTheme } from "./index";
 
 const wasmPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "wasm", "vt_core_bg.wasm");
-
-const font: FontConfig = {
-	family: "ui-monospace, monospace",
-	sizePx: 14,
-	lineHeight: 1.2,
-	weight: 400,
-	letterSpacingPx: 0,
-	ligatures: false,
-};
+const font: FontConfig = { family: "ui-monospace, monospace", sizePx: 14, lineHeight: 1.2, weight: 400, letterSpacingPx: 0, ligatures: false };
+const CELL_W = 8.4;
+const CELL_H = 16.8;
 
 beforeAll(async () => {
 	const bytes = await readFile(wasmPath);
-	await initTerminalCore(
-		bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-	);
+	await initTerminalCore(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
 });
 
 function feed(core: TerminalCore, text: string): void {
 	core.feed(new TextEncoder().encode(text));
 }
 
-function mountWith(input: string): { core: TerminalCore; host: HTMLElement } {
-	const core = createTerminalCore({ columns: 16, scrollback: 100 });
+function layoutRows(host: HTMLElement): HTMLElement[] {
+	const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+	rows.forEach((row, index) => {
+		row.getBoundingClientRect = () => ({ left: 0, right: 600, width: 600, top: index * CELL_H, bottom: (index + 1) * CELL_H, height: CELL_H, x: 0, y: index * CELL_H, toJSON: () => ({}) }) as DOMRect;
+		for (const run of row.querySelectorAll<HTMLElement>("[data-terminal-run]")) {
+			run.getBoundingClientRect = () => ({ left: 0, right: 200, width: 200, top: index * CELL_H, bottom: (index + 1) * CELL_H, height: CELL_H, x: 0, y: index * CELL_H, toJSON: () => ({}) }) as DOMRect;
+		}
+	});
+	return rows;
+}
+
+function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
+	const core = createTerminalCore({ columns: 40, scrollback: 100 });
 	feed(core, input);
 	const host = document.createElement("div");
 	const renderer = new DomBlockRenderer();
 	renderer.mount(host, core);
 	renderer.setTheme(warpDarkTheme);
 	renderer.setFont(font);
-	return { core, host };
+	renderer.measure = () => ({ cellWidth: CELL_W, cellHeight: CELL_H });
+	return { core, host, renderer };
 }
 
 describe("the terminal selection", () => {
-	it("paints each selected row itself and clears it when the selection goes", () => {
-		const { host } = mountWith("alpha\r\nbeta\r\ngamma");
-		const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
-		rows.forEach((row, index) => {
-			row.getBoundingClientRect = () =>
-				({ left: 0, right: 600, top: index * 17, bottom: index * 17 + 17 }) as DOMRect;
-		});
-		const selection = {
-			isCollapsed: false,
-			rangeCount: 1,
-			getRangeAt: () => ({ intersectsNode: () => true, getClientRects: () => [] }),
-		};
-		const realGetSelection = document.getSelection;
-		document.getSelection = () => selection as unknown as Selection;
-		document.dispatchEvent(new Event("selectionchange"));
-
-		// The row between the ends of the selection is filled whole -- Warp runs it
-		// to the end of the row, where the browser would stop at the last glyph.
-		expect(rows[1]!.style.backgroundImage).toContain("var(--terminal-selection)");
-		expect(rows[1]!.style.backgroundImage).toContain("600px");
-		expect(rows[0]!.style.backgroundImage).toBe("");
-
-		selection.isCollapsed = true;
-		document.dispatchEvent(new Event("selectionchange"));
-		expect(rows[1]!.style.backgroundImage).toBe("");
-		document.getSelection = realGetSelection;
+	it("paints rows from the model: first row to the edge, middle whole, last to its cell", () => {
+		const { host, renderer } = mountWith("alpha\r\nbeta\r\ngamma");
+		const rows = layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(CELL_W * 2 + 1, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3 + 1, CELL_H * 2.5)!);
+		expect(rows[0]!.style.backgroundImage).toContain(`transparent ${CELL_W * 2}px`);
+		expect(rows[0]!.style.backgroundImage).toContain("600px");
+		expect(rows[1]!.style.backgroundImage).toContain("transparent 0px");
+		expect(rows[2]!.style.backgroundImage).toContain(`${CELL_W * 3}px, transparent`);
+		expect(renderer.selectedText()).toBe("pha\nbeta\ngam");
 	});
 
-	// Claude Code paints the user's message as a band with its own background
-	// colour. That colour sits on the run, above the row's fill, so a selection
-	// over the band vanished under it. Warp draws the selection after the cell
-	// backgrounds and before the glyphs, so the band shows through it tinted.
+	it("survives a repaint that rebuilds every row", () => {
+		const { core, host, renderer } = mountWith("alpha\r\nbeta\r\ngamma\r\n");
+		layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 4, CELL_H * 1.5)!);
+		expect(renderer.hasSelection()).toBe(true);
+		for (let tick = 0; tick < 20; tick += 1) feed(core, `\x1b[2K\r✻ Baking for ${tick}s`);
+		const rows = layoutRows(host);
+		expect(renderer.hasSelection()).toBe(true);
+		expect(renderer.selectedText()).toBe("alpha\nbeta");
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+	});
+
 	it("tints a painted run's background instead of hiding under it", () => {
 		const band = "\x1b[48;5;237m\x1b[38;5;231m> hi\x1b[0m";
-		const { host } = mountWith(`alpha\r\n${band}\r\ngamma`);
-		const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
-		rows.forEach((row, index) => {
-			row.getBoundingClientRect = () =>
-				({ left: 0, right: 600, top: index * 17, bottom: index * 17 + 17 }) as DOMRect;
-		});
+		const { host, renderer } = mountWith(`alpha\r\n${band}\r\ngamma`);
+		const rows = layoutRows(host);
 		const run = rows[1]!.querySelector<HTMLElement>("[data-terminal-run]")!;
-		expect(run.style.backgroundColor).toBe("rgb(58, 58, 58)");
-		run.getBoundingClientRect = () => ({ left: 20, right: 60, top: 17, bottom: 34 }) as DOMRect;
-		const selection = {
-			isCollapsed: false,
-			rangeCount: 1,
-			getRangeAt: () => ({ intersectsNode: () => true, getClientRects: () => [] }),
-		};
-		const realGetSelection = document.getSelection;
-		document.getSelection = () => selection as unknown as Selection;
-		document.dispatchEvent(new Event("selectionchange"));
-
-		expect(run.style.backgroundImage).toBe(
-			"linear-gradient(to right, transparent 0px, var(--terminal-selection) 0px, var(--terminal-selection) 40px, transparent 40px)",
-		);
-		expect(run.style.backgroundColor).toBe("rgb(58, 58, 58)");
-
-		selection.isCollapsed = true;
-		document.dispatchEvent(new Event("selectionchange"));
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(0, CELL_H * 2.5)!);
+		expect(run.style.backgroundImage).toContain("var(--terminal-selection)");
+		expect(run.style.backgroundImage).toContain("200px");
+		renderer.selectionClear();
 		expect(run.style.backgroundImage).toBe("");
-		document.getSelection = realGetSelection;
+		expect(rows[1]!.style.backgroundImage).toBe("");
+	});
+
+	it("selects a word on a double click and a line on a triple click", () => {
+		const { host, renderer } = mountWith("see src/row-builder.ts now");
+		layoutRows(host);
+		const point = renderer.pointAt(CELL_W * 8, CELL_H * 0.5)!;
+		renderer.selectionBegin(point, "word");
+		expect(renderer.selectedText()).toBe("src/row-builder.ts");
+		renderer.selectionBegin(point, "line");
+		expect(renderer.selectedText()).toBe("see src/row-builder.ts now");
+	});
+
+	it("drops the selection when its block leaves the snapshot", () => {
+		const { core, host, renderer } = mountWith("\x1b]133;A\x07\x1b]133;C\x07one\r\n\x1b]133;D;0\x07");
+		layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3, CELL_H * 0.5)!);
+		expect(renderer.hasSelection()).toBe(true);
+		for (let i = 0; i < 400; i += 1) feed(core, `\x1b]133;A\x07\x1b]133;C\x07row ${i}\r\n\x1b]133;D;0\x07`);
+		expect(renderer.hasSelection()).toBe(false);
+	});
+
+	it("notifies listeners when the selection changes", () => {
+		const { host, renderer } = mountWith("alpha");
+		layoutRows(host);
+		let calls = 0;
+		const off = renderer.onSelectionChange(() => { calls += 1; });
+		renderer.selectionBegin(renderer.pointAt(0, 1)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3, 1)!);
+		renderer.selectionClear();
+		off();
+		renderer.selectionClear();
+		expect(calls).toBe(3);
 	});
 });

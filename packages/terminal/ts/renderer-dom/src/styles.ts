@@ -176,29 +176,11 @@ export const terminalStyles = `@font-face {
 	content: "";
 }
 
-/* The transcript is text the user copies out of, and a desktop shell that turns
-   selection off app-wide -- the usual convention, so a drag on chrome does not
-   paint it blue -- otherwise takes that with it. Selection is what the copy
-   actions and getSelectionRange() are for, so the package asserts it rather
-   than depending on the host to make an exception for us. */
 .terminal-block,
 .terminal-alt-surface {
-	-webkit-user-select: text;
-	user-select: text;
+	-webkit-user-select: none;
+	user-select: none;
 	cursor: default;
-}
-
-/* Warp paints the selection as a rectangle per row, the full height of the row
-   and out to its end, behind the glyph and leaving the text its own colour. The
-   browser instead paints the glyph box: narrower than the row and shorter than
-   the line, so rows come out ragged with gaps between them. The renderer paints
-   the row backgrounds itself (selection-fill.ts) and the browser's own highlight
-   is turned off so the two cannot disagree. */
-.terminal-block ::selection,
-.terminal-block::selection,
-.terminal-alt-surface ::selection,
-.terminal-alt-surface::selection {
-	background-color: transparent;
 }
 
 /* Chrome stays unselectable, so dragging across a block picks up its output and

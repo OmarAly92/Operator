@@ -61,20 +61,6 @@ describe("terminalStyles", () => {
 		expect(row).toContain("z-index: 0");
 	});
 
-	// A desktop shell that sets `user-select: none` on the body -- the usual
-	// convention, and what this one does -- otherwise makes the whole transcript
-	// unselectable through inheritance, with nothing in the terminal's own
-	// stylesheet to say otherwise.
-	it("keeps the transcript selectable whatever the host does to the body", () => {
-		const block = terminalStyles.slice(
-			terminalStyles.indexOf(".terminal-block,"),
-			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")),
-		);
-		expect(block).toContain(".terminal-alt-surface");
-		expect(block).toContain("user-select: text");
-		expect(block).toContain("-webkit-user-select: text");
-	});
-
 	it("leaves the chrome around it unselectable", () => {
 		const chrome = terminalStyles.slice(
 			terminalStyles.indexOf(".terminal-block-header,"),
@@ -92,21 +78,10 @@ describe("terminalStyles", () => {
 		expect(chrome).toContain("user-select: none");
 	});
 
-	// Warp's selection is a rectangle per row -- full row height, out to the end
-	// of the row for every row but the last. The browser's own highlight covers
-	// the glyph box instead, which is shorter and narrower, so the renderer paints
-	// the rows itself and this rule keeps the browser from painting a second,
-	// differently shaped highlight over the top.
-	it("leaves the selection for the renderer to paint", () => {
-		expect(terminalStyles).toContain(".terminal-block ::selection");
-		expect(terminalStyles).toContain(".terminal-alt-surface ::selection");
-		const rule = terminalStyles.slice(
-			terminalStyles.indexOf(".terminal-block ::selection"),
-			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block ::selection")),
-		);
-		expect(rule).toContain("background-color: transparent");
-		// Warp draws the rectangle behind the glyph and leaves its colour alone.
-		expect(rule).not.toMatch(/\n\tcolor:/);
+	it("owns the selection itself, so the browser paints none", () => {
+		const block = terminalStyles.slice(terminalStyles.indexOf(".terminal-block,"), terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")));
+		expect(block).toContain("user-select: none");
+		expect(terminalStyles).not.toContain("::selection");
 	});
 
 	// Warp paints a cell's background as a rect the full cell height
