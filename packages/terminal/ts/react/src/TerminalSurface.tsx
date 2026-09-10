@@ -182,8 +182,6 @@ export function TerminalSurface({
 		if (!blockHost || !renderer) {
 			return;
 		}
-		let lastColumns = 0;
-		let lastRows = 0;
 		// force skips the unchanged-geometry guard. Warp draws the same
 		// distinction (SizeUpdate::is_refresh): a refresh must reach the model
 		// even when the numbers match, because the reason to ask is that
@@ -203,14 +201,13 @@ export function TerminalSurface({
 			const inset = renderer.blockContentInset();
 			const columns = Math.max(1, Math.floor((blockHost.clientWidth - inset.x) / cellWidth));
 			const rows = Math.max(1, Math.floor((blockHost.clientHeight - inset.y) / cellHeight));
-			gridColumnsRef.current = columns;
-			gridRowsRef.current = rows;
-			if (!force && columns === lastColumns && rows === lastRows) {
+			const changed = columns !== gridColumnsRef.current || rows !== gridRowsRef.current;
+			if (!force && !changed) {
 				return;
 			}
-			lastColumns = columns;
-			lastRows = rows;
-			renderer.selectionClear();
+			gridColumnsRef.current = columns;
+			gridRowsRef.current = rows;
+			if (changed) renderer.selectionClear();
 			core.resize(columns, rows);
 			onGeometry?.(columns, rows);
 		};
@@ -542,7 +539,6 @@ export function TerminalSurface({
 	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
 	// not mousedown, so a drag-select is left alone.
 	const focusEditorFromHost = useCallback(() => {
-		if (rendererRef.current?.hasSelection()) return;
 		if (altActive) {
 			compositionRef.current?.focus();
 			return;

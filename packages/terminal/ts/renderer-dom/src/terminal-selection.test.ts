@@ -42,6 +42,19 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 	return { core, host, renderer };
 }
 
+function mountTallWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
+	const core = createTerminalCore({ columns: 40, scrollback: 100 });
+	feed(core, input);
+	const host = document.createElement("div");
+	Object.defineProperty(host, "clientHeight", { value: 400, configurable: true });
+	const renderer = new DomBlockRenderer();
+	renderer.measure = () => ({ cellWidth: CELL_W, cellHeight: CELL_H });
+	renderer.mount(host, core);
+	renderer.setTheme(warpDarkTheme);
+	renderer.setFont(font);
+	return { core, host, renderer };
+}
+
 describe("the terminal selection", () => {
 	it("paints rows from the model: first row to the edge, middle whole, last to its cell", () => {
 		const { host, renderer } = mountWith("alpha\r\nbeta\r\ngamma");
@@ -100,6 +113,31 @@ describe("the terminal selection", () => {
 		expect(renderer.hasSelection()).toBe(true);
 		for (let i = 0; i < 400; i += 1) feed(core, `\x1b]133;A\x07\x1b]133;C\x07row ${i}\r\n\x1b]133;D;0\x07`);
 		expect(renderer.hasSelection()).toBe(false);
+	});
+
+	it("copies to a block's trimmed end, not its untrimmed painted-blank tail", () => {
+		const { host, renderer } = mountTallWith(
+			"\x1b]133;A\x07\x1b]133;C\x07alpha\r\nbeta\r\ngamma\r\n\x1b[1A\x1b[2K\r\n\x1b]133;D;0\x07\x1b]133;A\x07\x1b]133;C\x07second\r\n\x1b]133;D;0\x07",
+		);
+		const rows = layoutRows(host);
+		expect(rows).toHaveLength(3);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3, CELL_H * 2.5)!);
+		expect(renderer.selectedText()).toBe("alpha\nbeta\nsec");
+	});
+
+	it("keeps a cross-block selection copying its trimmed end across repaint ticks", () => {
+		const { core, host, renderer } = mountTallWith(
+			"\x1b]133;A\x07\x1b]133;C\x07alpha\r\nbeta\r\ngamma\r\n\x1b[1A\x1b[2K\r\n\x1b]133;D;0\x07\x1b]133;A\x07\x1b]133;C\x07\x1b[2K\r✻ Baking for 0s",
+		);
+		layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "line");
+		renderer.selectionUpdate(renderer.pointAt(0, CELL_H * 2.5)!);
+		expect(renderer.hasSelection()).toBe(true);
+		for (let tick = 1; tick < 20; tick += 1) feed(core, `\x1b[2K\r✻ Baking for ${tick}s`);
+		layoutRows(host);
+		expect(renderer.hasSelection()).toBe(true);
+		expect(renderer.selectedText()).toBe("alpha\nbeta\n✻ Baking for 19s");
 	});
 
 	it("notifies listeners when the selection changes", () => {

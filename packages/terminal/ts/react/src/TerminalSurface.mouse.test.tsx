@@ -1,6 +1,6 @@
 import { act, cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { feed, flushRepaint, font, loadWasm, renderSurface } from "./surface-harness";
+import { feed, flushRepaint, font, loadWasm, renderSurface, setHostSize } from "./surface-harness";
 
 const cellWidth = font.sizePx * 0.6;
 const cellHeight = font.lineHeight * font.sizePx;
@@ -425,5 +425,47 @@ describe("TerminalSurface selection", () => {
 		mouse(window, "mousemove", cellWidth * 3, 1, { shiftKey: true });
 		mouse(window, "mouseup", cellWidth * 3, 1, { shiftKey: true });
 		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+	});
+
+	it("reaches the copy chord after a drag-select on a pane that was never focused", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const writeClipboard = vi.fn(async () => {});
+			const host = { writeClipboard, readClipboard: async () => "", openLink: async () => {} };
+			const { container, core } = renderSurface({ host });
+			act(() => { feed(core, "alpha\r\nbeta\r\ngamma\r\n"); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			expect(document.activeElement).not.toBe(surface);
+			mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
+			mouse(window, "mousemove", cellWidth * 4, cellHeight * 1.5);
+			mouse(window, "mouseup", cellWidth * 4, cellHeight * 1.5);
+			surface.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+			const target = document.activeElement ?? document.body;
+			target.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+			expect(writeClipboard).toHaveBeenCalledWith("alpha\nbeta");
+		} finally {
+			if (originalPlatform) {
+				Object.defineProperty(navigator, "platform", originalPlatform);
+			}
+		}
+	});
+
+	it("keeps a selection across a same-geometry refit but clears it on a real resize", async () => {
+		const { container, core, host, refit } = renderSurface();
+		setHostSize(host, 1000, 500);
+		act(() => { feed(core, "alpha\r\nbeta\r\n"); });
+		await flushRepaint();
+		const rows = layoutRows(container);
+		mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
+		mouse(window, "mousemove", cellWidth * 3, cellHeight * 0.5);
+		mouse(window, "mouseup", cellWidth * 3, cellHeight * 0.5);
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		refit(1);
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		setHostSize(host, 300, 150);
+		expect(rows[0]!.style.backgroundImage).toBe("");
 	});
 });

@@ -288,6 +288,17 @@ Each entry: symptom → real cause → what guards it now. Commits are on master
   per row). Fine at 1k–10k rows with the debounce; revisit if scrollback caps grow.
 - `TestProcessEnvironmentLetsOverridesWin` in `ptyhost` fails on master before
   any of this work (TERM override appended twice). Pre-existing, unrelated.
+- The renderer re-decodes blocks fresh from the snapshot on every `selectionUpdate`
+  (three `decodeBlocks()` calls per tick, via `blockOrder()`/`textRows()`/
+  `paintSelectionFill()`'s block-order lookups) instead of reusing repaint-cached
+  state, because the cached `Uint8Array` view into wasm memory can go stale/garbage
+  between repaints. Measured cost: 0.07-1.36ms per tick at 100-2000 blocks of
+  scrollback -- fine today, but a future perf pass chasing selection latency should
+  look at memoizing this per snapshot generation.
+- The alt screen has no "clear selection on typing" handler -- a selection made
+  while the alt screen is active survives keystrokes there (it does still clear on
+  leaving the alt screen, on resize, and on scrollback trim). This is a behavioral
+  asymmetry with the normal buffer, where typing always clears the selection.
 
 ---
 

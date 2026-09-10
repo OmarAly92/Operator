@@ -262,7 +262,9 @@ export class DomBlockRenderer implements BlockRenderer {
 				rowText: (_id, row) => this.rowString(alt.content, alt.rowRanges, row),
 			};
 		}
-		const blocks = this.currentBlocks();
+		const blocks = this.currentBlocks().map((block) =>
+			snapshot ? trimTrailingBlankRows(snapshot, block) : block,
+		);
 		const byId = new Map(blocks.map((block) => [block.id, block] as const));
 		return {
 			blockIds: blocks.map((block) => block.id),
