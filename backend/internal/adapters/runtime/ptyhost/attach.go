@@ -1,8 +1,8 @@
 // attach.go - Attach: a loopback Stream over the B3 pty-host. No attach CLI is
 // spawned; this dials the session's loopback host and speaks the B1 framing
-// protocol directly. The host replays the scrollback Snapshot as the first
-// MsgTerminalData on connect, so a fresh Read naturally yields the repaint
-// first.
+// protocol directly. The host answers the birth resize with a repaint of its
+// grid as the first MsgTerminalData, so a fresh Read naturally yields the
+// current screen first.
 package ptyhost
 
 import (
@@ -33,18 +33,17 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 	}
 
 	// The birth resize is handshaken synchronously, on the bare conn, before
-	// any pipe exists. Returning without it lets the child's first output be
-	// parsed at the pre-attach grid, which renders GetOutput at the wrong
-	// width and height until the race resolves; doing it *after* starting the
-	// pump deadlocks instead, because the host always sends the scrollback
-	// snapshot before it answers, and a pump writing that snapshot into the
-	// unbuffered pipe blocks before it can ever parse the reply — nothing
-	// reads the pipe until Attach returns.
+	// any pipe exists. It is also what the host waits for before it renders
+	// this client's replay, so sending it late costs a repaint at the wrong
+	// geometry. Doing it *after* starting the pump deadlocks instead, because
+	// the host always sends that replay before it answers, and a pump writing
+	// it into the unbuffered pipe blocks before it can ever parse the reply —
+	// nothing reads the pipe until Attach returns.
 	//
 	// Frames that arrive during the handshake are handed to the pump to replay
-	// first, so ordering is unchanged. They are bounded: the snapshot is capped
-	// at MaxOutputLines, and live output can only accumulate for the one
-	// loopback round-trip the status reply takes.
+	// first, so ordering is unchanged. They are bounded: the replay is capped
+	// at MaxOutputLines of rendered grid, and live output can only accumulate
+	// for the one loopback round-trip the status reply takes.
 	var replay [][]byte
 	if rows > 0 && cols > 0 {
 		if replay, err = attachHandshake(conn, rows, cols); err != nil {
@@ -79,8 +78,8 @@ const attachResizeAckTimeout = 5 * time.Second
 // attachHandshake sends the birth resize and a status request, then reads the
 // conn directly until the host answers. The host dispatches one connection's
 // messages in order, so the reply proves the resize landed. Terminal data seen
-// while waiting (the scrollback snapshot, and anything the child emitted in the
-// same window) is returned for the pump to replay ahead of live output.
+// while waiting (the grid repaint, and anything the child emitted in the same
+// window) is returned for the pump to replay ahead of live output.
 func attachHandshake(conn net.Conn, rows, cols uint16) ([][]byte, error) {
 	if err := writeResize(conn, rows, cols); err != nil {
 		return nil, err

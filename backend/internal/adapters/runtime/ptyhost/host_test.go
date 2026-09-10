@@ -239,7 +239,9 @@ func (f *serveFixture) waitDone(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestScrollbackReplay: seed the ring, connect a client; first frame must be
-// MsgTerminalData containing the ring snapshot.
+// MsgTerminalData containing the ring snapshot. This fixture has no parser, so
+// it pins the FALLBACK replay path. A real session always has one and is
+// replayed from its grid instead -- see attach_replay_test.go.
 func TestScrollbackReplay(t *testing.T) {
 	f := startServe(t, 100)
 	defer f.cancel()

@@ -112,6 +112,17 @@ func (p *Parser) RenderStyledTail(lines int) (string, error) {
 	return p.renderWith("vt_render_styled", "render_styled", lines)
 }
 
+// Replay returns the bytes that reproduce the terminal's CURRENT state on a
+// freshly attached client: CR-LF terminated styled rows, the alternate-screen
+// mode set when the child is in it, and a final cursor placement.
+//
+// This — not the raw output ring — is what attach replay must send. A byte log
+// only reproduces the screen when it is replayed into the exact geometry that
+// produced it; a grid repaint is geometry-independent by construction.
+func (p *Parser) Replay(lines int) (string, error) {
+	return p.renderWith("vt_replay", "replay", lines)
+}
+
 func (p *Parser) Resize(cols, rows uint32) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

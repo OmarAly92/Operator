@@ -136,3 +136,64 @@ func TestAttachmentReattachAdoptsNewSize(t *testing.T) {
 		t.Fatalf("reattached pane never reported B's width (cols>130) within 30s; captured:\n%q", captured)
 	}
 }
+
+// TestAttachmentReplayDoesNotDuplicateRedrawnFrames is the end-to-end
+// regression for reopening an old session at a new window size. The pane's
+// child draws a frame and then redraws it in place, exactly as an agent TUI
+// repaints its footer. A client that attaches afterwards, at a different grid,
+// must be sent the resulting screen ONCE.
+//
+// The old replay re-emitted the pty-host's raw output ring, whose in-place
+// redraws only overwrite each other at the geometry that produced them; at any
+// other width every stale frame survived, stacking mangled copies of the UI on
+// top of each other.
+func TestAttachmentReplayDoesNotDuplicateRedrawnFrames(t *testing.T) {
+	realpty.IsolateRegistry(t)
+	rt := realpty.Runtime(t)
+
+	name := "opr-term-replay-it-" + strconv.Itoa(os.Getpid())
+	handle, err := rt.Create(context.Background(), ports.RuntimeConfig{
+		SessionID:     domain.SessionID(name),
+		WorkspacePath: t.TempDir(),
+		Argv: []string{"sh", "-lc",
+			`printf 'RP_BANNER\n'; printf 'RP_FRAME_OLD'; printf '\rRP_FRAME_NEW\033[K'; exec sh -i`},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() { _ = rt.Destroy(context.Background(), handle) })
+
+	attachAt := func(rows, cols uint16) (*attachment, *safeBytes, context.CancelFunc) {
+		var got safeBytes
+		a := newAttachment(name, handle, rt, nil, got.add, nil, testLogger())
+		if err := a.resize(rows, cols); err != nil {
+			t.Fatalf("record size: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		go a.run(ctx)
+		return a, &got, cancel
+	}
+
+	// The session runs, and is watched, at one grid.
+	a, gotA, cancelA := attachAt(24, 80)
+	eventually(t, 15*time.Second, func() bool { return strings.Contains(gotA.string(), "RP_FRAME_NEW") })
+	a.close()
+	cancelA()
+
+	// Reopened later at a different one.
+	b, gotB, cancelB := attachAt(40, 132)
+	defer cancelB()
+	defer b.close()
+	eventually(t, 15*time.Second, func() bool { return strings.Contains(gotB.string(), "RP_FRAME_NEW") })
+
+	replay := gotB.string()
+	if strings.Contains(replay, "RP_FRAME_OLD") {
+		t.Fatalf("replay re-emitted an overwritten frame:\n%q", replay)
+	}
+	if n := strings.Count(replay, "RP_FRAME_NEW"); n != 1 {
+		t.Fatalf("want one copy of the live frame, got %d:\n%q", n, replay)
+	}
+	if n := strings.Count(replay, "RP_BANNER"); n != 1 {
+		t.Fatalf("want one copy of the banner, got %d:\n%q", n, replay)
+	}
+}

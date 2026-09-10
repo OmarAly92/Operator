@@ -32,12 +32,12 @@ const (
 // attachment is ONE client's hold on a pane: a private attach Stream opened per
 // mux open, streaming to a single sink. The runtime is the multiplexer — it owns
 // the session's screen state and scrollback, and answers every fresh attach with
-// its init handshake (alt screen, bracketed paste, scrollback replay) followed by
-// a faithful repaint. That handshake is why the Stream is per-client and there is
-// no terminal-layer replay buffer: a byte ring can replay recent output, but the
-// one-time mode negotiation at the head of the stream scrolls out of any bounded
-// buffer. A fresh attach per client makes the runtime re-send it, every time, by
-// construction.
+// a repaint of its grid, rendered for the grid THIS client just asked for. That
+// is why the Stream is per-client and there is no terminal-layer replay buffer:
+// a byte ring can replay recent output, but only into the geometry that
+// produced it, and the one-time mode negotiation at the head of the stream
+// scrolls out of any bounded buffer besides. A fresh attach per client makes
+// the runtime re-render, every time, by construction.
 //
 // onOpen fires once the attach Stream is actually ready to accept input. onData
 // must not block: the WS layer funnels frames onto its own buffered writer.

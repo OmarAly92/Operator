@@ -10,6 +10,7 @@ package ptyhost
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -465,6 +466,16 @@ func (h *host) deliver(batch []byte) {
 	if frame, err := EncodeMessage(MsgTerminalData, batch); err == nil {
 		states = h.broadcastLocked(frame)
 	}
+	// The parser feed joins that critical section, strictly AFTER the
+	// broadcast. It has to: the parser's grid is what handleConn replays to a
+	// connecting client, so a batch that has left the ring but not yet reached
+	// the parser is a batch a client registering in that window would see in
+	// neither its replay nor its live stream. Feeding after the broadcast, and
+	// before releasing the lock, keeps every byte in exactly one of the two.
+	//
+	// This costs the screen nothing: the batch is already queued to every
+	// client, and runWriter drains those queues without h.mu.
+	h.feedParserLocked(batch)
 	h.mu.Unlock()
 
 	// Back-pressure, off the lock. Queueing above cannot block, so a batch can
@@ -475,18 +486,18 @@ func (h *host) deliver(batch []byte) {
 		cs.awaitCapacity()
 	}
 
-	h.feedParser(batch)
 	h.capture.write(batch)
 }
 
 const maxParserSliceBytes = 0x1_0000 // Warp's MAX_LOCKED_READ
 
-// feedParser hands the batch to the passive parser in bounded slices. It runs
-// after the client broadcast, never before: a slow or failing parser must not
-// delay a single byte reaching the screen. Errors are dropped for the same
-// reason -- a broken parser degrades GetOutput, it does not break the terminal.
-func (h *host) feedParser(batch []byte) {
-	parser := h.currentParser()
+// feedParserLocked hands the batch to the passive parser in bounded slices.
+// It runs after the client broadcast, never before: a slow or failing parser
+// must not delay a single byte reaching the screen. Errors are dropped for the
+// same reason -- a broken parser degrades GetOutput and attach replay, it does
+// not break the terminal. Callers must hold h.mu.
+func (h *host) feedParserLocked(batch []byte) {
+	parser := h.parser
 	if parser == nil {
 		return
 	}
@@ -542,30 +553,97 @@ func (h *host) sendTo(conn net.Conn, msg []byte) {
 	h.mu.Unlock()
 }
 
+// openingGridWait bounds how long a new connection is given to state its grid
+// before it is replayed at the host's current one. Attach sends that resize as
+// its first frame on a loopback socket, so the wait is normally microseconds;
+// the deadline only covers a client that connects and says nothing.
+const openingGridWait = 250 * time.Millisecond
+
+// framedMsg is a decoded client frame held back until the connection is
+// registered, so nothing read while waiting for the opening grid is lost.
+type framedMsg struct {
+	typ     byte
+	payload []byte
+}
+
 // handleConn manages the lifecycle of a single client connection.
 func (h *host) handleConn(conn net.Conn) {
-	// Scrollback replay: take the ring snapshot, queue it, and add the conn to
-	// the broadcast set all under a SINGLE h.mu hold. deliver() also takes
-	// h.mu, so it cannot interleave: any PTY chunk that arrives is either
-	// already in this snapshot, or is queued strictly after the conn joins the
-	// set. Doing this in two separate locks would let a chunk slip into the gap
-	// (in neither the snapshot nor this client's broadcast) and be silently
-	// dropped.
-	//
-	// The snapshot is queued, never written inline. It runs to MaxOutputLines
-	// of output, which overruns the socket buffer; writing it here blocked
-	// h.mu for the whole session and starved this connection's own read loop,
-	// silently dropping the input of any client that writes without reading.
-	// See clientState's out fields.
 	cs := newClientState()
-	h.mu.Lock()
-	if snap := h.cfg.Ring.Snapshot(); len(snap) > 0 {
-		if snapFrame, err := EncodeMessage(MsgTerminalData, snap); err == nil {
-			cs.enqueue(snapFrame)
+
+	// Phase 1: the opening grid. A replay only reproduces the pane at the
+	// geometry it was rendered for, so the client's grid has to reach the PTY
+	// and the parser BEFORE the snapshot is taken. Applying it afterwards is
+	// what produced the duplicated screen on reopening a session: the client
+	// got a paint at the old geometry, then the child's SIGWINCH repaint of
+	// the same screen at the new one, and the second could not overwrite the
+	// first.
+	//
+	// Frames read here are held back rather than handled: the connection is
+	// not in h.clients yet, so a reply would be queued nowhere.
+	var (
+		opening    *ResizePayload
+		deferred   []framedMsg
+		registered bool
+	)
+	parser := NewMessageParser(func(msgType byte, payload []byte) {
+		if registered {
+			h.handleClientMsg(conn, msgType, payload)
+			return
+		}
+		if msgType == MsgResize && opening == nil {
+			var rp ResizePayload
+			if err := json.Unmarshal(payload, &rp); err == nil && rp.Cols > 0 && rp.Rows > 0 {
+				opening = &rp
+				return
+			}
+		}
+		deferred = append(deferred, framedMsg{typ: msgType, payload: append([]byte(nil), payload...)})
+	})
+
+	buf := make([]byte, 65536)
+	var readErr error
+	_ = conn.SetReadDeadline(time.Now().Add(openingGridWait))
+	for opening == nil && len(deferred) == 0 {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			parser.Feed(buf[:n])
+		}
+		if err != nil {
+			readErr = err
+			break
 		}
 	}
+	_ = conn.SetReadDeadline(time.Time{})
+	if readErr != nil && !errors.Is(readErr, os.ErrDeadlineExceeded) {
+		// The connection died before it was ever registered; there is nothing
+		// to unwind.
+		_ = conn.Close()
+		return
+	}
+
+	// Phase 2: apply the grid, render the replay, and join the broadcast set
+	// under a SINGLE h.mu hold. deliver() takes h.mu and feeds the parser
+	// under it, so any PTY chunk is either already in this replay or is queued
+	// strictly after the conn joins the set. Doing this in two separate locks
+	// would let a chunk slip into the gap -- in neither the replay nor this
+	// client's broadcast -- and be silently dropped.
+	//
+	// The replay is queued, never written inline. It runs to MaxOutputLines of
+	// output, which overruns the socket buffer; writing it here blocked h.mu
+	// for the whole session and starved this connection's own read loop,
+	// silently dropping the input of any client that writes without reading.
+	// See clientState's out fields.
+	h.mu.Lock()
+	if opening != nil {
+		cs.cols, cs.rows, cs.sized = opening.Cols, opening.Rows, true
+	}
 	h.clients[conn] = cs
+	h.applyLargestLocked()
+	if frame := h.replayFrameLocked(); frame != nil {
+		cs.enqueue(frame)
+	}
 	h.mu.Unlock()
+	registered = true
 
 	go h.runWriter(conn, cs)
 
@@ -580,11 +658,10 @@ func (h *host) handleConn(conn net.Conn) {
 		_ = conn.Close()
 	}()
 
-	parser := NewMessageParser(func(msgType byte, payload []byte) {
-		h.handleClientMsg(conn, msgType, payload)
-	})
+	for _, msg := range deferred {
+		h.handleClientMsg(conn, msg.typ, msg.payload)
+	}
 
-	buf := make([]byte, 65536)
 	for {
 		n, err := conn.Read(buf)
 		if n > 0 {
@@ -594,6 +671,46 @@ func (h *host) handleConn(conn net.Conn) {
 			return
 		}
 	}
+}
+
+// replayFrameLocked builds the frame a newly registered client is sent to
+// bring it to the pane's current state. It renders the PARSER'S GRID, not the
+// output ring.
+//
+// The ring is a byte log, and a byte log only reproduces a screen when it is
+// replayed into the exact geometry that produced it. Anywhere else, a TUI's
+// in-place redraws (cursor-up N, erase, rewrite) land on the wrong rows, so
+// every frame the child ever drew survives instead of overwriting its
+// predecessor -- which is what stacked several mangled copies of an agent's UI
+// on top of each other when an old session was reopened at a new window size.
+// A grid repaint carries no such assumption: it is rendered for the geometry
+// the client just asked for.
+//
+// A parser render error yields NO replay rather than a ring fallback: falling
+// back would reintroduce, through the side door, the exact divergence the
+// parser exists to remove. The ring stays the replay source only for a host
+// whose parser never started at all. Callers must hold h.mu.
+func (h *host) replayFrameLocked() []byte {
+	var payload []byte
+	if h.parser != nil {
+		rendered, err := h.parser.Replay(MaxOutputLines)
+		if err != nil {
+			h.logf("render attach replay: %v", err)
+			return nil
+		}
+		payload = []byte(rendered)
+	} else {
+		payload = h.cfg.Ring.Snapshot()
+	}
+	if len(payload) == 0 {
+		return nil
+	}
+	frame, err := EncodeMessage(MsgTerminalData, payload)
+	if err != nil {
+		h.logf("encode attach replay: %v", err)
+		return nil
+	}
+	return frame
 }
 
 // handleClientMsg dispatches a decoded client message. Mirrors handleClientMessage

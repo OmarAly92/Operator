@@ -68,7 +68,12 @@ func (r *Ring) Reset() {
 	r.partialLine = ""
 }
 
-// Snapshot returns all stored lines concatenated as raw bytes for scrollback replay.
+// Snapshot returns all stored lines concatenated as raw bytes. It is the
+// FALLBACK attach replay, used only by a host whose vt parser never started:
+// raw bytes reproduce a screen only at the geometry that produced them, so a
+// client attaching at any other size gets a mangled paint. See
+// host.replayFrameLocked.
+//
 // The in-progress partialLine is NOT included (matches TS outputBuffer.join("")).
 func (r *Ring) Snapshot() []byte {
 	r.mu.Lock()

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+`vt_replay` serializes the terminal for attach replay.
+
+- New `vt-host` export `vt_replay(handle, lines, out, cap)` returns the bytes
+  that reproduce the terminal's current state on a freshly attached client:
+  CR-LF terminated styled rows, the alternate-screen mode set when the child is
+  in it, and a final cursor placement. The existing `vt_render*` exports answer
+  "what does the screen say" for text extraction and stay unchanged.
+- A replay needs all three of those. Without CR-LF the receiving terminal
+  stair-steps every row (LNM is off); without the cursor placement the child's
+  next in-place redraw counts rows from the wrong origin and paints a second
+  copy of its UI below the first.
+
 Background colours reach the renderer.
 
 - `vt-core` keeps a cell's background alongside its foreground (`CellStyle`)
