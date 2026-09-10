@@ -9,6 +9,7 @@ import type { AttachableTerminal } from "../hooks/useTerminalSession";
 import type { TerminalTarget } from "../types/terminal";
 import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
+import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
 import {
 	TerminalCacheProvider,
 	TerminalPane,
@@ -157,6 +158,7 @@ beforeEach(() => {
 	attachmentMounts.value = 0;
 	attachmentUnmounts.value = 0;
 	useUiStore.setState({ inspectorSessions: {} });
+	resetPaneGridForTests();
 });
 
 function renderPane(session?: WorkspaceSession, focusRequested?: boolean) {
@@ -889,6 +891,7 @@ describe("terminal restore", () => {
 	])("posts restore from the terminal-ended strip when mux state is %s", async (state, error) => {
 		terminalState.value = state;
 		terminalError.value = error;
+		rememberPaneGrid(132, 43);
 		const view = renderPane({ ...worker, status: "terminated", terminalHandleId: "term-1" });
 		const invalidate = vi.spyOn(view.queryClient, "invalidateQueries").mockResolvedValue(undefined);
 		try {
@@ -897,6 +900,7 @@ describe("terminal restore", () => {
 			await waitFor(() =>
 				expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/restore", {
 					params: { path: { sessionId: "sess-1" } },
+					body: { cols: 132, rows: 43 },
 				}),
 			);
 			expect(invalidate).toHaveBeenCalledWith({ queryKey: ["workspaces"] });

@@ -246,7 +246,7 @@ func TestRestoreRoundTripPreservesMetadata(t *testing.T) {
 	if _, err := st.sm.Kill(ctx, sess.ID); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := st.sm.Restore(ctx, sess.ID)
+	restored, err := st.sm.Restore(ctx, sess.ID, ports.PaneGrid{})
 	if err != nil {
 		t.Fatal(err)
 	}

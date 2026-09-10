@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { appI18n } from "../i18n";
+import { rememberPaneGrid, resetPaneGridForTests } from "../lib/pane-grid";
 
 const {
 	navigateMock,
@@ -87,6 +88,7 @@ beforeEach(() => {
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
 	window.localStorage.removeItem("opr.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
+	resetPaneGridForTests();
 });
 
 describe("SessionsBoard", () => {
@@ -916,6 +918,7 @@ describe("SessionsBoard", () => {
 			isError: false,
 			isSuccess: true,
 		});
+		rememberPaneGrid(132, 43);
 		const queryClient = renderBoard("p1");
 		const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
 
@@ -925,6 +928,7 @@ describe("SessionsBoard", () => {
 		await waitFor(() =>
 			expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/restore", {
 				params: { path: { sessionId: "s-dead" } },
+				body: { cols: 132, rows: 43 },
 			}),
 		);
 		expect(invalidate).toHaveBeenCalledWith({ queryKey: ["workspaces"] });
