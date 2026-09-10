@@ -9,9 +9,12 @@ Scrollback rewraps to the pane width.
   renderer grew a horizontal scrollbar to reach them. A resize now re-cuts the
   scrollback to the new column count the way Warp's flat storage does: rows an
   earlier cut had split are joined back into their line first, lines wider
-  than the pane are cut again on display width with wide characters kept
-  whole, and the screen records which of its rows the printer soft-wrapped so
-  a widened pane rejoins them. Content, style offsets and block ownership are
+  than the pane are cut again at the last space before the edge (inside a
+  word only when the word alone is wider than the pane, and never after a
+  leading space) with wide characters kept whole, and the screen records
+  which of its rows the printer soft-wrapped so a widened pane rejoins them.
+  The space a line breaks at hangs past the edge the way a browser's
+  `pre-wrap` hangs it, so the visible text of a row never exceeds the grid. Content, style offsets and block ownership are
   unchanged; only the row boundaries move. Agent TUIs get the same treatment
   for their scrollback while their live frame is still left for them to
   repaint.

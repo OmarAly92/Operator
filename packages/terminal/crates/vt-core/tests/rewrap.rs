@@ -138,6 +138,24 @@ fn blocks_keep_their_rows_across_a_rewrap() {
 }
 
 #[test]
+fn a_rewrapped_line_breaks_between_words() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 2);
+    core.feed(b"new 2nm A20 Pro chip, variable-aperture main camera\r\n");
+    scroll_off(&mut core, 2);
+    core.resize(30, 2);
+    let rows = rows(&core);
+    assert_eq!(
+        &rows[..3],
+        &[
+            "new 2nm A20 Pro chip, ",
+            "variable-aperture main camera",
+            ""
+        ]
+    );
+}
+
+#[test]
 fn a_height_only_resize_leaves_the_rows_alone() {
     let mut core = TerminalCore::new(40, 1000).unwrap();
     core.resize(40, 4);

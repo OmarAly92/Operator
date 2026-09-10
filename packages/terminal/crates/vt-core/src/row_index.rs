@@ -85,19 +85,31 @@ impl RowIndex {
         };
         let mut piece_start = start;
         let mut width = 0;
+        let mut word_in_piece = false;
+        let mut last_break: Option<(u64, usize)> = None;
         for (offset, ch) in text.char_indices() {
+            if ch == ' ' {
+                width += 1;
+                if word_in_piece {
+                    last_break = Some((start + offset as u64 + 1, width));
+                }
+                continue;
+            }
             let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
             if ch_width > 0 && width > 0 && width + ch_width > cols {
-                let cut = start + offset as u64;
+                let (cut, cut_width) = last_break.unwrap_or((start + offset as u64, width));
                 self.completed.push_back(RowRange {
                     start: piece_start,
                     end: cut,
                     wrapped: true,
                 });
                 piece_start = cut;
-                width = 0;
+                width -= cut_width;
+                word_in_piece = width > 0;
+                last_break = None;
             }
             width += ch_width;
+            word_in_piece |= ch_width > 0;
         }
         self.completed.push_back(RowRange {
             start: piece_start,
@@ -250,6 +262,49 @@ mod tests {
         r.complete_row(content.end_offset(), false);
         r.rewrap(&content, 3);
         assert_eq!(ranges(&r), vec![(0, 4, true), (4, 8, false)]);
+    }
+
+    #[test]
+    fn rewrap_breaks_at_the_last_space_before_the_edge() {
+        let content = content_of("the quick brown fox jumps");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 9);
+        assert_eq!(
+            ranges(&r),
+            vec![(0, 10, true), (10, 20, true), (20, 25, false)]
+        );
+    }
+
+    #[test]
+    fn rewrap_cuts_inside_a_word_only_when_the_word_alone_is_too_wide() {
+        let content = content_of("ab cdefghijkl m");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 5);
+        assert_eq!(
+            ranges(&r),
+            vec![(0, 3, true), (3, 8, true), (8, 14, true), (14, 15, false)]
+        );
+    }
+
+    #[test]
+    fn rewrap_never_breaks_after_a_leading_space() {
+        let content = content_of(" abcdefgh");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 5);
+        assert_eq!(ranges(&r), vec![(0, 5, true), (5, 9, false)]);
+    }
+
+    #[test]
+    fn rewrap_rejoins_a_word_wrapped_line_when_widened() {
+        let content = content_of("the quick brown fox jumps");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 9);
+        r.rewrap(&content, 80);
+        assert_eq!(ranges(&r), vec![(0, 25, false)]);
     }
 
     #[test]
