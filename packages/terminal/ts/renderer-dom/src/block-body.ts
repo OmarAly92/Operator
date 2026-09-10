@@ -34,7 +34,7 @@ export function populateBlock(section: HTMLElement, input: BlockBodyInput): void
 	}
 	for (let rowOffset = firstRow; rowOffset <= lastRow; rowOffset += 1) {
 		const snapshotRow = blockFirstRow + rowOffset;
-		const rowNode = buildRowNode(snapshot, snapshotRow, rowOffset, decoder);
+		const rowNode = buildRowNode(snapshot, snapshotRow, rowOffset, decoder, input.cellWidth);
 		if (input.cursor && input.cursor.row === snapshotRow) {
 			rowNode.append(createCursorElement(input.cursor.column, input.cellWidth));
 		}

@@ -4,6 +4,7 @@ import { STYLE_RUN_WORDS } from "./style-runs.js";
 import {
 	getMemory,
 	isInitialized,
+	u16View,
 	u32View,
 	u8View,
 	type WasmInput,
@@ -100,8 +101,13 @@ export class TerminalCore {
 		const blocksLen = this.inner.blocks_len();
 		const blockTextPtr = this.inner.block_text_ptr();
 		const blockTextLen = this.inner.block_text_len();
+		const rowIndentsPtr = this.inner.row_indents_ptr();
+		const rowIndentsLen = this.inner.row_indents_len();
 		validateEvenLength("rows", rowsLen);
 		validateEvenLength("runRanges", runRangesLen);
+		if (rowIndentsLen * 2 !== rowsLen) {
+			throw new Error(`rowIndents length ${rowIndentsLen} does not match ${rowsLen / 2} rows`);
+		}
 		validateMultipleOf("stylePairs", stylePairsLen, STYLE_RUN_WORDS);
 		if (blocksLen % BLOCK_RECORD_WORDS !== 0) {
 			throw new Error(
@@ -125,6 +131,7 @@ export class TerminalCore {
 			generation: this.inner.generation(),
 			content: u8View(memory, contentPtr, contentLen),
 			rows: u32View(memory, rowsPtr, rowsLen),
+			rowIndents: u16View(memory, rowIndentsPtr, rowIndentsLen),
 			runRanges: u32View(memory, runRangesPtr, runRangesLen),
 			stylePairs: u32View(memory, stylePairsPtr, stylePairsLen),
 			blocks: u32View(memory, blocksPtr, blocksLen),

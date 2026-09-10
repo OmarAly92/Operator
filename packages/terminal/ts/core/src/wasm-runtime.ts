@@ -44,6 +44,10 @@ export function u8View(memory: WebAssembly.Memory, pointer: number, length: numb
 	return new Uint8Array(memory.buffer, pointer, length);
 }
 
+export function u16View(memory: WebAssembly.Memory, pointer: number, length: number): Uint16Array {
+	return new Uint16Array(memory.buffer, pointer, length);
+}
+
 export function u32View(memory: WebAssembly.Memory, pointer: number, length: number): Uint32Array {
 	return new Uint32Array(memory.buffer, pointer, length);
 }

@@ -70,6 +70,7 @@ export type TerminalSnapshot = Readonly<{
 	generation: number;
 	content: Uint8Array;
 	rows: Uint32Array;
+	rowIndents: Uint16Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
 	blocks: Uint32Array;

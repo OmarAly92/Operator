@@ -156,6 +156,25 @@ fn a_rewrapped_line_breaks_between_words() {
 }
 
 #[test]
+fn a_bullet_line_hangs_its_continuation_under_the_text() {
+    let mut core = TerminalCore::new(80, 1000).unwrap();
+    core.resize(80, 2);
+    core.feed(b"  - iPhone Duo Apple's first foldable iPhone with a 7.6-inch display\r\n");
+    scroll_off(&mut core, 2);
+    core.resize(30, 2);
+    let snapshot = core.snapshot().unwrap();
+    assert_eq!(snapshot.row_text(0), "  - iPhone Duo Apple's first ");
+    assert_eq!(snapshot.row_indent(0), 0);
+    assert_eq!(snapshot.row_text(1), "foldable iPhone with a ");
+    assert_eq!(snapshot.row_indent(1), 4);
+    assert_eq!(snapshot.row_text(2), "7.6-inch display");
+    assert_eq!(snapshot.row_indent(2), 4);
+    for row in 1..3 {
+        assert!(snapshot.row_indent(row) + snapshot.row_text(row).trim_end().len() <= 30);
+    }
+}
+
+#[test]
 fn a_height_only_resize_leaves_the_rows_alone() {
     let mut core = TerminalCore::new(40, 1000).unwrap();
     core.resize(40, 4);

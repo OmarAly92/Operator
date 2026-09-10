@@ -95,6 +95,7 @@ pub extern "C" fn vt_render(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             let total = snapshot.row_count();
             let first = total.saturating_sub(lines as usize);
             for i in first..total {
+                write_indent(&mut text, snapshot.row_indent(i));
                 text.push_str(snapshot.row_text(i));
                 text.push('\n');
             }
@@ -137,6 +138,7 @@ pub extern "C" fn vt_render_styled(handle: u32, lines: u32, out_ptr: u32, out_ca
             let first = total.saturating_sub(lines as usize);
             for i in first..total {
                 let row_bytes = snapshot.row_text(i).as_bytes();
+                write_indent(&mut text, snapshot.row_indent(i));
                 write_styled_row(&mut text, row_bytes, snapshot.row_style_pairs(i));
             }
         }
@@ -217,12 +219,14 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             // with the host's about which row is which.
             let cols = core.columns();
             for i in first..total {
+                let indent = snapshot.row_indent(i).min(cols.saturating_sub(1));
                 let (row_bytes, pairs) = clip_row(
                     snapshot.row_text(i).as_bytes(),
                     snapshot.row_style_pairs(i),
-                    cols,
+                    cols - indent,
                 );
                 let last = i + 1 == total;
+                write_indent(&mut text, indent);
                 write_styled_row_with(&mut text, row_bytes, &pairs, if last { "" } else { "\r\n" });
             }
             // The cursor is addressed RELATIVELY, from the last row written.
@@ -282,6 +286,10 @@ fn clip_row<'a>(
         clipped.push((*end, *style));
     }
     (&row_bytes[..limit], clipped)
+}
+
+fn write_indent(text: &mut String, indent: usize) {
+    text.extend(std::iter::repeat_n(' ', indent));
 }
 
 fn write_cursor_position(text: &mut String, row: usize, col: usize) {

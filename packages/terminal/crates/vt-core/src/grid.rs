@@ -20,6 +20,7 @@ pub(crate) fn checked_u32(value: usize) -> Result<u32, CoreError> {
 pub struct GridSnapshot {
     pub content: Vec<u8>,
     pub rows: Vec<(u32, u32)>,
+    pub row_indents: Vec<u16>,
     pub run_ranges: Vec<(u32, u32)>,
     pub style_pairs: Vec<(u32, CellStyle)>,
     pub blocks: Vec<BlockRecord>,
@@ -53,6 +54,10 @@ impl GridSnapshot {
             .expect("block text is valid utf-8")
     }
 
+    pub fn row_indent(&self, index: usize) -> usize {
+        usize::from(self.row_indents[index])
+    }
+
     pub fn row_text(&self, index: usize) -> &str {
         let (start, end) = self.rows[index];
         std::str::from_utf8(&self.content[start as usize..end as usize])
@@ -76,17 +81,19 @@ pub(crate) fn build_snapshot(
 ) -> Result<GridSnapshot, CoreError> {
     let mut all_content = Vec::new();
     let mut row_ranges: Vec<(u32, u32)> = Vec::new();
+    let mut row_indents: Vec<u16> = Vec::new();
     let mut style_pairs: Vec<(u32, CellStyle)> = Vec::new();
     let mut run_ranges: Vec<(u32, u32)> = Vec::new();
     let mut ctx = SnapshotCtx {
         all_content: &mut all_content,
         row_ranges: &mut row_ranges,
+        row_indents: &mut row_indents,
         style_pairs: &mut style_pairs,
         run_ranges: &mut run_ranges,
     };
 
     for row in rows.completed() {
-        append_row(&mut ctx, content, styles, row.start, row.end)?;
+        append_row(&mut ctx, content, styles, row.start, row.end, row.indent)?;
     }
 
     let first_screen_row = ctx.row_ranges.len();
@@ -157,6 +164,7 @@ pub(crate) fn build_snapshot(
     Ok(GridSnapshot {
         content: all_content,
         rows: row_ranges,
+        row_indents,
         run_ranges,
         style_pairs,
         blocks,
@@ -179,6 +187,7 @@ fn append_block_text(buffer: &mut Vec<u8>, text: &str) -> Result<TextSpan, CoreE
 struct SnapshotCtx<'a> {
     all_content: &'a mut Vec<u8>,
     row_ranges: &'a mut Vec<(u32, u32)>,
+    row_indents: &'a mut Vec<u16>,
     style_pairs: &'a mut Vec<(u32, CellStyle)>,
     run_ranges: &'a mut Vec<(u32, u32)>,
 }
@@ -189,11 +198,13 @@ fn append_row(
     styles: &AttributeMap<CellStyle>,
     row_start: u64,
     row_end: u64,
+    indent: u16,
 ) -> Result<(), CoreError> {
     let bytes = content.copy_range(row_start, row_end);
     let content_base = checked_u32(ctx.all_content.len())?;
     let content_end = checked_u32(ctx.all_content.len() + bytes.len())?;
     ctx.row_ranges.push((content_base, content_end));
+    ctx.row_indents.push(indent);
     ctx.all_content.extend_from_slice(&bytes);
 
     let pair_start = checked_u32(ctx.style_pairs.len())?;
@@ -245,6 +256,7 @@ fn append_screen_row(
     }
     let pair_end = checked_u32(ctx.style_pairs.len())?;
     ctx.row_ranges.push((content_base, content_end));
+    ctx.row_indents.push(0);
     ctx.run_ranges.push((pair_start, pair_end));
     Ok(())
 }

@@ -34,6 +34,7 @@ pub fn checked_u32_from_u64(value: u64) -> Result<u32, ExportError> {
 pub struct ExportBuffers {
     content: Vec<u8>,
     rows: Vec<u32>,
+    row_indents: Vec<u16>,
     run_ranges: Vec<u32>,
     style_pairs: Vec<u32>,
     blocks: Vec<u32>,
@@ -58,6 +59,7 @@ impl ExportBuffers {
     pub fn refresh(&mut self, snapshot: &GridSnapshot) -> Result<(), ExportError> {
         self.content.clear();
         self.rows.clear();
+        self.row_indents.clear();
         self.run_ranges.clear();
         self.style_pairs.clear();
         self.blocks.clear();
@@ -84,6 +86,7 @@ impl ExportBuffers {
             self.rows.push(start);
             self.rows.push(end);
         }
+        self.row_indents.extend_from_slice(&snapshot.row_indents);
 
         for &(start, end) in &snapshot.run_ranges {
             self.run_ranges.push(start);
@@ -169,6 +172,10 @@ impl ExportBuffers {
 
     pub fn rows(&self) -> &[u32] {
         &self.rows
+    }
+
+    pub fn row_indents(&self) -> &[u16] {
+        &self.row_indents
     }
 
     pub fn run_ranges(&self) -> &[u32] {
@@ -336,6 +343,14 @@ impl WasmTerminalCore {
 
     pub fn rows_len(&self) -> usize {
         self.export.rows().len()
+    }
+
+    pub fn row_indents_ptr(&self) -> *const u16 {
+        self.export.row_indents().as_ptr()
+    }
+
+    pub fn row_indents_len(&self) -> usize {
+        self.export.row_indents().len()
     }
 
     pub fn run_ranges_ptr(&self) -> *const u32 {

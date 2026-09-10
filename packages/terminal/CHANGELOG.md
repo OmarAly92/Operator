@@ -14,7 +14,13 @@ Scrollback rewraps to the pane width.
   leading space) with wide characters kept whole, and the screen records
   which of its rows the printer soft-wrapped so a widened pane rejoins them.
   The space a line breaks at hangs past the edge the way a browser's
-  `pre-wrap` hangs it, so the visible text of a row never exceeds the grid. Content, style offsets and block ownership are
+  `pre-wrap` hangs it, so the visible text of a row never exceeds the grid.
+- A continuation row hangs under the text of its first row: a line that
+  starts with spaces, a bullet (`-`, `*`, `•`, `●`, `⎿`, a numbered `1.`
+  and the like) and a gap gives its continuations that width as an indent,
+  capped at half the pane. `GridSnapshot::row_indents` carries it per row,
+  the wasm export exposes it as `rowIndents`, `renderer-dom` pads the row by
+  that many cells, and `vt_render`/`vt_replay` write it as spaces. Content, style offsets and block ownership are
   unchanged; only the row boundaries move. Agent TUIs get the same treatment
   for their scrollback while their live frame is still left for them to
   repaint.

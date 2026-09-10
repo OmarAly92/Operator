@@ -9,6 +9,47 @@ pub(crate) struct RowRange {
     pub start: u64,
     pub end: u64,
     pub wrapped: bool,
+    pub indent: u16,
+}
+
+const BULLETS: &[char] = &[
+    '-', '*', '+', '>', '•', '●', '○', '◦', '▪', '▸', '▹', '►', '·', '⎿', '└', '├', '│',
+];
+
+pub(crate) fn hanging_indent(text: &str, cols: usize) -> usize {
+    let leading = text.chars().take_while(|&ch| ch == ' ').count();
+    let rest = &text[leading..];
+    let marker = marker_width(rest);
+    let after_marker = &rest[marker.1..];
+    let gap = after_marker.chars().take_while(|&ch| ch == ' ').count();
+    let indent = if marker.0 > 0 && gap > 0 {
+        leading + marker.0 + gap
+    } else {
+        leading
+    };
+    if indent * 2 > cols {
+        0
+    } else {
+        indent
+    }
+}
+
+fn marker_width(rest: &str) -> (usize, usize) {
+    let mut chars = rest.chars();
+    let Some(first) = chars.next() else {
+        return (0, 0);
+    };
+    if BULLETS.contains(&first) {
+        return (
+            UnicodeWidthChar::width(first).unwrap_or(0),
+            first.len_utf8(),
+        );
+    }
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    if (1..=3).contains(&digits) && matches!(rest[digits..].chars().next(), Some('.' | ')')) {
+        return (digits + 1, digits + 1);
+    }
+    (0, 0)
 }
 
 pub(crate) struct RowIndex {
@@ -43,6 +84,7 @@ impl RowIndex {
             start: self.open_start,
             end: end_offset,
             wrapped,
+            indent: 0,
         });
         self.open_start = end_offset;
     }
@@ -80,10 +122,13 @@ impl RowIndex {
                 start,
                 end,
                 wrapped: false,
+                indent: 0,
             });
             return;
         };
+        let hang = hanging_indent(text, cols);
         let mut piece_start = start;
+        let mut limit = cols;
         let mut width = 0;
         let mut word_in_piece = false;
         let mut last_break: Option<(u64, usize)> = None;
@@ -96,14 +141,16 @@ impl RowIndex {
                 continue;
             }
             let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
-            if ch_width > 0 && width > 0 && width + ch_width > cols {
+            if ch_width > 0 && width > 0 && width + ch_width > limit {
                 let (cut, cut_width) = last_break.unwrap_or((start + offset as u64, width));
                 self.completed.push_back(RowRange {
                     start: piece_start,
                     end: cut,
                     wrapped: true,
+                    indent: if piece_start == start { 0 } else { hang as u16 },
                 });
                 piece_start = cut;
+                limit = cols - hang;
                 width -= cut_width;
                 word_in_piece = width > 0;
                 last_break = None;
@@ -115,6 +162,7 @@ impl RowIndex {
             start: piece_start,
             end,
             wrapped: false,
+            indent: if piece_start == start { 0 } else { hang as u16 },
         });
     }
 
@@ -168,6 +216,7 @@ mod tests {
         content
     }
 
+    #[allow(clippy::type_complexity)]
     fn ranges(index: &RowIndex) -> Vec<(u64, u64, bool)> {
         index
             .completed()
@@ -305,6 +354,48 @@ mod tests {
         r.rewrap(&content, 9);
         r.rewrap(&content, 80);
         assert_eq!(ranges(&r), vec![(0, 25, false)]);
+    }
+
+    fn indents(index: &RowIndex) -> Vec<u16> {
+        index.completed().iter().map(|row| row.indent).collect()
+    }
+
+    #[test]
+    fn a_bullet_line_hangs_its_continuation_under_the_text() {
+        let content = content_of("  - alpha beta gamma delta");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 14);
+        assert_eq!(
+            ranges(&r),
+            vec![(0, 15, true), (15, 21, true), (21, 26, false)]
+        );
+        assert_eq!(indents(&r), vec![0, 4, 4]);
+    }
+
+    #[test]
+    fn a_plain_indented_line_hangs_by_its_leading_spaces() {
+        let content = content_of("    alpha beta gamma");
+        let mut r = RowIndex::new(0);
+        r.complete_row(content.end_offset(), false);
+        r.rewrap(&content, 12);
+        assert_eq!(
+            ranges(&r),
+            vec![(0, 10, true), (10, 15, true), (15, 20, false)]
+        );
+        assert_eq!(indents(&r), vec![0, 4, 4]);
+    }
+
+    #[test]
+    fn hanging_indent_recognises_markers_and_caps_at_half_the_pane() {
+        assert_eq!(hanging_indent("- item", 80), 2);
+        assert_eq!(hanging_indent("  ● item", 80), 4);
+        assert_eq!(hanging_indent("  ⎿  Did 1 search", 80), 5);
+        assert_eq!(hanging_indent("12. item", 80), 4);
+        assert_eq!(hanging_indent("3) item", 80), 3);
+        assert_eq!(hanging_indent("-item", 80), 0);
+        assert_eq!(hanging_indent("plain text", 80), 0);
+        assert_eq!(hanging_indent("      - deep", 12), 0);
     }
 
     #[test]

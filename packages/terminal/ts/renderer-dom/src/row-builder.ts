@@ -13,6 +13,7 @@ export const CLASS_RUN = "terminal-run";
 export type RowSource = Readonly<{
 	content: Uint8Array;
 	rows: Uint32Array;
+	rowIndents?: Uint16Array;
 	runRanges: Uint32Array;
 	stylePairs: Uint32Array;
 }>;
@@ -22,8 +23,10 @@ export function buildRowNode(
 	snapshotRowIndex: number,
 	label: number,
 	decoder: TextDecoder,
+	cellWidth = 0,
 ): HTMLElement {
 	const { content, rows, runRanges, stylePairs } = source;
+	const indent = source.rowIndents?.[snapshotRowIndex] ?? 0;
 	const rowsBase = snapshotRowIndex * 2;
 	const rowContentStart = rows[rowsBase] ?? 0;
 	const rowContentEnd = rows[rowsBase + 1] ?? rowContentStart;
@@ -33,6 +36,9 @@ export function buildRowNode(
 	const rowNode = document.createElement("div");
 	rowNode.dataset.terminalRow = String(label);
 	rowNode.className = CLASS_ROW;
+	if (indent > 0 && cellWidth > 0) {
+		rowNode.style.paddingLeft = `${indent * cellWidth}px`;
+	}
 	let rowCursor = 0;
 	for (let pairIndex = pairStart; pairIndex < pairEnd; pairIndex += 1) {
 		const elementIndex = pairIndex * STYLE_RUN_WORDS;
