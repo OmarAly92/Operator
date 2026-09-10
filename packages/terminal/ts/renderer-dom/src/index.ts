@@ -1,7 +1,6 @@
-export { DomBlockRenderer } from "./dom-block-renderer.js";
+export { ALT_BLOCK_ID, DomBlockRenderer } from "./dom-block-renderer.js";
 export { warpDarkTheme } from "./theme-warp.js";
 export { renderBlockActions, RERUN_EVENT, type BlockTextSource } from "./block-actions.js";
-export { ALT_BLOCK_ID } from "./dom-block-renderer.js";
 export type { SelectionKind, SelectionPoint } from "./selection-model.js";
 export { styleCodeToCssVar } from "./style-code.js";
 export { terminalStyles } from "./styles.js";

@@ -30,6 +30,31 @@ function layoutRows(host: HTMLElement): HTMLElement[] {
 	return rows;
 }
 
+function nextPaint(renderer: DomBlockRenderer): Promise<void> {
+	return new Promise((resolve) => {
+		const off = renderer.onPaint(() => {
+			off();
+			resolve();
+		});
+	});
+}
+
+function layoutLive(host: HTMLElement): () => void {
+	const original = HTMLElement.prototype.getBoundingClientRect;
+	const rect = (index: number, right: number): DOMRect =>
+		({ left: 0, right, width: right, top: index * CELL_H, bottom: (index + 1) * CELL_H, height: CELL_H, x: 0, y: index * CELL_H, toJSON: () => ({}) }) as DOMRect;
+	HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+		const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+		const row = this.closest<HTMLElement>("[data-terminal-row]");
+		const index = row ? rows.indexOf(row) : -1;
+		if (index < 0) return original.call(this);
+		return rect(index, row === this ? 600 : 200);
+	};
+	return () => {
+		HTMLElement.prototype.getBoundingClientRect = original;
+	};
+}
+
 function mountWith(input: string): { core: TerminalCore; host: HTMLElement; renderer: DomBlockRenderer } {
 	const core = createTerminalCore({ columns: 40, scrollback: 100 });
 	feed(core, input);
@@ -68,17 +93,24 @@ describe("the terminal selection", () => {
 		expect(renderer.selectedText()).toBe("pha\nbeta\ngam");
 	});
 
-	it("survives a repaint that rebuilds every row", () => {
+	it("survives a repaint that rebuilds every row", async () => {
 		const { core, host, renderer } = mountWith("alpha\r\nbeta\r\ngamma\r\n");
-		layoutRows(host);
-		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
-		renderer.selectionUpdate(renderer.pointAt(CELL_W * 4, CELL_H * 1.5)!);
-		expect(renderer.hasSelection()).toBe(true);
-		for (let tick = 0; tick < 20; tick += 1) feed(core, `\x1b[2K\r✻ Baking for ${tick}s`);
-		const rows = layoutRows(host);
-		expect(renderer.hasSelection()).toBe(true);
-		expect(renderer.selectedText()).toBe("alpha\nbeta");
-		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		const restore = layoutLive(host);
+		try {
+			const before = host.querySelectorAll("[data-terminal-row]")[0]!;
+			renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+			renderer.selectionUpdate(renderer.pointAt(CELL_W * 4, CELL_H * 1.5)!);
+			expect(renderer.hasSelection()).toBe(true);
+			for (let tick = 0; tick < 20; tick += 1) feed(core, `\x1b[2K\r✻ Baking for ${tick}s`);
+			await nextPaint(renderer);
+			const rows = [...host.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+			expect(rows[0]).not.toBe(before);
+			expect(renderer.hasSelection()).toBe(true);
+			expect(renderer.selectedText()).toBe("alpha\nbeta");
+			expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		} finally {
+			restore();
+		}
 	});
 
 	it("tints a painted run's background instead of hiding under it", () => {
@@ -138,6 +170,32 @@ describe("the terminal selection", () => {
 		layoutRows(host);
 		expect(renderer.hasSelection()).toBe(true);
 		expect(renderer.selectedText()).toBe("alpha\nbeta\n✻ Baking for 19s");
+	});
+
+	it("tells listeners when a repaint drops the selection with its block", async () => {
+		const { core, host, renderer } = mountWith("\x1b]133;A\x07\x1b]133;C\x07one\r\n\x1b]133;D;0\x07");
+		layoutRows(host);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 3, CELL_H * 0.5)!);
+		let calls = 0;
+		renderer.onSelectionChange(() => { calls += 1; });
+		for (let i = 0; i < 400; i += 1) feed(core, `\x1b]133;A\x07\x1b]133;C\x07row ${i}\r\n\x1b]133;D;0\x07`);
+		await nextPaint(renderer);
+		expect(renderer.hasSelection()).toBe(false);
+		expect(calls).toBe(1);
+	});
+
+	it("copies only what a block filter leaves visible", async () => {
+		const { host, renderer } = mountTallWith(
+			"\x1b]133;A\x07\x1b]133;C\x07keep one\r\n\x1b]133;D;1\x07\x1b]133;A\x07\x1b]133;C\x07drop me\r\n\x1b]133;D;0\x07\x1b]133;A\x07\x1b]133;C\x07keep two\r\n\x1b]133;D;1\x07",
+		);
+		renderer.setFilter({ exitCodeNonZero: true });
+		await nextPaint(renderer);
+		const rows = layoutRows(host);
+		expect(rows.map((row) => row.textContent)).toEqual(["keep one", "keep two"]);
+		renderer.selectionBegin(renderer.pointAt(0, CELL_H * 0.5)!, "simple");
+		renderer.selectionUpdate(renderer.pointAt(CELL_W * 8, CELL_H * 1.5)!);
+		expect(renderer.selectedText()).toBe("keep one\nkeep two");
 	});
 
 	it("notifies listeners when the selection changes", () => {

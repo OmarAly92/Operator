@@ -71,7 +71,9 @@ Rules from `grid_handler.rs::line_to_string` and
 `blocks/selection.rs::selection_to_string`:
 
 - Rows are joined with `\n`. A blank row inside the selection is an empty line.
-- Cells past the row's written length are dropped; printed spaces are kept.
+- Trailing spaces on a row are dropped. Warp drops never-written cells and keeps
+  printed spaces; the snapshot cannot tell the two apart, so the trim is the
+  closest match and what xterm.js does.
 - A selection spanning several blocks joins their texts with exactly one `\n`.
 - One trailing newline is trimmed.
 - Soft-wrapped rows copy as separate lines. The snapshot does not export the

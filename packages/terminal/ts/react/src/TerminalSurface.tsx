@@ -1,6 +1,13 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { clipboardHasImage, encodeKey, LineEditor, planPaste } from "@operator/terminal-editor";
-import { createFindBar, DomBlockRenderer, RERUN_EVENT, type FindBar } from "@operator/terminal-renderer-dom";
+import {
+	createFindBar,
+	DomBlockRenderer,
+	RERUN_EVENT,
+	type FindBar,
+	type SelectionKind,
+	type SelectionPoint,
+} from "@operator/terminal-renderer-dom";
 import { autoScrollRows, exceedsDragThreshold, isCopyChord, kindForClickCount } from "./selection-gesture.js";
 import {
 	createCompositionTarget,
@@ -72,6 +79,9 @@ const MIN_VELOCITY_SAMPLE_MS = 4;
 function isMacPlatform(): boolean {
 	return typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform);
 }
+
+const SELECTION_CHROME =
+	".terminal-block-header, .terminal-block-actions, .terminal-pinned-header, .terminal-jump-to-bottom, .terminal-find-bar, .terminal-palette";
 
 function accelerationGain(velocityPxPerSec: number): number {
 	const gain = velocityPxPerSec / ACCEL_REFERENCE_PX_PER_SEC;
@@ -249,6 +259,7 @@ export function TerminalSurface({
 				return;
 			}
 			event.preventDefault();
+			rendererRef.current?.selectionClear();
 			onSendRaw(data);
 		};
 		// The alt screen has no line editor to hold the line, so every paste
@@ -285,8 +296,8 @@ export function TerminalSurface({
 		let lastWheelAt = 0;
 		let dragButton: 0 | 1 | 2 | null = null;
 		let pressOrigin: { x: number; y: number } | null = null;
-		let pressPoint: import("@operator/terminal-renderer-dom").SelectionPoint | null = null;
-		let pressKind: import("@operator/terminal-renderer-dom").SelectionKind = "simple";
+		let pressPoint: SelectionPoint | null = null;
+		let pressKind: SelectionKind = "simple";
 		let dragging = false;
 		let autoScroll: number | null = null;
 		let lastPointer = { x: 0, y: 0 };
@@ -395,6 +406,7 @@ export function TerminalSurface({
 				return;
 			}
 			if (button !== 0) return;
+			if (event.target instanceof Element && event.target.closest(SELECTION_CHROME)) return;
 			const target = renderer();
 			if (!target) return;
 			const point = target.pointAt(event.clientX, event.clientY);

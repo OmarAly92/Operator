@@ -468,4 +468,35 @@ describe("TerminalSurface selection", () => {
 		setHostSize(host, 300, 150);
 		expect(rows[0]!.style.backgroundImage).toBe("");
 	});
+
+	it("leaves a mousedown on the block chrome to the chrome, the way Warp's chrome takes its own clicks", async () => {
+		const { container, core } = renderSurface();
+		act(() => { feed(core, "\x1b]133;A\x07\x1b]133;B\x07ls\x1b]133;C\x07alpha\r\n\x1b]133;D;0\x07"); });
+		await flushRepaint();
+		layoutRows(container);
+		const header = container.querySelector(".terminal-block-header") as HTMLElement;
+		const event = new MouseEvent("mousedown", { clientX: 1, clientY: 1, button: 0, bubbles: true, cancelable: true });
+		header.dispatchEvent(event);
+		expect(event.defaultPrevented).toBe(false);
+		mouse(window, "mousemove", cellWidth * 3, cellHeight * 0.5);
+		mouse(window, "mouseup", cellWidth * 3, cellHeight * 0.5);
+		const rows = [...container.querySelectorAll<HTMLElement>("[data-terminal-row]")];
+		expect(rows.every((row) => row.style.backgroundImage === "")).toBe(true);
+	});
+
+	it("clears an alt-screen selection when a key goes to the program", async () => {
+		const onSendRaw = vi.fn();
+		const { container, core } = renderSurface({ onSendRaw });
+		act(() => { feed(core, "\x1b[?1049halpha beta\r\n"); });
+		await flushRepaint();
+		const rows = layoutRows(container.querySelector(".terminal-alt-surface") as HTMLElement);
+		mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
+		mouse(window, "mousemove", cellWidth * 4, cellHeight * 0.5);
+		mouse(window, "mouseup", cellWidth * 4, cellHeight * 0.5);
+		expect(rows[0]!.style.backgroundImage).toContain("var(--terminal-selection)");
+		const surface = container.querySelector(".terminal-host") as HTMLElement;
+		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "j", bubbles: true, cancelable: true }));
+		expect(onSendRaw).toHaveBeenCalledWith("j");
+		expect(rows[0]!.style.backgroundImage).toBe("");
+	});
 });
