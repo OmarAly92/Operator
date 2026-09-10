@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+A host can put keyboard focus in the terminal.
+
+- `TerminalSurface` takes a `focusToken`. Each new value moves focus into the
+  input the surface is currently using -- the line editor, or the alternate
+  screen's composition target while a full-screen program owns the grid. The
+  surface still never takes focus on its own: which pane owns the keyboard is
+  the host's call, the way Warp's pane group focuses a pane's contents when it
+  activates it (`app/src/pane_group/mod.rs`, `focus_pane`) and the terminal view
+  then focuses its input box (`app/src/terminal/view.rs`, `on_focus`). Before
+  this the only way into the editor was a click, so a pane that had just
+  opened dropped the first keystrokes.
+
 Scrollback rewraps to the pane width.
 
 - `vt-core` kept every scrollback row at the width it was written at, so after

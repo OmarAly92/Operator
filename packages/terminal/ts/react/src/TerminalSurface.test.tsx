@@ -206,6 +206,40 @@ describe("TerminalSurface", () => {
 		expect(document.activeElement).toBe(composition);
 	});
 
+	it("puts focus in the editor when the host hands it a focus token, and again when the token changes", () => {
+		const { container, focus } = renderSurface({ focusToken: 1 });
+		const composition = container.querySelector<HTMLElement>(".terminal-editor textarea")!;
+		expect(document.activeElement).toBe(composition);
+
+		composition.blur();
+		expect(document.activeElement).not.toBe(composition);
+		focus(1);
+		expect(document.activeElement).not.toBe(composition);
+
+		focus(2);
+		expect(document.activeElement).toBe(composition);
+	});
+
+	it("leaves focus alone without a focus token", () => {
+		const { container } = renderSurface();
+		const composition = container.querySelector<HTMLElement>(".terminal-editor textarea")!;
+		expect(document.activeElement).not.toBe(composition);
+	});
+
+	it("sends a focus token to the alternate screen's input while it is open", () => {
+		const { container, core, focus } = renderSurface();
+		act(() => {
+			feed(core, "\x1b[?1049h");
+		});
+		const host = container.querySelector(".terminal-host") as HTMLElement;
+		const altInput = host.querySelector("textarea")!;
+		altInput.blur();
+		expect(document.activeElement).not.toBe(altInput);
+
+		focus(1);
+		expect(document.activeElement).toBe(altInput);
+	});
+
 	it("does not steal focus into the editor while text is selected in the block list", () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "selectable output");

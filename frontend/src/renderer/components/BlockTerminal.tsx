@@ -49,6 +49,7 @@ export type BlockTerminalProps = {
 	 * instead of the one it was measured in.
 	 */
 	refitToken?: number;
+	focusToken?: number;
 	/**
 	 * Fired once, on the frame that first carries the pane's replay -- and only
 	 * when there was a held replay to carry. It is a proof, not a timer: the
@@ -161,6 +162,7 @@ export function BlockTerminal({
 	fontSize,
 	agentTui,
 	refitToken,
+	focusToken,
 	onReplayPainted,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
@@ -492,6 +494,7 @@ export function BlockTerminal({
 		onSendRaw,
 		onGeometry,
 		refitToken,
+		focusToken,
 	};
 
 	return (

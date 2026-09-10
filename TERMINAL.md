@@ -276,6 +276,27 @@ Each entry: symptom → real cause → what guards it now. Commits are on master
   `TerminalSurface.mouse.test.tsx`, and the `bench:selection` Playwright gate
   (`bench/selection-gate.mjs`).
 
+### 4.14 Typing after opening a session went nowhere until a click
+- Symptom: click a session in the sidebar, the terminal opens, the first
+  keystrokes are dropped; a click in the pane was needed before typing worked.
+- Cause: nothing focused the terminal's input when a pane was shown. The old
+  xterm pane focused itself on `focusRequested`; `f72cdffa0` deleted xterm and
+  left `focusRequested` accepted by `TerminalPane` but read by nothing. The
+  retained-terminal cache blurs a pane on park (`blurTerminal`) and marks it
+  `inert`, and on show it only flipped `inert` back -- focus stayed on the
+  sidebar button the user had clicked.
+- Now: `TerminalSurface` takes a `focusToken`; each new value focuses the
+  editor (or the alt-screen composition target). `AttachedTerminal` bumps it
+  when `isVisible` becomes true and whenever `focusRequested` changes while
+  visible, and passes it through `BlockTerminal`. A parked pane never gets a
+  token. Warp: `pane_group/mod.rs::focus_pane` focuses the pane contents on
+  activation and `terminal/view.rs::on_focus` moves focus into the input box.
+- Guards: `TerminalSurface.test.tsx` "puts focus in the editor when the host
+  hands it a focus token", "sends a focus token to the alternate screen's
+  input", `BlockTerminal.test.tsx` "hands the host's focus token to the
+  surface", `TerminalPane.test.tsx` "TerminalPane focus" (on screen, human
+  input requested, retained pane shown again but never while parked).
+
 ---
 
 ## 5. Known gaps (not bugs, decisions pending)

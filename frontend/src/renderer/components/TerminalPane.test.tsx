@@ -59,10 +59,15 @@ vi.mock("../lib/api-client", () => ({
 const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
 
 vi.mock("./BlockTerminal", () => ({
-	BlockTerminal: (props: { ariaLabel?: string; onReplayPainted?: () => void }) => {
+	BlockTerminal: (props: { ariaLabel?: string; onReplayPainted?: () => void; focusToken?: number }) => {
 		blockReplayPainted.value = props.onReplayPainted;
 		return (
-			<div aria-label={props.ariaLabel} data-testid="block-terminal" className="block-terminal-root h-full w-full" />
+			<div
+				aria-label={props.ariaLabel}
+				data-testid="block-terminal"
+				data-focus-token={props.focusToken}
+				className="block-terminal-root h-full w-full"
+			/>
 		);
 	},
 }));
@@ -154,18 +159,20 @@ beforeEach(() => {
 	useUiStore.setState({ inspectorSessions: {} });
 });
 
-function renderPane(session?: WorkspaceSession) {
+function renderPane(session?: WorkspaceSession, focusRequested?: boolean) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	const previousAO = window.operator;
 	window.operator = {} as typeof window.operator;
-	const result = render(
+	const tree = (nextFocusRequested?: boolean) => (
 		<QueryClientProvider client={queryClient}>
-			<TerminalPane daemonReady fontSize={12} session={session} theme="dark" />
-		</QueryClientProvider>,
+			<TerminalPane daemonReady fontSize={12} session={session} theme="dark" focusRequested={nextFocusRequested} />
+		</QueryClientProvider>
 	);
+	const result = render(tree(focusRequested));
 	return {
 		...result,
 		queryClient,
+		requestFocus: (nextFocusRequested: boolean) => result.rerender(tree(nextFocusRequested)),
 		restore: () => {
 			window.operator = previousAO;
 		},
@@ -234,6 +241,55 @@ function renderCachedPane({
 function activeAttachment(): HTMLElement {
 	return within(screen.getByTestId("session-terminal-slot")).getByTestId("terminal-attachment");
 }
+
+function activeFocusToken(): string | null {
+	return within(screen.getByTestId("session-terminal-slot"))
+		.getByTestId("block-terminal")
+		.getAttribute("data-focus-token");
+}
+
+describe("TerminalPane focus", () => {
+	it("focuses the terminal as soon as the pane is on screen", async () => {
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			await screen.findByTestId("terminal-attachment");
+			expect(screen.getByTestId("block-terminal").getAttribute("data-focus-token")).toBe("1");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("focuses the terminal again when a controller asks for human input", async () => {
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			await screen.findByTestId("terminal-attachment");
+			view.requestFocus(true);
+			expect(screen.getByTestId("block-terminal").getAttribute("data-focus-token")).toBe("2");
+		} finally {
+			view.restore();
+		}
+	});
+
+	it("focuses a retained terminal each time it is shown, never while it is parked", async () => {
+		const sessionA = { ...worker, id: "sess-a", title: "session A", terminalHandleId: "handle-a" };
+		const sessionB = { ...worker, id: "sess-b", title: "session B", terminalHandleId: "handle-b" };
+		const view = renderCachedPane({ session: sessionA, sessions: [sessionA, sessionB] });
+		try {
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			const paneA = screen.getByTestId("block-terminal");
+
+			view.show(sessionB);
+			await waitFor(() => expect(activeFocusToken()).toBe("1"));
+			expect(paneA.getAttribute("data-focus-token")).toBe("1");
+
+			view.show(sessionA);
+			await waitFor(() => expect(activeFocusToken()).toBe("2"));
+			expect(screen.getByTestId("terminal-cache-parking").querySelector("[data-focus-token]")?.getAttribute("data-focus-token")).toBe("1");
+		} finally {
+			view.restore();
+		}
+	});
+});
 
 describe("TerminalPane empty states", () => {
 	it("uses the full extent for the terminal grid, with no inset on any side", async () => {

@@ -52,6 +52,7 @@ export interface TerminalSurfaceProps {
 	 * so here instead.
 	 */
 	refitToken?: number;
+	focusToken?: number;
 	onPaint?: () => void;
 }
 
@@ -102,6 +103,7 @@ export function TerminalSurface({
 	onGeometry,
 	onPaint,
 	refitToken,
+	focusToken,
 }: TerminalSurfaceProps): ReactElement {
 	const hostRef = useRef<HTMLDivElement | null>(null);
 	const editorHostRef = useRef<HTMLDivElement | null>(null);
@@ -550,13 +552,20 @@ export function TerminalSurface({
 	// a terminal keeps you typing at the prompt. Without this the click lands on
 	// the host (or nowhere) and the next keystroke goes nowhere. Runs on click,
 	// not mousedown, so a drag-select is left alone.
-	const focusEditorFromHost = useCallback(() => {
-		if (altActive) {
+	const altActiveRef = useRef(altActive);
+	altActiveRef.current = altActive;
+	const focusInput = useCallback(() => {
+		if (altActiveRef.current) {
 			compositionRef.current?.focus();
 			return;
 		}
 		editorRef.current?.focus();
-	}, [altActive]);
+	}, []);
+
+	useLayoutEffect(() => {
+		if (focusToken === undefined) return;
+		focusInput();
+	}, [focusInput, focusToken]);
 
 	const hostClassName = className ? `terminal-host ${className}` : "terminal-host";
 	const blockList = (
@@ -569,7 +578,7 @@ export function TerminalSurface({
 			<div
 				ref={hostRef}
 				className={hostClassName}
-				onClick={focusEditorFromHost}
+				onClick={focusInput}
 				tabIndex={altActive ? 0 : undefined}
 			/>
 			<div ref={editorHostRef} className="terminal-editor-host" hidden={altActive} />

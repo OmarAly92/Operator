@@ -28,6 +28,7 @@ const mockState = vi.hoisted(() => {
 		onSendRaw: undefined as ((data: string) => void) | undefined,
 		revision: 0,
 		wasmInits: 0,
+		focusToken: undefined as number | undefined,
 		// The real surface only reports geometry once its host has a non-zero
 		// client box. Off means "mounted but never laid out", which is what a
 		// pane behind another tab looks like.
@@ -132,7 +133,9 @@ vi.mock("@operator/terminal-react", () => {
 			onSend?: (text: string) => void;
 			onSendRaw?: (data: string) => void;
 			onGeometry?: (columns: number, rows: number) => void;
+			focusToken?: number;
 		}) => {
+			mockState.focusToken = props.focusToken;
 			mockState.altScreenActive = props.altScreenActive;
 			mockState.altScreenSurfaceProvided = props.altScreenSurface !== undefined;
 			if (props.host) mockState.host = props.host;
@@ -266,6 +269,7 @@ function renderTerminal(
 		agentTui?: boolean;
 		coreOverrides?: Partial<MockCore>;
 		onReplayPainted?: () => void;
+		focusToken?: number;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -287,6 +291,7 @@ function renderTerminal(
 			historyBlocks={options.historyBlocks ?? []}
 			agentTui={options.agentTui}
 			onReplayPainted={options.onReplayPainted}
+			focusToken={options.focusToken}
 		/>,
 	);
 	const proxy = new Proxy({} as MockCore, {
@@ -318,10 +323,17 @@ beforeEach(() => {
 	mockState.revision = 0;
 	mockState.reportGeometry = true;
 	mockState.emitGeometry = undefined;
+	mockState.focusToken = undefined;
 	subscribers.clear();
 });
 
 describe("BlockTerminal", () => {
+	it("hands the host's focus token to the surface", async () => {
+		renderTerminal({ focusToken: 3 });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		await waitFor(() => expect(mockState.focusToken).toBe(3));
+	});
+
 	// A core is born 120x24 and only takes the pane's real grid when the surface
 	// measures a laid-out host. Feeding a replay before then parses a full-screen
 	// TUI redraw into the wrong grid: everything below row 24 is clipped and the

@@ -859,6 +859,7 @@ function AttachedTerminal({
 	terminalTarget,
 	fontSize,
 	inputDisabled,
+	focusRequested,
 	createMux,
 	isVisible = true,
 	onTerminalReady,
@@ -931,6 +932,11 @@ function AttachedTerminal({
 	useEffect(() => {
 		setReplayPainted(false);
 	}, [handleId]);
+	const [focusToken, setFocusToken] = useState<number | undefined>(undefined);
+	useLayoutEffect(() => {
+		if (!isVisible) return;
+		setFocusToken((token) => (token ?? 0) + 1);
+	}, [focusRequested, isVisible]);
 	const isSessionActive = session ? sessionIsActive(session) : false;
 	// A standalone shell is never restorable: there is no session row to restore.
 	const canRestoreSession =
@@ -1037,6 +1043,7 @@ function AttachedTerminal({
 					historyBlocks={isShellTarget ? shellBlocks.blocks : NO_HISTORY_BLOCKS}
 					agentTui={terminalTarget?.kind === "worker"}
 					refitToken={refitToken}
+					focusToken={focusToken}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
 					onReplayPainted={handleReplayPainted}
