@@ -163,6 +163,10 @@ impl TerminalCore {
         self.line_editor.state()
     }
 
+    pub fn columns(&self) -> usize {
+        self.parser.columns()
+    }
+
     pub fn resize(&mut self, columns: usize, rows: usize) {
         let columns = columns.clamp(1, alt::MAX_DIMENSION);
         let rows = rows.clamp(1, alt::MAX_DIMENSION);

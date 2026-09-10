@@ -13,6 +13,13 @@
   stair-steps every row (LNM is off); without the cursor placement the child's
   next in-place redraw counts rows from the wrong origin and paints a second
   copy of its UI below the first.
+- `vt_replay` clips every row to the grid's current width. A resize does not
+  reflow, so scrollback keeps rows at the width they were written at; replaying
+  one verbatim into a grid that is now narrower wraps it into two rows and
+  pushes everything below it down by one, which is what made a reattached
+  transcript come back doubled and without the blank lines between an agent's
+  messages.
+- New `vt-core` accessor `TerminalCore::columns()`.
 
 Background colours reach the renderer.
 

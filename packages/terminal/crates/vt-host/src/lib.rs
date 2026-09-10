@@ -209,13 +209,25 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
             if total == 0 || blank {
                 return 0;
             }
+            // Rows are clipped to the grid. A shrink leaves scrollback rows at
+            // the width they were written at -- vt-core keeps them, it does not
+            // reflow -- and a row wider than the receiving grid wraps, so it
+            // lands as two rows and pushes every row below it down by one. That
+            // shift is what turns a replayed transcript into the doubled,
+            // gap-less mess the ring replay used to produce: the client's grid
+            // no longer agrees with the host's about which row is which.
+            let cols = core.columns();
             for i in first..total {
-                let row_bytes = snapshot.row_text(i).as_bytes();
+                let (row_bytes, pairs) = clip_row(
+                    snapshot.row_text(i).as_bytes(),
+                    snapshot.row_style_pairs(i),
+                    cols,
+                );
                 let last = i + 1 == total;
                 write_styled_row_with(
                     &mut text,
                     row_bytes,
-                    snapshot.row_style_pairs(i),
+                    &pairs,
                     if last { "" } else { "\r\n" },
                 );
             }
@@ -235,8 +247,9 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
                 text.push_str(&format!("\x1b[{}A", last_row - cursor_row));
             }
             text.push('\r');
-            if snapshot.cursor_col > 0 {
-                text.push_str(&format!("\x1b[{}C", snapshot.cursor_col));
+            let cursor_col = (snapshot.cursor_col as usize).min(cols.saturating_sub(1));
+            if cursor_col > 0 {
+                text.push_str(&format!("\x1b[{}C", cursor_col));
             }
             if !snapshot.cursor_visible {
                 text.push_str("\x1b[?25l");
@@ -255,6 +268,26 @@ pub extern "C" fn vt_replay(handle: u32, lines: u32, out_ptr: u32, out_cap: u32)
         }
         bytes.len() as u32
     })
+}
+
+fn clip_row<'a>(
+    row_bytes: &'a [u8],
+    pairs: &[(u32, CellStyle)],
+    cols: usize,
+) -> (&'a [u8], Vec<(u32, CellStyle)>) {
+    let text = std::str::from_utf8(row_bytes).unwrap_or("");
+    let Some((limit, _)) = text.char_indices().nth(cols) else {
+        return (row_bytes, pairs.to_vec());
+    };
+    let mut clipped = Vec::with_capacity(pairs.len());
+    for (end, style) in pairs {
+        if *end as usize >= limit {
+            clipped.push((limit as u32, *style));
+            break;
+        }
+        clipped.push((*end, *style));
+    }
+    (&row_bytes[..limit], clipped)
 }
 
 fn write_cursor_position(text: &mut String, row: usize, col: usize) {

@@ -187,6 +187,10 @@ impl Parser {
         });
     }
 
+    pub fn columns(&self) -> usize {
+        self.width
+    }
+
     pub fn resize(&mut self, columns: usize, rows: usize) {
         self.width = columns;
         if self.alt.is_some() {
