@@ -230,6 +230,28 @@ Each entry: symptom → real cause → what guards it now. Commits are on master
   the frame to scrollback exactly once, never copies it. Height shrink drops rows
   below the cursor first, then from the top (tmux `screen_resize_y`).
 
+### 4.11 Selection hidden under Claude Code's user-message band — `559ba747b`
+- Symptom: a selection dragged over the grey user-message band stayed grey,
+  with blue hairlines between its rows.
+- Cause: the band's run paints its own `background-color`, which sits above the
+  row's selection fill (`paintSelectionFill` paints the row's `background-image`).
+  The hairlines were the half-leading: an inline span's background covers only
+  the glyph box, and rows are `line-height` tall.
+- Now: runs with a background get the selection as a `background-image` clipped
+  to the row's fill (`selection-fill.ts::runFill`), which paints above the run's
+  colour and below its text -- Warp's order (`grid_renderer.rs::render_selection`
+  blends the rect over cell backgrounds, glyphs drawn last). `.terminal-run` is
+  `inline-block` at `--terminal-line-height` so backgrounds tile seamlessly.
+- Guards: `terminal-selection.test.ts` "tints a painted run's background",
+  `selection-fill.test.ts::runFill`, `styles-parity.test.ts` "fills a painted run
+  to the full line height".
+
+### 4.12 I-beam pointer over the transcript — `b687426fd`
+- Selectable text gets a browser I-beam by default. Warp keeps the platform arrow
+  over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
+  `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
+  `styles-parity.test.ts` "keeps the arrow over the transcript".
+
 ---
 
 ## 5. Known gaps (not bugs, decisions pending)
