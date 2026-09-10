@@ -15,6 +15,7 @@
 		"smoke:tauri": "npm run build && node ./scripts/smoke-tauri.mjs",
 		"bench:terminal": "node ./bench/runner.mjs",
 		"bench:scroll": "node ./bench/scroll-gate.mjs",
+		"bench:selection": "node ./bench/selection-gate.mjs",
 		"bench:baseline": "node ./bench/runner.mjs",
 		"bench:gate": "node ./bench/gate.mjs"
 	},
