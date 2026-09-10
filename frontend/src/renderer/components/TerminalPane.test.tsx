@@ -56,10 +56,15 @@ vi.mock("../lib/api-client", () => ({
 	apiErrorMessage: (_error: unknown, fallback: string) => fallback,
 }));
 
+const blockReplayPainted: { value: (() => void) | undefined } = { value: undefined };
+
 vi.mock("./BlockTerminal", () => ({
-	BlockTerminal: (props: { ariaLabel?: string }) => (
-		<div aria-label={props.ariaLabel} data-testid="block-terminal" className="block-terminal-root h-full w-full" />
-	),
+	BlockTerminal: (props: { ariaLabel?: string; onReplayPainted?: () => void }) => {
+		blockReplayPainted.value = props.onReplayPainted;
+		return (
+			<div aria-label={props.ariaLabel} data-testid="block-terminal" className="block-terminal-root h-full w-full" />
+		);
+	},
 }));
 
 vi.mock("./TerminalAttachment", () => ({
@@ -329,6 +334,24 @@ describe("TerminalPane replay cover", () => {
 			// The terminal keeps rendering underneath — covered, never unmounted, so the
 			// grid it measures stays correct.
 			expect(screen.getByTestId("terminal-attachment")).toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+
+	// The cover exists to hide a progressive repaint, and the block surface has
+	// none. Holding it until xterm's replay gate settles -- 240ms of quiet
+	// windows, on a hidden element that no longer paints -- leaves the cover
+	// sitting over content the user could already have been reading.
+	it("uncovers as soon as the block surface reports the replay painted", async () => {
+		replaySettled.value = false;
+		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
+		try {
+			expect(screen.getByTestId("terminal-replay-cover")).toBeInTheDocument();
+			await act(async () => {
+				blockReplayPainted.value?.();
+			});
+			expect(screen.queryByTestId("terminal-replay-cover")).not.toBeInTheDocument();
 		} finally {
 			view.restore();
 		}

@@ -265,6 +265,7 @@ function renderTerminal(
 		historyBlocks?: BlockTerminalHistoryBlock[];
 		agentTui?: boolean;
 		coreOverrides?: Partial<MockCore>;
+		onReplayPainted?: () => void;
 	} = {},
 ) {
 	const localListeners: Array<(bytes: Uint8Array) => void> = [];
@@ -285,6 +286,7 @@ function renderTerminal(
 			sessionId="s1"
 			historyBlocks={options.historyBlocks ?? []}
 			agentTui={options.agentTui}
+			onReplayPainted={options.onReplayPainted}
 		/>,
 	);
 	const proxy = new Proxy({} as MockCore, {
@@ -572,4 +574,49 @@ describe("BlockTerminal", () => {
 		expect(openLinkInSystemBrowser).not.toHaveBeenCalled();
 	});
 
+});
+
+describe("BlockTerminal replay paint", () => {
+	// The pane's cover exists to hide a progressive repaint. The block surface
+	// has none: it holds bytes until the grid is sized, then feeds them as one
+	// batch. Reporting that batch is what lets the cover lift on proof the
+	// replay is on screen rather than on a timer.
+	it("reports the replay painted once the sized grid has taken it", async () => {
+		const onReplayPainted = vi.fn();
+		mockState.reportGeometry = false;
+		renderTerminal({ agentTui: true, onReplayPainted });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+
+		emit(encode("replayed while unmeasured"));
+		expect(onReplayPainted).not.toHaveBeenCalled();
+
+		mockState.emitGeometry?.(80, 37);
+		await waitFor(() => expect(mockState.feeds).toHaveLength(1));
+		await waitFor(() => expect(onReplayPainted).toHaveBeenCalledTimes(1));
+	});
+
+	// Nothing was held, so nothing is proven on screen. Uncovering here would
+	// race a replay still in flight and expose exactly the progressive paint the
+	// cover is for; the attachment's first-byte grace owns this case instead.
+	it("stays silent for a pane that had no held replay", async () => {
+		const onReplayPainted = vi.fn();
+		renderTerminal({ onReplayPainted });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		await Promise.resolve();
+		expect(onReplayPainted).not.toHaveBeenCalled();
+	});
+
+	it("reports once, not again on later live output", async () => {
+		const onReplayPainted = vi.fn();
+		mockState.reportGeometry = false;
+		renderTerminal({ onReplayPainted });
+		await waitFor(() => expect(mockState.core).toBeDefined());
+		emit(encode("held replay"));
+		mockState.emitGeometry?.(80, 37);
+		await waitFor(() => expect(onReplayPainted).toHaveBeenCalledTimes(1));
+
+		emit(encode("live output"));
+		await waitFor(() => expect(mockState.feeds.length).toBeGreaterThan(1));
+		expect(onReplayPainted).toHaveBeenCalledTimes(1);
+	});
 });

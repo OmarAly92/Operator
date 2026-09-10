@@ -901,6 +901,15 @@ function AttachedTerminal({
 	// through the same render/paint preparation used when activating a retained
 	// terminal; otherwise large TUI replays can visibly repaint from their first
 	// row immediately after the loading cover disappears.
+	// The block surface reporting that the held replay is on screen. It is the
+	// only signal that tracks the VISIBLE surface: the gate below and
+	// prepareForActivation both describe xterm, which owns the attachment but
+	// lives in a hidden slot and no longer paints anything, so waiting on them
+	// leaves the cover sitting over content the user could already be reading.
+	// Either signal lifting the cover is correct, and this one is proof rather
+	// than a quiet window, so it is reached first whenever there was a replay.
+	const [replayPainted, setReplayPainted] = useState(false);
+	const handleReplayPainted = useCallback(() => setReplayPainted(true), []);
 	const [replayPaintPending, setReplayPaintPending] = useState(!replaySettled);
 	useLayoutEffect(() => {
 		if (!replaySettled) {
@@ -917,6 +926,11 @@ function AttachedTerminal({
 		};
 	}, [replayPaintPending, replaySettled, terminal]);
 	const handleId = shellTerminalHandleId ?? attachSession?.terminalHandleId;
+	// A new attachment paints a new surface: the previous pane's first paint
+	// says nothing about this one.
+	useEffect(() => {
+		setReplayPainted(false);
+	}, [handleId]);
 	const isSessionActive = session ? sessionIsActive(session) : false;
 	// A standalone shell is never restorable: there is no session row to restore.
 	const canRestoreSession =
@@ -985,6 +999,7 @@ function AttachedTerminal({
 	// explains that window better than a blank overlay does.
 	const showReplayCover =
 		Boolean(handleId) &&
+		!replayPainted &&
 		(!replaySettled || replayPaintPending) &&
 		(state === "connecting" || state === "attached");
 	const showEndedState = state === "exited" || canRestoreSession;
@@ -1024,6 +1039,7 @@ function AttachedTerminal({
 					refitToken={refitToken}
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}
+					onReplayPainted={handleReplayPainted}
 				/>
 				<TerminalAttachment onReady={handleReady} />
 				{showEmptyState && (

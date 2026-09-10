@@ -48,6 +48,16 @@ export type BlockTerminalProps = {
 	 * instead of the one it was measured in.
 	 */
 	refitToken?: number;
+	/**
+	 * Fired once, on the frame that first carries the pane's replay -- and only
+	 * when there was a held replay to carry. It is a proof, not a timer: the
+	 * surface holds bytes until the grid is sized, then feeds them as one batch,
+	 * so this says the replay is on screen. A pane that had nothing held stays
+	 * silent, because uncovering it here would race output still in flight and
+	 * expose the progressive paint the cover exists to hide; that case belongs
+	 * to the attachment's own first-byte grace.
+	 */
+	onReplayPainted?: () => void;
 };
 
 const DEFAULT_COLUMNS = 120;
@@ -150,6 +160,7 @@ export function BlockTerminal({
 	fontSize,
 	agentTui,
 	refitToken,
+	onReplayPainted,
 }: BlockTerminalProps) {
 	const { t } = useTranslation();
 	const coreRef = useRef<TerminalCore | null>(null);
@@ -179,6 +190,20 @@ export function BlockTerminal({
 	const agentTuiRef = useRef(agentTui ?? false);
 	agentTuiRef.current = agentTui ?? false;
 	const rootRef = useRef<HTMLDivElement | null>(null);
+	const onReplayPaintedRef = useRef(onReplayPainted);
+	onReplayPaintedRef.current = onReplayPainted;
+	const replayPaintedReportedRef = useRef(false);
+	// Announced from a frame callback, not inline: the flush above only feeds
+	// the core. TerminalSurface renders from its own subscription to that core,
+	// so the frame carrying those rows is the next one, and reporting before it
+	// would uncover the pane one frame early -- the flash the cover exists to
+	// prevent.
+	const reportReplayPainted = useCallback(() => {
+		if (replayPaintedReportedRef.current) return;
+		replayPaintedReportedRef.current = true;
+		terminalDebug("block-terminal", "replay painted");
+		requestAnimationFrame(() => onReplayPaintedRef.current?.());
+	}, []);
 	const onSend = useCallback((text: string) => {
 		transportRef.current.write(new TextEncoder().encode(`${text}\n`));
 	}, []);
@@ -194,13 +219,14 @@ export function BlockTerminal({
 		const core = coreRef.current;
 		if (!core) return;
 		const pending = pendingBytesRef.current;
-		if (pending.length === 0) return;
 		pendingBytesRef.current = [];
+		if (pending.length === 0) return;
 		terminalDebug("block-terminal", "grid sized", { columns, rows, buffered: pending.length });
 		for (const bytes of pending) {
 			feedToCore(core, bytes, historyIdsRef.current);
 		}
-	}, []);
+		reportReplayPainted();
+	}, [reportReplayPainted]);
 
 	useEffect(() => {
 		if (!core) return;
@@ -263,6 +289,7 @@ export function BlockTerminal({
 					for (const bytes of pending) {
 						feedToCore(created, bytes, historyIdsRef.current);
 					}
+					if (pending.length > 0) reportReplayPainted();
 				}
 				setCore(created);
 			} catch (error) {
@@ -278,6 +305,7 @@ export function BlockTerminal({
 			coreRef.current = null;
 			pendingBytesRef.current = [];
 			gridSizedRef.current = false;
+			replayPaintedReportedRef.current = false;
 			historyIdsRef.current = new Set();
 			setCore(null);
 		};
