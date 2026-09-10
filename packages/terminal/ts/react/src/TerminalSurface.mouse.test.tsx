@@ -357,21 +357,29 @@ describe("TerminalSurface selection", () => {
 	afterEach(() => cleanup());
 
 	it("selects with a drag, keeps it through output, and copies with the platform chord", async () => {
-		const writeClipboard = vi.fn(async () => {});
-		const host = { writeClipboard, readClipboard: async () => "", openLink: async () => {} };
-		const { container, core } = renderSurface({ host });
-		act(() => { feed(core, "alpha\r\nbeta\r\ngamma\r\n"); });
-		await flushRepaint();
-		const surface = container.querySelector(".terminal-host") as HTMLElement;
-		const rows = layoutRows(container);
-		mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
-		mouse(window, "mousemove", cellWidth * 4, cellHeight * 1.5);
-		mouse(window, "mouseup", cellWidth * 4, cellHeight * 1.5);
-		act(() => { feed(core, "spinner\r\n"); });
-		await flushRepaint();
-		layoutRows(container);
-		surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
-		expect(writeClipboard).toHaveBeenCalledWith("alpha\nbeta");
+		const originalPlatform = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+		try {
+			const writeClipboard = vi.fn(async () => {});
+			const host = { writeClipboard, readClipboard: async () => "", openLink: async () => {} };
+			const { container, core } = renderSurface({ host });
+			act(() => { feed(core, "alpha\r\nbeta\r\ngamma\r\n"); });
+			await flushRepaint();
+			const surface = container.querySelector(".terminal-host") as HTMLElement;
+			const rows = layoutRows(container);
+			mouse(rows[0]!, "mousedown", 0, cellHeight * 0.5, { detail: 1 });
+			mouse(window, "mousemove", cellWidth * 4, cellHeight * 1.5);
+			mouse(window, "mouseup", cellWidth * 4, cellHeight * 1.5);
+			act(() => { feed(core, "spinner\r\n"); });
+			await flushRepaint();
+			layoutRows(container);
+			surface.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
+			expect(writeClipboard).toHaveBeenCalledWith("alpha\nbeta");
+		} finally {
+			if (originalPlatform) {
+				Object.defineProperty(navigator, "platform", originalPlatform);
+			}
+		}
 	});
 
 	it("does not start a selection under the drag threshold and clears on a plain click", async () => {

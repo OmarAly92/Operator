@@ -69,9 +69,9 @@ const VELOCITY_SMOOTHING = 0.3;
 // thousands of pixels per second for an ordinary scroll.
 const MIN_VELOCITY_SAMPLE_MS = 4;
 
-const IS_MAC =
-	typeof navigator !== "undefined" &&
-	/Mac|iPhone|iPad|Darwin/iu.test(`${navigator.platform} ${navigator.userAgent}`);
+function isMacPlatform(): boolean {
+	return typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform);
+}
 
 function accelerationGain(velocityPxPerSec: number): number {
 	const gain = velocityPxPerSec / ACCEL_REFERENCE_PX_PER_SEC;
@@ -244,7 +244,7 @@ export function TerminalSurface({
 			if (composition.isComposing() || event.isComposing || event.keyCode === 229) {
 				return;
 			}
-			if (isCopyChord(event, IS_MAC)) {
+			if (isCopyChord(event, isMacPlatform())) {
 				return;
 			}
 			const data = encodeKey(event, appCursor());
@@ -487,7 +487,7 @@ export function TerminalSurface({
 		};
 		const onCopyKey = (event: KeyboardEvent) => {
 			const target = renderer();
-			if (!target || !isCopyChord(event, IS_MAC)) return;
+			if (!target || !isCopyChord(event, isMacPlatform())) return;
 			const text = target.selectedText();
 			if (text === null) return;
 			event.preventDefault();
@@ -496,7 +496,7 @@ export function TerminalSurface({
 		};
 		const onEditorTyping = (event: KeyboardEvent) => {
 			if (event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta") return;
-			if (isCopyChord(event, IS_MAC)) return;
+			if (isCopyChord(event, isMacPlatform())) return;
 			renderer()?.selectionClear();
 		};
 		blockHost.addEventListener("mousedown", onMouseDown);
