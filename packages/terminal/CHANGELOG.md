@@ -39,6 +39,9 @@ Selecting a painted band shows the selection.
 - A run's background covered only its glyph box, so a band spanning several
   rows showed a seam of half-leading between every row. Runs now fill the
   full line height, as Warp fills the whole cell.
+- The mouse pointer stays an arrow over the transcript. Selectable text gets
+  a browser I-beam by default; Warp shows the platform arrow over its grid
+  and reserves the pointing hand for links.
 
 Blank rows survive scrolling off the screen.
 

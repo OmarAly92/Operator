@@ -124,12 +124,18 @@ describe("terminalStyles", () => {
 		expect(rule).toContain("height: var(--terminal-line-height)");
 	});
 
-	it("gives the transcript no cursor of its own, the way Warp's grid has none", () => {
+	// Warp shows the platform arrow over its grid and reserves the pointing hand
+	// for detected links (app/src/util/link_detection.rs); it never asks for an
+	// I-beam there. A browser turns selectable text into an I-beam by default,
+	// so the transcript must ask for the arrow explicitly.
+	it("keeps the arrow over the transcript, the way Warp's grid does", () => {
 		const block = terminalStyles.slice(
 			terminalStyles.indexOf(".terminal-block,"),
 			terminalStyles.indexOf("}", terminalStyles.indexOf(".terminal-block,")),
 		);
-		expect(block).not.toContain("cursor:");
+		expect(block).toContain(".terminal-alt-surface");
+		expect(block).toContain("cursor: default");
+		expect(block).not.toContain("cursor: text");
 	});
 
 	it("resolves bundled font URLs before injecting the stylesheet", () => {

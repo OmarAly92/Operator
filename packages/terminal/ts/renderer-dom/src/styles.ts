@@ -185,6 +185,7 @@ export const terminalStyles = `@font-face {
 .terminal-alt-surface {
 	-webkit-user-select: text;
 	user-select: text;
+	cursor: default;
 }
 
 /* Warp paints the selection as a rectangle per row, the full height of the row
