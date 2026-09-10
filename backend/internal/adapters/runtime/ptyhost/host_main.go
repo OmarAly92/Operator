@@ -5,27 +5,83 @@ package ptyhost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/OmarAly92/operator/backend/internal/adapters/runtime/ptyhost/vtwasm"
 )
 
 // initialCols/initialRows are the grid the shared PTY (and its passive parser)
-// start at before any client has sent a resize; vt-core defaults to 24 rows
-// on its own, so this mirrors the same 80x24 into both.
+// start at when the spawner named none; vt-core defaults to 24 rows on its
+// own, so this mirrors the same 80x24 into both. A spawner that knows the
+// pane's grid passes it as `--grid COLSxROWS` so the child is born at the
+// size it will be shown at and its first attach costs no SIGWINCH.
 const (
 	initialCols = 80
 	initialRows = 24
+	gridFlag    = "--grid"
+	maxGridSide = 1000
 )
 
+// hostArgs builds the `opr pty-host` argv (without the executable). cols/rows
+// of zero omit the grid flag and leave the host at its default.
+func hostArgs(sessionID, cwd string, argv []string, cols, rows int) []string {
+	args := []string{"pty-host"}
+	if cols > 0 && rows > 0 {
+		args = append(args, gridFlag, fmt.Sprintf("%dx%d", cols, rows))
+	}
+	args = append(args, sessionID, cwd)
+	return append(args, argv...)
+}
+
+type hostArgv struct {
+	cols, rows int
+	sessionID  string
+	cwd        string
+	shellCmd   string
+	shellArgs  []string
+}
+
+func parseHostArgs(args []string) (hostArgv, error) {
+	parsed := hostArgv{cols: initialCols, rows: initialRows}
+	if len(args) >= 2 && args[0] == gridFlag {
+		cols, rows, err := parseGrid(args[1])
+		if err != nil {
+			return hostArgv{}, err
+		}
+		parsed.cols, parsed.rows = cols, rows
+		args = args[2:]
+	}
+	if len(args) < 3 {
+		return hostArgv{}, errors.New("usage: opr pty-host [--grid COLSxROWS] <sessionId> <cwd> <shellCmd> [shellArg...]")
+	}
+	parsed.sessionID, parsed.cwd, parsed.shellCmd, parsed.shellArgs = args[0], args[1], args[2], args[3:]
+	return parsed, nil
+}
+
+func parseGrid(spec string) (int, int, error) {
+	colsText, rowsText, ok := strings.Cut(spec, "x")
+	if !ok {
+		return 0, 0, fmt.Errorf("pty-host: --grid %q: want COLSxROWS", spec)
+	}
+	cols, colsErr := strconv.Atoi(colsText)
+	rows, rowsErr := strconv.Atoi(rowsText)
+	if colsErr != nil || rowsErr != nil || cols < 1 || rows < 1 || cols > maxGridSide || rows > maxGridSide {
+		return 0, 0, fmt.Errorf("pty-host: --grid %q: sides must be 1..%d", spec, maxGridSide)
+	}
+	return cols, rows, nil
+}
+
 // RunHost is the "opr pty-host" entrypoint. argv is everything after the
-// subcommand name: <sessionId> <cwd> <shellCmd> [shellArg...]
+// subcommand name: [--grid COLSxROWS] <sessionId> <cwd> <shellCmd> [shellArg...]
 //
 // It binds 127.0.0.1:0 (OS assigns the port), creates the ConPTY, prints
 // "READY:<pid> <port>\n" to stdout (the parent process reads this to learn the
@@ -36,15 +92,12 @@ const (
 // the assigned port. A per-session random token handshake is the upgrade path
 // if multi-user isolation is needed.
 func RunHost(args []string, stdout io.Writer) int {
-	if len(args) < 3 {
-		fmt.Fprintf(os.Stderr, "usage: opr pty-host <sessionId> <cwd> <shellCmd> [shellArg...]\n")
+	parsed, err := parseHostArgs(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-
-	sessionID := args[0]
-	cwd := args[1]
-	shellCmd := args[2]
-	shellArgs := args[3:]
+	sessionID, cwd, shellCmd, shellArgs := parsed.sessionID, parsed.cwd, parsed.shellCmd, parsed.shellArgs
 	if err := os.Chdir(cwd); err != nil {
 		fmt.Fprintf(os.Stderr, "pty-host [%s]: chdir %s: %v\n", sessionID, cwd, err)
 		return 1
@@ -64,7 +117,7 @@ func RunHost(args []string, stdout io.Writer) int {
 	}
 	port := tcpAddr.Port
 
-	pty, err := newPTY(cwd, shellCmd, shellArgs, nil)
+	pty, err := newPTY(cwd, shellCmd, shellArgs, nil, parsed.cols, parsed.rows)
 	if err != nil {
 		_ = ln.Close()
 		fmt.Fprintf(os.Stderr, "pty-host [%s]: newConPTY: %v\n", sessionID, err)
@@ -96,7 +149,7 @@ func RunHost(args []string, stdout io.Writer) int {
 	}()
 
 	ring := NewRing()
-	parser, err := vtwasm.New(ctx, vtwasm.Module, initialCols, initialRows, MaxOutputLines)
+	parser, err := vtwasm.New(ctx, vtwasm.Module, uint32(parsed.cols), uint32(parsed.rows), MaxOutputLines)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "pty-host [%s]: vtwasm.New: %v\n", sessionID, err)
 		parser = nil
@@ -107,8 +160,8 @@ func RunHost(args []string, stdout io.Writer) int {
 		PTY:         pty,
 		Ring:        ring,
 		Parser:      parser,
-		InitialCols: initialCols,
-		InitialRows: initialRows,
+		InitialCols: parsed.cols,
+		InitialRows: parsed.rows,
 	}
 
 	if err := Serve(ctx, cfg); err != nil {

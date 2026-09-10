@@ -1669,8 +1669,12 @@ export interface components {
             agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
             attachments?: components["schemas"]["AttachmentInput"][];
             brief: string;
+            /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
+            cols?: number;
             model?: string;
             projectId: string;
+            /** @description Rows of the terminal pane that will show the session; see cols. */
+            rows?: number;
             /** @enum {string} */
             workspaceMode?: "worktree" | "in_place";
         };
@@ -1914,8 +1918,12 @@ export interface components {
             sessionId: string;
         };
         OpenShellTerminalRequest: {
+            /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
+            cols?: number;
             /** @description Project whose root the shell starts in. Omitted opens the shell in the daemon data dir. */
             projectId?: string;
+            /** @description Rows of the terminal pane that will show the session; see cols. */
+            rows?: number;
             /** @description Session whose workspace the shell starts in - its worktree, or the project checkout for an in-place session. Takes precedence over projectId, and attributes the shell to that session. */
             sessionId?: string;
         };
@@ -2361,6 +2369,8 @@ export interface components {
         SpawnSessionRequest: {
             attachments?: components["schemas"]["AttachmentInput"][];
             branch?: string;
+            /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
+            cols?: number;
             displayName?: string;
             /** @enum {string} */
             harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand";
@@ -2369,6 +2379,8 @@ export interface components {
             kind?: "worker" | "orchestrator";
             projectId: string;
             prompt?: string;
+            /** @description Rows of the terminal pane that will show the session; see cols. */
+            rows?: number;
             /** @enum {string} */
             workspaceMode?: "worktree" | "in_place";
         };

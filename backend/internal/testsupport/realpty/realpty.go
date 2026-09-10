@@ -84,9 +84,14 @@ func Runtime(t *testing.T) *ptyhost.Runtime {
 	return ptyhost.New(ptyhost.Options{Spawner: spawner(Binary(t))})
 }
 
-func spawner(bin string) func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
-	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
-		args := append([]string{"pty-host", sessionID, cwd}, argv...)
+func spawner(bin string) func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
+	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
+		args := []string{"pty-host"}
+		if cols > 0 && rows > 0 {
+			args = append(args, "--grid", fmt.Sprintf("%dx%d", cols, rows))
+		}
+		args = append(args, sessionID, cwd)
+		args = append(args, argv...)
 		cmd := exec.Command(bin, args...)
 		cmd.Dir = cwd
 		cmd.Env = os.Environ()

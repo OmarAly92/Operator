@@ -10,6 +10,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../api/schema";
 import { apiClient, hasTrustedApiBaseUrl } from "../lib/api-client";
+import { paneGridBody, type PaneGrid } from "../lib/pane-grid";
 import { mockShellTerminals } from "../lib/mock-data";
 
 export type ShellTerminal = {
@@ -99,7 +100,7 @@ export function useOpenShellTerminal() {
 				previewShellTerminals = [...previewShellTerminals, shell];
 				return shell;
 			}
-			const body: OpenShellTerminalInput = {};
+			const body: OpenShellTerminalInput & Partial<PaneGrid> = { ...paneGridBody() };
 			if (projectId) body.projectId = projectId;
 			if (sessionId) body.sessionId = sessionId;
 			const { data, error } = await apiClient.POST("/api/v1/shell-terminals", { body });

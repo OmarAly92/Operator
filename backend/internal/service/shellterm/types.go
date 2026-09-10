@@ -48,6 +48,8 @@ type ShellTerminal struct {
 type OpenShellTerminalInput struct {
 	ProjectID domain.ProjectID `json:"projectId,omitempty"`
 	SessionID domain.SessionID `json:"sessionId,omitempty"`
+	Cols      int              `json:"cols,omitempty"`
+	Rows      int              `json:"rows,omitempty"`
 }
 
 // shellTerminalTitle labels a tab by the directory the shell started in, which

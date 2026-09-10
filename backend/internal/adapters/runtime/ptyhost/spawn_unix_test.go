@@ -58,6 +58,7 @@ func TestDefaultSpawnHostDetachesAndReportsAddress(t *testing.T) {
 		t.TempDir(),
 		[]string{"/bin/sh", "-c", "sleep 5"},
 		nil,
+		0, 0,
 	)
 	if err != nil {
 		t.Fatalf("defaultSpawnHost: %v", err)
@@ -86,6 +87,7 @@ func TestDefaultSpawnHostReapsExitedProcess(t *testing.T) {
 		t.TempDir(),
 		[]string{"/bin/sh", "-c", "sleep 5"},
 		nil,
+		0, 0,
 	)
 	if err != nil {
 		t.Fatalf("defaultSpawnHost: %v", err)

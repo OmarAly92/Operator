@@ -13,7 +13,7 @@ import (
 // hostSpawner starts a detached pty-host for the session and returns its
 // loopback address ("127.0.0.1:PORT") and OS pid once it prints READY.
 // Injectable for tests: replace this field on Options before calling New.
-type hostSpawner func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (addr string, pid int, err error)
+type hostSpawner func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (addr string, pid int, err error)
 
 var terminalEnvironment = [][2]string{
 	{"TERM", "xterm-256color"},

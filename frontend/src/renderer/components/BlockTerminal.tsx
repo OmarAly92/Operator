@@ -12,6 +12,7 @@ import {
 	type TerminalTheme,
 } from "@operator/terminal-react";
 import { operatorBridge } from "../lib/bridge";
+import { rememberPaneGrid } from "../lib/pane-grid";
 import { terminalBackgroundColor, type TerminalBackground } from "../lib/terminal-background";
 import { useUiStore } from "../stores/ui-store";
 import { previewBytes, terminalDebug } from "../lib/terminal-debug";
@@ -211,6 +212,7 @@ export function BlockTerminal({
 		transportRef.current.write(new TextEncoder().encode(data));
 	}, []);
 	const onGeometry = useCallback((columns: number, rows: number) => {
+		rememberPaneGrid(columns, rows);
 		transportRef.current.resize?.(columns, rows);
 		// TerminalSurface resizes the core immediately before reporting, so the
 		// core is correctly sized by the time this runs and the held bytes can be

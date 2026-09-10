@@ -170,7 +170,7 @@ func (h *inProcHost) cleanup(t *testing.T) {
 // The returned map maps sessionID -> *inProcHost for test inspection.
 func fakeSpawnerFor(t *testing.T, hosts map[string]*inProcHost, fakePID int) hostSpawner {
 	t.Helper()
-	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
+	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
 		h := startInProcHost(t, sessionID, fakePID)
 		if hosts != nil {
 			hosts[sessionID] = h
@@ -891,3 +891,27 @@ func TestClientKill_Idempotent(t *testing.T) {
 
 // Ensure the packages compile (import check).
 var _ = io.Discard
+
+func TestCreate_ForwardsThePaneGridToTheSpawner(t *testing.T) {
+	isolateRegistry(t)
+	hosts := map[string]*inProcHost{}
+	inner := fakeSpawnerFor(t, hosts, livePID())
+	var gotCols, gotRows int
+	rt := New(Options{Spawner: func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
+		gotCols, gotRows = cols, rows
+		return inner(ctx, sessionID, cwd, argv, env, cols, rows)
+	}})
+
+	if _, err := rt.Create(context.Background(), ports.RuntimeConfig{
+		SessionID:     domain.SessionID("sess-grid"),
+		WorkspacePath: "/tmp/workspace",
+		Argv:          []string{"claude-code"},
+		Cols:          132,
+		Rows:          43,
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if gotCols != 132 || gotRows != 43 {
+		t.Fatalf("spawner grid = %dx%d, want 132x43", gotCols, gotRows)
+	}
+}

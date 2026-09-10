@@ -19,13 +19,13 @@ import (
 
 const hostReadyTimeout = 10 * time.Second
 
-func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
+func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", 0, fmt.Errorf("ptyhost spawn: resolve executable: %w", err)
 	}
 
-	args := append([]string{"pty-host", sessionID, cwd}, argv...)
+	args := hostArgs(sessionID, cwd, argv, cols, rows)
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = cwd
 	cmd.Env = processEnvironment(env)

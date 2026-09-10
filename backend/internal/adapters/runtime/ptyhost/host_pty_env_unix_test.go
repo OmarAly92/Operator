@@ -34,7 +34,7 @@ func readAll(t *testing.T, conn ptyConn) string {
 
 func TestRealPTYChildSeesTerminalIdentity(t *testing.T) {
 	conn, err := newPTY(t.TempDir(), "/bin/sh",
-		[]string{"-c", `printf "[%s|%s|%s]" "$TERM" "$COLORTERM" "$TERM_PROGRAM"`}, nil)
+		[]string{"-c", `printf "[%s|%s|%s]" "$TERM" "$COLORTERM" "$TERM_PROGRAM"`}, nil, initialCols, initialRows)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRealPTYChildSeesTerminalIdentity(t *testing.T) {
 
 func TestRealPTYChildOverrideBeatsTheDefault(t *testing.T) {
 	conn, err := newPTY(t.TempDir(), "/bin/sh",
-		[]string{"-c", `printf "[%s]" "$COLORTERM"`}, map[string]string{"COLORTERM": "24bit"})
+		[]string{"-c", `printf "[%s]" "$COLORTERM"`}, map[string]string{"COLORTERM": "24bit"}, initialCols, initialRows)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}

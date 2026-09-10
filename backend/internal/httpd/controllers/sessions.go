@@ -324,7 +324,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1530,6 +1530,8 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		Model:          domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
 		Attachments:    attachments,
 		WorkspaceMode:  workspaceMode,
+		Cols:           in.Cols,
+		Rows:           in.Rows,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)

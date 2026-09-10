@@ -29,6 +29,11 @@ type SpawnConfig struct {
 	// DisplayName is the user-facing sidebar label. Empty falls back to the
 	// session id in the read model (e.g. orchestrator sessions).
 	DisplayName string
+	// Cols/Rows are the grid of the pane that will show the session, so the
+	// pty is born at that size instead of being resized on first attach.
+	// Zero means unknown.
+	Cols int
+	Rows int
 	// Attachments are files pasted or dropped into the task brief. They are
 	// written into the session worktree and referenced by path in the prompt so
 	// the agent can read them (CLI agents receive the prompt as text and cannot

@@ -128,6 +128,8 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		WorkspacePath: workingDir,
 		Argv:          argv,
 		Env:           env,
+		Cols:          in.Cols,
+		Rows:          in.Rows,
 	})
 	if err != nil {
 		return ShellTerminal{}, fmt.Errorf("open shell terminal %s: runtime: %w", handleID, err)

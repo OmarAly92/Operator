@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewPTYRunsCommandAndReportsExit(t *testing.T) {
-	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "printf hello; exit 3"}, nil)
+	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "printf hello; exit 3"}, nil, initialCols, initialRows)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestNewPTYRunsCommandAndReportsExit(t *testing.T) {
 }
 
 func TestNewPTYResize(t *testing.T) {
-	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "sleep 5"}, nil)
+	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "sleep 5"}, nil, initialCols, initialRows)
 	if err != nil {
 		t.Fatalf("newPTY: %v", err)
 	}
@@ -46,5 +46,17 @@ func TestNewPTYResize(t *testing.T) {
 
 	if err := conn.Resize(100, 40); err != nil {
 		t.Fatalf("Resize: %v", err)
+	}
+}
+
+func TestNewPTYIsBornAtTheRequestedGrid(t *testing.T) {
+	conn, err := newPTY(t.TempDir(), "/bin/sh", []string{"-c", "stty size"}, nil, 132, 43)
+	if err != nil {
+		t.Fatalf("newPTY: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+	got := readAll(t, conn)
+	if !strings.Contains(got, "43 132") {
+		t.Fatalf("stty size = %q, want \"43 132\"", got)
 	}
 }

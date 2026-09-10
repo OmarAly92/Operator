@@ -55,7 +55,7 @@ func (h *host) handleRespawn(conn net.Conn, payload []byte) {
 		newParser = nil
 	}
 
-	pty, err := newPTY(req.Cwd, req.Shell, req.LaunchCmd, req.Env)
+	pty, err := newPTY(req.Cwd, req.Shell, req.LaunchCmd, req.Env, cols, rows)
 	if err != nil {
 		if newParser != nil {
 			_ = newParser.Close()

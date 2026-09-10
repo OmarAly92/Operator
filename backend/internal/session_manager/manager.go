@@ -684,6 +684,8 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		WorkspacePath: ws.Path,
 		Argv:          argv,
 		Env:           env,
+		Cols:          cfg.Cols,
+		Rows:          cfg.Rows,
 	})
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)

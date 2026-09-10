@@ -82,6 +82,8 @@ func (c *ShellTerminalsController) open(w http.ResponseWriter, r *http.Request) 
 	terminal, err := c.Svc.OpenShellTerminal(r.Context(), shelltermsvc.OpenShellTerminalInput{
 		ProjectID: domain.ProjectID(req.ProjectID),
 		SessionID: domain.SessionID(req.SessionID),
+		Cols:      req.Cols,
+		Rows:      req.Rows,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)

@@ -2525,3 +2525,16 @@ func TestSessionsAPI_ClaimPRErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateSessionForwardsThePaneGrid(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions",
+		`{"projectId":"opr","kind":"worker","harness":"claude-code","cols":132,"rows":43}`)
+	if status != http.StatusOK && status != http.StatusCreated {
+		t.Fatalf("status %d: %s", status, body)
+	}
+	if svc.lastSpawnConfig.Cols != 132 || svc.lastSpawnConfig.Rows != 43 {
+		t.Fatalf("grid forwarded as %dx%d, want 132x43", svc.lastSpawnConfig.Cols, svc.lastSpawnConfig.Rows)
+	}
+}

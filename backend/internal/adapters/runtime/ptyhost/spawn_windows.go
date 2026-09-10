@@ -61,7 +61,7 @@ func (b *boundedBuffer) String() string {
 // and spawns it detached on Windows. It reads stdout for "READY:<pid> <port>"
 // with a 10s timeout, then unrefs (detaches) the child. Returns the loopback
 // address and the pty-host OS PID.
-func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
+func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", 0, fmt.Errorf("ptyhost spawn: resolve executable: %w", err)
@@ -76,7 +76,7 @@ func defaultSpawnHost(ctx context.Context, sessionID, cwd string, argv []string,
 	envAssignments, argv := stripEnvAssignments(argv)
 
 	// Build: <exe> pty-host <sessionID> <cwd> <shellCmd> <shellArgs...>
-	args := append([]string{"pty-host", sessionID, cwd}, argv...)
+	args := hostArgs(sessionID, cwd, argv, cols, rows)
 
 	// Merge env: inherit parent, overlay caller-provided vars, then apply the
 	// assignments stripped from the argv prefix.

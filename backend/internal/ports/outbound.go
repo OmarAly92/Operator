@@ -121,6 +121,11 @@ type RuntimeConfig struct {
 	WorkspacePath string
 	Argv          []string
 	Env           map[string]string
+	// Cols/Rows size the pty at birth. Zero leaves the adapter's default, which
+	// the first attached client then resizes -- one guaranteed SIGWINCH and a
+	// full agent repaint before anything has been typed.
+	Cols int
+	Rows int
 }
 
 // RuntimeHandle identifies a live runtime instance. Its ID is opaque outside

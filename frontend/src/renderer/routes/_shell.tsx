@@ -27,6 +27,7 @@ import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
+import { paneGridBody } from "../lib/pane-grid";
 import { refreshDaemonStatus } from "../lib/daemon-status";
 import { activeTerminalInput } from "../lib/dom-selectors";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
@@ -306,6 +307,7 @@ function ShellLayout() {
 						projectId: workspace.id,
 						kind: "orchestrator",
 						harness: input.orchestratorAgent as components["schemas"]["SpawnSessionRequest"]["harness"],
+						...paneGridBody(),
 					},
 				});
 				if (spawnError || !spawnData?.session?.id) {

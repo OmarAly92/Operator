@@ -21,12 +21,12 @@ type realInProcHost struct {
 
 func realSpawnerFor(t *testing.T, hosts map[string]*realInProcHost) hostSpawner {
 	t.Helper()
-	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string) (string, int, error) {
+	return func(ctx context.Context, sessionID, cwd string, argv []string, env map[string]string, cols, rows int) (string, int, error) {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			return "", 0, err
 		}
-		pty, err := newPTY(cwd, argv[0], argv[1:], env)
+		pty, err := newPTY(cwd, argv[0], argv[1:], env, initialCols, initialRows)
 		if err != nil {
 			_ = ln.Close()
 			return "", 0, err

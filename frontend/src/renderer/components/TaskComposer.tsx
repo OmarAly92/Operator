@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { cn } from "../lib/utils";
+import { paneGridBody } from "../lib/pane-grid";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
 import type { components } from "../../api/schema";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
@@ -93,6 +94,7 @@ export function TaskComposer({
 						agent: input.agent,
 						model: input.model,
 						workspaceMode: input.workspaceMode,
+						...paneGridBody(),
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
 				});

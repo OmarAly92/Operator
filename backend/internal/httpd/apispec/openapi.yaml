@@ -4805,11 +4805,23 @@ components:
         brief:
           maxLength: 4096
           type: string
+        cols:
+          description: Columns of the terminal pane that will show the session, so
+            the pty is born at that width instead of being resized on first attach.
+            Omit when unknown.
+          maximum: 1000
+          minimum: 1
+          type: integer
         model:
           maxLength: 256
           type: string
         projectId:
           type: string
+        rows:
+          description: Rows of the terminal pane that will show the session; see cols.
+          maximum: 1000
+          minimum: 1
+          type: integer
         workspaceMode:
           enum:
           - worktree
@@ -5434,10 +5446,22 @@ components:
       type: object
     OpenShellTerminalRequest:
       properties:
+        cols:
+          description: Columns of the terminal pane that will show the session, so
+            the pty is born at that width instead of being resized on first attach.
+            Omit when unknown.
+          maximum: 1000
+          minimum: 1
+          type: integer
         projectId:
           description: Project whose root the shell starts in. Omitted opens the shell
             in the daemon data dir.
           type: string
+        rows:
+          description: Rows of the terminal pane that will show the session; see cols.
+          maximum: 1000
+          minimum: 1
+          type: integer
         sessionId:
           description: Session whose workspace the shell starts in - its worktree,
             or the project checkout for an in-place session. Takes precedence over
@@ -6575,6 +6599,13 @@ components:
           type: array
         branch:
           type: string
+        cols:
+          description: Columns of the terminal pane that will show the session, so
+            the pty is born at that width instead of being resized on first attach.
+            Omit when unknown.
+          maximum: 1000
+          minimum: 1
+          type: integer
         displayName:
           maxLength: 20
           type: string
@@ -6619,6 +6650,11 @@ components:
         prompt:
           maxLength: 4096
           type: string
+        rows:
+          description: Rows of the terminal pane that will show the session; see cols.
+          maximum: 1000
+          minimum: 1
+          type: integer
         workspaceMode:
           enum:
           - worktree

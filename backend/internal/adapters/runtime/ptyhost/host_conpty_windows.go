@@ -24,7 +24,7 @@ type conptyConn struct {
 
 // newConPTY creates a ConPTY session running shellCmd in cwd with shellArgs.
 // It starts the process and returns a ptyConn ready for use.
-func newConPTY(cwd, shellCmd string, shellArgs []string, env map[string]string) (ptyConn, error) {
+func newConPTY(cwd, shellCmd string, shellArgs []string, env map[string]string, cols, rows int) (ptyConn, error) {
 	// go-pty's New() returns a ConPty on Windows.
 	p, err := gopty.New()
 	if err != nil {
@@ -36,8 +36,7 @@ func newConPTY(cwd, shellCmd string, shellArgs []string, env map[string]string) 
 		return nil, fmt.Errorf("ptyhost: expected ConPty on windows, got %T", p)
 	}
 
-	// Set an initial size matching node-pty defaults from pty-host.ts.
-	if err := cp.Resize(220, 50); err != nil {
+	if err := cp.Resize(cols, rows); err != nil {
 		_ = cp.Close()
 		return nil, fmt.Errorf("ptyhost: initial resize: %w", err)
 	}
@@ -100,6 +99,6 @@ func (c *conptyConn) ExitCode() (int, bool) {
 	return c.exitCode, c.exited
 }
 
-func newPTY(cwd, shellCmd string, shellArgs []string, env map[string]string) (ptyConn, error) {
-	return newConPTY(cwd, shellCmd, shellArgs, env)
+func newPTY(cwd, shellCmd string, shellArgs []string, env map[string]string, cols, rows int) (ptyConn, error) {
+	return newConPTY(cwd, shellCmd, shellArgs, env, cols, rows)
 }

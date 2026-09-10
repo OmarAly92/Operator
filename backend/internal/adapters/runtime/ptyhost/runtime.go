@@ -95,7 +95,7 @@ func (r *Runtime) Create(ctx context.Context, cfg ports.RuntimeConfig) (ports.Ru
 	r.sessions[id] = nil
 	r.mu.Unlock()
 
-	addr, pid, err := r.spawner(ctx, id, cfg.WorkspacePath, cfg.Argv, cfg.Env)
+	addr, pid, err := r.spawner(ctx, id, cfg.WorkspacePath, cfg.Argv, cfg.Env, cfg.Cols, cfg.Rows)
 	if err != nil {
 		r.mu.Lock()
 		delete(r.sessions, id)
