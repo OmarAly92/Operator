@@ -131,6 +131,7 @@ beforeEach(() => {
 
 describe("ShellTopbar status pill", () => {
 	it("renders only session actions when embedded in the terminal bar", () => {
+		useUiStore.setState({ inspectorSessions: { "sess-1": { isOpen: true, view: "summary" } } });
 		renderTopbar(sessionWith(), true);
 
 		expect(screen.queryByText("opr/sess-1")).not.toBeInTheDocument();
@@ -260,15 +261,15 @@ describe("ShellTopbar orchestrator actions", () => {
 });
 
 describe("ShellTopbar inspector state", () => {
-	it("treats missing worker inspector state as open", async () => {
+	it("treats missing worker inspector state as closed", async () => {
 		renderTopbarSessions([worker], "sess-1");
 
-		const toggle = screen.getByRole("button", { name: "Close inspector panel" });
-		expect(toggle).toHaveAttribute("aria-pressed", "true");
+		const toggle = screen.getByRole("button", { name: "Open inspector panel" });
+		expect(toggle).toHaveAttribute("aria-pressed", "false");
 
 		await userEvent.click(toggle);
 
-		expect(useUiStore.getState().inspectorSessions["sess-1"]).toEqual({ isOpen: false, view: "summary" });
+		expect(useUiStore.getState().inspectorSessions["sess-1"]).toEqual({ isOpen: true, view: "summary" });
 	});
 
 	it("routes aria-pressed to the current worker session", () => {

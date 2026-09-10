@@ -25,6 +25,7 @@
     "tauri:build": "tauri build",
     "audit:tauri-state": "node ./scripts/audit-tauri-state.mjs",
     "test:tauri-state": "node --test ./scripts/audit-tauri-state.test.mjs",
+    "test:duplicate-react": "node --test ./scripts/detect-duplicate-react.test.mjs",
     "feed:tauri": "node ./scripts/tauri-feed.mjs",
     "package:tauri-mac-zip": "./scripts/package-tauri-mac-zip.sh",
     "verify:tauri-artifacts": "./scripts/verify-tauri-artifacts.sh",

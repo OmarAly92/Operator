@@ -314,7 +314,7 @@ function workerSession(sessionId: string): WorkspaceSession {
 }
 
 function inspectorOpen(sessionId: string): boolean {
-	return useUiStore.getState().inspectorSessions[sessionId]?.isOpen ?? true;
+	return useUiStore.getState().inspectorSessions[sessionId]?.isOpen ?? false;
 }
 
 function inspectorViewMarker(): HTMLElement | null {
@@ -564,7 +564,16 @@ describe("SessionView", () => {
 		}
 	});
 
-	it("opens the Summary inspector alongside the terminal by default", () => {
+	it("leaves the inspector closed on a session opened for the first time", () => {
+		render(<SessionView sessionId="sess-1" />);
+
+		expect(screen.getByText("terminal center")).toBeInTheDocument();
+		expect(panelSizes("inspector")[0]).toBe("0%");
+		expect(screen.getByTestId("panel-inspector")).toHaveAttribute("inert");
+	});
+
+	it("opens the Summary inspector alongside the terminal once the store says open", () => {
+		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
 
 		expect(screen.getByText("terminal center")).toBeInTheDocument();
@@ -618,7 +627,8 @@ describe("SessionView", () => {
 		expect(externalPreviewOptions.current).toMatchObject({ sessionId: "sess-1", terminated: true });
 	});
 
-	it("mounts the inspector open by default", () => {
+	it("mounts the inspector expanded when the store says open", () => {
+		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
 
 		expect(panelSizes("inspector")[0]).toMatch(/^[1-9]\d*(\.\d+)?%$/);
@@ -643,6 +653,7 @@ describe("SessionView", () => {
 	});
 
 	it("keeps StrictMode mount imperative-free and collapses on the first user toggle", () => {
+		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(
 			<StrictMode>
 				<SessionView sessionId="sess-1" />

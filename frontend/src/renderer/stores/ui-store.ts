@@ -127,8 +127,11 @@ function initialSidebarOpen() {
 
 const inspectorStorageKey = "opr.inspector.open";
 
+// Closed until asked for: the terminal is what a session is for, and the rail
+// covers a third of it. toggleInspector writes this key, so the last explicit
+// choice -- either way -- is what every session opened afterwards inherits.
 function initialInspectorOpen() {
-	return getLocalStorage()?.getItem(inspectorStorageKey) !== "false";
+	return getLocalStorage()?.getItem(inspectorStorageKey) === "true";
 }
 
 let defaultInspectorOpen = initialInspectorOpen();
