@@ -292,6 +292,42 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].resizes).toEqual([["handle-1", 109, 52]]);
 	});
 
+	it("collapses a surface drag burst into one pty resize", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+
+		// The birth grid: the host holds this pane's replay until a grid arrives,
+		// so it must not wait behind a debounce.
+		act(() => void view.result.current.transport.resize?.(80, 37));
+		expect(muxes[0].resizes).toEqual([["handle-1", 80, 37]]);
+
+		// A sidebar drag reports every intermediate column. Each one costs a
+		// socket round trip, a SIGWINCH and a full repaint from the attached
+		// program, so only the size the drag settles on may reach the pty.
+		act(() => {
+			for (let cols = 81; cols <= 120; cols += 1) view.result.current.transport.resize?.(cols, 37);
+		});
+		act(() => void vi.advanceTimersByTime(200));
+
+		expect(muxes[0].resizes).toEqual([
+			["handle-1", 80, 37],
+			["handle-1", 120, 37],
+		]);
+	});
+
+	it("does not re-send a drag that returns to the grid already published", () => {
+		const { view, muxes } = setup();
+		act(() => muxes[0].emitOpened("handle-1"));
+		act(() => void view.result.current.transport.resize?.(80, 37));
+		act(() => {
+			view.result.current.transport.resize?.(95, 37);
+			view.result.current.transport.resize?.(80, 37);
+		});
+		act(() => void vi.advanceTimersByTime(200));
+
+		expect(muxes[0].resizes).toEqual([["handle-1", 80, 37]]);
+	});
+
 	it("still lets xterm size the pty when no surface geometry ever arrives", () => {
 		const { terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));
@@ -335,11 +371,13 @@ describe("useTerminalSession", () => {
 	it("keeps receiving output while hidden without accepting input or resizing the PTY", () => {
 		const { view, transportBytes, terminal, muxes } = setup();
 		act(() => muxes[0].emitOpened("handle-1"));
-		const initialResizes = muxes[0].resizes.length;
 
-		// Queue resize work while visible, then park the terminal before the
-		// debounce fires. Hiding must cancel the pending publication.
+		// The first grid publishes on the leading edge; the second is queued
+		// behind the trailing debounce. Park the terminal before that debounce
+		// fires: hiding must cancel the pending publication.
 		terminal.emitResize(120, 40);
+		const initialResizes = muxes[0].resizes.length;
+		terminal.emitResize(130, 45);
 		view.rerender({ daemonReady: true, isVisible: false });
 		terminal.typeKeys("hidden input");
 		terminal.paste("hidden paste");
@@ -377,16 +415,26 @@ describe("useTerminalSession", () => {
 		expect(muxes[0].resizes.slice(initialResizes)).toEqual([["handle-1", 132, 47]]);
 	});
 
-	it("collapses a drag's burst into one resize and does not re-send the settled grid", () => {
+	it("collapses a drag's burst into the leading and settled grids only", () => {
 		const { terminal, muxes } = setup();
 		const initialResizes = muxes[0].resizes.length;
 		terminal.emitResize(100, 30);
 		terminal.emitResize(110, 34);
 		terminal.emitResize(120, 40);
+		// The pane's first grid goes out at once -- the host holds its replay
+		// until one arrives -- and the drag's intermediate frames collapse into
+		// the size it settled on.
+		expect(muxes[0].resizes.slice(initialResizes)).toEqual([["handle-1", 100, 30]]);
 		act(() => void vi.advanceTimersByTime(100));
-		expect(muxes[0].resizes.slice(initialResizes)).toEqual([["handle-1", 120, 40]]);
+		expect(muxes[0].resizes.slice(initialResizes)).toEqual([
+			["handle-1", 100, 30],
+			["handle-1", 120, 40],
+		]);
 		act(() => void vi.advanceTimersByTime(250));
-		expect(muxes[0].resizes.slice(initialResizes)).toEqual([["handle-1", 120, 40]]);
+		expect(muxes[0].resizes.slice(initialResizes)).toEqual([
+			["handle-1", 100, 30],
+			["handle-1", 120, 40],
+		]);
 	});
 
 	it("deduplicates the same visible grid across independent synchronization paths", () => {

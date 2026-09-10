@@ -13,7 +13,7 @@
 // derived status flow back (docs/architecture.md).
 
 import { useQueryClient } from "@tanstack/react-query";
-import { terminalDebug } from "../lib/terminal-debug";
+import { terminalDebug, terminalSpan } from "../lib/terminal-debug";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getApiBaseUrl } from "../lib/api-client";
 import { captureRendererEvent } from "../lib/telemetry";
@@ -89,9 +89,19 @@ export type UseTerminalSessionOptions = {
 const RETRY_BASE_MS = 500;
 const RETRY_MAX_MS = 8_000;
 const OPEN_TIMEOUT_MS = 3_000;
-// Trailing debounce on grid changes: a pane drag emits a burst of intermediate
-// sizes; the attached program should get one SIGWINCH when the drag settles,
-// not dozens (yyork's terminal-panel does the same at its socket layer).
+// Grid publishing is LEADING-then-trailing, and both halves are load-bearing.
+//
+// Leading: an attachment's first grid goes out immediately. The pty-host holds
+// that pane's replay until a grid arrives (openingGridWait), because a replay
+// is only faithful at the geometry it was rendered for -- so putting the birth
+// grid behind a debounce delays every pane's first paint by the debounce.
+//
+// Trailing: every grid after it waits for the burst to settle. A pane drag
+// reports each intermediate column, and each one costs a socket round trip, a
+// SIGWINCH, and a full repaint from the attached program; one observed sidebar
+// drag published ninety of them. The attached program should get one SIGWINCH
+// when the drag settles (yyork's terminal-panel does the same at its socket
+// layer).
 const RESIZE_DEBOUNCE_MS = 100;
 // Initial-replay gate. On attach the runtime replays the pane's state, and the
 // daemon pumps it in 32KB reads (attachment.go copyOut) — so the renderer gets
@@ -171,6 +181,9 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 		retryTimer: null as ReturnType<typeof setTimeout> | null,
 		openTimer: null as ReturnType<typeof setTimeout> | null,
 		resizeTimer: null as ReturnType<typeof setTimeout> | null,
+		// The grid a drag has reached while the trailing debounce is armed. Only
+		// the last one is ever sent; the rest are the drag's intermediate frames.
+		pendingGrid: null as { cols: number; rows: number } | null,
 		// Last positive grid claimed by this attachment. This is deliberately
 		// separate from xterm's local grid: hidden fits must not resize the PTY, and
 		// repeated identical visible fits must not manufacture another SIGWINCH.
@@ -209,6 +222,58 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 	const transition = useCallback((next: TerminalSessionState) => {
 		stateRef.current = next;
 		setState(next);
+	}, []);
+
+	// The single publisher of pty geometry. Both grid sources -- the measured
+	// surface and, when none ever reports, xterm's own fit -- funnel through it
+	// so the leading/trailing rule (see RESIZE_DEBOUNCE_MS) holds for each.
+	const publishGrid = useCallback((cols: number, rows: number, immediate = false) => {
+		const r = runtime.current;
+		if (cols <= 0 || rows <= 0) return;
+		const mux = r.mux;
+		const handle = r.handle;
+		if (!mux || !handle) return;
+
+		const send = (nextCols: number, nextRows: number) => {
+			const published = r.lastPublishedGrid;
+			if (published?.cols === nextCols && published.rows === nextRows) return;
+			r.lastPublishedGrid = { cols: nextCols, rows: nextRows };
+			terminalDebug("mux", "grid published", { handle, cols: nextCols, rows: nextRows });
+			mux.resize(handle, nextCols, nextRows);
+		};
+
+		const flush = () => {
+			const current = runtime.current;
+			current.resizeTimer = null;
+			const pending = current.pendingGrid;
+			current.pendingGrid = null;
+			if (!pending) return;
+			if (current.mux !== mux || current.handle !== handle) return;
+			if (optionsRef.current.isVisible === false) return;
+			send(pending.cols, pending.rows);
+			current.resizeTimer = setTimeout(flush, RESIZE_DEBOUNCE_MS);
+		};
+
+		if (immediate) {
+			if (r.resizeTimer) {
+				clearTimeout(r.resizeTimer);
+				r.resizeTimer = null;
+			}
+			r.pendingGrid = null;
+			send(cols, rows);
+			return;
+		}
+
+		// Cooling down from a previous send: hold this frame. A drag that comes
+		// back to the grid already published leaves nothing pending, so the
+		// cooldown expires without a redundant SIGWINCH.
+		if (r.resizeTimer) {
+			const published = r.lastPublishedGrid;
+			r.pendingGrid = published?.cols === cols && published.rows === rows ? null : { cols, rows };
+			return;
+		}
+		send(cols, rows);
+		r.resizeTimer = setTimeout(flush, RESIZE_DEBOUNCE_MS);
 	}, []);
 
 	const invalidateWorkspaces = useCallback(() => {
@@ -275,6 +340,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			clearTimeout(r.resizeTimer);
 			r.resizeTimer = null;
 		}
+		r.pendingGrid = null;
 		r.inputReady = false;
 		if (r.mux && r.handle) {
 			r.mux.close(r.handle);
@@ -341,6 +407,17 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 
 		let muxChunks = 0;
 		let muxBytes = 0;
+
+		// The two spans of the attach path worth timing separately: waiting for
+		// the socket, then waiting for the pane's replay to land and settle.
+		// Line order alone cannot separate them, and they have different fixes.
+		const openSpan = terminalSpan("mux", "open span");
+		let replaySpan: ((detail?: Record<string, unknown>) => void) | null = null;
+		const settleReplay = () => {
+			replaySpan?.({ bytes: muxBytes, chunks: muxChunks });
+			replaySpan = null;
+			setReplaySettled(true);
+		};
 		let pendingReplayWrites = 0;
 		let replayRevealDeadlineReached = false;
 		let replayWritesPreserved = false;
@@ -364,7 +441,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			}
 			r.replayTailPending = false;
 			replayRevealDeadlineReached = false;
-			setReplaySettled(true);
+			settleReplay();
 		};
 		const scheduleReplayTailReveal = () => {
 			if (!r.replayTailPending || !isCurrentAttachment(generation, handle, mux)) return;
@@ -395,7 +472,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			replayWritesPreserved = true;
 			pendingReplayWrites = 0;
 			r.replayTailPending = false;
-			setReplaySettled(true);
+			settleReplay();
 		};
 		const settleAfterReplayWrites = () => {
 			if (pendingReplayWrites > 0) return;
@@ -403,7 +480,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				scheduleReplayTailReveal();
 				return;
 			}
-			setReplaySettled(true);
+			settleReplay();
 		};
 		const drainPostReplayWrites = () => {
 			if (!isCurrentAttachment(generation, handle, mux)) return;
@@ -512,6 +589,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			mux.onOpened(handle, () => {
 				if (!isCurrentAttachment(generation, handle, mux)) return;
 				terminalDebug("mux", "opened", { handle, listeners: r.byteListeners.size });
+				openSpan({ handle });
+				replaySpan = terminalSpan("mux", "replay span");
 				clearOpenTimer(generation);
 				r.inputReady = true;
 				r.attempts = 0;
@@ -616,16 +695,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			if (!isCurrentAttachment(generation, handle, mux)) return;
 			if (optionsRef.current.isVisible === false) return;
 			if (r.surfaceGeometry) return;
-			if (r.resizeTimer) clearTimeout(r.resizeTimer);
-			r.resizeTimer = setTimeout(() => {
-				r.resizeTimer = null;
-				if (!isCurrentAttachment(generation, handle, mux)) return;
-				if (optionsRef.current.isVisible === false) return;
-				const published = r.lastPublishedGrid;
-				if (published?.cols === cols && published.rows === rows) return;
-				mux.resize(handle, cols, rows);
-				r.lastPublishedGrid = { cols, rows };
-			}, RESIZE_DEBOUNCE_MS);
+			publishGrid(cols, rows);
 		});
 		r.disposers.push(
 			() => input.dispose(),
@@ -757,12 +827,10 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			clearTimeout(r.resizeTimer);
 			r.resizeTimer = null;
 		}
+		r.pendingGrid = null;
 		r.needsVisibleSizeSync = false;
-		const published = r.lastPublishedGrid;
-		if (published?.cols === cols && published.rows === rows) return;
-		r.mux.resize(r.handle, cols, rows);
-		r.lastPublishedGrid = { cols, rows };
-	}, []);
+		publishGrid(cols, rows, true);
+	}, [publishGrid]);
 
 	// Daemon came back while we were waiting: reconnect immediately, without
 	// backoff debt from attempts made against the dead daemon.
@@ -802,6 +870,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			clearTimeout(r.resizeTimer);
 			r.resizeTimer = null;
 		}
+		r.pendingGrid = null;
 	}, [isVisible]);
 
 	useEffect(() => {
@@ -869,12 +938,8 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				const r = runtime.current;
 				if (cols <= 0 || rows <= 0) return;
 				r.surfaceGeometry = { cols, rows };
-				if (!r.mux || !r.handle || !r.inputReady) return;
-				const published = r.lastPublishedGrid;
-				if (published?.cols === cols && published.rows === rows) return;
-				r.lastPublishedGrid = { cols, rows };
-				terminalDebug("mux", "resize from surface", { handle: r.handle, cols, rows });
-				r.mux.resize(r.handle, cols, rows);
+				if (!r.inputReady) return;
+				publishGrid(cols, rows);
 			},
 			dispose: () => {
 				const r = runtime.current;
