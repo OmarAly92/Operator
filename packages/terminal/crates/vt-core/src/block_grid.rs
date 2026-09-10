@@ -81,23 +81,6 @@ impl BlockGrid {
         self.next_row = next_row;
     }
 
-    pub fn remove_row(&mut self, row: usize) {
-        let mut closed_blocks = Vec::new();
-        while let Some(block) = self.closed.pop_front() {
-            closed_blocks.push(block);
-        }
-        for mut block in closed_blocks {
-            rebase_after_row_removal(&mut block, row);
-            self.closed.push(block);
-        }
-        if let Some(block) = self.open.as_mut() {
-            rebase_after_row_removal(block, row);
-        }
-        if row < self.next_row {
-            self.next_row -= 1;
-        }
-    }
-
     /// Apply a tier-2 extension field to the open block. Unknown keys are
     /// ignored: a malformed or unrecognized payload must not mutate the
     /// block source. Setting any recognised field also upgrades the block
@@ -279,14 +262,6 @@ impl BlockGrid {
 
     pub fn is_empty(&self) -> bool {
         self.closed.is_empty() && self.open.is_none()
-    }
-}
-
-fn rebase_after_row_removal(block: &mut Block, row: usize) {
-    if row < block.first_row {
-        block.first_row -= 1;
-    } else if row < block.first_row + block.row_count {
-        block.row_count -= 1;
     }
 }
 

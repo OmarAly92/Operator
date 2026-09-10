@@ -209,19 +209,13 @@ impl Parser {
             return;
         }
         for row in self.screen.take_evicted() {
-            let row_index = self.rows.completed().len();
-            let completed_before = row_index;
             crate::scrollback::commit_row(
                 &row,
                 &mut self.content,
                 &mut self.rows,
                 &mut self.styles,
             );
-            if self.rows.completed().len() > completed_before {
-                self.grid.note_row_completed();
-            } else {
-                self.grid.remove_row(row_index);
-            }
+            self.grid.note_row_completed();
         }
         self.grid
             .sync_next_row(self.rows.completed().len() + self.screen.content_rows());

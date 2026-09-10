@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Blank rows survive scrolling off the screen.
+
+- `vt-core` dropped any all-blank row the moment it left the screen: the row
+  index only recorded a completed row when it carried bytes, and the block grid
+  rebased every block past it as though the row had never existed. An agent's
+  transcript separates its messages with blank lines, so everything above the
+  screen read as one gap-less run while the rows still on screen kept their
+  spacing. Every evicted row is now a scrollback row, empty or not, and
+  `BlockGrid::remove_row` is gone with the case it served.
+- A reflowing resize and a scrolling `ESC[2J` evict the frame up to its last
+  row with content rather than up to the cursor, so a cursor parked below the
+  frame no longer leaves blank rows behind in scrollback.
+
 `vt_replay` serializes the terminal for attach replay.
 
 - New `vt-host` export `vt_replay(handle, lines, out, cap)` returns the bytes

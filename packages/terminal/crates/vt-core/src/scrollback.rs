@@ -64,9 +64,10 @@ mod tests {
     }
 
     #[test]
-    fn an_all_blank_row_commits_as_an_empty_range() {
+    fn an_all_blank_row_commits_as_an_empty_row() {
         let (_, rows, _) = commit(&row("", 40));
-        assert_eq!(rows.completed().len(), 0);
+        let range = rows.completed().front().expect("one committed row");
+        assert_eq!((range.start, range.end), (0, 0));
         assert_eq!(rows.open_start(), 0);
     }
 

@@ -20,7 +20,7 @@ fn thirty_replays_of_an_agent_redraw_stay_within_the_screen() {
     }
 
     let rows = core.snapshot().unwrap().row_count();
-    let maximum_rows = capture_rows * 6 + 4;
+    let maximum_rows = capture_rows * 6 + 6;
     assert!(
         rows <= maximum_rows,
         "30 replays produced {rows} rows; expected no more than {maximum_rows} rows for the capture geometry",

@@ -96,16 +96,16 @@ fn rows_scrolled_off_a_three_row_screen_reach_scrollback() {
 }
 
 #[test]
-fn blank_screen_evictions_rebase_an_open_block() {
+fn blank_rows_scrolled_off_the_screen_keep_an_open_block_anchored() {
     let mut core = TerminalCore::new(20, 100).unwrap();
     core.resize(20, 3);
     core.feed(b"\x1b[3;1H\x1b]133;A\x07\x1b]133;C\x07");
     core.feed(b"\x1b[S\x1b[S");
     let snapshot = core.snapshot().unwrap();
 
-    assert_eq!(snapshot.row_count(), 1);
+    assert_eq!(snapshot.row_count(), 3);
     assert_eq!(snapshot.blocks.len(), 1);
-    assert_eq!(snapshot.blocks[0].first_row, 0);
+    assert_eq!(snapshot.blocks[0].first_row, 2);
     assert_eq!(snapshot.blocks[0].row_count, 1);
 }
 

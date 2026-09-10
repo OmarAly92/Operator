@@ -23,7 +23,10 @@ impl ScreenGrid {
                 }
             }
             2 => match self.clear_policy {
-                ClearPolicy::Scroll => self.scroll_up(self.content_rows()),
+                ClearPolicy::Scroll => {
+                    self.scroll_up(self.frame_rows());
+                    self.max_cursor_row = 0;
+                }
                 ClearPolicy::ClearInPlace => {
                     for r in 0..rows {
                         self.blank_row(r);

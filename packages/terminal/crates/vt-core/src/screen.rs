@@ -179,6 +179,17 @@ impl ScreenGrid {
         self.max_cursor_row + 1
     }
 
+    pub(crate) fn frame_rows(&self) -> usize {
+        (0..self.content_rows())
+            .rev()
+            .find(|&row| !self.row_is_blank(row))
+            .map_or(0, |row| row + 1)
+    }
+
+    fn row_is_blank(&self, row: usize) -> bool {
+        (0..self.cols).all(|col| self.cell_ref(row, col).is_none_or(Cell::is_blank))
+    }
+
     pub(crate) fn row_has_content(&self, row: usize) -> bool {
         (0..self.cols).any(|col| !matches!(self.cell(row, col).ch, ' ' | '\0'))
     }
@@ -394,7 +405,7 @@ impl ScreenGrid {
             return;
         }
         let before = self.evicted.len();
-        for row in 0..self.content_rows() {
+        for row in 0..self.frame_rows() {
             self.record_eviction(row);
         }
         if self.evicted.len() > before {

@@ -34,12 +34,10 @@ impl RowIndex {
     }
 
     pub fn complete_row(&mut self, end_offset: u64) {
-        if end_offset > self.open_start {
-            self.completed.push_back(RowRange {
-                start: self.open_start,
-                end: end_offset,
-            });
-        }
+        self.completed.push_back(RowRange {
+            start: self.open_start,
+            end: end_offset,
+        });
         self.open_start = end_offset;
     }
 
