@@ -66,6 +66,21 @@ function mountWith(input: string): { core: TerminalCore; host: HTMLElement; rend
 }
 
 describe("DomBlockRenderer", () => {
+	it("keeps background output visible while the editor owns the prompt", () => {
+		const { host } = mountWith("\x1b]133;A\x07\x1b]7000;v=1;cwd=/tmp;input-ready=1\x07job finished\r\n");
+		expect(host.querySelector("[data-terminal-row]")?.textContent).toBe("job finished");
+	});
+
+	it("shows the next command only after the editor releases the empty shell prompt", async () => {
+		const { core, host } = mountWith("\x1b]133;A\x07\x1b]7000;v=1;cwd=/tmp\x07\x1b]133;B\x07\x1b]7000;v=1;input-ready=1\x07");
+		expect(host.querySelectorAll("[data-terminal-block-id]")).toHaveLength(0);
+		feed(core, "\x1b]7000;v=1;cmd=sleep%201;input-released=1\x07\x1b]133;C\x07");
+		await flushRepaint();
+		expect(host.querySelectorAll("[data-terminal-block-id]")).toHaveLength(1);
+		expect(host.querySelector(".terminal-block-command")?.textContent).toBe("sleep 1");
+	});
+
+
 	it("renders one block, one row node per row, and one span per style run", () => {
 		const { host } = mountWith("[31mred[0m café\r\nplain");
 
@@ -460,7 +475,10 @@ describe("pinned command header", () => {
 		renderer.dispose();
 	});
 
-	it("names the tall block when the viewport center is inside it", async () => {
+	it("pins the command once its original header has scrolled out of view", async () => {
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+			return { top: this.classList.contains("terminal-block") ? -200 : 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) };
+		});
 		const { host, renderer } = mountTall();
 		await flushRepaint();
 		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
@@ -474,7 +492,7 @@ describe("pinned command header", () => {
 		renderer.dispose();
 	});
 
-	it("hides while the alternate screen is active", async () => {
+	it("does not duplicate an unscrolled header or show it over the alternate screen", async () => {
 		const core = createTerminalCore({ columns: 20, scrollback: 100 });
 		feedOsc133Block(core, "pre-alt", 2);
 		const host = document.createElement("div");
@@ -485,7 +503,7 @@ describe("pinned command header", () => {
 		renderer.setFont(APP_FONT);
 		await flushRepaint();
 		const pinned = host.querySelector('[data-testid="terminal-pinned-header"]') as HTMLElement;
-		expect(pinned.hidden).toBe(false);
+		expect(pinned.hidden).toBe(true);
 		core.feed(new TextEncoder().encode("\x1b[?1049h"));
 		await flushRepaint();
 		expect(pinned.hidden).toBe(true);

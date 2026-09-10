@@ -1,5 +1,4 @@
-import { defaultStrings, type BlockView, type HostCapabilities } from "@operator/terminal-core";
-import { renderBlockActions, type BlockTextSource } from "./block-actions.js";
+import { defaultStrings, type BlockView } from "@operator/terminal-core";
 import { renderBlockHeader } from "./block-header.js";
 import { createCursorElement, type CursorPlacement } from "./cursor.js";
 import { buildRowNode, type RowSource } from "./row-builder.js";
@@ -15,17 +14,12 @@ export type BlockBodyInput = Readonly<{
 	cellWidth: number;
 	cursor: CursorPlacement | null;
 	decoder: TextDecoder;
-	host: HostCapabilities | null;
-	textSource: BlockTextSource;
 }>;
 
 export function populateBlock(section: HTMLElement, input: BlockBodyInput): void {
-	const { block, snapshot, rowWindow, rowHeight, decoder, host, textSource } = input;
+	const { block, snapshot, rowWindow, rowHeight, decoder } = input;
 	const fragment = document.createDocumentFragment();
 	fragment.append(renderBlockHeader(block, defaultStrings));
-	if (host) {
-		fragment.append(renderBlockActions(block, host, defaultStrings, textSource));
-	}
 	const blockFirstRow = block.firstRow;
 	const firstRow = rowWindow ? rowWindow.firstRow : 0;
 	const lastRow = rowWindow ? rowWindow.lastRow : block.rowCount - 1;

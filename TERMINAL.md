@@ -275,6 +275,13 @@ Each entry: symptom → real cause → what guards it now. Commits are on master
   `terminal-selection.test.ts`, `selection-gesture.test.ts`,
   `TerminalSurface.mouse.test.tsx`, and the `bench:selection` Playwright gate
   (`bench/selection-gate.mjs`).
+- A pointer press on chrome is ignored on purpose (`SELECTION_CHROME` in
+  `TerminalSurface.tsx` covers the block header, the pinned header, the
+  jump-to-bottom button, the find bar and the palette). The gate therefore
+  locates a transcript row on screen and starts its drag there; it used to
+  hard-code `(120, 120)`, which the two-line block header turned into header
+  chrome, and the gate then failed on a selection that worked. If the gate
+  fails, check where the drag starts before suspecting the selection.
 
 ### 4.14 Typing after opening a session went nowhere until a click
 - Symptom: click a session in the sidebar, the terminal opens, the first

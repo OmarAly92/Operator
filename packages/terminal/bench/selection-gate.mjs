@@ -17,7 +17,15 @@ try {
 
 	await page.evaluate(() => window.__gate.startSpinner());
 
-	const start = { x: 120, y: 120 };
+	const start = await page.evaluate(() => {
+		const row = [...document.querySelectorAll("[data-terminal-row]")].find((el) => {
+			const box = el.getBoundingClientRect();
+			return box.top > 60 && box.bottom < 840 && (el.textContent ?? "").trim().length > 10;
+		});
+		if (!row) throw new Error("no transcript row is on screen to start the drag from");
+		const box = row.getBoundingClientRect();
+		return { x: Math.round(box.left + 8), y: Math.round(box.top + box.height / 2) };
+	});
 	const end = { x: 900, y: 560 };
 	const steps = 60;
 

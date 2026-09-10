@@ -21,6 +21,13 @@ function rowIsBlank(snapshot: RowSpans, row: number): boolean {
 //
 // The scan walks back from the end and stops at the first row with content, so
 // it costs one comparison for a block that does not end in blanks.
+export function blockIsBlank(snapshot: RowSpans, block: BlockView): boolean {
+	for (let offset = 0; offset < block.rowCount; offset += 1) {
+		if (!rowIsBlank(snapshot, block.firstRow + offset)) return false;
+	}
+	return true;
+}
+
 export function trimTrailingBlankRows(snapshot: RowSpans, block: BlockView): BlockView {
 	let rowCount = block.rowCount;
 	while (rowCount > 1 && rowIsBlank(snapshot, block.firstRow + rowCount - 1)) {

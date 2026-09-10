@@ -67,6 +67,7 @@ export const terminalStyles = `@font-face {
    overflows. justify-content: flex-end would overflow past the top of the
    scroll box instead, putting the earliest output out of reach. */
 .terminal-list {
+	flex: 0 0 auto;
 	margin-top: auto;
 }
 
@@ -114,18 +115,23 @@ export const terminalStyles = `@font-face {
 .terminal-block-header {
 	box-sizing: border-box;
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	height: 24px;
-	/* The block's own padding supplies the inset now. Warp's middle padding is the
-	   0.5-line gap between the command and its output. */
+	flex-direction: column;
+	height: calc(var(--terminal-line-height) * 2);
 	padding: 0;
 	margin-bottom: calc(var(--terminal-line-height) * 0.5);
-	border-bottom: 1px solid var(--terminal-block-border);
 	color: var(--terminal-block-header-foreground);
-	font-size: 12px;
+	font-size: inherit;
 	white-space: nowrap;
 	overflow: hidden;
+}
+
+.terminal-block-metadata {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	height: var(--terminal-line-height);
+	font-size: 0.85em;
 }
 
 .terminal-block-header[data-block-status="plain"] {
@@ -157,7 +163,10 @@ export const terminalStyles = `@font-face {
 }
 
 .terminal-block-command {
-	flex: 1 1 auto;
+	display: block;
+	color: var(--terminal-foreground);
+	font-weight: 700;
+	height: var(--terminal-line-height);
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -170,6 +179,18 @@ export const terminalStyles = `@font-face {
 	flex: 0 0 auto;
 	color: var(--terminal-block-header-foreground);
 	opacity: 0.75;
+}
+
+.terminal-block-cwd,
+.terminal-block-branch {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.terminal-block-exit {
+	margin-left: 8px;
 }
 
 .terminal-block-branch::before {
@@ -244,39 +265,6 @@ export const terminalStyles = `@font-face {
 
 .terminal-block-glyph > i {
 	position: absolute;
-}
-
-.terminal-block-actions {
-	position: absolute;
-	top: 4px;
-	right: 8px;
-	display: none;
-	gap: 4px;
-	pointer-events: auto;
-}
-
-.terminal-block:hover .terminal-block-actions,
-.terminal-block:focus-within .terminal-block-actions {
-	display: inline-flex;
-}
-
-.terminal-block-action {
-	font: inherit;
-	font-size: 11px;
-	line-height: 1;
-	padding: 2px 6px;
-	color: var(--terminal-block-header-foreground);
-	background: var(--terminal-block-background);
-	border: 1px solid var(--terminal-block-border);
-	border-radius: 3px;
-	cursor: pointer;
-	opacity: 0.85;
-}
-
-.terminal-block-action:hover,
-.terminal-block-action:focus-visible {
-	opacity: 1;
-	outline: 1px solid var(--terminal-block-header-foreground);
 }
 
 .terminal-alt-surface {
@@ -360,21 +348,20 @@ export const terminalStyles = `@font-face {
 .terminal-pinned-header {
 	position: sticky;
 	top: 0;
-	left: 0;
-	right: 0;
 	z-index: 2;
 	pointer-events: none;
 	box-sizing: border-box;
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	height: 24px;
-	padding: 0 8px;
+	flex: 0 0 auto;
+	flex-direction: column;
+	height: calc(var(--terminal-line-height) * 2 + 17px);
+	margin-bottom: calc(var(--terminal-line-height) * -2 - 17px);
+	padding: 8px 16px;
 	border-bottom: 1px solid var(--terminal-block-border);
 	background: var(--terminal-block-background);
 	color: var(--terminal-block-header-foreground);
 	font-family: var(--terminal-font-family);
-	font-size: 12px;
+	font-size: var(--terminal-font-size);
 	line-height: var(--terminal-line-height);
 	white-space: nowrap;
 	overflow: hidden;

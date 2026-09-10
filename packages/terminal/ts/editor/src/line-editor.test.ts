@@ -34,6 +34,12 @@ function mount() {
 }
 
 describe("LineEditor ownership", () => {
+	it("scales editor rows with the terminal font size", () => {
+		const { editor, container } = mount();
+		editor.setFont({ family: "monospace", sizePx: 16, lineHeight: 1.5, weight: 400, letterSpacingPx: 0, ligatures: false });
+		expect(container.querySelector<HTMLElement>(".terminal-editor")?.style.getPropertyValue("--terminal-line-height")).toBe("24px");
+	});
+
 	it("renders a prompt row from the newest block and ownership state", () => {
 		const { container, core } = mount();
 		core.feed(

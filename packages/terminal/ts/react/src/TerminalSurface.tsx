@@ -128,7 +128,6 @@ export function TerminalSurface({
 		renderer.mount(blockHost, core);
 		renderer.setTheme(theme);
 		renderer.setFont(font);
-		renderer.setHostCapabilities(host ?? null);
 		const editor = new LineEditor();
 		editor.mount(editorHost, core, { send: onSend, sendRaw: onSendRaw });
 		editor.setTheme(theme);
@@ -179,10 +178,6 @@ export function TerminalSurface({
 		rendererRef.current?.setFont(font);
 		editorRef.current?.setFont(font);
 	}, [font]);
-
-	useLayoutEffect(() => {
-		rendererRef.current?.setHostCapabilities(host ?? null);
-	}, [host]);
 
 	useLayoutEffect(() => {
 		editorRef.current?.setStrings(strings);

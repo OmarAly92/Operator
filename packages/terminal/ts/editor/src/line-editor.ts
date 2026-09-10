@@ -98,6 +98,7 @@ export class LineEditor {
 		style.setProperty("--terminal-background", theme.background);
 		style.setProperty("--terminal-cursor", theme.cursor);
 		style.setProperty("--terminal-selection", theme.selection);
+		style.setProperty("--terminal-block-border", theme.blockBorder);
 		for (const [index, color] of theme.ansi.entries()) {
 			style.setProperty(`--terminal-ansi-${index}`, color);
 		}
@@ -108,7 +109,7 @@ export class LineEditor {
 		if (!style) return;
 		style.setProperty("--terminal-font-family", font.family);
 		style.setProperty("--terminal-font-size", `${font.sizePx}px`);
-		style.setProperty("--terminal-line-height", `${font.lineHeight}px`);
+		style.setProperty("--terminal-line-height", `${font.lineHeight * font.sizePx}px`);
 		style.setProperty("--terminal-font-weight", String(font.weight));
 		style.setProperty("--terminal-letter-spacing", `${font.letterSpacingPx}px`);
 		style.setProperty("--terminal-ligatures", font.ligatures ? "normal" : "none");

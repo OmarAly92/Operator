@@ -50,6 +50,7 @@ function buildCommand(text: string): HTMLElement {
 	const node = document.createElement("span");
 	node.className = CLASS_COMMAND;
 	node.textContent = text;
+	node.title = text;
 	return node;
 }
 
@@ -59,6 +60,7 @@ function buildCwd(cwd: string, home: string | null): HTMLElement | null {
 	const node = document.createElement("span");
 	node.className = CLASS_CWD;
 	node.textContent = shortened;
+	node.title = cwd;
 	return node;
 }
 
@@ -107,14 +109,16 @@ export function renderBlockHeader(
 export function renderBlockHeaderContent(block: BlockView, home: string | null): DocumentFragment {
 	const status = statusFor(block);
 	const fragment = document.createDocumentFragment();
-	fragment.append(buildDot(status));
-	fragment.append(buildCommand(block.command));
+	const metadata = document.createElement("div");
+	metadata.className = "terminal-block-metadata";
+	metadata.append(buildDot(status));
 	const cwd = buildCwd(block.cwd, home);
-	if (cwd) fragment.append(cwd);
+	if (cwd) metadata.append(cwd);
 	const branch = buildBranch(block.gitBranch);
-	if (branch) fragment.append(branch);
+	if (branch) metadata.append(branch);
 	const duration = buildDuration(block.durationMs, status === "failed" ? block.exitCode : null);
-	if (duration) fragment.append(duration);
+	if (duration) metadata.append(duration);
+	fragment.append(metadata, buildCommand(block.command));
 	return fragment;
 }
 

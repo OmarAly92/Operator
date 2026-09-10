@@ -14,6 +14,13 @@ const base = {
 };
 
 describe("renderBlockHeader", () => {
+	it("puts metadata above the command and preserves the full path as a tooltip", () => {
+		const el = renderBlockHeader({ ...base, state: "finished", exitCode: 0, durationMs: 24 }, defaultStrings);
+		expect(el.firstElementChild?.className).toBe("terminal-block-metadata");
+		expect(el.lastElementChild?.textContent).toBe("git status");
+		expect(el.querySelector<HTMLElement>(".terminal-block-cwd")?.title).toBe(base.cwd);
+	});
+
 	it("shows the command, cwd and branch", () => {
 		const el = renderBlockHeader(
 			{ ...base, state: "finished", exitCode: 0, durationMs: 1200 },

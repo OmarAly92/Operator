@@ -273,7 +273,7 @@ describe("TerminalSurface", () => {
 		expect(onSend.mock.calls[0]?.[0]).not.toContain("\n");
 	});
 
-	it("prefills rerun without submitting", async () => {
+	it("keeps block hover actions out of the terminal", async () => {
 		const core = createTerminalCore({ columns: 16, scrollback: 100 });
 		feed(core, "\x1b]133;A\x07\x1b]7000;v=1;cmd=git%20status\x07\x1b]133;C\x07ok\n\x1b]133;D;0\x07\x1b]7000;v=1;input-ready=1\x07");
 		const onSend = vi.fn();
@@ -286,8 +286,7 @@ describe("TerminalSurface", () => {
 			<TerminalSurface core={core} theme={theme} font={font} altScreenActive={false} onSend={onSend} onSendRaw={ignoreRaw} host={host} />,
 		);
 		await flushRepaint();
-		fireEvent.click(container.querySelector<HTMLButtonElement>("[data-action='rerun']")!);
-		expect(container.querySelector(".terminal-editor-line")?.textContent).toContain("git status");
+		expect(container.querySelector(".terminal-block-actions")).toBeNull();
 		expect(onSend).not.toHaveBeenCalled();
 	});
 

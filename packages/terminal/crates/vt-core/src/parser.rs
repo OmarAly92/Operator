@@ -77,6 +77,11 @@ impl Parser {
         self.grid.open_block(source);
     }
 
+    pub(crate) fn start_output(&mut self) {
+        self.commit_evicted();
+        self.grid.start_output(self.block_start_row());
+    }
+
     pub(crate) fn close_block(&mut self, exit_code: Option<i32>) {
         self.commit_evicted();
         let next_row = self.block_end_row();

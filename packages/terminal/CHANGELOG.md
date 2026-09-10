@@ -122,6 +122,62 @@ Background colours reach the renderer.
   (`grid_renderer/box_drawing.rs`). The character stays in the DOM, transparent,
   so selection and copy are unchanged.
 
+Blocks carry Warp's two-line header.
+
+- A block header is now the metadata line -- status dot, cwd, git branch,
+  duration -- above the command itself, which sits on its own row in the
+  terminal foreground at full weight, the way Warp puts the command on the
+  line it was typed on rather than in a caption. The header is two line
+  heights tall and drops the rule under it; the block's own padding already
+  separates it from the output. The command and cwd carry their untruncated
+  text as a `title`, so an elided one is still readable.
+- The pinned header appears only once a block's own header has scrolled out
+  of view. It used to be painted from the viewport-center block, so the
+  command at the top of the pane was named twice -- once in place and once in
+  the sticky strip over it. It overlays the transcript with a negative margin
+  instead of taking a row of its own.
+- The hover actions over a block (copy, rerun, bookmark) are no longer
+  rendered. `renderBlockActions` and its events stay exported for a host that
+  wants them, but the renderer no longer needs `HostCapabilities`, so
+  `DomBlockRenderer.setHostCapabilities` is gone.
+
+A marked command's block starts at its output.
+
+- `OSC 133;C` now re-anchors an open block's first row to the row output
+  begins on, so the shell's prompt and the echoed command line are no longer
+  the first two rows of the block that also renders the command in its
+  header. This only applies when the command text is known from
+  `OSC 7000;cmd=`; an unmarked command keeps its prompt in the transcript,
+  because dropping those rows would lose the only copy of what was typed.
+- The renderer hides the trailing empty shell prompt while the line editor
+  owns the input, so the editor's own prompt row is not shadowed by a
+  zero-command block above it. A trailing block that has written output is
+  kept -- a background job's text stays visible while the prompt is free.
+
+Editor chrome matches the transcript.
+
+- `--terminal-line-height` was set from `FontConfig.lineHeight` directly, but
+  that field is a multiplier, so the editor laid its rows out at 1.3px and
+  every derived metric was wrong. It is now `lineHeight * sizePx`, as
+  `renderer-dom` already computed it.
+- The editor sits under a hairline rule at the transcript's own inset, wraps a
+  long line instead of clipping it, and shows cwd and branch as bordered
+  chips.
+
+Shell terminals no longer inherit the launcher's `NO_COLOR`.
+
+- A desktop app started with `NO_COLOR` set passed it to every pty child, so
+  an interactive shell and the agents under it came up without colour. It is
+  stripped from the inherited environment; an explicit override still wins.
+- A shell terminal on a shell with a bootstrap recipe asks for prompt
+  suppression, so the package's prompt row is not stacked under the shell's
+  own.
+
+- The `bench:selection` gate starts its drag from a transcript row it finds on
+  screen rather than a fixed pixel. It hard-coded a point that a taller block
+  header turned into chrome, where a pointer press is ignored by design, and
+  reported a live regression in a selection that was working.
+
 ## 0.3.0 - 2026-08-30
 
 Phase 2 replaces shell line editing with the package-owned editor and prompt row.

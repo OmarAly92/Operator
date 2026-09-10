@@ -15,11 +15,8 @@ pub(crate) fn apply_event(parser: &mut Parser, alt: &mut AltScreen, event: MarkE
         MarkEvent::PromptStart { tier } => {
             parser.open_block(source_for_tier(tier));
         }
-        MarkEvent::CommandStart { .. } | MarkEvent::OutputStart { .. } => {
-            // The plan's "Step 3" table marks these as "no block change"
-            // for Phase 1a. The block is already open from `PromptStart`,
-            // and the grid does not yet track per-block command text.
-        }
+        MarkEvent::CommandStart { .. } => {}
+        MarkEvent::OutputStart { .. } => parser.start_output(),
         MarkEvent::CommandEnd { exit_code, .. } => {
             parser.close_block(exit_code);
         }

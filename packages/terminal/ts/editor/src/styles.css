@@ -2,7 +2,8 @@
 	box-sizing: border-box;
 	width: 100%;
 	min-height: var(--terminal-line-height, 20px);
-	padding: 4px 8px;
+	padding: 16px;
+	border-top: 1px solid var(--terminal-block-border);
 	color: var(--terminal-foreground);
 	background: var(--terminal-background);
 	font-family: var(--terminal-font-family);
@@ -11,7 +12,8 @@
 	letter-spacing: var(--terminal-letter-spacing);
 	line-height: var(--terminal-line-height);
 	font-variant-ligatures: var(--terminal-ligatures);
-	white-space: pre;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	outline: none;
 	/* What the user typed is text they may want to copy, and a host that turns
 	   selection off app-wide would otherwise take that away. */
@@ -27,6 +29,7 @@
 .terminal-editor[aria-readonly="true"] {
 	min-height: 0;
 	padding: 0;
+	border: 0;
 }
 
 .terminal-editor-line {
@@ -86,8 +89,20 @@
 .terminal-editor-prompt {
 	display: flex;
 	gap: 8px;
-	align-items: baseline;
-	padding-bottom: 4px;
+	align-items: center;
+	min-width: 0;
+	padding-bottom: 16px;
+	white-space: nowrap;
+}
+
+.terminal-editor-prompt-cwd,
+.terminal-editor-prompt-branch {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 2px 6px;
+	border: 1px solid var(--terminal-block-border);
+	border-radius: 4px;
 }
 
 .terminal-editor-prompt-cwd {

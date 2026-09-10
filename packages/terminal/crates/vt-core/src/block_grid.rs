@@ -73,6 +73,14 @@ impl BlockGrid {
         self.closed.push(block);
     }
 
+    pub(crate) fn start_output(&mut self, first_row: usize) {
+        if let Some(block) = self.open.as_mut() {
+            if !block.meta.command.is_empty() {
+                block.first_row = first_row;
+            }
+        }
+    }
+
     pub fn note_row_completed(&mut self) {
         self.next_row += 1;
     }

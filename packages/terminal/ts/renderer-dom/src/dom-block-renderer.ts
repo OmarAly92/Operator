@@ -6,14 +6,12 @@ import {
 	type BlockRenderer,
 	type BlockView,
 	type FontConfig,
-	type HostCapabilities,
 	type RowRange,
 	type TerminalCore,
 	type TerminalSnapshot,
 	type TerminalTheme,
 } from "@operator/terminal-core";
 import { renderAltSurface } from "./alt-surface.js";
-import { type BlockTextSource } from "./block-actions.js";
 import { populateBlock } from "./block-body.js";
 import { primaryCursorPlacement, type CursorPlacement } from "./cursor.js";
 import { fillGradient, runFill } from "./selection-fill.js";
@@ -24,8 +22,8 @@ import { mountJumpToBottom, type JumpToBottom } from "./jump-to-bottom.js";
 import { createPinnedHeaderElement, updatePinnedHeader } from "./pinned-header.js";
 import { defaultFont } from "./default-font.js";
 import { ensureMeasureHost, HIDDEN_MEASURE_ID, listenScroll } from "./host-dom.js";
-import { BLOCK_PADDING_X_PX, blockPaddingY } from "./block-metrics.js";
-import { trimTrailingBlankRows } from "./block-rows.js";
+import { BLOCK_PADDING_X_PX, BLOCK_PADDING_TOP_LINES, BLOCK_COMMAND_GAP_LINES, blockPaddingY } from "./block-metrics.js";
+import { blockIsBlank, trimTrailingBlankRows } from "./block-rows.js";
 import { paintedRowOrigin, type RowOrigin } from "./row-geometry.js";
 import { pointAtFromRows, rowFillSpan, type RowBox } from "./selection-geometry.js";
 import {
@@ -45,7 +43,6 @@ import { computeWindow } from "./viewport.js";
 const CLASS_BLOCK = "terminal-block";
 const CLASS_LEADING_SPACER = "terminal-spacer";
 const CLASS_TRAILING_SPACER = "terminal-spacer";
-const DEFAULT_HEADER_HEIGHT = 24;
 const OVERSCAN_ROWS = 6;
 const STICK_THRESHOLD_PX = 4;
 const PAINT_INTERVAL_MS = 1000 / 60;
@@ -77,14 +74,6 @@ export class DomBlockRenderer implements BlockRenderer {
 	private lastPaintAt: number | null = null;
 	private wasAltActive = false;
 	private readonly decoder = new TextDecoder("utf-8", { fatal: true });
-	private host: HostCapabilities | null = null;
-	private latestSnapshot: {
-		content: Uint8Array;
-		rows: Uint32Array;
-		runRanges: Uint32Array;
-		stylePairs: Uint32Array;
-	} | null = null;
-	private latestBlocks: readonly BlockView[] = [];
 	private filteredBlocks: readonly BlockView[] = [];
 	private currentFilter: BlockFilter | null = null;
 	private pinnedHeader: HTMLElement | null = null;
@@ -144,11 +133,6 @@ export class DomBlockRenderer implements BlockRenderer {
 
 	setFilter(filter: BlockFilter | null): void {
 		this.currentFilter = filter, this.scheduleRepaint();
-	}
-
-	setHostCapabilities(host: HostCapabilities | null): void {
-		this.host = host;
-		this.scheduleRepaint();
 	}
 
 	invalidate(range: RowRange): void {
@@ -359,9 +343,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		this.lastClientHeight = 0;
 		this.lastPaintAt = null;
 		this.wasAltActive = false;
-		this.host = null;
-		this.latestSnapshot = null;
-		this.latestBlocks = [];
 		this.selection = null;
 	}
 
@@ -483,23 +464,21 @@ export class DomBlockRenderer implements BlockRenderer {
 		if (blocks.length > 0) {
 			this.knownBlockId = blocks[0]!.id;
 		}
-		this.latestSnapshot = {
-			content: snapshot.content,
-			rows: snapshot.rows,
-			runRanges: snapshot.runRanges,
-			stylePairs: snapshot.stylePairs,
-		};
-		this.latestBlocks = blocks;
 		if (this.selection) {
 			const ids = new Set(blocks.map((block) => block.id));
 			if (!ids.has(this.selection.head.blockId) || !ids.has(this.selection.tail.blockId)) this.dropSelection();
 		}
-		// Trimmed for layout only. latestBlocks keeps the untrimmed rows so copying
-		// a block still yields exactly what the command wrote.
 		const cursor: CursorPlacement | null = primaryCursorPlacement(snapshot);
-		this.filteredBlocks = applyFilter(blocks, this.currentFilter).map((block) =>
-			trimTrailingBlankRows(snapshot, block),
-		);
+		this.filteredBlocks = applyFilter(blocks, this.currentFilter)
+			.filter((block) => !(
+				snapshot.lineEditorState === 1 &&
+				block === blocks.at(-1) &&
+				block.source !== "synthetic" &&
+				block.state === "running" &&
+				block.command === "" &&
+				blockIsBlank(snapshot, block)
+			))
+			.map((block) => trimTrailingBlankRows(snapshot, block));
 		const { cellWidth, cellHeight } = this.measure();
 		const rowHeight = cellHeight > 0 ? cellHeight : this.font.lineHeight * this.font.sizePx;
 		const anchorScrollTop = container.scrollTop;
@@ -511,17 +490,16 @@ export class DomBlockRenderer implements BlockRenderer {
 			scrollTop,
 			viewportHeight,
 			rowHeight,
-			headerHeight: DEFAULT_HEADER_HEIGHT,
+			headerHeight: rowHeight * (2 + BLOCK_COMMAND_GAP_LINES),
 			overscanRows: OVERSCAN_ROWS,
-			blockPaddingY: blockPaddingY(rowHeight),
+			blockPaddingY: blockPaddingY(rowHeight) + 1,
 		});
 
 		leading.style.height = `${windowResult.leadingSpacer}px`;
 		trailing.style.height = `${windowResult.trailingSpacer}px`;
 		if (this.blockNav) this.blockNav.setPinnedIndex(windowResult.pinnedBlockIndex);
-		if (this.pinnedHeader) updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, windowResult.pinnedBlockIndex, defaultStrings);
 
-		const textSource: BlockTextSource = this.buildTextSource();
+
 		const visibleIds = new Set<BlockId>();
 		if (windowResult.firstBlock <= windowResult.lastBlock) {
 			for (let i = windowResult.firstBlock; i <= windowResult.lastBlock; i += 1) {
@@ -537,8 +515,6 @@ export class DomBlockRenderer implements BlockRenderer {
 					cellWidth,
 					cursor,
 					decoder: this.decoder,
-					host: this.host,
-					textSource,
 				});
 			}
 		}
@@ -552,6 +528,11 @@ export class DomBlockRenderer implements BlockRenderer {
 		const fragment = document.createDocumentFragment();
 		fragment.append(leading, ...orderedVisible, trailing);
 		list.replaceChildren(fragment);
+		if (this.pinnedHeader) {
+			const first = orderedVisible[0];
+			const scrolledPastHeader = first && first.getBoundingClientRect().top + rowHeight * (BLOCK_PADDING_TOP_LINES + 2) + 1 < container.getBoundingClientRect().top;
+			updatePinnedHeader(this.pinnedHeader, this.filteredBlocks, scrolledPastHeader ? windowResult.firstBlock : -1, defaultStrings);
+		}
 
 		for (const [id, element] of this.blockElements) {
 			if (!visibleIds.has(id)) {
@@ -619,21 +600,6 @@ export class DomBlockRenderer implements BlockRenderer {
 		}
 	}
 
-	private buildTextSource(): BlockTextSource {
-		const snapshot = this.latestSnapshot;
-		const blocks = this.latestBlocks;
-		const decoder = this.decoder;
-		const blockById = new Map(blocks.map((b) => [b.id, b] as const));
-		return {
-			command: (id) => blockById.get(id)?.command ?? "",
-			output: (id) => {
-				const block = blockById.get(id);
-				if (!block || !snapshot) return "";
-				return readBlockOutput(block, snapshot, decoder);
-			},
-		};
-	}
-
 	private ensureBlockElement(block: BlockView): HTMLElement {
 		const existing = this.blockElements.get(block.id);
 		if (existing) return existing;
@@ -682,29 +648,4 @@ function ensurePackageStyleTag(): HTMLStyleElement {
 	tag.textContent = terminalStylesForDocument();
 	document.head.append(tag);
 	return tag;
-}
-
-function readBlockOutput(
-	block: BlockView,
-	snapshot: {
-		content: Uint8Array;
-		rows: Uint32Array;
-	},
-	decoder: TextDecoder,
-): string {
-	const lines: string[] = [];
-	for (let rowOffset = 0; rowOffset < block.rowCount; rowOffset += 1) {
-		const snapshotRowIndex = block.firstRow + rowOffset;
-		const rowsBase = snapshotRowIndex * 2;
-		const rowContentStart = snapshot.rows[rowsBase] ?? 0;
-		const rowContentEnd = snapshot.rows[rowsBase + 1] ?? rowContentStart;
-		const rowLength = rowContentEnd - rowContentStart;
-		if (rowLength <= 0) {
-			lines.push("");
-			continue;
-		}
-		const slice = snapshot.content.subarray(rowContentStart, rowContentEnd);
-		lines.push(decoder.decode(slice));
-	}
-	return lines.join("\n");
 }
