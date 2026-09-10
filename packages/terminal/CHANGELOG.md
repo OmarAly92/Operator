@@ -43,6 +43,18 @@ Selecting a painted band shows the selection.
   a browser I-beam by default; Warp shows the platform arrow over its grid
   and reserves the pointing hand for links.
 
+The selection lives in the renderer, not the browser.
+
+- The transcript's selection was the browser's, anchored in text nodes that
+  every repaint rebuilt, so new output collapsed it and a drag lurched to the
+  block start. `renderer-dom` now owns the selection as grid points
+  (block, row, column, half-cell side), paints it from geometry and copies it
+  from the snapshot, the way Warp's `BlockListSelection` works. Double-click
+  selects a word with Warp's boundary set, triple-click a line, a drag past
+  the edge auto-scrolls with Warp's curve, and Cmd+C (Ctrl+Shift+C off macOS)
+  copies. Typing, a plain click, a resize, or the block leaving scrollback
+  clears it; output and scrolling do not.
+
 Blank rows survive scrolling off the screen.
 
 - `vt-core` dropped any all-blank row the moment it left the screen: the row

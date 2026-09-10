@@ -45,6 +45,7 @@ packages/terminal  (product-independent, see §3)
    ├─ crates/vt-host     C-ABI wasm for the Go mirror (vt_feed, vt_render, vt_replay)
    ├─ ts/core            TerminalCore wrapper over vt-wasm, snapshot views
    ├─ ts/renderer-dom    DomBlockRenderer: blocks, rows, virtualiser, selection
+   │                     (`selection-model.ts` owns it as grid points, not DOM ranges)
    └─ ts/react           TerminalSurface: grid measurement, wheel, mouse, editor
 ```
 
@@ -251,6 +252,28 @@ Each entry: symptom → real cause → what guards it now. Commits are on master
   over its grid and uses the pointing hand only for links (`app/src/util/link_detection.rs`).
   `.terminal-block, .terminal-alt-surface { cursor: default }`. Guard:
   `styles-parity.test.ts` "keeps the arrow over the transcript".
+
+### 4.13 Selection destroyed by repaints — model-owned selection
+- Symptom: a selection survived only while the terminal was idle. Measured in
+  the bench harness: 1356 selected characters idle, dropping to 0 with Claude
+  Code's spinner writing every 100ms.
+- Cause: the transcript's selection was the browser's, anchored in text nodes
+  that every repaint rebuilt from scratch, so new output collapsed it and a
+  drag lurched back to the block start.
+- Now: the selection lives in `renderer-dom` as grid points (block, row,
+  column, half-cell side) in `selection-model.ts`, painted from geometry
+  (`selection-geometry.ts`) and copied from the snapshot (`selection-text.ts`),
+  the way Warp's `BlockListSelection` works. Gestures are a pure state machine
+  in `selection-gesture.ts`: a drag threshold before a selection starts,
+  click-count word/line selection (double-click a word with Warp's boundary
+  set, triple-click a line), a drag past the edge auto-scrolling with Warp's
+  polynomial curve, and the platform copy chord (Cmd+C on macOS, Ctrl+Shift+C
+  elsewhere).
+- Guards: `cell-width.test.ts`, `words.test.ts`, `selection-model.test.ts`,
+  `selection-geometry.test.ts`, `selection-text.test.ts`,
+  `terminal-selection.test.ts`, `selection-gesture.test.ts`,
+  `TerminalSurface.mouse.test.tsx`, and the `bench:selection` Playwright gate
+  (`bench/selection-gate.mjs`).
 
 ---
 
