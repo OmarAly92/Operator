@@ -333,12 +333,11 @@ ends. The failure mode degrades from "duplicated action" to "one wasted cheap
 turn".
 
 Delivery is serialized per project so overlapping triggers cannot both announce
-the same state — carried over from #2836's dispatch lock. Optionally, the
-dispatcher may hold a nudge for a short fixed window (two to three seconds)
-after the first pending row so N workers finishing together cost one
-orchestrator turn instead of N. The window is a single `time.AfterFunc` per
-project with no persisted state and no re-arm on failure, which keeps it on the
-event-driven side of the line above; it is an optimisation, not a requirement.
+the same state — carried over from #2836's dispatch lock. There is no
+coalescing delay of any kind: N workers finishing together cost N nudges, and
+the at-most-one-per-turn draining plus the count in the message already
+collapse them into one `opr inbox` read (§12 records why a debounce timer was
+considered and left out).
 
 ## 8. Wire and CLI surface
 
@@ -481,6 +480,16 @@ mistakes a prompt rule for a guarantee:
 - **Cost ceiling.** Per §4.
 - **Any retry, backoff, or escalation loop.** Per §7. This is a hard
   prohibition, not a deferral.
+- **A nudge debounce timer.** A two-to-three-second `time.AfterFunc` per
+  project, holding the nudge so N workers finishing together cost one
+  orchestrator turn, was considered and left out. It would be the only timer
+  in the design. It can be bounded honestly (no persisted state, no re-arm),
+  but "no timers" is the tripwire that protects against a third revert, and a
+  reviewer who does not read the justification will either strip it or grow
+  it. The at-most-one-per-turn draining and the count in the message already
+  collapse a burst into one `opr inbox` read, so the saving is small. If it is
+  ever added, it goes in with a code comment pointing at §7's
+  stateless/stateful distinction and a test that it never re-arms.
 
 ## 13. Testing
 
