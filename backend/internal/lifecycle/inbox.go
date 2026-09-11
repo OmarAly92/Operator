@@ -132,6 +132,24 @@ func (m *Manager) consumeCoordinationEcho(id domain.SessionID, prompt string) bo
 	return true
 }
 
+// DispatchPendingInboxEventsOnStartup nudges the live orchestrator of every
+// project that has at least one pending inbox row. It runs once at daemon
+// boot to cover rows left pending across a restart or written while every
+// worker was busy, neither of which produces an activity-signal transition
+// for dispatchInboxNudge to fire on.
+func (m *Manager) DispatchPendingInboxEventsOnStartup(ctx context.Context) error {
+	projects, err := m.store.ListProjectsWithPendingInboxEvents(ctx)
+	if err != nil {
+		return err
+	}
+	for _, project := range projects {
+		if err := m.dispatchInboxNudge(ctx, project); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ListPendingInboxEvents returns the project's unacknowledged inbox rows.
 func (m *Manager) ListPendingInboxEvents(ctx context.Context, project domain.ProjectID) ([]domain.OrchestratorInboxEvent, error) {
 	return m.store.ListPendingInboxEvents(ctx, project)

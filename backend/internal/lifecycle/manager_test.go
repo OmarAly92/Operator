@@ -3513,3 +3513,30 @@ func TestApplyActivitySignal_RepeatedIdleCoalescesToOnePendingRow(t *testing.T) 
 		t.Fatalf("pending=%v err=%v, want exactly 1 across two idle crossings for the same worker", pending, err)
 	}
 }
+
+func TestDispatchPendingInboxEventsOnStartup_AnnouncesEveryProjectWithPendingRows(t *testing.T) {
+	m, st, msg := newManager()
+	st.sessions["mer-2"] = orchestrator("mer-2", "mer")
+	st.inboxEvents["evt-1"] = domain.OrchestratorInboxEvent{
+		ID: "evt-1", ProjectID: "mer", WorkerID: "mer-1", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
+	}
+
+	if err := m.DispatchPendingInboxEventsOnStartup(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(msg.msgs) != 1 || msg.ids[0] != "mer-2" {
+		t.Fatalf("messenger calls = %+v / %+v, want one startup nudge to mer-2", msg.msgs, msg.ids)
+	}
+}
+
+func TestDispatchPendingInboxEventsOnStartup_NoPendingRowsSendsNothing(t *testing.T) {
+	m, _, msg := newManager()
+
+	if err := m.DispatchPendingInboxEventsOnStartup(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(msg.msgs) != 0 {
+		t.Fatalf("messenger calls = %v, want none", msg.msgs)
+	}
+}
