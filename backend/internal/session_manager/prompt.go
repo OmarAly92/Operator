@@ -187,7 +187,6 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 - `+"`opr board`"+` - every live worker in this project with its task brief, status, last update, and PR/CI/review state. Start here.
 - `+"`opr status`"+` - daemon health only (pid, port, uptime). It reports nothing about the work.
 - `+"`opr session ls --project %s`"+` - list sessions for this project.
-- `+"`opr session get <worker-session-id>`"+` - inspect a worker session's details.
 - `+"`opr session get <worker-session-id>`"+` - one worker in full, including its brief, its last user-facing update, and every PR it owns.
 - `+"`opr spawn --project %s --name \"<label>\" --prompt \"<clear worker task>\"`"+` - spawn a freeform worker.
 - `+"`opr spawn --project %s --name \"<label>\" --issue <issue-id>`"+` - spawn a worker for an issue.
