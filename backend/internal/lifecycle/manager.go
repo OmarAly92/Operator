@@ -192,6 +192,16 @@ type Manager struct {
 	// the agent adapter via WithActiveSteering; the default answers false, so an
 	// unknown harness is only written to while idle.
 	steerActive func(domain.AgentHarness) bool
+
+	// pendingEcho holds, per session, the exact text of the last coordination
+	// write this daemon made into that session's pane, so a harness hook that
+	// echoes it back as the session's own latestUserPrompt can be recognized
+	// and dropped instead of corrupting the record.
+	echoMu      sync.Mutex
+	pendingEcho map[domain.SessionID]string
+	// dispatchLocks serializes inbox-nudge delivery per project.
+	dispatchLocksMu sync.Mutex
+	dispatchLocks   map[domain.ProjectID]*sync.Mutex
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -469,6 +479,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	s.TranscriptPath = strings.TrimSpace(s.TranscriptPath)
 	s.LaunchID = strings.TrimSpace(s.LaunchID)
 	s.ControllerGeneration = strings.TrimSpace(s.ControllerGeneration)
+	if s.LatestUserPrompt != "" && m.consumeCoordinationEcho(id, s.LatestUserPrompt) {
+		s.LatestUserPrompt = ""
+	}
 	// A response or Stop hook produced by Operator's optional source handoff request
 	// may contain last_assistant_message without echoing the internal prompt.
 	// From collection through source teardown, do not let that coordination
@@ -643,7 +656,6 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		m.mu.Unlock()
 		return err
 	}
-	_ = orchestratorReadyToDrain
 	if !applied {
 		m.mu.Unlock()
 		return nil
@@ -667,6 +679,11 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	m.mu.Unlock()
 	if err := m.acknowledgeAgentSwitchTarget(ctx, id, s, now); err != nil {
 		return err
+	}
+	if crossedToIdleWorker || orchestratorReadyToDrain {
+		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID); dispatchErr != nil {
+			slog.Default().Warn("lifecycle: dispatch inbox nudge failed", "project", next.ProjectID, "err", dispatchErr)
+		}
 	}
 	for _, ev := range waitingEvents {
 		m.emitTelemetry(ctx, ev)

@@ -851,6 +851,7 @@ func (m *Manager) sendOnce(ctx context.Context, id domain.SessionID, prURL, key,
 	if outcome != sessionguard.Sent {
 		return sendOnceSuppressed, nil
 	}
+	m.rememberCoordinationEcho(id, msg)
 	// Order: Send → in-memory mutation → durable persist. Sending first means a
 	// transient persist failure does NOT swallow a real send (the agent saw the
 	// message; subsequent polls in this process suppress re-sends via the
