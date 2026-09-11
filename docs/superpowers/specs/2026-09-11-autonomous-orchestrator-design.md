@@ -628,12 +628,17 @@ endpoint originally sketched in §8 was never built. No new autonomy, no new
 table, no delivery. Pure read surface over data that already exists.
 Immediately useful to the human too, and it de-risked everything after it.
 
-**Phase 1 — Ears.** Migration 0106, the transactional store method (§5.1), the
-reducer write, the content-free nudge through `NudgeCoordination`, the startup
-and restore sweeps, `opr inbox` and `opr inbox ack`, and the prompt's pull
-protocol. The orchestrator now wakes on worker turn-end but its authority is
-unchanged. This is where the reverted designs failed, so it ships with the §13
-duplicate test as its gate.
+**Phase 1 — Ears.** **Done.** Migration 0106, the transactional store method
+(§5.1), the reducer write, the content-free nudge through `NudgeCoordination`,
+the startup and restore sweeps, `opr inbox` and `opr inbox ack`, and the
+prompt's pull protocol. The orchestrator now wakes on worker turn-end but its
+authority is unchanged. This is where the reverted designs failed, so it
+shipped with the §13 duplicate test as its gate.
+
+Beyond the original scope: a coordination-echo suppression mechanism was
+added so the orchestrator's own `opr send`/nudge traffic does not re-trigger
+itself. See `docs/superpowers/plans/2026-09-12-orchestrator-ears-phase-1.md`
+for the task breakdown.
 
 **Phase 2 — Leash and autonomy, together.** Migration 0107 (`spawned_by`), the
 `requestedBy` wire field on spawn, budget enforcement in the spawn service, the

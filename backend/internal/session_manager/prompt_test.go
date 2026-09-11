@@ -185,3 +185,17 @@ func TestOrchestratorPromptPointsAtBoardNotStatus(t *testing.T) {
 		t.Fatal("coordination workflow step 1 still points at the wrong command")
 	}
 }
+
+func TestOrchestratorPromptTeachesThePullProtocol(t *testing.T) {
+	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
+
+	for _, want := range []string{
+		"`opr inbox`",
+		"`opr inbox ack",
+		"empty inbox is a normal outcome",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}

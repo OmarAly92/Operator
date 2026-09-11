@@ -27,8 +27,7 @@ type sessionStore interface {
 	// write. It returns false when a concurrent lifecycle/agent-switch boundary
 	// made the reducer's previously read session stale.
 	UpdateSessionFromActivitySignal(ctx context.Context, rec domain.SessionRecord) (bool, error)
-	// ListSessions returns every session in a project. The dispatcher reads it
-	// to resolve the current orchestrator at delivery time.
+	// ListSessions returns every session in a project.
 	ListSessions(ctx context.Context, project domain.ProjectID) ([]domain.SessionRecord, error)
 	// ListPRsBySession returns every PR row tracked for the session. The
 	// reducer reads it to apply the multi-PR completion rule (terminate only
