@@ -183,7 +183,43 @@ The smallest version of "eyes" is to add `latestUserPrompt`,
 `latestAssistantUpdate` and a PR summary to the existing session DTO that
 `opr session get` and `opr session ls` render (`backend/internal/cli/session.go:43`).
 That alone un-blinds the orchestrator and the human, and `opr board` and the
-digest compose from the same fields. Phase 0 starts there.
+digest compose from the same fields. Phase 0 starts there — after the ingest
+bug below is fixed, because today the stored value is **not** the worker's
+last message.
+
+**Verified 2026-09-11 against a live daemon DB and a reproduction:**
+`latestAssistantUpdate` is captured correctly by the Claude Code `Stop` hook
+and then overwritten about a second later. In `~/.operator/data/opr.db`,
+session `scratch-14`'s `stop` block event at 07:05:34 carries the full
+1,076-character answer, but `sessions.latest_assistant_update` holds the
+32-character string "compare price with iPhone 17 Pro", which appears nowhere
+in the native transcript; the orchestrator `operator-1` shows the same pattern
+("the mobile terminal feature — let's start there"). `activity_last_at` did not
+move, so the overwrite was a metadata-only write.
+
+Reproduction (Claude Code 2.1.267, hooks for `Stop`, `SubagentStop`,
+`Notification`, `SessionEnd` and `UserPromptSubmit` logging their stdin): one
+turn produces `Stop` with `last_assistant_message` = the real reply, then a
+**`SubagentStop`** whose `last_assistant_message` is the output of a background
+sidechain agent (`"(silence)"` for a trivial prompt; a suggested next prompt
+for a real one — this is Claude Code's prompt-suggestion generator, and the
+strings above are its output). Operator installs `SubagentStop`
+(`adapters/agent/claudecode/hooks.go:46`), and `opr hooks` runs
+`hookConversationFacts` for **every** claude-code event
+(`backend/internal/cli/hooks.go:313`–`:316`), so the sidechain's text lands in
+`LatestAssistantUpdate` and reaches the store through the metadata-only branch
+of `ApplyActivitySignal`. The existing test at `cli/hooks_test.go:75` asserts
+only usage and native-session fields for `subagent-stop`, so it does not pin
+the bad behaviour.
+
+Fix, and it is the first Phase 0 task: take conversation facts only from the
+events that describe the main conversation — `LatestAssistantUpdate` from
+`stop`, `LatestUserPrompt` from `user-prompt-submit` — and never from
+`subagent-stop`, `notification` or `session-end`. Add a hook test that a
+`subagent-stop` payload carrying `last_assistant_message` leaves both fields
+empty. Once fixed, the field is exactly the worker's last user-facing message,
+which is what the digest needs; the Stop payload also carries `prompt_id`,
+which the digest may later use to pair a reply with the prompt it answered.
 
 Digest limits: a worker on a hookless harness (§1) never produces an inbox
 event and its `latestAssistantUpdate` is always empty; the digest and board must
@@ -530,12 +566,16 @@ No network in tests; `httptest` and fakes, per `AGENTS.md`.
 Each phase is independently shippable and independently valuable. Autonomy
 lands last, and never before the leash.
 
-**Phase 0 — Eyes.** First the session DTO extension (`latestUserPrompt`,
-`latestAssistantUpdate`, PR summary on `opr session get`/`ls`), then `opr board`
-and the digest read path composed from the same fields. Correct the false
-`opr status` claim in the prompt. No new autonomy, no new table, no delivery.
-Pure read surface over data that already exists. Immediately useful to the human
-too, and it de-risks everything after it.
+**Phase 0 — Eyes.** First the `opr hooks` ingest fix from §5.2, so
+`latestAssistantUpdate` stops being overwritten by Claude Code's
+`SubagentStop` sidechain — without it the digest shows a suggested prompt
+instead of the worker's reply. Then the session DTO extension
+(`latestUserPrompt`, `latestAssistantUpdate`, PR summary on
+`opr session get`/`ls`), then `opr board` and the digest read path composed
+from the same fields. Correct the false `opr status` claim in the prompt. No
+new autonomy, no new table, no delivery. Pure read surface over data that
+already exists, plus one ingest bug fix. Immediately useful to the human too,
+and it de-risks everything after it.
 
 **Phase 1 — Ears.** Migration 0105, the transactional store method (§5.1), the
 reducer write, the content-free nudge through `NudgeCoordination`, the startup
