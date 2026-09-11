@@ -59,7 +59,7 @@
 - Consumes: `domain.Session` with populated `Metadata.Prompt`, `Metadata.LatestUserPrompt`, `Metadata.LatestAssistantUpdate` (`backend/internal/domain/session.go:36-43`).
 - Produces: JSON keys `brief`, `latestUserPrompt`, `latestAssistantUpdate` on every session object returned by `GET /sessions`, `GET /sessions/{id}`, and any response embedding `SessionView`. Each is `omitempty` and capped at 2048 bytes. Task 2 and Task 3 mirror these exact names.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `backend/internal/httpd/controllers/sessions_view_test.go`. It must be `package controllers`, not `controllers_test`, because it exercises the unexported `sessionView` and `maxWireInteractionLen`.
 
@@ -121,7 +121,7 @@ func TestSessionViewOmitsEmptyConversationFacts(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd backend && go test ./internal/httpd/controllers/ -run TestSessionView -v
@@ -129,7 +129,7 @@ cd backend && go test ./internal/httpd/controllers/ -run TestSessionView -v
 
 Expected: build failure — `view.Brief` undefined, `maxWireInteractionLen` undefined. That is a correct RED for a missing field; fix nothing but the test's own typos.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `dto.go`, inside `SessionView` after the `PRs` field:
 
@@ -167,7 +167,7 @@ Then extend the `sessionView` literal:
 
 Add `"unicode/utf8"` to the `sessions.go` imports.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd backend && go test ./internal/httpd/controllers/ -run TestSessionView -v
@@ -179,7 +179,7 @@ Expected: PASS. Then the drift gate:
 cd backend && go test ./internal/httpd/...
 ```
 
-- [ ] **Step 5: Regenerate the API artifacts**
+- [x] **Step 5: Regenerate the API artifacts**
 
 ```bash
 npm run api
@@ -188,7 +188,7 @@ git diff --stat backend/internal/httpd/apispec/openapi.yaml frontend/src/api/sch
 
 Expected: both files show the three new properties. `SessionView` is an existing named type, so no `schemaNames` entry is needed. If `npm run api` reports an unnamed-schema error, add the entry it names to `specgen/build.go:235` and rerun.
 
-- [ ] **Step 6: Run the full gate**
+- [x] **Step 6: Run the full gate**
 
 ```bash
 npm run lint
@@ -196,7 +196,7 @@ npm run lint
 
 Expected: all packages ok, `0 issues.`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/internal/httpd/controllers/dto.go \
@@ -226,7 +226,7 @@ state were already on SessionView.PRs."
 - Consumes: JSON keys `brief`, `latestUserPrompt`, `latestAssistantUpdate`, `prs` from Task 1.
 - Produces: `sessionDTO.Brief`, `.LatestUserPrompt`, `.LatestAssistantUpdate`, `.PRs []sessionPRDTO` — Task 3 reuses `sessionDTO` and `sessionPRDTO` verbatim.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `backend/internal/cli/session_test.go`, matching the file's existing table-driven style and its daemon-stub helpers.
 
@@ -262,7 +262,7 @@ func TestSessionGetRendersBriefAndConversationFacts(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd backend && go test ./internal/cli/ -run TestSessionGetRendersBriefAndConversationFacts -v
@@ -270,7 +270,7 @@ cd backend && go test ./internal/cli/ -run TestSessionGetRendersBriefAndConversa
 
 Expected: FAIL — `output missing "brief: fix the flaky resize test"`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `session.go`, add to `sessionDTO`:
 
@@ -311,7 +311,7 @@ The existing loop already skips empty values. After the `updated:` block and bef
 	}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd backend && go test ./internal/cli/ -run TestSessionGet -v && go test ./internal/cli/
@@ -319,7 +319,7 @@ cd backend && go test ./internal/cli/ -run TestSessionGet -v && go test ./intern
 
 Expected: PASS, whole package ok.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/internal/cli/session.go backend/internal/cli/session_test.go
@@ -347,7 +347,7 @@ One project-wide read of every live session with brief, activity, last update an
 - Consumes: `sessionDTO`, `sessionPRDTO`, `sessionListResponse` from Task 2; `apiPath`, `getJSON`, `writeJSON`, `formatSessionAge` from the existing CLI helpers (`session.go`, `orchestrator.go:110`).
 - Produces: `newBoardCommand(ctx *commandContext) *cobra.Command`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `backend/internal/cli/board_test.go`:
 
@@ -433,7 +433,7 @@ func TestBoardReportsAnEmptyProject(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd backend && go test ./internal/cli/ -run TestBoard -v
@@ -441,7 +441,7 @@ cd backend && go test ./internal/cli/ -run TestBoard -v
 
 Expected: FAIL — `unknown command "board"`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `backend/internal/cli/board.go`:
 
@@ -580,7 +580,7 @@ In `root.go`, beside `newOrchestratorCommand`:
 	root.AddCommand(newBoardCommand(ctx))
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd backend && go test ./internal/cli/ -run TestBoard -v && go test ./internal/cli/
@@ -588,13 +588,13 @@ cd backend && go test ./internal/cli/ -run TestBoard -v && go test ./internal/cl
 
 Expected: PASS, whole package ok. If `sessionIDPattern` is not visible from `board.go`, it lives in `internal/cli` already (used by `root.go:243`) — no new regexp.
 
-- [ ] **Step 5: Run the full gate**
+- [x] **Step 5: Run the full gate**
 
 ```bash
 npm run lint
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/internal/cli/board.go backend/internal/cli/board_test.go backend/internal/cli/root.go
@@ -627,7 +627,7 @@ The prompt tells the orchestrator that `opr status` inspects "project, session, 
 - Consumes: `opr board` from Task 3, `opr session get` fields from Task 2.
 - Produces: no Go API change. Prompt text only.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `backend/internal/session_manager/prompt_test.go`:
 
@@ -650,7 +650,7 @@ func TestOrchestratorPromptPointsAtBoardNotStatus(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd backend && go test ./internal/session_manager/ -run TestOrchestratorPromptPointsAtBoardNotStatus -v
@@ -658,7 +658,7 @@ cd backend && go test ./internal/session_manager/ -run TestOrchestratorPromptPoi
 
 Expected: FAIL — "prompt does not teach opr board".
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `orchestratorSystemPrompt`, in the Core Commands list, replace the `opr status` bullet with:
 
@@ -679,7 +679,7 @@ In the Coordination Workflow list, change step 1:
 1. Inspect current state with `+"`opr board`"+`.
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd backend && go test ./internal/session_manager/ -run TestOrchestratorPrompt -v && go test ./internal/session_manager/
@@ -687,19 +687,19 @@ cd backend && go test ./internal/session_manager/ -run TestOrchestratorPrompt -v
 
 Expected: PASS. Other prompt tests may assert the old `opr status` line — if one fails, update it to the corrected text; do not weaken the new test.
 
-- [ ] **Step 5: Run the full gate**
+- [x] **Step 5: Run the full gate**
 
 ```bash
 npm run lint
 ```
 
-- [ ] **Step 6: Update the spec to match what shipped**
+- [x] **Step 6: Update the spec to match what shipped**
 
 In `docs/superpowers/specs/2026-09-11-autonomous-orchestrator-design.md`:
 - §8: remove the `GET /api/v1/projects/{id}/board` row and note that `opr board` reads `GET /sessions?project=&active=true`; keep the inbox rows for Phase 1.
 - §14 Phase 0: mark it done and record that no new endpoint was needed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/internal/session_manager/prompt.go \
@@ -723,7 +723,28 @@ what opr status actually reports."
 
 ## Verification before calling Phase 0 done
 
-- [ ] `npm run lint` passes from the repo root.
-- [ ] `cd backend && go test ./internal/httpd/...` passes (spec drift).
-- [ ] `git diff --stat` on `openapi.yaml` and `frontend/src/api/schema.ts` shows the three new properties and nothing else unexpected.
-- [ ] `opr board --project <real project>` against a running daemon shows a real worker's brief and last update — the one check no unit test makes, and the one that proves the ingest fix holds end to end. If `last update` shows a short suggested-prompt-looking string, the Global Constraints precondition commit is missing.
+- [x] `npm run lint` passes from the repo root.
+- [x] `cd backend && go test ./internal/httpd/...` passes (spec drift).
+- [x] `git diff --stat` on `openapi.yaml` and `frontend/src/api/schema.ts` shows the three new properties and nothing else unexpected (`openapi.yaml` +9, `schema.ts` +3).
+- [x] `opr board` against a running daemon on this branch's binary. **Verified 2026-09-11** against an isolated daemon (`OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE` under a scratch dir, so the user's `~/.operator` daemon was never touched), with session rows seeded directly rather than by spawning a paid agent:
+
+  ```
+  scratch-1  resize fix  [no_signal]  (4m)
+    brief: fix the flaky terminal resize test
+    last prompt: also check the codex path
+    last update: Reproduced it, pushed a fix. CI is still red on one job.
+
+  scratch-2  iphone search  [no_signal]  (9m)
+    brief: Hi
+    last prompt: search for new iphone 18
+    last update: Here is what I found about the iPhone 18 Pro.
+  ```
+
+  Also confirmed: migration `0105` applied on daemon start (`goose_db_version` max = 105); the daemon emits all three fields on the raw wire for `GET /api/v1/sessions/{id}`; `--json` carries them; the orchestrator session is excluded from the board.
+
+  Two things this exposed that unit tests could not, both recorded in the spec:
+  `Metadata.Prompt` is empty or trivial on real sessions (`scratch-2`'s `brief: Hi`
+  is what live data actually looks like), so `latestUserPrompt` is the field that
+  carries the work — which is why `writeBoard` now renders `last prompt`. And a
+  seeded session with no hook signal derives status `no_signal`, which is the
+  existing marker the hookless-harness case needs.

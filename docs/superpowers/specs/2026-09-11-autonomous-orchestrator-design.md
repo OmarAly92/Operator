@@ -181,7 +181,7 @@ existing data, not a new capture pipeline.
 
 The smallest version of "eyes" is to add `latestUserPrompt`,
 `latestAssistantUpdate` and a PR summary to the existing session DTO that
-`opr session get` and `opr session ls` render (`backend/internal/cli/session.go:43`).
+`opr session get` renders (`backend/internal/cli/session.go:43`).
 That alone un-blinds the orchestrator and the human, and `opr board` and the
 digest compose from the same fields. Phase 0 starts there — after the ingest
 bug below is fixed, because today the stored value is **not** the worker's
@@ -244,6 +244,24 @@ same change that adds the file.
 Once fixed, the field is exactly the worker's last user-facing message, which is
 what the digest needs; the Stop payload also carries `prompt_id`, which the
 digest may later use to pair a reply with the prompt it answered.
+
+**Verified 2026-09-11 against a live DB and an isolated daemon: the task brief is
+mostly not there.** No session in `~/.operator/data/opr.db` has a `prompt` longer
+than five characters — the only "populated" ones are literally `'Hi'`.
+`Metadata.Prompt` holds just what a session was *spawned* with, so for work driven
+by typing into the pane it is empty or trivial. `latestUserPrompt` is the field
+that actually carries the direction ("search for new iphone 18", "operator own
+terminal has bugs"), so the digest must lead with it and treat `brief` as
+optional context. `opr board` renders `last prompt` for this reason.
+
+A second instance of the §5.2 overwrite class is still open, and Phase 0 makes it
+visible: `isOperatorCoordinationMessage` (`cli/hooks.go:234`) filters only
+`<opr-handoff-request` and the "Operator transferred the previous agent's context"
+prefix, so the daemon's own "Operator TASK TITLE UPDATE" message
+(`service/session/delegation.go:176`) is recorded as a session's latest *user*
+prompt — observed on orchestrator `scratch-11`, 368 characters of Operator's own
+coordination text presented as the human's intent. Fix it before the digest
+quotes `latestUserPrompt` to a coordinating orchestrator.
 
 Digest limits: a worker on a hookless harness (§1) never produces an inbox
 event and its `latestAssistantUpdate` is always empty; the digest and board must
@@ -409,7 +427,7 @@ The CLI stays a thin client over daemon HTTP; no direct storage access
 
 | Endpoint | CLI | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/sessions/{id}` (extended) | `opr session get`, `opr session ls` | Session DTO gains `latestUserPrompt`, `latestAssistantUpdate` (capped), and a PR summary |
+| `GET /api/v1/sessions/{id}` (extended) | `opr session get` | `SessionView` gains `brief`, `latestUserPrompt`, `latestAssistantUpdate`, each sanitized and capped at 2048 bytes; it already carried PR facts. `opr session ls` keeps its terse shape. |
 | `GET /api/v1/projects/{id}/inbox` | `opr inbox [--json]` | Pending digests |
 | `POST /api/v1/projects/{id}/inbox/ack` | `opr inbox ack <id>...` | Mark consumed |
 | `POST /api/v1/sessions` (extended) | `opr spawn` | Request gains `requestedBy`; the CLI fills it from `OPERATOR_SESSION_ID` when set |
@@ -599,9 +617,11 @@ lands last, and never before the leash.
 separately, so `latestAssistantUpdate` is no longer overwritten by Claude Code's
 `SubagentStop` sidechain; Phase 0 depended on that commit being present and did
 not re-do it. Shipped: the session DTO extension
-(`latestUserPrompt`, `latestAssistantUpdate`, PR summary on
-`opr session get`/`ls`), `opr board` composed from those same fields, and the
-corrected `opr status` claim in the prompt. `opr board` needed no new endpoint
+(`brief`, `latestUserPrompt`, `latestAssistantUpdate` on `SessionView`, plus the
+PR facts it already carried), rendered by `opr session get` and by `opr board`,
+and the corrected `opr status` claim in the prompt. `opr session ls` was
+deliberately left alone — its `sessionListEntry` shape stays a terse index and
+`opr board` is the rich per-project view. `opr board` needed no new endpoint
 — it reads the existing `GET /sessions?project=&active=true` route now that
 the session DTO carries the extra fields, so the `GET /api/v1/projects/{id}/board`
 endpoint originally sketched in §8 was never built. No new autonomy, no new

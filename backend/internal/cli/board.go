@@ -107,6 +107,7 @@ func writeBoard(cmd *cobra.Command, workers []sessionDTO) error {
 		}
 		for _, line := range [][2]string{
 			{"brief", w.Brief},
+			{"last prompt", w.LatestUserPrompt},
 			{"last update", w.LatestAssistantUpdate},
 		} {
 			if line[1] == "" {

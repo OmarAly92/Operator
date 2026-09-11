@@ -120,3 +120,29 @@ func TestBoardReportsAnEmptyProject(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 }
+
+func TestBoardShowsLatestUserPromptWhenBriefIsEmpty(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"sessions":[
+			{"id":"scratch-14","projectId":"scratch","kind":"worker","status":"working",
+			 "activity":{"state":"idle"},
+			 "latestUserPrompt":"search for new iphone 18",
+			 "latestAssistantUpdate":"Here is what I found."}
+		]}`)
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "board", "--project", "scratch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "last prompt: search for new iphone 18") {
+		t.Fatalf("board hid the latest user prompt, the only field that says what the work is:\n%s", out)
+	}
+	if !strings.Contains(out, "last update: Here is what I found.") {
+		t.Fatalf("board dropped the assistant update:\n%s", out)
+	}
+}
