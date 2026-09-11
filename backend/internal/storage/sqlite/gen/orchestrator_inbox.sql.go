@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
 const ackInboxEvent = `-- name: AckInboxEvent :execrows
@@ -20,7 +22,7 @@ type AckInboxEventParams struct {
 	AckedAt   sql.NullTime
 	UpdatedAt time.Time
 	ID        string
-	ProjectID string
+	ProjectID domain.ProjectID
 }
 
 func (q *Queries) AckInboxEvent(ctx context.Context, arg AckInboxEventParams) (int64, error) {
@@ -40,7 +42,7 @@ const countPendingInboxEvents = `-- name: CountPendingInboxEvents :one
 SELECT COUNT(*) FROM orchestrator_inbox WHERE project_id = ? AND state = 'pending'
 `
 
-func (q *Queries) CountPendingInboxEvents(ctx context.Context, projectID string) (int64, error) {
+func (q *Queries) CountPendingInboxEvents(ctx context.Context, projectID domain.ProjectID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countPendingInboxEvents, projectID)
 	var count int64
 	err := row.Scan(&count)
@@ -52,7 +54,7 @@ DELETE FROM orchestrator_inbox WHERE project_id = ? AND state = 'acked' AND acke
 `
 
 type DeleteAckedInboxEventsOlderThanParams struct {
-	ProjectID string
+	ProjectID domain.ProjectID
 	AckedAt   sql.NullTime
 }
 
@@ -75,9 +77,9 @@ ON CONFLICT (worker_id, kind) WHERE state = 'pending' DO NOTHING
 
 type EnqueueOrchestratorInboxEventParams struct {
 	ID         string
-	ProjectID  string
-	WorkerID   string
-	Kind       string
+	ProjectID  domain.ProjectID
+	WorkerID   domain.SessionID
+	Kind       domain.OrchestratorInboxEventKind
 	OccurredAt time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -100,7 +102,7 @@ const listPendingInboxEventsByProject = `-- name: ListPendingInboxEventsByProjec
 SELECT id, project_id, worker_id, kind, occurred_at, state, acked_at, created_at, updated_at FROM orchestrator_inbox WHERE project_id = ? AND state = 'pending' ORDER BY occurred_at ASC
 `
 
-func (q *Queries) ListPendingInboxEventsByProject(ctx context.Context, projectID string) ([]OrchestratorInbox, error) {
+func (q *Queries) ListPendingInboxEventsByProject(ctx context.Context, projectID domain.ProjectID) ([]OrchestratorInbox, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingInboxEventsByProject, projectID)
 	if err != nil {
 		return nil, err
@@ -137,15 +139,15 @@ const listProjectsWithPendingInboxEvents = `-- name: ListProjectsWithPendingInbo
 SELECT DISTINCT project_id FROM orchestrator_inbox WHERE state = 'pending'
 `
 
-func (q *Queries) ListProjectsWithPendingInboxEvents(ctx context.Context) ([]string, error) {
+func (q *Queries) ListProjectsWithPendingInboxEvents(ctx context.Context) ([]domain.ProjectID, error) {
 	rows, err := q.db.QueryContext(ctx, listProjectsWithPendingInboxEvents)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []domain.ProjectID{}
 	for rows.Next() {
-		var project_id string
+		var project_id domain.ProjectID
 		if err := rows.Scan(&project_id); err != nil {
 			return nil, err
 		}

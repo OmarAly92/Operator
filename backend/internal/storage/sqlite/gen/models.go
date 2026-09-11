@@ -131,11 +131,11 @@ type Notification struct {
 
 type OrchestratorInbox struct {
 	ID         string
-	ProjectID  string
-	WorkerID   string
-	Kind       string
+	ProjectID  domain.ProjectID
+	WorkerID   domain.SessionID
+	Kind       domain.OrchestratorInboxEventKind
 	OccurredAt time.Time
-	State      string
+	State      domain.OrchestratorInboxEventState
 	AckedAt    sql.NullTime
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
