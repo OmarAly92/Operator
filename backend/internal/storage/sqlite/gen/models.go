@@ -129,6 +129,18 @@ type Notification struct {
 	ResolvedAt sql.NullTime
 }
 
+type OrchestratorInbox struct {
+	ID         string
+	ProjectID  string
+	WorkerID   string
+	Kind       string
+	OccurredAt time.Time
+	State      string
+	AckedAt    sql.NullTime
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 type PR struct {
 	URL                      string
 	SessionID                domain.SessionID
