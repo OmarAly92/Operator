@@ -234,7 +234,8 @@ func firstHookValue(values ...string) string {
 func isOperatorCoordinationMessage(value string) bool {
 	value = strings.TrimSpace(value)
 	return strings.HasPrefix(value, "<opr-handoff-request") ||
-		strings.HasPrefix(value, "Operator transferred the previous agent's context in hidden system instructions.")
+		strings.HasPrefix(value, "Operator transferred the previous agent's context in hidden system instructions.") ||
+		strings.HasPrefix(value, "Operator TASK TITLE UPDATE")
 }
 
 func capHookText(value string, limit int) string {

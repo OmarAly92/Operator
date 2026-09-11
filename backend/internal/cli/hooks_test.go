@@ -350,6 +350,7 @@ func TestHookConversationFactsExcludesOperatorCoordinationUserTurns(t *testing.T
 		"<opr-handoff-request>\nprepare context",
 		"<opr-handoff-request switch-id=\"switch-1\">\nprepare context",
 		"Operator transferred the previous agent's context in hidden system instructions. Continue the unfinished action.",
+		"Operator TASK TITLE UPDATE\nA worker was already spawned directly with the user's task. Do not spawn another worker or orchestrator, and do not implement the task in this orchestrator session.\nChoose a concise task title from the brief and run:\n\nopr session rename worker-1 \"<title, max 20 chars>\"\n\nWorker session id: worker-1\nTask brief:\nfix the login bug",
 	} {
 		got := hookConversationFacts([]byte(`{"prompt":`+mustJSONString(t, prompt)+`,"lastAssistantMessage":"ok"}`), hookEventStop)
 		if got.LatestUserPrompt != "" {
