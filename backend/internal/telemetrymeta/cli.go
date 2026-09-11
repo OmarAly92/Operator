@@ -22,6 +22,7 @@ func IsRoutineInternalCLICommand(commandPath string) bool {
 
 var routineInternalCLICommands = []string{
 	"opr status",
+	"opr board",
 	"opr session ls",
 	"opr session get",
 	"opr session agent-switch ls",

@@ -46,6 +46,7 @@ repeated whitespace collapsed. A routine command is one where
 followed by a space:
 
 - `opr hooks`
+- `opr board`
 - `opr session ls`
 - `opr session get`
 - `opr orchestrator ls`
@@ -107,6 +108,7 @@ billable PostHog volume. Do not track routine successful executions for
 internal/read-only commands such as:
 
 - `opr status`
+- `opr board`
 - `opr session ls`
 - `opr session get`
 - `opr project ls`
@@ -249,6 +251,7 @@ WHERE NOT (
     AND (
         normalized_command_path IN (
             'opr hooks',
+            'opr board',
             'opr session ls',
             'opr session get',
             'opr orchestrator ls',
@@ -258,6 +261,7 @@ WHERE NOT (
             'opr pty-host'
         )
         OR startsWith(normalized_command_path, 'opr hooks ')
+        OR startsWith(normalized_command_path, 'opr board ')
         OR startsWith(normalized_command_path, 'opr session ls ')
         OR startsWith(normalized_command_path, 'opr session get ')
         OR startsWith(normalized_command_path, 'opr orchestrator ls ')

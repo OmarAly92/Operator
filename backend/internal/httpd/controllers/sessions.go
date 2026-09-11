@@ -1971,9 +1971,9 @@ func sessionView(s domain.Session) SessionView {
 		PreviewRevision:       s.Metadata.PreviewRevision,
 		PreviewOpenedRevision: s.Metadata.PreviewOpenedRevision,
 		PRs:                   sessionPRFacts(s.PRs),
-		Brief:                 capWireText(s.Metadata.Prompt),
-		LatestUserPrompt:      capWireText(s.Metadata.LatestUserPrompt),
-		LatestAssistantUpdate: capWireText(s.Metadata.LatestAssistantUpdate),
+		Brief:                 capWireText(domain.SanitizeControlChars(s.Metadata.Prompt)),
+		LatestUserPrompt:      capWireText(domain.SanitizeControlChars(s.Metadata.LatestUserPrompt)),
+		LatestAssistantUpdate: capWireText(domain.SanitizeControlChars(s.Metadata.LatestAssistantUpdate)),
 	}
 }
 

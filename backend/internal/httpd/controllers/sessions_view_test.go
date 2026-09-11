@@ -42,6 +42,25 @@ func TestSessionViewCapsConversationFacts(t *testing.T) {
 	}
 }
 
+func TestSessionViewSanitizesControlCharsInBriefAndConversationFacts(t *testing.T) {
+	s := domain.Session{}
+	s.ID = "opr-1"
+	s.Metadata.Prompt = "fix the flaky test\x1b[31m now"
+	s.Metadata.LatestUserPrompt = "also check\x1b[0m the codex path"
+	s.Metadata.LatestAssistantUpdate = "reproduced it and pushed a fix\x1b[2K"
+
+	view := sessionView(s)
+
+	for _, got := range []string{view.Brief, view.LatestUserPrompt, view.LatestAssistantUpdate} {
+		if strings.Contains(got, "\x1b") {
+			t.Fatalf("ANSI escape survived into wire view: %q", got)
+		}
+	}
+	if !strings.Contains(view.Brief, "fix the flaky test") || !strings.Contains(view.Brief, "now") {
+		t.Fatalf("brief lost non-control content: %q", view.Brief)
+	}
+}
+
 func TestSessionViewOmitsEmptyConversationFacts(t *testing.T) {
 	body, err := json.Marshal(sessionView(domain.Session{}))
 	if err != nil {
