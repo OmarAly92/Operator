@@ -193,12 +193,13 @@ type Manager struct {
 	// unknown harness is only written to while idle.
 	steerActive func(domain.AgentHarness) bool
 
-	// pendingEcho holds, per session, the exact text of the last coordination
-	// write this daemon made into that session's pane, so a harness hook that
-	// echoes it back as the session's own latestUserPrompt can be recognized
-	// and dropped instead of corrupting the record.
+	// pendingEcho holds, per session, the exact text of every coordination
+	// write this daemon made into that session's pane and has not yet seen
+	// echoed back, so a harness hook that returns one as the session's own
+	// latestUserPrompt can be recognized and dropped instead of corrupting the
+	// record.
 	echoMu      sync.Mutex
-	pendingEcho map[domain.SessionID]string
+	pendingEcho map[domain.SessionID]map[string]struct{}
 	// dispatchLocks serializes inbox-nudge delivery per project.
 	dispatchLocksMu sync.Mutex
 	dispatchLocks   map[domain.ProjectID]*sync.Mutex

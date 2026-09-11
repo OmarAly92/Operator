@@ -842,6 +842,11 @@ func (m *Manager) sendOnce(ctx context.Context, id domain.SessionID, prURL, key,
 	// the write was attempted and stays accounted, matching the pre-guard
 	// behavior.
 	outcome, err := m.guard.Nudge(ctx, id, msg)
+	// Sent with a non-nil error still means the pane write was attempted, so
+	// the harness may echo these bytes back: record before the error returns.
+	if outcome == sessionguard.Sent {
+		m.rememberCoordinationEcho(id, msg)
+	}
 	if err != nil {
 		if outcome != sessionguard.Sent {
 			return sendOnceSuppressed, err
@@ -851,7 +856,6 @@ func (m *Manager) sendOnce(ctx context.Context, id domain.SessionID, prURL, key,
 	if outcome != sessionguard.Sent {
 		return sendOnceSuppressed, nil
 	}
-	m.rememberCoordinationEcho(id, msg)
 	// Order: Send → in-memory mutation → durable persist. Sending first means a
 	// transient persist failure does NOT swallow a real send (the agent saw the
 	// message; subsequent polls in this process suppress re-sends via the

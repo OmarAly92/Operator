@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -224,6 +225,68 @@ func TestApplyActivitySignal_TheNudgeIsNotStoredAsTheOrchestratorsOwnLatestUserP
 	got := st.sessions["mer-2"]
 	if got.Metadata.LatestUserPrompt == nudgeText {
 		t.Fatalf("orchestrator's own nudge was echoed back as its latestUserPrompt: %q", got.Metadata.LatestUserPrompt)
+	}
+}
+
+func TestCoordinationEcho_ASecondWriteDoesNotClobberTheFirstPendingEcho(t *testing.T) {
+	m, st, msg := newManager()
+	st.sessions["mer-1"] = working("mer-1")
+
+	for _, batch := range []string{"batch-1", "batch-2"} {
+		outcome, err := m.ApplyReviewBatch(ctx, "mer-1", batch, []ReviewResult{{
+			RunID: "run-" + batch, BatchID: batch, WorkerID: "mer-1",
+			PRURL: "https://x/pr/1", TargetSHA: batch, Verdict: domain.VerdictChangesRequested,
+		}})
+		if err != nil || outcome != ReviewDeliverySent {
+			t.Fatalf("%s: outcome=%v err=%v", batch, outcome, err)
+		}
+	}
+	if len(msg.msgs) != 2 {
+		t.Fatalf("messenger calls = %v, want two coordination writes in flight for one session", msg.msgs)
+	}
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{
+		Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit", LatestUserPrompt: msg.msgs[0],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions["mer-1"].Metadata.LatestUserPrompt; got != "" {
+		t.Fatalf("the FIRST coordination write leaked back as latestUserPrompt after a second write: %q", got)
+	}
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{
+		Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit", LatestUserPrompt: msg.msgs[1],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions["mer-1"].Metadata.LatestUserPrompt; got != "" {
+		t.Fatalf("the second coordination write leaked back as latestUserPrompt: %q", got)
+	}
+}
+
+func TestCoordinationEcho_SentWithMessengerErrorStillRecordsTheEcho(t *testing.T) {
+	m, st, msg := newManager()
+	st.sessions["mer-2"] = orchestrator("mer-2", "mer")
+	st.inboxEvents["evt-1"] = domain.OrchestratorInboxEvent{
+		ID: "evt-1", ProjectID: "mer", WorkerID: "mer-1", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
+	}
+	msg.err = errors.New("temporary send failure")
+
+	if err := m.dispatchInboxNudge(ctx, "mer"); err == nil {
+		t.Fatal("want the messenger failure surfaced")
+	}
+	msg.err = nil
+
+	// The guard reports Sent alongside the error: the bytes may already have
+	// reached the pane, so the harness may still echo them back.
+	nudgeText := "[Operator] 1 inbox item(s). Run `opr inbox`."
+	if err := m.ApplyActivitySignal(ctx, "mer-2", ports.ActivitySignal{
+		Valid: true, State: domain.ActivityActive, Event: "user-prompt-submit", LatestUserPrompt: nudgeText,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.sessions["mer-2"].Metadata.LatestUserPrompt; got != "" {
+		t.Fatalf("a Sent-with-error write was echoed back as latestUserPrompt: %q", got)
 	}
 }
 
