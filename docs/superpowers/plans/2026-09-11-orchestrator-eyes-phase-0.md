@@ -12,7 +12,11 @@
 
 ## Global Constraints
 
-- **Precondition:** the conversation-facts ingest fix must be present — commit `fix(hooks): only turn-boundary events may set conversation facts`, branch `fix/hook-conversation-facts-event-gate`. Without it `latestAssistantUpdate` holds a Claude Code sidechain prompt suggestion, not the worker's reply, and this whole phase surfaces corrupt data. Verify with `git log --oneline --all | grep "only turn-boundary events"` before starting.
+- **Precondition (already satisfied on `spec/autonomous-orchestrator`):** the conversation-facts ingest fix, commit `73ad16de1 fix(hooks): only turn-boundary events may set conversation facts`, merged in `f917096c9`. Without it `latestAssistantUpdate` holds a Claude Code sidechain prompt suggestion rather than the worker's reply, and every read surface in this phase shows corrupt data. If executing from any other branch, verify first:
+  ```bash
+  git log --oneline | grep "only turn-boundary events"
+  ```
+  and confirm `backend/internal/cli/hooks.go` contains `hookEventUserPromptSubmit`.
 - **No comments in new code.** The user's standing instruction. Names and tests carry the intent.
 - The CLI is a thin client: it calls daemon HTTP through the shared helpers and never opens SQLite, spawns runtimes, or calls adapters (`AGENTS.md`).
 - CLI DTOs are **hand-mirrored** from controller DTOs on purpose. Do not import `httpd/controllers` into `internal/cli`.
@@ -35,7 +39,7 @@
 | `backend/internal/cli/session_test.go` | Render + `--json` assertions | 2 |
 | `backend/internal/cli/board.go` (new) | `opr board` command and rendering | 3 |
 | `backend/internal/cli/board_test.go` (new) | Table-driven command tests | 3 |
-| `backend/internal/cli/root.go:191` | Register the board command | 3 |
+| `backend/internal/cli/root.go:203` | Register the board command after `newOrchestratorCommand` | 3 |
 | `backend/internal/session_manager/prompt.go:187` (command list), `:201` (workflow step 1) | Correct the `opr status` claim, teach `opr board` | 4 |
 | `backend/internal/session_manager/prompt_test.go` | Assert the corrected prompt text | 4 |
 
@@ -337,7 +341,7 @@ One project-wide read of every live session with brief, activity, last update an
 **Files:**
 - Create: `backend/internal/cli/board.go`
 - Create: `backend/internal/cli/board_test.go`
-- Modify: `backend/internal/cli/root.go:191` (register the command)
+- Modify: `backend/internal/cli/root.go:203` — add the registration immediately after `root.AddCommand(newOrchestratorCommand(ctx))`
 
 **Interfaces:**
 - Consumes: `sessionDTO`, `sessionPRDTO`, `sessionListResponse` from Task 2; `apiPath`, `getJSON`, `writeJSON`, `formatSessionAge` from the existing CLI helpers (`session.go`, `orchestrator.go:110`).
