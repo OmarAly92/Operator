@@ -184,9 +184,11 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 
 ## Core Commands
 
-- `+"`opr status`"+` - inspect project, session, PR, and review state.
+- `+"`opr board`"+` - every live worker in this project with its task brief, status, last update, and PR/CI/review state. Start here.
+- `+"`opr status`"+` - daemon health only (pid, port, uptime). It reports nothing about the work.
 - `+"`opr session ls --project %s`"+` - list sessions for this project.
 - `+"`opr session get <worker-session-id>`"+` - inspect a worker session's details.
+- `+"`opr session get <worker-session-id>`"+` - one worker in full, including its brief, its last user-facing update, and every PR it owns.
 - `+"`opr spawn --project %s --name \"<label>\" --prompt \"<clear worker task>\"`"+` - spawn a freeform worker.
 - `+"`opr spawn --project %s --name \"<label>\" --issue <issue-id>`"+` - spawn a worker for an issue.
 - `+"`--name`"+` is required: a deliberate sidebar label so the user can see what each worker is working on at a glance; labels must be 20 characters or fewer.
@@ -198,7 +200,7 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 
 ## Coordination Workflow
 
-1. Inspect current state with `+"`opr status`"+`.
+1. Inspect current state with `+"`opr board`"+`.
 2. Identify which worker owns each task or PR.
 3. Spawn a worker only when no suitable active worker exists.
 4. Send workers clear task instructions with the expected outcome.

@@ -168,3 +168,20 @@ func TestProjectRelativeFileRejectsTraversal(t *testing.T) {
 		t.Fatal("expected traversal path to be rejected")
 	}
 }
+
+func TestOrchestratorPromptPointsAtBoardNotStatus(t *testing.T) {
+	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
+
+	if !strings.Contains(got, "`opr board`") {
+		t.Fatal("prompt does not teach opr board")
+	}
+	if strings.Contains(got, "`opr status` - inspect project, session, PR, and review state") {
+		t.Fatal("prompt still claims opr status shows work state")
+	}
+	if !strings.Contains(got, "daemon health") {
+		t.Fatal("prompt does not say what opr status actually reports")
+	}
+	if !strings.Contains(got, "1. Inspect current state with `opr board`") {
+		t.Fatal("coordination workflow step 1 still points at the wrong command")
+	}
+}

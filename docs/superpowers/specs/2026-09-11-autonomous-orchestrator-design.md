@@ -412,12 +412,16 @@ The CLI stays a thin client over daemon HTTP; no direct storage access
 | `GET /api/v1/sessions/{id}` (extended) | `opr session get`, `opr session ls` | Session DTO gains `latestUserPrompt`, `latestAssistantUpdate` (capped), and a PR summary |
 | `GET /api/v1/projects/{id}/inbox` | `opr inbox [--json]` | Pending digests |
 | `POST /api/v1/projects/{id}/inbox/ack` | `opr inbox ack <id>...` | Mark consumed |
-| `GET /api/v1/projects/{id}/board` | `opr board [--json]` | Full work state |
 | `POST /api/v1/sessions` (extended) | `opr spawn` | Request gains `requestedBy`; the CLI fills it from `OPERATOR_SESSION_ID` when set |
+
+`opr board` needed no new endpoint: it reads the existing
+`GET /sessions?project=&active=true` route, which the extended session DTO
+(§8 row above) already carries `latestUserPrompt`, `latestAssistantUpdate`, and
+PR state on.
 
 Project routes are registered in `controllers/projects.go:30`; session routes in
 `controllers/sessions.go:184`. `/sessions/{id}/pr` already exists, so the board
-is a server-side join over sessions and PR rows, not new capture.
+is a client-side join over the existing sessions list, not new capture.
 
 `opr inbox` and `opr board` **infer the project** from `OPERATOR_SESSION_ID`
 (session → project) when `--project` is omitted, so the orchestrator never has
@@ -591,16 +595,18 @@ No network in tests; `httptest` and fakes, per `AGENTS.md`.
 Each phase is independently shippable and independently valuable. Autonomy
 lands last, and never before the leash.
 
-**Phase 0 — Eyes.** The `opr hooks` ingest fix from §5.2 is **done** and landed
+**Phase 0 — Eyes.** **Done.** The `opr hooks` ingest fix from §5.2 landed
 separately, so `latestAssistantUpdate` is no longer overwritten by Claude Code's
-`SubagentStop` sidechain; Phase 0 depends on that commit being present but does
-not re-do it. What remains: the session DTO extension
+`SubagentStop` sidechain; Phase 0 depended on that commit being present and did
+not re-do it. Shipped: the session DTO extension
 (`latestUserPrompt`, `latestAssistantUpdate`, PR summary on
-`opr session get`/`ls`), then `opr board` and the digest read path composed
-from the same fields. Correct the false `opr status` claim in the prompt. No
-new autonomy, no new table, no delivery. Pure read surface over data that
-already exists. Immediately useful to the human too, and it de-risks everything
-after it.
+`opr session get`/`ls`), `opr board` composed from those same fields, and the
+corrected `opr status` claim in the prompt. `opr board` needed no new endpoint
+— it reads the existing `GET /sessions?project=&active=true` route now that
+the session DTO carries the extra fields, so the `GET /api/v1/projects/{id}/board`
+endpoint originally sketched in §8 was never built. No new autonomy, no new
+table, no delivery. Pure read surface over data that already exists.
+Immediately useful to the human too, and it de-risked everything after it.
 
 **Phase 1 — Ears.** Migration 0106, the transactional store method (§5.1), the
 reducer write, the content-free nudge through `NudgeCoordination`, the startup
