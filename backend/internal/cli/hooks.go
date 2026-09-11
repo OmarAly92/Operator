@@ -182,7 +182,12 @@ type hookConversationSnapshot struct {
 	TranscriptPath        string
 }
 
-func hookConversationFacts(payload []byte) hookConversationSnapshot {
+const (
+	hookEventStop             = "stop"
+	hookEventUserPromptSubmit = "user-prompt-submit"
+)
+
+func hookConversationFacts(payload []byte, event string) hookConversationSnapshot {
 	var p struct {
 		Prompt                    string `json:"prompt"`
 		UserPrompt                string `json:"user_prompt"`
@@ -205,6 +210,10 @@ func hookConversationFacts(payload []byte) hookConversationSnapshot {
 	}
 	if isOperatorCoordinationMessage(userPrompt) {
 		userPrompt = ""
+	}
+	if event != hookEventStop && event != hookEventUserPromptSubmit {
+		userPrompt = ""
+		assistant = ""
 	}
 	return hookConversationSnapshot{
 		LatestUserPrompt:      capHookText(userPrompt, maxHookInteractionLen),
@@ -312,7 +321,7 @@ func (c *commandContext) runHook(ctx context.Context, agent, event string) error
 	conversation := hookConversationSnapshot{}
 	switch domain.AgentHarness(agent) {
 	case domain.HarnessClaudeCode, domain.HarnessCodex:
-		conversation = hookConversationFacts(payload)
+		conversation = hookConversationFacts(payload, event)
 	}
 	path := "sessions/" + url.PathEscape(sessionID) + "/activity"
 	req := setActivityAPIRequest{
