@@ -212,14 +212,38 @@ of `ApplyActivitySignal`. The existing test at `cli/hooks_test.go:75` asserts
 only usage and native-session fields for `subagent-stop`, so it does not pin
 the bad behaviour.
 
-Fix, and it is the first Phase 0 task: take conversation facts only from the
-events that describe the main conversation — `LatestAssistantUpdate` from
-`stop`, `LatestUserPrompt` from `user-prompt-submit` — and never from
-`subagent-stop`, `notification` or `session-end`. Add a hook test that a
-`subagent-stop` payload carrying `last_assistant_message` leaves both fields
-empty. Once fixed, the field is exactly the worker's last user-facing message,
-which is what the digest needs; the Stop payload also carries `prompt_id`,
-which the digest may later use to pair a reply with the prompt it answered.
+**Fixed 2026-09-11** (`fix(hooks): only turn-boundary events may set
+conversation facts`), ahead of this design rather than inside it: the
+corruption also reached the agent-switch continuation body
+(`agent_switching.go:1578`, `:1749`), which handed an incoming agent fabricated
+facts, so it was a shipped bug worth fixing on its own.
+
+`hookConversationFacts` now takes the event and contributes neither field
+unless it is `stop` or `user-prompt-submit`; any other event — `subagent-stop`,
+`notification`, `session-end`, or anything upstream adds later — contributes
+nothing, so the default is silence rather than overwriting. `transcriptPath`
+still flows from every event. Migration `0105_clear_corrupted_conversation_facts.sql`
+clears both fields on existing claude-code sessions, because the corrupt rows
+are indistinguishable from good ones and an absent fact degrades to the honest
+"none recorded" fallback while a wrong one does not.
+
+An earlier draft of this section prescribed a per-field split —
+`LatestAssistantUpdate` only from `stop`, `LatestUserPrompt` only from
+`user-prompt-submit`. That over-reached: Claude Code's `Stop` payload
+legitimately carries `prompt`, and `TestHooks_StopReportsConversationFacts`
+deliberately pins that Operator records it. An **event allowlist** fixes the
+corruption without deleting working behaviour. Both allowed events report both
+fields.
+
+Consequence for this design: migration numbers shift. The inbox is `0106` and
+`spawned_by` is `0107`; §6 and §14 are updated to match. Every migration number
+is also gated by the `shippedMigrations` ledger in
+`storage/sqlite/migrate_burned_versions_test.go`, which must gain an entry in the
+same change that adds the file.
+
+Once fixed, the field is exactly the worker's last user-facing message, which is
+what the digest needs; the Stop payload also carries `prompt_id`, which the
+digest may later use to pair a reply with the prompt it answered.
 
 Digest limits: a worker on a hookless harness (§1) never produces an inbox
 event and its `latestAssistantUpdate` is always empty; the digest and board must
@@ -264,7 +288,8 @@ Two migrations, one per phase. Already-merged migrations are immutable per
 `backend/internal/storage/sqlite/queries/orchestrator_inbox.sql` and generated code
 comes from `npm run sqlc` — never hand-edited.
 
-**Phase 1 — `0105_orchestrator_inbox.sql`** (latest merged is 0104):
+**Phase 1 — `0106_orchestrator_inbox.sql`** (0105 is the conversation-facts
+backfill from §5.2):
 
 ```sql
 CREATE TABLE orchestrator_inbox (
@@ -305,7 +330,7 @@ turn as plain `idle` (§5.2).
 Rows carry **no digest content**. Content is resolved at read time from the
 session record, so a digest is never stale and the table stays small.
 
-**Phase 2 — `0106_sessions_spawned_by.sql`:** `ALTER TABLE sessions ADD COLUMN
+**Phase 2 — `0107_sessions_spawned_by.sql`:** `ALTER TABLE sessions ADD COLUMN
 spawned_by TEXT NOT NULL DEFAULT ''` (a session id, or empty for human and
 system spawns). The spawn-rate query counts worker rows per project with
 `spawned_by = <orchestrator>` and `created_at` in the last hour; no separate
@@ -566,25 +591,25 @@ No network in tests; `httptest` and fakes, per `AGENTS.md`.
 Each phase is independently shippable and independently valuable. Autonomy
 lands last, and never before the leash.
 
-**Phase 0 — Eyes.** First the `opr hooks` ingest fix from §5.2, so
-`latestAssistantUpdate` stops being overwritten by Claude Code's
-`SubagentStop` sidechain — without it the digest shows a suggested prompt
-instead of the worker's reply. Then the session DTO extension
+**Phase 0 — Eyes.** The `opr hooks` ingest fix from §5.2 is **done** and landed
+separately, so `latestAssistantUpdate` is no longer overwritten by Claude Code's
+`SubagentStop` sidechain; Phase 0 depends on that commit being present but does
+not re-do it. What remains: the session DTO extension
 (`latestUserPrompt`, `latestAssistantUpdate`, PR summary on
 `opr session get`/`ls`), then `opr board` and the digest read path composed
 from the same fields. Correct the false `opr status` claim in the prompt. No
 new autonomy, no new table, no delivery. Pure read surface over data that
-already exists, plus one ingest bug fix. Immediately useful to the human too,
-and it de-risks everything after it.
+already exists. Immediately useful to the human too, and it de-risks everything
+after it.
 
-**Phase 1 — Ears.** Migration 0105, the transactional store method (§5.1), the
+**Phase 1 — Ears.** Migration 0106, the transactional store method (§5.1), the
 reducer write, the content-free nudge through `NudgeCoordination`, the startup
 and restore sweeps, `opr inbox` and `opr inbox ack`, and the prompt's pull
 protocol. The orchestrator now wakes on worker turn-end but its authority is
 unchanged. This is where the reverted designs failed, so it ships with the §13
 duplicate test as its gate.
 
-**Phase 2 — Leash and autonomy, together.** Migration 0106 (`spawned_by`), the
+**Phase 2 — Leash and autonomy, together.** Migration 0107 (`spawned_by`), the
 `requestedBy` wire field on spawn, budget enforcement in the spawn service, the
 `orchestratorPolicy` config block, and the prompt rewrite granting the
 orchestrator authority to act unasked. These must not be split: autonomy without
