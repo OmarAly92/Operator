@@ -146,10 +146,10 @@ func TestDispatchInboxNudge_DuplicateCallsProduceOneDigestAndOneAckedRow(t *test
 	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.dispatchInboxNudge(ctx, "mer"); err != nil {
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.dispatchInboxNudge(ctx, "mer"); err != nil {
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err != nil {
 		t.Fatal(err)
 	}
 
@@ -167,11 +167,78 @@ func TestDispatchInboxNudge_DuplicateCallsProduceOneDigestAndOneAckedRow(t *test
 		t.Fatalf("acked=%d err=%v, want 1", acked, err)
 	}
 
-	if err := m.dispatchInboxNudge(ctx, "mer"); err != nil {
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err != nil {
 		t.Fatal(err)
 	}
 	if len(msg.msgs) != 3 {
 		t.Fatalf("messenger calls after ack = %d, want still 3: nothing pending, nothing to send", len(msg.msgs))
+	}
+}
+
+func TestDispatchInboxNudge_UnackedBacklogStopsBeingReannouncedOnOrchestratorIdle(t *testing.T) {
+	m, st, msg := newManager()
+	st.sessions["mer-2"] = orchestrator("mer-2", "mer")
+	st.inboxEvents["evt-1"] = domain.OrchestratorInboxEvent{
+		ID: "evt-1", ProjectID: "mer", WorkerID: "mer-1", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
+	}
+
+	for i := 0; i < 6; i++ {
+		if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchOrchestratorIdle); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if len(msg.msgs) == 0 {
+		t.Fatal("messenger calls = 0, want the backlog announced at least once")
+	}
+	if len(msg.msgs) > 2 {
+		t.Fatalf("messenger calls = %d over 6 orchestrator-idle triggers on an unchanged unacked backlog, want at most 2: the orchestrator's own idle transition must not re-announce forever", len(msg.msgs))
+	}
+
+	st.inboxEvents["evt-2"] = domain.OrchestratorInboxEvent{
+		ID: "evt-2", ProjectID: "mer", WorkerID: "mer-3", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
+	}
+	before := len(msg.msgs)
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchOrchestratorIdle); err != nil {
+		t.Fatal(err)
+	}
+	if len(msg.msgs) != before+1 {
+		t.Fatalf("messenger calls = %d, want %d: a genuinely new pending row is never suppressed", len(msg.msgs), before+1)
+	}
+
+	if acked, err := m.AckInboxEvents(ctx, "mer", []string{"evt-1"}); err != nil || acked != 1 {
+		t.Fatalf("acked=%d err=%v, want 1", acked, err)
+	}
+	before = len(msg.msgs)
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchOrchestratorIdle); err != nil {
+		t.Fatal(err)
+	}
+	if len(msg.msgs) != before+1 {
+		t.Fatalf("messenger calls = %d, want %d: an ack changes the pending set and must un-suppress", len(msg.msgs), before+1)
+	}
+}
+
+func TestDispatchInboxNudge_WorkerIdleAndStartupSweepAreNeverSuppressed(t *testing.T) {
+	m, st, msg := newManager()
+	st.sessions["mer-2"] = orchestrator("mer-2", "mer")
+	st.inboxEvents["evt-1"] = domain.OrchestratorInboxEvent{
+		ID: "evt-1", ProjectID: "mer", WorkerID: "mer-1", Kind: domain.InboxEventWorkerIdle, State: domain.InboxStatePending,
+	}
+
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchOrchestratorIdle); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchStartupSweep); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if len(msg.msgs) != 7 {
+		t.Fatalf("messenger calls = %d, want 7: only the orchestrator-idle trigger is deduplicated", len(msg.msgs))
 	}
 }
 
@@ -187,7 +254,7 @@ func TestDispatchInboxNudge_ConcurrentCallsAreSerializedPerProject(t *testing.T)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := m.dispatchInboxNudge(ctx, "mer"); err != nil {
+			if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -272,7 +339,7 @@ func TestCoordinationEcho_SentWithMessengerErrorStillRecordsTheEcho(t *testing.T
 	}
 	msg.err = errors.New("temporary send failure")
 
-	if err := m.dispatchInboxNudge(ctx, "mer"); err == nil {
+	if err := m.dispatchInboxNudge(ctx, "mer", inboxDispatchWorkerIdle); err == nil {
 		t.Fatal("want the messenger failure surfaced")
 	}
 	msg.err = nil

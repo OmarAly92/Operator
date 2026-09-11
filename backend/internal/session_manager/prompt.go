@@ -186,7 +186,7 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 
 - `+"`opr board`"+` - every live worker in this project with its task brief, status, last update, and PR/CI/review state. Start here.
 - `+"`opr inbox`"+` - pending worker-idle digests for this project. You are nudged with a bare count; always call this to see what changed, never act on the nudge text alone.
-- `+"`opr inbox ack <id> [<id>...]`"+` - acknowledge inbox items after acting on them. An empty inbox is a normal outcome: end your turn without action rather than inventing work.
+- `+"`opr inbox ack <id> [<id>...]`"+` - acknowledge inbox items. Ack means "seen", not "done": ack every id the pull showed you, whether or not you took action on it. An empty inbox is a normal outcome: end your turn without action rather than inventing work.
 - `+"`opr status`"+` - daemon health only (pid, port, uptime). It reports nothing about the work.
 - `+"`opr session ls --project %s`"+` - list sessions for this project.
 - `+"`opr session get <worker-session-id>`"+` - one worker in full, including its brief, its last user-facing update, and every PR it owns.
@@ -202,7 +202,7 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 ## Coordination Workflow
 
 1. Inspect current state with `+"`opr board`"+`.
-2. On a `+"`[Operator] N inbox item(s)`"+` nudge, run `+"`opr inbox`"+`, act on what changed, then run `+"`opr inbox ack`"+` for everything you acted on. If the inbox is empty, end the turn.
+2. On a `+"`[Operator] N inbox item(s)`"+` nudge, run `+"`opr inbox`"+`, act on what changed, then run `+"`opr inbox ack`"+` for every id that pull showed you — whether or not you took action on it, so the daemon does not keep re-announcing an item you have already reviewed. If the inbox is empty, end the turn.
 3. Identify which worker owns each task or PR.
 4. Spawn a worker only when no suitable active worker exists.
 5. Send workers clear task instructions with the expected outcome.

@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -40,12 +41,23 @@ func (m *Manager) dispatchLockFor(project domain.ProjectID) *sync.Mutex {
 	return lock
 }
 
+// inboxDispatchTrigger names the event that asked for a nudge. The orchestrator's
+// own idle transition is the only trigger that carries no new information, so it
+// is the only one subject to the announced-signature check below.
+type inboxDispatchTrigger int
+
+const (
+	inboxDispatchWorkerIdle inboxDispatchTrigger = iota
+	inboxDispatchOrchestratorIdle
+	inboxDispatchStartupSweep
+)
+
 // dispatchInboxNudge pastes one content-free digest naming how many inbox rows
 // are pending for the project's orchestrator. It is idempotent rather than
 // exact: repeated calls for the same pending rows may deliver more than one
 // digest, but never deliver stale counts and never consume a row — only an
 // explicit ack does that. There is no retry, backoff, or timer behind it.
-func (m *Manager) dispatchInboxNudge(ctx context.Context, project domain.ProjectID) error {
+func (m *Manager) dispatchInboxNudge(ctx context.Context, project domain.ProjectID, trigger inboxDispatchTrigger) error {
 	if m.guard == nil {
 		return nil
 	}
@@ -69,11 +81,34 @@ func (m *Manager) dispatchInboxNudge(ctx context.Context, project domain.Project
 	if !ok || rec.FirstSignalAt.IsZero() {
 		return nil
 	}
-	count, err := m.store.CountPendingInboxEvents(ctx, project)
-	if err != nil {
-		return err
+	var (
+		count     int
+		signature string
+	)
+	if trigger == inboxDispatchOrchestratorIdle {
+		events, err := m.store.ListPendingInboxEvents(ctx, project)
+		if err != nil {
+			return err
+		}
+		count = len(events)
+		signature = pendingInboxSignature(events)
+	} else {
+		count, err = m.store.CountPendingInboxEvents(ctx, project)
+		if err != nil {
+			return err
+		}
 	}
 	if count == 0 {
+		return nil
+	}
+	// The orchestrator's own idle transition is a trigger the nudge itself
+	// causes: the paste submits a prompt, the turn ends, and the session crosses
+	// back to idle. Re-announcing the same pending set there would loop for as
+	// long as the set went unacked. A worker crossing to idle and the startup
+	// sweep are exempt: the first is new information, the second is a one-time
+	// boot catch-up. This compares content only — it counts no attempts, stores
+	// no time, and schedules nothing.
+	if trigger == inboxDispatchOrchestratorIdle && m.lastAnnouncedInboxSignature(project) == signature {
 		return nil
 	}
 	msg := fmt.Sprintf("[Operator] %d inbox item(s). Run `opr inbox`.", count)
@@ -83,8 +118,38 @@ func (m *Manager) dispatchInboxNudge(ctx context.Context, project domain.Project
 	// error returns.
 	if outcome == sessionguard.Sent {
 		m.rememberCoordinationEcho(orchestratorID, msg)
+		if trigger == inboxDispatchOrchestratorIdle {
+			m.recordAnnouncedInboxSignature(project, signature)
+		}
 	}
 	return err
+}
+
+// pendingInboxSignature identifies a pending set by its exact member ids, so a
+// set that changed composition without changing size is never mistaken for the
+// one already announced.
+func pendingInboxSignature(events []domain.OrchestratorInboxEvent) string {
+	ids := make([]string, 0, len(events))
+	for _, ev := range events {
+		ids = append(ids, ev.ID)
+	}
+	sort.Strings(ids)
+	return strings.Join(ids, ",")
+}
+
+func (m *Manager) lastAnnouncedInboxSignature(project domain.ProjectID) string {
+	m.announcedMu.Lock()
+	defer m.announcedMu.Unlock()
+	return m.lastAnnounced[project]
+}
+
+func (m *Manager) recordAnnouncedInboxSignature(project domain.ProjectID, signature string) {
+	m.announcedMu.Lock()
+	defer m.announcedMu.Unlock()
+	if m.lastAnnounced == nil {
+		m.lastAnnounced = map[domain.ProjectID]string{}
+	}
+	m.lastAnnounced[project] = signature
 }
 
 // rememberCoordinationEcho records the exact text this daemon just wrote into a
@@ -143,7 +208,7 @@ func (m *Manager) DispatchPendingInboxEventsOnStartup(ctx context.Context) error
 		return err
 	}
 	for _, project := range projects {
-		if err := m.dispatchInboxNudge(ctx, project); err != nil {
+		if err := m.dispatchInboxNudge(ctx, project, inboxDispatchStartupSweep); err != nil {
 			return err
 		}
 	}

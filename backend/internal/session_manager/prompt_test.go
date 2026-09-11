@@ -193,6 +193,8 @@ func TestOrchestratorPromptTeachesThePullProtocol(t *testing.T) {
 		"`opr inbox`",
 		"`opr inbox ack",
 		"empty inbox is a normal outcome",
+		"Ack means \"seen\", not \"done\"",
+		"whether or not you took action on it",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)

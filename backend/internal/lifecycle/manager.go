@@ -202,6 +202,11 @@ type Manager struct {
 	// dispatchLocks serializes inbox-nudge delivery per project.
 	dispatchLocksMu sync.Mutex
 	dispatchLocks   map[domain.ProjectID]*sync.Mutex
+	// lastAnnounced holds, per project, the signature of the pending inbox set
+	// most recently announced on the orchestrator's own idle transition, so that
+	// trigger tells the orchestrator a given backlog exactly once.
+	announcedMu   sync.Mutex
+	lastAnnounced map[domain.ProjectID]string
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -680,8 +685,13 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	if err := m.acknowledgeAgentSwitchTarget(ctx, id, s, now); err != nil {
 		return err
 	}
-	if crossedToIdleWorker || orchestratorReadyToDrain {
-		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID); dispatchErr != nil {
+	if crossedToIdleWorker {
+		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID, inboxDispatchWorkerIdle); dispatchErr != nil {
+			slog.Default().Warn("lifecycle: dispatch inbox nudge failed", "project", next.ProjectID, "err", dispatchErr)
+		}
+	}
+	if orchestratorReadyToDrain {
+		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID, inboxDispatchOrchestratorIdle); dispatchErr != nil {
 			slog.Default().Warn("lifecycle: dispatch inbox nudge failed", "project", next.ProjectID, "err", dispatchErr)
 		}
 	}
