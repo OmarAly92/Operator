@@ -126,6 +126,8 @@ var legacyActorlessUserCLICommands = map[string]struct{}{
 	"opr dev import-projects":    {},
 	"opr doctor":                 {},
 	"opr import":                 {},
+	"opr inbox":                  {},
+	"opr inbox ack":              {},
 	"opr launch":                 {},
 	"opr orchestrator":           {},
 	"opr orchestrator done":      {},

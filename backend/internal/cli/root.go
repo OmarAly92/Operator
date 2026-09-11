@@ -202,6 +202,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.AddCommand(newSessionCommand(ctx))
 	root.AddCommand(newOrchestratorCommand(ctx))
 	root.AddCommand(newBoardCommand(ctx))
+	root.AddCommand(newInboxCommand(ctx))
 	root.AddCommand(newPRCommand(ctx))
 	root.AddCommand(newReviewCommand(ctx))
 	root.AddCommand(newCompletionCommand())
