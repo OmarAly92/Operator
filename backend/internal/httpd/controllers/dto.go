@@ -168,6 +168,30 @@ type ListSessionsResponse struct {
 	Sessions []SessionView `json:"sessions"`
 }
 
+// InboxEntryView is one pending orchestrator inbox row, resolved against the
+// live session record.
+type InboxEntryView struct {
+	ID         string      `json:"id"`
+	Kind       string      `json:"kind" enum:"worker_idle,ci_failed,review_changes_requested"`
+	OccurredAt time.Time   `json:"occurredAt"`
+	Worker     SessionView `json:"worker"`
+}
+
+// InboxResponse is the body of GET /api/v1/projects/{id}/inbox.
+type InboxResponse struct {
+	Entries []InboxEntryView `json:"entries"`
+}
+
+// AckInboxEventsRequest is the body of POST /api/v1/projects/{id}/inbox/ack.
+type AckInboxEventsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// AckInboxEventsResponse is the body of POST /api/v1/projects/{id}/inbox/ack.
+type AckInboxEventsResponse struct {
+	Acked int `json:"acked"`
+}
+
 // SpawnSessionRequest is the body of POST /api/v1/sessions.
 type SpawnSessionRequest struct {
 	ProjectID     domain.ProjectID    `json:"projectId"`

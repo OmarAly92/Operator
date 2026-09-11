@@ -382,6 +382,8 @@ func Run() error {
 		PreviewServer:       managedPreview,
 		SessionCapabilities: browserAuthority,
 		DesktopPreview:      sessionSvc,
+		Inbox:               lcStack.LCM,
+		InboxSessions:       sessionSvc,
 	})
 	if err != nil {
 		stop()

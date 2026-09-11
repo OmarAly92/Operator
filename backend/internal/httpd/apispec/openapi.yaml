@@ -1225,6 +1225,84 @@ paths:
       summary: Replace a project's per-project config
       tags:
       - projects
+  /api/v1/projects/{id}/inbox:
+    get:
+      operationId: listInboxEvents
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List a project's pending orchestrator inbox events
+      tags:
+      - inbox
+  /api/v1/projects/{id}/inbox/ack:
+    post:
+      operationId: ackInboxEvents
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckInboxEventsRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AckInboxEventsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Acknowledge pending orchestrator inbox events by id
+      tags:
+      - inbox
   /api/v1/projects/initialize:
     post:
       operationId: initializeProjectRepository
@@ -4152,6 +4230,22 @@ components:
       - code
       - message
       type: object
+    AckInboxEventsRequest:
+      properties:
+        ids:
+          items:
+            type: string
+          type: array
+      required:
+      - ids
+      type: object
+    AckInboxEventsResponse:
+      properties:
+        acked:
+          type: integer
+      required:
+      - acked
+      type: object
     AddProjectInput:
       properties:
         asWorkspace:
@@ -5087,6 +5181,36 @@ components:
       required:
       - available
       - legacyRoot
+      type: object
+    InboxEntryView:
+      properties:
+        id:
+          type: string
+        kind:
+          enum:
+          - worker_idle
+          - ci_failed
+          - review_changes_requested
+          type: string
+        occurredAt:
+          format: date-time
+          type: string
+        worker:
+          $ref: '#/components/schemas/ControllersSessionView'
+      required:
+      - id
+      - kind
+      - occurredAt
+      - worker
+      type: object
+    InboxResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/InboxEntryView'
+          type: array
+      required:
+      - entries
       type: object
     InitializeRepositoryInput:
       properties:
@@ -7282,3 +7406,5 @@ tags:
   name: mobile
 - description: Target-isolated desktop browser runtime (loopback only)
   name: browser
+- description: Per-project orchestrator inbox of pending worker/CI/review events
+  name: inbox
