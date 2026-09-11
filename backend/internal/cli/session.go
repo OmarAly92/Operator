@@ -41,18 +41,22 @@ type sessionRenameRequest struct {
 }
 
 type sessionDTO struct {
-	ID            string          `json:"id"`
-	ProjectID     string          `json:"projectId"`
-	IssueID       string          `json:"issueId,omitempty"`
-	Kind          string          `json:"kind"`
-	Harness       string          `json:"harness,omitempty"`
-	DisplayName   string          `json:"displayName,omitempty"`
-	Activity      sessionActivity `json:"activity"`
-	IsTerminated  bool            `json:"isTerminated"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	UpdatedAt     time.Time       `json:"updatedAt"`
-	Status        string          `json:"status"`
-	WorkspaceMode string          `json:"workspaceMode,omitempty"`
+	ID                    string          `json:"id"`
+	ProjectID             string          `json:"projectId"`
+	IssueID               string          `json:"issueId,omitempty"`
+	Kind                  string          `json:"kind"`
+	Harness               string          `json:"harness,omitempty"`
+	DisplayName           string          `json:"displayName,omitempty"`
+	Activity              sessionActivity `json:"activity"`
+	IsTerminated          bool            `json:"isTerminated"`
+	CreatedAt             time.Time       `json:"createdAt"`
+	UpdatedAt             time.Time       `json:"updatedAt"`
+	Status                string          `json:"status"`
+	WorkspaceMode         string          `json:"workspaceMode,omitempty"`
+	Brief                 string          `json:"brief,omitempty"`
+	LatestUserPrompt      string          `json:"latestUserPrompt,omitempty"`
+	LatestAssistantUpdate string          `json:"latestAssistantUpdate,omitempty"`
+	PRs                   []sessionPRDTO  `json:"prs,omitempty"`
 }
 
 type sessionActivity struct {
@@ -759,6 +763,9 @@ func writeSessionDetails(cmd *cobra.Command, sess sessionDTO) error {
 		{"activity", sess.Activity.State},
 		{"harness", sess.Harness},
 		{"issue", sess.IssueID},
+		{"brief", sess.Brief},
+		{"last prompt", sess.LatestUserPrompt},
+		{"last update", sess.LatestAssistantUpdate},
 		{"terminated", fmt.Sprintf("%t", sess.IsTerminated)},
 	}
 	for _, field := range fields {
@@ -776,6 +783,11 @@ func writeSessionDetails(cmd *cobra.Command, sess sessionDTO) error {
 	}
 	if !sess.UpdatedAt.IsZero() {
 		if _, err := fmt.Fprintf(out, "updated: %s\n", sess.UpdatedAt.Format(time.RFC3339)); err != nil {
+			return err
+		}
+	}
+	for _, pr := range sess.PRs {
+		if _, err := fmt.Fprintf(out, "pr #%d: %s ci=%s review=%s\n", pr.Number, pr.State, pr.CI, pr.Review); err != nil {
 			return err
 		}
 	}
