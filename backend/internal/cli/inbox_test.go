@@ -34,6 +34,28 @@ func TestInboxRendersPendingDigestsWithAckLine(t *testing.T) {
 	}
 }
 
+func TestInboxRendersAnEntryWhoseWorkerCouldNotBeResolved(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"entries":[
+			{"id":"evt-2","kind":"worker_idle","occurredAt":"2026-09-12T10:00:00Z","worker":{}}
+		]}`)
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "inbox", "--project", "proj-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"evt-2", "worker_idle", "opr inbox ack evt-2"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestInboxReportsAnEmptyInbox(t *testing.T) {
 	cfg := setConfigEnv(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

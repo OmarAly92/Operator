@@ -75,6 +75,43 @@ func TestInboxListResolvesEachEventAgainstTheLiveSessionRecord(t *testing.T) {
 	}
 }
 
+func TestInboxListKeepsEntriesWhoseWorkerSessionCannotBeResolved(t *testing.T) {
+	worker := domain.Session{}
+	worker.ID = "opr-1"
+
+	c := &InboxController{
+		Events: &fakeInboxStore{events: []domain.OrchestratorInboxEvent{
+			{ID: "evt-1", ProjectID: "proj-1", WorkerID: "opr-1", Kind: domain.InboxEventWorkerIdle},
+			{ID: "evt-2", ProjectID: "proj-1", WorkerID: "opr-gone", Kind: domain.InboxEventWorkerIdle},
+		}},
+		Sessions: &fakeInboxSessions{sessions: map[domain.SessionID]domain.Session{"opr-1": worker}},
+	}
+	r := chi.NewRouter()
+	c.Register(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/projects/proj-1/inbox", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var res InboxResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Entries) != 2 {
+		t.Fatalf("entries = %+v, want both rows: an unresolvable worker must not make its row un-ackable", res.Entries)
+	}
+	degraded := res.Entries[1]
+	if degraded.ID != "evt-2" || degraded.Kind != string(domain.InboxEventWorkerIdle) {
+		t.Fatalf("degraded entry = %+v, want its id and kind intact so it can be acked", degraded)
+	}
+	if degraded.Worker.ID != "" {
+		t.Fatalf("degraded entry worker = %+v, want the zero value", degraded.Worker)
+	}
+}
+
 func TestInboxAckIsANoopForUnknownIds(t *testing.T) {
 	store := &fakeInboxStore{}
 	c := &InboxController{Events: store, Sessions: &fakeInboxSessions{sessions: map[domain.SessionID]domain.Session{}}}

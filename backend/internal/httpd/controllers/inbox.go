@@ -47,16 +47,14 @@ func (c *InboxController) list(w http.ResponseWriter, r *http.Request) {
 	}
 	entries := make([]InboxEntryView, 0, len(events))
 	for _, ev := range events {
-		sess, err := c.Sessions.Get(r.Context(), ev.WorkerID)
-		if err != nil {
-			continue
+		// A worker that cannot be resolved still yields an entry: dropping it
+		// would leave the row pending and permanently un-ackable while the
+		// nudge kept counting it.
+		entry := InboxEntryView{ID: ev.ID, Kind: string(ev.Kind), OccurredAt: ev.OccurredAt}
+		if sess, err := c.Sessions.Get(r.Context(), ev.WorkerID); err == nil {
+			entry.Worker = sessionView(sess)
 		}
-		entries = append(entries, InboxEntryView{
-			ID:         ev.ID,
-			Kind:       string(ev.Kind),
-			OccurredAt: ev.OccurredAt,
-			Worker:     sessionView(sess),
-		})
+		entries = append(entries, entry)
 	}
 	envelope.WriteJSON(w, http.StatusOK, InboxResponse{Entries: entries})
 }
