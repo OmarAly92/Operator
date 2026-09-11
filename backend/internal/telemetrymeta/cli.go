@@ -77,6 +77,7 @@ var legacyActorlessSystemCLICommands = map[string]struct{}{
 var legacyActorlessUserCLICommands = map[string]struct{}{
 	"opr agent":                  {},
 	"opr agent ls":               {},
+	"opr board":                  {},
 	"opr browser":                {},
 	"opr browser check":          {},
 	"opr browser click":          {},
