@@ -158,6 +158,9 @@ type SessionView struct {
 	// restart or rerender. Pulled from the json:"-" domain Metadata.
 	PreviewOpenedRevision int64            `json:"previewOpenedRevision,omitempty"`
 	PRs                   []SessionPRFacts `json:"prs"`
+	Brief                 string           `json:"brief,omitempty" maxLength:"2048"`
+	LatestUserPrompt      string           `json:"latestUserPrompt,omitempty" maxLength:"2048"`
+	LatestAssistantUpdate string           `json:"latestAssistantUpdate,omitempty" maxLength:"2048"`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.

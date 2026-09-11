@@ -4644,6 +4644,9 @@ components:
           type: boolean
         branch:
           type: string
+        brief:
+          maxLength: 2048
+          type: string
         createdAt:
           format: date-time
           type: string
@@ -4660,6 +4663,12 @@ components:
         issueId:
           type: string
         kind:
+          type: string
+        latestAssistantUpdate:
+          maxLength: 2048
+          type: string
+        latestUserPrompt:
+          maxLength: 2048
           type: string
         pinnedAt:
           format: date-time

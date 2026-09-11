@@ -1630,6 +1630,7 @@ export interface components {
             activity: components["schemas"]["DomainActivity"];
             autoInjectReview: boolean;
             branch?: string;
+            brief?: string;
             /** Format: date-time */
             createdAt: string;
             displayName?: string;
@@ -1639,6 +1640,8 @@ export interface components {
             isTerminated: boolean;
             issueId?: string;
             kind: string;
+            latestAssistantUpdate?: string;
+            latestUserPrompt?: string;
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */

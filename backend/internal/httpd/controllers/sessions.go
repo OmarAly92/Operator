@@ -1948,6 +1948,19 @@ func previewFileURL(r *http.Request, id domain.SessionID, entry string) (string,
 	return previewutil.FileURL("http://"+r.Host, id, entry)
 }
 
+const maxWireInteractionLen = 2048
+
+func capWireText(s string) string {
+	if len(s) <= maxWireInteractionLen {
+		return s
+	}
+	cut := maxWireInteractionLen - len("…")
+	for cut > 0 && !utf8.ValidString(s[:cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
+}
+
 func sessionView(s domain.Session) SessionView {
 	return SessionView{
 		Session:               s,
@@ -1958,6 +1971,9 @@ func sessionView(s domain.Session) SessionView {
 		PreviewRevision:       s.Metadata.PreviewRevision,
 		PreviewOpenedRevision: s.Metadata.PreviewOpenedRevision,
 		PRs:                   sessionPRFacts(s.PRs),
+		Brief:                 capWireText(s.Metadata.Prompt),
+		LatestUserPrompt:      capWireText(s.Metadata.LatestUserPrompt),
+		LatestAssistantUpdate: capWireText(s.Metadata.LatestAssistantUpdate),
 	}
 }
 
