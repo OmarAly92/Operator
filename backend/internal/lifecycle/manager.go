@@ -43,6 +43,11 @@ type sessionStore interface {
 	// reaction-dedup map so nudges survive a daemon restart.
 	GetPRLastNudgeSignature(ctx context.Context, prURL string) (string, error)
 	UpdatePRLastNudgeSignature(ctx context.Context, prURL, payload string) error
+	UpdateSessionFromActivitySignalAndEnqueueInboxEvent(ctx context.Context, rec domain.SessionRecord, event domain.OrchestratorInboxEvent) (bool, error)
+	CountPendingInboxEvents(ctx context.Context, project domain.ProjectID) (int, error)
+	ListPendingInboxEvents(ctx context.Context, project domain.ProjectID) ([]domain.OrchestratorInboxEvent, error)
+	ListProjectsWithPendingInboxEvents(ctx context.Context) ([]domain.ProjectID, error)
+	AckInboxEvents(ctx context.Context, project domain.ProjectID, ids []string) (int, error)
 }
 
 // agentSwitchSourceStopStore and agentSwitchTargetActivationStore are the
@@ -616,11 +621,29 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		delete(m.flights, id)
 	}
 	next.UpdatedAt = now
-	applied, err := m.store.UpdateSessionFromActivitySignal(ctx, next)
+	crossedToIdleWorker := next.Kind != domain.KindOrchestrator &&
+		prevState == domain.ActivityActive && next.Activity.State == domain.ActivityIdle
+	orchestratorReadyToDrain := next.Kind == domain.KindOrchestrator &&
+		((prevState == domain.ActivityActive && next.Activity.State == domain.ActivityIdle) ||
+			(rec.FirstSignalAt.IsZero() && !next.FirstSignalAt.IsZero()))
+
+	var applied bool
+	if crossedToIdleWorker {
+		applied, err = m.store.UpdateSessionFromActivitySignalAndEnqueueInboxEvent(ctx, next, domain.OrchestratorInboxEvent{
+			ID:         uuid.NewString(),
+			ProjectID:  next.ProjectID,
+			WorkerID:   next.ID,
+			Kind:       domain.InboxEventWorkerIdle,
+			OccurredAt: next.Activity.LastActivityAt,
+		})
+	} else {
+		applied, err = m.store.UpdateSessionFromActivitySignal(ctx, next)
+	}
 	if err != nil {
 		m.mu.Unlock()
 		return err
 	}
+	_ = orchestratorReadyToDrain
 	if !applied {
 		m.mu.Unlock()
 		return nil

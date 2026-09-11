@@ -17,11 +17,12 @@ import (
 var ctx = context.Background()
 
 type fakeStore struct {
-	sessions   map[domain.SessionID]domain.SessionRecord
-	prs        map[domain.SessionID][]domain.PullRequest
-	reviews    map[string][]domain.PullRequestReview
-	comments   map[string][]domain.PullRequestComment
-	signatures map[string]string
+	sessions    map[domain.SessionID]domain.SessionRecord
+	prs         map[domain.SessionID][]domain.PullRequest
+	reviews     map[string][]domain.PullRequestReview
+	comments    map[string][]domain.PullRequestComment
+	signatures  map[string]string
+	inboxEvents map[string]domain.OrchestratorInboxEvent
 
 	listPRsErr        error
 	signatureWriteErr error
@@ -30,11 +31,12 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		sessions:   map[domain.SessionID]domain.SessionRecord{},
-		prs:        map[domain.SessionID][]domain.PullRequest{},
-		reviews:    map[string][]domain.PullRequestReview{},
-		comments:   map[string][]domain.PullRequestComment{},
-		signatures: map[string]string{},
+		sessions:    map[domain.SessionID]domain.SessionRecord{},
+		prs:         map[domain.SessionID][]domain.PullRequest{},
+		reviews:     map[string][]domain.PullRequestReview{},
+		comments:    map[string][]domain.PullRequestComment{},
+		signatures:  map[string]string{},
+		inboxEvents: map[string]domain.OrchestratorInboxEvent{},
 	}
 }
 
@@ -76,6 +78,64 @@ func (f *fakeStore) UpdateSession(_ context.Context, rec domain.SessionRecord) e
 func (f *fakeStore) UpdateSessionFromActivitySignal(_ context.Context, rec domain.SessionRecord) (bool, error) {
 	f.sessions[rec.ID] = rec
 	return true, nil
+}
+
+func (f *fakeStore) UpdateSessionFromActivitySignalAndEnqueueInboxEvent(_ context.Context, rec domain.SessionRecord, event domain.OrchestratorInboxEvent) (bool, error) {
+	f.sessions[rec.ID] = rec
+	for _, existing := range f.inboxEvents {
+		if existing.WorkerID == event.WorkerID && existing.Kind == event.Kind && existing.State == domain.InboxStatePending {
+			return true, nil
+		}
+	}
+	event.State = domain.InboxStatePending
+	f.inboxEvents[event.ID] = event
+	return true, nil
+}
+
+func (f *fakeStore) CountPendingInboxEvents(_ context.Context, project domain.ProjectID) (int, error) {
+	n := 0
+	for _, ev := range f.inboxEvents {
+		if ev.ProjectID == project && ev.State == domain.InboxStatePending {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeStore) ListPendingInboxEvents(_ context.Context, project domain.ProjectID) ([]domain.OrchestratorInboxEvent, error) {
+	var out []domain.OrchestratorInboxEvent
+	for _, ev := range f.inboxEvents {
+		if ev.ProjectID == project && ev.State == domain.InboxStatePending {
+			out = append(out, ev)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) ListProjectsWithPendingInboxEvents(_ context.Context) ([]domain.ProjectID, error) {
+	seen := map[domain.ProjectID]bool{}
+	var out []domain.ProjectID
+	for _, ev := range f.inboxEvents {
+		if ev.State == domain.InboxStatePending && !seen[ev.ProjectID] {
+			seen[ev.ProjectID] = true
+			out = append(out, ev.ProjectID)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) AckInboxEvents(_ context.Context, project domain.ProjectID, ids []string) (int, error) {
+	acked := 0
+	for _, id := range ids {
+		ev, ok := f.inboxEvents[id]
+		if !ok || ev.ProjectID != project || ev.State != domain.InboxStatePending {
+			continue
+		}
+		ev.State = domain.InboxStateAcked
+		f.inboxEvents[id] = ev
+		acked++
+	}
+	return acked, nil
 }
 
 func (f *fakeStore) GetPRLastNudgeSignature(_ context.Context, prURL string) (string, error) {
@@ -3382,5 +3442,91 @@ func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	got, _, _ = st.GetSession(ctx, "mer-1")
 	if got.Metadata.ControllerGeneration != "gen-2" {
 		t.Fatalf("generation = %q after relaunch, want it rotated to gen-2", got.Metadata.ControllerGeneration)
+	}
+}
+
+func TestApplyActivitySignal_WorkerCrossingActiveToIdleEnqueuesExactlyOneInboxEvent(t *testing.T) {
+	m, st, _ := newManager()
+	rec := working("mer-1")
+	st.sessions["mer-1"] = rec
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := st.ListPendingInboxEvents(ctx, "mer")
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending=%v err=%v, want exactly 1", pending, err)
+	}
+	if pending[0].WorkerID != "mer-1" || pending[0].Kind != domain.InboxEventWorkerIdle {
+		t.Fatalf("event=%+v", pending[0])
+	}
+}
+
+func TestApplyActivitySignal_IdleToIdleDoesNotEnqueue(t *testing.T) {
+	m, st, _ := newManager()
+	rec := working("mer-1")
+	rec.Activity.State = domain.ActivityIdle
+	rec.FirstSignalAt = time.Now()
+	st.sessions["mer-1"] = rec
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := st.ListPendingInboxEvents(ctx, "mer")
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending=%v err=%v, want none: idle-to-idle is not a crossing", pending, err)
+	}
+}
+
+func TestApplyActivitySignal_WaitingInputToIdleDoesNotEnqueue(t *testing.T) {
+	m, st, _ := newManager()
+	rec := working("mer-1")
+	rec.Activity.State = domain.ActivityWaitingInput
+	st.sessions["mer-1"] = rec
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := st.ListPendingInboxEvents(ctx, "mer")
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending=%v err=%v, want none: waiting_input->idle is a demotion, not a crossing", pending, err)
+	}
+}
+
+func TestApplyActivitySignal_OrchestratorCrossingToIdleDoesNotEnqueue(t *testing.T) {
+	m, st, _ := newManager()
+	rec := working("mer-1")
+	rec.Kind = domain.KindOrchestrator
+	st.sessions["mer-1"] = rec
+
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := st.ListPendingInboxEvents(ctx, "mer")
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending=%v err=%v, want none: orchestrators never get worker_idle events for themselves", pending, err)
+	}
+}
+
+func TestApplyActivitySignal_RepeatedIdleCoalescesToOnePendingRow(t *testing.T) {
+	m, st, _ := newManager()
+	rec := working("mer-1")
+	st.sessions["mer-1"] = rec
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	st.sessions["mer-1"] = working("mer-1")
+	if err := m.ApplyActivitySignal(ctx, "mer-1", ports.ActivitySignal{Valid: true, State: domain.ActivityIdle, Event: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := st.ListPendingInboxEvents(ctx, "mer")
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending=%v err=%v, want exactly 1 across two idle crossings for the same worker", pending, err)
 	}
 }
