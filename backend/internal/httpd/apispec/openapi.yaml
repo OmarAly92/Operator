@@ -5624,6 +5624,13 @@ components:
             projectId, and attributes the shell to that session.
           type: string
       type: object
+    OrchestratorPolicy:
+      properties:
+        maxLiveWorkers:
+          type: integer
+        maxSpawnsPerHour:
+          type: integer
+      type: object
     OrchestratorResponse:
       properties:
         id:
@@ -5767,6 +5774,8 @@ components:
           type: object
         orchestrator:
           $ref: '#/components/schemas/RoleOverride'
+        orchestratorPolicy:
+          $ref: '#/components/schemas/OrchestratorPolicy'
         orchestratorRules:
           type: string
         postCreate:
