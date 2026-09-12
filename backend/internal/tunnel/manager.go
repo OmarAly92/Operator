@@ -156,6 +156,7 @@ func (m *Manager) Disable(ctx context.Context) error {
 	m.mu.Lock()
 	m.status = Status{State: StateOff}
 	m.mu.Unlock()
+	m.clearRegistry()
 	m.onProvider("")
 	return nil
 }
@@ -412,7 +413,7 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		} else {
 			urlCtx, urlCancel := context.WithCancel(ctx)
 			urlResult := make(chan error, 1)
-			go func() { urlResult <- m.awaitURL(urlCtx, provider, currentPort) }()
+			go func(port int) { urlResult <- m.awaitURL(urlCtx, provider, port) }(currentPort)
 
 			select {
 			case <-ctx.Done():
@@ -620,4 +621,10 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 	}
 }
 
-func (m *Manager) recordPID(string, *exec.Cmd) {}
+func (m *Manager) recordPID(providerName string, cmd *exec.Cmd) {
+	entry, ok := pidEntry(providerName, cmd, m.now())
+	if !ok {
+		return
+	}
+	m.writeRegistry([]persistedTunnel{entry})
+}
