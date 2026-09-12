@@ -238,7 +238,7 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	return nil
 }
 
-func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done chan struct{}, awaitDone chan struct{}, liveConfirmed chan struct{}) {
+func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done, awaitDone, liveConfirmed chan struct{}) {
 	defer close(awaitDone)
 	if err := m.awaitURL(ctx, provider, controlPort); err != nil {
 		if ctx.Err() != nil {
@@ -378,13 +378,13 @@ func indexByte(text string, target byte) int {
 }
 
 func trimCR(line string) string {
-	if len(line) > 0 && line[len(line)-1] == '\r' {
+	if line != "" && line[len(line)-1] == '\r' {
 		return line[:len(line)-1]
 	}
 	return line
 }
 
-func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done chan struct{}, liveConfirmed chan struct{}, firstAwaitCancel context.CancelFunc) {
+func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done, liveConfirmed chan struct{}, firstAwaitCancel context.CancelFunc) {
 	defer close(done)
 
 	current := cmd

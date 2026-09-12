@@ -65,8 +65,29 @@ func (m *Manager) writeRegistry(entries []persistedTunnel) {
 		m.log.Warn("encode tunnel process registry", "err", err)
 		return
 	}
-	if err := os.WriteFile(registryPath(m.dir), body, 0o600); err != nil {
-		m.log.Warn("write tunnel process registry", "err", err)
+	tmp, err := os.CreateTemp(m.dir, ".tunnel-processes-*.tmp")
+	if err != nil {
+		m.log.Warn("create tunnel process registry temp file", "err", err)
+		return
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		m.log.Warn("chmod tunnel process registry temp file", "err", err)
+		return
+	}
+	if _, err := tmp.Write(body); err != nil {
+		_ = tmp.Close()
+		m.log.Warn("write tunnel process registry temp file", "err", err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		m.log.Warn("close tunnel process registry temp file", "err", err)
+		return
+	}
+	if err := os.Rename(tmpName, registryPath(m.dir)); err != nil {
+		m.log.Warn("rename tunnel process registry into place", "err", err)
 	}
 }
 

@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -46,7 +47,7 @@ func TestNgrokPublicURLEmptyTunnelsIsNotReadyYet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := NgrokProvider(nil).PublicURL(context.Background(), controlPortOf(t, srv)); err != ErrNoURLYet {
+	if _, err := NgrokProvider(nil).PublicURL(context.Background(), controlPortOf(t, srv)); !errors.Is(err, ErrNoURLYet) {
 		t.Fatalf("got %v, want ErrNoURLYet", err)
 	}
 }

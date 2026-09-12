@@ -49,7 +49,7 @@ func controlURL(controlPort int, path string) string {
 }
 
 func getJSON(ctx context.Context, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func getJSON(ctx context.Context, url string, out any) error {
 }
 
 func getJSONStatus(ctx context.Context, url string, out any) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return 0, err
 	}
