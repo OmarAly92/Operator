@@ -53,16 +53,12 @@ func (s *recordingSleeper) release(n int) {
 	}
 }
 
-func TestManagerRestartsAfterUnexpectedExit(t *testing.T) {
-	restartOnce := "#!/bin/sh\nif [ -f \"$TUNNEL_TEST_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_MARKER\"\nexit 1\n"
-	provider := newFakeProvider(t, "ngrok", restartOnce)
-	t.Setenv("TUNNEL_TEST_MARKER", t.TempDir()+"/marker")
-
-	sleeper := newRecordingSleeper()
+func dripFeed(t *testing.T, sleeper *recordingSleeper, interval time.Duration) {
+	t.Helper()
 	stop := make(chan struct{})
-	defer close(stop)
+	t.Cleanup(func() { close(stop) })
 	go func() {
-		ticker := time.NewTicker(20 * time.Millisecond)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -73,6 +69,15 @@ func TestManagerRestartsAfterUnexpectedExit(t *testing.T) {
 			}
 		}
 	}()
+}
+
+func TestManagerRestartsAfterUnexpectedExit(t *testing.T) {
+	restartOnce := "#!/bin/sh\nif [ -f \"$TUNNEL_TEST_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_MARKER\"\nexit 1\n"
+	provider := newFakeProvider(t, "ngrok", restartOnce)
+	t.Setenv("TUNNEL_TEST_MARKER", t.TempDir()+"/marker")
+
+	sleeper := newRecordingSleeper()
+	dripFeed(t, sleeper, 20*time.Millisecond)
 
 	m := New(Deps{
 		Dir:         t.TempDir(),
@@ -171,7 +176,7 @@ func TestManagerNeverGivesUpOnNetworkFailures(t *testing.T) {
 func TestManagerRestartsWhenHealthProbeReportsNotOnline(t *testing.T) {
 	provider := newFakeProvider(t, "ngrok", sleepForeverScript)
 	sleeper := newRecordingSleeper()
-	sleeper.release(32)
+	dripFeed(t, sleeper, time.Millisecond)
 
 	m := New(Deps{
 		Dir:         t.TempDir(),
@@ -203,7 +208,7 @@ func TestManagerRestartsWhenHealthProbeReportsNotOnline(t *testing.T) {
 func TestManagerRepublishesAChangedURLAcrossRestart(t *testing.T) {
 	provider := newFakeProvider(t, "ngrok", sleepForeverScript)
 	sleeper := newRecordingSleeper()
-	sleeper.release(32)
+	dripFeed(t, sleeper, time.Millisecond)
 
 	m := New(Deps{
 		Dir:         t.TempDir(),
@@ -267,5 +272,92 @@ func TestManagerDisableDuringBackoffStopsPromptly(t *testing.T) {
 	}
 	if got := m.Status().State; got != StateOff {
 		t.Errorf("state = %q, want off", got)
+	}
+}
+
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newFakeClock() *fakeClock {
+	return &fakeClock{now: time.Now()}
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+func (c *fakeClock) sleep(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func TestManagerStaleFirstAttemptURLTimeoutDoesNotKillARecoveredTunnel(t *testing.T) {
+	restartOnce := "#!/bin/sh\nif [ -f \"$TUNNEL_TEST_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_MARKER\"\nexit 1\n"
+	provider := newFakeProvider(t, "ngrok", restartOnce)
+	t.Setenv("TUNNEL_TEST_MARKER", t.TempDir()+"/marker")
+	provider.setFailURLOnPort(45999)
+	provider.setFailure(Failure{Class: FailureNetwork, Message: "edge unreachable"})
+
+	nextPort := 45999
+	var portMu sync.Mutex
+	reservePort := func() (int, error) {
+		portMu.Lock()
+		defer portMu.Unlock()
+		p := nextPort
+		nextPort++
+		return p, nil
+	}
+
+	clock := newFakeClock()
+	m := New(Deps{
+		Dir:         t.TempDir(),
+		Providers:   []Provider{provider},
+		Binaries:    fakeStore{path: provider.binary},
+		Now:         clock.Now,
+		Sleep:       clock.sleep,
+		ReservePort: reservePort,
+	})
+	m.SetLocalPort(3011)
+	defer m.Close()
+
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+
+	restartDeadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(restartDeadline) {
+		if m.Status().Restarts >= 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := m.Status().Restarts; got < 1 {
+		t.Fatalf("restarts = %d, want at least 1 before this regression can be exercised", got)
+	}
+
+	status := waitForState(t, m, StateLive)
+	if status.State != StateLive {
+		t.Fatalf("state = %q, want live", status.State)
+	}
+
+	clock.advance(startTimeout + time.Second)
+	time.Sleep(300 * time.Millisecond)
+
+	if got := m.Status().State; got != StateLive {
+		t.Errorf("state = %q once the original first attempt's url-await window would have elapsed, want live: a stale runAwaitURL must not tear down a since-recovered tunnel", got)
 	}
 }

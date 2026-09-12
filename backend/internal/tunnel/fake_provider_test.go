@@ -11,17 +11,18 @@ import (
 )
 
 type fakeProvider struct {
-	name     string
-	header   string
-	binary   string
-	mu       sync.Mutex
-	url      string
-	urlErr   error
-	urlDelay time.Duration
-	ready    bool
-	healthy  bool
-	failure  Failure
-	urlCalls int
+	name          string
+	header        string
+	binary        string
+	mu            sync.Mutex
+	url           string
+	urlErr        error
+	urlDelay      time.Duration
+	ready         bool
+	healthy       bool
+	failure       Failure
+	urlCalls      int
+	failURLOnPort int
 }
 
 func newFakeProvider(t *testing.T, name string, script string) *fakeProvider {
@@ -74,6 +75,12 @@ func (f *fakeProvider) setURLDelay(d time.Duration) {
 	f.urlDelay = d
 }
 
+func (f *fakeProvider) setFailURLOnPort(port int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failURLOnPort = port
+}
+
 func (f *fakeProvider) callCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -88,16 +95,20 @@ func (f *fakeProvider) Binary() BinarySpec {
 
 func (f *fakeProvider) Args(localPort, controlPort int) []string { return []string{"run"} }
 
-func (f *fakeProvider) PublicURL(_ context.Context, _ int) (string, error) {
+func (f *fakeProvider) PublicURL(_ context.Context, controlPort int) (string, error) {
 	f.mu.Lock()
 	f.urlCalls++
 	delay := f.urlDelay
 	urlErr := f.urlErr
 	url := f.url
+	failPort := f.failURLOnPort
 	f.mu.Unlock()
 
 	if delay > 0 {
 		time.Sleep(delay)
+	}
+	if failPort != 0 && controlPort == failPort {
+		return "", ErrNoURLYet
 	}
 	if urlErr != nil {
 		return "", urlErr

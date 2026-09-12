@@ -214,6 +214,7 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	done := make(chan struct{})
 	awaitDone := make(chan struct{})
 	liveConfirmed := make(chan struct{})
+	firstAwaitCtx, firstAwaitCancel := context.WithCancel(runCtx)
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
 	m.status = Status{State: StateStarting, Provider: provider.Name()}
@@ -222,8 +223,8 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.recordPID(provider.Name(), cmd)
 	m.setState(StateStarting, provider.Name())
 
-	go m.supervise(runCtx, provider, cmd, controlPort, logs, done, liveConfirmed)
-	go m.runAwaitURL(runCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed)
+	go m.supervise(runCtx, provider, cmd, controlPort, logs, done, liveConfirmed, firstAwaitCancel)
+	go m.runAwaitURL(firstAwaitCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed)
 
 	return nil
 }
@@ -372,7 +373,7 @@ func trimCR(line string) string {
 	return line
 }
 
-func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done chan struct{}, liveConfirmed chan struct{}) {
+func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done chan struct{}, liveConfirmed chan struct{}, firstAwaitCancel context.CancelFunc) {
 	defer close(done)
 
 	current := cmd
@@ -386,18 +387,15 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		exited := make(chan error, 1)
 		go func(c *exec.Cmd) { exited <- c.Wait() }(current)
 
-		healthCtx, healthCancel := context.WithCancel(ctx)
-		healthy := m.watchHealth(healthCtx, provider, currentPort)
-
 		var confirmed bool
 		if firstAttempt {
 			firstAttempt = false
 			select {
 			case <-ctx.Done():
-				healthCancel()
 				m.stopChild(current, exited)
 				return
 			case <-exited:
+				firstAwaitCancel()
 			case <-liveConfirmed:
 				confirmed = true
 			}
@@ -409,7 +407,6 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 			select {
 			case <-ctx.Done():
 				urlCancel()
-				healthCancel()
 				m.stopChild(current, exited)
 				return
 			case <-exited:
@@ -424,6 +421,9 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 
 		if confirmed {
 			liveSince = m.now()
+
+			healthCtx, healthCancel := context.WithCancel(ctx)
+			healthy := m.watchHealth(healthCtx, provider, currentPort)
 
 			var stopped bool
 			select {
@@ -440,8 +440,6 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 			if stopped {
 				return
 			}
-		} else {
-			healthCancel()
 		}
 
 		published := m.Status().URL != ""
@@ -500,13 +498,6 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 func (m *Manager) watchHealth(ctx context.Context, provider Provider, controlPort int) <-chan struct{} {
 	unhealthy := make(chan struct{})
 	go func() {
-		for m.Status().State != StateLive {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(2 * time.Millisecond):
-			}
-		}
 		strikes := 0
 		for {
 			if err := m.sleep(ctx, healthInterval); err != nil {
@@ -518,11 +509,6 @@ func (m *Manager) watchHealth(ctx context.Context, provider Provider, controlPor
 			ok, err := provider.Healthy(ctx, controlPort)
 			if err == nil && ok {
 				strikes = 0
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(time.Millisecond):
-				}
 				continue
 			}
 			strikes++
