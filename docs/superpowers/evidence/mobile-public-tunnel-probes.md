@@ -128,3 +128,58 @@ Re-probing after waiting for `dig` gave first-200 at 8.7s.
 **Design consequence:** readiness must be probed via the provider's own local
 API, never by resolving the public hostname from the desktop. Doing the latter
 both lies and poisons the user's resolver cache.
+
+## 8. URL stability across sessions
+
+Four separate `ngrok` agent sessions, started as independent processes over
+roughly twenty minutes on this account, every one produced the identical
+hostname:
+
+```
+imagines-livestock-widely.ngrok-free.dev
+```
+
+Every `cloudflared` quick tunnel in the same period produced a fresh hostname:
+
+```
+planets-address-scratch-publishing.trycloudflare.com
+appearing-evaluated-herald-codes.trycloudflare.com
+product-number-corps-offices.trycloudflare.com
+cradle-compatibility-biology-saskatchewan.trycloudflare.com
+merger-vessel-wesley-shade.trycloudflare.com
+scott-starter-recommendations-oxford.trycloudflare.com
+declared-decreased-regulated-subsequently.trycloudflare.com
+```
+
+**What this does and does not establish.** It is strong evidence that the ngrok
+URL is stable for *this* account, which is what makes pair-once possible. It
+does not establish *why* — whether a reserved/static domain is attached to the
+account or the assignment is merely sticky. `ngrok api reserved-domains list`
+could settle it but needs an API key (distinct from the authtoken), which is not
+configured here.
+
+Consequence for the implementation: never cache the URL across runs. Read it
+from the agent API on every start and re-render the QR from what comes back.
+Then stability is a UX benefit when present and costs nothing when absent.
+
+## 9. Health endpoints for liveness
+
+**ngrok** — `127.0.0.1:4040/api/status`:
+
+```json
+{"status":"online","agent_version":"3.39.6",
+ "session":{"legs":[{"region":"eu","latency":"0ms"}]},"uri":"/api/status"}
+```
+
+A real connection-state signal with region and latency, not merely "the process
+is alive".
+
+**cloudflared** — `/ready` on the metrics server, as in §2:
+`readyConnections` drops below 1 when the tunnel loses its edge connections.
+Observed returning **503** while still connecting, which is the pre-ready state
+a poll loop has to tolerate rather than treat as failure.
+
+`/api/tunnels` additionally reports per-tunnel connection and HTTP counters
+(`metrics.conns`, `metrics.http`), and `/api/agent` and `/api/account` are both
+404 — the agent exposes no account or plan information, so the free tier's data
+transfer allowance cannot be read from the agent and is **not verified here**.
