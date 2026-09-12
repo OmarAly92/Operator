@@ -31,9 +31,9 @@ class BlockMarkdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
-    final body = AppTextStyle.style14Regular.copyWith(
+    final body = AppTextStyle.style13Regular.copyWith(
       color: skin.textPrimary,
-      height: 1.5,
+      height: 1.65,
     );
     return MarkdownBody(
       data: text,
@@ -49,7 +49,7 @@ class BlockMarkdown extends StatelessWidget {
       ),
       styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
         p: body,
-        h1: AppTextStyle.style20Bold.copyWith(
+        h1: AppTextStyle.style16SemiBold.copyWith(
           color: skin.textPrimary,
           height: 1.35,
         ),
@@ -68,8 +68,9 @@ class BlockMarkdown extends StatelessWidget {
           color: skin.blue,
           decoration: TextDecoration.underline,
         ),
+        strong: const TextStyle(fontWeight: FontWeight.w600),
         listBullet: body,
-        blockSpacing: 12,
+        blockSpacing: 14,
         listIndent: 22,
         code: AppTextStyle.mono12Regular.copyWith(
           color: skin.textPrimary,

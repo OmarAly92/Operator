@@ -50,7 +50,7 @@ class ToolGroupHeader extends StatelessWidget {
                   child: AppText(
                     label,
                     maxLines: 2,
-                    style: AppTextStyle.style13Medium.copyWith(
+                    style: AppTextStyle.style12Medium.copyWith(
                       color: status == BlockStatus.failed
                           ? skin.red
                           : skin.textSecondary,

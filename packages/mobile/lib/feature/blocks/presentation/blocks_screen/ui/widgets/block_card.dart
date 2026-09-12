@@ -324,9 +324,9 @@ class _RailBody extends StatelessWidget {
                   context: context,
                   text: display.summary,
                   ranges: summaryHighlight!.ranges,
-                  base: AppTextStyle.style14Regular.copyWith(
+                  base: AppTextStyle.style13Regular.copyWith(
                     color: context.skin.textPrimary,
-                    height: 1.5,
+                    height: 1.65,
                   ),
                   softWrap: true,
                 ),
@@ -575,7 +575,7 @@ class _GroupBody extends StatelessWidget {
                 context: context,
                 text: display.displayName,
                 ranges: nameHighlight?.ranges ?? const [],
-                base: AppTextStyle.style13Medium.copyWith(color: skin.textSecondary),
+                base: AppTextStyle.style12Medium.copyWith(color: skin.textSecondary),
               ),
             ),
             if (meta != null)
@@ -1026,7 +1026,7 @@ class _UserBubble extends StatelessWidget {
                   context: context,
                   text: block.body,
                   ranges: highlight?.ranges ?? const [],
-                  base: AppTextStyle.style14Regular.copyWith(color: skin.textPrimary, height: 1.4),
+                  base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.55),
                   softWrap: true,
                 ),
               ),
