@@ -995,14 +995,16 @@ class _UserBubble extends StatelessWidget {
     if (parsed == null) return 'now';
     final local = parsed.toLocal();
     String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(local.hour)}:${two(local.minute)}';
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final period = local.hour < 12 ? 'AM' : 'PM';
+    return '$hour:${two(local.minute)} $period';
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = context.skin;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

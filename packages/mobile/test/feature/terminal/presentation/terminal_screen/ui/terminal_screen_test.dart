@@ -64,7 +64,9 @@ void main() {
         .thenAnswer((_) async => Result.success(true));
     await harness.pump(tester, const TerminalScreen());
 
-    await tester.tap(find.bySemanticsLabel('Kill session'));
+    await tester.longPress(find.text('Session'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kill session'));
     await tester.pumpAndSettle();
     expect(find.text('Kill session?'), findsOneWidget);
 
@@ -80,7 +82,9 @@ void main() {
         .thenAnswer((_) async => Result.success(true));
     await harness.pump(tester, const TerminalScreen());
 
-    await tester.tap(find.bySemanticsLabel('Close shell'));
+    await tester.longPress(find.text('Worktree shell'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close shell'));
     await tester.pumpAndSettle();
     expect(find.text('Close shell?'), findsOneWidget);
   });

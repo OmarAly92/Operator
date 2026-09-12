@@ -4,23 +4,23 @@ import 'package:operator_mobile/core/app_themes/colors/terminal_palette.dart';
 
 void main() {
   group('TerminalPalette.dark', () {
-    test('collapses black into the background so a filled row draws no bar', () {
-      expect(TerminalPalette.dark.black, const Color(0xFF0C0D10));
-      expect(TerminalPalette.dark.background, const Color(0xFF0C0D10));
+    test('uses the requested background and desktop ANSI black', () {
+      expect(TerminalPalette.dark.black, const Color(0xFF616161));
+      expect(TerminalPalette.dark.background, const Color(0xFF1E2022));
     });
 
-    test('carries the ANSI hues', () {
-      expect(TerminalPalette.dark.foreground, const Color(0xFFF4F5F7));
-      expect(TerminalPalette.dark.cursor, const Color(0xFFF59F4C));
-      expect(TerminalPalette.dark.red, const Color(0xFFF05D5E));
-      expect(TerminalPalette.dark.green, const Color(0xFF44C97A));
-      expect(TerminalPalette.dark.yellow, const Color(0xFFE5C34B));
-      expect(TerminalPalette.dark.blue, const Color(0xFF5B9CFF));
-      expect(TerminalPalette.dark.magenta, const Color(0xFFC678DD));
-      expect(TerminalPalette.dark.cyan, const Color(0xFF56B6C2));
-      expect(TerminalPalette.dark.white, const Color(0xFFD7DAE0));
-      expect(TerminalPalette.dark.brightBlack, const Color(0xFF7F8792));
-      expect(TerminalPalette.dark.brightWhite, const Color(0xFFF4F5F7));
+    test('matches the desktop terminal colors', () {
+      expect(TerminalPalette.dark.foreground, const Color(0xFFFFFFFF));
+      expect(TerminalPalette.dark.cursor, const Color(0xFF19AAD8));
+      expect(TerminalPalette.dark.red, const Color(0xFFFF8272));
+      expect(TerminalPalette.dark.green, const Color(0xFFB4FA72));
+      expect(TerminalPalette.dark.yellow, const Color(0xFFFEFDC2));
+      expect(TerminalPalette.dark.blue, const Color(0xFFA5D5FE));
+      expect(TerminalPalette.dark.magenta, const Color(0xFFFF8FFD));
+      expect(TerminalPalette.dark.cyan, const Color(0xFFD0D1FE));
+      expect(TerminalPalette.dark.white, const Color(0xFFF1F1F1));
+      expect(TerminalPalette.dark.brightBlack, const Color(0xFF8E8E8E));
+      expect(TerminalPalette.dark.brightWhite, const Color(0xFFFEFFFF));
     });
   });
 

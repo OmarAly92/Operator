@@ -14,7 +14,6 @@ import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_composer.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_dead_overlay.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_key_row.dart';
-import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/ui/widgets/terminal_status_bar.dart';
 
 class TerminalBody extends StatefulWidget {
   const TerminalBody({super.key});
@@ -74,11 +73,6 @@ class _TerminalBodyState extends State<TerminalBody> {
                       onFind: () => _blocks.currentState?.openFind(),
                       onKill: () => _confirmKill(context),
                     ),
-                    if (!blocksMode)
-                      TerminalStatusBar(
-                        onKill: () => _confirmKill(context),
-                        onRestore: cubit.restore,
-                      ),
                     if (banner != null)
                       InkWell(
                         onTap: cubit.dismissBanner,

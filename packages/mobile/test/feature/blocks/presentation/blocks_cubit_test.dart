@@ -25,6 +25,11 @@ Map<String, dynamic> _wire(int seq, String kind, {String? text, String? sourceId
   'toolName': ?toolName,
 };
 
+List<BlockEventModel> _historyWindow(int first) => [
+  for (var seq = first - 1; seq < first + kBlockWindow; seq++)
+    BlockEventModel.fromJson(_wire(seq, 'stop', text: 'line $seq')),
+];
+
 void main() {
   late _MockMux mux;
   late _MockRepository repository;
@@ -58,6 +63,20 @@ void main() {
 
   BlocksCubit build({String? harness = 'claude-code'}) =>
       BlocksCubit(mux, repository, 's-1', harness: harness);
+
+  test('complete initial history does not offer older blocks', () async {
+    when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
+      (_) async => Result.success([
+        BlockEventModel.fromJson(_wire(20, 'session_start')),
+        BlockEventModel.fromJson(_wire(21, 'prompt_submit', text: 'Hi')),
+      ]),
+    );
+    final cubit = build();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.hasOlder, isFalse);
+    await cubit.close();
+  });
 
   test('subscribes before it fetches history', () async {
     final order = <String>[];
@@ -156,9 +175,7 @@ void main() {
 
   test('pages backwards from the lowest sequence it holds', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success([
-        BlockEventModel.fromJson(_wire(20, 'stop', text: 'newest')),
-      ]),
+      (_) async => Result.success(_historyWindow(20)),
     );
 
     final cubit = build();
@@ -176,13 +193,15 @@ void main() {
         .cast<GetSessionBlocksParams>();
     expect(captured.last.beforeSeq, 20);
     expect(captured.last.afterSeq, isNull, reason: 'the endpoint rejects both cursors');
-    expect(cubit.blocks.map((b) => b.body), ['older', 'newest']);
+    expect(cubit.blocks.first.body, 'older');
+    expect(cubit.blocks.last.body, 'line 419');
+    expect(cubit.hasOlder, isFalse);
     await cubit.close();
   });
 
   test('an empty backward page means there is nothing older', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success([BlockEventModel.fromJson(_wire(5, 'stop', text: 'a'))]),
+      (_) async => Result.success(_historyWindow(5)),
     );
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
@@ -211,7 +230,7 @@ void main() {
 
   test('a second loadOlder while one is in flight is ignored', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success([BlockEventModel.fromJson(_wire(9, 'stop', text: 'a'))]),
+      (_) async => Result.success(_historyWindow(9)),
     );
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
@@ -239,7 +258,7 @@ void main() {
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
-    for (var seq = 101; seq <= 100 + kBlockWindow; seq++) {
+    for (var seq = 100; seq <= 100 + kBlockWindow; seq++) {
       events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'line $seq')));
     }
     await Future<void>.delayed(Duration.zero);
@@ -297,7 +316,7 @@ void main() {
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
-    for (var seq = 100000; seq < 100000 + kBlockWindow; seq++) {
+    for (var seq = 100000; seq <= 100000 + kBlockWindow; seq++) {
       events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'n')));
     }
     await Future<void>.delayed(Duration.zero);

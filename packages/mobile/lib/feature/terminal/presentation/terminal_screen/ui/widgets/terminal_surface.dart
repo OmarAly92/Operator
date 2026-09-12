@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/colors/terminal_palette.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_fit.dart';
 import 'package:operator_mobile/feature/terminal/logic/terminal_zoom.dart';
@@ -113,7 +112,6 @@ class _TerminalSurfaceState extends State<TerminalSurface> {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<TerminalCubit>();
-    final skin = context.skin;
 
     return BlocBuilder<TerminalCubit, TerminalState>(
       buildWhen: (previous, current) => current is TerminalReadyState,
@@ -142,7 +140,7 @@ class _TerminalSurfaceState extends State<TerminalSurface> {
             _box = TerminalZoomBox(content: content, view: view);
 
             return ColoredBox(
-              color: skin.bgBase,
+              color: TerminalPalette.dark.background,
               child: ClipRect(
                 child: Listener(
                   onPointerDown: _onPointerDown,
@@ -166,9 +164,7 @@ class _TerminalSurfaceState extends State<TerminalSurface> {
                         child: TerminalView(
                           cubit.terminal,
                           controller: _controller,
-                          theme: TerminalPalette.forBrightness(skin.themeMode == ThemeMode.light
-                              ? Brightness.light
-                              : Brightness.dark),
+                          theme: TerminalPalette.dark,
                           textStyle: style,
                           autoResize: false,
                           // The composer and key row own all input; the terminal
@@ -181,7 +177,7 @@ class _TerminalSurfaceState extends State<TerminalSurface> {
                           // answers every wheel event, so the fallback is both
                           // unreachable and unwanted.
                           simulateScroll: false,
-                          backgroundOpacity: 0,
+                          backgroundOpacity: 1,
                         ),
                       ),
                     ),

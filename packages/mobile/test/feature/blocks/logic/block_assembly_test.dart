@@ -41,6 +41,15 @@ String _question(String question) =>
 void main() {
   _unknownKindTests();
   group('assembleBlocks', () {
+    test('a new prompt clears an obsolete waiting notice', () {
+      final blocks = assembleBlocks([
+        _event(1, 'question_asked', text: 'Waiting on you'),
+        _event(2, 'prompt_submit', text: 'Hi'),
+      ]);
+
+      expect(blocks.map((block) => block.kind), [BlockKind.prompt]);
+    });
+
     test('a prompt is running until its stop arrives', () {
       final open = assembleBlocks([_event(1, 'prompt_submit', text: 'go')]);
       expect(open.single.status, BlockStatus.running);

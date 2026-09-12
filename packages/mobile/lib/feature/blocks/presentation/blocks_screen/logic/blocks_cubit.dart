@@ -49,7 +49,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   bool loading = false;
   bool active = false;
   bool loadingOlder = false;
-  bool hasOlder = true;
+  bool hasOlder = false;
   String? error;
 
   final SplayTreeMap<int, BlockEventModel> _events = SplayTreeMap<int, BlockEventModel>();
@@ -101,9 +101,10 @@ class BlocksCubit extends Cubit<BlocksState> {
 
     loadingOlder = true;
     _emit();
+    final limit = min(kBlockPage, headroom);
     final result = await _repository.getSessionBlocks(
       sessionId,
-      GetSessionBlocksParams(beforeSeq: before, limit: min(kBlockPage, headroom)),
+      GetSessionBlocksParams(beforeSeq: before, limit: limit),
     );
     result.when(
       onSuccess: (records) {
@@ -115,6 +116,7 @@ class BlocksCubit extends Cubit<BlocksState> {
           for (final record in records) {
             _merge(record);
           }
+          hasOlder = records.length == limit && _capacity < kBlockMaxWindow;
         }
       },
       onFailure: (failure) => error = failure.message.isEmpty
@@ -156,6 +158,7 @@ class BlocksCubit extends Cubit<BlocksState> {
     _events[seq] = record;
     while (_events.length > _capacity) {
       _events.remove(_events.firstKey());
+      hasOlder = _capacity < kBlockMaxWindow;
     }
   }
 

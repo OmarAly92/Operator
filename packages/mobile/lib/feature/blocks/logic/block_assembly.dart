@@ -16,6 +16,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   int? questionIndex;
   int? hookQuestionIndex;
   var sawTranscriptAssistant = false;
+  var lastPromptSeq = 0;
 
   for (final event in ordered) {
     final seq = event.seq!;
@@ -34,6 +35,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         _upsert(blocks, indexById, _create(event, id, BlockKind.notice, BlockStatus.ok, 'Session started', text, model));
 
       case 'prompt_submit':
+        lastPromptSeq = seq;
         todoIndex = null;
         questionIndex = null;
         hookQuestionIndex = null;
@@ -214,7 +216,11 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
     }
   }
 
-  return blocks;
+  return blocks.where((block) =>
+      !(block.kind == BlockKind.notice &&
+        block.status == BlockStatus.blocked &&
+        block.detail is! QuestionBlockDetail &&
+        block.lastSeq < lastPromptSeq)).toList();
 }
 
 List<SessionBlock> resolveStranded(List<SessionBlock> blocks, String reason) => blocks
