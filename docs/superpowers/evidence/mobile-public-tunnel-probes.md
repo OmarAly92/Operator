@@ -183,3 +183,55 @@ a poll loop has to tolerate rather than treat as failure.
 (`metrics.conns`, `metrics.http`), and `/api/agent` and `/api/account` are both
 404 — the agent exposes no account or plan information, so the free tier's data
 transfer allowance cannot be read from the agent and is **not verified here**.
+
+## 10. Authentication requirements
+
+Tested directly, because "does the user have to sign in?" decides whether the
+first press can work at all.
+
+### ngrok requires an account
+
+Run against a config file containing only `version: "3"` (no authtoken), which
+is what a fresh install looks like:
+
+```
+ERROR: authentication failed: This ngrok session is not authenticated.
+ngrok requires an account and a valid credential to start a session.
+  Sign up for an account: https://dashboard.ngrok.com/signup
+  Get your credential: https://dashboard.ngrok.com/get-started/your-authtoken
+ERR_NGROK_4018
+```
+
+The process exits ~0.4s after start. The failure is fast, unambiguous, and
+carries a **machine-readable code (`ERR_NGROK_4018`)** that appears in the
+`--log-format=json` stream — so "no authtoken" is detectable without matching
+prose.
+
+The earlier ngrok probes in this file all succeeded because this machine already
+has an authtoken at
+`~/Library/Application Support/ngrok/ngrok.yml`.
+
+### cloudflared requires nothing
+
+Quick tunnels were created with no account throughout. Proven rather than
+assumed, in three layers:
+
+1. `~/.cloudflared` exists but is **empty** — no `cert.pem`, no credentials
+   file. No credential exists anywhere in the other search paths cloudflared
+   names (`~/.cloudflare-warp`, `~/cloudflare-warp`, `/etc/cloudflared`,
+   `/usr/local/etc/cloudflared` — all absent).
+2. A run with `HOME` pointed at an **empty directory**, with `TUNNEL_TOKEN` and
+   `TUNNEL_ORIGIN_CERT` stripped from the environment, still produced a working
+   tunnel: `spirit-karma-hwy-sphere.trycloudflare.com`, `/ready` →
+   `{"status":200,"readyConnections":1}`.
+3. That run wrote **no files** into the fake home — it creates no credential,
+   so there is no hidden first-run login being cached.
+
+The only account-related output is the startup banner: *"…without a Cloudflare
+account, is a quick way to experiment… these account-less Tunnels have no
+uptime guarantee, are subject to the Cloudflare Online Services Terms of Use…
+Cloudflare reserves the right to investigate your use of Tunnels for violations
+of such terms."*
+
+That banner is also the clearest statement of the trade: no signup, no
+guarantee.

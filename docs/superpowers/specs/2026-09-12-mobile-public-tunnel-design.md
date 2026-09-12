@@ -47,11 +47,24 @@ user is already outside the network when they need it. That rules out any design
 requiring physical presence at the desk to arm the tunnel. §9 covers
 persistence.
 
-## 3. Provider choice, and the two measurements that shaped it
+## 3. Provider choice, and the measurements that shaped it
 
 One `Provider` seam with two implementations, preferring ngrok when an
 authtoken is saved and falling back to a cloudflared quick tunnel so the very
 first press works with no account at all.
+
+Keeping both is what makes the first press work, and the authentication
+requirements (evidence §10) are why:
+
+| | Account required | Consequence |
+| --- | --- | --- |
+| ngrok | **Yes** — one-time authtoken, or it exits in ~0.4s with `ERR_NGROK_4018` | Cannot be the path a first press takes |
+| cloudflared | **No** — verified with an empty `HOME` and no env tokens; it creates no credential at all | Can always carry a first press |
+
+So the roles are fixed by measurement, not preference: **cloudflared makes the
+button work instantly for a brand-new user, and ngrok is an opt-in upgrade**
+that buys pair-once (§5), ~1s instead of ~9s startup, and unbuffered SSE if
+mobile ever needs it.
 
 Three findings from §4, §6 and §8 of the evidence file drive the design more
 than the speed numbers do:
@@ -189,7 +202,8 @@ Three rules follow, and they are binding:
    pair-once. The dialog opens ngrok's authtoken page and offers a paste field,
    validating the token by starting a tunnel rather than by parsing it. One
    paste, once, ever — and until then the cloudflared fallback keeps the button
-   working.
+   working. The invitation to upgrade belongs *next to the re-scan*, where the
+   cost of not having it is being felt, not buried in settings.
 3. **The UI must not present the two paths as equivalent.** A user on the
    fallback who does not know their URL rotates will read a stale-URL failure as
    the feature being broken.
@@ -239,9 +253,21 @@ after 60s of continuous health.
 
 **Retry forever at the ceiling; never give up silently.** A machine left running
 overnight through a router reboot must come back on its own. `failed` is
-reserved for causes retrying cannot fix (checksum mismatch, missing authtoken,
-provider rejecting the account); a network-shaped failure stays `reconnecting`
-however long it takes.
+reserved for causes retrying cannot fix (checksum mismatch, provider rejecting
+the account); a network-shaped failure stays `reconnecting` however long it
+takes.
+
+**A dead authtoken falls back instead of failing.** ngrok exits in ~0.4s with
+`ERR_NGROK_4018` when its credential is missing, revoked, or expired (evidence
+§10), and the code appears in its JSON log stream, so this is detectable
+precisely rather than by matching prose. On that specific code the manager
+switches to cloudflared and comes up there, surfacing *which* provider is live
+and that the ngrok credential needs attention. The switch never happens
+silently: the URL changes with it, so a paired phone must re-scan (§5, §11) and
+the user has to be told why. Retrying ngrok against a credential it has already
+rejected would be pointless — the tunnel would flap between providers — so the
+fallback is sticky until the authtoken is changed or the tunnel is re-enabled by
+hand.
 
 **The URL may change across a restart.** cloudflared guarantees it will. On
 every successful (re)start the manager re-reads the URL and republishes it to
@@ -447,6 +473,10 @@ No test touches the network or starts a real tunnel.
 - **Manager lifecycle** against a fake binary: a script that serves a canned
   control-port response and sleeps. Covers start → live, stop, force-kill after
   grace, and orphan reaping on restart.
+- **Authtoken fallback** — a fake binary emitting `ERR_NGROK_4018` on the JSON
+  log stream drives the switch to cloudflared; the resulting state names the
+  live provider and the credential problem; the fallback is sticky rather than
+  flapping back to ngrok on the next restart.
 - **Reconnection**, the reliability core, all against the fake binary with a
   fake clock — no sleeps in tests: child exits unexpectedly → `reconnecting` →
   `live`, with `restarts` incremented; backoff schedule is exact; the ceiling
