@@ -235,3 +235,49 @@ of such terms."*
 
 That banner is also the clearest statement of the trade: no signup, no
 guarantee.
+
+## 11. ngrok agent API address — `agent.web_addr`
+
+The agent API defaults to `127.0.0.1:4040` and `ngrok http` has no flag to move
+it (`--api-addr` → "unknown flag"; `ngrok http --help` lists no equivalent).
+The key was found by testing candidates through `ngrok config check`, which
+validates against the real v3 schema:
+
+| Candidate | `ngrok config check` |
+| --- | --- |
+| top-level `web_addr` | rejected — "field web_addr not found in type config.v3yamlConfig" |
+| `agent.web_addr` | **Valid configuration file** |
+| `api.addr` | rejected — "field api not found in type config.v3yamlConfig" |
+| `agent.api_addr` | rejected — "field api_addr not found in type config.Agent" |
+
+Validation is not proof of effect, so it was then run for real with:
+
+```yaml
+version: "3"
+agent:
+    web_addr: 127.0.0.1:50893
+```
+
+Result: the agent logged `starting web service addr=127.0.0.1:50893`,
+`/api/tunnels` answered on 50893 and returned the public URL, and
+`127.0.0.1:4040` was **not** reachable.
+
+**Config merging works as needed.** Invoked as `--config <user's ngrok.yml>
+--config <ours>`, the authtoken came from the user's personal config (untouched)
+while `web_addr` came from ours, and the tunnel came up. This is the fifth
+session in this file to return `imagines-livestock-widely.ngrok-free.dev`,
+further supporting §8.
+
+## 12. Writing an authtoken without hand-rolling YAML
+
+```
+ngrok config add-authtoken TOKEN [--config <path>]
+```
+
+Exists in 3.39.6, and `--config` redirects the write away from the default
+`~/Library/Application Support/ngrok/ngrok.yml`. Its help also notes it "saves
+the default config version, providing a working config file out of the box", so
+it creates a valid file from nothing.
+
+Checked via `--help` only — deliberately **not executed**, since running it
+would rewrite this machine's existing authtoken config.

@@ -158,17 +158,32 @@ and degrades the user's own resolver.
 ### ngrok control-port collision
 
 ngrok's agent API defaults to `127.0.0.1:4040`, which collides with a user's own
-running ngrok. `ngrok http` exposes no flag for it (verified: `--api-addr` is
-rejected as an unknown flag, and `ngrok http --help` lists no equivalent), so
-the address has to come from a config file — ours, carrying a reserved port,
-passed as an additional `--config` alongside the user's own so their authtoken
-still merges in.
+running ngrok. `ngrok http` exposes no flag for it (`--api-addr` is rejected as
+an unknown flag, and `ngrok http --help` lists no equivalent), so the address
+comes from a config file.
 
-**The exact v3 config key for that address is not known.** It was not verified,
-and it is the first thing the implementation plan checks; everything else in
-this section rests on measurements. Do not write a key name into code from
-memory. If no such key exists, the fallback is to reserve 4040 ourselves and
-fail with a clear message when it is already taken.
+**Resolved — the v3 key is `agent.web_addr`**, and it was verified rather than
+recalled. `ngrok config check` rejects `web_addr` at top level ("field web_addr
+not found in type config.v3yamlConfig"), rejects `api.addr` and
+`agent.api_addr`, and accepts:
+
+```yaml
+version: "3"
+agent:
+    web_addr: 127.0.0.1:50893
+```
+
+Confirmed to take effect, not merely validate: with that config the agent logged
+`starting web service addr=127.0.0.1:50893`, `/api/tunnels` answered on the
+reserved port, and port 4040 was left unbound.
+
+Config files merge, so the invocation is `--config <user's ngrok.yml> --config
+<ours>`: the authtoken comes from whichever file has one, the `web_addr` from
+ours. Verified end to end — a tunnel came up on the custom port using the
+authtoken from the user's untouched personal config.
+
+The port itself is reserved with the `reservePort` pattern (`manager.go:746`)
+before launch, so two Operator instances cannot collide either.
 
 ## 5. Pair once: URL stability is the whole feature
 
@@ -257,17 +272,49 @@ reserved for causes retrying cannot fix (checksum mismatch, provider rejecting
 the account); a network-shaped failure stays `reconnecting` however long it
 takes.
 
-**A dead authtoken falls back instead of failing.** ngrok exits in ~0.4s with
-`ERR_NGROK_4018` when its credential is missing, revoked, or expired (evidence
-§10), and the code appears in its JSON log stream, so this is detectable
-precisely rather than by matching prose. On that specific code the manager
-switches to cloudflared and comes up there, surfacing *which* provider is live
-and that the ngrok credential needs attention. The switch never happens
-silently: the URL changes with it, so a paired phone must re-scan (§5, §11) and
-the user has to be told why. Retrying ngrok against a credential it has already
-rejected would be pointless — the tunnel would flap between providers — so the
-fallback is sticky until the authtoken is changed or the tunnel is re-enabled by
-hand.
+### ngrok unusable → fall back to cloudflared, never fail the button
+
+Whenever ngrok cannot serve — no authtoken, a revoked one, an exhausted free
+allowance, too many simultaneous agent sessions, the account rejected — the
+manager brings the tunnel up on cloudflared instead. The switch is what keeps
+the button honest: "make it global" should make it global, not present an error
+about a provider the user never chose.
+
+**Classified by behavior, not by an enumerated code list.** Only one ngrok
+failure code is measured (`ERR_NGROK_4018`, evidence §10); the codes for quota
+and session limits are *not* known, and guessing them would produce a list that
+silently fails to match the real thing. The robust discriminator is the shape of
+the failure:
+
+| Observed | Meaning | Action |
+| --- | --- | --- |
+| Child exits before ever publishing a URL | ngrok refused this account/credential/plan | Switch to cloudflared; carry ngrok's own `err` text into status verbatim |
+| Session established, then lost | network-shaped | Reconnect on ngrok (backoff above); never switch |
+| Exits *after* serving, with a provider error | a limit hit mid-use — the quota case | Switch to cloudflared, keep ngrok's message |
+
+Carrying the provider's own `err` string verbatim is what makes this work
+without knowing the codes: ngrok states its own reason better than a guessed
+mapping would, and a code we have never seen still produces a correct,
+informative outcome.
+
+`ERR_NGROK_4018` is the one code matched specifically, because it is the one
+that is *actionable* rather than merely reportable: it means a token is missing
+or bad, so it also opens the authtoken dialog (§10).
+
+**The switch is sticky and never silent.** Retrying a credential ngrok has
+already rejected would flap the tunnel between providers, so the fallback holds
+until the authtoken changes or the user re-enables by hand. And because the URL
+changes with the provider, a paired phone is orphaned and must re-scan (§5,
+§11) — so the UI must say which provider is live and why it moved.
+
+**Known limitation, stated rather than hidden.** A fallback that happens while
+the user is *away* leaves the phone unable to reconnect until they can see the
+new QR, because there is no channel to push a new URL to an unreachable phone
+(push is deliberately unwired — see `CLAUDE.md`). Nothing in this design fixes
+that; what removes it is an authtoken, whose stable URL means no switching
+happens at all. That is the strongest practical argument for the dialog in §10,
+and the reason it exists as a prompt rather than as a settings field nobody
+visits.
 
 **The URL may change across a restart.** cloudflared guarantees it will. On
 every successful (re)start the manager re-reads the URL and republishes it to
@@ -404,6 +451,42 @@ acknowledgement is remembered, so every later enable is a single click. New
 copy goes in `frontend/src/renderer/i18n/en.json`; `renderer-coverage.test.ts`
 gates the other eight locales.
 
+### Authtoken dialog
+
+Opened when ngrok reports a missing or bad credential (`ERR_NGROK_4018`, §7),
+and reachable on demand from the tunnel row so a user who wants pair-once can
+get there without waiting for a failure.
+
+It must be answerable in one paste:
+
+- **Why, in one line** — a stable address, so the phone pairs once instead of
+  re-scanning after every restart. The dialog is *never* a wall: the tunnel is
+  already live on cloudflared behind it, and dismissing it changes nothing.
+- **A button that opens** `https://dashboard.ngrok.com/get-started/your-authtoken`
+  in the user's browser, so the token is two clicks away rather than a search.
+- **One field**, masked with a reveal toggle, treated as the account credential
+  it is.
+- **Validated by use, not by pattern.** Save starts a real ngrok tunnel and
+  reports what actually happened; a token that ngrok rejects is reported with
+  ngrok's own message. No regex on token shape — that would reject valid future
+  formats and accept invalid current ones.
+- **Success is visible**: the tunnel moves to ngrok, the QR updates to the new
+  URL, and the copy says the phone needs one final re-scan — after which it is
+  paired for good.
+
+**Storage.** Written with `ngrok config add-authtoken TOKEN --config
+~/.operator/mobile/ngrok.yml` (verified to exist and to accept `--config`), so
+ngrok's own tooling owns the secret's serialization and we never hand-roll YAML
+around a credential. That file is ours, mode `0600`, and the user's personal
+`~/Library/Application Support/ngrok/ngrok.yml` is never modified — a user who
+already has a token keeps using it untouched, which is how this machine's
+existing token was picked up in every probe.
+
+**The token is a credential and is treated as one.** Never logged, never echoed
+into `/api/v1/mobile/status`, never included in telemetry, and never written to
+the stdout `lineBuffer` (§4) that diagnostics surface. Status may report only
+whether a token is present.
+
 ## 11. Pairing payload v2 and the mobile client
 
 The QR grows a second shape. LAN keeps `{v:1, host, port, password}`; the tunnel
@@ -473,10 +556,18 @@ No test touches the network or starts a real tunnel.
 - **Manager lifecycle** against a fake binary: a script that serves a canned
   control-port response and sleeps. Covers start → live, stop, force-kill after
   grace, and orphan reaping on restart.
-- **Authtoken fallback** — a fake binary emitting `ERR_NGROK_4018` on the JSON
-  log stream drives the switch to cloudflared; the resulting state names the
-  live provider and the credential problem; the fallback is sticky rather than
-  flapping back to ngrok on the next restart.
+- **Provider fallback**, classified by failure shape (§7) rather than by code
+  list, against a fake binary: exits before publishing a URL → switches to
+  cloudflared carrying the provider's `err` text; establishes then loses its
+  session → reconnects on ngrok and never switches; exits with an error *after*
+  serving (the quota shape) → switches; `ERR_NGROK_4018` additionally flags that
+  the authtoken dialog is wanted; the switch is sticky across a restart rather
+  than flapping back.
+- **Authtoken dialog** — opens on `ERR_NGROK_4018` and on demand; the tunnel
+  stays live on cloudflared while it is open and dismissing it changes nothing;
+  save is validated by a real start rather than by pattern; a rejected token
+  surfaces the provider's message. Plus a test that the token never appears in
+  status, telemetry, logs, or the stdout `lineBuffer`.
 - **Reconnection**, the reliability core, all against the fake binary with a
   fake clock — no sleeps in tests: child exits unexpectedly → `reconnecting` →
   `live`, with `restarts` incremented; backoff schedule is exact; the ceiling
@@ -514,10 +605,12 @@ button that does the opposite is worse than either alone.
 | Risk | Mitigation |
 | --- | --- |
 | Provider changes its local API shape | Pinned versions; parser fixtures fail loudly on upgrade |
-| Quick tunnel unavailable or rate-limited | Surfaced as `failed` with the provider's message; ngrok path unaffected |
+| Quick tunnel unavailable or rate-limited | Surfaced with the provider's own message; an authtoken moves the user off this path permanently |
 | cloudflared SSE buffering reaches a future mobile SSE consumer | §11 guard test fails on the first such consumer |
 | Public URL leaks | 131-bit password; one-time confirmation; always-visible indicator; revocable by one switch or by regenerating the password |
 | Tunnel persists unnoticed for months | Indicator is always visible while live (§10); `since` in status makes the age explicit |
 | Flapping tunnel looks "live" | `restarts` and `reconnecting` are surfaced, not smoothed over (§7, §8) |
-| ngrok free data-transfer allowance exhausted by terminal streaming | **Unverified** — the agent exposes no account or plan data (evidence §9). Implementation must confirm the allowance against the dashboard and, if it is low enough to matter, surface provider-reported quota errors as a distinct `failed` message rather than a generic one |
+| ngrok free data-transfer allowance exhausted by terminal streaming | Falls back to cloudflared and keeps working (§7) rather than failing the button; ngrok's own message is shown, so the user learns *why* the address changed. The allowance itself stays **unverified** — the agent exposes no account or plan data (evidence §9) — which is exactly why the fallback classifies on failure shape instead of on a guessed quota code |
+| ngrok authtoken missing, revoked, or expired | `ERR_NGROK_4018` opens the authtoken dialog (§10) while the tunnel already runs on cloudflared; nothing blocks on the dialog |
+| Provider switch happens while the user is away from the desk | Not solvable without a push channel, and stated as a limitation (§7). An authtoken removes the case entirely by removing the switch |
 | Download blocked by proxy/offline | `failed` state naming the cause; LAN pairing unaffected |
