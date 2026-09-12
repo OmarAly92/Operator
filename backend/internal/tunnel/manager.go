@@ -213,6 +213,7 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 
 	done := make(chan struct{})
 	awaitDone := make(chan struct{})
+	liveConfirmed := make(chan struct{})
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
 	m.status = Status{State: StateStarting, Provider: provider.Name()}
@@ -221,13 +222,13 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.recordPID(provider.Name(), cmd)
 	m.setState(StateStarting, provider.Name())
 
-	go m.supervise(runCtx, provider, cmd, controlPort, logs, done)
-	go m.runAwaitURL(runCtx, provider, controlPort, cancel, done, awaitDone)
+	go m.supervise(runCtx, provider, cmd, controlPort, logs, done, liveConfirmed)
+	go m.runAwaitURL(runCtx, provider, controlPort, cancel, done, awaitDone, liveConfirmed)
 
 	return nil
 }
 
-func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done chan struct{}, awaitDone chan struct{}) {
+func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done chan struct{}, awaitDone chan struct{}, liveConfirmed chan struct{}) {
 	defer close(awaitDone)
 	if err := m.awaitURL(ctx, provider, controlPort); err != nil {
 		if ctx.Err() != nil {
@@ -238,7 +239,9 @@ func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPor
 		m.mu.Unlock()
 		cancel()
 		<-done
+		return
 	}
+	close(liveConfirmed)
 }
 
 func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort int) error {
@@ -369,22 +372,216 @@ func trimCR(line string) string {
 	return line
 }
 
-func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done chan struct{}) {
+func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cmd, controlPort int, logs *lineRing, done chan struct{}, liveConfirmed chan struct{}) {
 	defer close(done)
-	exited := make(chan error, 1)
-	go func() { exited <- cmd.Wait() }()
 
-	select {
-	case <-ctx.Done():
-		_ = terminateProcess(cmd)
-		select {
-		case <-exited:
-		case <-time.After(stopGrace):
-			_ = forceKillProcess(cmd)
-			<-exited
+	current := cmd
+	currentPort := controlPort
+	currentLogs := logs
+	backoff := backoffFloor
+	var liveSince time.Time
+	firstAttempt := true
+
+	for {
+		exited := make(chan error, 1)
+		go func(c *exec.Cmd) { exited <- c.Wait() }(current)
+
+		healthCtx, healthCancel := context.WithCancel(ctx)
+		healthy := m.watchHealth(healthCtx, provider, currentPort)
+
+		var confirmed bool
+		if firstAttempt {
+			firstAttempt = false
+			select {
+			case <-ctx.Done():
+				healthCancel()
+				m.stopChild(current, exited)
+				return
+			case <-exited:
+			case <-liveConfirmed:
+				confirmed = true
+			}
+		} else {
+			urlCtx, urlCancel := context.WithCancel(ctx)
+			urlResult := make(chan error, 1)
+			go func() { urlResult <- m.awaitURL(urlCtx, provider, currentPort) }()
+
+			select {
+			case <-ctx.Done():
+				urlCancel()
+				healthCancel()
+				m.stopChild(current, exited)
+				return
+			case <-exited:
+				urlCancel()
+			case err := <-urlResult:
+				urlCancel()
+				if err == nil {
+					confirmed = true
+				}
+			}
 		}
-	case <-exited:
+
+		if confirmed {
+			liveSince = m.now()
+
+			var stopped bool
+			select {
+			case <-ctx.Done():
+				healthCancel()
+				m.stopChild(current, exited)
+				stopped = true
+			case <-healthy:
+				healthCancel()
+				m.stopChild(current, exited)
+			case <-exited:
+				healthCancel()
+			}
+			if stopped {
+				return
+			}
+		} else {
+			healthCancel()
+		}
+
+		published := m.Status().URL != ""
+		failure := provider.ClassifyFailure(currentLogs.Lines())
+		class := combineFailure(published, failure)
+
+		if class == FailureCredential || class == FailureRefused {
+			m.handleProviderRefusal(ctx, provider, failure, class)
+			return
+		}
+
+		m.mu.Lock()
+		if !m.enabled {
+			m.mu.Unlock()
+			return
+		}
+		m.status.State = StateReconnecting
+		m.status.URL = ""
+		if failure.Message != "" {
+			m.status.Error = failure.Message
+		}
+		m.status.Restarts++
+		m.mu.Unlock()
+		m.onProvider("")
+
+		if !liveSince.IsZero() && m.now().Sub(liveSince) >= healthResetAfter {
+			backoff = backoffFloor
+		}
+		liveSince = time.Time{}
+
+		if err := m.sleep(ctx, backoff); err != nil {
+			return
+		}
+		backoff *= 2
+		if backoff > backoffCeiling {
+			backoff = backoffCeiling
+		}
+
+		next, nextPort, nextLogs, err := m.spawn(provider)
+		if err != nil {
+			m.mu.Lock()
+			m.status.Error = err.Error()
+			m.mu.Unlock()
+			continue
+		}
+		current, currentPort, currentLogs = next, nextPort, nextLogs
+
+		m.mu.Lock()
+		m.cmd = current
+		m.logs = currentLogs
+		m.mu.Unlock()
+		m.recordPID(provider.Name(), current)
 	}
 }
+
+func (m *Manager) watchHealth(ctx context.Context, provider Provider, controlPort int) <-chan struct{} {
+	unhealthy := make(chan struct{})
+	go func() {
+		for m.Status().State != StateLive {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Millisecond):
+			}
+		}
+		strikes := 0
+		for {
+			if err := m.sleep(ctx, healthInterval); err != nil {
+				return
+			}
+			if m.Status().State != StateLive {
+				return
+			}
+			ok, err := provider.Healthy(ctx, controlPort)
+			if err == nil && ok {
+				strikes = 0
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Millisecond):
+				}
+				continue
+			}
+			strikes++
+			if strikes >= 2 {
+				close(unhealthy)
+				return
+			}
+		}
+	}()
+	return unhealthy
+}
+
+func (m *Manager) stopChild(cmd *exec.Cmd, exited chan error) {
+	_ = terminateProcess(cmd)
+	if exited == nil {
+		return
+	}
+	select {
+	case <-exited:
+	case <-time.After(stopGrace):
+		_ = forceKillProcess(cmd)
+		<-exited
+	}
+}
+
+func (m *Manager) spawn(provider Provider) (*exec.Cmd, int, *lineRing, error) {
+	binary, err := m.binaries.Ensure(context.Background(), provider.Binary())
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	controlPort, err := m.reservePort()
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	m.mu.Lock()
+	localPort := m.localPort
+	m.mu.Unlock()
+
+	logs := newLineRing(logRetention)
+	cmd := newTunnelCommand(binary, provider.Args(localPort, controlPort)...)
+	cmd.Stdout = logs
+	cmd.Stderr = logs
+	if err := cmd.Start(); err != nil {
+		return nil, 0, nil, err
+	}
+	return cmd, controlPort, logs, nil
+}
+
+func combineFailure(published bool, failure Failure) FailureClass {
+	switch failure.Class {
+	case FailureCredential, FailureRefused, FailureNetwork:
+		return failure.Class
+	}
+	if published {
+		return FailureNetwork
+	}
+	return FailureRefused
+}
+
+func (m *Manager) handleProviderRefusal(context.Context, Provider, Failure, FailureClass) {}
 
 func (m *Manager) recordPID(string, *exec.Cmd) {}
