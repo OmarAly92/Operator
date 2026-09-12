@@ -1545,6 +1545,25 @@ func TestSpawn_HumanSpawnSucceedsAtTheSameCapThatBlocksTheOrchestrator(t *testin
 	}
 }
 
+func TestSpawn_OrchestratorAttributedSpawnSucceedsWhenUnderBothCaps(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 10, MaxSpawnsPerHour: 10}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+
+	sess, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	if err != nil {
+		t.Fatalf("an orchestrator-attributed spawn under both caps must succeed: %v", err)
+	}
+	if sess.ID != "proj-1-2" {
+		t.Fatalf("session = %+v, want the fake commander's spawnRecord (proj-1-2) to have reached and passed through the manager", sess)
+	}
+	if !fc.spawned {
+		t.Fatal("manager.Spawn was not invoked; the budget checks must not short-circuit a spawn that is under both caps")
+	}
+}
+
 func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
 	st := newFakeStore()
 	fc := &fakeCommander{}
