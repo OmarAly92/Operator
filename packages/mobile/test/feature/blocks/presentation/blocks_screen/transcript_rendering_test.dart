@@ -36,6 +36,33 @@ SessionBlock _base({
 );
 
 void main() {
+  testWidgets('assistant replies render formatting instead of Markdown punctuation', (tester) async {
+    await tester.pumpWidget(_host(_base(
+      id: 'markdown',
+      kind: BlockKind.assistant,
+      body: '## Latest release\n\nA **clear answer** with [Apple Newsroom](https://apple.com/newsroom).\n\n- First item\n- Second item\n\n```sh\ngo test ./...\n```',
+    )));
+    expect(find.text('Latest release', findRichText: true), findsOneWidget);
+    expect(find.textContaining('A clear answer with Apple Newsroom.', findRichText: true), findsOneWidget);
+    expect(find.textContaining('**clear answer**', findRichText: true), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('formatted replies fit a narrow screen with enlarged text', (tester) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(_host(_base(
+      id: 'narrow', kind: BlockKind.assistant,
+      body: '## Results\n\n- **Readable** nested content\n  - Another item\n\n| File | Status |\n| --- | --- |\n| mobile/chat.dart | Ready |\n\n```sh\nflutter test a/very/long/path/that/should/scroll/horizontally.dart\n```',
+    )));
+    expect(find.text('Results', findRichText: true), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a tool block shows its input and its result separately', (tester) async {
     await tester.pumpWidget(
       _host(_base(id: 'b-1', kind: BlockKind.tool, title: 'Bash', body: 'go test ./...', result: 'ok 42 tests')),
@@ -56,6 +83,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Show less'), findsOneWidget);
+  });
+
+  testWidgets('a long single-line result stays compact until expanded', (tester) async {
+    final output = '${'x' * 1600} end of output';
+    await tester.pumpWidget(_host(_base(id: 'long-json', kind: BlockKind.tool, result: output)));
+    expect(find.text(output), findsNothing);
+    await tester.tap(find.text('Show full result'));
+    await tester.pumpAndSettle();
+    expect(find.text(output), findsOneWidget);
   });
 
   testWidgets('a question block lists every option', (tester) async {

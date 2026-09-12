@@ -13,6 +13,7 @@ import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/session_command_cubit.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_action_sheet.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_markdown.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_question_options.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_result_section.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_status_dot.dart';
@@ -150,6 +151,19 @@ class BlockCard extends StatelessWidget {
     final nameHighlight = match?.forField(BlockMatchField.displayName);
     final actionsWidget = actionsBuilder?.call(block);
 
+    final railBody = _RailBody(
+      kind: kind,
+      block: block,
+      display: display,
+      collapsed: collapsed,
+      onToggleCollapse: onToggleCollapse,
+      onLongPressHeader: onLongPressHeader,
+      onLongPressBody: () => _showActionSheet(context),
+      nameHighlight: nameHighlight,
+      summaryHighlight: summaryHighlight,
+      actionsBuilder: actionsBuilder,
+    );
+
     final Widget core = switch (kind) {
       RailKind.user => _UserBubble(
         block: block,
@@ -158,22 +172,19 @@ class BlockCard extends StatelessWidget {
         onLongPressBody: () => _showActionSheet(context),
       ),
       RailKind.notice => _NoticeRow(block: block),
+      RailKind.text => Padding(
+        padding: const EdgeInsets.only(bottom: 22, top: 4),
+        child: railBody,
+      ),
+      RailKind.group || RailKind.mcpGroup => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: railBody,
+      ),
       _ => _RailRow(
         status: block.status,
         dotColor: railNodeColor(skin, block),
         hasLine: hasFollowingRailItem,
-        body: _RailBody(
-          kind: kind,
-          block: block,
-          display: display,
-          collapsed: collapsed,
-          onToggleCollapse: onToggleCollapse,
-          onLongPressHeader: onLongPressHeader,
-          onLongPressBody: () => _showActionSheet(context),
-          nameHighlight: nameHighlight,
-          summaryHighlight: summaryHighlight,
-          actionsBuilder: actionsBuilder,
-        ),
+        body: railBody,
       ),
     };
 
@@ -307,16 +318,18 @@ class _RailBody extends StatelessWidget {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onLongPress: onLongPressHeader ?? onLongPressBody,
-          child: _highlightedField(
-            context: context,
-            text: display.summary,
-            ranges: summaryHighlight?.ranges ?? const [],
-            base: AppTextStyle.style15Regular.copyWith(
-              color: context.skin.textPrimary,
-              height: 1.5,
-            ),
-            softWrap: true,
-          ),
+          child: summaryHighlight == null
+              ? BlockMarkdown(text: display.summary)
+              : _highlightedField(
+                  context: context,
+                  text: display.summary,
+                  ranges: summaryHighlight!.ranges,
+                  base: AppTextStyle.style15Regular.copyWith(
+                    color: context.skin.textPrimary,
+                    height: 1.5,
+                  ),
+                  softWrap: true,
+                ),
         );
       case RailKind.think:
         return _ThinkBody(
@@ -531,10 +544,14 @@ class _GroupBody extends StatelessWidget {
   final Widget? Function(SessionBlock block)? actionsBuilder;
 
   String? get _meta {
-    if (block.status == BlockStatus.running) return isMcp ? 'mcp · running' : 'running';
-    if (isMcp) return 'mcp';
-    final error = block.errorType ?? '';
-    return error.isEmpty ? null : error;
+    final labels = <String>[
+      if (block.status == BlockStatus.running) 'running',
+      if (block.status == BlockStatus.failed) 'failed',
+      if (isMcp) 'mcp',
+      if (block.redacted) 'redacted',
+      if (block.truncatedLines > 0) '${block.truncatedLines} lines truncated',
+    ];
+    return labels.isEmpty ? null : labels.join(' · ');
   }
 
   @override
@@ -545,31 +562,40 @@ class _GroupBody extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onToggleCollapse,
       onLongPress: onLongPressHeader,
-      child: Row(
-        children: [
-          Expanded(
-            child: _highlightedField(
-              context: context,
-              text: display.displayName,
-              ranges: nameHighlight?.ranges ?? const [],
-              base: AppTextStyle.style13SemiBold.copyWith(color: skin.textPrimary),
-            ),
-          ),
-          if (meta != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: AppText(meta, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
-            ),
-          if (onToggleCollapse != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Icon(
-                collapsed ? Icons.chevron_right : Icons.expand_more,
-                size: 16,
-                color: skin.textTertiary,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
+          children: [
+            if (block.status != BlockStatus.ok) ...[
+              BlockStatusDot(status: block.status),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: _highlightedField(
+                context: context,
+                text: display.displayName,
+                ranges: nameHighlight?.ranges ?? const [],
+                base: AppTextStyle.style13Medium.copyWith(color: skin.textSecondary),
               ),
             ),
-        ],
+            if (meta != null)
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: AppText(meta, maxLines: 2, style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                ),
+              ),
+            if (onToggleCollapse != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Icon(
+                  collapsed ? Icons.chevron_right : Icons.expand_more,
+                  size: 16,
+                  color: skin.textTertiary,
+                ),
+              ),
+          ],
+        ),
       ),
     );
 
@@ -579,20 +605,17 @@ class _GroupBody extends StatelessWidget {
     final cmdLines = <Widget>[];
     if (detail is ShellBlockDetail && (detail.command ?? '').isNotEmpty) {
       cmdLines.add(
-        AppText(
+        Text(
           detail.command!,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: AppTextStyle.mono11p5Regular.copyWith(color: skin.textPrimary),
         ),
       );
       if ((detail.output ?? '').isNotEmpty) {
         final failed = detail.exitCode != null && detail.exitCode != 0;
         cmdLines.add(
-          AppText(
+          Text(
             detail.output!,
             style: AppTextStyle.mono11p5Regular.copyWith(color: failed ? skin.red : skin.textPrimary),
-            maxLines: 400,
           ),
         );
       }

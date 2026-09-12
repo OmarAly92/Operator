@@ -26,11 +26,6 @@ class StickyBlock extends Equatable {
   ];
 }
 
-/// Pins a lightweight summary of the top-of-viewport block while it scrolls
-/// under the header. Only kinds with a natural header row in the rail design
-/// — reasoning, command/tool group, diff, plan — get one; a plain-text,
-/// permission, notice, or user-bubble block has nothing header-shaped to pin,
-/// so it renders nothing (`docs/design/session_detail/session_detail.md`).
 class StickyBlockHeader extends StatelessWidget {
   const StickyBlockHeader({super.key, required this.sticky, this.trailing});
 
@@ -43,7 +38,9 @@ class StickyBlockHeader extends StatelessWidget {
     builder: (context, value, _) {
       if (value == null) return const SizedBox.shrink();
       final block = value.block;
-      if (!railKindHasHeader(railKindOf(block))) return const SizedBox.shrink();
+      if (block.kind == BlockKind.tool || !railKindHasHeader(railKindOf(block))) {
+        return const SizedBox.shrink();
+      }
       final skin = context.skin;
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 12),

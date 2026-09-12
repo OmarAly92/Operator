@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_actions.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_find.dart';
 import 'package:operator_mobile/feature/blocks/logic/block_viewport.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
+import 'package:operator_mobile/feature/blocks/logic/tool_grouping.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/tool_group_header.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_group_status.dart';
 
 bool _hasFollowingRailItem(List<SessionBlock> blocks, int index) {
@@ -69,6 +72,10 @@ class BlockListState extends State<BlockList> {
   final GlobalKey leadingKey = GlobalKey();
   final GlobalKey viewportKey = GlobalKey();
 
+  final Set<String> _collapsedToolGroups = {};
+  final Set<String> _expandedTools = {};
+  Map<String, List<SessionBlock>> _toolGroups = {};
+
   int? _pivotSeq;
   bool _pinned = true;
   bool _followScheduled = false;
@@ -90,6 +97,8 @@ class BlockListState extends State<BlockList> {
   void didUpdateWidget(BlockList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionId != oldWidget.sessionId) {
+      _collapsedToolGroups.clear();
+      _expandedTools.clear();
       _pivotSeq = null;
       _topIndex = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -171,11 +180,15 @@ class BlockListState extends State<BlockList> {
 
   void scrollBlockIntoView(int index) {
     if (!controller.hasClients) return;
+    final tools = _toolGroups[widget.blocks[index].id];
+    if (tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id)) {
+      index = widget.blocks.indexWhere((block) => block.id == tools.first.id);
+    }
     var delta = _viewportTopDelta(index);
     final current = _topIndex;
     if (delta == null &&
         current != null &&
-        BlockViewport.nextBoundary(current, widget.blocks.length) == index) {
+        _nextVisibleBoundary(current) == index) {
       delta = _viewportBottomDelta(current);
     }
     if (delta == null) return;
@@ -188,11 +201,19 @@ class BlockListState extends State<BlockList> {
     );
   }
 
+  int? _nextVisibleBoundary(int? index) {
+    final tools = index == null ? null : _toolGroups[widget.blocks[index].id];
+    final boundary = tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id)
+        ? widget.blocks.indexWhere((block) => block.id == tools.last.id)
+        : index;
+    return BlockViewport.nextBoundary(boundary, widget.blocks.length);
+  }
+
   void scrollToBoundary({required bool forward}) {
     if (!controller.hasClients) return;
     final current = _topIndex;
     if (forward) {
-      final target = BlockViewport.nextBoundary(current, widget.blocks.length);
+      final target = _nextVisibleBoundary(current);
       if (target != null) scrollBlockIntoView(target);
       return;
     }
@@ -239,8 +260,10 @@ class BlockListState extends State<BlockList> {
             return;
           }
           _topIndex = blockIndex;
+          final tools = _toolGroups[widget.blocks[blockIndex].id];
+          final collapsedGroup = tools != null && tools.length > 1 && _collapsedToolGroups.contains(tools.first.id);
           notifier?.value =
-              BlockViewport.headerSticks(height, viewport.size.height)
+              !collapsedGroup && BlockViewport.headerSticks(height, viewport.size.height)
               ? StickyBlock(block: widget.blocks[blockIndex], height: height)
               : null;
           return;
@@ -300,6 +323,9 @@ class BlockListState extends State<BlockList> {
     };
     final pivot = BlockViewport.pivotIndex(blocks, _pivotSeq);
     final header = widget.header;
+    _toolGroups = widget.selectionMode || widget.highlights.isNotEmpty
+        ? const <String, List<SessionBlock>>{}
+        : groupConsecutiveTools(blocks, pivot: pivot);
 
     return SizedBox.expand(
       key: viewportKey,
@@ -315,8 +341,9 @@ class BlockListState extends State<BlockList> {
             itemBuilder: (context, index) {
               final blockIndex = pivot - 1 - index;
               final block = blocks[blockIndex];
-              return _blockWithGroupStatus(
+              return _toolOrBlock(
                 block,
+                _toolGroups[block.id],
                 groupEndingByBlockId[block.id],
                 _hasFollowingRailItem(blocks, blockIndex),
               );
@@ -328,8 +355,9 @@ class BlockListState extends State<BlockList> {
             itemBuilder: (context, index) {
               final blockIndex = pivot + index;
               final block = blocks[blockIndex];
-              return _blockWithGroupStatus(
+              return _toolOrBlock(
                 block,
+                _toolGroups[block.id],
                 groupEndingByBlockId[block.id],
                 _hasFollowingRailItem(blocks, blockIndex),
               );
@@ -341,38 +369,97 @@ class BlockListState extends State<BlockList> {
     );
   }
 
-  Widget _blockWithGroupStatus(SessionBlock block, TurnGroup? group, bool hasFollowingRailItem) {
+  Widget _toolOrBlock(SessionBlock block, List<SessionBlock>? tools, TurnGroup? group, bool hasFollowingRailItem) {
+    if (tools == null) return _blockWithGroupStatus(block, group, hasFollowingRailItem);
+    if (tools.length == 1) return _blockWithGroupStatus(block, group, false, compactTool: true);
+    final groupId = tools.first.id;
+    final expanded = !_collapsedToolGroups.contains(groupId);
+    final status = block.id != groupId
+        ? BlockStatus.ok
+        : tools.any((tool) => tool.status == BlockStatus.failed)
+        ? BlockStatus.failed
+        : tools.any((tool) => tool.status == BlockStatus.running)
+        ? BlockStatus.running
+        : BlockStatus.ok;
+    return Column(
+      key: ValueKey(block.id),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (block.id == groupId)
+          ToolGroupHeader(
+            count: tools.length,
+            status: status,
+            expanded: expanded,
+            onLongPress: widget.onLongPressHeader == null ? null : () => widget.onLongPressHeader!(groupId),
+            onTap: () => setState(() {
+              if (!_collapsedToolGroups.add(groupId)) _collapsedToolGroups.remove(groupId);
+            }),
+          ),
+        if (expanded)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: context.skin.bgSurface,
+              border: Border(
+                left: BorderSide(color: context.skin.borderSubtle),
+                right: BorderSide(color: context.skin.borderSubtle),
+                bottom: BorderSide(color: context.skin.borderSubtle),
+                top: block.id == groupId ? BorderSide(color: context.skin.borderSubtle) : BorderSide.none,
+              ),
+            ),
+            child: _blockWithGroupStatus(block, group, false, compactTool: true),
+          )
+        else if (group != null)
+          _blockWithGroupStatus(block, group, false, showCard: false),
+      ],
+    );
+  }
+
+  Widget _blockWithGroupStatus(
+    SessionBlock block,
+    TurnGroup? group,
+    bool hasFollowingRailItem, {
+    bool compactTool = false,
+    bool showCard = true,
+  }) {
     final ctx = widget.actionContext;
     final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
     return Column(
       key: ValueKey(block.id),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BlockCard(
-          block: block,
-          actionsBuilder: widget.actionsBuilder,
-          actions: actions,
-          onAction: widget.onAction == null
-              ? null
-              : (action) => widget.onAction!(block, action),
-          collapsed: widget.collapsedIds.contains(block.id),
-          onToggleCollapse: widget.onToggleCollapse == null
-              ? null
-              : () => widget.onToggleCollapse!(block.id),
-          highlight: widget.highlights[block.id],
-          activeMatch: widget.activeMatchId == block.id,
-          searchMatches: widget.highlights,
-          activeMatchId: widget.activeMatchId,
-          selected: widget.selectedIds.contains(block.id),
-          onToggleSelect: widget.onToggleSelect == null
-              ? null
-              : (value) => widget.onToggleSelect!(block.id, value),
-          selectionMode: widget.selectionMode,
-          onLongPressHeader: widget.onLongPressHeader == null
-              ? null
-              : () => widget.onLongPressHeader!(block.id),
-          hasFollowingRailItem: hasFollowingRailItem,
-        ),
+        if (showCard)
+          BlockCard(
+            block: block,
+            actionsBuilder: widget.actionsBuilder,
+            actions: actions,
+            onAction: widget.onAction == null
+                ? null
+                : (action) => widget.onAction!(block, action),
+            collapsed: compactTool
+                ? !_expandedTools.contains(block.id)
+                : widget.collapsedIds.contains(block.id) && !widget.highlights.containsKey(block.id),
+            onToggleCollapse: compactTool
+                ? () => setState(() {
+                    if (!_expandedTools.add(block.id)) _expandedTools.remove(block.id);
+                  })
+                : widget.onToggleCollapse == null
+                ? null
+                : () => widget.onToggleCollapse!(block.id),
+            highlight: widget.highlights[block.id],
+            activeMatch: widget.activeMatchId == block.id,
+            searchMatches: widget.highlights,
+            activeMatchId: widget.activeMatchId,
+            selected: widget.selectedIds.contains(block.id),
+            onToggleSelect: widget.onToggleSelect == null
+                ? null
+                : (value) => widget.onToggleSelect!(block.id, value),
+            selectionMode: widget.selectionMode,
+            onLongPressHeader: widget.onLongPressHeader == null
+                ? null
+                : () => widget.onLongPressHeader!(block.id),
+            hasFollowingRailItem: hasFollowingRailItem,
+          ),
         if (group != null && widget.canRollbackTurn?.call(group) == true)
           TurnGroupStatus(
             group: group,
