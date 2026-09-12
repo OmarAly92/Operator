@@ -280,9 +280,9 @@ corrected to point at `opr board`.
 prompt rule is not a limit.
 
 The daemon cannot currently tell who asked for a spawn. `cliInvocationActorType`
-(`backend/internal/cli/root.go:243`) reads `OPERATOR_SESSION_ID`, but that value
+(`backend/internal/cli/root.go:245`) reads `OPERATOR_SESSION_ID`, but that value
 is only posted to the telemetry endpoint `/internal/telemetry/cli-invoked`; the
-spawn request itself (`SpawnSessionRequest`, `controllers/dto.go:169`) carries
+spawn request itself (`SpawnSessionRequest`, `controllers/dto.go:196`) carries
 no caller identity. The leash therefore needs a wire change: `opr spawn` sends
 `requestedBy` (the session id from `OPERATOR_SESSION_ID`, when set), the daemon
 verifies it resolves to a live orchestrator in the same project, and the spawn
@@ -648,4 +648,6 @@ the budget is an unbounded spawn loop.
 
 Delete the stale "the dispatcher reads it" comment
 (`backend/internal/lifecycle/manager.go:30`) in whichever phase first touches
-that interface.
+that interface. Already done: Phase 1 removed it (verified 2026-09-12 by a
+full-file grep of `manager.go` for "dispatcher reads" — zero matches). Phase 2
+does not need to touch this again.
