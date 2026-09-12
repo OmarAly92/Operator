@@ -177,7 +177,7 @@ class BlockCard extends StatelessWidget {
         child: railBody,
       ),
       RailKind.group || RailKind.mcpGroup => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: EdgeInsets.only(bottom: collapsed ? 0 : 6),
         child: railBody,
       ),
       _ => _RailRow(

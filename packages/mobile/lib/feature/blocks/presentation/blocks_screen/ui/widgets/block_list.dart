@@ -398,8 +398,13 @@ class BlockListState extends State<BlockList> {
         if (expanded)
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: context.skin.bgSurface,
+              borderRadius: BorderRadius.vertical(
+                top: block.id == groupId ? const Radius.circular(10) : Radius.zero,
+                bottom: block.id == tools.last.id ? const Radius.circular(10) : Radius.zero,
+              ),
               border: Border(
                 left: BorderSide(color: context.skin.borderSubtle),
                 right: BorderSide(color: context.skin.borderSubtle),
