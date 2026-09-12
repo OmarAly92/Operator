@@ -125,6 +125,17 @@ SELECT EXISTS(
       AND native_transcript_path = ''
 ) AS is_seed;
 
+-- name: CountLiveSessionsByProjectAndKind :one
+SELECT COUNT(*) FROM sessions WHERE project_id = ? AND kind = ? AND is_terminated = 0;
+
+-- name: CountSessionsSpawnedBySince :one
+SELECT COUNT(*) FROM sessions WHERE project_id = ? AND spawned_by = ? AND created_at >= ?;
+
+-- name: OldestSessionSpawnedBySince :one
+SELECT created_at FROM sessions
+WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
+ORDER BY created_at ASC LIMIT 1;
+
 -- NOTE: the `DELETE FROM sessions WHERE id = ? AND <seed-state predicates>`
 -- statement is intentionally NOT a sqlc query — same sqlc 1.31 SQLite-parser
 -- bug as documented in queries/changelog.sql: trailing string literals (and

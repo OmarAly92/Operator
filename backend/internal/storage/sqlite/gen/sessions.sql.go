@@ -13,6 +13,39 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const countLiveSessionsByProjectAndKind = `-- name: CountLiveSessionsByProjectAndKind :one
+SELECT COUNT(*) FROM sessions WHERE project_id = ? AND kind = ? AND is_terminated = 0
+`
+
+type CountLiveSessionsByProjectAndKindParams struct {
+	ProjectID domain.ProjectID
+	Kind      domain.SessionKind
+}
+
+func (q *Queries) CountLiveSessionsByProjectAndKind(ctx context.Context, arg CountLiveSessionsByProjectAndKindParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLiveSessionsByProjectAndKind, arg.ProjectID, arg.Kind)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSessionsSpawnedBySince = `-- name: CountSessionsSpawnedBySince :one
+SELECT COUNT(*) FROM sessions WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
+`
+
+type CountSessionsSpawnedBySinceParams struct {
+	ProjectID domain.ProjectID
+	SpawnedBy domain.SessionID
+	CreatedAt time.Time
+}
+
+func (q *Queries) CountSessionsSpawnedBySince(ctx context.Context, arg CountSessionsSpawnedBySinceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSessionsSpawnedBySince, arg.ProjectID, arg.SpawnedBy, arg.CreatedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getSession = `-- name: GetSession :one
 SELECT id, project_id, num, issue_id, kind, harness,
     activity_state, activity_last_at, is_terminated, branch, workspace_path, workspace_mode,
@@ -497,6 +530,25 @@ func (q *Queries) NextSessionNum(ctx context.Context, projectID domain.ProjectID
 	var next int64
 	err := row.Scan(&next)
 	return next, err
+}
+
+const oldestSessionSpawnedBySince = `-- name: OldestSessionSpawnedBySince :one
+SELECT created_at FROM sessions
+WHERE project_id = ? AND spawned_by = ? AND created_at >= ?
+ORDER BY created_at ASC LIMIT 1
+`
+
+type OldestSessionSpawnedBySinceParams struct {
+	ProjectID domain.ProjectID
+	SpawnedBy domain.SessionID
+	CreatedAt time.Time
+}
+
+func (q *Queries) OldestSessionSpawnedBySince(ctx context.Context, arg OldestSessionSpawnedBySinceParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, oldestSessionSpawnedBySince, arg.ProjectID, arg.SpawnedBy, arg.CreatedAt)
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
 }
 
 const recordSessionLatestUserPrompt = `-- name: RecordSessionLatestUserPrompt :execrows

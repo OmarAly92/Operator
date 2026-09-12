@@ -264,6 +264,41 @@ func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID)
 	return append([]domain.SessionWorktreeRecord(nil), f.worktrees[id]...), nil
 }
 
+func (f *fakeStore) CountLiveSessionsByProjectAndKind(_ context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error) {
+	n := 0
+	for _, r := range f.sessions {
+		if r.ProjectID == project && r.Kind == kind && !r.IsTerminated {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeStore) CountSessionsSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error) {
+	n := 0
+	for _, r := range f.sessions {
+		if r.ProjectID == project && r.SpawnedBy == spawnedBy && !r.CreatedAt.Before(since) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeStore) OldestSessionSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error) {
+	var oldest time.Time
+	found := false
+	for _, r := range f.sessions {
+		if r.ProjectID != project || r.SpawnedBy != spawnedBy || r.CreatedAt.Before(since) {
+			continue
+		}
+		if !found || r.CreatedAt.Before(oldest) {
+			oldest = r.CreatedAt
+			found = true
+		}
+	}
+	return oldest, found, nil
+}
+
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -1479,6 +1514,55 @@ func TestSpawn_EmptyRequestedByIsAlwaysAHumanSpawnAndSucceeds(t *testing.T) {
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
 	if err != nil {
 		t.Fatalf("empty requestedBy must never be rejected: %v", err)
+	}
+}
+
+func TestSpawn_RefusesAtLiveWorkerCapForOrchestratorAttributedSpawn(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxLiveWorkers" {
+		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxLiveWorkers", err)
+	}
+}
+
+func TestSpawn_HumanSpawnSucceedsAtTheSameCapThatBlocksTheOrchestrator(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatalf("a human spawn (empty RequestedBy) must be unaffected by the orchestrator's budget: %v", err)
+	}
+}
+
+func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+	now := time.Now().UTC()
+	oldest := now.Add(-10 * time.Minute)
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 100, MaxSpawnsPerHour: 1}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker, SpawnedBy: "proj-1-orch", CreatedAt: oldest}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxSpawnsPerHour" {
+		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxSpawnsPerHour", err)
+	}
+	resetsAt, ok := apiErr.Details["resetsAt"].(string)
+	if !ok || resetsAt == "" {
+		t.Fatalf("Details[\"resetsAt\"] = %v, want a non-empty timestamp naming when the oldest counted spawn ages out", apiErr.Details["resetsAt"])
 	}
 }
 

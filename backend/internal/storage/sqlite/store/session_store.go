@@ -331,6 +331,39 @@ func (s *Store) ListAllSessions(ctx context.Context) ([]domain.SessionRecord, er
 	return mapListAllSessionsRows(rows), nil
 }
 
+// CountLiveSessionsByProjectAndKind returns the number of non-terminated
+// sessions of the given kind in a project.
+func (s *Store) CountLiveSessionsByProjectAndKind(ctx context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error) {
+	n, err := s.qr.CountLiveSessionsByProjectAndKind(ctx, gen.CountLiveSessionsByProjectAndKindParams{ProjectID: project, Kind: kind})
+	if err != nil {
+		return 0, fmt.Errorf("count live %s sessions for %s: %w", kind, project, err)
+	}
+	return int(n), nil
+}
+
+// CountSessionsSpawnedBySince returns the number of sessions in a project
+// that a given orchestrator spawned at or after since.
+func (s *Store) CountSessionsSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error) {
+	n, err := s.qr.CountSessionsSpawnedBySince(ctx, gen.CountSessionsSpawnedBySinceParams{ProjectID: project, SpawnedBy: spawnedBy, CreatedAt: since})
+	if err != nil {
+		return 0, fmt.Errorf("count sessions spawned by %s for %s: %w", spawnedBy, project, err)
+	}
+	return int(n), nil
+}
+
+// OldestSessionSpawnedBySince returns the creation time of the oldest session
+// that a given orchestrator spawned at or after since, or false if none.
+func (s *Store) OldestSessionSpawnedBySince(ctx context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error) {
+	t, err := s.qr.OldestSessionSpawnedBySince(ctx, gen.OldestSessionSpawnedBySinceParams{ProjectID: project, SpawnedBy: spawnedBy, CreatedAt: since})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, fmt.Errorf("oldest session spawned by %s for %s: %w", spawnedBy, project, err)
+	}
+	return t, true, nil
+}
+
 func mapListSessionsByProjectRows(rows []gen.ListSessionsByProjectRow) []domain.SessionRecord {
 	out := make([]domain.SessionRecord, 0, len(rows))
 	for _, r := range rows {
