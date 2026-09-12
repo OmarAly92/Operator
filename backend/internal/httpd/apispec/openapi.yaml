@@ -2916,6 +2916,63 @@ paths:
         application preview
       tags:
       - sessions
+  /api/v1/sessions/{sessionId}/relaunch-agent:
+    post:
+      operationId: relaunchSessionAgent
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersRelaunchAgentRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersRelaunchAgentResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Kill the running agent and relaunch it on a new conversation
+      tags:
+      - sessions
   /api/v1/sessions/{sessionId}/restore:
     post:
       operationId: restoreSession
@@ -4638,6 +4695,31 @@ components:
         disabled:
           type: boolean
       type: object
+    ControllersRelaunchAgentRequest:
+      properties:
+        keepPrompt:
+          type: boolean
+      type: object
+    ControllersRelaunchAgentResponse:
+      properties:
+        ok:
+          type: boolean
+        relaunchMode:
+          enum:
+          - native
+          - saved_prompt
+          - fresh
+          type: string
+        session:
+          $ref: '#/components/schemas/ControllersSessionView'
+        sessionId:
+          type: string
+      required:
+      - ok
+      - sessionId
+      - relaunchMode
+      - session
+      type: object
     ControllersRestoreSessionRequest:
       properties:
         cols:
@@ -4748,6 +4830,8 @@ components:
           type: string
         harness:
           type: string
+        hasSavedPrompt:
+          type: boolean
         id:
           type: string
         isPinned:

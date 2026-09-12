@@ -141,6 +141,8 @@ export type WorkspaceSession = {
 	scmStatus?: SessionStatus;
 	/** Durable runtime fact from the daemon; independent of the derived SCM-aware status. */
 	isTerminated?: boolean;
+	/** Daemon holds a saved task prompt it can replay into a fresh conversation. */
+	hasSavedPrompt?: boolean;
 	/** User preference to tear down this session when its PR set completes through a merge. */
 	terminateOnPrMerge?: boolean;
 	/** Whether SCM review feedback is automatically injected into the worker. */

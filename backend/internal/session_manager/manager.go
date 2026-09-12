@@ -1387,22 +1387,91 @@ func (m *Manager) ResumeAgentWithMode(ctx context.Context, id domain.SessionID) 
 	return m.relaunchSession(ctx, "resume agent", rec, project, ws, &handle, ports.PaneGrid{})
 }
 
-func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
-	return m.relaunchSessionWithPolicy(ctx, operation, rec, project, ws, restartHandle, grid)
+// RelaunchAgentFresh replaces a session's agent with a brand-new provider
+// conversation, keeping the worktree, the runtime handle and the terminal
+// identity. Unlike ResumeAgentWithMode it accepts a *live* agent - killing the
+// running process is the point - and it never resumes the native transcript.
+// keepPrompt re-delivers the saved task prompt into the new conversation.
+func (m *Manager) RelaunchAgentFresh(ctx context.Context, id domain.SessionID, keepPrompt bool) (RestoreResult, error) {
+	if err := m.beginAgentOperation(ctx, id, agentOperationRelaunch); err != nil {
+		if errors.Is(err, errAgentOperationInProgress) {
+			err = ErrSwitchInProgress
+		}
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, err)
+	}
+	defer m.endAgentOperation(id, agentOperationRelaunch)
+
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, err)
+	}
+	if !ok {
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, ErrNotFound)
+	}
+	if rec.IsTerminated {
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, ErrTerminated)
+	}
+	project, err := m.loadProject(ctx, rec.ProjectID)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, err)
+	}
+	meta := rec.Metadata
+	if meta.WorkspacePath == "" ||
+		(meta.Branch == "" && project.Kind.WithDefault() != domain.ProjectKindScratch) ||
+		meta.RuntimeHandleID == "" {
+		return RestoreResult{}, fmt.Errorf("relaunch agent %s: %w", id, ErrIncompleteHandle)
+	}
+	ws := ports.WorkspaceInfo{
+		Path:      meta.WorkspacePath,
+		Branch:    meta.Branch,
+		SessionID: rec.ID,
+		ProjectID: rec.ProjectID,
+		Mode:      meta.WorkspaceMode,
+	}
+	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
+	return m.relaunchSessionWithPolicy(ctx, "relaunch agent", rec, project, ws, &handle, ports.PaneGrid{},
+		relaunchPolicy{forceFresh: true, keepPrompt: keepPrompt})
 }
 
-func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
+// relaunchPolicy selects how a relaunch rebuilds the agent's conversation.
+// The zero value is the historical behavior: prefer the harness's native
+// resume, fall back to replaying the saved prompt.
+type relaunchPolicy struct {
+	// forceFresh skips the native resume command entirely and starts a new
+	// provider conversation, minting a fresh native session id for adapters
+	// that accept a caller-assigned one.
+	forceFresh bool
+	// keepPrompt re-delivers the session's saved task prompt into the new
+	// conversation. Ignored unless forceFresh is set.
+	keepPrompt bool
+}
+
+func (m *Manager) relaunchSession(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid) (RestoreResult, error) {
+	return m.relaunchSessionWithPolicy(ctx, operation, rec, project, ws, restartHandle, grid, relaunchPolicy{})
+}
+
+func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, grid ports.PaneGrid, policy relaunchPolicy) (RestoreResult, error) {
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return RestoreResult{}, fmt.Errorf("%s %s: no agent adapter for harness %q", operation, rec.ID, rec.Harness)
 	}
+	// A forced-fresh relaunch discards the provider conversation, so the launch
+	// must not see the abandoned native id (nor the saved prompt, unless the
+	// caller asked to replay it). This stays off rec: rec is written back to the
+	// store further down, and blanking Prompt there would destroy the worker's
+	// saved task rather than merely skip it for this launch.
+	launchMeta := applyRelaunchPolicy(rec.Metadata, policy)
+	launchRec := rec
+	launchRec.Metadata = launchMeta
 	// Recompute standing instructions, then reapply the durable finalized inbound
-	// handoff for this exact native conversation when one exists.
+	// handoff for this exact native conversation when one exists. A blanked
+	// native id makes this a no-op, which is correct: the handoff describes the
+	// conversation being abandoned.
 	systemPrompt, err := m.buildSystemPrompt(ctx, rec.Kind, rec.ProjectID)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: system prompt: %w", operation, rec.ID, err)
 	}
-	systemPrompt, err = m.systemPromptForNativeRestore(ctx, rec, systemPrompt)
+	systemPrompt, err = m.systemPromptForNativeRestore(ctx, launchRec, systemPrompt)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: switched continuation: %w", operation, rec.ID, err)
 	}
@@ -1427,8 +1496,24 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	if err := m.prepareWorkspace(ctx, agent, rec.ID, ws.Path, systemPrompt, systemPromptFile, agentConfig, env); err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
 	}
-	argv, delivery, mode, err := restoreArgv(ctx, agent, rec.ID, ws.Path, rec.Metadata,
-		systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir)
+	var (
+		argv     []string
+		delivery ports.PromptDeliveryStrategy
+		mode     RestoreMode
+	)
+	if policy.forceFresh {
+		var nativeSessionID string
+		nativeSessionID, err = freshNativeSessionID(agent)
+		if err != nil {
+			m.cleanupSystemPromptDir(rec.ID)
+			return RestoreResult{}, fmt.Errorf("%s %s: fresh native session id: %w", operation, rec.ID, err)
+		}
+		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true, nativeSessionID)
+	} else {
+		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, launchMeta,
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir)
+	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
 		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
@@ -1472,7 +1557,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		WorkspaceRepoPath:         ws.RepoPath,
 		RuntimeHandleID:           handle.ID,
 		RuntimeLaunchID:           launchID,
-		AgentSessionID:            rec.Metadata.AgentSessionID,
+		AgentSessionID:            launchMeta.AgentSessionID,
 		Prompt:                    rec.Metadata.Prompt,
 		BrowserCapabilityVerifier: browserCapabilityVerifier,
 	}
@@ -1481,7 +1566,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		m.cleanupSystemPromptDir(rec.ID)
 		return RestoreResult{}, fmt.Errorf("%s %s: completed: %w", operation, rec.ID, err)
 	}
-	if delivery == ports.PromptDeliveryAfterStart && rec.Metadata.Prompt != "" {
+	if delivery == ports.PromptDeliveryAfterStart && launchMeta.Prompt != "" {
 		launchCfg := ports.LaunchConfig{
 			DataDir:          m.dataDir,
 			SessionID:        string(rec.ID),
@@ -3372,6 +3457,46 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// applyRelaunchPolicy returns the metadata a forced-fresh relaunch must
+// not carry into the new conversation: the abandoned native session id always,
+// and the saved task prompt unless the caller asked to replay it.
+func applyRelaunchPolicy(meta domain.SessionMetadata, policy relaunchPolicy) domain.SessionMetadata {
+	if !policy.forceFresh {
+		return meta
+	}
+	meta.AgentSessionID = ""
+	meta.NativeTranscriptPath = ""
+	if !policy.keepPrompt {
+		meta.Prompt = ""
+	}
+	return meta
+}
+
+// freshNativeSessionID mints the provider conversation id for a forced-fresh
+// relaunch. Adapters that assign their own ids return "" and report the real id
+// through their lifecycle hooks; only caller-assigned adapters need one here.
+// Claude Code is the reason this exists: without an explicit id it derives a
+// deterministic one from the Operator session id and resumes the very
+// transcript the relaunch is discarding.
+func freshNativeSessionID(agent ports.Agent) (string, error) {
+	provider, ok := agent.(ports.AgentContinuationCapabilityProvider)
+	if !ok {
+		return "", nil
+	}
+	if provider.ContinuationCapabilities().FreshNativeSessionID != ports.FreshNativeSessionIDCallerAssigned {
+		return "", nil
+	}
+	allocator, ok := agent.(ports.AgentFreshNativeSessionIDProvider)
+	if !ok {
+		return "", errors.New("adapter declares caller-assigned ids without an allocator")
+	}
+	id := strings.TrimSpace(allocator.NewNativeSessionID())
+	if id == "" {
+		return "", errors.New("provider returned an empty fresh native session id")
+	}
+	return id, nil
+}
+
 // restoreArgv builds the argv to relaunch a torn-down session: the agent's
 // native resume command when it can continue the session, else a fresh launch
 // for harnesses where replaying the saved prompt is acceptable. The agent
@@ -3392,13 +3517,13 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, kind, dataDir, false)
+		systemPromptFile, agentConfig, kind, dataDir, false, "")
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool, nativeSessionID string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	// A saved prompt is replayed fresh. An orchestrator is promptless by design
 	// and relaunches with the system prompt only. A promptless WORKER has no task
 	// and no session id to restore from: do not blank-relaunch it.
@@ -3418,6 +3543,7 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		SystemPromptFile: systemPromptFile,
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		NativeSessionID:  nativeSessionID,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

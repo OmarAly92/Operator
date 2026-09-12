@@ -33,42 +33,44 @@ import (
 )
 
 type fakeSessionService struct {
-	sessions         map[domain.SessionID]domain.Session
-	sent             string
-	sentAttachment   *ports.SpawnAttachment
-	commandResult    sessionmanager.CommandResult
-	commandErr       error
-	commandCalls     int
-	draftResult      string
-	draftErr         error
-	sendErr          error
-	decideErr        error
-	decideCalls      int
-	answerErr        error
-	answerCalls      int
-	answerSelections [][]string
-	delegationInput  sessionsvc.DelegateTaskInput
-	delegationErr    error
-	cleanupProjects  []domain.ProjectID
-	cleanupResult    []domain.SessionID
-	cleanupSkipped   []sessionsvc.CleanupSkipped
-	workspaceFiles   sessionsvc.WorkspaceFiles
-	workspaceFile    sessionsvc.WorkspaceFileDetail
-	workspacePaths   []string
-	spawnErr         error
-	lastSpawnConfig  ports.SpawnConfig
-	lastRestoreGrid  ports.PaneGrid
-	claimErr         error
-	listPRErr        error
-	workspaceErr     error
-	staged           []ports.SpawnAttachment
-	stagedPaths      []string
-	stageErr         error
-	agentSwitches    map[domain.AgentSwitchID]domain.AgentSwitch
-	switchConfig     sessionsvc.SwitchAgentInput
-	switchErr        error
-	handoff          json.RawMessage
-	handoffSource    domain.AgentGenerationID
+	sessions           map[domain.SessionID]domain.Session
+	relaunchErr        error
+	relaunchKeptPrompt bool
+	sent               string
+	sentAttachment     *ports.SpawnAttachment
+	commandResult      sessionmanager.CommandResult
+	commandErr         error
+	commandCalls       int
+	draftResult        string
+	draftErr           error
+	sendErr            error
+	decideErr          error
+	decideCalls        int
+	answerErr          error
+	answerCalls        int
+	answerSelections   [][]string
+	delegationInput    sessionsvc.DelegateTaskInput
+	delegationErr      error
+	cleanupProjects    []domain.ProjectID
+	cleanupResult      []domain.SessionID
+	cleanupSkipped     []sessionsvc.CleanupSkipped
+	workspaceFiles     sessionsvc.WorkspaceFiles
+	workspaceFile      sessionsvc.WorkspaceFileDetail
+	workspacePaths     []string
+	spawnErr           error
+	lastSpawnConfig    ports.SpawnConfig
+	lastRestoreGrid    ports.PaneGrid
+	claimErr           error
+	listPRErr          error
+	workspaceErr       error
+	staged             []ports.SpawnAttachment
+	stagedPaths        []string
+	stageErr           error
+	agentSwitches      map[domain.AgentSwitchID]domain.AgentSwitch
+	switchConfig       sessionsvc.SwitchAgentInput
+	switchErr          error
+	handoff            json.RawMessage
+	handoffSource      domain.AgentGenerationID
 }
 
 type fakeManagedPreviewServer struct {
@@ -263,6 +265,22 @@ func (f *fakeSessionService) Restore(_ context.Context, id domain.SessionID, gri
 	s.Status = domain.StatusIdle
 	f.sessions[id] = s
 	return sessionsvc.RestoreOutcome{Session: s, Mode: sessionsvc.RestoreModeView("native")}, nil
+}
+
+func (f *fakeSessionService) RelaunchAgent(_ context.Context, id domain.SessionID, keepPrompt bool) (sessionsvc.ResumeAgentOutcome, error) {
+	if f.relaunchErr != nil {
+		return sessionsvc.ResumeAgentOutcome{}, f.relaunchErr
+	}
+	s := f.sessions[id]
+	s.Activity.State = domain.ActivityIdle
+	s.Status = domain.StatusIdle
+	f.sessions[id] = s
+	f.relaunchKeptPrompt = keepPrompt
+	mode := sessionsvc.RestoreModeViewFresh
+	if keepPrompt {
+		mode = sessionsvc.RestoreModeViewSavedPrompt
+	}
+	return sessionsvc.ResumeAgentOutcome{Session: s, Mode: mode}, nil
 }
 
 func (f *fakeSessionService) ResumeAgent(_ context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error) {
@@ -2596,4 +2614,61 @@ func TestRestoreSessionAcceptsAnEmptyBody(t *testing.T) {
 	if svc.lastRestoreGrid != (ports.PaneGrid{}) {
 		t.Fatalf("grid = %+v, want zero", svc.lastRestoreGrid)
 	}
+}
+
+func TestRelaunchAgent(t *testing.T) {
+	t.Run("defaults to a cleared conversation", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/relaunch-agent", "")
+		if status != http.StatusOK {
+			t.Fatalf("relaunch = %d, want 200; body=%s", status, body)
+		}
+		var got struct {
+			OK           bool   `json:"ok"`
+			SessionID    string `json:"sessionId"`
+			RelaunchMode string `json:"relaunchMode"`
+		}
+		mustJSON(t, body, &got)
+		if !got.OK || got.SessionID != "opr-1" || got.RelaunchMode != "fresh" {
+			t.Fatalf("relaunch response = %#v", got)
+		}
+		if svc.relaunchKeptPrompt {
+			t.Fatal("empty body should not opt into replaying the saved prompt")
+		}
+	})
+
+	t.Run("keepPrompt replays the saved task", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/relaunch-agent", `{"keepPrompt":true}`)
+		if status != http.StatusOK {
+			t.Fatalf("relaunch = %d, want 200; body=%s", status, body)
+		}
+		if !svc.relaunchKeptPrompt {
+			t.Fatal("keepPrompt was not forwarded to the service")
+		}
+		if !strings.Contains(string(body), `"relaunchMode":"saved_prompt"`) {
+			t.Fatalf("relaunch body = %s", body)
+		}
+	})
+
+	t.Run("surfaces a typed conflict", func(t *testing.T) {
+		svc := newFakeSessionService()
+		svc.relaunchErr = apierr.Conflict("SESSION_TERMINATED", "Session is terminated", nil)
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/relaunch-agent", "")
+		if status != http.StatusConflict || !strings.Contains(string(body), "SESSION_TERMINATED") {
+			t.Fatalf("terminated relaunch = %d body=%s", status, body)
+		}
+	})
+
+	t.Run("rejects a malformed body", func(t *testing.T) {
+		svc := newFakeSessionService()
+		srv := newSessionTestServer(t, svc)
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions/opr-1/relaunch-agent", `{`)
+		if status != http.StatusBadRequest || !strings.Contains(string(body), "INVALID_JSON") {
+			t.Fatalf("malformed relaunch = %d body=%s", status, body)
+		}
+	})
 }
