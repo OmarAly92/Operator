@@ -171,9 +171,15 @@ func extract(spec BinarySpec, archive []byte) ([]byte, error) {
 		return extractZip(spec.EntryName, archive)
 	case ArchiveTarGz:
 		return extractTarGz(spec.EntryName, archive)
+	case ArchiveRaw:
+		return extractRaw(archive)
 	default:
 		return nil, fmt.Errorf("tunnel: unknown archive kind for %s", spec.Name)
 	}
+}
+
+func extractRaw(archive []byte) ([]byte, error) {
+	return archive, nil
 }
 
 func extractZip(entry string, archive []byte) ([]byte, error) {

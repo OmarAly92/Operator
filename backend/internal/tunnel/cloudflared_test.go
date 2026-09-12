@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 )
 
@@ -83,5 +84,42 @@ func TestCloudflaredClientIPHeaderPrefersCfConnectingIP(t *testing.T) {
 	}
 	if got := NgrokProvider(nil).ClientIPHeader(); got != "X-Forwarded-For" {
 		t.Errorf("got %q, want X-Forwarded-For", got)
+	}
+}
+
+func TestCloudflaredBinaryPlatformSpecific(t *testing.T) {
+	spec := CloudflaredProvider().Binary()
+
+	tests := []struct {
+		goos      string
+		goarch    string
+		archive   ArchiveKind
+		hasSuffix bool
+	}{
+		{"darwin", "amd64", ArchiveTarGz, true},
+		{"darwin", "arm64", ArchiveTarGz, true},
+		{"linux", "amd64", ArchiveRaw, false},
+		{"linux", "arm64", ArchiveRaw, false},
+	}
+
+	for _, tt := range tests {
+		url, err := spec.URL(tt.goos, tt.goarch)
+		if err != nil {
+			t.Errorf("URL(%s, %s): %v", tt.goos, tt.goarch, err)
+			continue
+		}
+
+		hasTarGz := len(url) >= 4 && url[len(url)-4:] == ".tgz"
+		if tt.hasSuffix && !hasTarGz {
+			t.Errorf("URL(%s, %s) = %q, want .tgz suffix", tt.goos, tt.goarch, url)
+		} else if !tt.hasSuffix && hasTarGz {
+			t.Errorf("URL(%s, %s) = %q, should not have .tgz suffix", tt.goos, tt.goarch, url)
+		}
+	}
+
+	if runtime.GOOS == "darwin" && spec.Archive != ArchiveTarGz {
+		t.Errorf("on darwin, expected ArchiveTarGz, got %v", spec.Archive)
+	} else if runtime.GOOS == "linux" && spec.Archive != ArchiveRaw {
+		t.Errorf("on linux, expected ArchiveRaw, got %v", spec.Archive)
 	}
 }

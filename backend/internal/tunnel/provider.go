@@ -18,6 +18,7 @@ type ArchiveKind int
 const (
 	ArchiveZip ArchiveKind = iota
 	ArchiveTarGz
+	ArchiveRaw
 )
 
 type BinarySpec struct {

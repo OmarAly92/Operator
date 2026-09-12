@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 )
 
@@ -16,17 +17,28 @@ func (cloudflaredProvider) Name() string { return "cloudflared" }
 const cloudflaredVersion = "2026.3.0"
 
 func (cloudflaredProvider) Binary() BinarySpec {
+	var archive ArchiveKind
+	if runtime.GOOS == "linux" {
+		archive = ArchiveRaw
+	} else {
+		archive = ArchiveTarGz
+	}
+
 	return BinarySpec{
 		Name:      "cloudflared",
 		Version:   cloudflaredVersion,
-		Archive:   ArchiveTarGz,
+		Archive:   archive,
 		EntryName: "cloudflared",
 		URL: func(goos, goarch string) (string, error) {
 			if goarch != "amd64" && goarch != "arm64" {
 				return "", fmt.Errorf("tunnel: cloudflared has no build for %s/%s", goos, goarch)
 			}
+			suffix := ""
+			if goos != "linux" {
+				suffix = ".tgz"
+			}
 			return "https://github.com/cloudflare/cloudflared/releases/download/" +
-				cloudflaredVersion + "/cloudflared-" + goos + "-" + goarch + ".tgz", nil
+				cloudflaredVersion + "/cloudflared-" + goos + "-" + goarch + suffix, nil
 		},
 		SHA256: cloudflaredChecksums,
 	}
