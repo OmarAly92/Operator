@@ -201,3 +201,49 @@ func TestOrchestratorPromptTeachesThePullProtocol(t *testing.T) {
 		}
 	}
 }
+
+func testPromptProject(t *testing.T) promptProject {
+	return promptProject{
+		ID:            "test-proj",
+		Name:          "Test Project",
+		Repo:          "https://github.com/test/project",
+		DefaultBranch: "main",
+		Path:          "/test/project",
+	}
+}
+
+func TestOrchestratorPrompt_AuthorizesActingWithoutAsking(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	for _, want := range []string{
+		"spawn, redirect, and kill worker sessions on your own judgment",
+		"Do not ask the human for permission before spawning, redirecting, or killing a worker",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing autonomy grant %q", want)
+		}
+	}
+}
+
+func TestOrchestratorPrompt_TeachesTheBudgetFailureMode(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "ORCHESTRATOR_BUDGET_EXHAUSTED") {
+		t.Fatal("prompt does not mention ORCHESTRATOR_BUDGET_EXHAUSTED")
+	}
+	if !strings.Contains(got, "do not retry the spawn in a loop") {
+		t.Fatal("prompt does not tell the orchestrator to avoid retrying budget exhaustion")
+	}
+}
+
+func TestOrchestratorPrompt_RestatesTheMergeBoundary(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "Never merge a PR on your own initiative") {
+		t.Fatal("prompt does not restate the merge boundary for autonomous framing")
+	}
+}
+
+func TestOrchestratorPrompt_TeachesSwitchAgent(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "opr session switch-agent") {
+		t.Fatal("prompt does not teach opr session switch-agent")
+	}
+}

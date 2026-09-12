@@ -640,11 +640,15 @@ added so the orchestrator's own `opr send`/nudge traffic does not re-trigger
 itself. See `docs/superpowers/plans/2026-09-12-orchestrator-ears-phase-1.md`
 for the task breakdown.
 
-**Phase 2 — Leash and autonomy, together.** Migration 0107 (`spawned_by`), the
-`requestedBy` wire field on spawn, budget enforcement in the spawn service, the
-`orchestratorPolicy` config block, and the prompt rewrite granting the
-orchestrator authority to act unasked. These must not be split: autonomy without
-the budget is an unbounded spawn loop.
+**Phase 2 — Leash and autonomy, together.** **Done.** Migration 0107 (`spawned_by`),
+the `requestedBy` wire field on spawn, budget enforcement in the spawn service,
+the `orchestratorPolicy` config block, and the prompt rewrite granting the
+orchestrator authority to act unasked. See
+`docs/superpowers/plans/2026-09-12-orchestrator-leash-phase-2.md` for the task
+breakdown. The prompt teaches `opr session switch-agent` instead of the initially
+named (but never shipped) `opr session handoff`; switch-agent is the real command
+that exists in the service layer and is what the orchestrator will actually
+invoke.
 
 Delete the stale "the dispatcher reads it" comment
 (`backend/internal/lifecycle/manager.go:30`) in whichever phase first touches
