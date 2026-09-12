@@ -217,7 +217,13 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	firstAwaitCtx, firstAwaitCancel := context.WithCancel(runCtx)
 	m.mu.Lock()
 	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
-	m.status = Status{State: StateStarting, Provider: provider.Name()}
+	m.status = Status{
+		State:          StateStarting,
+		Provider:       provider.Name(),
+		Error:          m.status.Error,
+		NeedsAuthtoken: m.status.NeedsAuthtoken,
+		Since:          m.status.Since,
+	}
 	m.mu.Unlock()
 
 	m.recordPID(provider.Name(), cmd)
@@ -273,7 +279,6 @@ func (m *Manager) publishURL(provider Provider, url string) {
 	m.status.State = StateLive
 	m.status.Provider = provider.Name()
 	m.status.URL = url
-	m.status.Error = ""
 	if m.status.Since.IsZero() {
 		m.status.Since = m.now()
 	}
@@ -568,6 +573,47 @@ func combineFailure(published bool, failure Failure) FailureClass {
 	return FailureRefused
 }
 
-func (m *Manager) handleProviderRefusal(context.Context, Provider, Failure, FailureClass) {}
+func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, failure Failure, class FailureClass) {
+	m.mu.Lock()
+	if !m.enabled {
+		m.mu.Unlock()
+		return
+	}
+	m.stickyFrom[provider.Name()] = true
+	m.status.URL = ""
+	m.status.Error = failure.Message
+	if class == FailureCredential {
+		m.status.NeedsAuthtoken = true
+	}
+	m.status.State = StateStarting
+	remaining := 0
+	for _, candidate := range m.providers {
+		if !m.stickyFrom[candidate.Name()] {
+			remaining++
+		}
+	}
+	m.mu.Unlock()
+	m.onProvider("")
+
+	m.log.Warn("tunnel provider refused; falling back",
+		"provider", provider.Name(), "class", class, "err", failure.Message)
+
+	if remaining == 0 {
+		m.mu.Lock()
+		m.status.State = StateFailed
+		if m.status.Error == "" {
+			m.status.Error = "no tunnel provider available"
+		}
+		m.mu.Unlock()
+		return
+	}
+
+	if err := m.startFirstWorkingProvider(ctx); err != nil {
+		m.mu.Lock()
+		m.status.State = StateFailed
+		m.status.Error = err.Error()
+		m.mu.Unlock()
+	}
+}
 
 func (m *Manager) recordPID(string, *exec.Cmd) {}
