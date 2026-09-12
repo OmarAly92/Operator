@@ -172,3 +172,27 @@ func TestProjectConfigIsZero(t *testing.T) {
 		t.Fatal("config with env should not be zero")
 	}
 }
+
+func TestOrchestratorPolicy_WithDefaults_FillsOnlyUnsetFields(t *testing.T) {
+	p := OrchestratorPolicy{MaxLiveWorkers: 3}.WithDefaults()
+	if p.MaxLiveWorkers != 3 {
+		t.Fatalf("MaxLiveWorkers = %d, want the explicitly set 3 preserved", p.MaxLiveWorkers)
+	}
+	if p.MaxSpawnsPerHour != DefaultMaxSpawnsPerHour {
+		t.Fatalf("MaxSpawnsPerHour = %d, want default %d", p.MaxSpawnsPerHour, DefaultMaxSpawnsPerHour)
+	}
+}
+
+func TestOrchestratorPolicy_WithDefaults_OnZeroValue(t *testing.T) {
+	p := OrchestratorPolicy{}.WithDefaults()
+	if p.MaxLiveWorkers != DefaultMaxLiveWorkers || p.MaxSpawnsPerHour != DefaultMaxSpawnsPerHour {
+		t.Fatalf("got %+v, want both defaults", p)
+	}
+}
+
+func TestProjectConfig_WithDefaults_FillsOrchestratorPolicy(t *testing.T) {
+	c := ProjectConfig{}.WithDefaults()
+	if c.OrchestratorPolicy.MaxLiveWorkers != DefaultMaxLiveWorkers {
+		t.Fatalf("ProjectConfig.WithDefaults() did not cascade into OrchestratorPolicy: %+v", c.OrchestratorPolicy)
+	}
+}

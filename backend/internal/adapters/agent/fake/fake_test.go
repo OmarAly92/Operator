@@ -251,6 +251,27 @@ func (s *lifecycleStore) ListSessions(_ context.Context, _ domain.ProjectID) ([]
 	return nil, nil
 }
 
+func (s *lifecycleStore) UpdateSessionFromActivitySignalAndEnqueueInboxEvent(_ context.Context, rec domain.SessionRecord, _ domain.OrchestratorInboxEvent) (bool, error) {
+	s.sessions[rec.ID] = rec
+	return true, nil
+}
+
+func (s *lifecycleStore) CountPendingInboxEvents(_ context.Context, _ domain.ProjectID) (int, error) {
+	return 0, nil
+}
+
+func (s *lifecycleStore) ListPendingInboxEvents(_ context.Context, _ domain.ProjectID) ([]domain.OrchestratorInboxEvent, error) {
+	return nil, nil
+}
+
+func (s *lifecycleStore) ListProjectsWithPendingInboxEvents(_ context.Context) ([]domain.ProjectID, error) {
+	return nil, nil
+}
+
+func (s *lifecycleStore) AckInboxEvents(_ context.Context, _ domain.ProjectID, _ []string) (int, error) {
+	return 0, nil
+}
+
 // TestFullLifecycleSpawnToTermination is the end-to-end integration test the
 // #2692 re-review asked for: it drives the real path — spawn (GetLaunchCommand)
 // -> hooks fire (the script actually runs, calling a stub `opr` on PATH that

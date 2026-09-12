@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ func (f *fakeTelemetrySink) Emit(_ context.Context, ev ports.TelemetryEvent) {
 func (f *fakeTelemetrySink) Close(context.Context) error { return nil }
 
 type fakeStore struct {
+	mu        sync.Mutex
 	sessions  map[domain.SessionID]domain.SessionRecord
 	pr        map[domain.SessionID]domain.PRFacts
 	prs       map[domain.SessionID][]domain.PullRequest
@@ -111,6 +113,8 @@ func (f *fakeStore) CreateSession(_ context.Context, rec domain.SessionRecord) (
 }
 
 func (f *fakeStore) GetSession(_ context.Context, id domain.SessionID) (domain.SessionRecord, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	r, ok := f.sessions[id]
 	return r, ok, nil
 }
@@ -256,12 +260,64 @@ func (f *fakeStore) ListPRComments(_ context.Context, prURL string) ([]domain.Pu
 }
 
 func (f *fakeStore) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	p, ok := f.projects[id]
 	return p, ok, nil
 }
 
 func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID) ([]domain.SessionWorktreeRecord, error) {
 	return append([]domain.SessionWorktreeRecord(nil), f.worktrees[id]...), nil
+}
+
+func (f *fakeStore) CountLiveSessionsByProjectAndKind(_ context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, r := range f.sessions {
+		if r.ProjectID == project && r.Kind == kind && !r.IsTerminated {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeStore) CountSessionsSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, r := range f.sessions {
+		if r.ProjectID == project && r.SpawnedBy == spawnedBy && !r.CreatedAt.Before(since) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeStore) OldestSessionSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var oldest time.Time
+	found := false
+	for _, r := range f.sessions {
+		if r.ProjectID != project || r.SpawnedBy != spawnedBy || r.CreatedAt.Before(since) {
+			continue
+		}
+		if !found || r.CreatedAt.Before(oldest) {
+			oldest = r.CreatedAt
+			found = true
+		}
+	}
+	return oldest, found, nil
+}
+
+// putSession is a concurrency-safe way for tests to simulate a session being
+// created mid-flight, mirroring what fakeCommander.spawnFunc does when it
+// mutates f.sessions from a goroutine racing other fakeStore readers.
+func (f *fakeStore) putSession(rec domain.SessionRecord) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[rec.ID] = rec
 }
 
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
@@ -1420,6 +1476,282 @@ func TestSpawnUnknownProjectReturns404(t *testing.T) {
 	}
 	if fc.spawned {
 		t.Fatal("manager.Spawn must NOT be invoked for an unknown project")
+	}
+}
+
+func TestSpawn_RequestedByNamingAWorkerIsIgnoredNotRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
+	})
+	if err != nil {
+		t.Fatalf("a human running opr spawn in a worker pane must not be refused: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want it cleared so spawned_by records no false attribution", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+func TestSpawn_RequestedByUnknownSessionIsIgnoredNotRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "does-not-exist",
+	})
+	if err != nil {
+		t.Fatalf("a stale OPERATOR_SESSION_ID must not refuse the spawn: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+func TestSpawn_RequestedByTerminatedOrchestratorIsIgnoredNotRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-1-o"] = domain.SessionRecord{ID: "proj-1-o", ProjectID: "proj-1", Kind: domain.KindOrchestrator, IsTerminated: true}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-o",
+	})
+	if err != nil {
+		t.Fatalf("a killed orchestrator's pane must still spawn: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+// A cross-project orchestrator must never be HONORED: its hourly count is keyed
+// on (project, spawned_by), so honoring it would read zero rows and hand the
+// caller a fresh rate budget. Ignoring it is exactly as permissive as omitting
+// requestedBy, which is already unbudgeted, so nothing is lost by not rejecting.
+func TestSpawn_RequestedByOrchestratorInAnotherProjectIsNeverHonored(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-2-1"] = domain.SessionRecord{ID: "proj-2-1", ProjectID: "proj-2", Kind: domain.KindOrchestrator}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-2-1",
+	})
+	if err != nil {
+		t.Fatalf("spawn = %v, want success with the foreign attribution dropped", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared so a foreign orchestrator gets no budget", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+// An ignored requestedBy must be unbudgeted, the same as omitting it. If it were
+// still budget-checked, a human in a worker pane would be refused at the cap.
+func TestSpawn_IgnoredRequestedByIsNotBudgetChecked(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 1}}}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
+	})
+	if err != nil {
+		t.Fatalf("an ignored requestedBy must be unbudgeted like a human spawn: %v", err)
+	}
+}
+
+func TestSpawn_EmptyRequestedByIsAlwaysAHumanSpawnAndSucceeds(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatalf("empty requestedBy must never be rejected: %v", err)
+	}
+}
+
+func TestSpawn_RefusesAtLiveWorkerCapForOrchestratorAttributedSpawn(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxLiveWorkers" {
+		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxLiveWorkers", err)
+	}
+}
+
+func TestSpawn_HumanSpawnSucceedsAtTheSameCapThatBlocksTheOrchestrator(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatalf("a human spawn (empty RequestedBy) must be unaffected by the orchestrator's budget: %v", err)
+	}
+}
+
+func TestSpawn_OrchestratorAttributedSpawnSucceedsWhenUnderBothCaps(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 10, MaxSpawnsPerHour: 10}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+
+	sess, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	if err != nil {
+		t.Fatalf("an orchestrator-attributed spawn under both caps must succeed: %v", err)
+	}
+	if sess.ID != "proj-1-2" {
+		t.Fatalf("session = %+v, want the fake commander's spawnRecord (proj-1-2) to have reached and passed through the manager", sess)
+	}
+	if !fc.spawned {
+		t.Fatal("manager.Spawn was not invoked; the budget checks must not short-circuit a spawn that is under both caps")
+	}
+}
+
+func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
+	st := newFakeStore()
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+	now := time.Now().UTC()
+	oldest := now.Add(-10 * time.Minute)
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 100, MaxSpawnsPerHour: 1}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker, SpawnedBy: "proj-1-orch", CreatedAt: oldest}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "ORCHESTRATOR_BUDGET_EXHAUSTED" || apiErr.Details["limit"] != "maxSpawnsPerHour" {
+		t.Fatalf("err = %v, want ORCHESTRATOR_BUDGET_EXHAUSTED naming maxSpawnsPerHour", err)
+	}
+	resetsAt, ok := apiErr.Details["resetsAt"].(string)
+	if !ok || resetsAt == "" {
+		t.Fatalf("Details[\"resetsAt\"] = %v, want a non-empty timestamp naming when the oldest counted spawn ages out", apiErr.Details["resetsAt"])
+	}
+}
+
+// TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck proves
+// the fix for the budget-check race: two concurrent worker spawns attributed
+// to the same orchestrator, against a project capped at MaxLiveWorkers: 1,
+// must not both pass the live-worker check. Before the fix, spawn() only
+// locked per-project for cfg.Kind == KindOrchestrator, so two concurrent
+// RequestedBy-attributed worker spawns both read the pre-spawn live-worker
+// count (0), both passed the cap of 1, and both reached manager.Spawn. The
+// fake commander's spawnFunc sleeps before recording the new session, which
+// widens the window in which an unlocked second request can observe the same
+// stale count; fakeStore's own mutex only prevents a concurrent-map crash, it
+// does not serialize the check-then-act sequence — that guarantee has to come
+// from the per-project lock under test.
+// TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock is the regression
+// test for a self-deadlock introduced by the fix above: Spawn already holds
+// s.lockOrchestratorProject for the whole call into spawn() when
+// cfg.Kind == domain.KindOrchestrator, so spawn()'s own RequestedBy-triggered
+// lock acquisition must not fire for that same request — sync.Mutex.Lock is
+// not reentrant and ignores context, so relocking the same project's mutex
+// from the same goroutine hangs forever. This is reachable via
+// `opr spawn --kind orchestrator` from a session with OPERATOR_SESSION_ID set
+// (RequestedBy non-empty) when the project has no live orchestrator yet.
+func TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}}
+	svc := &Service{manager: fc, store: st}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _, _ = svc.Spawn(context.Background(), ports.SpawnConfig{
+			ProjectID:   "proj-1",
+			Kind:        domain.KindOrchestrator,
+			RequestedBy: "some-caller-id",
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Spawn with Kind=orchestrator and non-empty RequestedBy deadlocked: spawn() re-locked the per-project mutex Spawn() already holds")
+	}
+}
+
+func TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+
+	var seq int32
+	fc := &fakeCommander{}
+	fc.spawnFunc = func(cfg ports.SpawnConfig) domain.SessionRecord {
+		time.Sleep(30 * time.Millisecond)
+		n := atomic.AddInt32(&seq, 1)
+		rec := domain.SessionRecord{
+			ID:        domain.SessionID(fmt.Sprintf("proj-1-w%d", n)),
+			ProjectID: cfg.ProjectID,
+			Kind:      cfg.Kind,
+			SpawnedBy: cfg.RequestedBy,
+			CreatedAt: time.Now(),
+		}
+		st.putSession(rec)
+		return rec
+	}
+	svc := &Service{manager: fc, store: st}
+	cfg := ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, _, err := svc.Spawn(context.Background(), cfg)
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes, budgetRejections := 0, 0
+	for err := range errs {
+		if err == nil {
+			successes++
+			continue
+		}
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) && apiErr.Code == "ORCHESTRATOR_BUDGET_EXHAUSTED" {
+			budgetRejections++
+			continue
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if successes != 1 || budgetRejections != 1 {
+		t.Fatalf("successes=%d budgetRejections=%d, want exactly one success and one budget rejection (MaxLiveWorkers=1 must not be oversold by concurrent orchestrator-attributed spawns)", successes, budgetRejections)
+	}
+	if fc.spawnCalls != 1 {
+		t.Fatalf("manager.Spawn calls = %d, want exactly 1: the second concurrent request must be rejected by the budget check before it ever reaches the manager", fc.spawnCalls)
 	}
 }
 

@@ -2607,6 +2607,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		Activity:         domain.Activity{State: domain.ActivityIdle, LastActivityAt: now},
 		AutoInjectReview: true,
 		Metadata:         domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
+		SpawnedBy:        cfg.RequestedBy,
 	}
 }
 

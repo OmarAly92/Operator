@@ -317,6 +317,9 @@ func Run() error {
 	if reconcileErr := lcStack.ReconcileRuntime(ctx); reconcileErr != nil {
 		log.Error("reconcile agent processes on boot failed", "err", reconcileErr)
 	}
+	if sweepErr := lcStack.LCM.DispatchPendingInboxEventsOnStartup(ctx); sweepErr != nil {
+		log.Error("dispatch pending inbox events on startup failed", "err", sweepErr)
+	}
 	// Push-device registry: persisted phones that receive OS push notifications.
 	// A load failure must not block boot — degrade to no push rather than refusing
 	// to start the daemon. pushRegistry (interface) is assigned only when load
@@ -379,6 +382,8 @@ func Run() error {
 		PreviewServer:       managedPreview,
 		SessionCapabilities: browserAuthority,
 		DesktopPreview:      sessionSvc,
+		Inbox:               lcStack.LCM,
+		InboxSessions:       sessionSvc,
 	})
 	if err != nil {
 		stop()

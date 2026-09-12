@@ -158,11 +158,38 @@ type SessionView struct {
 	// restart or rerender. Pulled from the json:"-" domain Metadata.
 	PreviewOpenedRevision int64            `json:"previewOpenedRevision,omitempty"`
 	PRs                   []SessionPRFacts `json:"prs"`
+	Brief                 string           `json:"brief,omitempty" maxLength:"2048"`
+	LatestUserPrompt      string           `json:"latestUserPrompt,omitempty" maxLength:"2048"`
+	LatestAssistantUpdate string           `json:"latestAssistantUpdate,omitempty" maxLength:"2048"`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.
 type ListSessionsResponse struct {
 	Sessions []SessionView `json:"sessions"`
+}
+
+// InboxEntryView is one pending orchestrator inbox row, resolved against the
+// live session record.
+type InboxEntryView struct {
+	ID         string      `json:"id"`
+	Kind       string      `json:"kind" enum:"worker_idle,ci_failed,review_changes_requested"`
+	OccurredAt time.Time   `json:"occurredAt"`
+	Worker     SessionView `json:"worker"`
+}
+
+// InboxResponse is the body of GET /api/v1/projects/{id}/inbox.
+type InboxResponse struct {
+	Entries []InboxEntryView `json:"entries"`
+}
+
+// AckInboxEventsRequest is the body of POST /api/v1/projects/{id}/inbox/ack.
+type AckInboxEventsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// AckInboxEventsResponse is the body of POST /api/v1/projects/{id}/inbox/ack.
+type AckInboxEventsResponse struct {
+	Acked int `json:"acked"`
 }
 
 // SpawnSessionRequest is the body of POST /api/v1/sessions.
@@ -184,6 +211,11 @@ type SpawnSessionRequest struct {
 	Attachments []AttachmentInput `json:"attachments,omitempty"`
 	Cols        int               `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows        int               `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
+	// RequestedBy is the orchestrator session id that asked for this spawn.
+	// The CLI fills it from OPERATOR_SESSION_ID when set; empty means a human
+	// spawn. The daemon rejects a value that does not resolve to a live
+	// orchestrator in the same project.
+	RequestedBy domain.SessionID `json:"requestedBy,omitempty"`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send

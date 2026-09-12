@@ -350,8 +350,9 @@ func TestHookConversationFactsExcludesOperatorCoordinationUserTurns(t *testing.T
 		"<opr-handoff-request>\nprepare context",
 		"<opr-handoff-request switch-id=\"switch-1\">\nprepare context",
 		"Operator transferred the previous agent's context in hidden system instructions. Continue the unfinished action.",
+		"Operator TASK TITLE UPDATE\nA worker was already spawned directly with the user's task. Do not spawn another worker or orchestrator, and do not implement the task in this orchestrator session.\nChoose a concise task title from the brief and run:\n\nopr session rename worker-1 \"<title, max 20 chars>\"\n\nWorker session id: worker-1\nTask brief:\nfix the login bug",
 	} {
-		got := hookConversationFacts([]byte(`{"prompt":` + mustJSONString(t, prompt) + `,"lastAssistantMessage":"ok"}`))
+		got := hookConversationFacts([]byte(`{"prompt":`+mustJSONString(t, prompt)+`,"lastAssistantMessage":"ok"}`), hookEventStop)
 		if got.LatestUserPrompt != "" {
 			t.Fatalf("prompt %q was retained as real user intent", prompt)
 		}
@@ -368,7 +369,7 @@ func TestHookConversationFactsExcludesOperatorCoordinationUserTurns(t *testing.T
 func TestHookMetadataAndConversationFactsTolerateMalformedOtherProjection(t *testing.T) {
 	t.Run("malformed usage retains conversation", func(t *testing.T) {
 		payload := []byte(`{"prompt":"continue investigating","lastAssistantMessage":"updated","transcriptPath":"/tmp/conversation.jsonl","model":false}`)
-		conversation := hookConversationFacts(payload)
+		conversation := hookConversationFacts(payload, hookEventStop)
 		if conversation.LatestUserPrompt != "continue investigating" || conversation.LatestAssistantUpdate != "updated" || conversation.TranscriptPath != "/tmp/conversation.jsonl" {
 			t.Fatalf("conversation = %+v", conversation)
 		}
@@ -1152,4 +1153,38 @@ func postActivityForTest(t *testing.T, agent, event string, payload []byte) setA
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
 	return req
+}
+
+func TestHooks_SubagentStopDoesNotOverwriteConversationFacts(t *testing.T) {
+	t.Setenv("OPERATOR_SESSION_ID", "opr-8")
+	cfg := setConfigEnv(t)
+	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"sessionId":"opr-8","state":""}`)
+	writeRunFileFor(t, cfg, srv)
+
+	_, errOut, err := executeCLI(t, Deps{
+		In: strings.NewReader(`{
+			"session_id":"native-8",
+			"transcript_path":"/home/user/.claude/projects/p/native-8.jsonl",
+			"last_assistant_message":"compare price with iPhone 17 Pro",
+			"prompt":"compare price with iPhone 17 Pro"
+		}`),
+		ProcessAlive: func(int) bool { return true },
+	}, "hooks", "claude-code", "subagent-stop")
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nstderr=%s", err, errOut)
+	}
+
+	var req setActivityAPIRequest
+	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
+		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
+	}
+	if req.LatestAssistantUpdate != "" {
+		t.Fatalf("subagent-stop leaked a sidechain assistant message: %q", req.LatestAssistantUpdate)
+	}
+	if req.LatestUserPrompt != "" {
+		t.Fatalf("subagent-stop leaked a sidechain user prompt: %q", req.LatestUserPrompt)
+	}
+	if req.TranscriptPath != "/home/user/.claude/projects/p/native-8.jsonl" {
+		t.Fatalf("transcript path = %q, want it preserved", req.TranscriptPath)
+	}
 }

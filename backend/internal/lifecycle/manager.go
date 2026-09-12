@@ -27,8 +27,7 @@ type sessionStore interface {
 	// write. It returns false when a concurrent lifecycle/agent-switch boundary
 	// made the reducer's previously read session stale.
 	UpdateSessionFromActivitySignal(ctx context.Context, rec domain.SessionRecord) (bool, error)
-	// ListSessions returns every session in a project. The dispatcher reads it
-	// to resolve the current orchestrator at delivery time.
+	// ListSessions returns every session in a project.
 	ListSessions(ctx context.Context, project domain.ProjectID) ([]domain.SessionRecord, error)
 	// ListPRsBySession returns every PR row tracked for the session. The
 	// reducer reads it to apply the multi-PR completion rule (terminate only
@@ -43,6 +42,11 @@ type sessionStore interface {
 	// reaction-dedup map so nudges survive a daemon restart.
 	GetPRLastNudgeSignature(ctx context.Context, prURL string) (string, error)
 	UpdatePRLastNudgeSignature(ctx context.Context, prURL, payload string) error
+	UpdateSessionFromActivitySignalAndEnqueueInboxEvent(ctx context.Context, rec domain.SessionRecord, event domain.OrchestratorInboxEvent) (bool, error)
+	CountPendingInboxEvents(ctx context.Context, project domain.ProjectID) (int, error)
+	ListPendingInboxEvents(ctx context.Context, project domain.ProjectID) ([]domain.OrchestratorInboxEvent, error)
+	ListProjectsWithPendingInboxEvents(ctx context.Context) ([]domain.ProjectID, error)
+	AckInboxEvents(ctx context.Context, project domain.ProjectID, ids []string) (int, error)
 }
 
 // agentSwitchSourceStopStore and agentSwitchTargetActivationStore are the
@@ -187,6 +191,22 @@ type Manager struct {
 	// the agent adapter via WithActiveSteering; the default answers false, so an
 	// unknown harness is only written to while idle.
 	steerActive func(domain.AgentHarness) bool
+
+	// pendingEcho holds, per session, the exact text of every coordination
+	// write this daemon made into that session's pane and has not yet seen
+	// echoed back, so a harness hook that returns one as the session's own
+	// latestUserPrompt can be recognized and dropped instead of corrupting the
+	// record.
+	echoMu      sync.Mutex
+	pendingEcho map[domain.SessionID]map[string]struct{}
+	// dispatchLocks serializes inbox-nudge delivery per project.
+	dispatchLocksMu sync.Mutex
+	dispatchLocks   map[domain.ProjectID]*sync.Mutex
+	// lastAnnounced holds, per project, the signature of the pending inbox set
+	// most recently announced on the orchestrator's own idle transition, so that
+	// trigger tells the orchestrator a given backlog exactly once.
+	announcedMu   sync.Mutex
+	lastAnnounced map[domain.ProjectID]string
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -464,6 +484,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	s.TranscriptPath = strings.TrimSpace(s.TranscriptPath)
 	s.LaunchID = strings.TrimSpace(s.LaunchID)
 	s.ControllerGeneration = strings.TrimSpace(s.ControllerGeneration)
+	if s.LatestUserPrompt != "" && m.consumeCoordinationEcho(id, s.LatestUserPrompt) {
+		s.LatestUserPrompt = ""
+	}
 	// A response or Stop hook produced by Operator's optional source handoff request
 	// may contain last_assistant_message without echoing the internal prompt.
 	// From collection through source teardown, do not let that coordination
@@ -616,7 +639,24 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		delete(m.flights, id)
 	}
 	next.UpdatedAt = now
-	applied, err := m.store.UpdateSessionFromActivitySignal(ctx, next)
+	crossedToIdleWorker := next.Kind != domain.KindOrchestrator &&
+		prevState == domain.ActivityActive && next.Activity.State == domain.ActivityIdle
+	orchestratorReadyToDrain := next.Kind == domain.KindOrchestrator &&
+		((prevState == domain.ActivityActive && next.Activity.State == domain.ActivityIdle) ||
+			(rec.FirstSignalAt.IsZero() && !next.FirstSignalAt.IsZero()))
+
+	var applied bool
+	if crossedToIdleWorker {
+		applied, err = m.store.UpdateSessionFromActivitySignalAndEnqueueInboxEvent(ctx, next, domain.OrchestratorInboxEvent{
+			ID:         uuid.NewString(),
+			ProjectID:  next.ProjectID,
+			WorkerID:   next.ID,
+			Kind:       domain.InboxEventWorkerIdle,
+			OccurredAt: next.Activity.LastActivityAt,
+		})
+	} else {
+		applied, err = m.store.UpdateSessionFromActivitySignal(ctx, next)
+	}
 	if err != nil {
 		m.mu.Unlock()
 		return err
@@ -644,6 +684,16 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	m.mu.Unlock()
 	if err := m.acknowledgeAgentSwitchTarget(ctx, id, s, now); err != nil {
 		return err
+	}
+	if crossedToIdleWorker {
+		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID, inboxDispatchWorkerIdle); dispatchErr != nil {
+			slog.Default().Warn("lifecycle: dispatch inbox nudge failed", "project", next.ProjectID, "err", dispatchErr)
+		}
+	}
+	if orchestratorReadyToDrain {
+		if dispatchErr := m.dispatchInboxNudge(ctx, next.ProjectID, inboxDispatchOrchestratorIdle); dispatchErr != nil {
+			slog.Default().Warn("lifecycle: dispatch inbox nudge failed", "project", next.ProjectID, "err", dispatchErr)
+		}
 	}
 	for _, ev := range waitingEvents {
 		m.emitTelemetry(ctx, ev)

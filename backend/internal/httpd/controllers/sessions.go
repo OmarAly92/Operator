@@ -324,7 +324,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, RequestedBy: in.RequestedBy})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1948,6 +1948,19 @@ func previewFileURL(r *http.Request, id domain.SessionID, entry string) (string,
 	return previewutil.FileURL("http://"+r.Host, id, entry)
 }
 
+const maxWireInteractionLen = 2048
+
+func capWireText(s string) string {
+	if len(s) <= maxWireInteractionLen {
+		return s
+	}
+	cut := maxWireInteractionLen - len("…")
+	for cut > 0 && !utf8.ValidString(s[:cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
+}
+
 func sessionView(s domain.Session) SessionView {
 	return SessionView{
 		Session:               s,
@@ -1958,6 +1971,9 @@ func sessionView(s domain.Session) SessionView {
 		PreviewRevision:       s.Metadata.PreviewRevision,
 		PreviewOpenedRevision: s.Metadata.PreviewOpenedRevision,
 		PRs:                   sessionPRFacts(s.PRs),
+		Brief:                 capWireText(domain.SanitizeControlChars(s.Metadata.Prompt)),
+		LatestUserPrompt:      capWireText(domain.SanitizeControlChars(s.Metadata.LatestUserPrompt)),
+		LatestAssistantUpdate: capWireText(domain.SanitizeControlChars(s.Metadata.LatestAssistantUpdate)),
 	}
 }
 

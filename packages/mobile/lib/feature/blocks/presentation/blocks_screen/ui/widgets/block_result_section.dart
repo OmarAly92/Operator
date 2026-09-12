@@ -21,8 +21,10 @@ class _BlockResultSectionState extends State<BlockResultSection> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     final lines = widget.result.split('\n');
-    final long = lines.length > kResultPreviewLines;
-    final shown = !long || _expanded ? widget.result : lines.take(kResultPreviewLines).join('\n');
+    final preview = lines.take(kResultPreviewLines).join('\n');
+    final long = lines.length > kResultPreviewLines || preview.length > 1200;
+    final shortened = preview.length > 1200 ? '${preview.substring(0, 1200)}…' : preview;
+    final shown = !long || _expanded ? widget.result : shortened;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,10 +32,9 @@ class _BlockResultSectionState extends State<BlockResultSection> {
         Container(height: 1, color: skin.borderSubtle),
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          child: AppText(
+          child: Text(
             shown,
             style: AppTextStyle.mono12Regular.copyWith(color: skin.textSecondary),
-            maxLines: 400,
           ),
         ),
         if (long)

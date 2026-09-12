@@ -468,6 +468,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a project's pending orchestrator inbox events */
+        get: operations["listInboxEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/inbox/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge pending orchestrator inbox events by id */
+        post: operations["ackInboxEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/initialize": {
         parameters: {
             query?: never;
@@ -1442,6 +1476,12 @@ export interface components {
             message: string;
             requestId?: string;
         };
+        AckInboxEventsRequest: {
+            ids: string[];
+        };
+        AckInboxEventsResponse: {
+            acked: number;
+        };
         AddProjectInput: {
             asWorkspace?: boolean;
             config?: components["schemas"]["ProjectConfig"];
@@ -1630,6 +1670,7 @@ export interface components {
             activity: components["schemas"]["DomainActivity"];
             autoInjectReview: boolean;
             branch?: string;
+            brief?: string;
             /** Format: date-time */
             createdAt: string;
             displayName?: string;
@@ -1639,6 +1680,8 @@ export interface components {
             isTerminated: boolean;
             issueId?: string;
             kind: string;
+            latestAssistantUpdate?: string;
+            latestUserPrompt?: string;
             /** Format: date-time */
             pinnedAt?: null | string;
             /** Format: int64 */
@@ -1652,6 +1695,7 @@ export interface components {
             reviewerHarness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
             /** @enum {string} */
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
+            spawnedBy?: string;
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";
             terminalHandleId?: string;
@@ -1772,6 +1816,17 @@ export interface components {
         ImportStatusResponse: {
             available: boolean;
             legacyRoot: string;
+        };
+        InboxEntryView: {
+            id: string;
+            /** @enum {string} */
+            kind: "worker_idle" | "ci_failed" | "review_changes_requested";
+            /** Format: date-time */
+            occurredAt: string;
+            worker: components["schemas"]["ControllersSessionView"];
+        };
+        InboxResponse: {
+            entries: components["schemas"]["InboxEntryView"][];
         };
         InitializeRepositoryInput: {
             path: string;
@@ -1933,6 +1988,10 @@ export interface components {
             /** @description Session whose workspace the shell starts in - its worktree, or the project checkout for an in-place session. Takes precedence over projectId, and attributes the shell to that session. */
             sessionId?: string;
         };
+        OrchestratorPolicy: {
+            maxLiveWorkers?: number;
+            maxSpawnsPerHour?: number;
+        };
         OrchestratorResponse: {
             id: string;
             projectId: string;
@@ -1989,6 +2048,7 @@ export interface components {
                 [key: string]: string;
             };
             orchestrator?: components["schemas"]["RoleOverride"];
+            orchestratorPolicy?: components["schemas"]["OrchestratorPolicy"];
             orchestratorRules?: string;
             postCreate?: string[];
             reviewers?: components["schemas"]["DomainReviewerConfig"][];
@@ -2385,6 +2445,7 @@ export interface components {
             kind?: "worker" | "orchestrator";
             projectId: string;
             prompt?: string;
+            requestedBy?: string;
             /** @description Rows of the terminal pane that will show the session; see cols. */
             rows?: number;
             /** @enum {string} */
@@ -4188,6 +4249,101 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listInboxEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    ackInboxEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AckInboxEventsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AckInboxEventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -36,6 +36,7 @@ SessionBlock _block({
   bool redacted = false,
 }) => SessionBlock(
   id: id,
+  turnId: id,
   firstSeq: firstSeq,
   lastSeq: firstSeq,
   kind: kind,
@@ -156,6 +157,8 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
+    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.pumpAndSettle();
 
     expect(find.byType(BlockCard), findsNWidgets(2));
     expect(find.text('run the tests'), findsOneWidget);
@@ -169,6 +172,8 @@ void main() {
     when(() => cubit.blocks).thenReturn([_block(body: long)]);
 
     await _pump(tester, cubit);
+    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.pumpAndSettle();
 
     final text = tester.widget<Text>(find.text(long));
     expect(
@@ -249,8 +254,12 @@ void main() {
     ]);
 
     await _pump(tester, cubit);
+    await tester.tap(find.byIcon(Icons.chevron_right).first);
+    await tester.pumpAndSettle();
 
-    final dot = tester.widget<BlockStatusDot>(find.byType(BlockStatusDot));
+    final dot = tester.widget<BlockStatusDot>(
+      find.descendant(of: find.byType(BlockCard), matching: find.byType(BlockStatusDot)),
+    );
     expect(dot.status, BlockStatus.failed);
     expect(find.textContaining('no such table'), findsOneWidget);
   });
@@ -332,7 +341,7 @@ void main() {
       when(() => cubit.blocks).thenReturn(
         List.generate(
           60,
-          (index) => _block(id: 'seq-$index', firstSeq: index, body: 'body'),
+          (index) => _block(id: 'seq-$index', firstSeq: index, kind: BlockKind.reasoning, body: 'body'),
         ),
       );
 
@@ -350,6 +359,20 @@ void main() {
     },
   );
 
+  testWidgets('tool headers do not pin over the conversation while scrolling', (tester) async {
+    when(() => cubit.blocks).thenReturn(
+      List.generate(60, (index) => _block(id: 'seq-$index', firstSeq: index)),
+    );
+    await _pump(tester, cubit);
+    final state = tester.state<BlockListState>(find.byType(BlockList));
+    state.controller.jumpTo(60);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(StickyBlockHeader), matching: find.byType(Container)),
+      findsNothing,
+    );
+  });
+
   testWidgets('the context readout is attached to the sticky block header', (
     tester,
   ) async {
@@ -364,7 +387,7 @@ void main() {
     when(() => cubit.blocks).thenReturn(
       List.generate(
         60,
-        (index) => _block(id: 'seq-$index', firstSeq: index, body: 'body'),
+        (index) => _block(id: 'seq-$index', firstSeq: index, kind: BlockKind.reasoning, body: 'body'),
       ),
     );
 

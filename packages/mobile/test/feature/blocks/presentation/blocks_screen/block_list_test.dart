@@ -13,7 +13,7 @@ import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/wid
 SessionBlock block(
   int seq, {
   int lines = 1,
-  BlockKind kind = BlockKind.tool,
+  BlockKind kind = BlockKind.reasoning,
   BlockStatus status = BlockStatus.ok,
   String? createdAt,
 }) => SessionBlock(
@@ -135,7 +135,42 @@ Future<ListHarnessState> pumpList(
 }
 
 void main() {
-  testWidgets('renders one card per block', (tester) async {
+  testWidgets('tool lists start expanded while individual details stay collapsed', (tester) async {
+    await pumpList(tester, [block(1, kind: BlockKind.tool), block(2, kind: BlockKind.tool)]);
+    expect(find.text('Used 2 tools'), findsOneWidget);
+    expect(find.text('line 0 of block 1'), findsNothing);
+    expect(find.text('Bash 1'), findsOneWidget);
+    expect(find.text('Bash 2'), findsOneWidget);
+    await tester.tap(find.text('Bash 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('line 0 of block 1'), findsOneWidget);
+    expect(find.text('line 0 of block 2'), findsNothing);
+    await tester.tap(find.text('Used 2 tools'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bash 1'), findsNothing);
+    expect(find.text('Bash 2'), findsNothing);
+  });
+
+  testWidgets('tool failures remain visible in a collapsed group', (tester) async {
+    await pumpList(tester, [
+      block(1, kind: BlockKind.tool),
+      block(2, kind: BlockKind.tool, status: BlockStatus.failed),
+    ]);
+    await tester.tap(find.text('Used 2 tools · failed'));
+    await tester.pumpAndSettle();
+    expect(find.text('Used 2 tools · failed'), findsOneWidget);
+    expect(find.text('Bash 2'), findsNothing);
+  });
+
+  testWidgets('search reveals matching tool output inside a collapsed group', (tester) async {
+    final tools = [block(1, kind: BlockKind.tool), block(2, kind: BlockKind.tool)];
+    final matches = BlockFind.matches(tools, 'line 0 of block 2');
+    await pumpList(tester, tools, highlights: {for (final match in matches) match.blockId: match});
+    expect(find.text('Used 2 tools'), findsNothing);
+    expect(find.text('line 0 of block 2', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('renders one card per block' , (tester) async {
     await pumpList(tester, range(1, 3));
 
     expect(find.byType(BlockCard), findsNWidgets(3));
@@ -542,11 +577,11 @@ void main() {
       final state = tester.state<BlockListState>(find.byType(BlockList));
       state.controller.jumpTo(0);
       await tester.pumpAndSettle();
-      expect(sticky.value?.block.kind, BlockKind.tool);
+      expect(sticky.value?.block.kind, BlockKind.reasoning);
       expect(
         find.descendant(of: find.byType(StickyBlockHeader), matching: find.text('Bash 1')),
         findsOneWidget,
-        reason: 'a tool block has a natural header row, so the sticky header pins its title',
+        reason: 'a reasoning block has a natural header row, so the sticky header pins its title',
       );
 
       harness.switchSession('s-2', [block(1, kind: BlockKind.prompt)]);

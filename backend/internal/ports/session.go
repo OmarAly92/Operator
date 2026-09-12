@@ -36,6 +36,9 @@ type SpawnConfig struct {
 	// DisplayName is the user-facing sidebar label. Empty falls back to the
 	// session id in the read model (e.g. orchestrator sessions).
 	DisplayName string
+	// RequestedBy is the orchestrator session id that asked for this spawn,
+	// or empty for a human spawn. Persisted verbatim as SessionRecord.SpawnedBy.
+	RequestedBy domain.SessionID
 	// Cols/Rows are the grid of the pane that will show the session, so the
 	// pty is born at that size instead of being resized on first attach.
 	// Zero means unknown.

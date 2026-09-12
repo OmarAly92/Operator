@@ -65,6 +65,8 @@ type APIDeps struct {
 	Browser             controllers.BrowserService
 	PreviewServer       controllers.ManagedPreviewServer
 	SessionCapabilities controllers.SessionCapabilityValidator
+	Inbox               controllers.InboxEventStore
+	InboxSessions       controllers.InboxSessionReader
 }
 
 // API owns one controller per resource and is the single Register call the
@@ -85,6 +87,7 @@ type API struct {
 	dev           *controllers.DevController
 	browser       *controllers.BrowserController
 	events        *EventsController
+	inbox         *controllers.InboxController
 }
 
 // NewAPI constructs the API surface from its dependencies. cfg carries the
@@ -120,6 +123,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
 		browser:       &controllers.BrowserController{Svc: deps.Browser},
 		events:        &EventsController{Source: deps.CDC, Live: deps.Events},
+		inbox:         &controllers.InboxController{Events: deps.Inbox, Sessions: deps.InboxSessions},
 	}
 }
 
@@ -154,6 +158,7 @@ func (a *API) Register(root chi.Router) {
 			a.settings.Register(r)
 			a.dev.Register(r)
 			a.browser.Register(r)
+			a.inbox.Register(r)
 			// Sibling REST controllers plug in here.
 		})
 		// Agent switching synchronously collects a handoff, starts the target,

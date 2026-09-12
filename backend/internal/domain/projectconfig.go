@@ -45,6 +45,9 @@ type ProjectConfig struct {
 	// Worker and Orchestrator are role-specific harness/agent-config overrides.
 	Worker       RoleOverride `json:"worker,omitempty"`
 	Orchestrator RoleOverride `json:"orchestrator,omitempty"`
+	// OrchestratorPolicy bounds the project's orchestrator spawn authority
+	// (live-worker cap and hourly spawn rate).
+	OrchestratorPolicy OrchestratorPolicy `json:"orchestratorPolicy,omitempty"`
 
 	// Reviewers names the agent(s) that review a worker's PR when a review is
 	// triggered. It is configured independently of the Worker override; an empty
@@ -116,6 +119,31 @@ type RoleOverride struct {
 // DefaultBranchName is the base branch used when a project configures none.
 const DefaultBranchName = "main"
 
+const (
+	DefaultMaxLiveWorkers   = 8
+	DefaultMaxSpawnsPerHour = 20
+)
+
+// OrchestratorPolicy bounds an orchestrator's spawn authority for a project.
+// Enforced daemon-side in the spawn service (spec section 5.4); this struct
+// only carries the configured limits, never a live count.
+type OrchestratorPolicy struct {
+	MaxLiveWorkers   int `json:"maxLiveWorkers,omitempty"`
+	MaxSpawnsPerHour int `json:"maxSpawnsPerHour,omitempty"`
+}
+
+// WithDefaults fills only fields left unset (non-positive). A set field is
+// always preserved.
+func (p OrchestratorPolicy) WithDefaults() OrchestratorPolicy {
+	if p.MaxLiveWorkers <= 0 {
+		p.MaxLiveWorkers = DefaultMaxLiveWorkers
+	}
+	if p.MaxSpawnsPerHour <= 0 {
+		p.MaxSpawnsPerHour = DefaultMaxSpawnsPerHour
+	}
+	return p
+}
+
 // DefaultProjectConfig returns the config a project has when it sets nothing:
 // branch "main". Every other field defaults to its zero value (no
 // env/symlinks/post-create, agent + role defaults).
@@ -132,6 +160,7 @@ func (c ProjectConfig) WithDefaults() ProjectConfig {
 	if c.DefaultBranch == "" {
 		c.DefaultBranch = def.DefaultBranch
 	}
+	c.OrchestratorPolicy = c.OrchestratorPolicy.WithDefaults()
 	c.TrackerIntake = c.TrackerIntake.WithDefaults()
 	return c
 }

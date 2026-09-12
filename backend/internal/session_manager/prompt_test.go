@@ -168,3 +168,82 @@ func TestProjectRelativeFileRejectsTraversal(t *testing.T) {
 		t.Fatal("expected traversal path to be rejected")
 	}
 }
+
+func TestOrchestratorPromptPointsAtBoardNotStatus(t *testing.T) {
+	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
+
+	if !strings.Contains(got, "`opr board`") {
+		t.Fatal("prompt does not teach opr board")
+	}
+	if strings.Contains(got, "`opr status` - inspect project, session, PR, and review state") {
+		t.Fatal("prompt still claims opr status shows work state")
+	}
+	if !strings.Contains(got, "daemon health") {
+		t.Fatal("prompt does not say what opr status actually reports")
+	}
+	if !strings.Contains(got, "1. Inspect current state with `opr board`") {
+		t.Fatal("coordination workflow step 1 still points at the wrong command")
+	}
+}
+
+func TestOrchestratorPromptTeachesThePullProtocol(t *testing.T) {
+	got := orchestratorSystemPrompt(promptProject{ID: "proj-1", Name: "Operator"})
+
+	for _, want := range []string{
+		"`opr inbox`",
+		"`opr inbox ack",
+		"empty inbox is a normal outcome",
+		"Ack means \"seen\", not \"done\"",
+		"whether or not you took action on it",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func testPromptProject(t *testing.T) promptProject {
+	return promptProject{
+		ID:            "test-proj",
+		Name:          "Test Project",
+		Repo:          "https://github.com/test/project",
+		DefaultBranch: "main",
+		Path:          "/test/project",
+	}
+}
+
+func TestOrchestratorPrompt_AuthorizesActingWithoutAsking(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	for _, want := range []string{
+		"spawn, redirect, and kill worker sessions on your own judgment",
+		"Do not ask the human for permission before spawning, redirecting, or killing a worker",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing autonomy grant %q", want)
+		}
+	}
+}
+
+func TestOrchestratorPrompt_TeachesTheBudgetFailureMode(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "ORCHESTRATOR_BUDGET_EXHAUSTED") {
+		t.Fatal("prompt does not mention ORCHESTRATOR_BUDGET_EXHAUSTED")
+	}
+	if !strings.Contains(got, "do not retry the spawn in a loop") {
+		t.Fatal("prompt does not tell the orchestrator to avoid retrying budget exhaustion")
+	}
+}
+
+func TestOrchestratorPrompt_RestatesTheMergeBoundary(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "Never merge a PR on your own initiative") {
+		t.Fatal("prompt does not restate the merge boundary for autonomous framing")
+	}
+}
+
+func TestOrchestratorPrompt_TeachesSwitchAgent(t *testing.T) {
+	got := orchestratorSystemPrompt(testPromptProject(t))
+	if !strings.Contains(got, "opr session switch-agent") {
+		t.Fatal("prompt does not teach opr session switch-agent")
+	}
+}

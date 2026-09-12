@@ -17,6 +17,22 @@ sql:
           - pr
           - ci
         overrides:
+          - column: "orchestrator_inbox.project_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ProjectID"
+          - column: "orchestrator_inbox.worker_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+          - column: "orchestrator_inbox.kind"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "OrchestratorInboxEventKind"
+          - column: "orchestrator_inbox.state"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "OrchestratorInboxEventState"
           - column: "change_log.project_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
@@ -89,6 +105,10 @@ sql:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"
           - column: "sessions.id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
+          - column: "sessions.spawned_by"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"

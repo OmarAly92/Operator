@@ -842,6 +842,11 @@ func (m *Manager) sendOnce(ctx context.Context, id domain.SessionID, prURL, key,
 	// the write was attempted and stays accounted, matching the pre-guard
 	// behavior.
 	outcome, err := m.guard.Nudge(ctx, id, msg)
+	// Sent with a non-nil error still means the pane write was attempted, so
+	// the harness may echo these bytes back: record before the error returns.
+	if outcome == sessionguard.Sent {
+		m.rememberCoordinationEcho(id, msg)
+	}
 	if err != nil {
 		if outcome != sessionguard.Sent {
 			return sendOnceSuppressed, err

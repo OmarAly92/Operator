@@ -64,6 +64,44 @@ func TestCreateSessionWithoutProbeUsesNextNum(t *testing.T) {
 	}
 }
 
+func TestCreateSession_PersistsSpawnedBy(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+
+	rec := sampleRecord("proj-1")
+	rec.SpawnedBy = "proj-1-1"
+	created, err := s.CreateSession(ctx, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.SpawnedBy != "proj-1-1" {
+		t.Fatalf("created.SpawnedBy = %q, want proj-1-1", created.SpawnedBy)
+	}
+
+	got, ok, err := s.GetSession(ctx, created.ID)
+	if err != nil || !ok {
+		t.Fatalf("GetSession: ok=%v err=%v", ok, err)
+	}
+	if got.SpawnedBy != "proj-1-1" {
+		t.Fatalf("GetSession(...).SpawnedBy = %q, want proj-1-1 (round-trip through storage)", got.SpawnedBy)
+	}
+}
+
+func TestCreateSession_EmptySpawnedByForHumanSpawn(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+
+	created, err := s.CreateSession(ctx, sampleRecord("proj-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.SpawnedBy != "" {
+		t.Fatalf("SpawnedBy = %q, want empty for a human spawn", created.SpawnedBy)
+	}
+}
+
 func TestCreateSessionStopsSkippingAfterBoundedAttempts(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -140,5 +178,108 @@ func TestMarkSessionPreviewOpenedAdvancesOnlyToCurrentRevision(t *testing.T) {
 	}
 	if final.Metadata.PreviewRevision != 2 {
 		t.Fatalf("preview_revision changed to %d, want untouched 2", final.Metadata.PreviewRevision)
+	}
+}
+
+// budgetTestRecord builds a minimally valid session row for the budget-query
+// tests below: CreateSession enforces a workspace_mode CHECK constraint that
+// the brief's illustrative literals omit, so every fixture here sets it.
+func budgetTestRecord(proj domain.ProjectID, kind domain.SessionKind, spawnedBy domain.SessionID, at time.Time) domain.SessionRecord {
+	return domain.SessionRecord{
+		ProjectID: proj,
+		Kind:      kind,
+		SpawnedBy: spawnedBy,
+		Metadata:  domain.SessionMetadata{WorkspaceMode: domain.WorkspaceModeWorktree},
+		CreatedAt: at,
+		UpdatedAt: at,
+	}
+}
+
+func TestCountLiveSessionsByProjectAndKind_CountsOnlyLiveMatchingKind(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+	const proj domain.ProjectID = "proj-1"
+	now := time.Now().UTC()
+
+	live, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "", now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindOrchestrator, "", now)); err != nil {
+		t.Fatal(err)
+	}
+	terminated, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "", now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	terminated.IsTerminated = true
+	if err := s.UpdateSession(ctx, terminated); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.CountLiveSessionsByProjectAndKind(ctx, proj, domain.KindWorker)
+	if err != nil || n != 1 {
+		t.Fatalf("n=%d err=%v, want 1 (only %s is live and a worker)", n, err, live.ID)
+	}
+}
+
+func TestCountSessionsSpawnedBySince_CountsOnlyMatchingSpawnerWithinWindow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+	const proj domain.ProjectID = "proj-1"
+	now := time.Now().UTC()
+
+	inWindow, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "orch-1", now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "orch-1", now.Add(-2*time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "", now)); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.CountSessionsSpawnedBySince(ctx, proj, "orch-1", now.Add(-time.Hour))
+	if err != nil || n != 1 {
+		t.Fatalf("n=%d err=%v, want 1 (%s only)", n, err, inWindow.ID)
+	}
+}
+
+func TestOldestSessionSpawnedBySince_ReturnsOldestInWindow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+	const proj domain.ProjectID = "proj-1"
+	now := time.Now().UTC()
+	older := now.Add(-30 * time.Minute)
+
+	if _, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "orch-1", older)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(ctx, budgetTestRecord(proj, domain.KindWorker, "orch-1", now)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := s.OldestSessionSpawnedBySince(ctx, proj, "orch-1", now.Add(-time.Hour))
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if !got.Equal(older) {
+		t.Fatalf("got=%v, want the older row's created_at=%v", got, older)
+	}
+}
+
+func TestOldestSessionSpawnedBySince_NoneInWindow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+	const proj domain.ProjectID = "proj-1"
+
+	_, ok, err := s.OldestSessionSpawnedBySince(ctx, proj, "orch-1", time.Now().UTC().Add(-time.Hour))
+	if err != nil || ok {
+		t.Fatalf("ok=%v err=%v, want false/nil with nothing spawned", ok, err)
 	}
 }

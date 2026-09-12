@@ -129,6 +129,18 @@ type Notification struct {
 	ResolvedAt sql.NullTime
 }
 
+type OrchestratorInbox struct {
+	ID         string
+	ProjectID  domain.ProjectID
+	WorkerID   domain.SessionID
+	Kind       domain.OrchestratorInboxEventKind
+	OccurredAt time.Time
+	State      domain.OrchestratorInboxEventState
+	AckedAt    sql.NullTime
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 type PR struct {
 	URL                      string
 	SessionID                domain.SessionID
@@ -301,6 +313,7 @@ type Session struct {
 	NativeTranscriptPath      string
 	PreviewOpenedRevision     int64
 	WorkspaceMode             string
+	SpawnedBy                 domain.SessionID
 }
 
 type SessionCleanupFact struct {

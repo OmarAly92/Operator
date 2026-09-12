@@ -22,6 +22,7 @@ func IsRoutineInternalCLICommand(commandPath string) bool {
 
 var routineInternalCLICommands = []string{
 	"opr status",
+	"opr board",
 	"opr session ls",
 	"opr session get",
 	"opr session agent-switch ls",
@@ -77,6 +78,7 @@ var legacyActorlessSystemCLICommands = map[string]struct{}{
 var legacyActorlessUserCLICommands = map[string]struct{}{
 	"opr agent":                  {},
 	"opr agent ls":               {},
+	"opr board":                  {},
 	"opr browser":                {},
 	"opr browser check":          {},
 	"opr browser click":          {},
@@ -124,6 +126,8 @@ var legacyActorlessUserCLICommands = map[string]struct{}{
 	"opr dev import-projects":    {},
 	"opr doctor":                 {},
 	"opr import":                 {},
+	"opr inbox":                  {},
+	"opr inbox ack":              {},
 	"opr launch":                 {},
 	"opr orchestrator":           {},
 	"opr orchestrator done":      {},

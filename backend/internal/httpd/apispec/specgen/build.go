@@ -83,6 +83,8 @@ func Build() ([]byte, error) {
 			"Connect Mobile LAN bridge control (loopback/desktop only)"),
 		*(&openapi31.Tag{Name: "browser"}).WithDescription(
 			"Target-isolated desktop browser runtime (loopback only)"),
+		*(&openapi31.Tag{Name: "inbox"}).WithDescription(
+			"Per-project orchestrator inbox of pending worker/CI/review events"),
 	}
 
 	for _, op := range operations() {
@@ -161,6 +163,7 @@ var schemaNames = map[string]string{
 	"DomainContainerReapConfig":       "ContainerReapConfig",
 	"DomainAgentConfig":               "AgentConfig",
 	"DomainRoleOverride":              "RoleOverride",
+	"DomainOrchestratorPolicy":        "OrchestratorPolicy",
 	// httpd/controllers (wire envelopes)
 	"ControllersListProjectsResponse":               "ListProjectsResponse",
 	"ControllersProjectResponse":                    "ProjectResponse",
@@ -170,6 +173,10 @@ var schemaNames = map[string]string{
 	"ControllersListSessionsQuery":                  "ListSessionsQuery",
 	"ControllersCleanupSessionsQuery":               "CleanupSessionsQuery",
 	"ControllersListSessionsResponse":               "ListSessionsResponse",
+	"ControllersInboxEntryView":                     "InboxEntryView",
+	"ControllersInboxResponse":                      "InboxResponse",
+	"ControllersAckInboxEventsRequest":              "AckInboxEventsRequest",
+	"ControllersAckInboxEventsResponse":             "AckInboxEventsResponse",
 	"ControllersSpawnSessionRequest":                "SpawnSessionRequest",
 	"ControllersSpawnSessionResponse":               "SpawnSessionResponse",
 	"ControllersSessionResponse":                    "SessionResponse",
@@ -418,7 +425,38 @@ func operations() []operation {
 	ops = append(ops, mobileOperations()...)
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
+	ops = append(ops, inboxOperations()...)
 	return ops
+}
+
+// inboxOperations declares the canonical /projects/{id}/inbox operations. The
+// set must stay 1:1 with the routes InboxController.Register mounts —
+// TestRouteSpecParity fails the build otherwise.
+func inboxOperations() []operation {
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/inbox", id: "listInboxEvents", tag: "inbox",
+			summary:    "List a project's pending orchestrator inbox events",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.InboxResponse{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/inbox/ack", id: "ackInboxEvents", tag: "inbox",
+			summary:    "Acknowledge pending orchestrator inbox events by id",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			reqBody:    controllers.AckInboxEventsRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.AckInboxEventsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+	}
 }
 
 func browserOperations() []operation {

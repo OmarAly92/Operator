@@ -182,7 +182,12 @@ type hookConversationSnapshot struct {
 	TranscriptPath        string
 }
 
-func hookConversationFacts(payload []byte) hookConversationSnapshot {
+const (
+	hookEventStop             = "stop"
+	hookEventUserPromptSubmit = "user-prompt-submit"
+)
+
+func hookConversationFacts(payload []byte, event string) hookConversationSnapshot {
 	var p struct {
 		Prompt                    string `json:"prompt"`
 		UserPrompt                string `json:"user_prompt"`
@@ -206,6 +211,10 @@ func hookConversationFacts(payload []byte) hookConversationSnapshot {
 	if isOperatorCoordinationMessage(userPrompt) {
 		userPrompt = ""
 	}
+	if event != hookEventStop && event != hookEventUserPromptSubmit {
+		userPrompt = ""
+		assistant = ""
+	}
 	return hookConversationSnapshot{
 		LatestUserPrompt:      capHookText(userPrompt, maxHookInteractionLen),
 		LatestAssistantUpdate: capHookText(assistant, maxHookInteractionLen),
@@ -225,7 +234,8 @@ func firstHookValue(values ...string) string {
 func isOperatorCoordinationMessage(value string) bool {
 	value = strings.TrimSpace(value)
 	return strings.HasPrefix(value, "<opr-handoff-request") ||
-		strings.HasPrefix(value, "Operator transferred the previous agent's context in hidden system instructions.")
+		strings.HasPrefix(value, "Operator transferred the previous agent's context in hidden system instructions.") ||
+		strings.HasPrefix(value, "Operator TASK TITLE UPDATE")
 }
 
 func capHookText(value string, limit int) string {
@@ -312,7 +322,7 @@ func (c *commandContext) runHook(ctx context.Context, agent, event string) error
 	conversation := hookConversationSnapshot{}
 	switch domain.AgentHarness(agent) {
 	case domain.HarnessClaudeCode, domain.HarnessCodex:
-		conversation = hookConversationFacts(payload)
+		conversation = hookConversationFacts(payload, event)
 	}
 	path := "sessions/" + url.PathEscape(sessionID) + "/activity"
 	req := setActivityAPIRequest{

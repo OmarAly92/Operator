@@ -280,6 +280,75 @@ func TestSessionGet_JSONOutputDecodes(t *testing.T) {
 	}
 }
 
+func TestSessionGetRendersBriefAndConversationFacts(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"session":{
+			"id":"opr-1","projectId":"proj-1","kind":"worker","status":"working",
+			"activity":{"state":"idle"},
+			"brief":"fix the flaky resize test",
+			"latestAssistantUpdate":"I reproduced it and pushed a fix.",
+			"prs":[{"url":"https://github.com/o/r/pull/7","number":7,"state":"open","ci":"failing","review":"none"}]
+		}}`)
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "session", "get", "opr-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"brief: fix the flaky resize test",
+		"last update: I reproduced it and pushed a fix.",
+		"pr #7: open ci=failing review=none",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestSessionGetJSONIncludesBriefAndPRFields(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"session":{
+			"id":"opr-1","projectId":"proj-1","kind":"worker","status":"working",
+			"activity":{"state":"idle"},
+			"brief":"fix the flaky resize test",
+			"latestUserPrompt":"also check the codex path",
+			"latestAssistantUpdate":"I reproduced it and pushed a fix.",
+			"prs":[{"url":"https://github.com/o/r/pull/7","number":7,"state":"open","ci":"failing","review":"none"}]
+		}}`)
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "session", "get", "opr-1", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got sessionResponse
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("session get --json output is not decodable: %v\noutput=%s", err, out)
+	}
+	if got.Session.Brief != "fix the flaky resize test" {
+		t.Fatalf("brief = %q", got.Session.Brief)
+	}
+	if got.Session.LatestUserPrompt != "also check the codex path" {
+		t.Fatalf("latestUserPrompt = %q", got.Session.LatestUserPrompt)
+	}
+	if got.Session.LatestAssistantUpdate != "I reproduced it and pushed a fix." {
+		t.Fatalf("latestAssistantUpdate = %q", got.Session.LatestAssistantUpdate)
+	}
+	if len(got.Session.PRs) != 1 || got.Session.PRs[0].Number != 7 || got.Session.PRs[0].State != "open" {
+		t.Fatalf("prs = %+v", got.Session.PRs)
+	}
+}
+
 func TestSessionKill_SuccessWithProjectScope(t *testing.T) {
 	cfg := setConfigEnv(t)
 	srv, log := sessionCommandServer(t)
