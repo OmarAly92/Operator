@@ -46,16 +46,17 @@ type Manager struct {
 	reservePort func() (int, error)
 	onProvider  func(string)
 
-	mu         sync.Mutex
-	status     Status
-	localPort  int
-	enabled    bool
-	stickyFrom map[string]bool
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	done       chan struct{}
-	awaitDone  chan struct{}
-	logs       *lineRing
+	mu                  sync.Mutex
+	status              Status
+	localPort           int
+	enabled             bool
+	stickyFrom          map[string]bool
+	lastFailureProvider string
+	cmd                 *exec.Cmd
+	cancel              context.CancelFunc
+	done                chan struct{}
+	awaitDone           chan struct{}
+	logs                *lineRing
 }
 
 func New(deps Deps) *Manager {
@@ -131,6 +132,7 @@ func (m *Manager) Disable(ctx context.Context) error {
 	cancel, done, awaitDone := m.cancel, m.done, m.awaitDone
 	m.cancel, m.done, m.awaitDone = nil, nil, nil
 	m.stickyFrom = map[string]bool{}
+	m.lastFailureProvider = ""
 	m.mu.Unlock()
 
 	if cancel != nil {
@@ -279,6 +281,9 @@ func (m *Manager) publishURL(provider Provider, url string) {
 	m.status.State = StateLive
 	m.status.Provider = provider.Name()
 	m.status.URL = url
+	if provider.Name() == m.lastFailureProvider {
+		m.status.Error = ""
+	}
 	if m.status.Since.IsZero() {
 		m.status.Since = m.now()
 	}
@@ -465,6 +470,7 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		m.status.URL = ""
 		if failure.Message != "" {
 			m.status.Error = failure.Message
+			m.lastFailureProvider = provider.Name()
 		}
 		m.status.Restarts++
 		m.mu.Unlock()
@@ -582,10 +588,8 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 	m.stickyFrom[provider.Name()] = true
 	m.status.URL = ""
 	m.status.Error = failure.Message
-	if class == FailureCredential {
-		m.status.NeedsAuthtoken = true
-	}
-	m.status.State = StateStarting
+	m.lastFailureProvider = provider.Name()
+	m.status.NeedsAuthtoken = class == FailureCredential
 	remaining := 0
 	for _, candidate := range m.providers {
 		if !m.stickyFrom[candidate.Name()] {

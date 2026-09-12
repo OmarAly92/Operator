@@ -245,6 +245,53 @@ func TestManagerRepublishesAChangedURLAcrossRestart(t *testing.T) {
 	t.Fatalf("URL = %q, want the republished one", m.Status().URL)
 }
 
+func TestReconnectOnSameProviderClearsThePriorErrorOnceLive(t *testing.T) {
+	provider := newFakeProvider(t, "ngrok", sleepForeverScript)
+	provider.setFailure(Failure{Class: FailureNetwork, Message: "edge unreachable"})
+	sleeper := newRecordingSleeper()
+	dripFeed(t, sleeper, time.Millisecond)
+
+	m := New(Deps{
+		Dir:         t.TempDir(),
+		Providers:   []Provider{provider},
+		Binaries:    fakeStore{path: provider.binary},
+		Now:         time.Now,
+		Sleep:       sleeper.sleep,
+		ReservePort: func() (int, error) { return 45999, nil },
+	})
+	m.SetLocalPort(3011)
+	defer m.Close()
+
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	waitForState(t, m, StateLive)
+
+	provider.setHealthy(false)
+	deadline := time.Now().Add(5 * time.Second)
+	restarted := false
+	for time.Now().Before(deadline) {
+		if m.Status().Restarts >= 1 {
+			restarted = true
+		}
+		if restarted {
+			provider.setHealthy(true)
+		}
+		if restarted && m.Status().State == StateLive {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	status := m.Status()
+	if status.State != StateLive {
+		t.Fatalf("state = %q, want live after the same provider recovered", status.State)
+	}
+	if status.Error != "" {
+		t.Errorf("Error = %q once the same provider recovered, want cleared", status.Error)
+	}
+}
+
 func TestManagerDisableDuringBackoffStopsPromptly(t *testing.T) {
 	provider := newFakeProvider(t, "ngrok", exitImmediatelyScript)
 	provider.setFailure(Failure{Class: FailureNetwork, Message: "edge unreachable"})
