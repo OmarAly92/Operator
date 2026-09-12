@@ -1479,50 +1479,95 @@ func TestSpawnUnknownProjectReturns404(t *testing.T) {
 	}
 }
 
-func TestSpawn_RequestedByNotALiveOrchestratorIsRejected(t *testing.T) {
+func TestSpawn_RequestedByNamingAWorkerIsIgnoredNotRejected(t *testing.T) {
 	st := newFakeStore()
 	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
 	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
-	fc := &fakeCommander{}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
 	svc := &Service{manager: fc, store: st}
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
 	})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
-		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY (requestedBy names a worker, not an orchestrator)", err)
+	if err != nil {
+		t.Fatalf("a human running opr spawn in a worker pane must not be refused: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want it cleared so spawned_by records no false attribution", fc.spawnedCfg.RequestedBy)
 	}
 }
 
-func TestSpawn_RequestedByUnknownSessionIsRejected(t *testing.T) {
+func TestSpawn_RequestedByUnknownSessionIsIgnoredNotRejected(t *testing.T) {
 	st := newFakeStore()
 	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
-	fc := &fakeCommander{}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
 	svc := &Service{manager: fc, store: st}
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "does-not-exist",
 	})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
-		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY", err)
+	if err != nil {
+		t.Fatalf("a stale OPERATOR_SESSION_ID must not refuse the spawn: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
 	}
 }
 
-func TestSpawn_RequestedByOrchestratorInDifferentProjectIsRejected(t *testing.T) {
+func TestSpawn_RequestedByTerminatedOrchestratorIsIgnoredNotRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-1-o"] = domain.SessionRecord{ID: "proj-1-o", ProjectID: "proj-1", Kind: domain.KindOrchestrator, IsTerminated: true}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-o",
+	})
+	if err != nil {
+		t.Fatalf("a killed orchestrator's pane must still spawn: %v", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+// A cross-project orchestrator must never be HONORED: its hourly count is keyed
+// on (project, spawned_by), so honoring it would read zero rows and hand the
+// caller a fresh rate budget. Ignoring it is exactly as permissive as omitting
+// requestedBy, which is already unbudgeted, so nothing is lost by not rejecting.
+func TestSpawn_RequestedByOrchestratorInAnotherProjectIsNeverHonored(t *testing.T) {
 	st := newFakeStore()
 	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
 	st.sessions["proj-2-1"] = domain.SessionRecord{ID: "proj-2-1", ProjectID: "proj-2", Kind: domain.KindOrchestrator}
-	fc := &fakeCommander{}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
 	svc := &Service{manager: fc, store: st}
 
 	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-2-1",
 	})
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
-		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY", err)
+	if err != nil {
+		t.Fatalf("spawn = %v, want success with the foreign attribution dropped", err)
+	}
+	if fc.spawnedCfg.RequestedBy != "" {
+		t.Fatalf("requestedBy = %q, want cleared so a foreign orchestrator gets no budget", fc.spawnedCfg.RequestedBy)
+	}
+}
+
+// An ignored requestedBy must be unbudgeted, the same as omitting it. If it were
+// still budget-checked, a human in a worker pane would be refused at the cap.
+func TestSpawn_IgnoredRequestedByIsNotBudgetChecked(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 1}}}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-2", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
+	})
+	if err != nil {
+		t.Fatalf("an ignored requestedBy must be unbudgeted like a human spawn: %v", err)
 	}
 }
 

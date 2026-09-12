@@ -506,6 +506,34 @@ mistakes a prompt rule for a guarantee:
   allowed to kill workers. (The `AGENTS.md` line "do not force-delete dirty
   registered worktrees" is a rule for agents editing this repository, not the
   runtime guarantee.)
+- **Three ways past the leash, all known and accepted.** Recorded because the
+  honest answer to "what stops a runaway orchestrator" is not "the cap":
+  1. `env -u OPERATOR_SESSION_ID opr spawn` — the spawn is then unattributed and
+     unbudgeted (§5.4).
+  2. `POST /api/v1/orchestrators/delegate` — `DelegateTask` calls
+     `manager.Spawn` directly (`service/session/delegation.go:63`), bypassing
+     `Service.spawn` and therefore the whole budget. It is on the unauthenticated
+     loopback listener, and an orchestrator has a shell and learns the port from
+     `opr status`, so this needs no environment manipulation at all. It cannot
+     simply be leashed: it is the path the desktop "new task" button uses, and a
+     human spawn is correctly unbudgeted. Leashing it requires distinguishing
+     caller, which is the same client-asserted problem as (1).
+  3. Orchestrator churn. The hourly count is keyed on `(project, spawned_by)`,
+     so a replaced orchestrator starts with a zero rate budget. "20/hour" is
+     per-orchestrator-lifetime, not per-project wall-clock hour.
+  None of these is a defect against the stated threat model — the leash bounds a
+  well-behaved model's enthusiasm, not an adversarial one — but a reader who
+  believes the cap is airtight is misreading it.
+- **Deliberately not a control: a non-orchestrator `requestedBy`.** The field is
+  an attribution claim, not a credential, so a value that does not name a live
+  orchestrator in this project is dropped and the spawn proceeds unattributed
+  rather than being refused. Refusing bought no enforcement — omitting
+  `requestedBy` is already unbudgeted — and did break a human running
+  `opr spawn` in a worker's pane, where `OPERATOR_SESSION_ID` names that worker
+  and `spawnEnv` sets it in every session (`session_manager/manager.go:2984`). A
+  *foreign* orchestrator is still never honored: the hourly count is keyed on
+  `(project, spawned_by)`, so honoring one would read zero rows and hand out a
+  fresh budget.
 - **Soft (prompt only):** the merge boundary. Because merging *is* permitted
   when the human instructs it, no mechanical check can separate an authorized
   merge from an unauthorized one without losing the authorized case. This is a

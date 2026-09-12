@@ -2063,13 +2063,22 @@ func TestSessionsAPI_SpawnPassesRequestedByThrough(t *testing.T) {
 	}
 }
 
-func TestSessionsAPI_SpawnRejectsInvalidRequestedBy(t *testing.T) {
+// A requestedBy that does not name a live orchestrator is dropped by the service
+// and the spawn proceeds unattributed, so there is no INVALID_REQUESTED_BY code
+// to surface. What the envelope must carry is the budget refusal, which is the
+// only spawn-time error the leash produces.
+func TestSessionsAPI_SpawnSurfacesTheBudgetRefusal(t *testing.T) {
 	svc := newFakeSessionService()
-	svc.spawnErr = apierr.Invalid("INVALID_REQUESTED_BY", "requestedBy must be a live orchestrator in the same project", nil)
+	svc.spawnErr = apierr.Invalid("ORCHESTRATOR_BUDGET_EXHAUSTED",
+		"project opr is at its live-worker cap (8); free a worker before spawning another",
+		map[string]any{"limit": "maxLiveWorkers", "current": 8, "cap": 8})
 	srv := newSessionTestServer(t, svc)
 
-	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"opr","kind":"worker","prompt":"fix","requestedBy":"opr-worker-1"}`)
-	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_REQUESTED_BY")
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"opr","kind":"worker","prompt":"fix","requestedBy":"opr-orch-1"}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "ORCHESTRATOR_BUDGET_EXHAUSTED")
+	if !strings.Contains(string(body), "maxLiveWorkers") {
+		t.Fatalf("envelope dropped the limit detail the orchestrator branches on: %s", body)
+	}
 }
 
 func TestSessionsAPI_SpawnBranchNotFetchedReturnsTypedError(t *testing.T) {

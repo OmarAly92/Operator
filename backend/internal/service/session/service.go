@@ -235,10 +235,19 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		if err != nil {
 			return domain.Session{}, 0, 0, fmt.Errorf("resolve requestedBy %s: %w", cfg.RequestedBy, err)
 		}
+		// requestedBy is an attribution claim, not a credential. It is honored
+		// only when it names a live orchestrator in this project; anything else
+		// is dropped and the spawn proceeds unattributed. Refusing instead would
+		// buy no enforcement -- omitting requestedBy is already unbudgeted -- and
+		// would break a human running `opr spawn` in a worker's pane, where
+		// OPERATOR_SESSION_ID names that worker. A foreign orchestrator must
+		// never be honored: the hourly count is keyed on (project, spawned_by),
+		// so it would read zero rows and grant a fresh budget.
 		if !ok || requester.Kind != domain.KindOrchestrator || requester.IsTerminated || requester.ProjectID != cfg.ProjectID {
-			return domain.Session{}, 0, 0, apierr.Invalid("INVALID_REQUESTED_BY", "requestedBy must be a live orchestrator in the same project", nil)
+			cfg.RequestedBy = ""
 		}
-
+	}
+	if cfg.RequestedBy != "" {
 		policy := project.Config.OrchestratorPolicy.WithDefaults()
 
 		liveWorkers, err := s.store.CountLiveSessionsByProjectAndKind(ctx, cfg.ProjectID, domain.KindWorker)
