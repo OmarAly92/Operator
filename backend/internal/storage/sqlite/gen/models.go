@@ -313,6 +313,7 @@ type Session struct {
 	NativeTranscriptPath      string
 	PreviewOpenedRevision     int64
 	WorkspaceMode             string
+	SpawnedBy                 domain.SessionID
 }
 
 type SessionCleanupFact struct {

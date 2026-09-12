@@ -108,6 +108,10 @@ sql:
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"
+          - column: "sessions.spawned_by"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "SessionID"
           - column: "sessions.project_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"

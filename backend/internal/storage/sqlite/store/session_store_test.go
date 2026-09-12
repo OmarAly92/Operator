@@ -64,6 +64,44 @@ func TestCreateSessionWithoutProbeUsesNextNum(t *testing.T) {
 	}
 }
 
+func TestCreateSession_PersistsSpawnedBy(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+
+	rec := sampleRecord("proj-1")
+	rec.SpawnedBy = "proj-1-1"
+	created, err := s.CreateSession(ctx, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.SpawnedBy != "proj-1-1" {
+		t.Fatalf("created.SpawnedBy = %q, want proj-1-1", created.SpawnedBy)
+	}
+
+	got, ok, err := s.GetSession(ctx, created.ID)
+	if err != nil || !ok {
+		t.Fatalf("GetSession: ok=%v err=%v", ok, err)
+	}
+	if got.SpawnedBy != "proj-1-1" {
+		t.Fatalf("GetSession(...).SpawnedBy = %q, want proj-1-1 (round-trip through storage)", got.SpawnedBy)
+	}
+}
+
+func TestCreateSession_EmptySpawnedByForHumanSpawn(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "proj-1")
+
+	created, err := s.CreateSession(ctx, sampleRecord("proj-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.SpawnedBy != "" {
+		t.Fatalf("SpawnedBy = %q, want empty for a human spawn", created.SpawnedBy)
+	}
+}
+
 func TestCreateSessionStopsSkippingAfterBoundedAttempts(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

@@ -4822,6 +4822,8 @@ components:
           - mergeable
           - merged
           type: string
+        spawnedBy:
+          type: string
         status:
           enum:
           - working
