@@ -26,9 +26,10 @@ const DefaultPort = 3011
 // lets the desktop redisplay it while the bridge is enabled. The daemon derives
 // the auth hash from it in memory (HashPassword) — see BridgeService.
 type State struct {
-	Enabled  bool   `json:"enabled"`
-	Password string `json:"password"`
-	LastPort int    `json:"lastPort"`
+	Enabled       bool   `json:"enabled"`
+	Password      string `json:"password"`
+	LastPort      int    `json:"lastPort"`
+	TunnelEnabled bool   `json:"tunnelEnabled"`
 }
 
 // Path returns the Connect Mobile config file location under the data dir
@@ -86,10 +87,15 @@ func Save(path string, s State) error {
 
 const pwAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-// GeneratePassword returns a fresh 8-character alphanumeric connection password
-// drawn from a cryptographically secure source.
-func GeneratePassword() (string, error) {
-	buf := make([]byte, 8)
+const TunnelPasswordLength = 22
+
+func GeneratePassword() (string, error) { return GeneratePasswordN(8) }
+
+func GeneratePasswordN(n int) (string, error) {
+	if n <= 0 {
+		return "", fmt.Errorf("mobilebridge: password length must be positive, got %d", n)
+	}
+	buf := make([]byte, n)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
