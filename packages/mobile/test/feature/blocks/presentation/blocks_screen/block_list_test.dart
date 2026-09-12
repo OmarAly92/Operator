@@ -142,11 +142,34 @@ void main() {
     await tester.pump();
     final opacity = find.byKey(const ValueKey('response-opacity-seq-2'));
     expect(tester.widget<Opacity>(opacity).opacity, lessThan(1));
+    final offset = find.byKey(const ValueKey('response-offset-seq-2'));
+    expect(tester.widget<Transform>(offset).transform.storage[13], greaterThan(0));
     await tester.pumpAndSettle();
+    expect(tester.widget<Transform>(offset).transform.storage[13], 0);
     expect(tester.widget<Opacity>(opacity).opacity, 1);
     harness.grow('seq-2', 3);
     await tester.pump();
     expect(tester.widget<Opacity>(opacity).opacity, 1);
+  });
+
+  testWidgets('Reduce Motion shows incoming responses immediately', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.prompt)]);
+    harness.append([block(2, kind: BlockKind.assistant)]);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-2'))).opacity, 1);
+    expect(tester.widget<Transform>(find.byKey(const ValueKey('response-offset-seq-2'))).transform.storage[13], 0);
+  });
+
+  testWidgets('loading older replies does not animate the history', (tester) async {
+    final harness = await pumpList(tester, [block(2, kind: BlockKind.assistant)]);
+    harness.prepend([block(1, kind: BlockKind.assistant)]);
+    await tester.pump();
+    final list = tester.state<BlockListState>(find.byType(BlockList));
+    list.controller.jumpTo(list.controller.position.minScrollExtent);
+    await tester.pump();
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-1'))).opacity, 1);
   });
 
   testWidgets('tool lists start expanded while individual details stay collapsed', (tester) async {

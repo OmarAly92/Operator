@@ -82,6 +82,8 @@ sealed class AppMotion {
   /// `saFadeUp` translateY start offset (logical px); animates to 0.
   static const double fadeUpOffset = 10;
 
+  static const double responseRevealOffset = 4;
+
   /// `saPop` scale start value; animates to 1.
   static const double popScaleStart = 0.94;
 

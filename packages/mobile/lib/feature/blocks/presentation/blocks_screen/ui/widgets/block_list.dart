@@ -440,36 +440,36 @@ class BlockListState extends State<BlockList> {
     final ctx = widget.actionContext;
     final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
     final card = BlockCard(
-            block: block,
-            actionsBuilder: widget.actionsBuilder,
-            actions: actions,
-            onAction: widget.onAction == null
-                ? null
-                : (action) => widget.onAction!(block, action),
-            collapsed: compactTool
-                ? !_expandedTools.contains(block.id)
-                : widget.collapsedIds.contains(block.id) && !widget.highlights.containsKey(block.id),
-            onToggleCollapse: compactTool
-                ? () => setState(() {
-                    if (!_expandedTools.add(block.id)) _expandedTools.remove(block.id);
-                  })
-                : widget.onToggleCollapse == null
-                ? null
-                : () => widget.onToggleCollapse!(block.id),
-            highlight: widget.highlights[block.id],
-            activeMatch: widget.activeMatchId == block.id,
-            searchMatches: widget.highlights,
-            activeMatchId: widget.activeMatchId,
-            selected: widget.selectedIds.contains(block.id),
-            onToggleSelect: widget.onToggleSelect == null
-                ? null
-                : (value) => widget.onToggleSelect!(block.id, value),
-            selectionMode: widget.selectionMode,
-            onLongPressHeader: widget.onLongPressHeader == null
-                ? null
-                : () => widget.onLongPressHeader!(block.id),
-            hasFollowingRailItem: hasFollowingRailItem,
-          );
+      block: block,
+      actionsBuilder: widget.actionsBuilder,
+      actions: actions,
+      onAction: widget.onAction == null
+          ? null
+          : (action) => widget.onAction!(block, action),
+      collapsed: compactTool
+          ? !_expandedTools.contains(block.id)
+          : widget.collapsedIds.contains(block.id) && !widget.highlights.containsKey(block.id),
+      onToggleCollapse: compactTool
+          ? () => setState(() {
+              if (!_expandedTools.add(block.id)) _expandedTools.remove(block.id);
+            })
+          : widget.onToggleCollapse == null
+          ? null
+          : () => widget.onToggleCollapse!(block.id),
+      highlight: widget.highlights[block.id],
+      activeMatch: widget.activeMatchId == block.id,
+      searchMatches: widget.highlights,
+      activeMatchId: widget.activeMatchId,
+      selected: widget.selectedIds.contains(block.id),
+      onToggleSelect: widget.onToggleSelect == null
+          ? null
+          : (value) => widget.onToggleSelect!(block.id, value),
+      selectionMode: widget.selectionMode,
+      onLongPressHeader: widget.onLongPressHeader == null
+          ? null
+          : () => widget.onLongPressHeader!(block.id),
+      hasFollowingRailItem: hasFollowingRailItem,
+    );
     return Column(
       key: ValueKey(block.id),
       crossAxisAlignment: CrossAxisAlignment.stretch,
