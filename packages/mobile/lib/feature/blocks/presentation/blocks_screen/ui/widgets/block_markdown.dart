@@ -65,8 +65,9 @@ class BlockMarkdown extends StatelessWidget {
         h5: body.copyWith(fontWeight: FontWeight.w600),
         h6: body.copyWith(fontWeight: FontWeight.w600),
         a: body.copyWith(
-          color: skin.blue,
+          color: skin.accent,
           decoration: TextDecoration.underline,
+          decorationColor: skin.accent,
         ),
         strong: const TextStyle(fontWeight: FontWeight.w600),
         listBullet: body,
