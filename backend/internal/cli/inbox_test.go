@@ -27,7 +27,7 @@ func TestInboxRendersPendingDigestsWithAckLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"evt-1", "worker_idle", "opr-1", "resize fix", "also check codex", "Pushed a fix.", "#7 open ci=failing", "opr inbox ack evt-1"} {
+	for _, want := range []string{"evt-1", "worker_idle", "opr-1", "resize fix", "also check codex", "Pushed a fix.", "#7 open ci=failing", "opr inbox ack --project proj-1 evt-1"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
@@ -49,7 +49,7 @@ func TestInboxRendersAnEntryWhoseWorkerCouldNotBeResolved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"evt-2", "worker_idle", "opr inbox ack evt-2"} {
+	for _, want := range []string{"evt-2", "worker_idle", "opr inbox ack --project proj-1 evt-2"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
@@ -110,5 +110,25 @@ func TestInboxAckIsANoopWithoutError(t *testing.T) {
 	_, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "inbox", "ack", "--project", "proj-1", "already-acked")
 	if err != nil {
 		t.Fatalf("ack of an unknown/already-acked id must not error: %v", err)
+	}
+}
+
+func TestInboxAckHintCarriesTheProjectFlagItWasGiven(t *testing.T) {
+	cfg := setConfigEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"entries":[{"id":"ev-1","kind":"worker_idle","occurredAt":"2026-09-12T05:00:00Z",
+			"worker":{"id":"scratch-2","projectId":"scratch","kind":"worker","status":"idle",
+			"activity":{"state":"idle"},"brief":"fix the resize test"}}]}`)
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	out, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "inbox", "--project", "scratch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "opr inbox ack --project scratch ev-1") {
+		t.Fatalf("the printed ack hint is not runnable as printed; ack requires --project outside a session:\n%s", out)
 	}
 }

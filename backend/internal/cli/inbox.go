@@ -76,7 +76,7 @@ func (c *commandContext) showInbox(ctx context.Context, cmd *cobra.Command, opts
 	if opts.json {
 		return writeJSON(cmd.OutOrStdout(), res)
 	}
-	return writeInbox(cmd, res.Entries)
+	return writeInbox(cmd, res.Entries, opts.project)
 }
 
 func (c *commandContext) ackInbox(ctx context.Context, cmd *cobra.Command, projectFlag string, ids []string) error {
@@ -92,7 +92,7 @@ func (c *commandContext) ackInbox(ctx context.Context, cmd *cobra.Command, proje
 	return err
 }
 
-func writeInbox(cmd *cobra.Command, entries []inboxEntryDTO) error {
+func writeInbox(cmd *cobra.Command, entries []inboxEntryDTO, project string) error {
 	out := cmd.OutOrStdout()
 	if len(entries) == 0 {
 		_, err := fmt.Fprintln(out, "(no pending inbox items)")
@@ -138,6 +138,10 @@ func writeInbox(cmd *cobra.Command, entries []inboxEntryDTO) error {
 	if _, err := fmt.Fprintln(out); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(out, "opr inbox ack %s\n", strings.Join(ids, " "))
+	ack := "opr inbox ack"
+	if project = strings.TrimSpace(project); project != "" {
+		ack += " --project " + project
+	}
+	_, err := fmt.Fprintf(out, "%s %s\n", ack, strings.Join(ids, " "))
 	return err
 }
