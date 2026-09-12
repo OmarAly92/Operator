@@ -209,21 +209,18 @@ describe("ShellTopbar orchestrator actions", () => {
 		if (!pulses) expect(indicator).not.toHaveClass("animate-status-pulse");
 	});
 
-	it("opens the board from the project name on orchestrator sessions", async () => {
+	it("renders no project name or New task action on the embedded orchestrator topbar", () => {
 		renderTopbar(orchestrator, true);
 
 		expect(screen.queryByText("Kanban")).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Open Kanban" }));
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId",
-			params: { projectId: "proj-1" },
-		});
+		expect(screen.queryByRole("button", { name: "Open Kanban" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
 	});
 
 	it("opens the board from the project-name crumb on the full orchestrator topbar", async () => {
 		renderTopbar(orchestrator);
 
-		expect(screen.getByRole("button", { name: "New task" })).toBeEnabled();
+		expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Open Kanban" }));
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/projects/$projectId",

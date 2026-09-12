@@ -8,6 +8,7 @@ import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/logic/tool_grouping.dart';
 import 'package:operator_mobile/feature/blocks/logic/turn_grouping.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/block_card.dart';
+import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/incoming_response.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/sticky_block_header.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/tool_group_header.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/ui/widgets/turn_group_status.dart';
@@ -74,6 +75,7 @@ class BlockListState extends State<BlockList> {
 
   final Set<String> _collapsedToolGroups = {};
   final Set<String> _expandedTools = {};
+  final Set<String> _pendingResponses = {};
   Map<String, List<SessionBlock>> _toolGroups = {};
 
   int? _pivotSeq;
@@ -99,6 +101,7 @@ class BlockListState extends State<BlockList> {
     if (widget.sessionId != oldWidget.sessionId) {
       _collapsedToolGroups.clear();
       _expandedTools.clear();
+      _pendingResponses.clear();
       _pivotSeq = null;
       _topIndex = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -106,6 +109,13 @@ class BlockListState extends State<BlockList> {
         widget.sticky?.value = null;
         _setPinned(true);
       });
+    } else if (_pinned && oldWidget.blocks.isNotEmpty) {
+      final previousTail = oldWidget.blocks.last.firstSeq;
+      for (final block in widget.blocks) {
+        if (block.kind == BlockKind.assistant && block.firstSeq > previousTail) {
+          _pendingResponses.add(block.id);
+        }
+      }
     }
     _adoptPivot();
     if (_pinned) _scheduleFollow();
@@ -429,12 +439,7 @@ class BlockListState extends State<BlockList> {
   }) {
     final ctx = widget.actionContext;
     final actions = ctx == null ? const <BlockAction>[] : BlockActions.forBlock(block, ctx);
-    return Column(
-      key: ValueKey(block.id),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (showCard)
-          BlockCard(
+    final card = BlockCard(
             block: block,
             actionsBuilder: widget.actionsBuilder,
             actions: actions,
@@ -464,7 +469,20 @@ class BlockListState extends State<BlockList> {
                 ? null
                 : () => widget.onLongPressHeader!(block.id),
             hasFollowingRailItem: hasFollowingRailItem,
-          ),
+          );
+    return Column(
+      key: ValueKey(block.id),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showCard)
+          if (block.kind == BlockKind.assistant)
+            IncomingResponse(
+              blockId: block.id,
+              animate: _pendingResponses.remove(block.id),
+              child: card,
+            )
+          else
+            card,
         if (group != null && widget.canRollbackTurn?.call(group) == true)
           TurnGroupStatus(
             group: group,

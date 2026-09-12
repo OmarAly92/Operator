@@ -233,27 +233,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 				{isSessionRoute ? (
 					<>
 						{isOrchestrator ? (
-							<>
-								{/* Session routes mount this topbar embedded — the lead crumb
-								    above is hidden — so the project name must live here too. */}
-								{embedded ? (
-									<ProjectBoardLabelButton
-										className="mr-1"
-										label={projectLabel}
-										onOpen={openBoard}
-									/>
-								) : null}
-								<ProjectTerminationFeedback projectId={projectId} />
-								<TopbarButton
-									aria-label={t("shell.newTask")}
-									disabled={isProjectRestarting}
-									onClick={openNewTask}
-									variant="accent"
-								>
-									<Plus className="size-icon-lg" aria-hidden="true" />
-									{t("shell.newTask")}
-								</TopbarButton>
-							</>
+							<ProjectTerminationFeedback projectId={projectId} />
 						) : null}
 						{/* Inspector collapse (worker sessions only — orchestrators have no rail). */}
 						{!isOrchestrator && (

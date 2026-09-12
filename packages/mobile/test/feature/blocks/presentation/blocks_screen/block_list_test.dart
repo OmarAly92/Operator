@@ -70,7 +70,7 @@ class ListHarnessState extends State<ListHarness> {
   void grow(String id, int lines) => setState(() {
     blocks = [
       for (final item in blocks)
-        if (item.id == id) block(item.firstSeq, lines: lines) else item,
+        if (item.id == id) block(item.firstSeq, lines: lines, kind: item.kind) else item,
     ];
   });
 
@@ -135,6 +135,20 @@ Future<ListHarnessState> pumpList(
 }
 
 void main() {
+  testWidgets('new replies fade in once while existing messages stay steady', (tester) async {
+    final harness = await pumpList(tester, [block(1, kind: BlockKind.assistant)]);
+    expect(tester.widget<Opacity>(find.byKey(const ValueKey('response-opacity-seq-1'))).opacity, 1);
+    harness.append([block(2, kind: BlockKind.assistant)]);
+    await tester.pump();
+    final opacity = find.byKey(const ValueKey('response-opacity-seq-2'));
+    expect(tester.widget<Opacity>(opacity).opacity, lessThan(1));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Opacity>(opacity).opacity, 1);
+    harness.grow('seq-2', 3);
+    await tester.pump();
+    expect(tester.widget<Opacity>(opacity).opacity, 1);
+  });
+
   testWidgets('tool lists start expanded while individual details stay collapsed', (tester) async {
     await pumpList(tester, [block(1, kind: BlockKind.tool), block(2, kind: BlockKind.tool)]);
     expect(find.text('Used 2 tools'), findsOneWidget);
