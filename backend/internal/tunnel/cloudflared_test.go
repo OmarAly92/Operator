@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"testing"
 )
 
@@ -115,11 +114,10 @@ func TestCloudflaredBinaryPlatformSpecific(t *testing.T) {
 		} else if !tt.hasSuffix && hasTarGz {
 			t.Errorf("URL(%s, %s) = %q, should not have .tgz suffix", tt.goos, tt.goarch, url)
 		}
-	}
 
-	if runtime.GOOS == "darwin" && spec.Archive != ArchiveTarGz {
-		t.Errorf("on darwin, expected ArchiveTarGz, got %v", spec.Archive)
-	} else if runtime.GOOS == "linux" && spec.Archive != ArchiveRaw {
-		t.Errorf("on linux, expected ArchiveRaw, got %v", spec.Archive)
+		archiveKind := cloudflaredArchiveKind(tt.goos)
+		if archiveKind != tt.archive {
+			t.Errorf("cloudflaredArchiveKind(%s) = %v, want %v", tt.goos, archiveKind, tt.archive)
+		}
 	}
 }

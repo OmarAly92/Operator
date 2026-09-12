@@ -16,18 +16,18 @@ func (cloudflaredProvider) Name() string { return "cloudflared" }
 
 const cloudflaredVersion = "2026.3.0"
 
-func (cloudflaredProvider) Binary() BinarySpec {
-	var archive ArchiveKind
-	if runtime.GOOS == "linux" {
-		archive = ArchiveRaw
-	} else {
-		archive = ArchiveTarGz
+func cloudflaredArchiveKind(goos string) ArchiveKind {
+	if goos == "linux" {
+		return ArchiveRaw
 	}
+	return ArchiveTarGz
+}
 
+func (cloudflaredProvider) Binary() BinarySpec {
 	return BinarySpec{
 		Name:      "cloudflared",
 		Version:   cloudflaredVersion,
-		Archive:   archive,
+		Archive:   cloudflaredArchiveKind(runtime.GOOS),
 		EntryName: "cloudflared",
 		URL: func(goos, goarch string) (string, error) {
 			if goarch != "amd64" && goarch != "arm64" {
