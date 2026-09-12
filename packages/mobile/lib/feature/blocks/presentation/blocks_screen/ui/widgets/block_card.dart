@@ -326,7 +326,7 @@ class _RailBody extends StatelessWidget {
                   ranges: summaryHighlight!.ranges,
                   base: AppTextStyle.style13Regular.copyWith(
                     color: context.skin.textPrimary,
-                    height: 1.65,
+                    height: 1.4,
                   ),
                   softWrap: true,
                 ),
@@ -1026,7 +1026,7 @@ class _UserBubble extends StatelessWidget {
                   context: context,
                   text: block.body,
                   ranges: highlight?.ranges ?? const [],
-                  base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.55),
+                  base: AppTextStyle.style13Regular.copyWith(color: skin.textPrimary, height: 1.4),
                   softWrap: true,
                 ),
               ),

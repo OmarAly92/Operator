@@ -33,7 +33,7 @@ class BlockMarkdown extends StatelessWidget {
     final skin = context.skin;
     final body = AppTextStyle.style13Regular.copyWith(
       color: skin.textPrimary,
-      height: 1.65,
+      height: 1.4,
     );
     return MarkdownBody(
       data: text,
@@ -70,7 +70,7 @@ class BlockMarkdown extends StatelessWidget {
         ),
         strong: const TextStyle(fontWeight: FontWeight.w600),
         listBullet: body,
-        blockSpacing: 14,
+        blockSpacing: 8,
         listIndent: 22,
         code: AppTextStyle.mono12Regular.copyWith(
           color: skin.textPrimary,
