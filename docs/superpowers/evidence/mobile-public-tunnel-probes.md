@@ -281,3 +281,49 @@ it creates a valid file from nothing.
 
 Checked via `--help` only — deliberately **not executed**, since running it
 would rewrite this machine's existing authtoken config.
+
+## 13. Binary distribution — only cloudflared can be pinned
+
+Both download URLs resolve (HTTP 200, verified by `curl -sIL`), but they are
+not equally pinnable.
+
+**cloudflared — versioned, pinnable.** GitHub release assets:
+
+```
+https://github.com/cloudflare/cloudflared/releases/download/<tag>/cloudflared-<os>-<arch>.tgz
+```
+
+| Target | content-length |
+| --- | --- |
+| tag `2026.3.0`, darwin-arm64 | 18,705,562 |
+| `releases/latest/download`, darwin-arm64 | 19,217,478 |
+
+Different bytes per tag, so a version tag plus a SHA-256 pins a specific
+artifact.
+
+**ngrok — a rolling channel that cannot be pinned.** The official URL is:
+
+```
+https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-<os>-<arch>.zip
+```
+
+The version component of the filename is **ignored by the server**. Four
+requests:
+
+| Path | content-length |
+| --- | --- |
+| `ngrok-v3-stable-darwin-arm64.zip` | 11,338,279 |
+| `ngrok-v3-3.39.6-darwin-arm64.zip` | 11,338,279 |
+| `ngrok-v3-0.0.0-nonsense-darwin-arm64.zip` | 11,338,279 |
+| `ngrok-v3-stable-linux-amd64.zip` | 12,180,868 |
+
+A nonsense version returns byte-identical content to `stable`, while changing
+the OS/arch does change it. So the path's os/arch is honored and its version is
+not: there is no version-pinned artifact to hash at this endpoint, and any
+hardcoded SHA-256 would break the moment ngrok ships a release.
+
+**Consequence for the design:** checksum-pinning applies to cloudflared only.
+ngrok is fetched over TLS from its official host and then verified by
+*executing* it (`ngrok --version`) against a minimum-version floor. That is
+weaker than a checksum, and calling it anything else would be dishonest — it is
+what the vendor's distribution actually permits.

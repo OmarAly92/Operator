@@ -229,11 +229,23 @@ not depend on the answer.
 
 ## 6. Binary acquisition
 
-Fetched on first press into `~/.operator/bin/<provider>-<version>`, verified
-against a SHA-256 pinned per provider/OS/arch, written via temp file + atomic
-rename (the pattern `mobilebridge.Save` already uses,
-`backend/internal/mobilebridge/config.go:58`–`:85`), `chmod 0755`. A cached
-binary that fails its checksum is discarded and refetched once.
+Fetched on first press into `~/.operator/bin/<provider>-<version>`, written via
+temp file + atomic rename (the pattern `mobilebridge.Save` already uses,
+`backend/internal/mobilebridge/config.go:58`–`:85`), `chmod 0755`.
+
+**Verification differs per provider, because their distributions do** (evidence
+§13). This asymmetry is real and must not be papered over:
+
+| | Distribution | Verification |
+| --- | --- | --- |
+| cloudflared | Versioned GitHub release assets; each tag is distinct bytes | Pinned version tag **plus SHA-256**. A cached binary failing its checksum is discarded and refetched once |
+| ngrok | A rolling `stable` channel — the version in the URL is *ignored* by the server, so there is no pinnable artifact | TLS to the official host, then `ngrok --version` executed and checked against a minimum-version floor |
+
+Calling ngrok's path "checksum-verified" would be false. It is TLS trust in
+`bin.equinox.io` plus a post-extraction execution check — which is the strongest
+thing the vendor's own distribution permits. The `PATH` fallback below matters
+more for ngrok than for cloudflared for exactly this reason: a Homebrew-managed
+ngrok is a *better*-provenance binary than the one we can fetch.
 
 If the download itself fails — offline, corporate proxy, provider moved the
 URL — the manager falls back to a matching binary already on `PATH` before
