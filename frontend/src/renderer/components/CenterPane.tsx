@@ -21,6 +21,7 @@ import type { TerminalTarget } from "../types/terminal";
 import { isOrchestratorSession, type WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { TerminalPane } from "./TerminalPane";
+import { SessionAgentTabMenu } from "./SessionAgentTabMenu";
 import { SessionTopbarPortal } from "./SessionTopbarPortal";
 import { ShellTerminalTab } from "./ShellTerminalTab";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
@@ -387,7 +388,7 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 	const { ref, isTruncated } = useTruncatedText<HTMLButtonElement>(label);
 	const activity = session ? getAgentActivityView(session.activity, t) : undefined;
 	const tabIcon = session ? <AgentAvatar className="size-icon-base" decorative provider={session.provider} /> : icon;
-	return (
+	const tab = (
 		<span
 			data-terminal-role="primary"
 			className={cn(
@@ -431,4 +432,6 @@ function SessionPaneTab({ label, isActive, onSelect, session, icon, title }: Ses
 			{session ? <TerminalSwitchAgentButton key={session.id} session={session} /> : null}
 		</span>
 	);
+	if (!session) return tab;
+	return <SessionAgentTabMenu session={session}>{tab}</SessionAgentTabMenu>;
 }

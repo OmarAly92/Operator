@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -6601,4 +6602,130 @@ func (m *flipOnNudgeMessenger) Send(_ context.Context, _ domain.SessionID, msg s
 		m.flipped = true
 	}
 	return nil
+}
+
+// callerAssignedAgent is a recordingAgent that declares the caller-assigned
+// fresh-identity capability, like the Claude Code adapter. It is the fixture
+// for the relaunch-fresh tests: without an explicit NativeSessionID such an
+// adapter derives one from the Operator session id and resumes the very
+// transcript the relaunch is discarding.
+type callerAssignedAgent struct {
+	recordingAgent
+	minted []string
+}
+
+func (a *callerAssignedAgent) ContinuationCapabilities() ports.ContinuationCapabilities {
+	return ports.ContinuationCapabilities{FreshNativeSessionID: ports.FreshNativeSessionIDCallerAssigned}
+}
+
+func (a *callerAssignedAgent) NewNativeSessionID() string {
+	id := fmt.Sprintf("native-fresh-%d", len(a.minted)+1)
+	a.minted = append(a.minted, id)
+	return id
+}
+
+func newRelaunchManager(t *testing.T, agent ports.Agent) (*Manager, *fakeStore, *fakeRuntime) {
+	t.Helper()
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"pty-mer-1": true}}
+	m, st, _ := newExitedResumeManager(t, runtime, agent)
+	rec := st.sessions["mer-1"]
+	rec.Activity.State = domain.ActivityIdle
+	st.sessions["mer-1"] = rec
+	return m, st, runtime
+}
+
+func TestRelaunchAgentFresh_BypassesNativeResumeAndMintsFreshID(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, _, runtime := newRelaunchManager(t, agent)
+
+	result, err := m.RelaunchAgentFresh(ctx, "mer-1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent.restoreCalls != 0 {
+		t.Fatalf("forced-fresh relaunch consulted the native resume command %d times", agent.restoreCalls)
+	}
+	if agent.launchCalls != 1 {
+		t.Fatalf("launch calls = %d, want 1", agent.launchCalls)
+	}
+	if agent.lastLaunch.NativeSessionID != "native-fresh-1" {
+		t.Fatalf("launch native session id = %q, want the freshly minted one", agent.lastLaunch.NativeSessionID)
+	}
+	if !slices.Contains(runtime.lastCfg.Argv, "launch") || slices.Contains(runtime.lastCfg.Argv, "resume") {
+		t.Fatalf("relaunch argv = %#v, want the fresh launch command", runtime.lastCfg.Argv)
+	}
+	if result.Mode != RestoreModeFresh {
+		t.Fatalf("relaunch mode = %q, want fresh", result.Mode)
+	}
+}
+
+func TestRelaunchAgentFresh_AcceptsLiveAgentAndReusesHandle(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, st, runtime := newRelaunchManager(t, agent)
+
+	if _, err := m.ResumeAgentWithMode(ctx, "mer-1"); !errors.Is(err, ErrAgentNotExited) {
+		t.Fatalf("precondition: resume of a live agent = %v, want ErrAgentNotExited", err)
+	}
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); err != nil {
+		t.Fatalf("relaunch of a live agent: %v", err)
+	}
+	if runtime.destroyed != 1 || !slices.Contains(runtime.destroyedIDs, "pty-mer-1") {
+		t.Fatalf("relaunch should replace the live runtime: destroyed=%d ids=%v", runtime.destroyed, runtime.destroyedIDs)
+	}
+	if got := st.sessions["mer-1"]; got.IsTerminated {
+		t.Fatalf("relaunch terminated the session: %+v", got)
+	}
+}
+
+func TestRelaunchAgentFresh_ClearsConversationWithoutDestroyingSavedPrompt(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, st, _ := newRelaunchManager(t, agent)
+
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if agent.lastLaunch.Prompt != "" {
+		t.Fatalf("cleared relaunch delivered prompt %q, want none", agent.lastLaunch.Prompt)
+	}
+	got := st.sessions["mer-1"].Metadata
+	if got.AgentSessionID != "" {
+		t.Fatalf("stored native session id = %q, want the abandoned id cleared", got.AgentSessionID)
+	}
+	if got.Prompt != "continue the task" {
+		t.Fatalf("stored prompt = %q, want the saved task preserved for a later restore", got.Prompt)
+	}
+}
+
+func TestRelaunchAgentFresh_KeepPromptReplaysSavedTask(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, _, _ := newRelaunchManager(t, agent)
+
+	result, err := m.RelaunchAgentFresh(ctx, "mer-1", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent.lastLaunch.Prompt != "continue the task" {
+		t.Fatalf("replay relaunch prompt = %q, want the saved task", agent.lastLaunch.Prompt)
+	}
+	if agent.lastLaunch.NativeSessionID != "native-fresh-1" {
+		t.Fatalf("replay relaunch reused a native id = %q", agent.lastLaunch.NativeSessionID)
+	}
+	if result.Mode != RestoreModeSavedPrompt {
+		t.Fatalf("replay relaunch mode = %q, want saved_prompt", result.Mode)
+	}
+}
+
+func TestRelaunchAgentFresh_RejectsTerminatedSession(t *testing.T) {
+	agent := &callerAssignedAgent{}
+	m, st, runtime := newRelaunchManager(t, agent)
+	rec := st.sessions["mer-1"]
+	rec.IsTerminated = true
+	st.sessions["mer-1"] = rec
+
+	if _, err := m.RelaunchAgentFresh(ctx, "mer-1", false); !errors.Is(err, ErrTerminated) {
+		t.Fatalf("relaunch of a terminated session = %v, want ErrTerminated", err)
+	}
+	if runtime.created != 0 || runtime.destroyed != 0 {
+		t.Fatalf("rejected relaunch touched the runtime: created=%d destroyed=%d", runtime.created, runtime.destroyed)
+	}
 }

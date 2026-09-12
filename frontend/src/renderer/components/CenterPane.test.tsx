@@ -29,6 +29,11 @@ vi.mock("../hooks/useSwitchAgent", () => ({
 	useSwitchAgentState: () => agentSwitchMocks.mutation,
 }));
 
+vi.mock("../hooks/useRelaunchAgent", () => ({
+	useRelaunchAgent: () => ({ mutateAsync: relaunchMocks.mutateAsync, isPending: relaunchMocks.isPending }),
+	useRelaunchAgentPending: () => relaunchMocks.isPending,
+}));
+
 vi.mock("./TerminalSwitchAgentButton", () => ({
 	TerminalSwitchAgentButton: ({ session }: { session: WorkspaceSession }) => (
 		<button aria-label="Switch agent" data-testid="terminal-switch-agent" type="button">
@@ -62,6 +67,11 @@ vi.mock("./TerminalPane", () => ({
 		update: vi.fn(),
 		releaseWorker: cacheMocks.releaseWorker,
 	}),
+}));
+
+const relaunchMocks = vi.hoisted(() => ({
+	mutateAsync: vi.fn(),
+	isPending: false,
 }));
 
 const worker = {
@@ -103,6 +113,9 @@ beforeEach(() => {
 	agentSwitchMocks.mutation.input = undefined;
 	agentSwitchMocks.mutation.isPending = false;
 	cacheMocks.releaseWorker.mockReset();
+	relaunchMocks.mutateAsync.mockReset();
+	relaunchMocks.mutateAsync.mockResolvedValue(undefined);
+	relaunchMocks.isPending = false;
 });
 
 describe("CenterPane toolbar session label", () => {
@@ -536,5 +549,67 @@ describe("CenterPane width measurement", () => {
 		} finally {
 			restore();
 		}
+	});
+});
+
+describe("agent tab relaunch menu", () => {
+	const openTabMenu = (name: RegExp) => {
+		const tab = screen.getByRole("tab", { name });
+		fireEvent.contextMenu(tab.parentElement ?? tab);
+	};
+
+	it("offers a cleared relaunch and suppresses the webview's own menu", () => {
+		renderCenterPane({ session: worker });
+		const tab = screen.getByRole("tab", { name: /do the thing/ });
+		const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+		fireEvent(tab.parentElement ?? tab, event);
+		expect(event.defaultPrevented).toBe(true);
+		expect(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" })).toBeInTheDocument();
+	});
+
+	it("hides the replay item for a session with no saved task", () => {
+		renderCenterPane({ session: { ...worker, kind: "orchestrator", hasSavedPrompt: false } });
+		openTabMenu(/Orchestrator/);
+		expect(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" })).toBeInTheDocument();
+		expect(screen.queryByRole("menuitem", { name: "Relaunch and replay the task" })).not.toBeInTheDocument();
+	});
+
+	it("offers the replay item when the daemon holds a saved task", () => {
+		renderCenterPane({ session: { ...worker, hasSavedPrompt: true } });
+		openTabMenu(/do the thing/);
+		expect(screen.getByRole("menuitem", { name: "Relaunch and replay the task" })).toBeInTheDocument();
+	});
+
+	it("confirms before relaunching and sends keepPrompt false", async () => {
+		renderCenterPane({ session: worker });
+		openTabMenu(/do the thing/);
+		fireEvent.click(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" }));
+
+		expect(relaunchMocks.mutateAsync).not.toHaveBeenCalled();
+		expect(screen.getByText("Relaunch in a cleared session?")).toBeInTheDocument();
+
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
+		});
+		expect(relaunchMocks.mutateAsync).toHaveBeenCalledTimes(1);
+		expect(relaunchMocks.mutateAsync).toHaveBeenCalledWith({ sessionId: "sess-1", keepPrompt: false });
+	});
+
+	it("sends keepPrompt true from the replay item", async () => {
+		renderCenterPane({ session: { ...worker, hasSavedPrompt: true } });
+		openTabMenu(/do the thing/);
+		fireEvent.click(screen.getByRole("menuitem", { name: "Relaunch and replay the task" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
+		});
+		expect(relaunchMocks.mutateAsync).toHaveBeenCalledWith({ sessionId: "sess-1", keepPrompt: true });
+	});
+
+	it("disables relaunch for a terminated session", () => {
+		renderCenterPane({ session: { ...worker, isTerminated: true } });
+		openTabMenu(/do the thing/);
+		expect(screen.getByRole("menuitem", { name: "Relaunch in a cleared session" })).toHaveAttribute(
+			"data-disabled",
+		);
 	});
 });

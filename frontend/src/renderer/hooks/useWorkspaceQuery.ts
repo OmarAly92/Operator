@@ -97,6 +97,7 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
 						status,
 						scmStatus,
 						isTerminated: session.isTerminated,
+						hasSavedPrompt: session.hasSavedPrompt ?? false,
 						terminateOnPrMerge: session.terminateOnPrMerge ?? false,
 						autoInjectReview: session.autoInjectReview ?? true,
 						createdAt: session.createdAt,

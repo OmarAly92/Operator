@@ -1217,28 +1217,30 @@ func TestSessionRenameMissingSessionReturnsNotFound(t *testing.T) {
 // fakeCommander records Kill/Spawn calls so a test can assert the
 // clean-orchestrator ordering without wiring a real session engine.
 type fakeCommander struct {
-	killed          []domain.SessionID
-	retired         []domain.SessionID
-	resumed         []domain.SessionID
-	ready           []domain.SessionID
-	sent            []domain.SessionID
-	sentMessages    []string
-	cleanupProjects []domain.ProjectID
-	killErr         error
-	retireErr       error
-	sendErr         error
-	sendFunc        func(domain.SessionID, string) error
-	cleanupErr      error
-	spawnErr        error
-	spawnRecord     domain.SessionRecord
-	spawnFunc       func(ports.SpawnConfig) domain.SessionRecord
-	spawnCalls      int
-	spawned         bool
-	spawnedCfg      ports.SpawnConfig
-	killsAtSpawn    int
-	restoreErr      error
-	restoreResult   sessionmanager.RestoreResult
-	readyErr        error
+	killed             []domain.SessionID
+	retired            []domain.SessionID
+	resumed            []domain.SessionID
+	relaunched         []domain.SessionID
+	relaunchKeptPrompt bool
+	ready              []domain.SessionID
+	sent               []domain.SessionID
+	sentMessages       []string
+	cleanupProjects    []domain.ProjectID
+	killErr            error
+	retireErr          error
+	sendErr            error
+	sendFunc           func(domain.SessionID, string) error
+	cleanupErr         error
+	spawnErr           error
+	spawnRecord        domain.SessionRecord
+	spawnFunc          func(ports.SpawnConfig) domain.SessionRecord
+	spawnCalls         int
+	spawned            bool
+	spawnedCfg         ports.SpawnConfig
+	killsAtSpawn       int
+	restoreErr         error
+	restoreResult      sessionmanager.RestoreResult
+	readyErr           error
 }
 
 func (f *fakeCommander) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
@@ -1267,6 +1269,14 @@ func (*fakeCommander) SubmitAgentHandoff(context.Context, domain.SessionID, doma
 	return domain.AgentSwitch{}, nil
 }
 func (f *fakeCommander) RestoreWithMode(context.Context, domain.SessionID, ports.PaneGrid) (sessionmanager.RestoreResult, error) {
+	if f.restoreErr != nil {
+		return sessionmanager.RestoreResult{}, f.restoreErr
+	}
+	return f.restoreResult, nil
+}
+func (f *fakeCommander) RelaunchAgentFresh(_ context.Context, id domain.SessionID, keepPrompt bool) (sessionmanager.RestoreResult, error) {
+	f.relaunched = append(f.relaunched, id)
+	f.relaunchKeptPrompt = keepPrompt
 	if f.restoreErr != nil {
 		return sessionmanager.RestoreResult{}, f.restoreErr
 	}

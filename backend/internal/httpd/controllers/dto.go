@@ -161,6 +161,11 @@ type SessionView struct {
 	Brief                 string           `json:"brief,omitempty" maxLength:"2048"`
 	LatestUserPrompt      string           `json:"latestUserPrompt,omitempty" maxLength:"2048"`
 	LatestAssistantUpdate string           `json:"latestAssistantUpdate,omitempty" maxLength:"2048"`
+	// HasSavedPrompt reports whether the session has a saved task prompt the
+	// daemon could replay into a fresh conversation. The prompt itself lives on
+	// the unserialized domain Metadata; clients need only the yes/no to decide
+	// whether a replay action applies.
+	HasSavedPrompt bool `json:"hasSavedPrompt,omitempty"`
 }
 
 // ListSessionsResponse is the body of GET /api/v1/sessions.
@@ -594,6 +599,21 @@ type ResumeAgentResponse struct {
 	SessionID  domain.SessionID           `json:"sessionId"`
 	ResumeMode sessionsvc.RestoreModeView `json:"resumeMode" enum:"native,saved_prompt,fresh"`
 	Session    SessionView                `json:"session"`
+}
+
+// RelaunchAgentRequest is the body of POST /api/v1/sessions/{sessionId}/relaunch-agent.
+type RelaunchAgentRequest struct {
+	// KeepPrompt re-delivers the session's saved task prompt into the new
+	// conversation. Default false starts the agent with its system prompt only.
+	KeepPrompt bool `json:"keepPrompt,omitempty"`
+}
+
+// RelaunchAgentResponse is the body of POST /api/v1/sessions/{sessionId}/relaunch-agent.
+type RelaunchAgentResponse struct {
+	OK           bool                       `json:"ok"`
+	SessionID    domain.SessionID           `json:"sessionId"`
+	RelaunchMode sessionsvc.RestoreModeView `json:"relaunchMode" enum:"native,saved_prompt,fresh"`
+	Session      SessionView                `json:"session"`
 }
 
 // KillSessionResponse is the body of POST /api/v1/sessions/{sessionId}/kill.

@@ -968,6 +968,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/relaunch-agent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Kill the running agent and relaunch it on a new conversation */
+        post: operations["relaunchSessionAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/restore": {
         parameters: {
             query?: never;
@@ -1631,6 +1648,16 @@ export interface components {
         ContainerReapConfig: {
             disabled?: boolean;
         };
+        ControllersRelaunchAgentRequest: {
+            keepPrompt?: boolean;
+        };
+        ControllersRelaunchAgentResponse: {
+            ok: boolean;
+            /** @enum {string} */
+            relaunchMode: "native" | "saved_prompt" | "fresh";
+            session: components["schemas"]["ControllersSessionView"];
+            sessionId: string;
+        };
         ControllersRestoreSessionRequest: {
             /** @description Columns of the terminal pane that will show the restored session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
             cols?: number;
@@ -1675,6 +1702,7 @@ export interface components {
             createdAt: string;
             displayName?: string;
             harness?: string;
+            hasSavedPrompt?: boolean;
             id: string;
             isPinned: boolean;
             isTerminated: boolean;
@@ -6280,6 +6308,78 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    relaunchSessionAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersRelaunchAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersRelaunchAgentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

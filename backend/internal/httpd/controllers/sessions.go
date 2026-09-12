@@ -87,6 +87,7 @@ type SessionService interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
+	RelaunchAgent(ctx context.Context, id domain.SessionID, keepPrompt bool) (sessionsvc.ResumeAgentOutcome, error)
 	SwitchAgent(ctx context.Context, id domain.SessionID, in sessionsvc.SwitchAgentInput) (domain.AgentSwitch, error)
 	ListAgentSwitches(ctx context.Context, id domain.SessionID) ([]domain.AgentSwitch, error)
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
@@ -203,6 +204,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Put("/sessions/{sessionId}/reviewer", c.setReviewer)
 	r.Post("/sessions/{sessionId}/restore", c.restore)
 	r.Post("/sessions/{sessionId}/resume-agent", c.resumeAgent)
+	r.Post("/sessions/{sessionId}/relaunch-agent", c.relaunchAgent)
 	r.Get("/sessions/{sessionId}/agent-switches", c.listAgentSwitches)
 	r.Post("/sessions/{sessionId}/agent-switches/{switchId}/handoff", c.submitAgentHandoff)
 	r.Get("/sessions/{sessionId}/blocks", c.listBlockEvents)
@@ -1105,6 +1107,31 @@ func (c *SessionsController) resumeAgent(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+func (c *SessionsController) relaunchAgent(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/relaunch-agent")
+		return
+	}
+	var req RelaunchAgentRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+			return
+		}
+	}
+	out, err := c.Svc.RelaunchAgent(r.Context(), sessionID(r), req.KeepPrompt)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, RelaunchAgentResponse{
+		OK:           true,
+		SessionID:    sessionID(r),
+		RelaunchMode: out.Mode,
+		Session:      sessionView(out.Session),
+	})
+}
+
 func (c *SessionsController) switchAgent(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/switch-agent")
@@ -1974,6 +2001,7 @@ func sessionView(s domain.Session) SessionView {
 		Brief:                 capWireText(domain.SanitizeControlChars(s.Metadata.Prompt)),
 		LatestUserPrompt:      capWireText(domain.SanitizeControlChars(s.Metadata.LatestUserPrompt)),
 		LatestAssistantUpdate: capWireText(domain.SanitizeControlChars(s.Metadata.LatestAssistantUpdate)),
+		HasSavedPrompt:        strings.TrimSpace(s.Metadata.Prompt) != "",
 	}
 }
 

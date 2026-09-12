@@ -62,6 +62,7 @@ type commander interface {
 	SubmitAgentHandoff(ctx context.Context, id domain.SessionID, switchID domain.AgentSwitchID, sourceGenerationID domain.AgentGenerationID, handoff json.RawMessage) (domain.AgentSwitch, error)
 	RestoreWithMode(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionmanager.RestoreResult, error)
 	ResumeAgentWithMode(ctx context.Context, id domain.SessionID) (sessionmanager.RestoreResult, error)
+	RelaunchAgentFresh(ctx context.Context, id domain.SessionID, keepPrompt bool) (sessionmanager.RestoreResult, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	RetireForReplacement(ctx context.Context, id domain.SessionID) error
 	WaitForMessageDeliveryReady(ctx context.Context, id domain.SessionID) error
@@ -547,6 +548,20 @@ func (s *Service) Restore(ctx context.Context, id domain.SessionID, grid ports.P
 // session or recreating its workspace.
 func (s *Service) ResumeAgent(ctx context.Context, id domain.SessionID) (ResumeAgentOutcome, error) {
 	res, err := s.manager.ResumeAgentWithMode(ctx, id)
+	if err != nil {
+		return ResumeAgentOutcome{}, toAPIError(err)
+	}
+	session, err := s.toSession(ctx, res.Session)
+	if err != nil {
+		return ResumeAgentOutcome{}, err
+	}
+	return ResumeAgentOutcome{Session: session, Mode: restoreModeView(res.Mode)}, nil
+}
+
+// RelaunchAgent kills the session's running agent and brings it back on a new
+// provider conversation. keepPrompt re-delivers the saved task prompt.
+func (s *Service) RelaunchAgent(ctx context.Context, id domain.SessionID, keepPrompt bool) (ResumeAgentOutcome, error) {
+	res, err := s.manager.RelaunchAgentFresh(ctx, id, keepPrompt)
 	if err != nil {
 		return ResumeAgentOutcome{}, toAPIError(err)
 	}
