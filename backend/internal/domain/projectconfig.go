@@ -45,7 +45,8 @@ type ProjectConfig struct {
 	// Worker and Orchestrator are role-specific harness/agent-config overrides.
 	Worker       RoleOverride `json:"worker,omitempty"`
 	Orchestrator RoleOverride `json:"orchestrator,omitempty"`
-
+	// OrchestratorPolicy bounds the project's orchestrator spawn authority
+	// (live-worker cap and hourly spawn rate).
 	OrchestratorPolicy OrchestratorPolicy `json:"orchestratorPolicy,omitempty"`
 
 	// Reviewers names the agent(s) that review a worker's PR when a review is
