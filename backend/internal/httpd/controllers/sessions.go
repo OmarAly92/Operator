@@ -324,7 +324,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, RequestedBy: in.RequestedBy})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

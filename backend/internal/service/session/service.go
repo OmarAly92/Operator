@@ -223,6 +223,15 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if err != nil {
 		return domain.Session{}, 0, 0, err
 	}
+	if cfg.RequestedBy != "" {
+		requester, ok, err := s.store.GetSession(ctx, cfg.RequestedBy)
+		if err != nil {
+			return domain.Session{}, 0, 0, fmt.Errorf("resolve requestedBy %s: %w", cfg.RequestedBy, err)
+		}
+		if !ok || requester.Kind != domain.KindOrchestrator || requester.IsTerminated || requester.ProjectID != cfg.ProjectID {
+			return domain.Session{}, 0, 0, apierr.Invalid("INVALID_REQUESTED_BY", "requestedBy must be a live orchestrator in the same project", nil)
+		}
+	}
 	start := s.now()
 	firstSession, err := s.isFirstSession(ctx)
 	if err != nil {

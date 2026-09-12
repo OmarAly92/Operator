@@ -211,6 +211,11 @@ type SpawnSessionRequest struct {
 	Attachments []AttachmentInput `json:"attachments,omitempty"`
 	Cols        int               `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
 	Rows        int               `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
+	// RequestedBy is the orchestrator session id that asked for this spawn.
+	// The CLI fills it from OPERATOR_SESSION_ID when set; empty means a human
+	// spawn. The daemon rejects a value that does not resolve to a live
+	// orchestrator in the same project.
+	RequestedBy domain.SessionID `json:"requestedBy,omitempty"`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send

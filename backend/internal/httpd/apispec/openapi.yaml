@@ -6815,6 +6815,8 @@ components:
         prompt:
           maxLength: 4096
           type: string
+        requestedBy:
+          type: string
         rows:
           description: Rows of the terminal pane that will show the session; see cols.
           maximum: 1000

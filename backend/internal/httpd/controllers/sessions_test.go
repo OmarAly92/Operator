@@ -2050,6 +2050,28 @@ func TestSessionsAPI_SetPreviewNotFound(t *testing.T) {
 	assertErrorCode(t, body, status, http.StatusNotFound, "SESSION_NOT_FOUND")
 }
 
+func TestSessionsAPI_SpawnPassesRequestedByThrough(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"opr","kind":"worker","prompt":"fix","requestedBy":"opr-1"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("spawn = %d, want 201; body=%s", status, body)
+	}
+	if svc.lastSpawnConfig.RequestedBy != "opr-1" {
+		t.Fatalf("lastSpawnConfig.RequestedBy = %q, want opr-1", svc.lastSpawnConfig.RequestedBy)
+	}
+}
+
+func TestSessionsAPI_SpawnRejectsInvalidRequestedBy(t *testing.T) {
+	svc := newFakeSessionService()
+	svc.spawnErr = apierr.Invalid("INVALID_REQUESTED_BY", "requestedBy must be a live orchestrator in the same project", nil)
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"opr","kind":"worker","prompt":"fix","requestedBy":"opr-worker-1"}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_REQUESTED_BY")
+}
+
 func TestSessionsAPI_SpawnBranchNotFetchedReturnsTypedError(t *testing.T) {
 	svc := newFakeSessionService()
 	svc.spawnErr = apierr.Invalid("BRANCH_NOT_FETCHED", `workspace: branch is not fetched: "feature/missing"`, nil)

@@ -43,6 +43,7 @@ type spawnRequest struct {
 	Branch      string `json:"branch,omitempty"`
 	Prompt      string `json:"prompt,omitempty"`
 	DisplayName string `json:"displayName"`
+	RequestedBy string `json:"requestedBy,omitempty"`
 }
 
 type spawnResult struct {
@@ -126,6 +127,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 				Branch:      opts.branch,
 				Prompt:      opts.prompt,
 				DisplayName: name,
+				RequestedBy: strings.TrimSpace(os.Getenv("OPERATOR_SESSION_ID")),
 			}
 			var res spawnResult
 			if err := ctx.postJSON(cmd.Context(), "sessions", req, &res); err != nil {

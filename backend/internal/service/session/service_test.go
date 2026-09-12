@@ -1423,6 +1423,65 @@ func TestSpawnUnknownProjectReturns404(t *testing.T) {
 	}
 }
 
+func TestSpawn_RequestedByNotALiveOrchestratorIsRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-1-1"] = domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-1",
+	})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
+		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY (requestedBy names a worker, not an orchestrator)", err)
+	}
+}
+
+func TestSpawn_RequestedByUnknownSessionIsRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "does-not-exist",
+	})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
+		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY", err)
+	}
+}
+
+func TestSpawn_RequestedByOrchestratorInDifferentProjectIsRejected(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	st.sessions["proj-2-1"] = domain.SessionRecord{ID: "proj-2-1", ProjectID: "proj-2", Kind: domain.KindOrchestrator}
+	fc := &fakeCommander{}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-2-1",
+	})
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_REQUESTED_BY" {
+		t.Fatalf("err = %v, want apierr INVALID_REQUESTED_BY", err)
+	}
+}
+
+func TestSpawn_EmptyRequestedByIsAlwaysAHumanSpawnAndSucceeds(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-1", ProjectID: "proj-1", Kind: domain.KindWorker}}
+	svc := &Service{manager: fc, store: st}
+
+	_, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatalf("empty requestedBy must never be rejected: %v", err)
+	}
+}
+
 func TestSpawnEmitsFirstSessionOnboardingAndDuration(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", RegisteredAt: time.Unix(100, 0).UTC()}

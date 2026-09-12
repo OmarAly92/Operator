@@ -2445,6 +2445,7 @@ export interface components {
             kind?: "worker" | "orchestrator";
             projectId: string;
             prompt?: string;
+            requestedBy?: string;
             /** @description Rows of the terminal pane that will show the session; see cols. */
             rows?: number;
             /** @enum {string} */
