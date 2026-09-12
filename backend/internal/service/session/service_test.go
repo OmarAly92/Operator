@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ func (f *fakeTelemetrySink) Emit(_ context.Context, ev ports.TelemetryEvent) {
 func (f *fakeTelemetrySink) Close(context.Context) error { return nil }
 
 type fakeStore struct {
+	mu        sync.Mutex
 	sessions  map[domain.SessionID]domain.SessionRecord
 	pr        map[domain.SessionID]domain.PRFacts
 	prs       map[domain.SessionID][]domain.PullRequest
@@ -111,6 +113,8 @@ func (f *fakeStore) CreateSession(_ context.Context, rec domain.SessionRecord) (
 }
 
 func (f *fakeStore) GetSession(_ context.Context, id domain.SessionID) (domain.SessionRecord, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	r, ok := f.sessions[id]
 	return r, ok, nil
 }
@@ -256,6 +260,8 @@ func (f *fakeStore) ListPRComments(_ context.Context, prURL string) ([]domain.Pu
 }
 
 func (f *fakeStore) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	p, ok := f.projects[id]
 	return p, ok, nil
 }
@@ -265,6 +271,8 @@ func (f *fakeStore) ListSessionWorktrees(_ context.Context, id domain.SessionID)
 }
 
 func (f *fakeStore) CountLiveSessionsByProjectAndKind(_ context.Context, project domain.ProjectID, kind domain.SessionKind) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	n := 0
 	for _, r := range f.sessions {
 		if r.ProjectID == project && r.Kind == kind && !r.IsTerminated {
@@ -275,6 +283,8 @@ func (f *fakeStore) CountLiveSessionsByProjectAndKind(_ context.Context, project
 }
 
 func (f *fakeStore) CountSessionsSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	n := 0
 	for _, r := range f.sessions {
 		if r.ProjectID == project && r.SpawnedBy == spawnedBy && !r.CreatedAt.Before(since) {
@@ -285,6 +295,8 @@ func (f *fakeStore) CountSessionsSpawnedBySince(_ context.Context, project domai
 }
 
 func (f *fakeStore) OldestSessionSpawnedBySince(_ context.Context, project domain.ProjectID, spawnedBy domain.SessionID, since time.Time) (time.Time, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	var oldest time.Time
 	found := false
 	for _, r := range f.sessions {
@@ -297,6 +309,15 @@ func (f *fakeStore) OldestSessionSpawnedBySince(_ context.Context, project domai
 		}
 	}
 	return oldest, found, nil
+}
+
+// putSession is a concurrency-safe way for tests to simulate a session being
+// created mid-flight, mirroring what fakeCommander.spawnFunc does when it
+// mutates f.sessions from a goroutine racing other fakeStore readers.
+func (f *fakeStore) putSession(rec domain.SessionRecord) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[rec.ID] = rec
 }
 
 func TestSessionListAppliesActivityBeforePRFacts(t *testing.T) {
@@ -1582,6 +1603,78 @@ func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
 	resetsAt, ok := apiErr.Details["resetsAt"].(string)
 	if !ok || resetsAt == "" {
 		t.Fatalf("Details[\"resetsAt\"] = %v, want a non-empty timestamp naming when the oldest counted spawn ages out", apiErr.Details["resetsAt"])
+	}
+}
+
+// TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck proves
+// the fix for the budget-check race: two concurrent worker spawns attributed
+// to the same orchestrator, against a project capped at MaxLiveWorkers: 1,
+// must not both pass the live-worker check. Before the fix, spawn() only
+// locked per-project for cfg.Kind == KindOrchestrator, so two concurrent
+// RequestedBy-attributed worker spawns both read the pre-spawn live-worker
+// count (0), both passed the cap of 1, and both reached manager.Spawn. The
+// fake commander's spawnFunc sleeps before recording the new session, which
+// widens the window in which an unlocked second request can observe the same
+// stale count; fakeStore's own mutex only prevents a concurrent-map crash, it
+// does not serialize the check-then-act sequence — that guarantee has to come
+// from the per-project lock under test.
+func TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
+	st.sessions["proj-1-orch"] = domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}
+
+	var seq int32
+	fc := &fakeCommander{}
+	fc.spawnFunc = func(cfg ports.SpawnConfig) domain.SessionRecord {
+		time.Sleep(30 * time.Millisecond)
+		n := atomic.AddInt32(&seq, 1)
+		rec := domain.SessionRecord{
+			ID:        domain.SessionID(fmt.Sprintf("proj-1-w%d", n)),
+			ProjectID: cfg.ProjectID,
+			Kind:      cfg.Kind,
+			SpawnedBy: cfg.RequestedBy,
+			CreatedAt: time.Now(),
+		}
+		st.putSession(rec)
+		return rec
+	}
+	svc := &Service{manager: fc, store: st}
+	cfg := ports.SpawnConfig{ProjectID: "proj-1", Kind: domain.KindWorker, RequestedBy: "proj-1-orch"}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, _, err := svc.Spawn(context.Background(), cfg)
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes, budgetRejections := 0, 0
+	for err := range errs {
+		if err == nil {
+			successes++
+			continue
+		}
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) && apiErr.Code == "ORCHESTRATOR_BUDGET_EXHAUSTED" {
+			budgetRejections++
+			continue
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if successes != 1 || budgetRejections != 1 {
+		t.Fatalf("successes=%d budgetRejections=%d, want exactly one success and one budget rejection (MaxLiveWorkers=1 must not be oversold by concurrent orchestrator-attributed spawns)", successes, budgetRejections)
+	}
+	if fc.spawnCalls != 1 {
+		t.Fatalf("manager.Spawn calls = %d, want exactly 1: the second concurrent request must be rejected by the budget check before it ever reaches the manager", fc.spawnCalls)
 	}
 }
 

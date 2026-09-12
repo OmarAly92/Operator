@@ -227,6 +227,10 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.Session{}, 0, 0, err
 	}
 	if cfg.RequestedBy != "" {
+		unlock := s.lockOrchestratorProject(cfg.ProjectID)
+		defer unlock()
+	}
+	if cfg.RequestedBy != "" {
 		requester, ok, err := s.store.GetSession(ctx, cfg.RequestedBy)
 		if err != nil {
 			return domain.Session{}, 0, 0, fmt.Errorf("resolve requestedBy %s: %w", cfg.RequestedBy, err)
