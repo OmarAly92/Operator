@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
 
 type fakeProvider struct {
@@ -16,6 +17,7 @@ type fakeProvider struct {
 	mu       sync.Mutex
 	url      string
 	urlErr   error
+	urlDelay time.Duration
 	ready    bool
 	healthy  bool
 	failure  Failure
@@ -66,6 +68,18 @@ func (f *fakeProvider) setURLErr(err error) {
 	f.urlErr = err
 }
 
+func (f *fakeProvider) setURLDelay(d time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.urlDelay = d
+}
+
+func (f *fakeProvider) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.urlCalls
+}
+
 func (f *fakeProvider) Name() string { return f.name }
 
 func (f *fakeProvider) Binary() BinarySpec {
@@ -76,12 +90,19 @@ func (f *fakeProvider) Args(localPort, controlPort int) []string { return []stri
 
 func (f *fakeProvider) PublicURL(_ context.Context, _ int) (string, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.urlCalls++
-	if f.urlErr != nil {
-		return "", f.urlErr
+	delay := f.urlDelay
+	urlErr := f.urlErr
+	url := f.url
+	f.mu.Unlock()
+
+	if delay > 0 {
+		time.Sleep(delay)
 	}
-	return f.url, nil
+	if urlErr != nil {
+		return "", urlErr
+	}
+	return url, nil
 }
 
 func (f *fakeProvider) Ready(context.Context, int) (bool, error) {

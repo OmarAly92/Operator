@@ -54,6 +54,7 @@ type Manager struct {
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
 	done       chan struct{}
+	awaitDone  chan struct{}
 	logs       *lineRing
 }
 
@@ -127,18 +128,26 @@ func (m *Manager) Enable(ctx context.Context) error {
 func (m *Manager) Disable(ctx context.Context) error {
 	m.mu.Lock()
 	m.enabled = false
-	cancel, done := m.cancel, m.done
-	m.cancel, m.done = nil, nil
+	cancel, done, awaitDone := m.cancel, m.done, m.awaitDone
+	m.cancel, m.done, m.awaitDone = nil, nil, nil
 	m.stickyFrom = map[string]bool{}
 	m.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
 	}
+	deadlineCtx, cancelDeadline := context.WithTimeout(context.Background(), stopGrace+time.Second)
+	defer cancelDeadline()
 	if done != nil {
 		select {
 		case <-done:
-		case <-time.After(stopGrace + time.Second):
+		case <-deadlineCtx.Done():
+		}
+	}
+	if awaitDone != nil {
+		select {
+		case <-awaitDone:
+		case <-deadlineCtx.Done():
 		}
 	}
 
@@ -203,8 +212,9 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	}
 
 	done := make(chan struct{})
+	awaitDone := make(chan struct{})
 	m.mu.Lock()
-	m.cmd, m.cancel, m.done, m.logs = cmd, cancel, done, logs
+	m.cmd, m.cancel, m.done, m.awaitDone, m.logs = cmd, cancel, done, awaitDone, logs
 	m.status = Status{State: StateStarting, Provider: provider.Name()}
 	m.mu.Unlock()
 
@@ -212,12 +222,13 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	m.setState(StateStarting, provider.Name())
 
 	go m.supervise(runCtx, provider, cmd, controlPort, logs, done)
-	go m.runAwaitURL(runCtx, provider, controlPort, cancel, done)
+	go m.runAwaitURL(runCtx, provider, controlPort, cancel, done, awaitDone)
 
 	return nil
 }
 
-func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done chan struct{}) {
+func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPort int, cancel context.CancelFunc, done chan struct{}, awaitDone chan struct{}) {
+	defer close(awaitDone)
 	if err := m.awaitURL(ctx, provider, controlPort); err != nil {
 		if ctx.Err() != nil {
 			return
@@ -240,6 +251,9 @@ func (m *Manager) awaitURL(ctx context.Context, provider Provider, controlPort i
 		}
 		url, err := provider.PublicURL(ctx, controlPort)
 		if err == nil && url != "" {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			m.publishURL(provider, url)
 			return nil
 		}

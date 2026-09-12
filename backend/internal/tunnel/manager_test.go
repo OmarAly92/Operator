@@ -22,6 +22,18 @@ func waitForState(t *testing.T, m *Manager, want State) Status {
 	return last
 }
 
+func waitForCallCount(t *testing.T, provider *fakeProvider, want int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if provider.callCount() >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("callCount = %d, want >= %d", provider.callCount(), want)
+}
+
 func newTestManager(t *testing.T, providers ...Provider) *Manager {
 	t.Helper()
 	first, ok := providers[0].(*fakeProvider)
@@ -181,4 +193,81 @@ type failingStore struct{}
 
 func (failingStore) Ensure(context.Context, BinarySpec) (string, error) {
 	return "", errors.New("no binary available")
+}
+
+func TestManagerDisableWaitsOutAnInFlightPublicURLBeforeReturning(t *testing.T) {
+	provider := newFakeProvider(t, "ngrok", sleepForeverScript)
+	provider.setURLDelay(300 * time.Millisecond)
+	m := newTestManager(t, provider)
+
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	waitForState(t, m, StateStarting)
+	waitForCallCount(t, provider, 1)
+
+	start := time.Now()
+	if err := m.Disable(context.Background()); err != nil {
+		t.Fatalf("Disable: %v", err)
+	}
+	elapsed := time.Since(start)
+	if elapsed < 200*time.Millisecond {
+		t.Errorf("Disable returned after %s, want it to wait out the in-flight PublicURL call", elapsed)
+	}
+
+	status := m.Status()
+	if status.State != StateOff {
+		t.Errorf("state = %q immediately after Disable, want off", status.State)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	status = m.Status()
+	if status.State != StateOff {
+		t.Errorf("state = %q after the delayed PublicURL resolved, want off (must not resurrect StateLive)", status.State)
+	}
+	if status.URL != "" {
+		t.Errorf("URL = %q after Disable, want cleared", status.URL)
+	}
+}
+
+func TestManagerDisableDoesNotResurrectTrustedHeaderAfterInFlightPublicURL(t *testing.T) {
+	provider := newFakeProvider(t, "ngrok", sleepForeverScript)
+	provider.setURLDelay(300 * time.Millisecond)
+	headers := make(chan string, 8)
+	m := New(Deps{
+		Dir:         t.TempDir(),
+		Providers:   []Provider{provider},
+		Binaries:    fakeStore{path: provider.binary},
+		Now:         time.Now,
+		Sleep:       func(context.Context, time.Duration) error { return nil },
+		ReservePort: func() (int, error) { return 45999, nil },
+		OnProvider:  func(header string) { headers <- header },
+	})
+	m.SetLocalPort(3011)
+	defer m.Close()
+
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	waitForState(t, m, StateStarting)
+	waitForCallCount(t, provider, 1)
+
+	if err := m.Disable(context.Background()); err != nil {
+		t.Fatalf("Disable: %v", err)
+	}
+
+	select {
+	case got := <-headers:
+		if got != "" {
+			t.Errorf("header = %q on stop, want empty", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Disable did not call OnProvider(\"\")")
+	}
+
+	select {
+	case got := <-headers:
+		t.Errorf("unexpected OnProvider call after Disable returned: %q", got)
+	case <-time.After(500 * time.Millisecond):
+	}
 }
