@@ -226,7 +226,7 @@ func (s *Service) spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if err != nil {
 		return domain.Session{}, 0, 0, err
 	}
-	if cfg.RequestedBy != "" {
+	if cfg.RequestedBy != "" && cfg.Kind != domain.KindOrchestrator {
 		unlock := s.lockOrchestratorProject(cfg.ProjectID)
 		defer unlock()
 	}

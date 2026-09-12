@@ -1618,6 +1618,38 @@ func TestSpawn_RefusesAtHourlySpawnRateWithResetTime(t *testing.T) {
 // stale count; fakeStore's own mutex only prevents a concurrent-map crash, it
 // does not serialize the check-then-act sequence — that guarantee has to come
 // from the per-project lock under test.
+// TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock is the regression
+// test for a self-deadlock introduced by the fix above: Spawn already holds
+// s.lockOrchestratorProject for the whole call into spawn() when
+// cfg.Kind == domain.KindOrchestrator, so spawn()'s own RequestedBy-triggered
+// lock acquisition must not fire for that same request — sync.Mutex.Lock is
+// not reentrant and ignores context, so relocking the same project's mutex
+// from the same goroutine hangs forever. This is reachable via
+// `opr spawn --kind orchestrator` from a session with OPERATOR_SESSION_ID set
+// (RequestedBy non-empty) when the project has no live orchestrator yet.
+func TestSpawn_OrchestratorKindRequestedBySpawnDoesNotDeadlock(t *testing.T) {
+	st := newFakeStore()
+	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1"}
+	fc := &fakeCommander{spawnRecord: domain.SessionRecord{ID: "proj-1-orch", ProjectID: "proj-1", Kind: domain.KindOrchestrator}}
+	svc := &Service{manager: fc, store: st}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _, _ = svc.Spawn(context.Background(), ports.SpawnConfig{
+			ProjectID:   "proj-1",
+			Kind:        domain.KindOrchestrator,
+			RequestedBy: "some-caller-id",
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Spawn with Kind=orchestrator and non-empty RequestedBy deadlocked: spawn() re-locked the per-project mutex Spawn() already holds")
+	}
+}
+
 func TestSpawn_ConcurrentOrchestratorAttributedSpawnsSerializeBudgetCheck(t *testing.T) {
 	st := newFakeStore()
 	st.projects["proj-1"] = domain.ProjectRecord{ID: "proj-1", Config: domain.ProjectConfig{OrchestratorPolicy: domain.OrchestratorPolicy{MaxLiveWorkers: 1, MaxSpawnsPerHour: 100}}}
