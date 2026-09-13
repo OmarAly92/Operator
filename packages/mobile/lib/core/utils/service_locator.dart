@@ -130,10 +130,7 @@ class ServiceLocator {
     );
 
     sl.registerLazySingleton<SessionsRepository>(
-      () => SessionsRepositoryImp(
-        sl<SessionsRemoteDataSource>(),
-        sl<NetworkStatus>(),
-      ),
+      () => SessionsRepositoryImp(sl<SessionsRemoteDataSource>()),
     );
     sl.registerLazySingleton<SessionsRemoteDataSource>(
       () => SessionsRemoteDataSourceImp(sl<ApiConsumer>()),
@@ -216,6 +213,7 @@ class ServiceLocator {
         sl<MuxClient>(),
         sl<SessionControlRepository>(),
         sl<UsageRepository>(),
+        sessions: sl<SessionsCubit>(),
         sessionId: sessionId,
         initialActivity: activity,
       ),
@@ -225,6 +223,7 @@ class ServiceLocator {
         sl<MuxClient>(),
         sl<BlocksRepository>(),
         sessionId,
+        sessions: sl<SessionsCubit>(),
         harness: harness,
       ),
     );
@@ -321,7 +320,6 @@ class ServiceLocator {
     sl.registerLazySingleton<PreviewRepository>(
       () => PreviewRepositoryImp(
         sl<PreviewRemoteDataSource>(),
-        sl<NetworkStatus>(),
         sl<ServerConfigStore>(),
       ),
     );

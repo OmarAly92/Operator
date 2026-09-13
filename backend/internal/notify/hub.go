@@ -57,7 +57,8 @@ func (h *Hub) Publish(_ context.Context, event domain.NotificationEvent) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for _, sub := range h.subs {
-		if sub.projectID != "" && sub.projectID != event.Record.ProjectID {
+		if sub.projectID != "" && sub.projectID != event.Record.ProjectID &&
+			!(event.Kind == domain.NotificationReadChanged && event.Record.ProjectID == "") {
 			continue
 		}
 		select {

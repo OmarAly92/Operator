@@ -7,7 +7,8 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_answer_params.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_command_params.dart';
@@ -23,6 +24,8 @@ import 'package:operator_mobile/feature/usage/data/repository/usage_repository.d
 class MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
 
+class _MockSessions extends Mock implements SessionsCubit {}
+
 class _MockMux extends Mock implements MuxClient {}
 
 class _MockUsageRepository extends Mock implements UsageRepository {}
@@ -32,8 +35,10 @@ BlockEventModel _event({String? kind}) => BlockEventModel(kind: kind);
 void main() {
   late MockSessionControlRepository repo;
   late _MockMux mux;
-  late StreamController<List<SessionPatch>> patches;
+  late _MockSessions sessions;
+  late StreamController<SessionModel> patches;
   late StreamController<BlockEventEnvelope> events;
+  late StreamController<MuxStatus> statuses;
   late _MockUsageRepository usageRepository;
   late SessionCommandCubit cubit;
 
@@ -50,10 +55,17 @@ void main() {
   setUp(() {
     repo = MockSessionControlRepository();
     mux = _MockMux();
-    patches = StreamController<List<SessionPatch>>.broadcast();
+    sessions = _MockSessions();
+    patches = StreamController<SessionModel>.broadcast();
+    statuses = StreamController<MuxStatus>.broadcast();
+    when(() => mux.status).thenAnswer((_) => statuses.stream);
     events = StreamController<BlockEventEnvelope>.broadcast();
     usageRepository = _MockUsageRepository();
-    when(() => mux.sessionPatches).thenAnswer((_) => patches.stream);
+    when(() => sessions.watchSession(any())).thenAnswer(
+      (invocation) => patches.stream.where(
+        (session) => session.id == invocation.positionalArguments.first,
+      ),
+    );
     when(() => mux.blockEvents).thenAnswer((_) => events.stream);
     when(() => repo.getInteractions(any())).thenAnswer(
       (_) async =>
@@ -62,11 +74,19 @@ void main() {
     when(
       () => usageRepository.sessionContext(any()),
     ).thenAnswer((_) async => null);
-    cubit = SessionCommandCubit(mux, repo, usageRepository, sessionId: 's1');
+    cubit = SessionCommandCubit(
+      mux,
+      repo,
+      usageRepository,
+      sessionId: 's1',
+      sessions: sessions,
+    );
   });
 
   tearDown(() async {
+    await cubit.close();
     await patches.close();
+    await statuses.close();
     await events.close();
   });
 
@@ -230,6 +250,7 @@ void main() {
         repo,
         usageRepository,
         sessionId: 's1',
+        sessions: sessions,
         budget: Duration.zero,
       )..onActivity('idle');
     },
@@ -253,6 +274,7 @@ void main() {
         repo,
         usageRepository,
         sessionId: 's1',
+        sessions: sessions,
         budget: Duration.zero,
       )..onActivity('idle');
     },
@@ -334,7 +356,7 @@ void main() {
   );
 
   test(
-    'a session patch off the mux feeds activity, so the row is enabled without an onActivity call',
+    'the shared session stream feeds activity, so the row is enabled without an onActivity call',
     () async {
       expect(
         cubit.enabled('stop'),
@@ -342,15 +364,9 @@ void main() {
         reason: 'no activity is known yet',
       );
 
-      patches.add(const [
-        SessionPatch(
-          id: 's1',
-          status: 'running',
-          activity: 'active',
-          attentionLevel: 'none',
-          lastActivityAt: '2026-09-05T00:00:00Z',
-        ),
-      ]);
+      patches.add(
+        const SessionModel(id: 's1', status: 'running', activity: 'active'),
+      );
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.enabled('stop'), isTrue);
@@ -360,15 +376,9 @@ void main() {
 
   test('a patch for another session is ignored', () async {
     cubit.onActivity('idle');
-    patches.add(const [
-      SessionPatch(
-        id: 'other',
-        status: 'running',
-        activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
-      ),
-    ]);
+    patches.add(
+      const SessionModel(id: 'other', status: 'running', activity: 'active'),
+    );
     await Future<void>.delayed(Duration.zero);
 
     expect(
@@ -397,6 +407,74 @@ void main() {
     },
   );
 
+  test(
+    'authoritative idle status confirms stop and termination disables commands',
+    () async {
+      when(() => repo.sendCommand(any(), any())).thenAnswer(
+        (_) async => Result.success(
+          GlobalResponse(data: const SessionCommandResultModel(state: 'sent')),
+        ),
+      );
+      patches.add(const SessionModel(id: 's1', activity: 'active'));
+      await Future<void>.delayed(Duration.zero);
+      await cubit.run('stop');
+      patches.add(const SessionModel(id: 's1', activity: 'idle'));
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.phases['stop'], CommandPhase.confirmed);
+      patches.add(
+        const SessionModel(id: 's1', activity: 'idle', isTerminated: true),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.enabled('compact'), isFalse);
+      expect(cubit.enabled('model'), isFalse);
+      expect(cubit.disabledReason('compact'), 'The session has ended');
+    },
+  );
+
+  test('reconnect clears a dialog no longer pending on the daemon', () async {
+    await Future<void>.delayed(Duration.zero);
+    cubit.pendingInteraction = const PendingInteractionModel(
+      id: 'old',
+      kind: 'permission',
+    );
+    statuses.add(MuxStatus.open);
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.pendingInteraction, isNull);
+    verify(() => repo.getInteractions('s1')).called(2);
+  });
+
+  test(
+    'a live interaction event wins over an older reconciliation response',
+    () async {
+      await Future<void>.delayed(Duration.zero);
+      final pending =
+          Completer<
+            Result<GlobalResponse<List<PendingInteractionModel>>, Failure>
+          >();
+      when(() => repo.getInteractions('s1')).thenAnswer((_) => pending.future);
+      statuses.add(MuxStatus.open);
+      await Future<void>.delayed(Duration.zero);
+      events.add(
+        const BlockEventEnvelope('s1', {
+          'kind': 'permission',
+          'interactionId': 'new',
+        }),
+      );
+      await Future<void>.delayed(Duration.zero);
+      pending.complete(
+        Result.success(
+          GlobalResponse(
+            data: const [
+              PendingInteractionModel(id: 'old', kind: 'permission'),
+            ],
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.pendingInteraction, isNull);
+    },
+  );
+
   test('a block event for another session is ignored', () async {
     when(() => repo.sendCommand(any(), any())).thenAnswer(
       (_) async => Result.success(
@@ -418,6 +496,7 @@ void main() {
       repo,
       usageRepository,
       sessionId: 's1',
+      sessions: sessions,
       initialActivity: 'idle',
     );
     expect(seeded.enabled('compact'), isTrue);
@@ -445,6 +524,7 @@ void main() {
         repo,
         usageRepository,
         sessionId: 's1',
+        sessions: sessions,
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -463,6 +543,7 @@ void main() {
       repo,
       usageRepository,
       sessionId: 's1',
+      sessions: sessions,
       initialActivity: 'idle',
     );
     await Future<void>.delayed(Duration.zero);
@@ -474,15 +555,9 @@ void main() {
 
   test('closing cancels the mux subscriptions', () async {
     await cubit.close();
-    patches.add(const [
-      SessionPatch(
-        id: 's1',
-        status: 'running',
-        activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-05T00:00:00Z',
-      ),
-    ]);
+    patches.add(
+      const SessionModel(id: 's1', status: 'running', activity: 'active'),
+    );
     events.add(const BlockEventEnvelope('s1', {'kind': 'compaction'}));
     await Future<void>.delayed(Duration.zero);
 

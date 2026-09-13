@@ -21,24 +21,34 @@ class NotificationBell extends StatelessWidget {
           button: true,
           label: 'Notifications',
           child: IconButton(
-            onPressed: () => Navigator.of(context).pushNamed(RoutesStrings.notifications),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(RoutesStrings.notifications),
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(Icons.notifications_none, size: 20, color: skin.textSecondary),
+                Icon(
+                  Icons.notifications_none,
+                  size: 20,
+                  color: skin.textSecondary,
+                ),
                 if (unread > 0)
                   Positioned(
                     right: -6,
                     top: -4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: skin.blue,
                         borderRadius: BorderRadius.circular(9),
                       ),
                       child: AppText(
                         unread > 99 ? '99+' : '$unread',
-                        style: AppTextStyle.style10Bold.copyWith(color: skin.onAccent),
+                        style: AppTextStyle.style10Bold.copyWith(
+                          color: skin.onAccent,
+                        ),
                       ),
                     ),
                   ),

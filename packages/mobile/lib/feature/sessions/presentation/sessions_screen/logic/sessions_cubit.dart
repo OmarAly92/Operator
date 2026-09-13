@@ -21,13 +21,17 @@ const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
   SessionsCubit(this._repository, this._muxClient) : super(const SessionsInitialState()) {
-    _muxSub = _muxClient.boardChanges.listen((_) {
+    _muxSub = _muxClient.boardChanges.listen((change) {
+      _refreshProjects |= change.requiresFullRefresh;
       _syncFallback();
       _scheduleRefresh();
     });
     _statusSub = _muxClient.status.listen((status) {
       _syncFallback();
-      if (status == MuxStatus.open) _scheduleRefresh();
+      if (status == MuxStatus.open) {
+        _refreshProjects = true;
+        _scheduleRefresh();
+      }
     });
     _muxClient.connect();
     _muxClient.subscribeSessions();
@@ -39,6 +43,8 @@ class SessionsCubit extends Cubit<SessionsState> {
   final MuxClient _muxClient;
 
   List<SessionModel> sessions = [];
+  List<SessionModel> _allSessions = [];
+  Failure? refreshFailure;
   List<OrchestratorModel> orchestrators = [];
   List<ProjectModel> projects = [];
   String activeProjectId = (CacheHelper.get(CacheKeys.activeProjectId) as String?) ?? kAllProjects;
@@ -54,11 +60,12 @@ class SessionsCubit extends Cubit<SessionsState> {
   }
 
   Timer? _fallbackTimer;
-  StreamSubscription<void>? _muxSub;
+  StreamSubscription<BoardChange>? _muxSub;
   StreamSubscription<MuxStatus>? _statusSub;
   Timer? _refreshTimer;
   Future<void>? _refreshFuture;
   bool _refreshQueued = false;
+  bool _refreshProjects = true;
   bool _paused = false;
   bool _needsRetry = false;
   bool _stopped = false;
@@ -90,12 +97,16 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   Future<void> _loadBoard() async {
     if (_revision == 0) emit(const GetSessionsLoadingState());
-    final result = await _repository.getBoard();
+    final refreshProjects = _refreshProjects;
+    _refreshProjects = false;
+    final result = await (refreshProjects ? _repository.getBoard() : _repository.getSessions(projects));
     if (isClosed || _paused) return;
     result.when(
       onSuccess: (response) {
         _needsRetry = false;
+        refreshFailure = null;
         final board = response.data ?? const BoardSnapshot();
+        _allSessions = board.allSessions;
         sessions = board.sessions;
         orchestrators = board.orchestrators;
         projects = board.projects;
@@ -110,6 +121,8 @@ class SessionsCubit extends Cubit<SessionsState> {
       },
       onFailure: (failure) {
         _needsRetry = true;
+        _refreshProjects |= refreshProjects;
+        refreshFailure = failure;
         _connectionOpen = false;
         emit(GetSessionsFailureState(failure));
         if (!shouldKeepPolling(failure.statusCode)) {
@@ -135,7 +148,7 @@ class SessionsCubit extends Cubit<SessionsState> {
       _fallbackTimer = null;
       return;
     }
-    _fallbackTimer ??= Timer.periodic(const Duration(seconds: 30), (_) => unawaited(_refreshBoard()));
+    _fallbackTimer ??= Timer.periodic(const Duration(seconds: 30), (_) => unawaited(refresh()));
   }
 
   void pauseUpdates() {
@@ -152,9 +165,44 @@ class SessionsCubit extends Cubit<SessionsState> {
   }
 
   Future<void> refresh() {
+    _refreshProjects = true;
     _stopped = false;
     _syncFallback();
     return _refreshBoard();
+  }
+
+  Stream<SessionModel> watchSession(String sessionId) => Stream<SessionModel>.multi((controller) {
+    var observed = false;
+    void publish() {
+      final session = _findSession(sessionId);
+      if (session != null) {
+        observed = true;
+        controller.add(session);
+      } else if (observed) {
+        observed = false;
+        controller.add(SessionModel(id: sessionId, activity: 'exited', isTerminated: true));
+      }
+    }
+    final subscription = stream.listen((state) {
+      if (state is GetSessionsSuccessState) publish();
+    }, onDone: controller.close);
+    controller.onCancel = subscription.cancel;
+    publish();
+  }).distinct();
+
+  SessionModel? _findSession(String id) {
+    for (final session in [..._allSessions, ...sessions]) {
+      if (session.id == id) return session;
+    }
+    for (final session in orchestrators) {
+      if (session.id == id) {
+        return SessionModel(
+          id: id, projectId: session.projectId, kind: 'orchestrator', status: session.status,
+          activity: session.activity, isTerminated: session.isTerminal, updatedAt: session.updatedAt,
+        );
+      }
+    }
+    return null;
   }
 
   Future<void> kill(String id) async {

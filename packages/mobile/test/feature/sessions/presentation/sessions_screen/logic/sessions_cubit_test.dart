@@ -24,7 +24,7 @@ class _MockMuxClient extends Mock implements MuxClient {}
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
-  late StreamController<void> changesController;
+  late StreamController<BoardChange> changesController;
   late StreamController<MuxStatus> statusController;
   var streamReady = false;
 
@@ -34,7 +34,7 @@ void main() {
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     streamReady = false;
-    changesController = StreamController<void>.broadcast();
+    changesController = StreamController<BoardChange>.broadcast();
     statusController = StreamController<MuxStatus>.broadcast();
     when(() => mux.boardChanges).thenAnswer((_) => changesController.stream);
     when(() => mux.status).thenAnswer((_) => statusController.stream);
@@ -83,9 +83,9 @@ void main() {
       });
       final cubit = SessionsCubit(repository, mux);
       async.flushMicrotasks();
-      changesController.add(null);
-      changesController.add(null);
-      changesController.add(null);
+      changesController.add(const BoardChange());
+      changesController.add(const BoardChange());
+      changesController.add(const BoardChange());
       async.elapse(const Duration(milliseconds: 200));
       expect(fetches, 2);
       expect(cubit.sessions.single.id, 'worker-2');
@@ -112,7 +112,7 @@ void main() {
       });
       final cubit = SessionsCubit(repository, mux);
       async.flushMicrotasks();
-      changesController.add(null);
+      changesController.add(const BoardChange());
       async.elapse(const Duration(milliseconds: 200));
       expect(fetches, 1);
       pending.complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
@@ -141,7 +141,7 @@ void main() {
       async.elapse(const Duration(seconds: 30));
       expect(fetches, 2);
       streamReady = true;
-      changesController.add(null);
+      changesController.add(const BoardChange());
       async.elapse(const Duration(milliseconds: 200));
       expect(fetches, 3);
       async.elapse(const Duration(minutes: 2));
@@ -152,7 +152,7 @@ void main() {
       expect(fetches, 4);
       streamReady = true;
       statusController.add(MuxStatus.open);
-      changesController.add(null);
+      changesController.add(const BoardChange());
       async.elapse(const Duration(milliseconds: 200));
       expect(fetches, 5);
       async.elapse(const Duration(minutes: 1));
@@ -171,7 +171,7 @@ void main() {
       final cubit = SessionsCubit(repository, mux);
       async.flushMicrotasks();
       cubit.pauseUpdates();
-      changesController.add(null);
+      changesController.add(const BoardChange());
       async.elapse(const Duration(minutes: 2));
       expect(fetches, 1);
       cubit.resumeUpdates();
@@ -192,7 +192,7 @@ void main() {
       });
       final cubit = SessionsCubit(repository, mux);
       async.flushMicrotasks();
-      changesController.add(null);
+      changesController.add(const BoardChange());
       async.elapse(const Duration(milliseconds: 200));
       expect(cubit.state, isA<GetSessionsFailureState>());
       async.elapse(const Duration(seconds: 30));
@@ -208,6 +208,7 @@ void main() {
     'kill re-fetches on success',
     build: () {
       when(() => repository.getBoard()).thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
+      when(() => repository.getSessions(any())).thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
       when(() => repository.kill('proj-1')).thenAnswer((_) async => Result.success(true));
       return SessionsCubit(repository, mux);
     },
@@ -215,7 +216,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await cubit.kill('proj-1');
     },
-    verify: (_) => verify(() => repository.getBoard()).called(2),
+    verify: (_) {
+      verify(() => repository.getBoard()).called(1);
+      verify(() => repository.getSessions(any())).called(1);
+    },
   );
 
   blocTest<SessionsCubit, SessionsState>(

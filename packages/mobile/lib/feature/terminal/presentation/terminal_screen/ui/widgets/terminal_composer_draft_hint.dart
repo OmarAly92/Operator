@@ -34,7 +34,7 @@ class TerminalComposerDraftHint extends StatelessWidget {
           child: Align(
             alignment: Alignment.topLeft,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {

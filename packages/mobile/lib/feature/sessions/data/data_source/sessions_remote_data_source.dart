@@ -8,6 +8,7 @@ import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 
 abstract class SessionsRemoteDataSource {
   Future<GlobalResponse<BoardSnapshot>> getBoard();
+  Future<GlobalResponse<BoardSnapshot>> getSessions(List<ProjectModel> projects);
   Future<void> kill(String id);
   Future<void> restore(String id);
 }
@@ -21,25 +22,32 @@ class SessionsRemoteDataSourceImp implements SessionsRemoteDataSource {
   Future<GlobalResponse<BoardSnapshot>> getBoard() async {
     final sessionsResponse = await _apiConsumer.get(EndPoints.sessions);
 
-    final orchestratorsFuture = _apiConsumer.get(EndPoints.orchestrators);
-    final projectsFuture = _fetchProjects();
-    final orchestratorsResponse = await orchestratorsFuture;
-    final projects = await projectsFuture;
+    final projects = await _fetchProjects();
+    return _board(sessionsResponse.data, projects);
+  }
 
+  @override
+  Future<GlobalResponse<BoardSnapshot>> getSessions(List<ProjectModel> projects) async {
+    final response = await _apiConsumer.get(EndPoints.sessions);
+    return _board(response.data, projects);
+  }
+
+  GlobalResponse<BoardSnapshot> _board(dynamic sessionsBody, List<ProjectModel> projects) {
     final nameOf = {
       for (final project in projects)
         if (project.id != null) project.id!: project.name ?? project.id!,
     };
 
     return GlobalResponse<BoardSnapshot>.fromJson(
-      sessionsResponse.data as Map<String, dynamic>,
+      sessionsBody as Map<String, dynamic>,
       withDataKey: false,
       fromJsonT: (json) => BoardSnapshot(
+        allSessions: _rows(json).map(SessionModel.fromJson).toList(),
         sessions: _rows(json)
             .map(SessionModel.fromJson)
             .where((s) => s.kind != 'orchestrator')
             .toList(),
-        orchestrators: _bestPerProject(_rows(orchestratorsResponse.data))
+        orchestrators: _bestPerProject(_rows(json).where((row) => row['kind'] == 'orchestrator').toList())
             .map((row) => OrchestratorModel.fromJson(row, projectName: nameOf[row['projectId']]))
             .toList(),
         projects: projects,
@@ -48,15 +56,11 @@ class SessionsRemoteDataSourceImp implements SessionsRemoteDataSource {
   }
 
   Future<List<ProjectModel>> _fetchProjects() async {
-    try {
-      final response = await _apiConsumer.get(EndPoints.projects);
-      final body = response.data as Map<String, dynamic>;
-      return (body['projects'] as List<dynamic>? ?? const [])
-          .map((p) => ProjectModel.fromJson(p as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
+    final response = await _apiConsumer.get(EndPoints.projects);
+    final body = response.data as Map<String, dynamic>;
+    return (body['projects'] as List<dynamic>? ?? const [])
+        .map((p) => ProjectModel.fromJson(p as Map<String, dynamic>))
+        .toList();
   }
 
   static List<Map<String, dynamic>> _rows(dynamic body) =>

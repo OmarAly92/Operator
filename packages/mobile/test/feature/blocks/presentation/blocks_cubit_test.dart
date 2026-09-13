@@ -5,18 +5,27 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
 import 'package:operator_mobile/feature/blocks/logic/session_block.dart';
 import 'package:operator_mobile/feature/blocks/presentation/blocks_screen/logic/blocks_cubit.dart';
 
+class _MockSessions extends Mock implements SessionsCubit {}
+
 class _MockMux extends Mock implements MuxClient {}
 
 class _MockRepository extends Mock implements BlocksRepository {}
 
-Map<String, dynamic> _wire(int seq, String kind, {String? text, String? sourceId, String? toolName}) => {
+Map<String, dynamic> _wire(
+  int seq,
+  String kind, {
+  String? text,
+  String? sourceId,
+  String? toolName,
+}) => {
   'seq': seq,
   'sessionId': 's-1',
   'kind': kind,
@@ -32,27 +41,34 @@ List<BlockEventModel> _historyWindow(int first) => [
 
 void main() {
   late _MockMux mux;
+  late _MockSessions sessions;
   late _MockRepository repository;
   late StreamController<BlockEventEnvelope> events;
   late StreamController<MuxStatus> statuses;
-  late StreamController<List<SessionPatch>> patches;
+  late StreamController<SessionModel> patches;
 
   setUpAll(() => registerFallbackValue(const GetSessionBlocksParams()));
 
   setUp(() {
     mux = _MockMux();
+    sessions = _MockSessions();
     repository = _MockRepository();
     events = StreamController<BlockEventEnvelope>.broadcast();
     statuses = StreamController<MuxStatus>.broadcast();
-    patches = StreamController<List<SessionPatch>>.broadcast();
+    patches = StreamController<SessionModel>.broadcast();
     when(() => mux.blockEvents).thenAnswer((_) => events.stream);
     when(() => mux.status).thenAnswer((_) => statuses.stream);
-    when(() => mux.sessionPatches).thenAnswer((_) => patches.stream);
+    when(() => sessions.watchSession(any())).thenAnswer(
+      (invocation) => patches.stream.where(
+        (session) => session.id == invocation.positionalArguments.first,
+      ),
+    );
     when(() => mux.currentStatus).thenReturn(MuxStatus.open);
     when(() => mux.subscribeBlocks(any())).thenReturn(null);
     when(() => mux.unsubscribeBlocks(any())).thenReturn(null);
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
   });
 
   tearDown(() async {
@@ -62,7 +78,7 @@ void main() {
   });
 
   BlocksCubit build({String? harness = 'claude-code'}) =>
-      BlocksCubit(mux, repository, 's-1', harness: harness);
+      BlocksCubit(mux, repository, 's-1', harness: harness, sessions: sessions);
 
   test('complete initial history does not offer older blocks', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
@@ -95,25 +111,30 @@ void main() {
     await cubit.close();
   });
 
-  test('an event that lands before history is not lost or duplicated', () async {
-    final gate = Completer<void>();
-    when(() => repository.getSessionBlocks(any(), any())).thenAnswer((_) async {
-      await gate.future;
-      return Result.success([
-        BlockEventModel.fromJson(_wire(1, 'prompt_submit', text: 'go')),
-        BlockEventModel.fromJson(_wire(2, 'stop', text: 'done')),
-      ]);
-    });
+  test(
+    'an event that lands before history is not lost or duplicated',
+    () async {
+      final gate = Completer<void>();
+      when(() => repository.getSessionBlocks(any(), any())).thenAnswer((
+        _,
+      ) async {
+        await gate.future;
+        return Result.success([
+          BlockEventModel.fromJson(_wire(1, 'prompt_submit', text: 'go')),
+          BlockEventModel.fromJson(_wire(2, 'stop', text: 'done')),
+        ]);
+      });
 
-    final cubit = build();
-    events.add(BlockEventEnvelope('s-1', _wire(2, 'stop', text: 'done')));
-    await Future<void>.delayed(Duration.zero);
-    gate.complete();
-    await Future<void>.delayed(Duration.zero);
+      final cubit = build();
+      events.add(BlockEventEnvelope('s-1', _wire(2, 'stop', text: 'done')));
+      await Future<void>.delayed(Duration.zero);
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
 
-    expect(cubit.blocks.map((b) => b.id), ['seq-1', 'seq-2']);
-    await cubit.close();
-  });
+      expect(cubit.blocks.map((b) => b.id), ['seq-1', 'seq-2']);
+      await cubit.close();
+    },
+  );
 
   test('ignores events for another session', () async {
     final cubit = build();
@@ -128,7 +149,9 @@ void main() {
 
   test('refetches from the highest seq it holds after a reconnect', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success([BlockEventModel.fromJson(_wire(9, 'stop', text: 'done'))]),
+      (_) async => Result.success([
+        BlockEventModel.fromJson(_wire(9, 'stop', text: 'done')),
+      ]),
     );
 
     final cubit = build();
@@ -138,9 +161,9 @@ void main() {
     statuses.add(MuxStatus.open);
     await Future<void>.delayed(Duration.zero);
 
-    final captured = verify(() => repository.getSessionBlocks('s-1', captureAny()))
-        .captured
-        .cast<GetSessionBlocksParams>();
+    final captured = verify(
+      () => repository.getSessionBlocks('s-1', captureAny()),
+    ).captured.cast<GetSessionBlocksParams>();
     expect(captured.first.afterSeq, isNull);
     expect(captured.last.afterSeq, 9);
     await cubit.close();
@@ -163,7 +186,9 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     for (var seq = 1; seq <= kBlockWindow + 10; seq++) {
-      events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'line $seq')));
+      events.add(
+        BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'line $seq')),
+      );
     }
     await Future<void>.delayed(Duration.zero);
 
@@ -174,9 +199,9 @@ void main() {
   });
 
   test('pages backwards from the lowest sequence it holds', () async {
-    when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success(_historyWindow(20)),
-    );
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(_historyWindow(20)));
 
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
@@ -188,11 +213,15 @@ void main() {
     );
     await cubit.loadOlder();
 
-    final captured = verify(() => repository.getSessionBlocks('s-1', captureAny()))
-        .captured
-        .cast<GetSessionBlocksParams>();
+    final captured = verify(
+      () => repository.getSessionBlocks('s-1', captureAny()),
+    ).captured.cast<GetSessionBlocksParams>();
     expect(captured.last.beforeSeq, 20);
-    expect(captured.last.afterSeq, isNull, reason: 'the endpoint rejects both cursors');
+    expect(
+      captured.last.afterSeq,
+      isNull,
+      reason: 'the endpoint rejects both cursors',
+    );
     expect(cubit.blocks.first.body, 'older');
     expect(cubit.blocks.last.body, 'line 419');
     expect(cubit.hasOlder, isFalse);
@@ -200,15 +229,16 @@ void main() {
   });
 
   test('an empty backward page means there is nothing older', () async {
-    when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success(_historyWindow(5)),
-    );
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(_historyWindow(5)));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
     expect(cubit.hasOlder, isTrue);
 
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
     await cubit.loadOlder();
 
     expect(cubit.hasOlder, isFalse);
@@ -216,8 +246,9 @@ void main() {
   });
 
   test('loadOlder does nothing before anything is held', () async {
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
     clearInteractions(repository);
@@ -229,9 +260,9 @@ void main() {
   });
 
   test('a second loadOlder while one is in flight is ignored', () async {
-    when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success(_historyWindow(9)),
-    );
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(_historyWindow(9)));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
     clearInteractions(repository);
@@ -253,33 +284,40 @@ void main() {
   });
 
   test('paging older back does not immediately re-trim it away', () async {
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
     for (var seq = 100; seq <= 100 + kBlockWindow; seq++) {
-      events.add(BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'line $seq')));
+      events.add(
+        BlockEventEnvelope('s-1', _wire(seq, 'stop', text: 'line $seq')),
+      );
     }
     await Future<void>.delayed(Duration.zero);
     expect(cubit.blocks, hasLength(kBlockWindow));
 
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.success([BlockEventModel.fromJson(_wire(100, 'stop', text: 'older'))]),
+      (_) async => Result.success([
+        BlockEventModel.fromJson(_wire(100, 'stop', text: 'older')),
+      ]),
     );
     await cubit.loadOlder();
 
     expect(
       cubit.blocks.first.body,
       'older',
-      reason: 'a page fetched backwards must not be evicted by the same window that dropped it',
+      reason:
+          'a page fetched backwards must not be evicted by the same window that dropped it',
     );
     await cubit.close();
   });
 
   test('stops offering older pages once the window can hold no more', () async {
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
@@ -304,15 +342,17 @@ void main() {
     expect(
       cubit.hasOlder,
       isFalse,
-      reason: 'a full window must retire the control, not keep offering a page it would evict',
+      reason:
+          'a full window must retire the control, not keep offering a page it would evict',
     );
     expect(cubit.blocks.length, lessThanOrEqualTo(kBlockMaxWindow));
     await cubit.close();
   });
 
   test('never requests more than the window can still hold', () async {
-    when(() => repository.getSessionBlocks(any(), any()))
-        .thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) async => Result.success(const <BlockEventModel>[]));
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
@@ -351,19 +391,15 @@ void main() {
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
-    events.add(BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')));
+    events.add(
+      BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(cubit.blocks.single.status, BlockStatus.running);
 
-    patches.add(const [
-      SessionPatch(
-        id: 's-1',
-        status: 'terminated',
-        activity: 'exited',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-08-27T10:00:00Z',
-      ),
-    ]);
+    patches.add(
+      const SessionModel(id: 's-1', status: 'terminated', activity: 'exited'),
+    );
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.blocks.single.status, BlockStatus.failed);
@@ -375,25 +411,56 @@ void main() {
     final cubit = build();
     await Future<void>.delayed(Duration.zero);
 
-    events.add(BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')));
-    patches.add(const [
-      SessionPatch(
-        id: 's-2',
-        status: 'terminated',
-        activity: 'exited',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-08-27T10:00:00Z',
-      ),
-    ]);
+    events.add(
+      BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')),
+    );
+    patches.add(
+      const SessionModel(id: 's-2', status: 'terminated', activity: 'exited'),
+    );
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.blocks.single.status, BlockStatus.running);
     await cubit.close();
   });
 
+  test(
+    'termination resolves running blocks even with stale active activity',
+    () async {
+      final cubit = build();
+      await Future<void>.delayed(Duration.zero);
+      events.add(
+        BlockEventEnvelope('s-1', _wire(1, 'prompt_submit', text: 'go')),
+      );
+      patches.add(
+        const SessionModel(id: 's-1', activity: 'active', isTerminated: true),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.active, isFalse);
+      expect(cubit.blocks.single.status, BlockStatus.failed);
+      await cubit.close();
+    },
+  );
+
+  test('history completing after close does not mutate blocks', () async {
+    final pending = Completer<Result<List<BlockEventModel>, Failure>>();
+    when(
+      () => repository.getSessionBlocks(any(), any()),
+    ).thenAnswer((_) => pending.future);
+    final cubit = build();
+    await cubit.close();
+    pending.complete(
+      Result.success([
+        BlockEventModel.fromJson(_wire(1, 'stop', text: 'late')),
+      ]),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(cubit.blocks, isEmpty);
+  });
+
   test('surfaces a history failure without discarding live events', () async {
     when(() => repository.getSessionBlocks(any(), any())).thenAnswer(
-      (_) async => Result.failure(ServerFailure(error: 'boom', message: 'boom')),
+      (_) async =>
+          Result.failure(ServerFailure(error: 'boom', message: 'boom')),
     );
 
     final cubit = build();
@@ -432,27 +499,15 @@ void main() {
 
     expect(cubit.active, isFalse);
 
-    patches.add(const [
-      SessionPatch(
-        id: 's-1',
-        status: 'working',
-        activity: 'active',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-04T00:00:00.000Z',
-      ),
-    ]);
+    patches.add(
+      const SessionModel(id: 's-1', status: 'working', activity: 'active'),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(cubit.active, isTrue);
 
-    patches.add(const [
-      SessionPatch(
-        id: 's-1',
-        status: 'idle',
-        activity: 'idle',
-        attentionLevel: 'none',
-        lastActivityAt: '2026-09-04T00:00:01.000Z',
-      ),
-    ]);
+    patches.add(
+      const SessionModel(id: 's-1', status: 'idle', activity: 'idle'),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(cubit.active, isFalse);
 

@@ -130,22 +130,22 @@ class _TerminalComposerState extends State<TerminalComposer> {
               final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Row(
-                  spacing: 8,
+                  spacing: 10,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
                       child: Container(
                         constraints: const BoxConstraints(
-                          minHeight: 40,
-                          maxHeight: 108,
+                          minHeight: 46,
+                          maxHeight: 120,
                         ),
-                        padding: const EdgeInsets.only(left: 12, right: 4),
+                        padding: const EdgeInsets.only(left: 16, right: 6),
                         decoration: BoxDecoration(
                           color: skin.bgElevated,
                           border: Border.all(color: skin.borderDefault),
-                          borderRadius: BorderRadius.circular(11),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -165,7 +165,7 @@ class _TerminalComposerState extends State<TerminalComposer> {
                                       isDense: true,
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                            vertical: 10,
+                                            vertical: 12,
                                           ),
                                       hintText: toTerminal
                                           ? 'Send to terminal...'
@@ -191,13 +191,13 @@ class _TerminalComposerState extends State<TerminalComposer> {
                                 tooltip: 'Session actions',
                                 onPressed: () => _openActions(context),
                                 constraints: const BoxConstraints.tightFor(
-                                  width: 32,
-                                  height: 40,
+                                  width: 36,
+                                  height: 44,
                                 ),
                                 padding: EdgeInsets.zero,
                                 icon: Icon(
-                                  Icons.bolt_outlined,
-                                  size: 19,
+                                  Icons.bolt,
+                                  size: 22,
                                   color: skin.textTertiary,
                                 ),
                               ),

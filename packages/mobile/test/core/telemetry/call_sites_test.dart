@@ -149,7 +149,7 @@ void main() {
     final repository = _MockSessionsRepository();
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
-    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<BoardChange>.empty());
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
@@ -180,12 +180,15 @@ void main() {
     final repository = _MockSessionsRepository();
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
-    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<BoardChange>.empty());
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(const GlobalResponse(data: BoardSnapshot())),
+    );
+    when(() => repository.getSessions(any())).thenAnswer(
       (_) async => Result.success(const GlobalResponse(data: BoardSnapshot())),
     );
     when(() => repository.kill(any())).thenAnswer((_) async => Result.success(true));

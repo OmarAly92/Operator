@@ -15,7 +15,10 @@ import 'package:operator_mobile/feature/notification/presentation/notifications_
 class NotificationsBody extends StatelessWidget {
   const NotificationsBody({super.key});
 
-  Future<void> _open(BuildContext context, NotificationModel notification) async {
+  Future<void> _open(
+    BuildContext context,
+    NotificationModel notification,
+  ) async {
     final cubit = context.read<NotificationsCubit>();
     await cubit.open(notification);
     if (!context.mounted) return;
@@ -53,20 +56,26 @@ class NotificationsBody extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    cubit.error == null ? Icons.notifications_none : Icons.warning_amber_rounded,
+                    cubit.error == null
+                        ? Icons.notifications_none
+                        : Icons.warning_amber_rounded,
                     size: 24,
                     color: cubit.error == null ? skin.textTertiary : skin.red,
                   ),
                   const VerticalSpace(11),
                   AppText(
-                    cubit.error == null ? 'Nothing yet' : "Couldn't load notifications",
+                    cubit.error == null
+                        ? 'Nothing yet'
+                        : "Couldn't load notifications",
                     style: AppTextStyle.style17Bold,
                   ),
                   const VerticalSpace(6),
                   AppText(
                     cubit.error ??
                         'Alerts about agents that need you and PRs that are ready show up here.',
-                    style: AppTextStyle.style13Regular.copyWith(color: skin.textSecondary),
+                    style: AppTextStyle.style13Regular.copyWith(
+                      color: skin.textSecondary,
+                    ),
                     textAlign: TextAlign.center,
                     maxLines: 4,
                   ),
@@ -81,7 +90,8 @@ class NotificationsBody extends StatelessWidget {
           child: NotificationListener<ScrollEndNotification>(
             onNotification: (notification) {
               final metrics = notification.metrics;
-              if (metrics.pixels >= metrics.maxScrollExtent - 200) cubit.loadMore();
+              if (metrics.pixels >= metrics.maxScrollExtent - 200)
+                cubit.loadMore();
               return false;
             },
             child: ListView.separated(

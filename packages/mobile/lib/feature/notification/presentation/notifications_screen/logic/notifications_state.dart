@@ -19,3 +19,12 @@ final class NotificationsReadyState extends NotificationsState {
   @override
   List<Object?> get props => [revision];
 }
+
+final class NotificationReadFailureState extends NotificationsState {
+  const NotificationReadFailureState(this.failure);
+
+  final Failure failure;
+
+  @override
+  List<Object?> get props => [failure];
+}

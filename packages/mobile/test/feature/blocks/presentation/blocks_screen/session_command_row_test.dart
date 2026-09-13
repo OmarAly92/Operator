@@ -1,3 +1,5 @@
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -31,12 +33,19 @@ class MockSessionCommandCubit extends Mock implements SessionCommandCubit {}
 class MockSessionControlRepository extends Mock
     implements SessionControlRepository {}
 
+class _MockSessionsCubit extends Mock implements SessionsCubit {}
+
 class _MockMux extends Mock implements MuxClient {}
 
 class _MockUsageRepository extends Mock implements UsageRepository {}
 
 SessionCommandCubit _realCommandCubit(String activity) {
+  final sessions = _MockSessionsCubit();
+  when(
+    () => sessions.watchSession(any()),
+  ).thenAnswer((_) => const Stream<SessionModel>.empty());
   final mux = _MockMux();
+  when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
   when(
     () => mux.sessionPatches,
   ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
@@ -57,6 +66,7 @@ SessionCommandCubit _realCommandCubit(String activity) {
     repo,
     usageRepository,
     sessionId: 's-1',
+    sessions: sessions,
     initialActivity: activity,
   );
 }
@@ -285,22 +295,23 @@ void main() {
     },
   );
 
-  testWidgets('session actions open from the composer instead of occupying the chat dock', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_terminalBody(mode: SessionViewMode.raw));
-    expect(find.byType(SessionCommandRow), findsNothing);
-    expect(find.byType(TerminalKeyRow), findsOneWidget);
+  testWidgets(
+    'session actions open from the composer instead of occupying the chat dock',
+    (tester) async {
+      await tester.pumpWidget(_terminalBody(mode: SessionViewMode.raw));
+      expect(find.byType(SessionCommandRow), findsNothing);
+      expect(find.byType(TerminalKeyRow), findsOneWidget);
 
-    await tester.pumpWidget(_terminalBody(mode: SessionViewMode.blocks));
-    await tester.pumpAndSettle();
-    expect(find.byType(SessionCommandRow), findsNothing);
-    expect(find.byType(TerminalKeyRow), findsNothing);
-    await tester.tap(find.byTooltip('Session actions'));
-    await tester.pumpAndSettle();
-    expect(find.text('SESSION ACTIONS'), findsOneWidget);
-    expect(find.text('Compact'), findsOneWidget);
-  });
+      await tester.pumpWidget(_terminalBody(mode: SessionViewMode.blocks));
+      await tester.pumpAndSettle();
+      expect(find.byType(SessionCommandRow), findsNothing);
+      expect(find.byType(TerminalKeyRow), findsNothing);
+      await tester.tap(find.byTooltip('Session actions'));
+      await tester.pumpAndSettle();
+      expect(find.text('SESSION ACTIONS'), findsOneWidget);
+      expect(find.text('Compact'), findsOneWidget);
+    },
+  );
 }
 
 Widget _hostWithCubit(SessionCommandCubit cubit) => SkinScope(

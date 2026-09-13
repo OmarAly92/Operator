@@ -58,7 +58,9 @@ class NotificationRow extends StatelessWidget {
                         child: AppText(
                           title.isEmpty ? visual.label : title,
                           style: AppTextStyle.style15SemiBold.copyWith(
-                            color: unread ? skin.textPrimary : skin.textSecondary,
+                            color: unread
+                                ? skin.textPrimary
+                                : skin.textSecondary,
                           ),
                         ),
                       ),
@@ -67,14 +69,19 @@ class NotificationRow extends StatelessWidget {
                         Container(
                           width: 7,
                           height: 7,
-                          decoration: BoxDecoration(color: skin.blue, shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                            color: skin.blue,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ],
                       const Spacer(),
                       if (stamp.isNotEmpty)
                         AppText(
                           stamp,
-                          style: AppTextStyle.style12Regular.copyWith(color: skin.textFaint),
+                          style: AppTextStyle.style12Regular.copyWith(
+                            color: skin.textFaint,
+                          ),
                         ),
                     ],
                   ),
@@ -82,7 +89,9 @@ class NotificationRow extends StatelessWidget {
                     const VerticalSpace(3),
                     AppText(
                       body,
-                      style: AppTextStyle.style13Regular.copyWith(color: skin.textTertiary),
+                      style: AppTextStyle.style13Regular.copyWith(
+                        color: skin.textTertiary,
+                      ),
                       maxLines: 2,
                     ),
                   ],

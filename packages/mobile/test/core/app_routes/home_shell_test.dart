@@ -98,7 +98,7 @@ void main() {
     mux = _MockMuxClient();
     notificationRepository = _MockNotificationRepository();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
-    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<BoardChange>.empty());
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);

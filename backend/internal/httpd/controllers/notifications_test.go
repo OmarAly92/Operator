@@ -32,6 +32,7 @@ type fakeNotificationService struct {
 type fakeNotificationStream struct {
 	gotProject domain.ProjectID
 	ch         chan domain.NotificationEvent
+	published  []domain.NotificationEvent
 }
 
 func (f *fakeNotificationService) List(_ context.Context, filter notificationsvc.ListFilter) (notificationsvc.ListPage, error) {
@@ -55,6 +56,33 @@ func (f *fakeNotificationStream) Subscribe(projectID domain.ProjectID) (<-chan d
 		f.ch = make(chan domain.NotificationEvent, 1)
 	}
 	return f.ch, func() {}
+}
+
+func (f *fakeNotificationStream) Publish(_ context.Context, event domain.NotificationEvent) error {
+	f.published = append(f.published, event)
+	return nil
+}
+
+func TestNotificationReadChangesPublishInvalidations(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "single", method: "PATCH", path: "/api/v1/notifications/n-1", body: `{"status":"read"}`},
+		{name: "all", method: "POST", path: "/api/v1/notifications/read-all"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := &fakeNotificationStream{}
+			svc := &fakeNotificationService{markAllCount: 1}
+			srv := newNotificationStreamTestServer(t, svc, stream)
+			_, status, _ := doRequest(t, srv, tc.method, tc.path, tc.body)
+			if status != http.StatusOK || len(stream.published) != 1 || stream.published[0].Kind != domain.NotificationReadChanged {
+				t.Fatalf("status=%d events=%+v", status, stream.published)
+			}
+		})
+	}
 }
 
 func newNotificationTestServer(t *testing.T, svc controllers.NotificationService) *httptest.Server {

@@ -89,6 +89,7 @@ func (c *NotificationsController) markRead(w http.ResponseWriter, r *http.Reques
 		envelope.WriteError(w, r, err)
 		return
 	}
+	c.publishRead(r.Context(), notification.NotificationRecord)
 	envelope.WriteJSON(w, http.StatusOK, NotificationEnvelope{Notification: notificationResponse(notification)})
 }
 
@@ -110,10 +111,21 @@ func (c *NotificationsController) markAllRead(w http.ResponseWriter, r *http.Req
 		envelope.WriteError(w, r, err)
 		return
 	}
+	if updatedCount > 0 {
+		c.publishRead(r.Context(), domain.NotificationRecord{})
+	}
 	envelope.WriteJSON(w, http.StatusOK, MarkAllNotificationsReadResponse{
 		Notifications: []NotificationResponse{},
 		UpdatedCount:  updatedCount,
 	})
+}
+
+func (c *NotificationsController) publishRead(ctx context.Context, record domain.NotificationRecord) {
+	if publisher, ok := c.Stream.(interface {
+		Publish(context.Context, domain.NotificationEvent) error
+	}); ok {
+		_ = publisher.Publish(ctx, domain.NotificationEvent{Kind: domain.NotificationReadChanged, Record: record})
+	}
 }
 
 func (c *NotificationsController) stream(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +172,8 @@ func writeNotificationSSE(w http.ResponseWriter, flusher http.Flusher, event dom
 	name := "notification_created"
 	if event.Kind == domain.NotificationResolved {
 		name = "notification_resolved"
+	} else if event.Kind == domain.NotificationReadChanged {
+		name = "notification_read"
 	}
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", name, data); err != nil {
 		return err

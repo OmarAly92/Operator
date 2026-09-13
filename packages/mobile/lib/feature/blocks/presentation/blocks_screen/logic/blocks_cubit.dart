@@ -5,7 +5,8 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/feature/blocks/data/repository/blocks_repository.dart';
@@ -25,16 +26,23 @@ const int kBlockMaxWindow = 1200;
 const String kSessionEndedReason = 'Session ended before this finished';
 
 class BlocksCubit extends Cubit<BlocksState> {
-  BlocksCubit(this._mux, this._repository, this.sessionId, {this.harness})
-    : supported = BlockHarnesses.covers(harness),
-      super(const BlocksInitialState()) {
+  BlocksCubit(
+    this._mux,
+    this._repository,
+    this.sessionId, {
+    required SessionsCubit sessions,
+    this.harness,
+  }) : supported = BlockHarnesses.covers(harness),
+       super(const BlocksInitialState()) {
     if (!supported) {
       emit(BlocksUnsupportedState(harness));
       return;
     }
-    _eventsSub = _mux.blockEvents.where((event) => event.sessionId == sessionId).listen(_onLive);
+    _eventsSub = _mux.blockEvents
+        .where((event) => event.sessionId == sessionId)
+        .listen(_onLive);
     _statusSub = _mux.status.listen(_onStatus);
-    _patchesSub = _mux.sessionPatches.listen(_onPatches);
+    _sessionSub = sessions.watchSession(sessionId).listen(_onSession);
     _mux.subscribeBlocks(sessionId);
     unawaited(refresh());
   }
@@ -52,26 +60,29 @@ class BlocksCubit extends Cubit<BlocksState> {
   bool hasOlder = false;
   String? error;
 
-  final SplayTreeMap<int, BlockEventModel> _events = SplayTreeMap<int, BlockEventModel>();
+  final SplayTreeMap<int, BlockEventModel> _events =
+      SplayTreeMap<int, BlockEventModel>();
   bool _ended = false;
   int _revision = 0;
   int _capacity = kBlockWindow;
 
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
   StreamSubscription<MuxStatus>? _statusSub;
-  StreamSubscription<List<SessionPatch>>? _patchesSub;
+  StreamSubscription<SessionModel>? _sessionSub;
 
   int? get _highestSeq => _events.isEmpty ? null : _events.lastKey();
 
   int? get _lowestSeq => _events.isEmpty ? null : _events.firstKey();
 
   Future<void> refresh() async {
+    if (isClosed) return;
     loading = true;
     _emit();
     final result = await _repository.getSessionBlocks(
       sessionId,
       GetSessionBlocksParams(afterSeq: _highestSeq),
     );
+    if (isClosed) return;
     result.when(
       onSuccess: (records) {
         error = null;
@@ -88,7 +99,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   }
 
   Future<void> loadOlder() async {
-    if (loadingOlder || !hasOlder) return;
+    if (isClosed || loadingOlder || !hasOlder) return;
     final before = _lowestSeq;
     if (before == null) return;
 
@@ -106,6 +117,7 @@ class BlocksCubit extends Cubit<BlocksState> {
       sessionId,
       GetSessionBlocksParams(beforeSeq: before, limit: limit),
     );
+    if (isClosed) return;
     result.when(
       onSuccess: (records) {
         error = null;
@@ -138,17 +150,14 @@ class BlocksCubit extends Cubit<BlocksState> {
     unawaited(refresh());
   }
 
-  void _onPatches(List<SessionPatch> patches) {
-    for (final patch in patches) {
-      if (patch.id != sessionId) continue;
-      final ended = patch.activity == 'exited' || patch.status == 'terminated';
-      final busy = patch.activity == 'active';
-      if (ended != _ended || busy != active) {
-        _ended = ended;
-        active = busy;
-        _rebuild();
-      }
-      return;
+  void _onSession(SessionModel session) {
+    if (isClosed) return;
+    final ended = session.isTerminated == true || session.activity == 'exited';
+    final busy = !ended && session.activity == 'active';
+    if (ended != _ended || busy != active) {
+      _ended = ended;
+      active = busy;
+      _rebuild();
     }
   }
 
@@ -164,7 +173,9 @@ class BlocksCubit extends Cubit<BlocksState> {
 
   void _rebuild() {
     final assembled = assembleBlocks(_events.values);
-    blocks = _ended ? resolveStranded(assembled, kSessionEndedReason) : assembled;
+    blocks = _ended
+        ? resolveStranded(assembled, kSessionEndedReason)
+        : assembled;
     _emit();
   }
 
@@ -177,7 +188,7 @@ class BlocksCubit extends Cubit<BlocksState> {
   Future<void> close() {
     unawaited(_eventsSub?.cancel());
     unawaited(_statusSub?.cancel());
-    unawaited(_patchesSub?.cancel());
+    unawaited(_sessionSub?.cancel());
     if (supported) _mux.unsubscribeBlocks(sessionId);
     return super.close();
   }

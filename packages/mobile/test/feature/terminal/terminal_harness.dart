@@ -1,3 +1,5 @@
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -28,6 +30,8 @@ import 'package:operator_mobile/feature/sessions/data/repository/sessions_reposi
 import 'package:operator_mobile/feature/terminal/data/repository/terminal_repository.dart';
 import 'package:operator_mobile/feature/terminal/presentation/terminal_screen/logic/terminal_cubit.dart';
 import 'package:operator_mobile/feature/usage/data/repository/usage_repository.dart';
+
+class MockSessionsCubit extends Mock implements SessionsCubit {}
 
 class MockMuxClient extends Mock implements MuxClient {}
 
@@ -109,6 +113,10 @@ class TerminalHarness {
         ),
       );
     }
+    final sessions = MockSessionsCubit();
+    when(
+      () => sessions.watchSession(any()),
+    ).thenAnswer((_) => const Stream<SessionModel>.empty());
     registerFallbackValue(const GetSessionBlocksParams());
     when(() => mux.status).thenAnswer((_) => statuses.stream);
     when(() => mux.terminalEvents).thenAnswer((_) => events.stream);
@@ -160,6 +168,7 @@ class TerminalHarness {
       blocksRepository,
       cubit.args.sessionId,
       harness: harness,
+      sessions: sessions,
     );
     final controlRepository = MockSessionControlRepository();
     when(() => controlRepository.getInteractions(any())).thenAnswer(
@@ -175,6 +184,7 @@ class TerminalHarness {
       controlRepository,
       usageRepository,
       sessionId: cubit.args.sessionId,
+      sessions: sessions,
     );
   }
 

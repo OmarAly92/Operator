@@ -35,6 +35,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
+class _MockSessionsCubit extends Mock implements SessionsCubit {}
+
 class _MockMuxClient extends Mock implements MuxClient {}
 
 class _MockTerminalRepository extends Mock implements TerminalRepository {}
@@ -82,6 +84,10 @@ void main() {
     await CacheHelper.init();
     registerFallbackValue(const GetSessionBlocksParams());
 
+    final sessions = _MockSessionsCubit();
+    when(
+      () => sessions.watchSession(any()),
+    ).thenAnswer((_) => const Stream<SessionModel>.empty());
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     terminalRepository = _MockTerminalRepository();
@@ -90,7 +96,7 @@ void main() {
     ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
-    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<BoardChange>.empty());
     when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(
@@ -127,8 +133,13 @@ void main() {
       () => blocksRepository.getSessionBlocks(any(), any()),
     ).thenAnswer((_) async => Result.success(const []));
     sl.registerFactoryParam<BlocksCubit, String, String?>(
-      (sessionId, harness) =>
-          BlocksCubit(mux, blocksRepository, sessionId, harness: harness),
+      (sessionId, harness) => BlocksCubit(
+        mux,
+        blocksRepository,
+        sessionId,
+        harness: harness,
+        sessions: sessions,
+      ),
     );
     final sessionControlRepository = _MockSessionControlRepository();
     when(() => sessionControlRepository.getInteractions(any())).thenAnswer(
@@ -145,6 +156,7 @@ void main() {
         sessionControlRepository,
         usageRepository,
         sessionId: sessionId,
+        sessions: sessions,
         initialActivity: activity,
       ),
     );

@@ -5,6 +5,9 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
+import 'package:operator_mobile/core/mux/board_change.dart';
+
+export 'package:operator_mobile/core/mux/board_change.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
 
@@ -71,12 +74,12 @@ class MuxClient {
   final MuxSocket Function(Uri uri, Map<String, String> headers) _connect;
 
   final _statusController = StreamController<MuxStatus>.broadcast();
-  final _boardChangesController = StreamController<void>.broadcast();
+  final _boardChangesController = StreamController<BoardChange>.broadcast();
   final _sessionPatchesController = StreamController<List<SessionPatch>>.broadcast();
   final _terminalEventsController = StreamController<TerminalEvent>.broadcast();
   final _blockEventsController = StreamController<BlockEventEnvelope>.broadcast();
 
-  Stream<void> get boardChanges => _boardChangesController.stream;
+  Stream<BoardChange> get boardChanges => _boardChangesController.stream;
   bool get boardStreamReady => _boardStreamReady;
 
   Stream<MuxStatus> get status => _statusController.stream;
@@ -180,7 +183,7 @@ class MuxClient {
 
     if (ch == 'sessions' && type == 'subscribed') {
       _boardStreamReady = true;
-      _boardChangesController.add(null);
+      _boardChangesController.add(const BoardChange());
       return;
     }
 
@@ -190,7 +193,11 @@ class MuxClient {
         final eventType = change['eventType'];
         if (eventType is String &&
             (eventType.startsWith('session_') || eventType.startsWith('project_') || eventType.startsWith('pr_'))) {
-          _boardChangesController.add(null);
+          _boardChangesController.add(BoardChange(
+            eventType: eventType,
+            sessionId: change['sessionId'] as String?,
+            projectId: change['projectId'] as String?,
+          ));
         }
         return;
       }

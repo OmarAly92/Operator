@@ -2,39 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
-import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/data_source/sessions_remote_data_source.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
+import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 
 class _MockSessionsRemoteDataSource extends Mock implements SessionsRemoteDataSource {}
 
-class _MockNetworkStatus extends Mock implements NetworkStatus {}
-
 void main() {
   late _MockSessionsRemoteDataSource dataSource;
-  late _MockNetworkStatus network;
   late SessionsRepositoryImp repository;
 
   setUp(() {
     dataSource = _MockSessionsRemoteDataSource();
-    network = _MockNetworkStatus();
-    repository = SessionsRepositoryImp(dataSource, network);
-  });
-
-  test('fails fast with noNetwork when the daemon is unreachable', () async {
-    when(() => network.isConnected).thenAnswer((_) async => false);
-
-    final result = await repository.getBoard();
-
-    expect(result.isFailure, isTrue);
-    verifyNever(() => dataSource.getBoard());
+    repository = SessionsRepositoryImp(dataSource);
   });
 
   test('returns the board snapshot on success', () async {
-    when(() => network.isConnected).thenAnswer((_) async => true);
     when(() => dataSource.getBoard()).thenAnswer(
       (_) async => const GlobalResponse<BoardSnapshot>(
         data: BoardSnapshot(sessions: [SessionModel(id: 'proj-1')]),
@@ -50,8 +36,32 @@ void main() {
     );
   });
 
+  test('getBoard propagates a Failure', () async {
+    when(() => dataSource.getBoard()).thenThrow(ServerFailure.noNetwork());
+
+    final result = await repository.getBoard();
+
+    expect(result.isFailure, isTrue);
+  });
+
+  test('getSessions returns the board snapshot on success', () async {
+    const projects = [ProjectModel(id: 'proj-1', name: 'proj-1')];
+    when(() => dataSource.getSessions(projects)).thenAnswer(
+      (_) async => const GlobalResponse<BoardSnapshot>(
+        data: BoardSnapshot(sessions: [SessionModel(id: 'proj-1')]),
+      ),
+    );
+
+    final result = await repository.getSessions(projects);
+
+    expect(result.isSuccess, isTrue);
+    result.when(
+      onSuccess: (r) => expect(r.data!.sessions.single.id, 'proj-1'),
+      onFailure: (_) => fail('expected success'),
+    );
+  });
+
   test('kill and restore propagate a Failure', () async {
-    when(() => network.isConnected).thenAnswer((_) async => true);
     when(() => dataSource.kill('proj-1')).thenThrow(ServerFailure.noNetwork());
 
     final result = await repository.kill('proj-1');

@@ -5,7 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/core/mux/session_patch.dart';
+import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
 import 'package:operator_mobile/feature/blocks/data/model/block_event_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/pending_interaction_model.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/session_answer_params.dart';
@@ -24,14 +25,15 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
     this._repo,
     this._usageRepository, {
     required this.sessionId,
+    required SessionsCubit sessions,
     String? initialActivity,
     this.budget = kCommandConfirmationBudget,
   }) : super(const SessionCommandState()) {
-    // Seeded before the first patch arrives: the mux only pushes a session
-    // patch when something CHANGES, so a cubit built while the session sits
-    // idle would otherwise never learn its activity and refuse every command.
     _activity = initialActivity;
-    _patchesSub = _mux.sessionPatches.listen(_onPatches);
+    _sessionSub = sessions.watchSession(sessionId).listen(_onSession);
+    _statusSub = _mux.status.listen((status) {
+      if (status == MuxStatus.open) unawaited(_reconcileInteractions());
+    });
     _eventsSub = _mux.blockEvents
         .where((event) => event.sessionId == sessionId)
         .listen(_onLive);
@@ -49,8 +51,10 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   final Set<String> _pendingConfirm = {};
   String? _activity;
 
-  StreamSubscription<List<SessionPatch>>? _patchesSub;
+  StreamSubscription<SessionModel>? _sessionSub;
   StreamSubscription<BlockEventEnvelope>? _eventsSub;
+  StreamSubscription<MuxStatus>? _statusSub;
+  int _interactionRevision = 0;
 
   /// The dialog the daemon says is pending, learned from the reconnect
   /// reconciliation endpoint rather than from a block event. A phone that was
@@ -59,17 +63,16 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   String? get activity => _activity;
 
-  void _onPatches(List<SessionPatch> patches) {
-    for (final patch in patches) {
-      if (patch.id != sessionId) continue;
-      onActivity(patch.activity);
-      return;
-    }
+  void _onSession(SessionModel session) {
+    onActivity(session.isTerminated == true ? 'exited' : session.activity);
   }
 
   void _onLive(BlockEventEnvelope envelope) {
     final event = BlockEventModel.fromJson(envelope.block);
-    if ((event.interactionId ?? '').isNotEmpty) pendingInteraction = null;
+    if ((event.interactionId ?? '').isNotEmpty) {
+      _interactionRevision++;
+      pendingInteraction = null;
+    }
     onEvent(event);
   }
 
@@ -77,13 +80,16 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   /// late) has no block event for. A failure is silent: the block-event stream
   /// remains the primary path and a refusal here must not disable the row.
   Future<void> _reconcileInteractions() async {
-    final result = await _repo.getInteractions(sessionId);
     if (isClosed) return;
+    final revision = ++_interactionRevision;
+    final result = await _repo.getInteractions(sessionId);
+    if (isClosed || revision != _interactionRevision) return;
     result.when(
       onSuccess: (response) {
         final pending = response.data;
-        if (pending == null || pending.isEmpty) return;
-        pendingInteraction = pending.first;
+        pendingInteraction = pending == null || pending.isEmpty
+            ? null
+            : pending.first;
         _emitPhases(Map<String, CommandPhase>.of(state.phases));
       },
       onFailure: (_) {},
@@ -108,6 +114,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   String? disabledReason(String command) {
     if (enabled(command)) return null;
+    if (_activity == 'exited') return 'The session has ended';
     if (_activity == 'blocked') return 'Answer the permission request first';
     return command == 'stop' ? 'The agent is idle' : 'The agent is working';
   }
@@ -164,6 +171,7 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
   }
 
   void onActivity(String? activity) {
+    if (isClosed) return;
     unawaited(_refreshContext());
     final changed = _activity != activity;
     _activity = activity;
@@ -248,8 +256,9 @@ class SessionCommandCubit extends Cubit<SessionCommandState> {
 
   @override
   Future<void> close() {
-    unawaited(_patchesSub?.cancel());
+    unawaited(_sessionSub?.cancel());
     unawaited(_eventsSub?.cancel());
+    unawaited(_statusSub?.cancel());
     for (final timer in _timers.values) {
       timer.cancel();
     }

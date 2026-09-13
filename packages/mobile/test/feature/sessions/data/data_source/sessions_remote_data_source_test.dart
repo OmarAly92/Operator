@@ -25,7 +25,7 @@ void main() {
       Response<dynamic>(requestOptions: RequestOptions(path: '/'), data: body);
 
   group('getBoard', () {
-    test('probes /sessions alone before fanning out to the other two', () async {
+    test('probes /sessions alone before fanning out to projects', () async {
       final sessionsGate = Completer<Response<dynamic>>();
       final calls = <String>[];
 
@@ -33,7 +33,7 @@ void main() {
         final path = invocation.positionalArguments.first as String;
         calls.add(path);
         if (path == EndPoints.sessions) return sessionsGate.future;
-        return Future.value(jsonResponse({'sessions': <dynamic>[], 'projects': <dynamic>[]}));
+        return Future.value(jsonResponse({'projects': <dynamic>[]}));
       });
 
       final pending = dataSource.getBoard();
@@ -44,9 +44,7 @@ void main() {
       sessionsGate.complete(jsonResponse({'sessions': <dynamic>[]}));
       await pending;
 
-      expect(calls.length, 3);
-      expect(calls.first, EndPoints.sessions);
-      expect(calls.sublist(1).toSet(), {EndPoints.orchestrators, EndPoints.projects});
+      expect(calls, [EndPoints.sessions, EndPoints.projects]);
     });
 
     test('drops orchestrator-kind rows from the session list', () async {
@@ -68,13 +66,11 @@ void main() {
     });
 
     test('keeps one orchestrator per project, preferring the live one', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
+      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer(
         (_) async => jsonResponse({
           'sessions': [
-            {'id': 'old', 'projectId': 'p', 'isTerminated': true},
-            {'id': 'live', 'projectId': 'p'},
+            {'id': 'old', 'projectId': 'p', 'kind': 'orchestrator', 'isTerminated': true},
+            {'id': 'live', 'projectId': 'p', 'kind': 'orchestrator'},
           ],
         }),
       );
@@ -86,13 +82,11 @@ void main() {
     });
 
     test('falls back to the most recent when every orchestrator is terminated', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
+      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer(
         (_) async => jsonResponse({
           'sessions': [
-            {'id': 'older', 'projectId': 'p', 'isTerminated': true},
-            {'id': 'newer', 'projectId': 'p', 'isTerminated': true},
+            {'id': 'older', 'projectId': 'p', 'kind': 'orchestrator', 'isTerminated': true},
+            {'id': 'newer', 'projectId': 'p', 'kind': 'orchestrator', 'isTerminated': true},
           ],
         }),
       );
@@ -104,11 +98,9 @@ void main() {
     });
 
     test('labels orchestrators with their project name', () async {
-      when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators)).thenAnswer(
+      when(() => apiConsumer.get(EndPoints.sessions)).thenAnswer(
         (_) async => jsonResponse({
-          'sessions': [{'id': 'o1', 'projectId': 'p'}],
+          'sessions': [{'id': 'o1', 'projectId': 'p', 'kind': 'orchestrator'}],
         }),
       );
       when(() => apiConsumer.get(EndPoints.projects)).thenAnswer(
@@ -121,15 +113,12 @@ void main() {
       expect(board.data!.orchestrators.single.projectName, 'My App');
     });
 
-    test('degrades to no projects rather than failing the whole board', () async {
+    test('propagates a project failure instead of returning an empty project list', () async {
       when(() => apiConsumer.get(EndPoints.sessions))
-          .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
-      when(() => apiConsumer.get(EndPoints.orchestrators))
           .thenAnswer((_) async => jsonResponse({'sessions': <dynamic>[]}));
       when(() => apiConsumer.get(EndPoints.projects)).thenAnswer((_) async => throw Exception('404'));
 
-      final board = await dataSource.getBoard();
-      expect(board.data!.projects, isEmpty);
+      await expectLater(dataSource.getBoard(), throwsException);
     });
   });
 
