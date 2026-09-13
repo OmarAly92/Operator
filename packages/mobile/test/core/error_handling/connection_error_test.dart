@@ -116,6 +116,18 @@ void main() {
       expect(d.showLocalNetworkHint, isFalse);
     });
 
+    test('unsupportedPayload tells the user to update the app', () {
+      final copy = describeConnectionFailure(
+        ConnectionFailure.unsupportedPayload,
+        host: '',
+        port: '',
+        platform: TargetPlatform.iOS,
+      );
+      expect(copy.title, 'Update Operator on this phone');
+      expect(copy.message, contains('newer'));
+      expect(copy.showLocalNetworkHint, isFalse);
+    });
+
     group('the iOS Local Network hint', () {
       test('shows for an unreachable LAN host on iOS', () {
         final d = describeConnectionFailure(
@@ -152,6 +164,16 @@ void main() {
           ConnectionFailure.auth,
           host: '192.168.1.5',
           port: '3011',
+          platform: TargetPlatform.iOS,
+        );
+        expect(d.showLocalNetworkHint, isFalse);
+      });
+
+      test('does not show for a tunnelled host', () {
+        final d = describeConnectionFailure(
+          ConnectionFailure.unreachable,
+          host: 'x.ngrok-free.dev',
+          port: '443',
           platform: TargetPlatform.iOS,
         );
         expect(d.showLocalNetworkHint, isFalse);
