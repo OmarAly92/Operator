@@ -327,3 +327,30 @@ ngrok is fetched over TLS from its official host and then verified by
 *executing* it (`ngrok --version`) against a minimum-version floor. That is
 weaker than a checksum, and calling it anything else would be dishonest — it is
 what the vendor's distribution actually permits.
+
+## 14. Forged client-IP headers through each tunnel
+
+Measured 2026-09-13 against a local echo origin, one request per row. The client
+set the forged header; each cell is what the origin actually received. The real
+client address is redacted to `<real>`.
+
+| Client sent | ngrok → origin | cloudflared → origin |
+| --- | --- | --- |
+| nothing extra | `X-Forwarded-For: <real>` | `Cf-Connecting-Ip: <real>`, `X-Forwarded-For: <real>` |
+| `X-Forwarded-For: 6.6.6.6` | `X-Forwarded-For: 6.6.6.6` — **real address gone** | `Cf-Connecting-Ip: <real>`, `X-Forwarded-For: 6.6.6.6,<real>` |
+| `X-Forwarded-For: 6.6.6.6, 7.7.7.7` | `X-Forwarded-For: 6.6.6.6, 7.7.7.7` | `Cf-Connecting-Ip: <real>`, `X-Forwarded-For: 6.6.6.6, 7.7.7.7,<real>` |
+| `Cf-Connecting-Ip: 6.6.6.6` | `Cf-Connecting-Ip: 6.6.6.6` passed through; `X-Forwarded-For: <real>` | the request never reached the origin |
+| `X-Real-IP: 6.6.6.6` | `X-Real-Ip: 6.6.6.6` passed through; `X-Forwarded-For: <real>` | stripped; `Cf-Connecting-Ip: <real>` |
+
+What it establishes:
+
+- **ngrok replaces rather than appends.** A client-supplied `X-Forwarded-For`
+  reaches the origin verbatim and the connecting address is not added, so no
+  entry — leftmost or rightmost — identifies the client. ngrok also forwards
+  forged `Cf-Connecting-Ip` and `X-Real-IP`. On ngrok, no header is trustworthy.
+  §5's statement that ngrok's `X-Forwarded-For` carries the true client IP holds
+  only for clients that do not forge it.
+- **cloudflared's `Cf-Connecting-Ip` held against every forgery.** Cloudflare
+  appends to `X-Forwarded-For` — so its leftmost entry is forgeable and must not
+  be used — but sets `Cf-Connecting-Ip` itself, and dropped the request that
+  tried to supply one.

@@ -146,8 +146,10 @@ type Provider interface {
 Both endpoints are recorded in §2 of the evidence file: ngrok's
 `/api/tunnels` → `public_url`, and cloudflared's `/quicktunnel` → `hostname`
 with `/ready` → `readyConnections`. `ClientIPHeader` returns
-`Cf-Connecting-Ip` for cloudflared (single-valued, so safer to parse) and
-`X-Forwarded-For` for ngrok.
+`Cf-Connecting-Ip` for cloudflared and an empty string for ngrok, meaning "trust
+no header": ngrok forwards a client-supplied `X-Forwarded-For` unmodified, so no
+header identifies an ngrok client (evidence §14; §9 covers what the lockout does
+instead).
 
 Readiness is probed **only** through those local APIs. It must never be probed
 by resolving the public hostname from the desktop: §7 of the evidence file
@@ -181,6 +183,15 @@ Config files merge, so the invocation is `--config <user's ngrok.yml> --config
 <ours>`: the authtoken comes from whichever file has one, the `web_addr` from
 ours. Verified end to end — a tunnel came up on the custom port using the
 authtoken from the user's untouched personal config.
+
+**The `web_addr` entry is written at every launch.** Providers may implement an
+optional `Prepare(localPort, controlPort)` step that runs immediately before each
+start; ngrok's merges `agent.web_addr` for the freshly reserved control port into
+Operator's own `ngrok.yml`, preserving an authtoken already saved there
+(`backend/internal/tunnel/ngrok_config.go`). The original plan had no such step,
+so the agent API stayed on 4040 while the manager polled the reserved port — a
+defect caught in implementation review. The user's personal config is only ever
+passed as a read-only `--config`.
 
 The port itself is reserved with the `reservePort` pattern (`manager.go:746`)
 before launch, so two Operator instances cannot collide either.
@@ -238,7 +249,7 @@ temp file + atomic rename (the pattern `mobilebridge.Save` already uses,
 
 | | Distribution | Verification |
 | --- | --- | --- |
-| cloudflared | Versioned GitHub release assets; each tag is distinct bytes | Pinned version tag **plus SHA-256**. A cached binary failing its checksum is discarded and refetched once |
+| cloudflared | Versioned GitHub release assets; each tag is distinct bytes. macOS ships a `.tgz`; **Linux ships the bare binary** with no archive | Pinned version tag **plus SHA-256** of exactly what is downloaded — the `.tgz` on macOS, the binary itself on Linux. A cached binary failing its checksum is discarded and refetched once |
 | ngrok | A rolling `stable` channel — the version in the URL is *ignored* by the server, so there is no pinnable artifact | TLS to the official host, then `ngrok --version` executed and checked against a minimum-version floor |
 
 Calling ngrok's path "checksum-verified" would be false. It is TLS trust in
@@ -419,15 +430,44 @@ fresh QR, never on an auto-start where nobody is present to re-scan.
 
 ### Proxy-aware lockout
 
-`sourceKey` (`backend/internal/httpd/auth.go:77`) keys the 5-fails-per-minute
-lockout (`backend/internal/httpd/lan_listener.go:36`) on `RemoteAddr`. Through a
-tunnel every request arrives from `127.0.0.1`, so all clients collapse into one
-bucket: brute force is still throttled, but any stranger who finds the URL can
-lock the owner's phone out at will. `sourceKey` must instead take the provider's
-`ClientIPHeader` value — and only when **both** hold: `RemoteAddr` is loopback,
-and the tunnel is running. Otherwise a LAN client could forge the header and
-evade the lockout entirely. Both headers were confirmed to carry the true client
-IP (evidence §5).
+Through a tunnel every request reaches the LAN listener from `127.0.0.1`, so the
+5-fails-per-minute lockout (`backend/internal/httpd/lan_listener.go:37`), keyed on
+`RemoteAddr`, collapses every client into one bucket: guessing is still
+throttled, but any stranger who finds the URL can lock the owner's phone out.
+Two mechanisms close this.
+
+**cloudflared — key on the real client.** `sourceKey`
+(`backend/internal/httpd/auth.go`) takes the live provider's `ClientIPHeader`
+value, and only when **both** hold: `RemoteAddr` is loopback, and a tunnel is
+live. Otherwise a LAN client could forge the header and evade the lockout.
+`Cf-Connecting-Ip` held against every forgery probed (evidence §14): Cloudflare
+sets it itself, and a request carrying a forged one never reached the origin.
+
+**ngrok — no header can be trusted, so none is used.** An earlier revision of
+this spec trusted ngrok's `X-Forwarded-For`. That was wrong: ngrok forwards a
+client-supplied `X-Forwarded-For` *unmodified* — a forged `6.6.6.6` reached the
+origin and the real address vanished — and it passes forged `Cf-Connecting-Ip`
+and `X-Real-IP` straight through too (evidence §14). Trusting any of them would
+let an attacker evade the lockout or aim it at the phone's real address. ngrok's
+`ClientIPHeader` is therefore empty, and its traffic stays in the shared loopback
+bucket.
+
+**A correct long password is never locked out.** The lockout exists because the
+LAN password is short (8 base62 characters, ~48 bits). While the 22-character
+tunnel password (~131 bits) is armed, a correct password is admitted even when
+its bucket is locked; wrong guesses are still counted and still earn `429`.
+Guessing 131 bits is infeasible regardless of throttling, so this gives up
+nothing, and it removes the lock-out-the-owner attack on **both** providers —
+including the ngrok case no header can fix. With the short LAN password the
+order is unchanged: a locked bucket rejects even the correct password.
+
+Strength is armed from the password itself, never inferred from the request
+path: `enableWithPassword` and `restoreMobileOnBoot` set it from the length of
+the password they arm, and it rolls back with the hash when an enable fails.
+Regenerating while the tunnel is enabled issues another 22-character password
+and keeps the persisted tunnel intent — rotating to a short one would put a
+48-bit password on the public internet, and dropping the intent would stop the
+tunnel returning after a restart. Both were defects in the first implementation.
 
 ### Conditional warning copy
 
@@ -450,11 +490,17 @@ inline progress on the row, `reconnecting` as a distinct non-alarming state
 (it self-heals; see §7), and `failed` renders `error` through the same
 treatment as the existing `actionError`.
 
-Because the tunnel now persists across restarts (§9), the dialog is no longer
-the only place its state may be visible. A tunnel that is live while the user
-is at the machine should be discoverable without opening Connect Mobile —
-scoped here as a requirement, with the placement left to the implementation,
-since the surrounding chrome is outside what this spec surveyed.
+Because the tunnel persists across restarts (§9), its state is also shown
+outside the dialog, so a public tunnel cannot be forgotten. A row sits directly
+above Settings in the sidebar footer, built like `RestartToUpdateRow`
+(`frontend/src/renderer/components/Sidebar.tsx`) with a matching icon-only
+button in the collapsed rail (`frontend/src/renderer/components/TunnelLiveIndicator.tsx`).
+It shows whenever the tunnel is `downloading`, `starting`, `live` or
+`reconnecting` — every state in which the machine is, or is about to be,
+reachable. Clicking it opens Connect Mobile directly, which is why that dialog's
+open state lives in the UI store rather than in `SettingsDialog`. The sidebar
+polls status every 15 seconds while idle, so a tunnel restored on boot shows up
+without the dialog ever being opened.
 
 **One-time confirmation.** The first enable opens a dialog stating plainly what
 becomes internet-reachable — agent spawning and terminal access, guarded by the

@@ -10,12 +10,24 @@
 
 **Spec:** [`docs/superpowers/specs/2026-09-12-mobile-public-tunnel-design.md`](../specs/2026-09-12-mobile-public-tunnel-design.md) — read it before Task 1. Measurements it cites live in [`docs/superpowers/evidence/mobile-public-tunnel-probes.md`](../evidence/mobile-public-tunnel-probes.md); when a step says "as measured", that file is the source.
 
+## Errata — found while implementing and reviewing (2026-09-13)
+
+Branch `mobile-public-tunnel` diverges from the steps below in these places. The
+code and the spec are authoritative; the steps are otherwise kept as written.
+
+1. **`agent.web_addr` was never written.** Task 1's `Args` passes `--config` for Operator's own `ngrok.yml`, but no step writes the reserved control port into it, so the agent API stayed on 4040 while the manager polled the reserved port. Fixed with a launch-time `Prepare` step (`backend/internal/tunnel/ngrok_config.go`).
+2. **cloudflared on Linux is a bare binary, not a `.tgz`.** Task 1's URL and Task 2's checksum command assumed a `.tgz` everywhere. Fixed with `ArchiveRaw` (`backend/internal/tunnel/binary.go`); the Linux checksums hash the binary itself.
+3. **ngrok's `X-Forwarded-For` must not be trusted** (Tasks 1 and 8). ngrok forwards a forged value unmodified (evidence §14). ngrok's `ClientIPHeader` returns `""`, and a correct long password bypasses the lockout instead (spec §9).
+4. **Regenerating while tunneled issued a short password and dropped the persisted tunnel intent.** `Regenerate` always generated 8 characters, and `enableWithPassword` saved a fresh `State` without `TunnelEnabled`. Neither Task 9 nor its tests covered it.
+5. **The Task 13 indicator was deferred, then placed** above Settings in the sidebar footer (spec §10).
+6. **`npm run frontend:typecheck` does not exist at the repo root**; the script is `npm run frontend:typecheck`. Corrected in place below.
+
 ## Global Constraints
 
 - **No code comments.** The user's `~/.claude/CLAUDE.md` says "don't make comments". This overrides the surrounding files' dense comment style — do not add explanatory comments to new code, and do not "fix" the resulting mismatch. Prose that would have been a comment belongs in the spec or a commit message. (Doc comments are not lint-required: `backend/.golangci.yml` enables no `exported` revive rule.)
 - **Conventional commits** (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), per `AGENTS.md`.
 - **Go gate:** `cd backend && go test ./...` and `npm run lint` (runs `go test ./...` + golangci-lint v2.12.2) must pass.
-- **Renderer gate:** `npm run typecheck`, `npm run frontend:lint`, and the renderer vitest suite.
+- **Renderer gate:** `npm run frontend:typecheck`, `npm run frontend:lint`, and the renderer vitest suite.
 - **Mobile gate:** from `packages/mobile`, `flutter analyze` must print "No issues found!" and `flutter test` must pass. CI pins Flutter **3.44.5**.
 - **API contract changes** (`AGENTS.md:118`–`:141`): after touching any DTO or route, run `npm run api` and commit `backend/internal/httpd/apispec/openapi.yaml` + `frontend/src/api/schema.ts` alongside the Go change. Add a `schemaNames` entry in `backend/internal/httpd/apispec/specgen/build.go:144` for every new named type.
 - **Every new `en.json` key must be translated into all 7 other locales** with non-empty values and identical `{{interpolation}}` variables — enforced by `frontend/src/renderer/i18n/instance.test.ts:149` and `:162`. Locales: `de, es, fr, ja, ko, pt-BR, zh-CN`.
@@ -4947,7 +4959,7 @@ Expected: PASS — all 8 tests.
 
 - [ ] **Step 5: Confirm the existing modal tests still pass, plus typecheck and lint**
 
-Run: `cd frontend && npx vitest run src/renderer/components/ConnectMobileModal.telemetry.test.tsx && cd .. && npm run typecheck && npm run frontend:lint`
+Run: `cd frontend && npx vitest run src/renderer/components/ConnectMobileModal.telemetry.test.tsx && cd .. && npm run frontend:typecheck && npm run frontend:lint`
 Expected: PASS. The pre-existing telemetry test must not need editing; if it breaks, the toggle row was inserted into the wrong branch.
 
 - [ ] **Step 6: Commit**
@@ -5158,7 +5170,7 @@ Append to `ConnectMobileModal.tunnel.test.tsx`:
 
 - [ ] **Step 6: Run to verify everything passes**
 
-Run: `cd frontend && npx vitest run src/renderer/components/ && cd .. && npm run typecheck && npm run frontend:lint`
+Run: `cd frontend && npx vitest run src/renderer/components/ && cd .. && npm run frontend:typecheck && npm run frontend:lint`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -5416,7 +5428,7 @@ user must be told (spec §5 rule 3). Render under the QR:
 
 - [ ] **Step 6: Run the full renderer gate**
 
-Run: `cd frontend && npx vitest run src/renderer/ && cd .. && npm run typecheck && npm run frontend:lint`
+Run: `cd frontend && npx vitest run src/renderer/ && cd .. && npm run frontend:typecheck && npm run frontend:lint`
 Expected: PASS, including `renderer-coverage.test.ts` — every new string goes through `t()`, so no new entry in its `approvedLiterals` allowlist should be needed. If it flags one, replace the literal with a key rather than extending the allowlist.
 
 - [ ] **Step 7: Commit**
@@ -6051,7 +6063,7 @@ client:
 
 - [ ] **Step 3: Verify the docs build**
 
-Run: `cd frontend && npm run typecheck`
+Run: `cd frontend && npm run frontend:typecheck`
 Expected: PASS. If the landing site has its own build (check `frontend/package.json` scripts for a `landing:*` entry), run that too.
 
 - [ ] **Step 4: Commit**
@@ -6069,7 +6081,7 @@ git commit -m "docs: describe reaching Connect Mobile from outside the network"
 
 ```bash
 npm run lint
-npm run typecheck
+npm run frontend:typecheck
 npm run frontend:lint
 npm run api
 git status --short

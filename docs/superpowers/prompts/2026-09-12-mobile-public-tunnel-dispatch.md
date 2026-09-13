@@ -156,7 +156,7 @@ it out and say so explicitly in your report. Do not silently skip it.
 
 ```bash
 npm run lint                 # backend go test ./... + golangci-lint v2.12.2
-npm run typecheck
+npm run frontend:typecheck
 npm run frontend:lint
 npm run api                  # must leave the tree CLEAN; a diff means stale artifacts
 cd frontend && npx vitest run src/renderer/
