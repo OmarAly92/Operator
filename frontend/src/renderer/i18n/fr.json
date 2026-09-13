@@ -353,6 +353,8 @@
 	"mobile.tunnel.tokenLabel": "Authtoken ngrok",
 	"mobile.tunnel.tokenSave": "Enregistrer et tester",
 	"mobile.tunnel.tokenDismiss": "Pas maintenant",
+	"mobile.tunnel.step1": "Ouvrez Operator sur votre téléphone et appuyez sur Scanner.",
+	"mobile.tunnel.step2": "Scannez le code ci-dessous — il fonctionne depuis n'importe quel réseau, y compris en données mobiles.",
 	"newTask.agent": "Agent",
 	"newTask.addFile": "Ajouter un fichier",
 	"newTask.addImage": "Ajouter une image",

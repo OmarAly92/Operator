@@ -351,6 +351,8 @@
 	"mobile.tunnel.tokenLabel": "ngrok authtoken",
 	"mobile.tunnel.tokenSave": "Save and test",
 	"mobile.tunnel.tokenDismiss": "Not now",
+	"mobile.tunnel.step1": "Open Operator on your phone and tap Scan.",
+	"mobile.tunnel.step2": "Scan the code below — it works from any network, including cellular.",
 	"newTask.agent": "Agent",
 	"newTask.addFile": "Add file",
 	"newTask.addImage": "Add image",

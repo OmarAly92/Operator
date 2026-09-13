@@ -10,6 +10,7 @@ interface ConnectMobileSetupProps {
 	 * controls must leave the tab order (same pattern as the pairing block).
 	 */
 	enabled: boolean;
+	tunnelLive: boolean;
 }
 
 type SetupMode = "lan" | "tailscale";
@@ -19,9 +20,22 @@ type SetupMode = "lan" | "tailscale";
 // entry on purpose: the pairing QR can only ever carry the LAN address,
 // because AutopickLANIP skips utun* interfaces and rejects Tailscale's
 // 100.64.0.0/10 CGNAT range as non-private (backend/internal/mobilebridge/netiface.go).
-export function ConnectMobileSetup({ port, enabled }: ConnectMobileSetupProps) {
+export function ConnectMobileSetup({ port, enabled, tunnelLive }: ConnectMobileSetupProps) {
 	const { t } = useTranslation();
 	const [mode, setMode] = useState<SetupMode>("lan");
+
+	if (tunnelLive) {
+		return (
+			<div className="flex w-full flex-col items-center">
+				<div className="w-full px-(--size-settings-mobile-details-pad-x)">
+					<ol className="settings-mobile-steps">
+						<li>{t("mobile.tunnel.step1")}</li>
+						<li>{t("mobile.tunnel.step2")}</li>
+					</ol>
+				</div>
+			</div>
+		);
+	}
 
 	// Margin-free on purpose: the modal owns the spacing around this block.
 	return (

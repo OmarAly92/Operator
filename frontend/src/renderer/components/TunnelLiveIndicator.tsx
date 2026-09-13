@@ -35,8 +35,8 @@ export function TunnelLiveRow({ tabIndex }: { tabIndex: number }) {
 		>
 			<Globe aria-hidden="true" className="size-icon-lg shrink-0" />
 			<span className="min-w-0 flex-1">
-				<span className="block truncate tracking-tight">{label}</span>
-				<span className="block truncate text-caption font-normal text-working">{statusLine}</span>
+				<span className="block break-words tracking-tight">{label}</span>
+				<span className="block break-words text-caption font-normal text-working">{statusLine}</span>
 			</span>
 			<span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-working" />
 		</button>

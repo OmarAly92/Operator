@@ -161,3 +161,20 @@ describe("Connect Mobile tunnel toggle", () => {
 		expect(tunnelRefetchInterval(undefined)).toBe(false);
 	});
 });
+
+test("once live, the dialog stops telling the user to join the same Wi-Fi", async () => {
+	mobileStatus.enabled = true;
+	mobileStatus.tunnel = {
+		state: "live",
+		provider: "ngrok",
+		url: "https://imagines-livestock-widely.ngrok-free.dev",
+		error: "",
+		restarts: 0,
+		needsAuthtoken: false,
+		hasAuthtoken: true,
+	};
+	renderModal();
+
+	await waitFor(() => expect(screen.getByText(/any network, including cellular/i)).toBeTruthy());
+	expect(screen.queryByText(/same Wi-Fi/i)).toBeNull();
+});

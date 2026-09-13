@@ -325,7 +325,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 									>
 										{/* Steps sit above the QR so the LAN/Tailscale choice is on screen
 										    the moment the bridge turns on, with no scrolling. */}
-										<ConnectMobileSetup port={status.port} enabled={enabled} />
+										<ConnectMobileSetup port={status.port} enabled={enabled} tunnelLive={Boolean(tunnelLive)} />
 
 										<div className="mt-6 flex w-(--size-settings-mobile-qr) flex-col items-center">
 											<div className="rounded-md border border-(--color-border-settings-input) bg-white p-2">

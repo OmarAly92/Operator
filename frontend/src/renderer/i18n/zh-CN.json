@@ -351,6 +351,8 @@
 	"mobile.tunnel.tokenLabel": "ngrok authtoken",
 	"mobile.tunnel.tokenSave": "保存并测试",
 	"mobile.tunnel.tokenDismiss": "暂不",
+	"mobile.tunnel.step1": "在手机上打开 Operator 并点按「扫描」。",
+	"mobile.tunnel.step2": "扫描下方二维码——任何网络均可使用，包括蜂窝数据。",
 	"newTask.agent": "代理",
 	"newTask.addFile": "添加文件",
 	"newTask.addImage": "添加图片",

@@ -351,6 +351,8 @@
 	"mobile.tunnel.tokenLabel": "ngrok authtoken",
 	"mobile.tunnel.tokenSave": "저장 후 테스트",
 	"mobile.tunnel.tokenDismiss": "나중에",
+	"mobile.tunnel.step1": "휴대폰에서 Operator를 열고 스캔을 탭하세요.",
+	"mobile.tunnel.step2": "아래 코드를 스캔하세요. 셀룰러를 포함한 모든 네트워크에서 작동합니다.",
 	"newTask.agent": "에이전트",
 	"newTask.addFile": "파일 추가",
 	"newTask.addImage": "이미지 추가",
