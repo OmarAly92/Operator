@@ -40,6 +40,7 @@ class DioConsumer implements ApiConsumer {
       ..headers = {
         'accept': 'application/json',
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',
       }
       ..connectTimeout = const Duration(seconds: 12)
       ..receiveTimeout = const Duration(seconds: 12);
