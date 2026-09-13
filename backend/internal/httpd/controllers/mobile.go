@@ -34,6 +34,8 @@ type TunnelController interface {
 	HasAuthtoken() bool
 }
 
+var _ TunnelController = (*tunnel.Manager)(nil)
+
 // MobileController exposes the Connect Mobile bridge control endpoints
 // (status/enable/disable/regenerate) over the loopback API, delegating to a
 // mobileBridge and stamping the unencrypted-LAN warning onto every response.
