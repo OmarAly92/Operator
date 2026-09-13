@@ -3,32 +3,47 @@ package tunnel
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
 
-func newFallbackManager(t *testing.T, first, second *fakeProvider) *Manager {
+func newFallbackManager(t *testing.T, first, second *fakeProvider) (*Manager, *perProviderStore) {
 	t.Helper()
+	store := &perProviderStore{paths: map[string]string{
+		first.name:  first.binary,
+		second.name: second.binary,
+	}, launches: map[string]int{}}
 	m := New(Deps{
-		Dir:       t.TempDir(),
-		Providers: []Provider{first, second},
-		Binaries: perProviderStore{paths: map[string]string{
-			first.name:  first.binary,
-			second.name: second.binary,
-		}},
+		Dir:         t.TempDir(),
+		Providers:   []Provider{first, second},
+		Binaries:    store,
 		Now:         time.Now,
-		Sleep:       func(context.Context, time.Duration) error { return nil },
+		Sleep:       func(ctx context.Context, _ time.Duration) error { return yieldSleep(ctx) },
 		ReservePort: func() (int, error) { return 45999, nil },
 	})
 	m.SetLocalPort(3011)
 	t.Cleanup(m.Close)
-	return m
+	return m, store
 }
 
-type perProviderStore struct{ paths map[string]string }
+type perProviderStore struct {
+	mu       sync.Mutex
+	paths    map[string]string
+	launches map[string]int
+}
 
-func (s perProviderStore) Ensure(_ context.Context, spec BinarySpec) (string, error) {
+func (s *perProviderStore) Ensure(_ context.Context, spec BinarySpec) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.launches[spec.Name]++
 	return s.paths[spec.Name], nil
+}
+
+func (s *perProviderStore) launchCount(name string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.launches[name]
 }
 
 func TestFallbackOnMissingAuthtokenSwitchesAndFlagsTheDialog(t *testing.T) {
@@ -41,7 +56,7 @@ func TestFallbackOnMissingAuthtokenSwitchesAndFlagsTheDialog(t *testing.T) {
 	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
 	cloudflared.setURL("https://fallback.trycloudflare.com")
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, _ := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 
 	status := waitForState(t, m, StateLive)
@@ -65,7 +80,7 @@ func TestFallbackOnLimitAfterServingSwitchesAndKeepsTheMessage(t *testing.T) {
 	ngrok.setFailure(Failure{Class: FailureRefused, Message: "account limit exceeded"})
 	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, _ := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 
 	status := waitForState(t, m, StateLive)
@@ -86,16 +101,16 @@ func TestFallbackIsStickyAndDoesNotFlapBack(t *testing.T) {
 	ngrok.setFailure(Failure{Class: FailureRefused, Message: "account limit exceeded"})
 	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, store := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 	waitForState(t, m, StateLive)
 
-	before := ngrok.urlCalls
+	before := store.launchCount("ngrok")
 	cloudflared.setHealthy(false)
 	time.Sleep(100 * time.Millisecond)
 	cloudflared.setHealthy(true)
 
-	if ngrok.urlCalls > before {
+	if store.launchCount("ngrok") > before {
 		t.Error("a refused provider must not be retried until Disable")
 	}
 	if got := m.Status().Provider; got != "cloudflared" {
@@ -109,17 +124,17 @@ func TestDisableClearsTheStickyFallback(t *testing.T) {
 	ngrok.setFailure(Failure{Class: FailureRefused, Message: "account limit exceeded"})
 	cloudflared := newFakeProvider(t, "cloudflared", sleepForeverScript)
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, store := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 	waitForState(t, m, StateLive)
 	if err := m.Disable(context.Background()); err != nil {
 		t.Fatalf("Disable: %v", err)
 	}
 
-	before := ngrok.urlCalls
+	before := store.launchCount("ngrok")
 	_ = m.Enable(context.Background())
 	waitForState(t, m, StateLive)
-	if ngrok.urlCalls == before {
+	if store.launchCount("ngrok") == before {
 		t.Error("after Disable, ngrok must be attempted again")
 	}
 }
@@ -134,7 +149,7 @@ func TestAFailedTunnelCanBeEnabledAgainWithoutADaemonRestart(t *testing.T) {
 		"#!/bin/sh\nif [ -f \"$TUNNEL_TEST_CF_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_CF_MARKER\"\necho 'boom' >&2\nexit 1\n")
 	cloudflared.setFailure(Failure{Class: FailureRefused, Message: "cloudflared refused"})
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, _ := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 
 	deadline := time.Now().Add(5 * time.Second)
@@ -160,7 +175,7 @@ func TestNoFallbackWhenBothProvidersAreRefused(t *testing.T) {
 	cloudflared := newFakeProvider(t, "cloudflared", exitImmediatelyScript)
 	cloudflared.setFailure(Failure{Class: FailureRefused, Message: "cloudflared refused"})
 
-	m := newFallbackManager(t, ngrok, cloudflared)
+	m, _ := newFallbackManager(t, ngrok, cloudflared)
 	_ = m.Enable(context.Background())
 
 	deadline := time.Now().Add(5 * time.Second)

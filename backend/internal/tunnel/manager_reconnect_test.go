@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+const fakePollDelay = time.Millisecond
+
+func isBackoffWait(d time.Duration) bool {
+	return d >= backoffFloor && d != healthInterval
+}
+
+func yieldSleep(ctx context.Context) error {
+	timer := time.NewTimer(fakePollDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 type recordingSleeper struct {
 	mu     sync.Mutex
 	waits  []time.Duration
@@ -18,11 +35,8 @@ func newRecordingSleeper() *recordingSleeper {
 }
 
 func (s *recordingSleeper) sleep(ctx context.Context, d time.Duration) error {
-	if d < backoffFloor {
-		s.mu.Lock()
-		s.waits = append(s.waits, d)
-		s.mu.Unlock()
-		return nil
+	if !isBackoffWait(d) {
+		return yieldSleep(ctx)
 	}
 	select {
 	case <-ctx.Done():
@@ -38,13 +52,21 @@ func (s *recordingSleeper) sleep(ctx context.Context, d time.Duration) error {
 func (s *recordingSleeper) backoffWaits() []time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []time.Duration
-	for _, w := range s.waits {
-		if w >= backoffFloor {
-			out = append(out, w)
+	return append([]time.Duration{}, s.waits...)
+}
+
+func (s *recordingSleeper) waitForBackoffWaits(t *testing.T, want int) []time.Duration {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	var waits []time.Duration
+	for time.Now().Before(deadline) {
+		waits = s.backoffWaits()
+		if len(waits) >= want {
+			return waits
 		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	return out
+	return waits
 }
 
 func (s *recordingSleeper) release(n int) {
@@ -123,12 +145,9 @@ func TestManagerBackoffScheduleIsExponentialAndCapped(t *testing.T) {
 	go func() { _ = m.Enable(context.Background()) }()
 	waitForState(t, m, StateReconnecting)
 
-	for i := 0; i < 8; i++ {
-		sleeper.release(1)
-		time.Sleep(20 * time.Millisecond)
-	}
+	sleeper.release(8)
 
-	waits := sleeper.backoffWaits()
+	waits := sleeper.waitForBackoffWaits(t, 4)
 	if len(waits) < 4 {
 		t.Fatalf("only %d backoff waits recorded", len(waits))
 	}
@@ -164,10 +183,9 @@ func TestManagerNeverGivesUpOnNetworkFailures(t *testing.T) {
 	go func() { _ = m.Enable(context.Background()) }()
 	waitForState(t, m, StateReconnecting)
 
-	for i := 0; i < 12; i++ {
-		sleeper.release(1)
-		time.Sleep(10 * time.Millisecond)
-	}
+	sleeper.release(12)
+	sleeper.waitForBackoffWaits(t, 6)
+
 	if got := m.Status().State; got == StateFailed {
 		t.Error("a network-shaped failure must stay reconnecting, never failed")
 	}
@@ -343,13 +361,8 @@ func (c *fakeClock) advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-func (c *fakeClock) sleep(ctx context.Context, d time.Duration) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return nil
-	}
+func (c *fakeClock) sleep(ctx context.Context, _ time.Duration) error {
+	return yieldSleep(ctx)
 }
 
 func TestManagerStaleFirstAttemptURLTimeoutDoesNotKillARecoveredTunnel(t *testing.T) {

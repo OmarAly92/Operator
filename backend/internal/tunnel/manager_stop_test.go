@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -51,15 +52,26 @@ func TestARestartAttemptThatNeverPublishesAURLIsStopped(t *testing.T) {
 	provider.setURLErr(ErrNoURLYet)
 	provider.setFailure(Failure{Class: FailureNetwork, Message: "edge unreachable"})
 
+	const firstPort = 46201
+	const restartPort = 46202
+	var portMu sync.Mutex
+	nextPort := firstPort
+
 	clock := newFakeClock()
 	sleeper := newRecordingSleeper()
 	m := New(Deps{
-		Dir:         t.TempDir(),
-		Providers:   []Provider{provider},
-		Binaries:    fakeStore{path: provider.binary},
-		Now:         clock.Now,
-		Sleep:       sleeper.sleep,
-		ReservePort: func() (int, error) { return 46201, nil },
+		Dir:       t.TempDir(),
+		Providers: []Provider{provider},
+		Binaries:  fakeStore{path: provider.binary},
+		Now:       clock.Now,
+		Sleep:     sleeper.sleep,
+		ReservePort: func() (int, error) {
+			portMu.Lock()
+			defer portMu.Unlock()
+			p := nextPort
+			nextPort++
+			return p, nil
+		},
 	})
 	m.SetLocalPort(3011)
 	defer m.Close()
@@ -82,6 +94,19 @@ func TestARestartAttemptThatNeverPublishesAURLIsStopped(t *testing.T) {
 	}
 	if restarted == 0 {
 		t.Fatalf("no live restart attempt was observed; recorded pids %v", recordedPIDs(t, pidFile))
+	}
+
+	awaiting := false
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if provider.portCallCount(restartPort) > 0 {
+			awaiting = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !awaiting {
+		t.Fatalf("the restart attempt never polled port %d for a url", restartPort)
 	}
 
 	clock.advance(startTimeout + time.Second)

@@ -22,6 +22,7 @@ type fakeProvider struct {
 	healthy       bool
 	failure       Failure
 	urlCalls      int
+	portCalls     map[int]int
 	failURLOnPort int
 }
 
@@ -36,12 +37,13 @@ func newFakeProvider(t *testing.T, name string, script string) *fakeProvider {
 		t.Fatalf("write fake binary: %v", err)
 	}
 	return &fakeProvider{
-		name:    name,
-		header:  "X-Forwarded-For",
-		binary:  path,
-		url:     "https://fake-" + name + ".example",
-		ready:   true,
-		healthy: true,
+		name:      name,
+		header:    "X-Forwarded-For",
+		binary:    path,
+		url:       "https://fake-" + name + ".example",
+		ready:     true,
+		healthy:   true,
+		portCalls: map[int]int{},
 	}
 }
 
@@ -87,6 +89,12 @@ func (f *fakeProvider) callCount() int {
 	return f.urlCalls
 }
 
+func (f *fakeProvider) portCallCount(port int) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.portCalls[port]
+}
+
 func (f *fakeProvider) Name() string { return f.name }
 
 func (f *fakeProvider) Binary() BinarySpec {
@@ -98,6 +106,7 @@ func (f *fakeProvider) Args(localPort, controlPort int) []string { return []stri
 func (f *fakeProvider) PublicURL(_ context.Context, controlPort int) (string, error) {
 	f.mu.Lock()
 	f.urlCalls++
+	f.portCalls[controlPort]++
 	delay := f.urlDelay
 	urlErr := f.urlErr
 	url := f.url
