@@ -32,7 +32,7 @@ vi.mock("../lib/api-client", () => ({
 	apiErrorMessage: () => "failed",
 }));
 
-import { ConnectMobileModal, pairingPayloadV2 } from "./ConnectMobileModal";
+import { ConnectMobileModal, pairingPayloadV2, tunnelRefetchInterval } from "./ConnectMobileModal";
 
 function renderModal() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -145,5 +145,18 @@ describe("Connect Mobile tunnel toggle", () => {
 
 		await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/mobile/tunnel/enable"));
 		expect(screen.queryByText("Make this desktop reachable from the internet?")).toBeNull();
+	});
+
+	test("a live tunnel keeps polling so a later drop is observed", () => {
+		expect(tunnelRefetchInterval("live")).toBe(5000);
+	});
+
+	test("transitional states poll fast and terminal ones stop", () => {
+		expect(tunnelRefetchInterval("starting")).toBe(1000);
+		expect(tunnelRefetchInterval("downloading")).toBe(1000);
+		expect(tunnelRefetchInterval("reconnecting")).toBe(1000);
+		expect(tunnelRefetchInterval("failed")).toBe(false);
+		expect(tunnelRefetchInterval("off")).toBe(false);
+		expect(tunnelRefetchInterval(undefined)).toBe(false);
 	});
 });

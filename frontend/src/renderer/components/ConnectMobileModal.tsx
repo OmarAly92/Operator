@@ -62,6 +62,12 @@ export function pairingPayloadV2(url: string, password: string): string {
 	return JSON.stringify({ v: 2, url, password });
 }
 
+export function tunnelRefetchInterval(state: string | undefined): number | false {
+	if (state === "downloading" || state === "starting" || state === "reconnecting") return 1000;
+	if (state === "live") return 5000;
+	return false;
+}
+
 async function fetchMobileStatus(): Promise<MobileStatus> {
 	const { data, error } = await apiClient.GET("/api/v1/mobile/status");
 	if (error || !data) throw new Error(apiErrorMessage(error));
@@ -96,10 +102,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		queryKey: mobileStatusQueryKey,
 		queryFn: fetchMobileStatus,
 		enabled: open,
-		refetchInterval: (q) => {
-			const state = q.state.data?.tunnel?.state;
-			return state === "downloading" || state === "starting" || state === "reconnecting" ? 1000 : false;
-		},
+		refetchInterval: (q) => tunnelRefetchInterval(q.state.data?.tunnel?.state),
 	});
 
 	// Reported once per open, and only after the status query resolves, so
