@@ -121,4 +121,29 @@ describe("Connect Mobile tunnel toggle", () => {
 
 		await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/mobile/tunnel/disable"));
 	});
+
+	test("the first enable asks for confirmation before calling the route", async () => {
+		window.localStorage.clear();
+		renderModal();
+
+		const toggle = await waitFor(() => screen.getByRole("switch", { name: "Reachable outside my network" }));
+		await userEvent.click(toggle);
+
+		expect(screen.getByText("Make this desktop reachable from the internet?")).toBeTruthy();
+		expect(post).not.toHaveBeenCalled();
+
+		await userEvent.click(screen.getByRole("button", { name: "Make it global" }));
+		await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/mobile/tunnel/enable"));
+	});
+
+	test("a remembered acknowledgement skips straight to the route", async () => {
+		window.localStorage.setItem("opr.mobile.tunnelConfirmed", "1");
+		renderModal();
+
+		const toggle = await waitFor(() => screen.getByRole("switch", { name: "Reachable outside my network" }));
+		await userEvent.click(toggle);
+
+		await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/mobile/tunnel/enable"));
+		expect(screen.queryByText("Make this desktop reachable from the internet?")).toBeNull();
+	});
 });

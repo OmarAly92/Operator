@@ -8,6 +8,7 @@ import { captureRendererEvent } from "../lib/telemetry";
 import { cn } from "../lib/utils";
 import { ConnectMobileGetApp } from "./settings/ConnectMobileGetApp";
 import { ConnectMobileSetup } from "./settings/ConnectMobileSetup";
+import { TunnelConfirmDialog, tunnelAlreadyConfirmed } from "./settings/TunnelConfirmDialog";
 import {
 	Dialog,
 	DialogClose,
@@ -80,6 +81,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 	const [copied, setCopied] = useState(false);
+	const [confirmOpen, setConfirmOpen] = useState(false);
 	const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
@@ -200,11 +202,15 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 	const onTunnelToggle = (next: boolean) => {
 		if (tunnelBusy) return;
 		clearActionErrors();
-		if (next) {
-			tunnelEnable.mutate();
+		if (!next) {
+			tunnelDisable.mutate();
 			return;
 		}
-		tunnelDisable.mutate();
+		if (!tunnelAlreadyConfirmed()) {
+			setConfirmOpen(true);
+			return;
+		}
+		tunnelEnable.mutate();
 	};
 
 	const copyPassword = async () => {
@@ -419,6 +425,11 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 						</div>
 					) : null}
 				</div>
+				<TunnelConfirmDialog
+					open={confirmOpen}
+					onOpenChange={setConfirmOpen}
+					onConfirm={() => tunnelEnable.mutate()}
+				/>
 			</DialogContent>
 		</Dialog>
 	);
