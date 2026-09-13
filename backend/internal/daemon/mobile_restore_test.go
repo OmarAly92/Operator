@@ -15,6 +15,7 @@ import (
 type fakeLAN struct {
 	started    bool
 	hash       string
+	strong     bool
 	port       int
 	forcedPort int
 }
@@ -32,6 +33,8 @@ func (f *fakeLAN) Running() bool                  { return f.started }
 func (f *fakeLAN) BoundPort() int                 { return f.port }
 func (f *fakeLAN) SetPasswordHash(hash string)    { f.hash = hash }
 func (f *fakeLAN) PasswordHash() string           { return f.hash }
+func (f *fakeLAN) SetPasswordStrong(strong bool)  { f.strong = strong }
+func (f *fakeLAN) PasswordStrong() bool           { return f.strong }
 func (f *fakeLAN) SetTrustedForwardHeader(string) {}
 
 func TestRestoreEnabledStartsListener(t *testing.T) {
@@ -166,5 +169,27 @@ func TestRestoreSurfacesButSurvivesATunnelStartFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no binary") {
 		t.Errorf("err = %v, want the cause preserved", err)
+	}
+}
+
+func TestRestoreArmsPasswordStrengthFromThePersistedPassword(t *testing.T) {
+	for name, tc := range map[string]struct {
+		password string
+		strong   bool
+	}{
+		"short LAN password":   {password: "secret12", strong: false},
+		"long tunnel password": {password: "averylongtunnelpasswor", strong: true},
+	} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: tc.password, LastPort: 3011}); err != nil {
+			t.Fatalf("%s: seed: %v", name, err)
+		}
+		lan := &fakeLAN{strong: !tc.strong}
+		if err := restoreMobileOnBoot(path, lan, nil); err != nil {
+			t.Fatalf("%s: restore: %v", name, err)
+		}
+		if lan.strong != tc.strong {
+			t.Errorf("%s: strong = %v, want %v", name, lan.strong, tc.strong)
+		}
 	}
 }

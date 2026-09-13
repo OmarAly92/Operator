@@ -123,6 +123,14 @@ func (m *LANManager) PasswordHash() string {
 	return m.state.currentHash()
 }
 
+func (m *LANManager) SetPasswordStrong(strong bool) {
+	m.state.setStrong(strong)
+}
+
+func (m *LANManager) PasswordStrong() bool {
+	return m.state.isStrong()
+}
+
 // Start binds the network-facing listener on 0.0.0.0:port (falling back to an
 // ephemeral port if that port is in use) and serves the wrapped handler. It is
 // idempotent: a second call while running returns the already-bound port.

@@ -14,9 +14,14 @@ import (
 
 // authState holds the current password hash for the LAN listener. Swapped
 // atomically on regenerate so an in-flight request never sees a torn value.
-type authState struct{ hash atomic.Pointer[string] }
+type authState struct {
+	hash   atomic.Pointer[string]
+	strong atomic.Bool
+}
 
-func (a *authState) setHash(h string) { a.hash.Store(&h) }
+func (a *authState) setHash(h string)      { a.hash.Store(&h) }
+func (a *authState) setStrong(strong bool) { a.strong.Store(strong) }
+func (a *authState) isStrong() bool        { return a.strong.Load() }
 func (a *authState) currentHash() string {
 	if p := a.hash.Load(); p != nil {
 		return *p
@@ -203,16 +208,25 @@ func authMiddleware(state *authState, lock *lockout, connected *mobileConnectRep
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			src := sourceKey(r, trust)
+			tok := connectionToken(r)
+			matches := mobilebridge.PasswordMatches(state.currentHash(), tok)
+			admit := func() {
+				lock.reset(src)
+				connected.report(src)
+				maybeSetPreviewAuthCookie(w, r, tok)
+				next.ServeHTTP(w, r)
+			}
+			if matches && state.isStrong() {
+				admit()
+				return
+			}
 			if lock.blocked(src) {
 				envelope.WriteAPIError(w, r, http.StatusTooManyRequests, "too_many_requests", "LOCKED_OUT",
 					"too many failed attempts; try again shortly", nil)
 				return
 			}
-			if tok := connectionToken(r); mobilebridge.PasswordMatches(state.currentHash(), tok) {
-				lock.reset(src)
-				connected.report(src)
-				maybeSetPreviewAuthCookie(w, r, tok)
-				next.ServeHTTP(w, r)
+			if matches {
+				admit()
 				return
 			}
 			lock.fail(src)

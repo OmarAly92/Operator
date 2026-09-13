@@ -29,6 +29,7 @@ func restoreMobileOnBoot(path string, lan controllers.LANController, tun tunnelS
 		return nil
 	}
 	lan.SetPasswordHash(mobilebridge.HashPassword(state.Password))
+	lan.SetPasswordStrong(len(state.Password) >= mobilebridge.TunnelPasswordLength)
 	port, err := lan.Start(state.LastPort)
 	if err != nil {
 		return fmt.Errorf("restart mobile LAN listener: %w", err)

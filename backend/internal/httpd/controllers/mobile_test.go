@@ -43,6 +43,7 @@ type fakeLAN struct {
 	running    bool
 	port       int
 	hash       string
+	strong     bool
 	stopCalls  int
 	forcedPort int
 }
@@ -64,6 +65,8 @@ func (f *fakeLAN) Running() bool                  { return f.running }
 func (f *fakeLAN) BoundPort() int                 { return f.port }
 func (f *fakeLAN) SetPasswordHash(h string)       { f.hash = h }
 func (f *fakeLAN) PasswordHash() string           { return f.hash }
+func (f *fakeLAN) SetPasswordStrong(strong bool)  { f.strong = strong }
+func (f *fakeLAN) PasswordStrong() bool           { return f.strong }
 func (f *fakeLAN) SetTrustedForwardHeader(string) {}
 
 type fakeTunnel struct {
@@ -394,5 +397,70 @@ func TestEnableTargetsTheTunnelAtThePortActuallyBound(t *testing.T) {
 	}
 	if tun.localPort != 49876 {
 		t.Fatalf("tunnel local port = %d, want the port the listener actually bound (49876), not the requested 3011", tun.localPort)
+	}
+}
+
+func TestPasswordStrengthFollowsThePasswordThatIsArmed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	lan := &fakeLAN{}
+	bridge := &BridgeService{LAN: lan, ConfigPath: path, DefaultPort: 3011, Tunnel: &fakeTunnel{}}
+
+	if _, err := bridge.Enable(); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	if lan.strong {
+		t.Fatal("the 8-char LAN password must keep the lockout's short-password rules")
+	}
+
+	if _, err := bridge.TunnelEnable(); err != nil {
+		t.Fatalf("TunnelEnable: %v", err)
+	}
+	if !lan.strong {
+		t.Fatal("the 22-char tunnel password must be armed as strong")
+	}
+
+	got, err := bridge.Regenerate()
+	if err != nil {
+		t.Fatalf("Regenerate while tunneled: %v", err)
+	}
+	if len(got.Password) != mobilebridge.TunnelPasswordLength {
+		t.Fatalf("regenerating while tunneled issued a %d-char password; a short password must never face the public internet", len(got.Password))
+	}
+	if !lan.strong {
+		t.Fatal("regenerating while tunneled must keep the strong rules")
+	}
+	state, err := mobilebridge.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !state.TunnelEnabled {
+		t.Fatal("regenerating must not silently drop the persisted tunnel intent")
+	}
+
+	if _, err := bridge.TunnelDisable(); err != nil {
+		t.Fatalf("TunnelDisable: %v", err)
+	}
+	got, err = bridge.Regenerate()
+	if err != nil {
+		t.Fatalf("Regenerate after disable: %v", err)
+	}
+	if len(got.Password) == mobilebridge.TunnelPasswordLength || lan.strong {
+		t.Fatal("with the tunnel off, regenerating returns to the short LAN password and its rules")
+	}
+}
+
+func TestMobileEnableRollsBackPasswordStrengthWhenSaveFails(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lan := &fakeLAN{strong: true}
+	b := &BridgeService{LAN: lan, ConfigPath: filepath.Join(blocker, "mobile", "config.json"), DefaultPort: 3011}
+
+	if _, err := b.Enable(); err == nil {
+		t.Fatal("expected enable to fail on Save error")
+	}
+	if !lan.strong {
+		t.Fatal("a failed enable must roll password strength back with the hash")
 	}
 }

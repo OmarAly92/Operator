@@ -130,6 +130,8 @@ type LANController interface {
 	BoundPort() int
 	SetPasswordHash(hash string)
 	PasswordHash() string
+	SetPasswordStrong(strong bool)
+	PasswordStrong() bool
 	SetTrustedForwardHeader(name string)
 }
 
@@ -190,16 +192,25 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 	// failed enable would leave a LAN listener open on 0.0.0.0 with the new
 	// password while persisted state/UI still say the bridge is off.
 	prevHash := b.LAN.PasswordHash()
+	prevStrong := b.LAN.PasswordStrong()
 	wasRunning := b.LAN.Running()
+	prevState, _ := mobilebridge.Load(b.ConfigPath)
 
 	// The persisted password is plaintext; the auth hash is derived in memory.
 	b.LAN.SetPasswordHash(mobilebridge.HashPassword(pw))
+	b.LAN.SetPasswordStrong(len(pw) >= mobilebridge.TunnelPasswordLength)
 	port, err := b.LAN.Start(b.DefaultPort)
 	if err != nil {
 		b.LAN.SetPasswordHash(prevHash) // Start failed: undo the hash swap.
+		b.LAN.SetPasswordStrong(prevStrong)
 		return MobileStatusResponse{}, err
 	}
-	if err := mobilebridge.Save(b.ConfigPath, mobilebridge.State{Enabled: true, Password: pw, LastPort: port}); err != nil {
+	if err := mobilebridge.Save(b.ConfigPath, mobilebridge.State{
+		Enabled:       true,
+		Password:      pw,
+		LastPort:      port,
+		TunnelEnabled: prevState.TunnelEnabled,
+	}); err != nil {
 		// Persist failed after the listener came up. Roll back so reality matches
 		// the unchanged persisted state (and the UI's "enable failed"). A rotate on
 		// an already-running listener (wasRunning) keeps serving on the prior hash;
@@ -210,6 +221,7 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 			_ = b.LAN.Stop(ctx)
 		}
 		b.LAN.SetPasswordHash(prevHash)
+		b.LAN.SetPasswordStrong(prevStrong)
 		return MobileStatusResponse{}, err
 	}
 	if b.Tunnel != nil {
@@ -231,7 +243,11 @@ func (b *BridgeService) Enable() (MobileStatusResponse, error) {
 // Regenerate rotates the connection password on the running listener, which
 // drops the currently paired phone (it authenticates against the new hash).
 func (b *BridgeService) Regenerate() (MobileStatusResponse, error) {
-	pw, err := mobilebridge.GeneratePassword()
+	generate := mobilebridge.GeneratePassword
+	if st, loadErr := mobilebridge.Load(b.ConfigPath); loadErr == nil && st.TunnelEnabled {
+		generate = func() (string, error) { return mobilebridge.GeneratePasswordN(mobilebridge.TunnelPasswordLength) }
+	}
+	pw, err := generate()
 	if err != nil {
 		return MobileStatusResponse{}, err
 	}

@@ -381,3 +381,67 @@ func TestLANManagerSetTrustedForwardHeaderReachesAuth(t *testing.T) {
 		t.Errorf("got %q, want trust cleared when the tunnel stops", got)
 	}
 }
+
+func newStrongAuthUnderTest(pw string, now func() time.Time) http.Handler {
+	st := &authState{}
+	st.setHash(mobilebridge.HashPassword(pw))
+	st.setStrong(true)
+	lock := newLockout(5, time.Minute, now)
+	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	return authMiddleware(st, lock, nil, &forwardedTrust{})(ok)
+}
+
+func TestStrongPasswordIsNeverBlockedByTheSharedTunnelBucket(t *testing.T) {
+	const pw = "averylongtunnelpasswor"
+	h := newStrongAuthUnderTest(pw, time.Now)
+
+	for i := 0; i < 10; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, reqFrom("127.0.0.1:41112", "Bearer "+pw))
+	if w.Code != http.StatusOK {
+		t.Fatalf("correct long password from the shared tunnel bucket: got %d want 200", w.Code)
+	}
+}
+
+func TestStrongPasswordStillThrottlesWrongGuesses(t *testing.T) {
+	h := newStrongAuthUnderTest("averylongtunnelpasswor", time.Now)
+
+	var last int
+	for i := 0; i < 6; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+		last = w.Code
+	}
+	if last != http.StatusTooManyRequests {
+		t.Fatalf("wrong guesses past the limit: got %d want 429", last)
+	}
+}
+
+func TestShortPasswordKeepsBlockingEvenTheCorrectPassword(t *testing.T) {
+	h, _ := newAuthUnderTest("secret12", time.Now)
+
+	for i := 0; i < 5; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer secret12"))
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("short LAN password during lockout: got %d want 429 — the LAN behavior must not change", w.Code)
+	}
+}
+
+func TestLANManagerSetPasswordStrongReachesAuth(t *testing.T) {
+	manager := NewMobileLAN(http.NotFoundHandler(), 0, nil, nil)
+	if manager.PasswordStrong() {
+		t.Fatal("a new manager must start with the short-password rules")
+	}
+	manager.SetPasswordStrong(true)
+	if !manager.PasswordStrong() || !manager.state.isStrong() {
+		t.Fatal("SetPasswordStrong must write through to the shared authState")
+	}
+}
