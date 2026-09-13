@@ -27,12 +27,24 @@ export const mobileStatusQueryKey = ["mobile-status"] as const;
 /** Matches `--size-settings-mobile-qr-code`; qrcode.react needs a px number. */
 const QR_CODE_SIZE = 204;
 
+interface MobileTunnelStatus {
+	state: string;
+	provider: string;
+	url: string;
+	error: string;
+	since?: string;
+	restarts: number;
+	needsAuthtoken: boolean;
+	hasAuthtoken: boolean;
+}
+
 interface MobileStatus {
 	enabled: boolean;
 	host: string;
 	port: number;
 	password: string;
 	warning: string;
+	tunnel?: MobileTunnelStatus;
 }
 
 // pairingPayload is the QR code contents scanned by the mobile app to connect
@@ -42,6 +54,10 @@ interface MobileStatus {
 // acceptable trade-off; regenerating the password invalidates any old QR.
 export function pairingPayload(host: string, port: number, password: string): string {
 	return JSON.stringify({ v: 1, host, port, password });
+}
+
+export function pairingPayloadV2(url: string, password: string): string {
+	return JSON.stringify({ v: 2, url, password });
 }
 
 async function fetchMobileStatus(): Promise<MobileStatus> {
@@ -76,6 +92,10 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		queryKey: mobileStatusQueryKey,
 		queryFn: fetchMobileStatus,
 		enabled: open,
+		refetchInterval: (q) => {
+			const state = q.state.data?.tunnel?.state;
+			return state === "downloading" || state === "starting" || state === "reconnecting" ? 1000 : false;
+		},
 	});
 
 	// Reported once per open, and only after the status query resolves, so
@@ -124,6 +144,24 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		onSuccess: invalidate,
 	});
 
+	const tunnelEnable = useMutation({
+		mutationFn: async () => {
+			const { data, error } = await apiClient.POST("/api/v1/mobile/tunnel/enable");
+			if (error) throw new Error(apiErrorMessage(error));
+			return data;
+		},
+		onSuccess: invalidate,
+	});
+
+	const tunnelDisable = useMutation({
+		mutationFn: async () => {
+			const { data, error } = await apiClient.POST("/api/v1/mobile/tunnel/disable");
+			if (error) throw new Error(apiErrorMessage(error));
+			return data;
+		},
+		onSuccess: invalidate,
+	});
+
 	const status = query.data;
 	const enabled = status?.enabled ?? false;
 	const busy = enable.isPending || disable.isPending || regenerate.isPending;
@@ -132,6 +170,41 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		enable.reset();
 		disable.reset();
 		regenerate.reset();
+		tunnelEnable.reset();
+		tunnelDisable.reset();
+	};
+
+	const tunnel = status?.tunnel;
+	const tunnelLive = tunnel?.state === "live" && tunnel.url !== "";
+	const tunnelBusy = tunnelEnable.isPending || tunnelDisable.isPending;
+	const tunnelOn = tunnelLive || tunnel?.state === "starting" || tunnel?.state === "downloading" || tunnel?.state === "reconnecting";
+
+	const tunnelMessage = (() => {
+		if (!tunnel) return null;
+		switch (tunnel.state) {
+			case "downloading":
+				return t("mobile.tunnel.downloading");
+			case "starting":
+				return t("mobile.tunnel.starting");
+			case "reconnecting":
+				return t("mobile.tunnel.reconnecting");
+			case "live":
+				return t("mobile.tunnel.live", { provider: tunnel.provider });
+			case "failed":
+				return tunnel.error || t("mobile.tunnel.failed");
+			default:
+				return null;
+		}
+	})();
+
+	const onTunnelToggle = (next: boolean) => {
+		if (tunnelBusy) return;
+		clearActionErrors();
+		if (next) {
+			tunnelEnable.mutate();
+			return;
+		}
+		tunnelDisable.mutate();
 	};
 
 	const copyPassword = async () => {
@@ -164,6 +237,8 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 		(enable.error instanceof Error && enable.error.message) ||
 		(disable.error instanceof Error && disable.error.message) ||
 		(regenerate.error instanceof Error && regenerate.error.message) ||
+		(tunnelEnable.error instanceof Error && tunnelEnable.error.message) ||
+		(tunnelDisable.error instanceof Error && tunnelDisable.error.message) ||
 		null;
 
 	return (
@@ -221,6 +296,38 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 								</div>
 							</div>
 
+							{tunnel && (
+								<div className="relative flex items-start justify-between gap-3 px-3 py-3">
+									<div className="flex min-w-0 flex-col gap-1 pr-2">
+										<span className="text-subtitle leading-(--leading-settings-mobile-title) text-settings-label">
+											{t("mobile.tunnel.enable")}
+										</span>
+										<span className="text-caption leading-(--leading-settings-mobile-hint) text-settings-muted">
+											{t("mobile.tunnel.enableHint")}
+										</span>
+										{tunnelMessage && (
+											<span
+												className={cn(
+													"text-caption leading-(--leading-settings-mobile-hint)",
+													tunnel.state === "failed" ? "text-error" : "text-settings-muted",
+												)}
+											>
+												{tunnelMessage}
+											</span>
+										)}
+									</div>
+									<div className="flex shrink-0 items-center gap-2 pt-0.5">
+										{tunnelBusy && <Loader2 className="size-4 animate-spin text-settings-muted" aria-hidden="true" />}
+										<Switch
+											checked={Boolean(tunnelOn)}
+											onCheckedChange={onTunnelToggle}
+											disabled={!enabled || tunnelBusy}
+											aria-label={t("mobile.tunnel.enable")}
+										/>
+									</div>
+								</div>
+							)}
+
 							{actionError && <p className="mt-3 text-xs text-error">{actionError}</p>}
 
 							{/* Pairing details — expand/collapse with the enable toggle. */}
@@ -245,7 +352,11 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 										<div className="mt-6 flex w-(--size-settings-mobile-qr) flex-col items-center">
 											<div className="rounded-md border border-(--color-border-settings-input) bg-white p-2">
 												<QRCodeSVG
-													value={pairingPayload(status.host, status.port, status.password)}
+													value={
+														tunnelLive && tunnel
+															? pairingPayloadV2(tunnel.url, status.password)
+															: pairingPayload(status.host, status.port, status.password)
+													}
 													size={QR_CODE_SIZE}
 													className="block size-(--size-settings-mobile-qr-code)"
 												/>
@@ -263,8 +374,8 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 										<div className="mt-6 flex w-full flex-col gap-1 px-(--size-settings-mobile-details-pad-x)">
 											<div className="flex items-center gap-6 text-sm leading-5">
 												<span className="w-(--size-settings-mobile-label) shrink-0 text-settings-muted">{t("mobile.address")}</span>
-												<span className="tracking-settings-mono text-settings-label">
-													{status.host}:{status.port}
+												<span className="tracking-settings-mono break-all text-settings-label">
+													{tunnelLive && tunnel ? tunnel.url : `${status.host}:${status.port}`}
 												</span>
 											</div>
 											<div className="flex items-center gap-6 text-sm leading-5">
