@@ -133,3 +133,59 @@ func TestSetAuthtokenClearsTheStickyNgrokFallback(t *testing.T) {
 		t.Error("NeedsAuthtoken must clear once a token is stored")
 	}
 }
+
+func TestHasAuthtokenSeesATokenInTheUsersOwnNgrokConfig(t *testing.T) {
+	dir := t.TempDir()
+	userConfig := filepath.Join(t.TempDir(), "ngrok.yml")
+	if err := os.WriteFile(userConfig, []byte("version: \"3\"\nagent:\n    authtoken: x\n"), 0o600); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+	m := New(Deps{
+		Dir: dir,
+		Providers: []Provider{NgrokProvider(NgrokConfig{
+			UserConfigPath: userConfig,
+			OwnConfigPath:  ngrokConfigPath(dir),
+		})},
+	})
+
+	if !m.HasAuthtoken() {
+		t.Error("ngrok authenticates from the user's own config, so a token there must count")
+	}
+}
+
+func TestHasAuthtokenFalseWhenNeitherConfigCarriesOne(t *testing.T) {
+	dir := t.TempDir()
+	userConfig := filepath.Join(t.TempDir(), "ngrok.yml")
+	if err := os.WriteFile(userConfig, []byte("version: \"3\"\n"), 0o600); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+	if err := os.WriteFile(ngrokConfigPath(dir), []byte("version: \"3\"\nagent:\n    web_addr: 127.0.0.1:50893\n"), 0o600); err != nil {
+		t.Fatalf("write own config: %v", err)
+	}
+	m := New(Deps{
+		Dir: dir,
+		Providers: []Provider{NgrokProvider(NgrokConfig{
+			UserConfigPath: userConfig,
+			OwnConfigPath:  ngrokConfigPath(dir),
+		})},
+	})
+
+	if m.HasAuthtoken() {
+		t.Error("a web_addr-only config and a version-only user config carry no token")
+	}
+}
+
+func TestHasAuthtokenToleratesAMissingUserConfig(t *testing.T) {
+	dir := t.TempDir()
+	m := New(Deps{
+		Dir: dir,
+		Providers: []Provider{NgrokProvider(NgrokConfig{
+			UserConfigPath: filepath.Join(t.TempDir(), "absent.yml"),
+			OwnConfigPath:  ngrokConfigPath(dir),
+		})},
+	})
+
+	if m.HasAuthtoken() {
+		t.Error("no config files means no token")
+	}
+}

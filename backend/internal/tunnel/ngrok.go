@@ -51,6 +51,10 @@ func ngrokTarget(goos, goarch string) (string, error) {
 	}
 }
 
+func (p ngrokProvider) HasAuthtoken() bool {
+	return configCarriesAuthtoken(p.cfg.UserConfigPath) || configCarriesAuthtoken(p.cfg.OwnConfigPath)
+}
+
 func (p ngrokProvider) Prepare(_, controlPort int) error {
 	if p.cfg.OwnConfigPath == "" {
 		return nil

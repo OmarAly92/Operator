@@ -11,8 +11,27 @@ import (
 
 func ngrokConfigPath(dir string) string { return filepath.Join(dir, "ngrok.yml") }
 
+type authtokenReporter interface {
+	HasAuthtoken() bool
+}
+
 func (m *Manager) HasAuthtoken() bool {
-	body, err := os.ReadFile(ngrokConfigPath(m.dir))
+	if configCarriesAuthtoken(ngrokConfigPath(m.dir)) {
+		return true
+	}
+	for _, provider := range m.providers {
+		if reporter, ok := provider.(authtokenReporter); ok && reporter.HasAuthtoken() {
+			return true
+		}
+	}
+	return false
+}
+
+func configCarriesAuthtoken(path string) bool {
+	if path == "" {
+		return false
+	}
+	body, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
