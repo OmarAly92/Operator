@@ -1144,12 +1144,12 @@ func TestCDCTriggersPopulateChangeLog(t *testing.T) {
 		}
 		types = append(types, string(e.Type))
 	}
-	want := []string{"session_created", "session_updated", "pr_created"}
-	if len(types) != 3 || types[0] != want[0] || types[1] != want[1] || types[2] != want[2] {
+	want := []string{"project_created", "session_created", "session_updated", "pr_created"}
+	if !reflect.DeepEqual(types, want) {
 		t.Fatalf("change_log event types = %v, want %v (metadata-only update suppressed)", types, want)
 	}
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(evs[0].Payload), &payload); err != nil {
+	if err := json.Unmarshal([]byte(evs[1].Payload), &payload); err != nil {
 		t.Fatalf("session payload JSON: %v", err)
 	}
 	if _, ok := payload["isTerminated"].(bool); !ok {

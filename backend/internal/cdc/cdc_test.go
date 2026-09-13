@@ -47,13 +47,13 @@ func seedSession(t *testing.T, s *sqlite.Store) domain.SessionRecord {
 func TestE2E_StoreWriteToBroadcast(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
-	r := seedSession(t, s) // -> session_created (seq 1)
+	r := seedSession(t, s)
 
 	r.Activity.State = domain.ActivityIdle
-	if err := s.UpdateSession(ctx, r); err != nil { // -> session_updated (seq 2)
+	if err := s.UpdateSession(ctx, r); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.WritePR(ctx, domain.PullRequest{URL: "pr1", SessionID: r.ID, UpdatedAt: r.UpdatedAt}, nil, nil); err != nil { // -> pr_created (seq 3)
+	if err := s.WritePR(ctx, domain.PullRequest{URL: "pr1", SessionID: r.ID, UpdatedAt: r.UpdatedAt}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -65,8 +65,8 @@ func TestE2E_StoreWriteToBroadcast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(got) != 3 {
-		t.Fatalf("delivered %d events, want 3", len(got))
+	if len(got) != 4 {
+		t.Fatalf("delivered %d events, want 4", len(got))
 	}
 	for i, e := range got {
 		if e.Seq != int64(i+1) {
@@ -76,12 +76,12 @@ func TestE2E_StoreWriteToBroadcast(t *testing.T) {
 			t.Fatalf("event %d project=%q, want mer", i, e.ProjectID)
 		}
 	}
-	if got[0].Type != cdc.EventSessionCreated || got[1].Type != cdc.EventSessionUpdated || got[2].Type != cdc.EventPRCreated {
-		t.Fatalf("types = %s, %s, %s", got[0].Type, got[1].Type, got[2].Type)
+	if got[0].Type != cdc.EventProjectCreated || got[1].Type != cdc.EventSessionCreated || got[2].Type != cdc.EventSessionUpdated || got[3].Type != cdc.EventPRCreated {
+		t.Fatalf("events = %+v", got)
 	}
 	// the trigger-built JSON payload survives as a usable RawMessage.
 	var payload map[string]any
-	if err := json.Unmarshal(got[0].Payload, &payload); err != nil {
+	if err := json.Unmarshal(got[1].Payload, &payload); err != nil {
 		t.Fatalf("payload not JSON: %v", err)
 	}
 	if payload["id"] != string(r.ID) || payload["activity"] != "active" {
@@ -92,7 +92,7 @@ func TestE2E_StoreWriteToBroadcast(t *testing.T) {
 	if err := p.Poll(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 {
+	if len(got) != 4 {
 		t.Fatalf("re-poll delivered extra events: %d", len(got))
 	}
 }
@@ -103,7 +103,7 @@ func TestE2E_ConcurrentPollerLiveDelivery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s := newStore(t)
-	r := seedSession(t, s) // seq 1
+	r := seedSession(t, s)
 
 	var mu sync.Mutex
 	var got []cdc.Event
@@ -124,7 +124,7 @@ func TestE2E_ConcurrentPollerLiveDelivery(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := n // session_created + n-1 activity updates; first write is unchanged
+	want := n + 1
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {

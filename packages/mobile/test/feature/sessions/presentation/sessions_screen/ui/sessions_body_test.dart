@@ -35,6 +35,9 @@ void main() {
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
+    when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     fired.clear();
@@ -86,6 +89,33 @@ void main() {
     );
     await settle(tester);
   }
+
+  testWidgets('resyncs when returning from the background', (tester) async {
+    when(() => mux.boardStreamReady).thenReturn(true);
+    await pumpBody(
+      tester,
+      const BoardSnapshot(
+        sessions: [SessionModel(id: 'old', displayName: 'Before resume')],
+      ),
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    when(() => repository.getBoard()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(
+          data: const BoardSnapshot(
+            sessions: [SessionModel(id: 'new', displayName: 'After resume')],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(minutes: 1));
+    expect(find.text('Before resume'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await settle(tester);
+    expect(find.text('After resume'), findsOneWidget);
+    expect(find.text('Before resume'), findsNothing);
+  });
 
   testWidgets('groups sessions into their board sections with a stat header', (tester) async {
     await pumpBody(

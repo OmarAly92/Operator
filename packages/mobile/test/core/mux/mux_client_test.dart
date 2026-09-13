@@ -169,6 +169,65 @@ void main() {
       expect((patches.first.first as dynamic).id, 'proj-1');
     });
 
+    test('acknowledges board streaming and forwards relevant Go CDC frames', () {
+      fakeAsync((async) {
+        late _FakeMuxSocket socket;
+        final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
+        var invalidations = 0;
+        client.boardChanges.listen((_) => invalidations++);
+        client.connect();
+        async.flushMicrotasks();
+        expect(client.boardStreamReady, isFalse);
+        socket.pushMessage({'ch': 'sessions', 'type': 'subscribed'});
+        async.flushMicrotasks();
+        expect(client.boardStreamReady, isTrue);
+        expect(invalidations, 1);
+        for (final eventType in [
+          'session_created',
+          'session_updated',
+          'session_deleted',
+          'project_updated',
+          'pr_updated',
+        ]) {
+          socket.pushMessage({
+            'ch': 'sessions',
+            'type': 'snapshot',
+            'session': {'seq': 9, 'projectId': 'p1', 'sessionId': 's1', 'eventType': eventType},
+          });
+        }
+        socket.pushMessage({
+          'ch': 'sessions',
+          'type': 'snapshot',
+          'session': {'eventType': 'usage_updated'},
+        });
+        async.flushMicrotasks();
+        expect(invalidations, 6);
+        socket.closeFromServer();
+        async.flushMicrotasks();
+        expect(client.boardStreamReady, isFalse);
+        client.disconnect();
+      });
+    });
+
+    test('reuses a connection while opening and after it is open', () {
+      fakeAsync((async) {
+        var connections = 0;
+        final client = MuxClient(
+          _source,
+          connect: (_, _) {
+            connections++;
+            return _FakeMuxSocket();
+          },
+        );
+        client.connect();
+        client.connect();
+        async.flushMicrotasks();
+        client.connect();
+        expect(connections, 1);
+        client.disconnect();
+      });
+    });
+
     test('decodes base64 terminal data', () async {
       late _FakeMuxSocket socket;
       final client = MuxClient(_source, connect: (_, _) => socket = _FakeMuxSocket());
@@ -222,6 +281,7 @@ void main() {
         client.subscribeSessions();
         client.openTerminal('s1', projectId: 'p1');
         expect(sockets[0].sent, hasLength(2));
+        expect(jsonDecode(sockets[0].sent.first)['type'], 'subscribe');
 
         sockets[0].closeFromServer();
         async.elapse(Duration(milliseconds: MuxBackoff.initialMs - 1));

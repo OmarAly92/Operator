@@ -149,6 +149,9 @@ void main() {
     final repository = _MockSessionsRepository();
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
+    when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     var fail = false;
@@ -177,6 +180,9 @@ void main() {
     final repository = _MockSessionsRepository();
     final mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
+    when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => repository.getBoard()).thenAnswer(

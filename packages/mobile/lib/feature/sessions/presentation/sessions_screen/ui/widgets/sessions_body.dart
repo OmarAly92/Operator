@@ -29,7 +29,29 @@ class SessionsBody extends StatefulWidget {
   State<SessionsBody> createState() => _SessionsBodyState();
 }
 
-class _SessionsBodyState extends State<SessionsBody> {
+class _SessionsBodyState extends State<SessionsBody> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final cubit = context.read<SessionsCubit>();
+    if (state == AppLifecycleState.resumed) {
+      cubit.resumeUpdates();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      cubit.pauseUpdates();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   // Keyed by zone rather than by rendered section: a zone that is empty on this
   // tick still owns its key, so a section appearing later reuses the same
   // element instead of being re-inflated.

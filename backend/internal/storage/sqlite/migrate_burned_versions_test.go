@@ -112,6 +112,7 @@ var shippedMigrations = map[int64]string{
 	105: "0105_clear_corrupted_conversation_facts.sql",
 	106: "0106_orchestrator_inbox.sql",
 	107: "0107_sessions_spawned_by.sql",
+	108: "0108_board_cdc.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

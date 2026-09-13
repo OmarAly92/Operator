@@ -41,6 +41,9 @@ void main() {
     sessionsRepository = _MockSessionsRepository();
     mux = _MockMuxClient();
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
+    when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
     when(() => sessionsRepository.getBoard())

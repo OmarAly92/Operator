@@ -90,6 +90,8 @@ void main() {
     ).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
+    when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
+    when(() => mux.boardStreamReady).thenReturn(false);
     when(() => mux.status).thenAnswer((_) => const Stream<MuxStatus>.empty());
     when(
       () => mux.terminalEvents,

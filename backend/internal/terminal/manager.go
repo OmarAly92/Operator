@@ -516,6 +516,7 @@ func (c *connState) handleSubscribe(msg clientMsg) {
 	c.mu.Lock()
 	if c.unsubEvts != nil {
 		c.mu.Unlock()
+		c.enqueue(serverMsg{Ch: chSessions, Type: msgSubscribed})
 		return
 	}
 	c.mu.Unlock()
@@ -535,6 +536,7 @@ func (c *connState) handleSubscribe(msg clientMsg) {
 	c.mu.Lock()
 	c.unsubEvts = unsub
 	c.mu.Unlock()
+	c.enqueue(serverMsg{Ch: chSessions, Type: msgSubscribed})
 }
 
 func (c *connState) handleBlockSubscribe(msg clientMsg) {

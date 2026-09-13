@@ -71,9 +71,13 @@ class MuxClient {
   final MuxSocket Function(Uri uri, Map<String, String> headers) _connect;
 
   final _statusController = StreamController<MuxStatus>.broadcast();
+  final _boardChangesController = StreamController<void>.broadcast();
   final _sessionPatchesController = StreamController<List<SessionPatch>>.broadcast();
   final _terminalEventsController = StreamController<TerminalEvent>.broadcast();
   final _blockEventsController = StreamController<BlockEventEnvelope>.broadcast();
+
+  Stream<void> get boardChanges => _boardChangesController.stream;
+  bool get boardStreamReady => _boardStreamReady;
 
   Stream<MuxStatus> get status => _statusController.stream;
   Stream<List<SessionPatch>> get sessionPatches => _sessionPatchesController.stream;
@@ -83,6 +87,7 @@ class MuxClient {
   MuxSocket? _socket;
   StreamSubscription<dynamic>? _sub;
   bool _isOpen = false;
+  bool _boardStreamReady = false;
   bool _closedByUser = false;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
@@ -96,12 +101,15 @@ class MuxClient {
   MuxStatus get currentStatus => _currentStatus;
 
   void _setStatus(MuxStatus status) {
+    if (status != MuxStatus.open) _boardStreamReady = false;
     _currentStatus = status;
     _statusController.add(status);
   }
 
   void connect() {
+    if (_isOpen || _currentStatus == MuxStatus.connecting) return;
     _closedByUser = false;
+    _reconnectTimer?.cancel();
     unawaited(_open());
   }
 
@@ -147,7 +155,7 @@ class MuxClient {
     _backoffMs = MuxBackoff.initialMs;
     _setStatus(MuxStatus.open);
 
-    if (_subscribed) _send({'ch': 'subscribe', 'topics': ['sessions', 'notifications']});
+    if (_subscribed) subscribeSessions();
     for (final entry in _openTerminals.entries) {
       _send({'ch': 'terminal', 'id': entry.key, 'type': 'open', 'projectId': entry.value, 'role': 'secondary'});
     }
@@ -170,7 +178,22 @@ class MuxClient {
     final ch = msg['ch'] as String?;
     final type = msg['type'] as String?;
 
+    if (ch == 'sessions' && type == 'subscribed') {
+      _boardStreamReady = true;
+      _boardChangesController.add(null);
+      return;
+    }
+
     if (ch == 'sessions' && type == 'snapshot') {
+      final change = msg['session'];
+      if (change is Map<String, dynamic>) {
+        final eventType = change['eventType'];
+        if (eventType is String &&
+            (eventType.startsWith('session_') || eventType.startsWith('project_') || eventType.startsWith('pr_'))) {
+          _boardChangesController.add(null);
+        }
+        return;
+      }
       final rawSessions = msg['sessions'] as List<dynamic>? ?? [];
       _sessionPatchesController.add(
         rawSessions.map((s) => SessionPatch.fromJson(s as Map<String, dynamic>)).toList(),
@@ -233,7 +256,11 @@ class MuxClient {
 
   void subscribeSessions() {
     _subscribed = true;
-    _send({'ch': 'subscribe', 'topics': ['sessions', 'notifications']});
+    _send({
+      'ch': 'subscribe',
+      'type': 'subscribe',
+      'topics': ['sessions', 'notifications'],
+    });
   }
 
   void openTerminal(String id, {String? projectId}) {
@@ -272,5 +299,6 @@ class MuxClient {
     await _sub?.cancel();
     await _socket?.close();
     _socket = null;
+    _setStatus(MuxStatus.closed);
   }
 }

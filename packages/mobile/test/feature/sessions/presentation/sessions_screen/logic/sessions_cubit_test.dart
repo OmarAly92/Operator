@@ -9,7 +9,6 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
-import 'package:operator_mobile/core/mux/session_patch.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/orchestrator_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
@@ -25,20 +24,29 @@ class _MockMuxClient extends Mock implements MuxClient {}
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
-  late StreamController<List<SessionPatch>> patchesController;
+  late StreamController<void> changesController;
+  late StreamController<MuxStatus> statusController;
+  var streamReady = false;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
-    patchesController = StreamController<List<SessionPatch>>.broadcast();
-    when(() => mux.sessionPatches).thenAnswer((_) => patchesController.stream);
+    streamReady = false;
+    changesController = StreamController<void>.broadcast();
+    statusController = StreamController<MuxStatus>.broadcast();
+    when(() => mux.boardChanges).thenAnswer((_) => changesController.stream);
+    when(() => mux.status).thenAnswer((_) => statusController.stream);
+    when(() => mux.boardStreamReady).thenAnswer((_) => streamReady);
     when(() => mux.connect()).thenReturn(null);
     when(() => mux.subscribeSessions()).thenReturn(null);
   });
 
-  tearDown(() => patchesController.close());
+  tearDown(() async {
+    await changesController.close();
+    await statusController.close();
+  });
 
   blocTest<SessionsCubit, SessionsState>(
     'fetches sessions on construction and connects mux',
@@ -58,52 +66,143 @@ void main() {
     },
   );
 
-  blocTest<SessionsCubit, SessionsState>(
-    'merges a mux patch into the held sessions',
-    build: () {
-      when(() => repository.getBoard()).thenAnswer(
-        (_) async => Result.success(
-          GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'proj-1', status: 'working')])),
-        ),
-      );
-      return SessionsCubit(repository, mux);
-    },
-    act: (cubit) async {
-      await Future<void>.delayed(Duration.zero);
-      patchesController.add([
-        const SessionPatch(id: 'proj-1', status: 'needs_input', activity: 'blocked', attentionLevel: 'respond', lastActivityAt: 't2'),
-      ]);
-      await Future<void>.delayed(Duration.zero);
-    },
-    verify: (cubit) {
-      expect(cubit.sessions.single.status, 'needs_input');
-      expect(cubit.sessions.single.updatedAt, 't2');
-    },
-  );
+  test('coalesces board changes and replaces workers, orchestrators and projects', () {
+    fakeAsync((async) {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(
+          GlobalResponse(
+            data: BoardSnapshot(
+              sessions: [SessionModel(id: 'worker-$fetches')],
+              orchestrators: [OrchestratorModel(id: 'orchestrator-$fetches')],
+              projects: [ProjectModel(id: 'project-$fetches')],
+            ),
+          ),
+        );
+      });
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      changesController.add(null);
+      changesController.add(null);
+      changesController.add(null);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(fetches, 2);
+      expect(cubit.sessions.single.id, 'worker-2');
+      expect(cubit.orchestrators.single.id, 'orchestrator-2');
+      expect(cubit.projects.single.id, 'project-2');
+      cubit.close();
+    });
+  });
 
-  blocTest<SessionsCubit, SessionsState>(
-    'emits a fresh success state for a mux patch so the board repaints',
-    build: () {
-      when(() => repository.getBoard()).thenAnswer(
-        (_) async => Result.success(
-          GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'proj-1', status: 'working')])),
-        ),
-      );
-      return SessionsCubit(repository, mux);
-    },
-    act: (cubit) async {
-      await Future<void>.delayed(Duration.zero);
-      patchesController.add([
-        const SessionPatch(id: 'proj-1', status: 'needs_input', activity: 'blocked', attentionLevel: 'respond', lastActivityAt: 't2'),
-      ]);
-      await Future<void>.delayed(Duration.zero);
-    },
-    expect: () => [
-      isA<GetSessionsLoadingState>(),
-      isA<GetSessionsSuccessState>().having((state) => state.revision, 'revision', 1),
-      isA<GetSessionsSuccessState>().having((state) => state.revision, 'revision', 2),
-    ],
-  );
+  test('queues a refresh when a change arrives during a fetch and ignores a late result after close', () {
+    fakeAsync((async) {
+      final pending = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) {
+        fetches++;
+        if (fetches == 1) return pending.future;
+        return Future.value(
+          Result.success(
+            GlobalResponse(
+              data: const BoardSnapshot(sessions: [SessionModel(id: 'new')]),
+            ),
+          ),
+        );
+      });
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      changesController.add(null);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(fetches, 1);
+      pending.complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+      async.elapse(const Duration(milliseconds: 200));
+      expect(fetches, 2);
+      expect(cubit.sessions.single.id, 'new');
+      final lateResponse = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      when(() => repository.getBoard()).thenAnswer((_) => lateResponse.future);
+      unawaited(cubit.refresh());
+      cubit.close();
+      lateResponse.complete(Result.success(GlobalResponse(data: const BoardSnapshot())));
+      async.flushMicrotasks();
+      expect(cubit.sessions.single.id, 'new');
+    });
+  });
+
+  test('polls only until subscription acknowledgement and while disconnected', () {
+    fakeAsync((async) {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(GlobalResponse(data: const BoardSnapshot()));
+      });
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 30));
+      expect(fetches, 2);
+      streamReady = true;
+      changesController.add(null);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(fetches, 3);
+      async.elapse(const Duration(minutes: 2));
+      expect(fetches, 3);
+      streamReady = false;
+      statusController.add(MuxStatus.closed);
+      async.elapse(const Duration(seconds: 30));
+      expect(fetches, 4);
+      streamReady = true;
+      statusController.add(MuxStatus.open);
+      changesController.add(null);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(fetches, 5);
+      async.elapse(const Duration(minutes: 1));
+      expect(fetches, 5);
+      cubit.close();
+    });
+  });
+
+  test('pauses background updates and refreshes on resume', () {
+    fakeAsync((async) {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(GlobalResponse(data: const BoardSnapshot()));
+      });
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      cubit.pauseUpdates();
+      changesController.add(null);
+      async.elapse(const Duration(minutes: 2));
+      expect(fetches, 1);
+      cubit.resumeUpdates();
+      async.flushMicrotasks();
+      expect(fetches, 2);
+      cubit.close();
+    });
+  });
+
+  test('retries a failed event refresh even while the stream remains connected', () {
+    fakeAsync((async) {
+      streamReady = true;
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        if (fetches == 2) return Result.failure(ServerFailure.noNetwork());
+        return Result.success(GlobalResponse(data: const BoardSnapshot()));
+      });
+      final cubit = SessionsCubit(repository, mux);
+      async.flushMicrotasks();
+      changesController.add(null);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(cubit.state, isA<GetSessionsFailureState>());
+      async.elapse(const Duration(seconds: 30));
+      expect(fetches, 3);
+      expect(cubit.state, isA<GetSessionsSuccessState>());
+      async.elapse(const Duration(minutes: 1));
+      expect(fetches, 3);
+      cubit.close();
+    });
+  });
 
   blocTest<SessionsCubit, SessionsState>(
     'kill re-fetches on success',
@@ -135,7 +234,7 @@ void main() {
     verify: (_) => verify(() => repository.getBoard()).called(1),
   );
 
-  test('stops polling after an auth failure instead of retrying every 8s', () {
+  test('stops polling after an auth failure instead of retrying on the fallback timer', () {
     fakeAsync((async) {
       var callCount = 0;
       when(() => repository.getBoard()).thenAnswer((_) async {
@@ -147,7 +246,7 @@ void main() {
       async.flushMicrotasks();
       expect(callCount, 1);
 
-      async.elapse(const Duration(seconds: 24));
+      async.elapse(const Duration(seconds: 60));
       expect(callCount, 1, reason: 'polling stopped after the auth failure');
 
       cubit.close();
@@ -172,7 +271,7 @@ void main() {
       expect(callCount, 1);
       expect(cubit.state, isA<GetSessionsFailureState>());
 
-      async.elapse(const Duration(seconds: 24));
+      async.elapse(const Duration(seconds: 60));
       expect(callCount, 1, reason: 'polling stays stopped until something calls refresh');
 
       unawaited(cubit.refresh());
@@ -181,7 +280,7 @@ void main() {
       expect(cubit.state, isA<GetSessionsSuccessState>());
       expect(cubit.sessions.single.id, 'proj-1');
 
-      async.elapse(const Duration(seconds: 8));
+      async.elapse(const Duration(seconds: 30));
       expect(callCount, 3, reason: 'the poll timer was re-armed by refresh');
 
       cubit.close();

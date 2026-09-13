@@ -11,8 +11,14 @@ abstract class MuxSocket {
 class IOMuxSocket implements MuxSocket {
   IOMuxSocket(this._channel);
 
-  factory IOMuxSocket.connect(Uri uri, Map<String, String> headers) =>
-      IOMuxSocket(IOWebSocketChannel.connect(uri, headers: headers));
+  factory IOMuxSocket.connect(Uri uri, Map<String, String> headers) => IOMuxSocket(
+    IOWebSocketChannel.connect(
+      uri,
+      headers: headers,
+      pingInterval: const Duration(seconds: 20),
+      connectTimeout: const Duration(seconds: 10),
+    ),
+  );
 
   final WebSocketChannel _channel;
 

@@ -20,6 +20,9 @@ type EventType string
 
 // Event types, one per row-change the DB triggers emit into change_log.
 const (
+	EventProjectCreated         EventType = "project_created"
+	EventProjectUpdated         EventType = "project_updated"
+	EventSessionDeleted         EventType = "session_deleted"
 	EventSessionCreated         EventType = "session_created"
 	EventSessionUpdated         EventType = "session_updated"
 	EventPRCreated              EventType = "pr_created"
