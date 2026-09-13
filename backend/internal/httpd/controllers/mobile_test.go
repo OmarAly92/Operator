@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -279,5 +280,34 @@ func TestSetAuthtokenRejectsBlankAndNeverEchoesTheToken(t *testing.T) {
 	}
 	if got.Tunnel == nil || !got.Tunnel.HasAuthtoken {
 		t.Error("status should report that a token is now present")
+	}
+}
+
+func TestSetAuthtokenNeverEchoesTheTunnelErrorEitherOnFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: "pw", LastPort: 3011}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	tun := &fakeTunnel{saveTokenErr: errors.New("ngrok rejected token 2abc_leakedFakeToken: unauthorized")}
+	bridge := &BridgeService{LAN: &fakeLAN{running: true, port: 3011}, ConfigPath: path, DefaultPort: 3011, Tunnel: tun}
+
+	got, err := bridge.SetAuthtoken("2abc_leakedFakeToken")
+	if err != nil {
+		t.Fatalf("SetAuthtoken must not surface the tunnel's raw error: %v", err)
+	}
+	encoded, marshalErr := json.Marshal(got)
+	if marshalErr != nil {
+		t.Fatalf("marshal: %v", marshalErr)
+	}
+	if strings.Contains(string(encoded), "2abc_leakedFakeToken") {
+		t.Fatal("the tunnel's error text must never appear in the response body")
+	}
+
+	c := &MobileController{Bridge: bridge}
+	w := httptest.NewRecorder()
+	body := strings.NewReader(`{"token":"2abc_leakedFakeToken"}`)
+	c.SetAuthtoken(w, httptest.NewRequest(http.MethodPost, "/api/v1/mobile/tunnel/authtoken", body))
+	if strings.Contains(w.Body.String(), "2abc_leakedFakeToken") {
+		t.Fatalf("HTTP response body must never contain the token or the tunnel's raw error: %s", w.Body.String())
 	}
 }

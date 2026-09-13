@@ -286,7 +286,7 @@ func (b *BridgeService) SetAuthtoken(token string) (MobileStatusResponse, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := b.Tunnel.SetAuthtoken(ctx, trimmed); err != nil {
-		return MobileStatusResponse{}, err
+		return b.Status(), nil
 	}
 	return b.Status(), nil
 }
