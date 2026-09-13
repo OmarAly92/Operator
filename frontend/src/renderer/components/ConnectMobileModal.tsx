@@ -8,6 +8,7 @@ import { captureRendererEvent } from "../lib/telemetry";
 import { cn } from "../lib/utils";
 import { ConnectMobileGetApp } from "./settings/ConnectMobileGetApp";
 import { ConnectMobileSetup } from "./settings/ConnectMobileSetup";
+import { NgrokAuthtokenDialog } from "./settings/NgrokAuthtokenDialog";
 import { TunnelConfirmDialog, tunnelAlreadyConfirmed } from "./settings/TunnelConfirmDialog";
 import {
 	Dialog,
@@ -82,6 +83,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 	const queryClient = useQueryClient();
 	const [copied, setCopied] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
+	const [tokenOpen, setTokenOpen] = useState(false);
 	const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
@@ -180,6 +182,11 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 	const tunnelLive = tunnel?.state === "live" && tunnel.url !== "";
 	const tunnelBusy = tunnelEnable.isPending || tunnelDisable.isPending;
 	const tunnelOn = tunnelLive || tunnel?.state === "starting" || tunnel?.state === "downloading" || tunnel?.state === "reconnecting";
+	const needsAuthtoken = tunnel?.needsAuthtoken ?? false;
+
+	useEffect(() => {
+		if (needsAuthtoken) setTokenOpen(true);
+	}, [needsAuthtoken]);
 
 	const tunnelMessage = (() => {
 		if (!tunnel) return null;
@@ -368,6 +375,18 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 												/>
 											</div>
 											<p className="mt-4 text-sm leading-5 text-settings-muted">{t("mobile.scanToPair")}</p>
+											{tunnelLive && tunnel?.provider === "cloudflared" && (
+												<p className="mt-2 text-caption text-settings-muted">{t("mobile.tunnel.rescan")}</p>
+											)}
+											{tunnelLive && tunnel?.provider === "cloudflared" && !tunnel.hasAuthtoken && (
+												<button
+													type="button"
+													onClick={() => setTokenOpen(true)}
+													className="mt-2 text-caption text-settings-muted underline hover:text-settings-label"
+												>
+													{t("mobile.tunnel.tokenTitle")}
+												</button>
+											)}
 										</div>
 
 										{status.warning && (
@@ -430,6 +449,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 					onOpenChange={setConfirmOpen}
 					onConfirm={() => tunnelEnable.mutate()}
 				/>
+				<NgrokAuthtokenDialog open={tokenOpen} onOpenChange={setTokenOpen} onSaved={invalidate} />
 			</DialogContent>
 		</Dialog>
 	);
