@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
 func newAuthUnderTest(pw string, now func() time.Time) (http.Handler, *lockout) {
@@ -334,6 +335,32 @@ func TestSourceKeySeparatesTwoTunneledClientsIntoDifferentBuckets(t *testing.T) 
 
 	if sourceKey(first, trust) == sourceKey(second, trust) {
 		t.Error("two tunneled clients must not share one lockout bucket")
+	}
+}
+
+func TestSourceKeyFallsBackToRemoteAddrWhenLiveProviderIsNgrok(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set(tunnel.NgrokProvider(nil).ClientIPHeader())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("X-Forwarded-For", "6.6.6.6")
+
+	if got := sourceKey(req, trust); got != "127.0.0.1" {
+		t.Errorf("got %q, want RemoteAddr fallback because ngrok's forwarded header is not trustworthy", got)
+	}
+}
+
+func TestSourceKeyTrustsRemoteAddrHeaderWhenLiveProviderIsCloudflared(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set(tunnel.CloudflaredProvider().ClientIPHeader())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("Cf-Connecting-Ip", "203.0.113.9")
+
+	if got := sourceKey(req, trust); got != "203.0.113.9" {
+		t.Errorf("got %q, want the forwarded client ip because cloudflared's header is trustworthy", got)
 	}
 }
 

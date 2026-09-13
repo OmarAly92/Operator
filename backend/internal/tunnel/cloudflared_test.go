@@ -81,8 +81,8 @@ func TestCloudflaredClientIPHeaderPrefersCfConnectingIP(t *testing.T) {
 	if got := CloudflaredProvider().ClientIPHeader(); got != "Cf-Connecting-Ip" {
 		t.Errorf("got %q, want Cf-Connecting-Ip", got)
 	}
-	if got := NgrokProvider(nil).ClientIPHeader(); got != "X-Forwarded-For" {
-		t.Errorf("got %q, want X-Forwarded-For", got)
+	if got := NgrokProvider(nil).ClientIPHeader(); got != "" {
+		t.Errorf("got %q, want empty (ngrok's forwarded header is not trustworthy)", got)
 	}
 }
 

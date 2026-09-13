@@ -88,7 +88,7 @@ func (ngrokProvider) Healthy(ctx context.Context, controlPort int) (bool, error)
 	return body.Status == "online", nil
 }
 
-func (ngrokProvider) ClientIPHeader() string { return "X-Forwarded-For" }
+func (ngrokProvider) ClientIPHeader() string { return "" }
 
 func (ngrokProvider) ClassifyFailure(logLines []string) Failure {
 	var first string
