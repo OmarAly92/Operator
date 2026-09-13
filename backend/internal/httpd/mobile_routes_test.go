@@ -30,6 +30,18 @@ func (fakeMobileBridge) Regenerate() (controllers.MobileStatusResponse, error) {
 	return controllers.MobileStatusResponse{}, nil
 }
 
+func (fakeMobileBridge) TunnelEnable() (controllers.MobileStatusResponse, error) {
+	return controllers.MobileStatusResponse{}, nil
+}
+
+func (fakeMobileBridge) TunnelDisable() (controllers.MobileStatusResponse, error) {
+	return controllers.MobileStatusResponse{}, nil
+}
+
+func (fakeMobileBridge) SetAuthtoken(token string) (controllers.MobileStatusResponse, error) {
+	return controllers.MobileStatusResponse{}, nil
+}
+
 // newTestRouterWithMobile builds a bare router with only the mobile control
 // routes mounted, backed by a fake bridge.
 func newTestRouterWithMobile(t *testing.T) chi.Router {
@@ -56,5 +68,17 @@ func TestMobileStatusRouteServedOnLoopbackRouter(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("mobile status on loopback router: got %d want 200", w.Code)
+	}
+}
+
+func TestTunnelRoutesAre404OnTheLANListener(t *testing.T) {
+	for _, path := range []string{
+		"/api/v1/mobile/tunnel/enable",
+		"/api/v1/mobile/tunnel/disable",
+		"/api/v1/mobile/tunnel/authtoken",
+	} {
+		if !isLANControlBlockedPath(path) {
+			t.Errorf("%s must be blocked on the LAN listener", path)
+		}
 	}
 }
