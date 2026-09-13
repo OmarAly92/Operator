@@ -144,6 +144,9 @@ func mountMobile(r chi.Router, c *controllers.MobileController) {
 	r.Post("/api/v1/mobile/enable", c.Enable)
 	r.Post("/api/v1/mobile/disable", c.Disable)
 	r.Post("/api/v1/mobile/regenerate", c.Regenerate)
+	r.Post("/api/v1/mobile/tunnel/enable", c.TunnelEnable)
+	r.Post("/api/v1/mobile/tunnel/disable", c.TunnelDisable)
+	r.Post("/api/v1/mobile/tunnel/authtoken", c.SetAuthtoken)
 }
 
 type cliInvokedRequest struct {

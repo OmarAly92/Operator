@@ -675,6 +675,87 @@ paths:
       summary: Check whether Connect Mobile's LAN bridge is enabled
       tags:
       - mobile
+  /api/v1/mobile/tunnel/authtoken:
+    post:
+      operationId: setMobileTunnelAuthtoken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileAuthtokenRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileStatusResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Store an ngrok authtoken for a stable tunnel address
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/disable:
+    post:
+      operationId: disableMobileTunnel
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileStatusResponse'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Stop the public tunnel, leaving the LAN bridge running
+      tags:
+      - mobile
+  /api/v1/mobile/tunnel/enable:
+    post:
+      operationId: enableMobileTunnel
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileStatusResponse'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Make the Connect Mobile bridge reachable from the internet
+      tags:
+      - mobile
   /api/v1/notifications:
     get:
       operationId: listNotifications
@@ -5593,6 +5674,15 @@ components:
       required:
       - status
       type: object
+    MobileAuthtokenRequest:
+      properties:
+        token:
+          description: ngrok authtoken. Stored via ngrok's own config tooling; never
+            echoed back.
+          type: string
+      required:
+      - token
+      type: object
     MobileStatusResponse:
       properties:
         enabled:
@@ -5603,6 +5693,8 @@ components:
           type: string
         port:
           type: integer
+        tunnel:
+          $ref: '#/components/schemas/MobileTunnelStatus'
         warning:
           type: string
       required:
@@ -5611,6 +5703,43 @@ components:
       - port
       - password
       - warning
+      type: object
+    MobileTunnelStatus:
+      properties:
+        error:
+          description: The provider's own message when something went wrong.
+          type: string
+        hasAuthtoken:
+          description: Whether an ngrok authtoken is stored. Never carries the token
+            itself.
+          type: boolean
+        needsAuthtoken:
+          description: True when ngrok rejected the credential and the dialog should
+            open.
+          type: boolean
+        provider:
+          description: ngrok or cloudflared; empty while off.
+          type: string
+        restarts:
+          description: Reconnect count for the current enable.
+          type: integer
+        since:
+          description: RFC3339 timestamp of the current live tunnel.
+          type: string
+        state:
+          description: off, downloading, starting, live, reconnecting or failed.
+          type: string
+        url:
+          description: Public HTTPS origin; empty unless live.
+          type: string
+      required:
+      - state
+      - provider
+      - url
+      - error
+      - restarts
+      - needsAuthtoken
+      - hasAuthtoken
       type: object
     NotificationEnvelope:
       properties:

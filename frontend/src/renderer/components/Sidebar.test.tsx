@@ -38,6 +38,8 @@ const { getMock, postMock, navigateMock, mockParams, renameSessionMock, spawnMoc
 vi.mock("../lib/rename-session", () => ({ renameSession: renameSessionMock }));
 vi.mock("../lib/spawn-orchestrator", () => ({ spawnOrchestrator: spawnMock }));
 
+vi.mock("../hooks/useMobileTunnelStatus", () => ({ useMobileTunnelStatus: () => undefined }));
+
 vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
 }));

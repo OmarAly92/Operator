@@ -312,7 +312,9 @@ var schemaNames = map[string]string{
 	"ProjectscanRepo":   "ImportFolderScanRepo",
 	"ProjectscanResult": "ImportFolderScanResult",
 	// httpd/controllers: mobile wire envelopes
-	"ControllersMobileStatusResponse": "MobileStatusResponse",
+	"ControllersMobileStatusResponse":   "MobileStatusResponse",
+	"ControllersMobileTunnelStatus":     "MobileTunnelStatus",
+	"ControllersMobileAuthtokenRequest": "MobileAuthtokenRequest",
 	// devimport report
 	"DevimportReport":   "DevImportProjectsReport",
 	"DevimportConflict": "DevImportProjectsConflict",
@@ -765,6 +767,34 @@ func mobileOperations() []operation {
 				{http.StatusOK, controllers.MobileStatusResponse{}},
 				{http.StatusForbidden, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/mobile/tunnel/enable", id: "enableMobileTunnel", tag: "mobile",
+			summary: "Make the Connect Mobile bridge reachable from the internet",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileStatusResponse{}},
+				{http.StatusForbidden, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/mobile/tunnel/disable", id: "disableMobileTunnel", tag: "mobile",
+			summary: "Stop the public tunnel, leaving the LAN bridge running",
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileStatusResponse{}},
+				{http.StatusForbidden, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/mobile/tunnel/authtoken", id: "setMobileTunnelAuthtoken", tag: "mobile",
+			summary: "Store an ngrok authtoken for a stable tunnel address",
+			reqBody: controllers.MobileAuthtokenRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.MobileStatusResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusForbidden, envelope.APIError{}},
 			},
 		},
 	}

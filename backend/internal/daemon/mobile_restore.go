@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/OmarAly92/operator/backend/internal/httpd/controllers"
@@ -14,7 +15,12 @@ import (
 // non-nil return means the listener failed to (re)bind; the caller logs it as a
 // warning and continues booting regardless — Connect Mobile is best-effort, not
 // load-bearing.
-func restoreMobileOnBoot(path string, lan controllers.LANController) error {
+type tunnelStarter interface {
+	Enable(ctx context.Context) error
+	SetLocalPort(port int)
+}
+
+func restoreMobileOnBoot(path string, lan controllers.LANController, tun tunnelStarter) error {
 	state, err := mobilebridge.Load(path)
 	if err != nil {
 		return fmt.Errorf("load mobile bridge state: %w", err)
@@ -23,8 +29,20 @@ func restoreMobileOnBoot(path string, lan controllers.LANController) error {
 		return nil
 	}
 	lan.SetPasswordHash(mobilebridge.HashPassword(state.Password))
-	if _, err := lan.Start(state.LastPort); err != nil {
+	lan.SetPasswordStrong(len(state.Password) >= mobilebridge.TunnelPasswordLength)
+	port, err := lan.Start(state.LastPort)
+	if err != nil {
 		return fmt.Errorf("restart mobile LAN listener: %w", err)
+	}
+	if tun == nil {
+		return nil
+	}
+	tun.SetLocalPort(port)
+	if !state.TunnelEnabled {
+		return nil
+	}
+	if err := tun.Enable(context.Background()); err != nil {
+		return fmt.Errorf("restart mobile tunnel: %w", err)
 	}
 	return nil
 }

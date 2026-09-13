@@ -46,12 +46,11 @@ class _PreviewBrowserState extends State<PreviewBrowser> {
   /// dev server is never authenticated and must never see the password.
   void _load() {
     final password = sl<ServerConfigStore>().current?.password ?? '';
-    _controller.loadRequest(
-      Uri.parse(widget.preview.url),
-      headers: widget.preview.authenticated && password.isNotEmpty
-          ? {'Authorization': 'Bearer $password'}
-          : const {},
-    );
+    final headers = <String, String>{'ngrok-skip-browser-warning': '1'};
+    if (widget.preview.authenticated && password.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $password';
+    }
+    _controller.loadRequest(Uri.parse(widget.preview.url), headers: headers);
   }
 
   @override

@@ -22,6 +22,7 @@ type LANManager struct {
 	defaultPort int
 	log         *slog.Logger
 	state       *authState // shared with authMiddleware; SetPasswordHash writes through here
+	forwarded   *forwardedTrust
 
 	mu    sync.Mutex
 	srv   *http.Server
@@ -34,12 +35,18 @@ type LANManager struct {
 // network-facing listener. Most callers want NewMobileLAN, which owns the state.
 func NewLANManager(handler http.Handler, state *authState, defaultPort int, log *slog.Logger, sink ports.EventSink) *LANManager {
 	lock := newLockout(5, time.Minute, time.Now)
+	trust := &forwardedTrust{}
 	return &LANManager{
-		handler:     lanControlBlock(authMiddleware(state, lock, newMobileConnectReporter(sink, time.Now))(handler)),
+		handler:     lanControlBlock(authMiddleware(state, lock, newMobileConnectReporter(sink, time.Now), trust)(handler)),
 		defaultPort: defaultPort,
 		log:         loggerOrDefault(log),
 		state:       state,
+		forwarded:   trust,
 	}
+}
+
+func (m *LANManager) SetTrustedForwardHeader(name string) {
+	m.forwarded.Set(name)
 }
 
 // lanControlBlockedPrefixes are the loopback-only daemon-control route
@@ -114,6 +121,14 @@ func (m *LANManager) SetPasswordHash(hash string) {
 // Satisfies controllers.LANController.
 func (m *LANManager) PasswordHash() string {
 	return m.state.currentHash()
+}
+
+func (m *LANManager) SetPasswordStrong(strong bool) {
+	m.state.setStrong(strong)
+}
+
+func (m *LANManager) PasswordStrong() bool {
+	return m.state.isStrong()
 }
 
 // Start binds the network-facing listener on 0.0.0.0:port (falling back to an

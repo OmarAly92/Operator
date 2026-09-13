@@ -59,8 +59,55 @@ void main() {
       final captured = verify(() => repository.verifyAndConnect(captureAny())).captured;
       final target = captured.single as ServerConfig;
       expect(target.password, 'old-pass');
-      expect(target.secure, isTrue);
+      expect(target.secure, isFalse);
     },
+  );
+
+  blocTest<PairingScanCubit, PairingScanState>(
+    'a v2 payload connects over https',
+    build: () {
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      return PairingScanCubit(repository, store, fromOnboarding: false);
+    },
+    act: (cubit) => cubit.onScan(
+      '{"v":2,"url":"https://x.ngrok-free.dev","password":"averylongtunnelpassword"}',
+      TargetPlatform.iOS,
+    ),
+    verify: (_) {
+      final captured = verify(() => repository.verifyAndConnect(captureAny())).captured.single as ServerConfig;
+      expect(captured.secure, isTrue);
+      expect(captured.host, 'x.ngrok-free.dev');
+      expect(captured.httpPort, '443');
+      expect(captured.httpBase, 'https://x.ngrok-free.dev:443');
+    },
+  );
+
+  blocTest<PairingScanCubit, PairingScanState>(
+    'a v1 payload stays on plain http',
+    build: () {
+      when(() => repository.verifyAndConnect(any())).thenAnswer((_) async => Result.success(true));
+      return PairingScanCubit(repository, store, fromOnboarding: false);
+    },
+    act: (cubit) => cubit.onScan('{"v":1,"host":"10.0.0.5","port":"3011","password":"secret12"}', TargetPlatform.iOS),
+    verify: (_) {
+      final captured = verify(() => repository.verifyAndConnect(captureAny())).captured.single as ServerConfig;
+      expect(captured.secure, isFalse);
+      expect(captured.httpBase, 'http://10.0.0.5:3011');
+    },
+  );
+
+  blocTest<PairingScanCubit, PairingScanState>(
+    'an unknown payload version asks the user to update the app',
+    build: () => PairingScanCubit(repository, store, fromOnboarding: false),
+    act: (cubit) => cubit.onScan('{"v":99,"url":"https://x.example"}', TargetPlatform.iOS),
+    expect: () => [
+      isA<VerifyFailureState>().having(
+        (state) => state.copy.title,
+        'title',
+        'Update Operator on this phone',
+      ),
+    ],
+    verify: (_) => verifyNever(() => repository.verifyAndConnect(any())),
   );
 
   blocTest<PairingScanCubit, PairingScanState>(

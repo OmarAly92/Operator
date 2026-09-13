@@ -27,7 +27,9 @@ class PairingScanCubit extends Cubit<PairingScanState> {
 
     final parsed = parsePairingPayload(raw);
     if (parsed == null) {
-      emit(VerifyFailureState(describeConnectionFailure(ConnectionFailure.notOprQr, host: '', port: '', platform: platform)));
+      final version = pairingPayloadVersion(raw);
+      final reason = version != null && version > 2 ? ConnectionFailure.unsupportedPayload : ConnectionFailure.notOprQr;
+      emit(VerifyFailureState(describeConnectionFailure(reason, host: '', port: '', platform: platform)));
       return;
     }
 
@@ -36,7 +38,7 @@ class PairingScanCubit extends Cubit<PairingScanState> {
     final target = ServerConfig(
       host: parsed.host,
       httpPort: parsed.port,
-      secure: current?.secure ?? false,
+      secure: parsed.secure,
       password: parsed.password.isNotEmpty ? parsed.password : (current?.password ?? ''),
     );
 

@@ -50,6 +50,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/skillassets"
 	"github.com/OmarAly92/operator/backend/internal/storage/sqlite"
 	"github.com/OmarAly92/operator/backend/internal/terminal"
+	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
 // Run starts the daemon and blocks until it exits. SIGINT/SIGTERM drive
@@ -248,9 +249,26 @@ func Run() error {
 	// the bridge service. Break the cycle with late binding: build bs with LAN
 	// left nil, hand its controller into NewWithDeps, then once srv exists,
 	// build the LAN listener over srv.Handler() and assign it onto bs.LAN.
+	tunnelMgr := tunnel.New(tunnel.Deps{
+		Log: log,
+		Dir: filepath.Join(cfg.DataDir, "mobile"),
+		Providers: []tunnel.Provider{
+			tunnel.NgrokProvider(tunnel.NgrokConfig{
+				UserConfigPath: tunnel.DefaultNgrokConfigPath(),
+				OwnConfigPath:  filepath.Join(cfg.DataDir, "mobile", "ngrok.yml"),
+			}),
+			tunnel.CloudflaredProvider(),
+		},
+		Binaries: tunnel.NewStore(tunnel.StoreDeps{
+			Dir: filepath.Join(cfg.DataDir, "bin"),
+			Log: log,
+		}),
+	})
+	tunnelMgr.Reap()
 	bs := &controllers.BridgeService{
 		ConfigPath:  mobilebridge.Path(cfg.DataDir),
 		DefaultPort: mobilebridge.DefaultPort,
+		Tunnel:      tunnelMgr,
 	}
 	mc := &controllers.MobileController{Bridge: bs}
 	browserService := browsersvc.New(sessionSvc, standaloneBrowser, browserAuthority)
@@ -400,12 +418,14 @@ func Run() error {
 	// the LAN surface and loopback surface never drift apart.
 	lan := httpd.NewMobileLAN(srv.Handler(), mobilebridge.DefaultPort, log, telemetrySink)
 	bs.LAN = lan
+	tunnelMgr.SetLocalPort(mobilebridge.DefaultPort)
+	tunnelMgr.SetOnProvider(lan.SetTrustedForwardHeader)
 
 	// Restore Connect Mobile across a daemon restart: if the bridge was left
 	// enabled, re-arm the listener on its last port with the same password
 	// hash so an already-paired phone keeps working with no new password.
 	// Best-effort: never blocks boot.
-	if err := restoreMobileOnBoot(mobilebridge.Path(cfg.DataDir), lan); err != nil {
+	if err := restoreMobileOnBoot(mobilebridge.Path(cfg.DataDir), lan, tunnelMgr); err != nil {
 		log.Warn("restore mobile bridge on boot failed", "err", err)
 	}
 
@@ -470,6 +490,7 @@ func Run() error {
 	}
 	<-transcriptDone
 	lcStack.Stop()
+	tunnelMgr.Close()
 	captureStopCtx, captureCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	if err := captureSup.DrainAndDetach(captureStopCtx); err != nil {
 		log.Error("shell block capture drain-and-detach", "err", err)

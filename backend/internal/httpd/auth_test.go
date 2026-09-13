@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
 func newAuthUnderTest(pw string, now func() time.Time) (http.Handler, *lockout) {
@@ -15,7 +16,7 @@ func newAuthUnderTest(pw string, now func() time.Time) (http.Handler, *lockout) 
 	st.setHash(h)
 	lock := newLockout(5, time.Minute, now)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	return authMiddleware(st, lock, nil)(ok), lock
+	return authMiddleware(st, lock, nil, &forwardedTrust{})(ok), lock
 }
 
 func req(auth string) *http.Request {
@@ -246,5 +247,201 @@ func TestAuthLockoutIsPerSource(t *testing.T) {
 	h.ServeHTTP(w, reqFrom(sourceB, "Bearer wrong"))
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("source B with wrong password: got %d want 401", w.Code)
+	}
+}
+
+func TestSourceKeyUsesRemoteAddrByDefault(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "192.168.1.44:52133"
+	if got := sourceKey(req, &forwardedTrust{}); got != "192.168.1.44" {
+		t.Errorf("got %q, want 192.168.1.44", got)
+	}
+}
+
+func TestSourceKeyHonorsForwardedHeaderFromLoopback(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set("Cf-Connecting-Ip")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("Cf-Connecting-Ip", "203.0.113.9")
+
+	if got := sourceKey(req, trust); got != "203.0.113.9" {
+		t.Errorf("got %q, want the forwarded client ip", got)
+	}
+}
+
+func TestSourceKeyIgnoresForwardedHeaderFromNonLoopback(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set("X-Forwarded-For")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "192.168.1.44:52133"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+
+	if got := sourceKey(req, trust); got != "192.168.1.44" {
+		t.Errorf("got %q — a LAN client must not be able to forge its lockout bucket", got)
+	}
+}
+
+func TestSourceKeyIgnoresForwardedHeaderWhenNoTunnelIsLive(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+
+	if got := sourceKey(req, &forwardedTrust{}); got != "127.0.0.1" {
+		t.Errorf("got %q, want 127.0.0.1 when no tunnel is running", got)
+	}
+}
+
+func TestSourceKeyTakesFirstEntryOfMultiValuedForwardedFor(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set("X-Forwarded-For")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9, 70.41.3.18, 150.172.238.178")
+
+	if got := sourceKey(req, trust); got != "203.0.113.9" {
+		t.Errorf("got %q, want the left-most (client) entry", got)
+	}
+}
+
+func TestSourceKeyFallsBackWhenForwardedHeaderIsEmptyOrJunk(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set("X-Forwarded-For")
+
+	for name, value := range map[string]string{"empty": "", "commas": " , ,"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+		req.RemoteAddr = "127.0.0.1:41111"
+		req.Header.Set("X-Forwarded-For", value)
+		if got := sourceKey(req, trust); got != "127.0.0.1" {
+			t.Errorf("%s: got %q, want the remote addr fallback", name, got)
+		}
+	}
+}
+
+func TestSourceKeySeparatesTwoTunneledClientsIntoDifferentBuckets(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set("Cf-Connecting-Ip")
+
+	first := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	first.RemoteAddr = "127.0.0.1:41111"
+	first.Header.Set("Cf-Connecting-Ip", "203.0.113.9")
+
+	second := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	second.RemoteAddr = "127.0.0.1:41112"
+	second.Header.Set("Cf-Connecting-Ip", "198.51.100.7")
+
+	if sourceKey(first, trust) == sourceKey(second, trust) {
+		t.Error("two tunneled clients must not share one lockout bucket")
+	}
+}
+
+func TestSourceKeyFallsBackToRemoteAddrWhenLiveProviderIsNgrok(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set(tunnel.NgrokProvider(tunnel.NgrokConfig{}).ClientIPHeader())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("X-Forwarded-For", "6.6.6.6")
+
+	if got := sourceKey(req, trust); got != "127.0.0.1" {
+		t.Errorf("got %q, want RemoteAddr fallback because ngrok's forwarded header is not trustworthy", got)
+	}
+}
+
+func TestSourceKeyTrustsRemoteAddrHeaderWhenLiveProviderIsCloudflared(t *testing.T) {
+	trust := &forwardedTrust{}
+	trust.Set(tunnel.CloudflaredProvider().ClientIPHeader())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("Cf-Connecting-Ip", "203.0.113.9")
+
+	if got := sourceKey(req, trust); got != "203.0.113.9" {
+		t.Errorf("got %q, want the forwarded client ip because cloudflared's header is trustworthy", got)
+	}
+}
+
+func TestLANManagerSetTrustedForwardHeaderReachesAuth(t *testing.T) {
+	manager := NewMobileLAN(http.NotFoundHandler(), 0, nil, nil)
+	manager.SetTrustedForwardHeader("Cf-Connecting-Ip")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:41111"
+	req.Header.Set("Cf-Connecting-Ip", "203.0.113.9")
+
+	if got := sourceKey(req, manager.forwarded); got != "203.0.113.9" {
+		t.Errorf("got %q, want the header set through the manager", got)
+	}
+
+	manager.SetTrustedForwardHeader("")
+	if got := sourceKey(req, manager.forwarded); got != "127.0.0.1" {
+		t.Errorf("got %q, want trust cleared when the tunnel stops", got)
+	}
+}
+
+func newStrongAuthUnderTest(pw string, now func() time.Time) http.Handler {
+	st := &authState{}
+	st.setHash(mobilebridge.HashPassword(pw))
+	st.setStrong(true)
+	lock := newLockout(5, time.Minute, now)
+	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	return authMiddleware(st, lock, nil, &forwardedTrust{})(ok)
+}
+
+func TestStrongPasswordIsNeverBlockedByTheSharedTunnelBucket(t *testing.T) {
+	const pw = "averylongtunnelpasswor"
+	h := newStrongAuthUnderTest(pw, time.Now)
+
+	for i := 0; i < 10; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, reqFrom("127.0.0.1:41112", "Bearer "+pw))
+	if w.Code != http.StatusOK {
+		t.Fatalf("correct long password from the shared tunnel bucket: got %d want 200", w.Code)
+	}
+}
+
+func TestStrongPasswordStillThrottlesWrongGuesses(t *testing.T) {
+	h := newStrongAuthUnderTest("averylongtunnelpasswor", time.Now)
+
+	var last int
+	for i := 0; i < 6; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+		last = w.Code
+	}
+	if last != http.StatusTooManyRequests {
+		t.Fatalf("wrong guesses past the limit: got %d want 429", last)
+	}
+}
+
+func TestShortPasswordKeepsBlockingEvenTheCorrectPassword(t *testing.T) {
+	h, _ := newAuthUnderTest("secret12", time.Now)
+
+	for i := 0; i < 5; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer wrong"))
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, reqFrom("127.0.0.1:41111", "Bearer secret12"))
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("short LAN password during lockout: got %d want 429 — the LAN behavior must not change", w.Code)
+	}
+}
+
+func TestLANManagerSetPasswordStrongReachesAuth(t *testing.T) {
+	manager := NewMobileLAN(http.NotFoundHandler(), 0, nil, nil)
+	if manager.PasswordStrong() {
+		t.Fatal("a new manager must start with the short-password rules")
+	}
+	manager.SetPasswordStrong(true)
+	if !manager.PasswordStrong() || !manager.state.isStrong() {
+		t.Fatal("SetPasswordStrong must write through to the shared authState")
 	}
 }

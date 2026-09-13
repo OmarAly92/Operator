@@ -14,9 +14,14 @@ import (
 
 // authState holds the current password hash for the LAN listener. Swapped
 // atomically on regenerate so an in-flight request never sees a torn value.
-type authState struct{ hash atomic.Pointer[string] }
+type authState struct {
+	hash   atomic.Pointer[string]
+	strong atomic.Bool
+}
 
-func (a *authState) setHash(h string) { a.hash.Store(&h) }
+func (a *authState) setHash(h string)      { a.hash.Store(&h) }
+func (a *authState) setStrong(strong bool) { a.strong.Store(strong) }
+func (a *authState) isStrong() bool        { return a.strong.Load() }
 func (a *authState) currentHash() string {
 	if p := a.hash.Load(); p != nil {
 		return *p
@@ -74,11 +79,45 @@ func (l *lockout) reset(src string) {
 	delete(l.until, src)
 }
 
-func sourceKey(r *http.Request) string {
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
+type forwardedTrust struct {
+	name atomic.Pointer[string]
+}
+
+func (f *forwardedTrust) Set(header string) { f.name.Store(&header) }
+
+func (f *forwardedTrust) header() string {
+	if p := f.name.Load(); p != nil {
+		return *p
 	}
-	return r.RemoteAddr
+	return ""
+}
+
+func sourceKey(r *http.Request, trust *forwardedTrust) string {
+	remote := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(remote); err == nil {
+		remote = host
+	}
+	header := ""
+	if trust != nil {
+		header = trust.header()
+	}
+	if header == "" || !isLoopbackAddress(remote) {
+		return remote
+	}
+	for _, part := range strings.Split(r.Header.Get(header), ",") {
+		if candidate := strings.TrimSpace(part); candidate != "" {
+			return candidate
+		}
+	}
+	return remote
+}
+
+func isLoopbackAddress(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func bearerToken(r *http.Request) string {
@@ -165,20 +204,29 @@ func maybeSetPreviewAuthCookie(w http.ResponseWriter, r *http.Request, tok strin
 // every request that authenticates; it exists so telemetry can observe that a
 // phone actually reached this desktop, and it must not block the request, since
 // it runs inline on every authenticated call.
-func authMiddleware(state *authState, lock *lockout, connected *mobileConnectReporter) func(http.Handler) http.Handler {
+func authMiddleware(state *authState, lock *lockout, connected *mobileConnectReporter, trust *forwardedTrust) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			src := sourceKey(r)
+			src := sourceKey(r, trust)
+			tok := connectionToken(r)
+			matches := mobilebridge.PasswordMatches(state.currentHash(), tok)
+			admit := func() {
+				lock.reset(src)
+				connected.report(src)
+				maybeSetPreviewAuthCookie(w, r, tok)
+				next.ServeHTTP(w, r)
+			}
+			if matches && state.isStrong() {
+				admit()
+				return
+			}
 			if lock.blocked(src) {
 				envelope.WriteAPIError(w, r, http.StatusTooManyRequests, "too_many_requests", "LOCKED_OUT",
 					"too many failed attempts; try again shortly", nil)
 				return
 			}
-			if tok := connectionToken(r); mobilebridge.PasswordMatches(state.currentHash(), tok) {
-				lock.reset(src)
-				connected.report(src)
-				maybeSetPreviewAuthCookie(w, r, tok)
-				next.ServeHTTP(w, r)
+			if matches {
+				admit()
 				return
 			}
 			lock.fail(src)

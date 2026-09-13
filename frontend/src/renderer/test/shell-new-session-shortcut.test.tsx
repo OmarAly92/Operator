@@ -127,6 +127,8 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	workspaceQueryOptions: {},
 }));
 
+vi.mock("../hooks/useMobileTunnelStatus", () => ({ useMobileTunnelStatus: () => undefined }));
+
 vi.mock("../hooks/useDaemonStatus", () => ({
 	useDaemonStatus: () => shellMocks.state.daemonStatus,
 }));

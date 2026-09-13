@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum ConnectionFailure { notOprQr, unreachable, auth, rateLimited, serverError }
+enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError }
 
 ConnectionFailure classifyConnectionFailure(int? status) {
   if (status == null) return ConnectionFailure.unreachable;
@@ -52,6 +52,13 @@ ConnectionErrorCopy describeConnectionFailure(
       return const ConnectionErrorCopy(
         title: 'Not an Operator pairing code',
         message: "That QR code isn't an Operator pairing code.",
+        showLocalNetworkHint: false,
+      );
+    case ConnectionFailure.unsupportedPayload:
+      return const ConnectionErrorCopy(
+        title: 'Update Operator on this phone',
+        message: 'That pairing code was made by a newer version of Operator. '
+            'Update the app from TestFlight, then scan again.',
         showLocalNetworkHint: false,
       );
     case ConnectionFailure.unreachable:

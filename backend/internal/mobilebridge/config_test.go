@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +54,64 @@ func TestPasswordMatches(t *testing.T) {
 	}
 	if PasswordMatches(h, pw+"x") {
 		t.Fatal("expected mismatch")
+	}
+}
+
+func TestGeneratePasswordNLength(t *testing.T) {
+	got, err := GeneratePasswordN(TunnelPasswordLength)
+	if err != nil {
+		t.Fatalf("GeneratePasswordN: %v", err)
+	}
+	if len(got) != TunnelPasswordLength {
+		t.Errorf("len = %d, want %d", len(got), TunnelPasswordLength)
+	}
+	for _, r := range got {
+		if !strings.ContainsRune(pwAlphabet, r) {
+			t.Errorf("password contains %q, outside the alphabet", r)
+		}
+	}
+}
+
+func TestGeneratePasswordStillReturnsEightChars(t *testing.T) {
+	got, err := GeneratePassword()
+	if err != nil {
+		t.Fatalf("GeneratePassword: %v", err)
+	}
+	if len(got) != 8 {
+		t.Errorf("len = %d, want 8 — the LAN default must not change", len(got))
+	}
+}
+
+func TestTunnelPasswordIsLongEnoughToFacePublicInternet(t *testing.T) {
+	if TunnelPasswordLength < 20 {
+		t.Fatalf("TunnelPasswordLength = %d; a public URL needs materially more than the 8-char LAN password", TunnelPasswordLength)
+	}
+}
+
+func TestSaveAndLoadRoundTripTunnelEnabled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mobile", "config.json")
+	if err := Save(path, State{Enabled: true, Password: "pw", LastPort: 3011, TunnelEnabled: true}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !got.TunnelEnabled {
+		t.Error("TunnelEnabled must survive a save/load round trip")
+	}
+}
+
+func TestLoadDefaultsTunnelEnabledToFalseForOldConfigs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"enabled":true,"password":"pw","lastPort":3011}`), 0o600); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.TunnelEnabled {
+		t.Error("a config written before this feature must not imply a public tunnel")
 	}
 }

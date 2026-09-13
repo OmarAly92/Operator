@@ -1350,15 +1350,28 @@ type ResolveCommentsResponse struct {
 	Resolved int  `json:"resolved"`
 }
 
-// MobileStatusResponse is the body of the Connect Mobile status/enable/disable/
-// regenerate endpoints. Password is populated only transiently, on enable and
-// regenerate responses (empty otherwise) — it is never persisted in plaintext.
 type MobileStatusResponse struct {
-	Enabled  bool   `json:"enabled"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
-	Warning  string `json:"warning"`
+	Enabled  bool                `json:"enabled"`
+	Host     string              `json:"host"`
+	Port     int                 `json:"port"`
+	Password string              `json:"password"`
+	Warning  string              `json:"warning"`
+	Tunnel   *MobileTunnelStatus `json:"tunnel,omitempty"`
+}
+
+type MobileTunnelStatus struct {
+	State          string `json:"state" description:"off, downloading, starting, live, reconnecting or failed."`
+	Provider       string `json:"provider" description:"ngrok or cloudflared; empty while off."`
+	URL            string `json:"url" description:"Public HTTPS origin; empty unless live."`
+	Error          string `json:"error" description:"The provider's own message when something went wrong."`
+	Since          string `json:"since,omitempty" description:"RFC3339 timestamp of the current live tunnel."`
+	Restarts       int    `json:"restarts" description:"Reconnect count for the current enable."`
+	NeedsAuthtoken bool   `json:"needsAuthtoken" description:"True when ngrok rejected the credential and the dialog should open."`
+	HasAuthtoken   bool   `json:"hasAuthtoken" description:"Whether an ngrok authtoken is stored. Never carries the token itself."`
+}
+
+type MobileAuthtokenRequest struct {
+	Token string `json:"token" description:"ngrok authtoken. Stored via ngrok's own config tooling; never echoed back."`
 }
 
 // PushDeviceTokenParam is the {token} path parameter for push-device routes.

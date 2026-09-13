@@ -2,21 +2,40 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/httpd/envelope"
 	"github.com/OmarAly92/operator/backend/internal/mobilebridge"
+	"github.com/OmarAly92/operator/backend/internal/tunnel"
 )
 
 const mobileUnencryptedWarning = "Traffic on this connection is not encrypted. Only use it on a network you trust."
+const mobileTunnelWarning = "This desktop is reachable from the internet. Anyone with the address and password can start agents and run terminal commands here."
 
 type mobileBridge interface {
 	Status() MobileStatusResponse
 	Enable() (MobileStatusResponse, error)
 	Disable() error
 	Regenerate() (MobileStatusResponse, error)
+	TunnelEnable() (MobileStatusResponse, error)
+	TunnelDisable() (MobileStatusResponse, error)
+	SetAuthtoken(token string) (MobileStatusResponse, error)
 }
+
+type TunnelController interface {
+	Enable(ctx context.Context) error
+	Disable(ctx context.Context) error
+	Status() tunnel.Status
+	SetAuthtoken(ctx context.Context, token string) error
+	HasAuthtoken() bool
+	SetLocalPort(port int)
+}
+
+var _ TunnelController = (*tunnel.Manager)(nil)
 
 // MobileController exposes the Connect Mobile bridge control endpoints
 // (status/enable/disable/regenerate) over the loopback API, delegating to a
@@ -28,6 +47,10 @@ type MobileController struct{ Bridge mobileBridge }
 // so the controller guarantees it here rather than trusting every mobileBridge
 // implementation (including test fakes) to set it.
 func withWarning(res MobileStatusResponse) MobileStatusResponse {
+	if res.Tunnel != nil && res.Tunnel.State == string(tunnel.StateLive) {
+		res.Warning = mobileTunnelWarning
+		return res
+	}
 	res.Warning = mobileUnencryptedWarning
 	return res
 }
@@ -66,6 +89,38 @@ func (c *MobileController) Regenerate(w http.ResponseWriter, r *http.Request) {
 	envelope.WriteJSON(w, http.StatusOK, withWarning(res))
 }
 
+func (c *MobileController) TunnelEnable(w http.ResponseWriter, r *http.Request) {
+	res, err := c.Bridge.TunnelEnable()
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "MOBILE_TUNNEL_ENABLE", err.Error(), nil)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, withWarning(res))
+}
+
+func (c *MobileController) TunnelDisable(w http.ResponseWriter, r *http.Request) {
+	res, err := c.Bridge.TunnelDisable()
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusInternalServerError, "internal", "MOBILE_TUNNEL_DISABLE", err.Error(), nil)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, withWarning(res))
+}
+
+func (c *MobileController) SetAuthtoken(w http.ResponseWriter, r *http.Request) {
+	var body MobileAuthtokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "invalid_request", "MOBILE_AUTHTOKEN_BODY", "malformed request body", nil)
+		return
+	}
+	res, err := c.Bridge.SetAuthtoken(body.Token)
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "invalid_request", "MOBILE_AUTHTOKEN", err.Error(), nil)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, withWarning(res))
+}
+
 // LANController is the runtime hook set the concrete bridge needs. httpd's
 // LANManager + authState satisfy it (adapter wired in daemon.go).
 type LANController interface {
@@ -75,6 +130,9 @@ type LANController interface {
 	BoundPort() int
 	SetPasswordHash(hash string)
 	PasswordHash() string
+	SetPasswordStrong(strong bool)
+	PasswordStrong() bool
+	SetTrustedForwardHeader(name string)
 }
 
 // BridgeService is the production mobileBridge. It persists state and drives
@@ -83,6 +141,7 @@ type BridgeService struct {
 	LAN         LANController
 	ConfigPath  string
 	DefaultPort int
+	Tunnel      TunnelController
 }
 
 func (b *BridgeService) currentHost() string { return mobilebridge.AutopickLANIP() }
@@ -96,7 +155,6 @@ func (b *BridgeService) Status() MobileStatusResponse {
 		Enabled: enabled,
 		Host:    b.currentHost(),
 		Port:    b.LAN.BoundPort(),
-		Warning: mobileUnencryptedWarning,
 	}
 	// Only surface the password while the bridge is actually enabled. This route
 	// is reachable only on the loopback listener (the LAN listener 404s
@@ -104,7 +162,28 @@ func (b *BridgeService) Status() MobileStatusResponse {
 	if enabled {
 		res.Password = st.Password
 	}
-	return res
+	res.Tunnel = b.tunnelStatus()
+	return withWarning(res)
+}
+
+func (b *BridgeService) tunnelStatus() *MobileTunnelStatus {
+	if b.Tunnel == nil {
+		return nil
+	}
+	st := b.Tunnel.Status()
+	out := &MobileTunnelStatus{
+		State:          string(st.State),
+		Provider:       st.Provider,
+		URL:            st.URL,
+		Error:          st.Error,
+		Restarts:       st.Restarts,
+		NeedsAuthtoken: st.NeedsAuthtoken,
+		HasAuthtoken:   b.Tunnel.HasAuthtoken(),
+	}
+	if !st.Since.IsZero() {
+		out.Since = st.Since.UTC().Format(time.RFC3339)
+	}
+	return out
 }
 
 func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, error) {
@@ -113,16 +192,25 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 	// failed enable would leave a LAN listener open on 0.0.0.0 with the new
 	// password while persisted state/UI still say the bridge is off.
 	prevHash := b.LAN.PasswordHash()
+	prevStrong := b.LAN.PasswordStrong()
 	wasRunning := b.LAN.Running()
+	prevState, _ := mobilebridge.Load(b.ConfigPath)
 
 	// The persisted password is plaintext; the auth hash is derived in memory.
 	b.LAN.SetPasswordHash(mobilebridge.HashPassword(pw))
+	b.LAN.SetPasswordStrong(len(pw) >= mobilebridge.TunnelPasswordLength)
 	port, err := b.LAN.Start(b.DefaultPort)
 	if err != nil {
 		b.LAN.SetPasswordHash(prevHash) // Start failed: undo the hash swap.
+		b.LAN.SetPasswordStrong(prevStrong)
 		return MobileStatusResponse{}, err
 	}
-	if err := mobilebridge.Save(b.ConfigPath, mobilebridge.State{Enabled: true, Password: pw, LastPort: port}); err != nil {
+	if err := mobilebridge.Save(b.ConfigPath, mobilebridge.State{
+		Enabled:       true,
+		Password:      pw,
+		LastPort:      port,
+		TunnelEnabled: prevState.TunnelEnabled,
+	}); err != nil {
 		// Persist failed after the listener came up. Roll back so reality matches
 		// the unchanged persisted state (and the UI's "enable failed"). A rotate on
 		// an already-running listener (wasRunning) keeps serving on the prior hash;
@@ -133,7 +221,11 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 			_ = b.LAN.Stop(ctx)
 		}
 		b.LAN.SetPasswordHash(prevHash)
+		b.LAN.SetPasswordStrong(prevStrong)
 		return MobileStatusResponse{}, err
+	}
+	if b.Tunnel != nil {
+		b.Tunnel.SetLocalPort(port)
 	}
 	return b.Status(), nil
 }
@@ -151,7 +243,11 @@ func (b *BridgeService) Enable() (MobileStatusResponse, error) {
 // Regenerate rotates the connection password on the running listener, which
 // drops the currently paired phone (it authenticates against the new hash).
 func (b *BridgeService) Regenerate() (MobileStatusResponse, error) {
-	pw, err := mobilebridge.GeneratePassword()
+	generate := mobilebridge.GeneratePassword
+	if st, loadErr := mobilebridge.Load(b.ConfigPath); loadErr == nil && st.TunnelEnabled {
+		generate = func() (string, error) { return mobilebridge.GeneratePasswordN(mobilebridge.TunnelPasswordLength) }
+	}
+	pw, err := generate()
 	if err != nil {
 		return MobileStatusResponse{}, err
 	}
@@ -167,5 +263,74 @@ func (b *BridgeService) Disable() error {
 	}
 	st, _ := mobilebridge.Load(b.ConfigPath)
 	st.Enabled = false
+	return mobilebridge.Save(b.ConfigPath, st)
+}
+
+func (b *BridgeService) TunnelEnable() (MobileStatusResponse, error) {
+	if !b.LAN.Running() {
+		return MobileStatusResponse{}, errors.New("enable mobile access before making it reachable from the internet")
+	}
+	st, err := mobilebridge.Load(b.ConfigPath)
+	if err != nil {
+		return MobileStatusResponse{}, err
+	}
+	if !st.TunnelEnabled || len(st.Password) < mobilebridge.TunnelPasswordLength {
+		pw, genErr := mobilebridge.GeneratePasswordN(mobilebridge.TunnelPasswordLength)
+		if genErr != nil {
+			return MobileStatusResponse{}, genErr
+		}
+		if _, enableErr := b.enableWithPassword(pw); enableErr != nil {
+			return MobileStatusResponse{}, enableErr
+		}
+	}
+	if err := b.setTunnelIntent(true); err != nil {
+		return MobileStatusResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := b.Tunnel.Enable(ctx); err != nil {
+		return b.Status(), nil
+	}
+	return b.Status(), nil
+}
+
+func (b *BridgeService) TunnelDisable() (MobileStatusResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := b.Tunnel.Disable(ctx); err != nil {
+		return MobileStatusResponse{}, err
+	}
+	if err := b.setTunnelIntent(false); err != nil {
+		return MobileStatusResponse{}, err
+	}
+	return b.Status(), nil
+}
+
+func (b *BridgeService) SetAuthtoken(token string) (MobileStatusResponse, error) {
+	trimmed := strings.TrimSpace(token)
+	if trimmed == "" {
+		return MobileStatusResponse{}, errors.New("authtoken must not be empty")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := b.Tunnel.SetAuthtoken(ctx, trimmed); err != nil {
+		return MobileStatusResponse{}, errors.New(redactSecret(err.Error(), trimmed))
+	}
+	return b.Status(), nil
+}
+
+func redactSecret(text, secret string) string {
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[redacted]")
+}
+
+func (b *BridgeService) setTunnelIntent(on bool) error {
+	st, err := mobilebridge.Load(b.ConfigPath)
+	if err != nil {
+		return err
+	}
+	st.TunnelEnabled = on
 	return mobilebridge.Save(b.ConfigPath, st)
 }

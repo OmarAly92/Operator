@@ -294,6 +294,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mobile/tunnel/authtoken": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store an ngrok authtoken for a stable tunnel address */
+        post: operations["setMobileTunnelAuthtoken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop the public tunnel, leaving the LAN bridge running */
+        post: operations["disableMobileTunnel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile/tunnel/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make the Connect Mobile bridge reachable from the internet */
+        post: operations["enableMobileTunnel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -1970,12 +2021,35 @@ export interface components {
             /** @enum {string} */
             status: "pending" | "completed" | "declined" | "failed";
         };
+        MobileAuthtokenRequest: {
+            /** @description ngrok authtoken. Stored via ngrok's own config tooling; never echoed back. */
+            token: string;
+        };
         MobileStatusResponse: {
             enabled: boolean;
             host: string;
             password: string;
             port: number;
+            tunnel?: components["schemas"]["MobileTunnelStatus"];
             warning: string;
+        };
+        MobileTunnelStatus: {
+            /** @description The provider's own message when something went wrong. */
+            error: string;
+            /** @description Whether an ngrok authtoken is stored. Never carries the token itself. */
+            hasAuthtoken: boolean;
+            /** @description True when ngrok rejected the credential and the dialog should open. */
+            needsAuthtoken: boolean;
+            /** @description ngrok or cloudflared; empty while off. */
+            provider: string;
+            /** @description Reconnect count for the current enable. */
+            restarts: number;
+            /** @description RFC3339 timestamp of the current live tunnel. */
+            since?: string;
+            /** @description off, downloading, starting, live, reconnecting or failed. */
+            state: string;
+            /** @description Public HTTPS origin; empty unless live. */
+            url: string;
         };
         NotificationEnvelope: {
             notification: components["schemas"]["NotificationResponse"];
@@ -3572,6 +3646,124 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setMobileTunnelAuthtoken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MobileAuthtokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileStatusResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    disableMobileTunnel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileStatusResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    enableMobileTunnel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileStatusResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

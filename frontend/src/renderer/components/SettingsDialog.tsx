@@ -31,7 +31,8 @@ export function SettingsDialog() {
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
-	const [connectMobileOpen, setConnectMobileOpen] = useState(false);
+	const connectMobileOpen = useUiStore((state) => state.connectMobileOpen);
+	const setConnectMobileOpen = useUiStore((state) => state.setConnectMobileOpen);
 	const keyboardShortcutsRestoreRef = useRef<SettingsModal | null>(null);
 	const connectMobileRestoreRef = useRef<SettingsModal | null>(null);
 
