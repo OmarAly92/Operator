@@ -32,7 +32,8 @@ vi.mock("../lib/api-client", () => ({
 	apiErrorMessage: () => "failed",
 }));
 
-import { ConnectMobileModal, pairingPayloadV2, tunnelRefetchInterval } from "./ConnectMobileModal";
+import { ConnectMobileModal } from "./ConnectMobileModal";
+import { pairingPayloadV2, tunnelRefetchInterval } from "../lib/mobile-status";
 
 function renderModal() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

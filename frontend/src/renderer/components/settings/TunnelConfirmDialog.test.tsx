@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { TunnelConfirmDialog, TUNNEL_CONFIRM_STORAGE_KEY } from "./TunnelConfirmDialog";
+import { TunnelConfirmDialog } from "./TunnelConfirmDialog";
+import { TUNNEL_CONFIRM_STORAGE_KEY } from "../../lib/tunnel-confirm";
 
 describe("TunnelConfirmDialog", () => {
 	beforeEach(() => {

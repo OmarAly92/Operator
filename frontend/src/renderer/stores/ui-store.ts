@@ -51,6 +51,7 @@ type UiState = {
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
 	settingsModal: SettingsModal | null;
+	connectMobileOpen: boolean;
 	themePreference: ThemePreference;
 	/** Resolved light/dark for React consumers; may track OS while preference is system. */
 	resolvedTheme: Theme;
@@ -91,6 +92,8 @@ type UiState = {
 	openGlobalSettings: () => void;
 	openProjectSettings: (projectId: string) => void;
 	closeSettings: () => void;
+	openConnectMobile: () => void;
+	setConnectMobileOpen: (open: boolean) => void;
 	/** Refresh resolvedTheme from OS without writing light/dark to storage. */
 	syncSystemTheme: () => void;
 	toggleSidebar: () => void;
@@ -153,6 +156,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
 	settingsModal: null,
+	connectMobileOpen: false,
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
 	themeStyle: initialThemeStyle,
@@ -192,6 +196,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 	openGlobalSettings: () => set({ settingsModal: { scope: "global" } }),
 	openProjectSettings: (projectId) => set({ settingsModal: { scope: "project", projectId } }),
 	closeSettings: () => set({ settingsModal: null }),
+	openConnectMobile: () => set({ connectMobileOpen: true }),
+	setConnectMobileOpen: (connectMobileOpen) => set({ connectMobileOpen }),
 	syncSystemTheme: () => {
 		const { themePreference, resolvedTheme } = get();
 		if (themePreference !== "system") return;

@@ -73,6 +73,7 @@ import { useUiStore } from "../stores/ui-store"
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateProjectFlow, type CreateProjectInput } from "./CreateProjectFlow";
 import { ResizeHandle } from "./ResizeHandle";
+import { TunnelLiveRailButton, TunnelLiveRow } from "./TunnelLiveIndicator";
 import { isMacPlatform } from "../lib/platform";
 
 // macOS paints framed chrome: the fixed TitlebarNav cluster carries the
@@ -358,6 +359,7 @@ export function Sidebar({
 					aria-hidden={isCollapsed || undefined}
 					className="sidebar-expanded-chrome relative flex w-full min-w-46.5 flex-col gap-0.5 transition-[opacity,transform] duration-150 ease-out group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:-translate-x-2 group-data-[collapsible=icon]:opacity-0"
 				>
+					<TunnelLiveRow tabIndex={isCollapsed ? -1 : 0} />
 					<RestartToUpdateRow status={updateStatus} tabIndex={isCollapsed ? -1 : 0} />
 					<button
 						aria-label={t("shell.settings")}
@@ -377,6 +379,7 @@ export function Sidebar({
 					aria-hidden={!isCollapsed || undefined}
 					className="pointer-events-none absolute inset-x-1.5 bottom-0 top-auto flex min-h-row-md flex-col items-center justify-end gap-1 opacity-0 transition-opacity duration-150 ease-out group-data-[collapsible=icon]:pointer-events-auto group-data-[collapsible=icon]:opacity-100"
 				>
+					<TunnelLiveRailButton tabIndex={isCollapsed ? 0 : -1} />
 					<RestartToUpdateRailButton status={updateStatus} tabIndex={isCollapsed ? 0 : -1} />
 					<Tooltip>
 						<TooltipTrigger asChild>

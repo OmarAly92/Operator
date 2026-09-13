@@ -9,7 +9,15 @@ import { cn } from "../lib/utils";
 import { ConnectMobileGetApp } from "./settings/ConnectMobileGetApp";
 import { ConnectMobileSetup } from "./settings/ConnectMobileSetup";
 import { NgrokAuthtokenDialog } from "./settings/NgrokAuthtokenDialog";
-import { TunnelConfirmDialog, tunnelAlreadyConfirmed } from "./settings/TunnelConfirmDialog";
+import { TunnelConfirmDialog } from "./settings/TunnelConfirmDialog";
+import {
+	fetchMobileStatus,
+	mobileStatusQueryKey,
+	pairingPayload,
+	pairingPayloadV2,
+	tunnelRefetchInterval,
+} from "../lib/mobile-status";
+import { tunnelAlreadyConfirmed } from "../lib/tunnel-confirm";
 import {
 	Dialog,
 	DialogClose,
@@ -24,55 +32,8 @@ import {
 import { Button } from "./ui/button";
 import { Switch } from "./ui/switch";
 
-export const mobileStatusQueryKey = ["mobile-status"] as const;
-
 /** Matches `--size-settings-mobile-qr-code`; qrcode.react needs a px number. */
 const QR_CODE_SIZE = 204;
-
-interface MobileTunnelStatus {
-	state: string;
-	provider: string;
-	url: string;
-	error: string;
-	since?: string;
-	restarts: number;
-	needsAuthtoken: boolean;
-	hasAuthtoken: boolean;
-}
-
-interface MobileStatus {
-	enabled: boolean;
-	host: string;
-	port: number;
-	password: string;
-	warning: string;
-	tunnel?: MobileTunnelStatus;
-}
-
-// pairingPayload is the QR code contents scanned by the mobile app to connect
-// to the desktop's LAN bridge. It includes the password so a single scan
-// autofills everything and connects with no typing. The bridge is a trusted-
-// home-network tool over plaintext HTTP, so a QR that grants access is an
-// acceptable trade-off; regenerating the password invalidates any old QR.
-export function pairingPayload(host: string, port: number, password: string): string {
-	return JSON.stringify({ v: 1, host, port, password });
-}
-
-export function pairingPayloadV2(url: string, password: string): string {
-	return JSON.stringify({ v: 2, url, password });
-}
-
-export function tunnelRefetchInterval(state: string | undefined): number | false {
-	if (state === "downloading" || state === "starting" || state === "reconnecting") return 1000;
-	if (state === "live") return 5000;
-	return false;
-}
-
-async function fetchMobileStatus(): Promise<MobileStatus> {
-	const { data, error } = await apiClient.GET("/api/v1/mobile/status");
-	if (error || !data) throw new Error(apiErrorMessage(error));
-	return data;
-}
 
 interface ConnectMobileModalProps {
 	open: boolean;
@@ -186,10 +147,11 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 	const tunnelBusy = tunnelEnable.isPending || tunnelDisable.isPending;
 	const tunnelOn = tunnelLive || tunnel?.state === "starting" || tunnel?.state === "downloading" || tunnel?.state === "reconnecting";
 	const needsAuthtoken = tunnel?.needsAuthtoken ?? false;
-
-	useEffect(() => {
+	const [seenNeedsAuthtoken, setSeenNeedsAuthtoken] = useState(false);
+	if (needsAuthtoken !== seenNeedsAuthtoken) {
+		setSeenNeedsAuthtoken(needsAuthtoken);
 		if (needsAuthtoken) setTokenOpen(true);
-	}, [needsAuthtoken]);
+	}
 
 	const tunnelMessage = (() => {
 		if (!tunnel) return null;

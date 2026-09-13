@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { rememberTunnelConfirmed } from "../../lib/tunnel-confirm";
 import {
 	Dialog,
 	DialogContent,
@@ -9,16 +10,6 @@ import {
 	DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-
-export const TUNNEL_CONFIRM_STORAGE_KEY = "opr.mobile.tunnelConfirmed";
-
-export function tunnelAlreadyConfirmed(): boolean {
-	try {
-		return window.localStorage.getItem(TUNNEL_CONFIRM_STORAGE_KEY) === "1";
-	} catch {
-		return false;
-	}
-}
 
 interface TunnelConfirmDialogProps {
 	open: boolean;
@@ -30,11 +21,7 @@ export function TunnelConfirmDialog({ open, onOpenChange, onConfirm }: TunnelCon
 	const { t } = useTranslation();
 
 	const confirm = () => {
-		try {
-			window.localStorage.setItem(TUNNEL_CONFIRM_STORAGE_KEY, "1");
-		} catch {
-			void 0;
-		}
+		rememberTunnelConfirmed();
 		onConfirm();
 		onOpenChange(false);
 	};

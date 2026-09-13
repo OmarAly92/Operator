@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { pairingPayload } from "./ConnectMobileModal";
+import { pairingPayload } from "../lib/mobile-status";
 
 test("QR payload carries host, port, and password for one-scan connect", () => {
 	const s = pairingPayload("192.168.1.42", 3011, "fake-password-for-testing");
