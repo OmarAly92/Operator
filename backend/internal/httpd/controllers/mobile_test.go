@@ -40,13 +40,21 @@ func (f *fakeBridge) SetAuthtoken(token string) (MobileStatusResponse, error) {
 
 // fakeLAN is a minimal LANController for exercising BridgeService directly.
 type fakeLAN struct {
-	running   bool
-	port      int
-	hash      string
-	stopCalls int
+	running    bool
+	port       int
+	hash       string
+	stopCalls  int
+	forcedPort int
 }
 
-func (f *fakeLAN) Start(port int) (int, error) { f.running = true; f.port = port; return port, nil }
+func (f *fakeLAN) Start(port int) (int, error) {
+	f.running = true
+	f.port = port
+	if f.forcedPort != 0 {
+		f.port = f.forcedPort
+	}
+	return f.port, nil
+}
 func (f *fakeLAN) Stop(ctx context.Context) error {
 	f.stopCalls++
 	f.running = false
@@ -62,13 +70,18 @@ type fakeTunnel struct {
 	status         tunnel.Status
 	enableErr      error
 	enabled        bool
+	enableCalls    int
+	localPort      int
 	disabled       bool
 	savedToken     string
 	saveTokenErr   error
 	hasAuthtokenOn bool
 }
 
+func (f *fakeTunnel) SetLocalPort(port int) { f.localPort = port }
+
 func (f *fakeTunnel) Enable(context.Context) error {
+	f.enableCalls++
 	if f.enableErr != nil {
 		return f.enableErr
 	}
@@ -283,31 +296,103 @@ func TestSetAuthtokenRejectsBlankAndNeverEchoesTheToken(t *testing.T) {
 	}
 }
 
-func TestSetAuthtokenNeverEchoesTheTunnelErrorEitherOnFailure(t *testing.T) {
+func TestSetAuthtokenReportsARejectionWithoutEchoingTheToken(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: "pw", LastPort: 3011}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	tun := &fakeTunnel{saveTokenErr: errors.New("ngrok rejected token 2abc_leakedFakeToken: unauthorized")}
+	tun := &fakeTunnel{saveTokenErr: errors.New("ngrok rejected the authtoken for 2abc_leakedFakeToken: unauthorized")}
 	bridge := &BridgeService{LAN: &fakeLAN{running: true, port: 3011}, ConfigPath: path, DefaultPort: 3011, Tunnel: tun}
 
-	got, err := bridge.SetAuthtoken("2abc_leakedFakeToken")
-	if err != nil {
-		t.Fatalf("SetAuthtoken must not surface the tunnel's raw error: %v", err)
+	_, err := bridge.SetAuthtoken("2abc_leakedFakeToken")
+	if err == nil {
+		t.Fatal("a rejected authtoken must be reported, not swallowed as success")
 	}
-	encoded, marshalErr := json.Marshal(got)
-	if marshalErr != nil {
-		t.Fatalf("marshal: %v", marshalErr)
+	if strings.Contains(err.Error(), "2abc_leakedFakeToken") {
+		t.Fatalf("the token must never appear in the surfaced error: %q", err)
 	}
-	if strings.Contains(string(encoded), "2abc_leakedFakeToken") {
-		t.Fatal("the tunnel's error text must never appear in the response body")
+	if !strings.Contains(err.Error(), "unauthorized") {
+		t.Errorf("error = %q, want the provider's own message carried through", err)
 	}
 
 	c := &MobileController{Bridge: bridge}
 	w := httptest.NewRecorder()
 	body := strings.NewReader(`{"token":"2abc_leakedFakeToken"}`)
 	c.SetAuthtoken(w, httptest.NewRequest(http.MethodPost, "/api/v1/mobile/tunnel/authtoken", body))
+	if w.Code == http.StatusOK {
+		t.Errorf("status = %d, want a failure for a rejected token", w.Code)
+	}
 	if strings.Contains(w.Body.String(), "2abc_leakedFakeToken") {
-		t.Fatalf("HTTP response body must never contain the token or the tunnel's raw error: %s", w.Body.String())
+		t.Fatalf("HTTP response body must never contain the token: %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "unauthorized") {
+		t.Errorf("HTTP response body must carry the provider's message: %s", w.Body.String())
+	}
+}
+
+func TestTunnelEnableDoesNotRotateThePasswordOnARetry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: "pw", LastPort: 3011}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	tun := &fakeTunnel{}
+	bridge := &BridgeService{LAN: &fakeLAN{running: true, port: 3011}, ConfigPath: path, DefaultPort: 3011, Tunnel: tun}
+
+	first, err := bridge.TunnelEnable()
+	if err != nil {
+		t.Fatalf("first TunnelEnable: %v", err)
+	}
+	if len(first.Password) != mobilebridge.TunnelPasswordLength {
+		t.Fatalf("password length = %d, want the tunnel-length rotation on the off->on transition", len(first.Password))
+	}
+
+	tun.status = tunnel.Status{State: tunnel.StateFailed, Error: "every provider refused"}
+	second, err := bridge.TunnelEnable()
+	if err != nil {
+		t.Fatalf("retry TunnelEnable: %v", err)
+	}
+	if second.Password != first.Password {
+		t.Errorf("password rotated on a retry (%q -> %q); that drops the paired phone for nothing",
+			first.Password, second.Password)
+	}
+	if tun.enableCalls != 2 {
+		t.Errorf("Enable calls = %d, want the retry to still reach the tunnel manager", tun.enableCalls)
+	}
+}
+
+func TestTunnelEnableRotatesAgainAfterTunnelDisable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := mobilebridge.Save(path, mobilebridge.State{Enabled: true, Password: "pw", LastPort: 3011}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	bridge := &BridgeService{LAN: &fakeLAN{running: true, port: 3011}, ConfigPath: path, DefaultPort: 3011, Tunnel: &fakeTunnel{}}
+
+	first, err := bridge.TunnelEnable()
+	if err != nil {
+		t.Fatalf("first TunnelEnable: %v", err)
+	}
+	if _, err := bridge.TunnelDisable(); err != nil {
+		t.Fatalf("TunnelDisable: %v", err)
+	}
+	second, err := bridge.TunnelEnable()
+	if err != nil {
+		t.Fatalf("second TunnelEnable: %v", err)
+	}
+	if second.Password == first.Password {
+		t.Error("a genuine off->on transition must rotate the connection password")
+	}
+}
+
+func TestEnableTargetsTheTunnelAtThePortActuallyBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	tun := &fakeTunnel{}
+	lan := &fakeLAN{forcedPort: 49876}
+	bridge := &BridgeService{LAN: lan, ConfigPath: path, DefaultPort: 3011, Tunnel: tun}
+
+	if _, err := bridge.Enable(); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	if tun.localPort != 49876 {
+		t.Fatalf("tunnel local port = %d, want the port the listener actually bound (49876), not the requested 3011", tun.localPort)
 	}
 }

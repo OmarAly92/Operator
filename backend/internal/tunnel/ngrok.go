@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
-type ngrokProvider struct{ configPaths []string }
+type NgrokConfig struct {
+	UserConfigPath string
+	OwnConfigPath  string
+}
 
-func NgrokProvider(configPaths []string) Provider {
-	return ngrokProvider{configPaths: configPaths}
+type ngrokProvider struct{ cfg NgrokConfig }
+
+func NgrokProvider(cfg NgrokConfig) Provider {
+	return ngrokProvider{cfg: cfg}
 }
 
 func (ngrokProvider) Name() string { return "ngrok" }
@@ -45,12 +51,32 @@ func ngrokTarget(goos, goarch string) (string, error) {
 	}
 }
 
+func (p ngrokProvider) Prepare(_, controlPort int) error {
+	if p.cfg.OwnConfigPath == "" {
+		return nil
+	}
+	return writeNgrokWebAddr(p.cfg.OwnConfigPath, controlPort)
+}
+
 func (p ngrokProvider) Args(localPort, controlPort int) []string {
 	args := []string{"http", fmt.Sprint(localPort)}
-	for _, path := range p.configPaths {
+	for _, path := range p.configPaths() {
 		args = append(args, "--config", path)
 	}
 	return append(args, "--log=stdout", "--log-format=json", "--inspect=false")
+}
+
+func (p ngrokProvider) configPaths() []string {
+	var paths []string
+	if p.cfg.UserConfigPath != "" {
+		if _, err := os.Stat(p.cfg.UserConfigPath); err == nil {
+			paths = append(paths, p.cfg.UserConfigPath)
+		}
+	}
+	if p.cfg.OwnConfigPath != "" {
+		paths = append(paths, p.cfg.OwnConfigPath)
+	}
+	return paths
 }
 
 func (ngrokProvider) PublicURL(ctx context.Context, controlPort int) (string, error) {

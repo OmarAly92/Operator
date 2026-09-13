@@ -40,7 +40,8 @@ func (cloudflaredProvider) Binary() BinarySpec {
 			return "https://github.com/cloudflare/cloudflared/releases/download/" +
 				cloudflaredVersion + "/cloudflared-" + goos + "-" + goarch + suffix, nil
 		},
-		SHA256: cloudflaredChecksums,
+		SHA256:     cloudflaredChecksums,
+		MinVersion: cloudflaredVersion,
 	}
 }
 

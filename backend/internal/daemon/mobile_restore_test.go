@@ -13,15 +13,19 @@ import (
 // fakeLAN is a minimal httpd.LANController fake for exercising
 // restoreMobileOnBoot without a real listener.
 type fakeLAN struct {
-	started bool
-	hash    string
-	port    int
+	started    bool
+	hash       string
+	port       int
+	forcedPort int
 }
 
 func (f *fakeLAN) Start(port int) (int, error) {
 	f.started = true
 	f.port = port
-	return port, nil
+	if f.forcedPort != 0 {
+		f.port = f.forcedPort
+	}
+	return f.port, nil
 }
 func (f *fakeLAN) Stop(ctx context.Context) error { return nil }
 func (f *fakeLAN) Running() bool                  { return f.started }
@@ -69,13 +73,34 @@ func TestRestoreDisabledDoesNotStart(t *testing.T) {
 }
 
 type fakeTunnelStarter struct {
-	enabled int
-	err     error
+	enabled   int
+	localPort int
+	err       error
 }
 
 func (f *fakeTunnelStarter) Enable(context.Context) error {
 	f.enabled++
 	return f.err
+}
+
+func (f *fakeTunnelStarter) SetLocalPort(port int) { f.localPort = port }
+
+func TestRestoreTargetsTheTunnelAtThePortActuallyBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := mobilebridge.Save(path, mobilebridge.State{
+		Enabled: true, Password: "pw", LastPort: 3011, TunnelEnabled: true,
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	lan := &fakeLAN{forcedPort: 49321}
+	starter := &fakeTunnelStarter{}
+
+	if err := restoreMobileOnBoot(path, lan, starter); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if starter.localPort != 49321 {
+		t.Fatalf("tunnel local port = %d, want the port the listener actually bound (49321), not the persisted 3011", starter.localPort)
+	}
 }
 
 func TestRestoreStartsTheTunnelWhenPersistedEnabled(t *testing.T) {

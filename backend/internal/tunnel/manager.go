@@ -134,12 +134,32 @@ func (m *Manager) Enable(ctx context.Context) error {
 
 	if err := m.startFirstWorkingProvider(ctx); err != nil {
 		m.mu.Lock()
-		m.enabled = false
 		m.status = Status{State: StateFailed, Error: err.Error(), NeedsAuthtoken: m.status.NeedsAuthtoken}
+		m.retryableLocked()
 		m.mu.Unlock()
 		return err
 	}
 	return nil
+}
+
+func (m *Manager) retryableLocked() {
+	m.enabled = false
+	m.stickyFrom = map[string]bool{}
+	m.lastFailureProvider = ""
+}
+
+func (m *Manager) failTerminally(message string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.status.State = StateFailed
+	m.status.URL = ""
+	if message != "" {
+		m.status.Error = message
+	}
+	if m.status.Error == "" {
+		m.status.Error = "no tunnel provider available"
+	}
+	m.retryableLocked()
 }
 
 func (m *Manager) Disable(ctx context.Context) error {
@@ -220,6 +240,10 @@ func (m *Manager) launch(ctx context.Context, provider Provider) error {
 	localPort := m.localPort
 	m.mu.Unlock()
 
+	if err := prepareLaunch(provider, localPort, controlPort); err != nil {
+		return err
+	}
+
 	runCtx, cancel := context.WithCancel(context.Background())
 	cmd := newTunnelCommand(binary, provider.Args(localPort, controlPort)...)
 	logs := newLineRing(logRetention)
@@ -261,7 +285,8 @@ func (m *Manager) runAwaitURL(ctx context.Context, provider Provider, controlPor
 			return
 		}
 		m.mu.Lock()
-		m.status = Status{State: StateFailed, Error: err.Error()}
+		m.status = Status{State: StateFailed, Error: err.Error(), NeedsAuthtoken: m.status.NeedsAuthtoken}
+		m.retryableLocked()
 		m.mu.Unlock()
 		cancel()
 		<-done
@@ -442,6 +467,8 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 				urlCancel()
 				if err == nil {
 					confirmed = true
+				} else {
+					m.stopChild(current, exited)
 				}
 			}
 		}
@@ -575,6 +602,10 @@ func (m *Manager) spawn(provider Provider) (*exec.Cmd, int, *lineRing, error) {
 	localPort := m.localPort
 	m.mu.Unlock()
 
+	if err := prepareLaunch(provider, localPort, controlPort); err != nil {
+		return nil, 0, nil, err
+	}
+
 	logs := newLineRing(logRetention)
 	cmd := newTunnelCommand(binary, provider.Args(localPort, controlPort)...)
 	cmd.Stdout = logs
@@ -620,20 +651,12 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 		"provider", provider.Name(), "class", class, "err", failure.Message)
 
 	if remaining == 0 {
-		m.mu.Lock()
-		m.status.State = StateFailed
-		if m.status.Error == "" {
-			m.status.Error = "no tunnel provider available"
-		}
-		m.mu.Unlock()
+		m.failTerminally("")
 		return
 	}
 
 	if err := m.startFirstWorkingProvider(ctx); err != nil {
-		m.mu.Lock()
-		m.status.State = StateFailed
-		m.status.Error = err.Error()
-		m.mu.Unlock()
+		m.failTerminally(err.Error())
 	}
 }
 

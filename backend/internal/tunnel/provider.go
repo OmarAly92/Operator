@@ -42,6 +42,18 @@ type Provider interface {
 	ClassifyFailure(logLines []string) Failure
 }
 
+type launchPreparer interface {
+	Prepare(localPort, controlPort int) error
+}
+
+func prepareLaunch(provider Provider, localPort, controlPort int) error {
+	preparer, ok := provider.(launchPreparer)
+	if !ok {
+		return nil
+	}
+	return preparer.Prepare(localPort, controlPort)
+}
+
 var controlClient = &http.Client{Timeout: 3 * time.Second}
 
 func controlURL(controlPort int, path string) string {

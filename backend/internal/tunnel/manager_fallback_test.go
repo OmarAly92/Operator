@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -120,6 +121,36 @@ func TestDisableClearsTheStickyFallback(t *testing.T) {
 	waitForState(t, m, StateLive)
 	if ngrok.urlCalls == before {
 		t.Error("after Disable, ngrok must be attempted again")
+	}
+}
+
+func TestAFailedTunnelCanBeEnabledAgainWithoutADaemonRestart(t *testing.T) {
+	cfMarker := filepath.Join(t.TempDir(), "cloudflared-attempted")
+	t.Setenv("TUNNEL_TEST_CF_MARKER", cfMarker)
+
+	ngrok := newFakeProvider(t, "ngrok", exitImmediatelyScript)
+	ngrok.setFailure(Failure{Class: FailureRefused, Message: "ngrok refused"})
+	cloudflared := newFakeProvider(t, "cloudflared",
+		"#!/bin/sh\nif [ -f \"$TUNNEL_TEST_CF_MARKER\" ]; then while true; do sleep 1; done; fi\ntouch \"$TUNNEL_TEST_CF_MARKER\"\necho 'boom' >&2\nexit 1\n")
+	cloudflared.setFailure(Failure{Class: FailureRefused, Message: "cloudflared refused"})
+
+	m := newFallbackManager(t, ngrok, cloudflared)
+	_ = m.Enable(context.Background())
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && m.Status().State != StateFailed {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := m.Status().State; got != StateFailed {
+		t.Fatalf("state = %q, want failed before the retry can be exercised", got)
+	}
+
+	if err := m.Enable(context.Background()); err != nil {
+		t.Fatalf("Enable after a failed tunnel: %v", err)
+	}
+	status := waitForState(t, m, StateLive)
+	if status.State != StateLive {
+		t.Fatalf("state = %q after re-enabling a failed tunnel, want live: Enable must not be a silent no-op once the async path has failed", status.State)
 	}
 }
 

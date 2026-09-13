@@ -61,7 +61,7 @@ func TestStorePrefersBinaryOnPath(t *testing.T) {
 		Version:  func(string) (string, error) { return "3.39.6", nil },
 	})
 
-	got, err := store.Ensure(context.Background(), NgrokProvider(nil).Binary())
+	got, err := store.Ensure(context.Background(), NgrokProvider(NgrokConfig{}).Binary())
 	if err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestStoreRejectsPathBinaryBelowMinVersion(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	spec := NgrokProvider(nil).Binary()
+	spec := NgrokProvider(NgrokConfig{}).Binary()
 	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
 
 	store := NewStore(StoreDeps{
@@ -111,7 +111,7 @@ func TestStoreDownloadsAndExtractsZip(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	spec := NgrokProvider(nil).Binary()
+	spec := NgrokProvider(NgrokConfig{}).Binary()
 	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
 
 	store := NewStore(StoreDeps{
@@ -153,6 +153,7 @@ func TestStoreDownloadsAndExtractsTarGzVerifyingChecksum(t *testing.T) {
 	store := NewStore(StoreDeps{
 		Dir:      t.TempDir(),
 		LookPath: func(string) (string, error) { return "", errors.New("not found") },
+		Version:  func(string) (string, error) { return cloudflaredVersion, nil },
 	})
 
 	got, err := store.Ensure(context.Background(), spec)
@@ -161,6 +162,53 @@ func TestStoreDownloadsAndExtractsTarGzVerifyingChecksum(t *testing.T) {
 	}
 	if body, readErr := os.ReadFile(got); readErr != nil || !bytes.Equal(body, payload) {
 		t.Fatalf("extracted content = %q, %v", body, readErr)
+	}
+}
+
+func TestStoreRejectsAnOldPathCloudflaredInFavourOfThePinnedCopy(t *testing.T) {
+	payload := []byte("pinned-cloudflared")
+	archive := tarred(t, "cloudflared", payload)
+	sum := sha256.Sum256(archive)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer srv.Close()
+
+	spec := CloudflaredProvider().Binary()
+	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
+	spec.SHA256 = map[string]string{runtime.GOOS + "/" + runtime.GOARCH: hex.EncodeToString(sum[:])}
+
+	store := NewStore(StoreDeps{
+		Dir:      t.TempDir(),
+		LookPath: func(string) (string, error) { return "/usr/local/bin/cloudflared", nil },
+		Version: func(path string) (string, error) {
+			if path == "/usr/local/bin/cloudflared" {
+				return "2023.8.2", nil
+			}
+			return cloudflaredVersion, nil
+		},
+	})
+
+	got, err := store.Ensure(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	if got == "/usr/local/bin/cloudflared" {
+		t.Fatal("a PATH cloudflared older than the pinned, checksummed release must not be preferred over it")
+	}
+	if body, readErr := os.ReadFile(got); readErr != nil || !bytes.Equal(body, payload) {
+		t.Fatalf("downloaded binary content = %q, %v", body, readErr)
+	}
+}
+
+func TestCloudflaredVersionOutputParsesToThePinnedVersion(t *testing.T) {
+	sample := "cloudflared version " + cloudflaredVersion + " (built 2026-03-01-1200 UTC)"
+	if got := firstVersionToken(sample); got != cloudflaredVersion {
+		t.Fatalf("firstVersionToken(%q) = %q, want %q", sample, got, cloudflaredVersion)
+	}
+	if compareVersions(firstVersionToken(sample), CloudflaredProvider().Binary().MinVersion) < 0 {
+		t.Fatal("the pinned cloudflared must satisfy its own MinVersion")
 	}
 }
 
@@ -196,7 +244,7 @@ func TestStoreReusesCachedBinaryWithoutDownloading(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	spec := NgrokProvider(nil).Binary()
+	spec := NgrokProvider(NgrokConfig{}).Binary()
 	spec.URL = func(string, string) (string, error) { return srv.URL, nil }
 
 	store := NewStore(StoreDeps{

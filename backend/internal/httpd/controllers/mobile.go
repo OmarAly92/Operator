@@ -32,6 +32,7 @@ type TunnelController interface {
 	Status() tunnel.Status
 	SetAuthtoken(ctx context.Context, token string) error
 	HasAuthtoken() bool
+	SetLocalPort(port int)
 }
 
 var _ TunnelController = (*tunnel.Manager)(nil)
@@ -211,6 +212,9 @@ func (b *BridgeService) enableWithPassword(pw string) (MobileStatusResponse, err
 		b.LAN.SetPasswordHash(prevHash)
 		return MobileStatusResponse{}, err
 	}
+	if b.Tunnel != nil {
+		b.Tunnel.SetLocalPort(port)
+	}
 	return b.Status(), nil
 }
 
@@ -250,12 +254,18 @@ func (b *BridgeService) TunnelEnable() (MobileStatusResponse, error) {
 	if !b.LAN.Running() {
 		return MobileStatusResponse{}, errors.New("enable mobile access before making it reachable from the internet")
 	}
-	pw, err := mobilebridge.GeneratePasswordN(mobilebridge.TunnelPasswordLength)
+	st, err := mobilebridge.Load(b.ConfigPath)
 	if err != nil {
 		return MobileStatusResponse{}, err
 	}
-	if _, err := b.enableWithPassword(pw); err != nil {
-		return MobileStatusResponse{}, err
+	if !st.TunnelEnabled || len(st.Password) < mobilebridge.TunnelPasswordLength {
+		pw, genErr := mobilebridge.GeneratePasswordN(mobilebridge.TunnelPasswordLength)
+		if genErr != nil {
+			return MobileStatusResponse{}, genErr
+		}
+		if _, enableErr := b.enableWithPassword(pw); enableErr != nil {
+			return MobileStatusResponse{}, enableErr
+		}
 	}
 	if err := b.setTunnelIntent(true); err != nil {
 		return MobileStatusResponse{}, err
@@ -288,9 +298,16 @@ func (b *BridgeService) SetAuthtoken(token string) (MobileStatusResponse, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := b.Tunnel.SetAuthtoken(ctx, trimmed); err != nil {
-		return b.Status(), nil
+		return MobileStatusResponse{}, errors.New(redactSecret(err.Error(), trimmed))
 	}
 	return b.Status(), nil
+}
+
+func redactSecret(text, secret string) string {
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[redacted]")
 }
 
 func (b *BridgeService) setTunnelIntent(on bool) error {

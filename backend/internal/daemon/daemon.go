@@ -253,7 +253,10 @@ func Run() error {
 		Log: log,
 		Dir: filepath.Join(cfg.DataDir, "mobile"),
 		Providers: []tunnel.Provider{
-			tunnel.NgrokProvider([]string{filepath.Join(cfg.DataDir, "mobile", "ngrok.yml")}),
+			tunnel.NgrokProvider(tunnel.NgrokConfig{
+				UserConfigPath: tunnel.DefaultNgrokConfigPath(),
+				OwnConfigPath:  filepath.Join(cfg.DataDir, "mobile", "ngrok.yml"),
+			}),
 			tunnel.CloudflaredProvider(),
 		},
 		Binaries: tunnel.NewStore(tunnel.StoreDeps{

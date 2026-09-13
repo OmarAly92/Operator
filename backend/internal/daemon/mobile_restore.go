@@ -17,6 +17,7 @@ import (
 // load-bearing.
 type tunnelStarter interface {
 	Enable(ctx context.Context) error
+	SetLocalPort(port int)
 }
 
 func restoreMobileOnBoot(path string, lan controllers.LANController, tun tunnelStarter) error {
@@ -28,10 +29,15 @@ func restoreMobileOnBoot(path string, lan controllers.LANController, tun tunnelS
 		return nil
 	}
 	lan.SetPasswordHash(mobilebridge.HashPassword(state.Password))
-	if _, err := lan.Start(state.LastPort); err != nil {
+	port, err := lan.Start(state.LastPort)
+	if err != nil {
 		return fmt.Errorf("restart mobile LAN listener: %w", err)
 	}
-	if !state.TunnelEnabled || tun == nil {
+	if tun == nil {
+		return nil
+	}
+	tun.SetLocalPort(port)
+	if !state.TunnelEnabled {
 		return nil
 	}
 	if err := tun.Enable(context.Background()); err != nil {

@@ -340,7 +340,7 @@ func TestSourceKeySeparatesTwoTunneledClientsIntoDifferentBuckets(t *testing.T) 
 
 func TestSourceKeyFallsBackToRemoteAddrWhenLiveProviderIsNgrok(t *testing.T) {
 	trust := &forwardedTrust{}
-	trust.Set(tunnel.NgrokProvider(nil).ClientIPHeader())
+	trust.Set(tunnel.NgrokProvider(tunnel.NgrokConfig{}).ClientIPHeader())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
 	req.RemoteAddr = "127.0.0.1:41111"
