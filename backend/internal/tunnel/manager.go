@@ -94,6 +94,22 @@ func New(deps Deps) *Manager {
 	}
 }
 
+func (m *Manager) SetOnProvider(fn func(string)) {
+	if fn == nil {
+		fn = func(string) {}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onProvider = fn
+}
+
+func (m *Manager) notifyProvider(header string) {
+	m.mu.Lock()
+	fn := m.onProvider
+	m.mu.Unlock()
+	fn(header)
+}
+
 func (m *Manager) SetLocalPort(port int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -157,7 +173,7 @@ func (m *Manager) Disable(ctx context.Context) error {
 	m.status = Status{State: StateOff}
 	m.mu.Unlock()
 	m.clearRegistry()
-	m.onProvider("")
+	m.notifyProvider("")
 	return nil
 }
 
@@ -289,7 +305,7 @@ func (m *Manager) publishURL(provider Provider, url string) {
 		m.status.Since = m.now()
 	}
 	m.mu.Unlock()
-	m.onProvider(provider.ClientIPHeader())
+	m.notifyProvider(provider.ClientIPHeader())
 }
 
 func (m *Manager) setState(state State, providerName string) {
@@ -475,7 +491,7 @@ func (m *Manager) supervise(ctx context.Context, provider Provider, cmd *exec.Cm
 		}
 		m.status.Restarts++
 		m.mu.Unlock()
-		m.onProvider("")
+		m.notifyProvider("")
 
 		if !liveSince.IsZero() && m.now().Sub(liveSince) >= healthResetAfter {
 			backoff = backoffFloor
@@ -598,7 +614,7 @@ func (m *Manager) handleProviderRefusal(ctx context.Context, provider Provider, 
 		}
 	}
 	m.mu.Unlock()
-	m.onProvider("")
+	m.notifyProvider("")
 
 	m.log.Warn("tunnel provider refused; falling back",
 		"provider", provider.Name(), "class", class, "err", failure.Message)
