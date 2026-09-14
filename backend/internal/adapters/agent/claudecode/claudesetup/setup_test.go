@@ -84,8 +84,8 @@ func TestInspectDoesNotCreate(t *testing.T) {
 
 func TestRelinkBacksUpRealFiles(t *testing.T) {
 	def, acct := mkdirs(t)
-	real := filepath.Join(acct, "settings.json")
-	if err := os.WriteFile(real, []byte(`{"theme":"dark"}`), 0o600); err != nil {
+	realSettings := filepath.Join(acct, "settings.json")
+	if err := os.WriteFile(realSettings, []byte(`{"theme":"dark"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Unix(1789400000, 0)
@@ -96,7 +96,7 @@ func TestRelinkBacksUpRealFiles(t *testing.T) {
 	if report["settings.json"] != ItemLinked {
 		t.Fatalf("settings.json = %q", report["settings.json"])
 	}
-	backup, err := os.ReadFile(real + ".bak-1789400000")
+	backup, err := os.ReadFile(realSettings + ".bak-1789400000")
 	if err != nil || string(backup) != `{"theme":"dark"}` {
 		t.Fatalf("backup = %s err=%v", backup, err)
 	}

@@ -14,7 +14,7 @@ var pathLocks sync.Map
 
 func LockPath(path string) func() {
 	value, _ := pathLocks.LoadOrStore(filepath.Clean(path), &sync.Mutex{})
-	mu := value.(*sync.Mutex)
+	mu, _ := value.(*sync.Mutex)
 	mu.Lock()
 	return mu.Unlock
 }

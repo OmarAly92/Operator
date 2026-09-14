@@ -129,15 +129,15 @@ func (s *Service) Create(ctx context.Context, label string) (domain.ClaudeAccoun
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		if err := os.Mkdir(dir, 0o700); err != nil {
-			return domain.ClaudeAccount{}, fmt.Errorf("%w: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+			return domain.ClaudeAccount{}, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 		}
 	case err != nil:
-		return domain.ClaudeAccount{}, fmt.Errorf("%w: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+		return domain.ClaudeAccount{}, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	case !info.IsDir():
 		return domain.ClaudeAccount{}, fmt.Errorf("%w: %s is not a directory", domain.ErrClaudeAccountFolderUnavailable, dir)
 	}
 	if _, err := claudesetup.Ensure(s.defaultDir(), dir); err != nil {
-		return domain.ClaudeAccount{}, fmt.Errorf("%w: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+		return domain.ClaudeAccount{}, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	}
 	account := domain.ClaudeAccount{ID: domain.ClaudeAccountID(slug), Label: label, ConfigDir: dir, CreatedAt: s.now()}
 	if err := s.store.InsertClaudeAccount(ctx, account); err != nil {
@@ -192,7 +192,7 @@ func (s *Service) Relink(ctx context.Context, id domain.ClaudeAccountID) (claude
 	}
 	report, err := claudesetup.Relink(s.defaultDir(), account.ConfigDir, s.now())
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	}
 	return report, nil
 }
@@ -210,10 +210,10 @@ func (s *Service) PrepareLaunch(ctx context.Context, id domain.ClaudeAccountID) 
 		return domain.ClaudeAccount{}, fmt.Errorf("%w: %s", domain.ErrClaudeAccountFolderUnavailable, account.ConfigDir)
 	}
 	if _, err := claudesetup.Ensure(s.defaultDir(), account.ConfigDir); err != nil {
-		return domain.ClaudeAccount{}, fmt.Errorf("%w: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+		return domain.ClaudeAccount{}, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	}
 	if err := claudesetup.SyncMCP(filepath.Join(s.home, ".claude.json"), filepath.Join(account.ConfigDir, ".claude.json")); err != nil {
-		return domain.ClaudeAccount{}, fmt.Errorf("%w: sync mcp servers: %v", domain.ErrClaudeAccountFolderUnavailable, err)
+		return domain.ClaudeAccount{}, fmt.Errorf("%w: sync mcp servers: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	}
 	return account, nil
 }

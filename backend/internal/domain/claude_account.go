@@ -9,7 +9,7 @@ type ClaudeAccountID string
 
 const (
 	DefaultClaudeAccountID ClaudeAccountID = "default"
-	ClaudeConfigDirEnv                     = "CLAUDE_CONFIG_DIR"
+	ClaudeConfigDirEnv     string          = "CLAUDE_CONFIG_DIR"
 )
 
 var (
