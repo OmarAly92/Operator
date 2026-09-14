@@ -11,6 +11,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/primary_button.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/settings_group.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/core/widgets/pickers/agent_picker_sheet.dart';
+import 'package:operator_mobile/core/widgets/pickers/claude_account_picker_sheet.dart';
 import 'package:operator_mobile/core/widgets/pickers/project_picker_sheet.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
@@ -99,6 +100,22 @@ class _SpawnBodyState extends State<SpawnBody> {
     if (chosen != null && context.mounted) _cubit.setHarness(chosen);
   }
 
+  Future<void> _openClaudeAccountPicker(BuildContext context) async {
+    final chosen = await showClaudeAccountPickerSheet(
+      context,
+      accounts: _cubit.claudeAccounts,
+      selected: _cubit.claudeAccountId,
+    );
+    if (chosen != null && context.mounted) _cubit.setClaudeAccount(chosen);
+  }
+
+  String _claudeAccountValue() {
+    for (final account in _cubit.claudeAccounts) {
+      if (account.id == _cubit.claudeAccountId) return account.displayLabel;
+    }
+    return 'Default';
+  }
+
   Future<void> _refreshCatalog() async {
     final resolved = _cubit.stream.firstWhere((s) => s is CatalogReadyState || s is CatalogFailureState);
     await _cubit.refreshCatalog();
@@ -183,6 +200,13 @@ class _SpawnBodyState extends State<SpawnBody> {
                     leading: AgentLogo(harness: _cubit.harness.isEmpty ? null : _cubit.harness, size: 20),
                     onTap: () => _openAgentPicker(context, state),
                   ),
+                  if (_cubit.harness == 'claude-code' && _cubit.claudeAccounts.isNotEmpty)
+                    SettingsRow(
+                      icon: Icons.person_outline,
+                      label: 'Account',
+                      value: _claudeAccountValue(),
+                      onTap: () => _openClaudeAccountPicker(context),
+                    ),
                   if (project?.kind == 'single_repo')
                     SettingsRow(
                       icon: Icons.call_split,

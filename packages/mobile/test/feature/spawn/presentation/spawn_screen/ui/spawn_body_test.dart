@@ -16,6 +16,7 @@ import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
 import 'package:operator_mobile/feature/sessions/presentation/sessions_screen/logic/sessions_cubit.dart';
+import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
@@ -102,6 +103,14 @@ void main() {
         GlobalResponse(data: AgentCatalog(supported: [_agent('amp'), _agent('claude-code')], installed: [_agent('amp'), _agent('claude-code')], authorized: [_agent('amp'), _agent('claude-code')])),
       ),
     );
+    when(() => spawnRepository.getClaudeAccounts()).thenAnswer(
+      (_) async => Result.success(
+        GlobalResponse(data: const [
+          ClaudeAccountModel(id: 'default', label: 'Default', isDefault: true, loggedIn: true, subscriptionType: 'max'),
+          ClaudeAccountModel(id: 'personal', label: 'Personal', isDefault: false, loggedIn: true, subscriptionType: 'pro'),
+        ]),
+      ),
+    );
   }
 
   void stubProjectKind(String? kind) {
@@ -173,5 +182,22 @@ void main() {
 
     verify(() => spawnRepository.spawn(any())).called(1);
     expect(find.text('s1'), findsOneWidget);
+  });
+
+  testWidgets('the Account row appears only for Claude Code', (tester) async {
+    stubCatalog();
+    stubProjectKind('single_repo');
+    buildSessionsCubit();
+    final spawnCubit = SpawnCubit(spawnRepository);
+
+    await pumpBody(tester, spawnCubit);
+    spawnCubit.setHarness('amp');
+    await tester.pumpAndSettle();
+    expect(find.text('Account'), findsNothing);
+
+    spawnCubit.setHarness('claude-code');
+    await tester.pumpAndSettle();
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Default · Max'), findsOneWidget);
   });
 }

@@ -5,6 +5,7 @@ import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
@@ -19,6 +20,11 @@ AgentCatalog get _catalog => AgentCatalog(
   installed: [_agent('claude-code'), _agent('codex')],
   authorized: [_agent('claude-code'), _agent('codex')],
 );
+
+List<ClaudeAccountModel> get _accounts => const [
+  ClaudeAccountModel(id: 'default', label: 'Default', isDefault: true, loggedIn: true, subscriptionType: 'max'),
+  ClaudeAccountModel(id: 'personal', label: 'Personal', isDefault: false, loggedIn: true, subscriptionType: 'pro'),
+];
 
 void main() {
   group('SpawnSessionParams', () {
@@ -53,6 +59,8 @@ void main() {
     when(() => repository.spawn(any())).thenAnswer(
       (_) async => Result.success(GlobalResponse(data: const SessionModel(id: 's1'))),
     );
+    when(() => repository.getClaudeAccounts())
+        .thenAnswer((_) async => Result.success(GlobalResponse(data: _accounts)));
   });
 
   blocTest<SpawnCubit, SpawnState>(
@@ -105,6 +113,7 @@ void main() {
     verify: (cubit) => verifyNever(() => repository.spawn(any())),
     expect: () => [
       isA<CatalogLoadingState>(),
+      isA<CatalogReadyState>(),
       isA<CatalogReadyState>(),
       isA<CatalogReadyState>(),
       isA<SpawnValidationFailureState>(),
@@ -196,4 +205,49 @@ void main() {
       expect(params.toJson().containsKey('workspaceMode'), isFalse);
     },
   );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'loads Claude accounts with the catalog',
+    build: buildCubit,
+    act: (cubit) => cubit.loadCatalog(),
+    verify: (cubit) {
+      expect(cubit.claudeAccounts.map((a) => a.id), ['default', 'personal']);
+      expect(cubit.claudeAccountId, 'default');
+    },
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'changing the agent resets the account',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit.setClaudeAccount('personal');
+      cubit.setHarness('codex');
+    },
+    verify: (cubit) => expect(cubit.claudeAccountId, 'default'),
+  );
+
+  blocTest<SpawnCubit, SpawnState>(
+    'submits the account only for claude-code',
+    build: buildCubit,
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      cubit
+        ..setProject('p-1')
+        ..name = 'n'
+        ..prompt = 'p'
+        ..setHarness('claude-code')
+        ..setClaudeAccount('personal');
+      await cubit.submit();
+    },
+    verify: (_) {
+      final params = verify(() => repository.spawn(captureAny())).captured.single as SpawnSessionParams;
+      expect(params.claudeAccountId, 'personal');
+    },
+  );
+
+  test('SpawnSessionParams omits claudeAccountId when absent', () {
+    expect(const SpawnSessionParams(projectId: 'p').toJson().containsKey('claudeAccountId'), isFalse);
+    expect(const SpawnSessionParams(projectId: 'p', claudeAccountId: 'personal').toJson()['claudeAccountId'], 'personal');
+  });
 }

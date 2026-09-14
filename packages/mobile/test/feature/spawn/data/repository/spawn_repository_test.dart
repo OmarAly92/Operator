@@ -141,4 +141,15 @@ void main() {
       expect(result.isFailure, isTrue);
     });
   });
+
+  group('getClaudeAccounts', () {
+    test('fails fast with noNetwork when the daemon is unreachable', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
+
+      final result = await repository.getClaudeAccounts();
+
+      expect(result.isFailure, isTrue);
+      verifyNever(() => dataSource.getClaudeAccounts());
+    });
+  });
 }

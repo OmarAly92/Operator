@@ -4,6 +4,7 @@ import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/data/repository/spawn_repository.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
@@ -25,6 +26,9 @@ class SpawnCubit extends Cubit<SpawnState> {
   String prompt = '';
   bool useWorktree = false;
 
+  List<ClaudeAccountModel> claudeAccounts = const [];
+  String claudeAccountId = 'default';
+
   List<RankedAgent> get agents => rankAgents(_catalog);
 
   void setProject(String? next, {String? kind}) {
@@ -35,6 +39,12 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   void setHarness(String next) {
     harness = next;
+    claudeAccountId = 'default';
+    _bump();
+  }
+
+  void setClaudeAccount(String next) {
+    claudeAccountId = next;
     _bump();
   }
 
@@ -49,13 +59,30 @@ class SpawnCubit extends Cubit<SpawnState> {
   Future<void> loadCatalog() async {
     emit(const CatalogLoadingState());
     final result = await _repository.getAgents();
+    var catalogLoaded = false;
     result.when(
       onSuccess: (response) {
         _catalog = response.data;
         harness = _pickHarness(harness);
-        _bump();
+        catalogLoaded = true;
       },
       onFailure: (failure) => emit(CatalogFailureState(failure)),
+    );
+    if (catalogLoaded) {
+      _bump();
+      await _loadClaudeAccounts();
+    }
+  }
+
+  Future<void> _loadClaudeAccounts() async {
+    final result = await _repository.getClaudeAccounts();
+    result.when(
+      onSuccess: (response) {
+        claudeAccounts = response.data ?? const [];
+        if (!claudeAccounts.any((account) => account.id == claudeAccountId)) claudeAccountId = 'default';
+        _bump();
+      },
+      onFailure: (_) {},
     );
   }
 
@@ -89,6 +116,7 @@ class SpawnCubit extends Cubit<SpawnState> {
       issueId: name.trim(),
       harness: harness,
       workspaceMode: projectKind == 'single_repo' ? (useWorktree ? 'worktree' : 'in_place') : null,
+      claudeAccountId: harness == 'claude-code' ? claudeAccountId : null,
     ));
     TelemetryRuntime.featureUsed('spawn', succeeded: result.isSuccess);
     result.when(

@@ -95,4 +95,30 @@ void main() {
         .thenAnswer((_) async => jsonResponse({'id': 's2', 'projectId': 'p'}));
     expect((await dataSource.spawn(const SpawnSessionParams(projectId: 'p'))).data!.id, 's2');
   });
+
+  test('parses Claude accounts with status', () async {
+    when(() => apiConsumer.get(EndPoints.claudeAccounts)).thenAnswer(
+      (_) async => jsonResponse({
+        'accounts': [
+          {'id': 'default', 'label': 'Default', 'isDefault': true, 'status': {'loggedIn': true, 'subscriptionType': 'max'}},
+          {'id': 'personal', 'label': 'Personal', 'isDefault': false, 'status': {'loggedIn': false}},
+        ],
+      }),
+    );
+
+    final accounts = (await dataSource.getClaudeAccounts()).data!;
+    expect(accounts.map((a) => a.id), ['default', 'personal']);
+    expect(accounts.first.planLabel, 'Max');
+    expect(accounts.last.planLabel, 'Not logged in');
+  });
+
+  test('sends claudeAccountId when given', () async {
+    when(() => apiConsumer.post(any(), body: any(named: 'body')))
+        .thenAnswer((_) async => jsonResponse({'session': {'id': 's1', 'projectId': 'p'}}));
+
+    await dataSource.spawn(const SpawnSessionParams(projectId: 'p', harness: 'claude-code', claudeAccountId: 'personal'));
+
+    final body = verify(() => apiConsumer.post(EndPoints.sessions, body: captureAny(named: 'body'))).captured.single as Map<String, dynamic>;
+    expect(body['claudeAccountId'], 'personal');
+  });
 }

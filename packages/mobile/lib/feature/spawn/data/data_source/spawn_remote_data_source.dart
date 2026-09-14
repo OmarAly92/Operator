@@ -2,6 +2,7 @@ import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/end_points.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
+import 'package:operator_mobile/feature/spawn/data/model/claude_account_model.dart';
 import 'package:operator_mobile/feature/spawn/data/model/params/spawn_session_params.dart';
 import 'package:operator_mobile/feature/spawn/logic/agent_picker.dart';
 
@@ -9,6 +10,7 @@ abstract class SpawnRemoteDataSource {
   Future<GlobalResponse<AgentCatalog>> getAgents();
   Future<GlobalResponse<AgentCatalog>> refreshAgents();
   Future<GlobalResponse<SessionModel>> spawn(SpawnSessionParams params);
+  Future<GlobalResponse<List<ClaudeAccountModel>>> getClaudeAccounts();
 }
 
 class SpawnRemoteDataSourceImp implements SpawnRemoteDataSource {
@@ -45,6 +47,16 @@ class SpawnRemoteDataSourceImp implements SpawnRemoteDataSource {
       fromJsonT: (json) => SessionModel.fromJson(
         json['session'] as Map<String, dynamic>? ?? json,
       ),
+    );
+  }
+
+  @override
+  Future<GlobalResponse<List<ClaudeAccountModel>>> getClaudeAccounts() async {
+    final response = await _apiConsumer.get(EndPoints.claudeAccounts);
+    return GlobalResponse<List<ClaudeAccountModel>>.fromJson(
+      response.data as Map<String, dynamic>,
+      withDataKey: false,
+      fromJsonT: ClaudeAccountModel.listFromJson,
     );
   }
 }

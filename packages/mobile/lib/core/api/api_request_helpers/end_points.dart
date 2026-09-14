@@ -6,6 +6,7 @@ sealed class EndPoints {
   static const String settings = '/api/v1/settings';
   static const String agents = '/api/v1/agents';
   static const String agentsRefresh = '/api/v1/agents/refresh';
+  static const String claudeAccounts = '/api/v1/claude-accounts';
   static const String notifications = '/api/v1/notifications';
   static const String notificationsReadAll = '/api/v1/notifications/read-all';
   static const String pushDevices = '/api/v1/push/devices';
