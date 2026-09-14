@@ -114,3 +114,39 @@ func TestResolveSpawnClaudeAccount(t *testing.T) {
 		})
 	}
 }
+
+func TestSwitchTargetClaudeAccount(t *testing.T) {
+	claudeOnPersonal := domain.SessionRecord{Harness: domain.HarnessClaudeCode, ClaudeAccountID: "personal"}
+	codexSession := domain.SessionRecord{Harness: domain.HarnessCodex, ClaudeAccountID: ""}
+
+	cases := []struct {
+		name string
+		rec  domain.SessionRecord
+		cfg  SwitchAgentConfig
+		want domain.ClaudeAccountID
+		err  error
+	}{
+		{name: "claude to other account", rec: claudeOnPersonal, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessClaudeCode, TargetClaudeAccountID: "default"}, want: domain.DefaultClaudeAccountID},
+		{name: "claude same account rejected", rec: claudeOnPersonal, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessClaudeCode, TargetClaudeAccountID: "personal"}, err: ErrAlreadyUsingHarness},
+		{name: "claude omitted account rejected", rec: claudeOnPersonal, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessClaudeCode}, err: ErrAlreadyUsingHarness},
+		{name: "claude to codex keeps account", rec: claudeOnPersonal, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessCodex}, want: "personal"},
+		{name: "codex target with account rejected", rec: claudeOnPersonal, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessCodex, TargetClaudeAccountID: "default"}, err: domain.ErrInvalidClaudeAccount},
+		{name: "codex to claude on account", rec: codexSession, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessClaudeCode, TargetClaudeAccountID: "personal"}, want: "personal"},
+		{name: "codex to claude default", rec: codexSession, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessClaudeCode}, want: domain.DefaultClaudeAccountID},
+		{name: "codex to codex rejected", rec: codexSession, cfg: SwitchAgentConfig{TargetHarness: domain.HarnessCodex}, err: ErrAlreadyUsingHarness},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := switchTargetClaudeAccount(tc.rec, tc.cfg)
+			if tc.err != nil {
+				if !errors.Is(err, tc.err) {
+					t.Fatalf("err = %v, want %v", err, tc.err)
+				}
+				return
+			}
+			if err != nil || got != tc.want {
+				t.Fatalf("got %q err=%v, want %q", got, err, tc.want)
+			}
+		})
+	}
+}

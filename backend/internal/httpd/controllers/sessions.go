@@ -1158,9 +1158,10 @@ func (c *SessionsController) switchAgent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	switchRecord, err := c.Svc.SwitchAgent(r.Context(), sessionID(r), sessionsvc.SwitchAgentInput{
-		TargetHarness:  targetHarness,
-		Note:           note,
-		IdempotencyKey: idempotencyKey,
+		TargetHarness:         targetHarness,
+		TargetClaudeAccountID: domain.ClaudeAccountID(strings.TrimSpace(string(in.TargetClaudeAccountID))),
+		Note:                  note,
+		IdempotencyKey:        idempotencyKey,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -2012,6 +2013,8 @@ func agentSwitchView(s domain.AgentSwitch) AgentSwitchView {
 		SessionID:               s.SessionID,
 		FromHarness:             s.FromHarness,
 		TargetHarness:           s.TargetHarness,
+		FromClaudeAccountID:     s.FromClaudeAccountID,
+		TargetClaudeAccountID:   s.TargetClaudeAccountID,
 		TargetStartMode:         s.TargetStartMode,
 		State:                   s.State,
 		AgentHandoffStatus:      s.AgentHandoffStatus,

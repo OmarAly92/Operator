@@ -4517,6 +4517,8 @@ components:
           - delivery_failed
           - switch_failed
           type: string
+        fromClaudeAccountId:
+          type: string
         fromHarness:
           type: string
         id:
@@ -4544,6 +4546,8 @@ components:
           - delivering_context
           - completed
           - failed
+          type: string
+        targetClaudeAccountId:
           type: string
         targetHarness:
           type: string
@@ -7159,6 +7163,11 @@ components:
         note:
           description: Optional user guidance included in the bounded handoff context.
           maxLength: 4096
+          type: string
+        targetClaudeAccountId:
+          description: Claude account for a claude-code target. Omit to keep the session's
+            current account.
+          maxLength: 64
           type: string
         targetHarness:
           description: Agent harness to continue the logical Operator session with.

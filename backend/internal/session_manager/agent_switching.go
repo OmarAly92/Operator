@@ -47,9 +47,10 @@ var errSourceHandoffOwnershipChanged = errors.New("source session ownership chan
 // SwitchAgentConfig describes one deliberate, user-requested provider
 // replacement.
 type SwitchAgentConfig struct {
-	TargetHarness  domain.AgentHarness
-	Note           string
-	IdempotencyKey string
+	TargetHarness         domain.AgentHarness
+	TargetClaudeAccountID domain.ClaudeAccountID
+	Note                  string
+	IdempotencyKey        string
 }
 
 type preparedTargetActivation struct {
@@ -87,9 +88,10 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, err)
 	}
 	cfg.TargetHarness = domain.AgentHarness(strings.TrimSpace(string(cfg.TargetHarness)))
+	cfg.TargetClaudeAccountID = domain.ClaudeAccountID(strings.TrimSpace(string(cfg.TargetClaudeAccountID)))
 	cfg.Note = boundedString(strings.TrimSpace(cfg.Note), maxSwitchNoteBytes)
 	cfg.IdempotencyKey = strings.TrimSpace(cfg.IdempotencyKey)
-	requestFingerprint := domain.ComputeAgentSwitchRequestFingerprint(id, cfg.TargetHarness, "", cfg.Note)
+	requestFingerprint := domain.ComputeAgentSwitchRequestFingerprint(id, cfg.TargetHarness, cfg.TargetClaudeAccountID, cfg.Note)
 	if cfg.IdempotencyKey != "" {
 		if existing, ok, err := store.GetAgentSwitchByIdempotencyKey(ctx, id, cfg.IdempotencyKey); err != nil {
 			return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: idempotency lookup: %w", id, err)
@@ -183,8 +185,14 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 	if !switchHarnessSupported(rec.Harness) || !switchHarnessSupported(cfg.TargetHarness) {
 		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w: supported harnesses are claude-code and codex", id, ErrUnsupportedSwitchHarness)
 	}
-	if rec.Harness == cfg.TargetHarness {
-		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w: %s", id, ErrAlreadyUsingHarness, cfg.TargetHarness)
+	targetClaudeAccount, err := switchTargetClaudeAccount(rec, cfg)
+	if err != nil {
+		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, err)
+	}
+	if m.claudeAccounts != nil && cfg.TargetHarness == domain.HarnessClaudeCode {
+		if err := m.checkClaudeAccount(ctx, targetClaudeAccount); err != nil {
+			return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: %w", id, err)
+		}
 	}
 
 	project, err := m.loadProject(ctx, rec.ProjectID)
@@ -228,7 +236,9 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 		IdempotencyKey:         cfg.IdempotencyKey,
 		RequestFingerprint:     requestFingerprint,
 		FromHarness:            rec.Harness,
+		FromClaudeAccountID:    domain.NormalizeClaudeAccountID(rec.ClaudeAccountID),
 		TargetHarness:          cfg.TargetHarness,
+		TargetClaudeAccountID:  targetClaudeAccount,
 		State:                  domain.AgentSwitchPreparingHandoff,
 		AgentHandoffStatus:     domain.AgentHandoffNotAttempted,
 		SourceTranscriptStatus: domain.AgentSwitchSourceTranscriptNotAttempted,
@@ -553,6 +563,8 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 		TargetGenerationID:            target.launchID,
 		RuntimeHandleID:               handle.ID,
 		ActivatedAt:                   activatedAt,
+		SourceClaudeAccountID:         result.FromClaudeAccountID,
+		TargetClaudeAccountID:         result.TargetClaudeAccountID,
 	}
 	activated, activationErr := m.lcm.ActivateAgentSwitchTarget(ctx, activation)
 	if activationErr != nil || !activated {
@@ -742,7 +754,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
 	}
 	config := effectiveAgentConfig(rec.Kind, project.Config)
-	env, err := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
+	env, err := m.runtimeEnv(ctx, rec, sw.TargetClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("target env: %w", err)
 	}
@@ -2536,7 +2548,7 @@ func (m *Manager) cleanupRecoveredTargetWorkspace(ctx context.Context, rec domai
 	if err != nil {
 		return fmt.Errorf("agent switch recovery: load project for target workspace cleanup: %w", err)
 	}
-	env, err := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
+	env, err := m.runtimeEnv(ctx, rec, sw.TargetClaudeAccountID, project.Config.Env)
 	if err != nil {
 		return fmt.Errorf("agent switch recovery: target env: %w", err)
 	}
@@ -2694,6 +2706,8 @@ func (m *Manager) reconcileStartingTarget(ctx context.Context, store ports.Agent
 		TargetGenerationID:            sw.TargetGenerationID,
 		RuntimeHandleID:               handle.ID,
 		ActivatedAt:                   m.clock(),
+		SourceClaudeAccountID:         sw.FromClaudeAccountID,
+		TargetClaudeAccountID:         sw.TargetClaudeAccountID,
 	})
 	if err != nil {
 		return false, err

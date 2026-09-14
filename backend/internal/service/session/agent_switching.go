@@ -11,17 +11,19 @@ import (
 // SwitchAgentInput is the controller-facing command for replacing the active
 // provider while retaining the logical Operator session.
 type SwitchAgentInput struct {
-	TargetHarness  domain.AgentHarness
-	Note           string
-	IdempotencyKey string
+	TargetHarness         domain.AgentHarness
+	TargetClaudeAccountID domain.ClaudeAccountID
+	Note                  string
+	IdempotencyKey        string
 }
 
 // SwitchAgent starts or resumes a durable agent-switch saga for a session.
 func (s *Service) SwitchAgent(ctx context.Context, id domain.SessionID, in SwitchAgentInput) (domain.AgentSwitch, error) {
 	switchRecord, err := s.manager.SwitchAgent(ctx, id, sessionmanager.SwitchAgentConfig{
-		TargetHarness:  in.TargetHarness,
-		Note:           in.Note,
-		IdempotencyKey: in.IdempotencyKey,
+		TargetHarness:         in.TargetHarness,
+		TargetClaudeAccountID: in.TargetClaudeAccountID,
+		Note:                  in.Note,
+		IdempotencyKey:        in.IdempotencyKey,
 	})
 	return switchRecord, toAPIError(err)
 }

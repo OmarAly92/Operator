@@ -251,9 +251,10 @@ type SpawnSessionResponse struct {
 
 // SwitchAgentRequest is the body of POST /api/v1/sessions/{sessionId}/switch-agent.
 type SwitchAgentRequest struct {
-	TargetHarness  domain.AgentHarness `json:"targetHarness" enum:"claude-code,codex" description:"Agent harness to continue the logical Operator session with."`
-	Note           string              `json:"note,omitempty" maxLength:"4096" description:"Optional user guidance included in the bounded handoff context."`
-	IdempotencyKey string              `json:"idempotencyKey,omitempty" maxLength:"128" description:"Optional retry key. Reusing it with a different request is rejected."`
+	TargetHarness         domain.AgentHarness    `json:"targetHarness" enum:"claude-code,codex" description:"Agent harness to continue the logical Operator session with."`
+	TargetClaudeAccountID domain.ClaudeAccountID `json:"targetClaudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code target. Omit to keep the session's current account."`
+	Note                  string                 `json:"note,omitempty" maxLength:"4096" description:"Optional user guidance included in the bounded handoff context."`
+	IdempotencyKey        string                 `json:"idempotencyKey,omitempty" maxLength:"128" description:"Optional retry key. Reusing it with a different request is rejected."`
 }
 
 // AgentSwitchView is the deliberately small public projection of a durable
@@ -264,6 +265,8 @@ type AgentSwitchView struct {
 	SessionID               domain.SessionID                         `json:"sessionId"`
 	FromHarness             domain.AgentHarness                      `json:"fromHarness"`
 	TargetHarness           domain.AgentHarness                      `json:"targetHarness"`
+	FromClaudeAccountID     domain.ClaudeAccountID                   `json:"fromClaudeAccountId,omitempty"`
+	TargetClaudeAccountID   domain.ClaudeAccountID                   `json:"targetClaudeAccountId,omitempty"`
 	TargetStartMode         domain.AgentSwitchTargetStartMode        `json:"targetStartMode,omitempty" enum:"fresh,resumed"`
 	State                   domain.AgentSwitchState                  `json:"state" enum:"preparing_handoff,stopping_source,source_stopped,starting_target,target_ready,delivering_context,completed,failed"`
 	AgentHandoffStatus      domain.AgentHandoffStatus                `json:"agentHandoffStatus" enum:"not_attempted,requested,received,unavailable,timed_out,failed,rejected"`

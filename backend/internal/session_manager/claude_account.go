@@ -44,6 +44,27 @@ func (m *Manager) resolveSpawnClaudeAccount(ctx context.Context, cfg ports.Spawn
 	return domain.DefaultClaudeAccountID, nil
 }
 
+func switchTargetClaudeAccount(rec domain.SessionRecord, cfg SwitchAgentConfig) (domain.ClaudeAccountID, error) {
+	current := domain.NormalizeClaudeAccountID(rec.ClaudeAccountID)
+	if cfg.TargetHarness != domain.HarnessClaudeCode {
+		if cfg.TargetClaudeAccountID != "" {
+			return "", fmt.Errorf("%w: only a claude-code target takes an account", domain.ErrInvalidClaudeAccount)
+		}
+		if rec.Harness == cfg.TargetHarness {
+			return "", fmt.Errorf("%w: %s", ErrAlreadyUsingHarness, cfg.TargetHarness)
+		}
+		return current, nil
+	}
+	target := current
+	if cfg.TargetClaudeAccountID != "" {
+		target = cfg.TargetClaudeAccountID
+	}
+	if rec.Harness == domain.HarnessClaudeCode && target == current {
+		return "", fmt.Errorf("%w: %s on account %s", ErrAlreadyUsingHarness, cfg.TargetHarness, target)
+	}
+	return target, nil
+}
+
 func (m *Manager) checkClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) error {
 	if m.claudeAccounts == nil {
 		return nil
