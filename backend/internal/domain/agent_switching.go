@@ -29,10 +29,10 @@ const agentSwitchRequestFingerprintPrefix = "v1:"
 // way as the switch entry point before it is hashed.
 func ComputeAgentSwitchRequestFingerprint(sessionID SessionID, targetHarness AgentHarness, targetAccount ClaudeAccountID, note string) AgentSwitchRequestFingerprint {
 	payload, _ := json.Marshal(struct {
-		SessionID     SessionID       `json:"sessionId"`
-		TargetHarness AgentHarness    `json:"targetHarness"`
-		TargetAccount string          `json:"targetAccount"`
-		Note          string          `json:"note"`
+		SessionID     SessionID    `json:"sessionId"`
+		TargetHarness AgentHarness `json:"targetHarness"`
+		TargetAccount string       `json:"targetAccount"`
+		Note          string       `json:"note"`
 	}{
 		SessionID:     sessionID,
 		TargetHarness: targetHarness,
