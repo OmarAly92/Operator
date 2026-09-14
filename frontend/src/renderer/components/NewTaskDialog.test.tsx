@@ -26,6 +26,7 @@ vi.mock("../lib/api-client", () => ({
 		typeof error === "object" && error !== null && "code" in error
 			? String((error as { code: unknown }).code)
 			: undefined,
+	hasTrustedApiBaseUrl: () => true,
 }));
 
 function renderDialog() {
@@ -132,6 +133,7 @@ describe("NewTaskDialog", () => {
 				// call names it instead of relying on a server-side fallback.
 				agent: "claude-code",
 				model: "placeholder-model",
+				claudeAccountId: "default",
 			},
 		});
 		expect(requestBody()).not.toHaveProperty("issueId");

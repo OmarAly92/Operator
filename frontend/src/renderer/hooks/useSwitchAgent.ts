@@ -10,6 +10,7 @@ export type SwitchAgentHarness = components["schemas"]["SwitchAgentRequest"]["ta
 export type SwitchAgentInput = {
 	session: WorkspaceSession;
 	targetHarness: SwitchAgentHarness;
+	targetClaudeAccountId?: string;
 	note: string;
 	idempotencyKey: string;
 };
@@ -80,14 +81,16 @@ export function useSwitchAgent() {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationKey: switchAgentMutationKey,
-		mutationFn: async ({ session, targetHarness, note, idempotencyKey }: SwitchAgentInput) => {
+		mutationFn: async ({ session, targetHarness, targetClaudeAccountId, note, idempotencyKey }: SwitchAgentInput) => {
 			const body: {
 				targetHarness: SwitchAgentHarness;
 				note?: string;
 				idempotencyKey: string;
+				targetClaudeAccountId?: string;
 			} = { targetHarness, idempotencyKey };
 			const normalizedNote = note.trim();
 			if (normalizedNote) body.note = normalizedNote;
+			if (targetClaudeAccountId) body.targetClaudeAccountId = targetClaudeAccountId;
 
 			const { data, error, response } = await apiClient.POST(
 				"/api/v1/sessions/{sessionId}/switch-agent",

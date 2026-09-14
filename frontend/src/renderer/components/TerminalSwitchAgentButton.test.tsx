@@ -25,6 +25,7 @@ vi.mock("../lib/api-client", () => ({
 		}
 		return fallback;
 	},
+	hasTrustedApiBaseUrl: () => true,
 }));
 
 const worker: WorkspaceSession = {

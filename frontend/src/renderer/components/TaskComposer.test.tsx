@@ -49,6 +49,7 @@ vi.mock("../lib/api-client", () => ({
 	},
 	apiErrorCode: (error: { code?: string }) => error?.code,
 	apiErrorMessage: (_e: unknown, fallback = "err") => fallback,
+	hasTrustedApiBaseUrl: () => true,
 }));
 
 vi.mock("../lib/telemetry", () => ({ captureRendererEvent: h.capture }));
@@ -629,5 +630,47 @@ describe("TaskComposer", () => {
 
 		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex"));
 		expect(screen.queryByRole("checkbox", { name: /worktree/i })).not.toBeInTheDocument();
+	});
+
+	it("hides the account chip for non-Claude agents", async () => {
+		renderComposer();
+		expect(await screen.findByRole("group", { name: "Runs with" })).toBeInTheDocument();
+		expect(screen.queryByRole("combobox", { name: "Account" })).toBeNull();
+	});
+
+	it("sends the chosen Claude account with the delegate request", async () => {
+		const onCreated = vi.fn();
+		h.get.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/claude-accounts") {
+				return {
+					data: {
+						accounts: [
+							{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
+							{ id: "personal", label: "Personal", configDir: "/Users/u/.claude-personal", isDefault: false, status: { loggedIn: true, subscriptionType: "pro" }, sharedSetup: {} },
+						],
+					},
+				};
+			}
+			if (path.includes("/models")) {
+				return { data: { agent: "claude-code", selectionMode: "text", models: [], allowCustom: true, refreshRecommended: false } };
+			}
+			return { data: { status: "ok", project: { kind: "single_repo", agent: "claude-code", config: {} } } };
+		});
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-acct" } });
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={onCreated} />
+			</Wrap>,
+		);
+		const accountSelect = await screen.findByRole("combobox", { name: "Account" });
+		await userEvent.click(accountSelect);
+		await userEvent.click(await screen.findByRole("option", { name: "Personal · Pro" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Start task" }));
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ agent: "claude-code", claudeAccountId: "personal" }) }),
+			),
+		);
 	});
 });

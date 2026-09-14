@@ -1,6 +1,6 @@
 import { ArrowLeftRight, FileWarning, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	createSwitchAgentIdempotencyKey,
@@ -16,10 +16,12 @@ import {
 	type AgentSwitch,
 	useAgentSwitches,
 } from "../hooks/useAgentSwitches";
+import { useClaudeAccounts } from "../hooks/useClaudeAccounts";
 import { agentSwitchErrorLabelKeys, type AgentSwitchErrorCode } from "../i18n/key-maps";
 import { AGENT_LABELS, AGENT_OPTIONS, agentLabel } from "../lib/agent-options";
 import type { WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
+import { ClaudeAccountSelect, useClaudeAccountAgentLabel } from "./ClaudeAccountSelect";
 import {
 	Dialog,
 	DialogClose,
@@ -84,9 +86,24 @@ export function SwitchAgentDialog({
 	const noteId = useId();
 	const targetId = useId();
 	const historyId = useId();
-	const defaultTargetHarness: SwitchAgentHarness = session.provider === "claude-code" ? "codex" : "claude-code";
+	const claudeAccounts = useClaudeAccounts().data ?? [];
+	const currentAccountId = session.claudeAccountId ?? "default";
+	const otherAccount = claudeAccounts.find((account) => account.id !== currentAccountId);
+	const sessionOnClaude = session.provider === "claude-code";
+	const defaultTargetHarness: SwitchAgentHarness = sessionOnClaude && !otherAccount ? "codex" : "claude-code";
 	const [targetHarness, setTargetHarness] = useState<SwitchAgentHarness>(defaultTargetHarness);
+	const [targetAccountId, setTargetAccountId] = useState<string>(sessionOnClaude ? (otherAccount?.id ?? currentAccountId) : currentAccountId);
+	const accountId = useId();
+	const accountMatchesCurrent = sessionOnClaude && targetHarness === "claude-code" && targetAccountId === currentAccountId;
+	const currentAgentLabel = useClaudeAccountAgentLabel(session, agentLabel(session.provider));
 	const [note, setNote] = useState("");
+
+	useEffect(() => {
+		if (sessionOnClaude && targetAccountId === currentAccountId && otherAccount) {
+			setTargetHarness("claude-code");
+			setTargetAccountId(otherAccount.id);
+		}
+	}, [sessionOnClaude, targetAccountId, currentAccountId, otherAccount]);
 	const switchAgent = useSwitchAgent();
 	const switchMutation = useSwitchAgentState(session.id);
 	const switchesQuery = useAgentSwitches(session.id);
@@ -107,10 +124,11 @@ export function SwitchAgentDialog({
 	};
 
 	const submit = () => {
-		if (switchMutation.isPending || checkingStatus || activeSwitch || recoverySwitch) return;
+		if (switchMutation.isPending || checkingStatus || activeSwitch || recoverySwitch || accountMatchesCurrent) return;
 		switchAgent.mutate({
 			session,
 			targetHarness,
+			targetClaudeAccountId: targetHarness === "claude-code" ? targetAccountId : undefined,
 			note,
 			idempotencyKey: createSwitchAgentIdempotencyKey(),
 		});
@@ -153,7 +171,7 @@ export function SwitchAgentDialog({
 					<div className={settingsDialogHeaderClass}>
 						<DialogTitle className="settings-dialog-title">{t("switchAgent.title")}</DialogTitle>
 						<DialogDescription className="text-control leading-4 text-settings-muted">
-							{t("switchAgent.description", { current: agentLabel(session.provider) })}
+							{t("switchAgent.description", { current: currentAgentLabel })}
 						</DialogDescription>
 					</div>
 
@@ -202,7 +220,7 @@ export function SwitchAgentDialog({
 									</label>
 									<Select
 										onValueChange={(value) => {
-											if (!canSwitchAgentHarness(value) || value === session.provider) return;
+											if (!canSwitchAgentHarness(value)) return;
 											clearFailedAttempt();
 											setTargetHarness(value);
 										}}
@@ -218,7 +236,9 @@ export function SwitchAgentDialog({
 										>
 											{ALL_SWITCH_AGENT_OPTIONS.map((option) => {
 												const supported = canSwitchAgentHarness(option.value);
-												const current = option.value === session.provider;
+												const current =
+													option.value === session.provider &&
+													!(option.value === "claude-code" && claudeAccounts.length > 1);
 												return (
 													<SelectItem
 														className="[&>span:last-child]:w-full"
@@ -251,6 +271,26 @@ export function SwitchAgentDialog({
 										</SelectContent>
 									</Select>
 								</div>
+
+								{targetHarness === "claude-code" && claudeAccounts.length > 1 ? (
+									<div className="flex flex-col gap-1.5">
+										<label className="settings-field-label" htmlFor={accountId}>
+											{t("switchAgent.accountLabel")}
+										</label>
+										<ClaudeAccountSelect
+											id={accountId}
+											ariaLabel={t("switchAgent.accountLabel")}
+											value={targetAccountId}
+											onChange={(value) => {
+												clearFailedAttempt();
+												setTargetAccountId(value);
+											}}
+											accounts={claudeAccounts}
+											excludeId={sessionOnClaude ? currentAccountId : undefined}
+											triggerClassName="settings-field-control w-full"
+										/>
+									</div>
+								) : null}
 
 								<div className="flex flex-col items-start gap-1.5">
 									<label className="settings-field-label" htmlFor={noteId}>
@@ -318,7 +358,7 @@ export function SwitchAgentDialog({
 								{switchBlocked ? t("switchAgent.closeButton") : t("confirm.cancel")}
 							</button>
 						</DialogClose>
-						{!switchBlocked ? (
+						{!switchBlocked && !accountMatchesCurrent ? (
 							<button
 								className="settings-footer-button settings-footer-button-primary"
 								type="submit"

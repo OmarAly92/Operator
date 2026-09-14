@@ -29,6 +29,8 @@ import {
 } from "../hooks/useAgentModelsQuery";
 import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
+import { ClaudeAccountSelect } from "./ClaudeAccountSelect";
+import { useClaudeAccounts } from "../hooks/useClaudeAccounts";
 
 type Project = components["schemas"]["Project"];
 type DelegateAgent = components["schemas"]["DelegateTaskRequest"]["agent"];
@@ -40,6 +42,7 @@ type CreateTaskInput = {
 	model?: string;
 	attachments?: FileAttachmentPayload[];
 	workspaceMode?: "worktree" | "in_place";
+	claudeAccountId?: string;
 };
 
 export type TaskComposerProps = {
@@ -71,6 +74,9 @@ export function TaskComposer({
 	const [agentTouched, setAgentTouched] = useState(false);
 	const [useWorktree, setUseWorktree] = useState(false);
 	const [modelTouched, setModelTouched] = useState(false);
+	const [claudeAccount, setClaudeAccount] = useState("default");
+	const claudeAccountSelectId = useId();
+	const claudeAccountsQuery = useClaudeAccounts();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | undefined>();
 	const [modelWarning, setModelWarning] = useState<string | undefined>();
@@ -94,6 +100,7 @@ export function TaskComposer({
 						agent: input.agent,
 						model: input.model,
 						workspaceMode: input.workspaceMode,
+						claudeAccountId: input.claudeAccountId,
 						...paneGridBody(),
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
@@ -206,6 +213,7 @@ export function TaskComposer({
 				model: requestedModel,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 				workspaceMode: canChooseWorktree ? (useWorktree ? "worktree" : "in_place") : undefined,
+				claudeAccountId: selectedAgent === "claude-code" ? claudeAccount : undefined,
 			});
 			onCreated(sessionId);
 		} catch (err) {
@@ -349,6 +357,7 @@ export function TaskComposer({
 								setModel("");
 								setMode("");
 								setModelTouched(false);
+								setClaudeAccount("default");
 							}}
 						/>
 					</div>
@@ -374,6 +383,21 @@ export function TaskComposer({
 							}}
 						/>
 					</div>
+					{selectedAgent === "claude-code" && (claudeAccountsQuery.data?.length ?? 0) > 1 ? (
+						<>
+							<span className="composer-toolbar-divider" aria-hidden="true" />
+							<div className="composer-toolbar-slot">
+								<ClaudeAccountSelect
+									id={claudeAccountSelectId}
+									ariaLabel={t("newTask.account")}
+									value={claudeAccount}
+									onChange={setClaudeAccount}
+									accounts={claudeAccountsQuery.data ?? []}
+									triggerClassName="composer-toolbar-option w-full justify-between"
+								/>
+							</div>
+						</>
+					) : null}
 				</div>
 				{canChooseWorktree && (
 					<label htmlFor={worktreeId} className="flex items-center gap-1.5 text-caption text-muted-foreground">

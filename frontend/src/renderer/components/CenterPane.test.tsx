@@ -34,6 +34,11 @@ vi.mock("../hooks/useRelaunchAgent", () => ({
 	useRelaunchAgentPending: () => relaunchMocks.isPending,
 }));
 
+vi.mock("../hooks/useClaudeAccounts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../hooks/useClaudeAccounts")>();
+	return { ...actual, useClaudeAccounts: () => ({ data: [] }) };
+});
+
 vi.mock("./TerminalSwitchAgentButton", () => ({
 	TerminalSwitchAgentButton: ({ session }: { session: WorkspaceSession }) => (
 		<button aria-label="Switch agent" data-testid="terminal-switch-agent" type="button">

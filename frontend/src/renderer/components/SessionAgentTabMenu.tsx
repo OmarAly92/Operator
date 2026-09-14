@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useRelaunchAgent, useRelaunchAgentPending } from "../hooks/useRelaunchAgent";
 import { agentLabel } from "../lib/agent-options";
 import type { WorkspaceSession } from "../types/workspace";
+import { useClaudeAccountAgentLabel } from "./ClaudeAccountSelect";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./ui/context-menu";
 
@@ -26,7 +27,7 @@ export function SessionAgentTabMenu({ session, children }: SessionAgentTabMenuPr
 	const [error, setError] = useState<string | null>(null);
 
 	const disabled = Boolean(session.isTerminated) || isPending;
-	const agent = agentLabel(session.provider);
+	const agent = useClaudeAccountAgentLabel(session, agentLabel(session.provider));
 
 	const open = (mode: "cleared" | "task") => {
 		setError(null);
