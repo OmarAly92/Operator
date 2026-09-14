@@ -1273,6 +1273,47 @@ type ShellTerminalEnvelope struct {
 	ShellTerminal ShellTerminalResponse `json:"shellTerminal"`
 }
 
+type ClaudeAccountIDParam struct {
+	AccountID string `path:"accountId" description:"Claude account identifier."`
+}
+
+type ClaudeAccountStatus struct {
+	LoggedIn         *bool      `json:"loggedIn"`
+	SubscriptionType string     `json:"subscriptionType,omitempty"`
+	ReportedEmail    string     `json:"reportedEmail,omitempty"`
+	CheckedAt        *time.Time `json:"checkedAt,omitempty"`
+}
+
+type ClaudeAccountView struct {
+	ID          domain.ClaudeAccountID `json:"id"`
+	Label       string                 `json:"label"`
+	ConfigDir   string                 `json:"configDir"`
+	IsDefault   bool                   `json:"isDefault"`
+	Status      ClaudeAccountStatus    `json:"status"`
+	SharedSetup map[string]string      `json:"sharedSetup"`
+}
+
+type ListClaudeAccountsResponse struct {
+	Accounts []ClaudeAccountView `json:"accounts"`
+}
+
+type ClaudeAccountEnvelope struct {
+	Account ClaudeAccountView `json:"account"`
+}
+
+type CreateClaudeAccountRequest struct {
+	Label string `json:"label" maxLength:"32"`
+}
+
+type RenameClaudeAccountRequest struct {
+	Label string `json:"label" maxLength:"32"`
+}
+
+type ClaudeAccountLoginRequest struct {
+	Cols int `json:"cols,omitempty" minimum:"1" maximum:"1000"`
+	Rows int `json:"rows,omitempty" minimum:"1" maximum:"1000"`
+}
+
 // MarkAllNotificationsReadRequest is the optional body of
 // POST /api/v1/notifications/read-all.
 type MarkAllNotificationsReadRequest struct {

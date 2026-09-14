@@ -34,6 +34,33 @@ func TestOpenShellTerminalWithNoSessionOrProjectUsesDataDir(t *testing.T) {
 	}
 }
 
+func TestOpenShellTerminalUsesExplicitArgvEnvAndTitle(t *testing.T) {
+	rt := newFakeShellRuntime()
+	st := &fakeShellTerminalStore{}
+	svc := newTestService(t, rt, st, &fakeProjectRootLocator{})
+	term, err := svc.OpenShellTerminal(context.Background(), OpenShellTerminalInput{
+		Argv:  []string{"/usr/local/bin/claude"},
+		Env:   map[string]string{"CLAUDE_CONFIG_DIR": "/Users/u/.claude-personal"},
+		Title: "Claude login · Personal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.created) != 1 {
+		t.Fatalf("created = %d runtimes, want 1", len(rt.created))
+	}
+	got := rt.created[0]
+	if len(got.Argv) != 1 || got.Argv[0] != "/usr/local/bin/claude" {
+		t.Fatalf("argv = %v", got.Argv)
+	}
+	if got.Env["CLAUDE_CONFIG_DIR"] != "/Users/u/.claude-personal" || got.Env["OPERATOR_TERMINAL_ID"] == "" {
+		t.Fatalf("env = %v", got.Env)
+	}
+	if term.Title != "Claude login · Personal" {
+		t.Fatalf("title = %q", term.Title)
+	}
+}
+
 // A session shell must land in the session's OWN tree. The locator returns one
 // path per session — the worktree for a worktree session, the project checkout
 // for an in-place one — so this covers both modes.

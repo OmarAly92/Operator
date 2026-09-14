@@ -50,6 +50,7 @@ type APIDeps struct {
 	Import              controllers.ImportService
 	ShellTerminals      controllers.ShellTerminalService
 	ShellTerminalBlocks controllers.ShellTerminalBlockHistory
+	ClaudeAccounts      controllers.ClaudeAccountService
 	// Settings is the daemon-owned preference surface.
 	Settings controllers.SettingsService
 	// DesktopPreview records the external preview-open acknowledgements sent by
@@ -72,22 +73,23 @@ type APIDeps struct {
 // API owns one controller per resource and is the single Register call the
 // router invokes to mount the /api/v1 surface.
 type API struct {
-	cfg           config.Config
-	agents        *controllers.AgentsController
-	projects      *controllers.ProjectsController
-	sessions      *controllers.SessionsController
-	usage         *controllers.UsageController
-	prs           *controllers.PRsController
-	reviews       *controllers.ReviewsController
-	notifications *controllers.NotificationsController
-	push          *controllers.PushController
-	imports       *controllers.ImportController
-	shellTerms    *controllers.ShellTerminalsController
-	settings      *controllers.SettingsController
-	dev           *controllers.DevController
-	browser       *controllers.BrowserController
-	events        *EventsController
-	inbox         *controllers.InboxController
+	cfg            config.Config
+	agents         *controllers.AgentsController
+	projects       *controllers.ProjectsController
+	sessions       *controllers.SessionsController
+	usage          *controllers.UsageController
+	prs            *controllers.PRsController
+	reviews        *controllers.ReviewsController
+	notifications  *controllers.NotificationsController
+	push           *controllers.PushController
+	imports        *controllers.ImportController
+	shellTerms     *controllers.ShellTerminalsController
+	claudeAccounts *controllers.ClaudeAccountsController
+	settings       *controllers.SettingsController
+	dev            *controllers.DevController
+	browser        *controllers.BrowserController
+	events         *EventsController
+	inbox          *controllers.InboxController
 }
 
 // NewAPI constructs the API surface from its dependencies. cfg carries the
@@ -112,18 +114,19 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 			PreviewServer: deps.PreviewServer,
 			Capabilities:  deps.SessionCapabilities,
 		},
-		usage:         &controllers.UsageController{Svc: deps.UsageSummary},
-		prs:           &controllers.PRsController{Svc: deps.PRs},
-		reviews:       &controllers.ReviewsController{Svc: deps.Reviews},
-		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
-		push:          &controllers.PushController{Registry: deps.Push},
-		imports:       &controllers.ImportController{Svc: deps.Import},
-		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
-		settings:      &controllers.SettingsController{Svc: deps.Settings},
-		dev:           &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
-		browser:       &controllers.BrowserController{Svc: deps.Browser},
-		events:        &EventsController{Source: deps.CDC, Live: deps.Events},
-		inbox:         &controllers.InboxController{Events: deps.Inbox, Sessions: deps.InboxSessions},
+		usage:          &controllers.UsageController{Svc: deps.UsageSummary},
+		prs:            &controllers.PRsController{Svc: deps.PRs},
+		reviews:        &controllers.ReviewsController{Svc: deps.Reviews},
+		notifications:  &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
+		push:           &controllers.PushController{Registry: deps.Push},
+		imports:        &controllers.ImportController{Svc: deps.Import},
+		shellTerms:     &controllers.ShellTerminalsController{Svc: deps.ShellTerminals, Blocks: deps.ShellTerminalBlocks},
+		claudeAccounts: &controllers.ClaudeAccountsController{Svc: deps.ClaudeAccounts, Terminals: deps.ShellTerminals},
+		settings:       &controllers.SettingsController{Svc: deps.Settings},
+		dev:            &controllers.DevController{Import: deps.DevImport, Scan: deps.DevScan, Replay: deps.DevBlockReplay},
+		browser:        &controllers.BrowserController{Svc: deps.Browser},
+		events:         &EventsController{Source: deps.CDC, Live: deps.Events},
+		inbox:          &controllers.InboxController{Events: deps.Inbox, Sessions: deps.InboxSessions},
 	}
 }
 
@@ -156,6 +159,7 @@ func (a *API) Register(root chi.Router) {
 			a.imports.Register(r)
 			a.shellTerms.Register(r)
 			a.settings.Register(r)
+			a.claudeAccounts.Register(r)
 			a.dev.Register(r)
 			a.browser.Register(r)
 			a.inbox.Register(r)

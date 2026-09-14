@@ -336,6 +336,245 @@ paths:
       summary: Check whether the desktop browser runtime is connected for a session
       tags:
       - browser
+  /api/v1/claude-accounts:
+    get:
+      operationId: listClaudeAccounts
+      parameters:
+      - description: Set to 1 to bypass the 30-second login status cache.
+        in: query
+        name: refresh
+        schema:
+          description: Set to 1 to bypass the 30-second login status cache.
+          maximum: 1
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListClaudeAccountsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List Claude accounts, default first, with login status and shared setup
+        state
+      tags:
+      - claudeAccounts
+    post:
+      operationId: createClaudeAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClaudeAccountRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaudeAccountEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Add a Claude account folder at ~/.claude-<name> and link the shared
+        setup
+      tags:
+      - claudeAccounts
+  /api/v1/claude-accounts/{accountId}:
+    delete:
+      operationId: deleteClaudeAccount
+      parameters:
+      - description: Claude account identifier.
+        in: path
+        name: accountId
+        required: true
+        schema:
+          description: Claude account identifier.
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Unregister a Claude account; its folder stays on disk
+      tags:
+      - claudeAccounts
+    patch:
+      operationId: renameClaudeAccount
+      parameters:
+      - description: Claude account identifier.
+        in: path
+        name: accountId
+        required: true
+        schema:
+          description: Claude account identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameClaudeAccountRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaudeAccountEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Rename a Claude account label; the folder never changes
+      tags:
+      - claudeAccounts
+  /api/v1/claude-accounts/{accountId}/login:
+    post:
+      operationId: loginClaudeAccount
+      parameters:
+      - description: Claude account identifier.
+        in: path
+        name: accountId
+        required: true
+        schema:
+          description: Claude account identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaudeAccountLoginRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShellTerminalEnvelope'
+          description: Created
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Open a terminal running Claude against the account folder for /login
+      tags:
+      - claudeAccounts
+  /api/v1/claude-accounts/{accountId}/relink:
+    post:
+      operationId: relinkClaudeAccount
+      parameters:
+      - description: Claude account identifier.
+        in: path
+        name: accountId
+        required: true
+        schema:
+          description: Claude account identifier.
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Back up files that replaced shared setup links, then re-link them
+      tags:
+      - claudeAccounts
   /api/v1/dev/ancestor-repository:
     post:
       operationId: findDevAncestorRepository
@@ -4733,6 +4972,68 @@ components:
       - branchChanged
       - takenOverFrom
       type: object
+    ClaudeAccountEnvelope:
+      properties:
+        account:
+          $ref: '#/components/schemas/ClaudeAccountView'
+      required:
+      - account
+      type: object
+    ClaudeAccountLoginRequest:
+      properties:
+        cols:
+          maximum: 1000
+          minimum: 1
+          type: integer
+        rows:
+          maximum: 1000
+          minimum: 1
+          type: integer
+      type: object
+    ClaudeAccountStatus:
+      properties:
+        checkedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        loggedIn:
+          type:
+          - "null"
+          - boolean
+        reportedEmail:
+          type: string
+        subscriptionType:
+          type: string
+      required:
+      - loggedIn
+      type: object
+    ClaudeAccountView:
+      properties:
+        configDir:
+          type: string
+        id:
+          type: string
+        isDefault:
+          type: boolean
+        label:
+          type: string
+        sharedSetup:
+          additionalProperties:
+            type: string
+          type:
+          - object
+          - "null"
+        status:
+          $ref: '#/components/schemas/ClaudeAccountStatus'
+      required:
+      - id
+      - label
+      - configDir
+      - isDefault
+      - status
+      - sharedSetup
+      type: object
     CleanupSessionsResponse:
       properties:
         cleaned:
@@ -5040,6 +5341,14 @@ components:
       - isPinned
       - status
       - prs
+      type: object
+    CreateClaudeAccountRequest:
+      properties:
+        label:
+          maxLength: 32
+          type: string
+      required:
+      - label
       type: object
     DegradedProject:
       properties:
@@ -5475,6 +5784,15 @@ components:
       - supported
       - installed
       - authorized
+      type: object
+    ListClaudeAccountsResponse:
+      properties:
+        accounts:
+          items:
+            $ref: '#/components/schemas/ClaudeAccountView'
+          type: array
+      required:
+      - accounts
       type: object
     ListCompactSessionUsageResponse:
       properties:
@@ -6126,6 +6444,14 @@ components:
       required:
       - projectId
       - removedStorageDir
+      type: object
+    RenameClaudeAccountRequest:
+      properties:
+        label:
+          maxLength: 32
+          type: string
+      required:
+      - label
       type: object
     RenameSessionRequest:
       properties:
@@ -7659,3 +7985,5 @@ tags:
   name: browser
 - description: Per-project orchestrator inbox of pending worker/CI/review events
   name: inbox
+- description: 'Claude account folders: creation, login, relink, and status'
+  name: claudeAccounts

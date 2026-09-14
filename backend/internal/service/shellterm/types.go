@@ -16,6 +16,7 @@ package shellterm
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/OmarAly92/operator/backend/internal/domain"
@@ -46,10 +47,13 @@ type ShellTerminal struct {
 // dir instead of a project root, which is what the topbar action does when no
 // project is selected.
 type OpenShellTerminalInput struct {
-	ProjectID domain.ProjectID `json:"projectId,omitempty"`
-	SessionID domain.SessionID `json:"sessionId,omitempty"`
-	Cols      int              `json:"cols,omitempty"`
-	Rows      int              `json:"rows,omitempty"`
+	ProjectID domain.ProjectID  `json:"projectId,omitempty"`
+	SessionID domain.SessionID  `json:"sessionId,omitempty"`
+	Cols      int               `json:"cols,omitempty"`
+	Rows      int               `json:"rows,omitempty"`
+	Argv      []string          `json:"-"`
+	Env       map[string]string `json:"-"`
+	Title     string            `json:"-"`
 }
 
 // shellTerminalTitle labels a tab by the directory the shell started in, which
@@ -63,4 +67,11 @@ func shellTerminalTitle(workingDir string) string {
 		return "Shell"
 	}
 	return base
+}
+
+func shellTerminalTitleOr(title, workingDir string) string {
+	if strings.TrimSpace(title) != "" {
+		return title
+	}
+	return shellTerminalTitle(workingDir)
 }

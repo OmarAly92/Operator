@@ -85,6 +85,8 @@ func Build() ([]byte, error) {
 			"Target-isolated desktop browser runtime (loopback only)"),
 		*(&openapi31.Tag{Name: "inbox"}).WithDescription(
 			"Per-project orchestrator inbox of pending worker/CI/review events"),
+		*(&openapi31.Tag{Name: "claudeAccounts"}).WithDescription(
+			"Claude account folders: creation, login, relink, and status"),
 	}
 
 	for _, op := range operations() {
@@ -280,6 +282,14 @@ var schemaNames = map[string]string{
 	"ControllersListShellTerminalsResponse": "ListShellTerminalsResponse",
 	"ControllersShellTerminalEnvelope":      "ShellTerminalEnvelope",
 	"ControllersTerminalBlockView":          "TerminalBlockView",
+	// httpd/controllers — Claude account wire envelopes
+	"ControllersClaudeAccountView":          "ClaudeAccountView",
+	"ControllersClaudeAccountStatus":        "ClaudeAccountStatus",
+	"ControllersListClaudeAccountsResponse": "ListClaudeAccountsResponse",
+	"ControllersClaudeAccountEnvelope":      "ClaudeAccountEnvelope",
+	"ControllersCreateClaudeAccountRequest": "CreateClaudeAccountRequest",
+	"ControllersRenameClaudeAccountRequest": "RenameClaudeAccountRequest",
+	"ControllersClaudeAccountLoginRequest":  "ClaudeAccountLoginRequest",
 	// httpd/controllers — PR wire envelopes
 	"ControllersMergePRRequest":          "MergePRRequest",
 	"ControllersMergePRResponse":         "MergePRResponse",
@@ -499,6 +509,10 @@ type shellTerminalBlocksQuery struct {
 	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum blocks to return, oldest first. Defaults to 100."`
 }
 
+type claudeAccountsListQuery struct {
+	Refresh *int64 `query:"refresh,omitempty" minimum:"1" maximum:"1" description:"Set to 1 to bypass the 30-second login status cache."`
+}
+
 type sessionBlocksQuery struct {
 	AfterSeq  *int64 `query:"afterSeq,omitempty" minimum:"0" description:"Return events with seq greater than this cursor. Omit to read from the start of the retained log."`
 	BeforeSeq *int64 `query:"beforeSeq,omitempty" minimum:"1" description:"Return the events immediately older than this sequence, ascending. Mutually exclusive with afterSeq."`
@@ -663,6 +677,74 @@ func shellTerminalOperations() []operation {
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/claude-accounts", id: "listClaudeAccounts", tag: "claudeAccounts",
+			summary:    "List Claude accounts, default first, with login status and shared setup state",
+			pathParams: []any{claudeAccountsListQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ListClaudeAccountsResponse{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/claude-accounts", id: "createClaudeAccount", tag: "claudeAccounts",
+			summary: "Add a Claude account folder at ~/.claude-<name> and link the shared setup",
+			reqBody: controllers.CreateClaudeAccountRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.ClaudeAccountEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/claude-accounts/{accountId}", id: "renameClaudeAccount", tag: "claudeAccounts",
+			summary:    "Rename a Claude account label; the folder never changes",
+			pathParams: []any{controllers.ClaudeAccountIDParam{}},
+			reqBody:    controllers.RenameClaudeAccountRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ClaudeAccountEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/claude-accounts/{accountId}", id: "deleteClaudeAccount", tag: "claudeAccounts",
+			summary:    "Unregister a Claude account; its folder stays on disk",
+			pathParams: []any{controllers.ClaudeAccountIDParam{}},
+			resps: []respUnit{
+				{http.StatusNoContent, nil},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/claude-accounts/{accountId}/login", id: "loginClaudeAccount", tag: "claudeAccounts",
+			summary:    "Open a terminal running Claude against the account folder for /login",
+			pathParams: []any{controllers.ClaudeAccountIDParam{}},
+			reqBody:    controllers.ClaudeAccountLoginRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.ShellTerminalEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/claude-accounts/{accountId}/relink", id: "relinkClaudeAccount", tag: "claudeAccounts",
+			summary:    "Back up files that replaced shared setup links, then re-link them",
+			pathParams: []any{controllers.ClaudeAccountIDParam{}},
+			resps: []respUnit{
+				{http.StatusNoContent, nil},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},

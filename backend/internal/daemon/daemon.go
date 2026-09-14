@@ -417,6 +417,7 @@ func Run() error {
 		Import:              importsvc.New(importsvc.Deps{Store: store}),
 		ShellTerminals:      shellTermSvc,
 		ShellTerminalBlocks: terminalBlocks,
+		ClaudeAccounts:      claudeAccounts,
 		Settings:            settingsSvc,
 		DevScan:             folderScanner,
 		DevBlockReplay:      blockevent.NewReplay(blockEvents),

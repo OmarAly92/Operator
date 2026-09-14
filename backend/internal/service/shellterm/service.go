@@ -105,14 +105,23 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	if err != nil {
 		return ShellTerminal{}, err
 	}
-	resolved := resolveUserLoginShell()
-	if len(resolved) == 0 {
-		return ShellTerminal{}, apierr.Internal("SHELL_TERMINAL_NO_SHELL",
-			"Could not determine a shell to launch. Set SHELL (macOS/Linux) or ComSpec (Windows).")
+	var argv []string
+	env := map[string]string{}
+	if len(in.Argv) > 0 {
+		argv = append([]string(nil), in.Argv...)
+	} else {
+		resolved := resolveUserLoginShell()
+		if len(resolved) == 0 {
+			return ShellTerminal{}, apierr.Internal("SHELL_TERMINAL_NO_SHELL",
+				"Could not determine a shell to launch. Set SHELL (macOS/Linux) or ComSpec (Windows).")
+		}
+		argv, env, err = s.shellBootstrapArgvEnv(resolved[0])
+		if err != nil {
+			return ShellTerminal{}, fmt.Errorf("open shell terminal: shell recipe: %w", err)
+		}
 	}
-	argv, env, err := s.shellBootstrapArgvEnv(resolved[0])
-	if err != nil {
-		return ShellTerminal{}, fmt.Errorf("open shell terminal: shell recipe: %w", err)
+	for key, value := range in.Env {
+		env[key] = value
 	}
 	handleID, err := s.newHandleID()
 	if err != nil {
@@ -140,7 +149,7 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		ProjectID:  projectID,
 		SessionID:  in.SessionID,
 		WorkingDir: workingDir,
-		Title:      shellTerminalTitle(workingDir),
+		Title:      shellTerminalTitleOr(in.Title, workingDir),
 		AppRunID:   s.appRunID,
 		CreatedAt:  s.now().UTC(),
 	}
