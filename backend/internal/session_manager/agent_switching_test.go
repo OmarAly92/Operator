@@ -2403,7 +2403,7 @@ func TestReconcileAgentSwitchesUsesDurableBoundaries(t *testing.T) {
 			targetRef := targetNative.ID
 			sw := domain.AgentSwitch{
 				ID: "switch-recovery", SessionID: "proj-1", IdempotencyKey: "recovery",
-				RequestFingerprint: domain.ComputeAgentSwitchRequestFingerprint("proj-1", domain.HarnessCodex, ""),
+				RequestFingerprint: domain.ComputeAgentSwitchRequestFingerprint("proj-1", domain.HarnessCodex, "", ""),
 				FromHarness:        domain.HarnessClaudeCode, TargetHarness: domain.HarnessCodex,
 				TargetNativeSessionRef: &targetRef, TargetStartMode: domain.AgentSwitchTargetStartFresh,
 				State:              tt.state,
@@ -2477,7 +2477,7 @@ func TestReconcileRejectsTargetGenerationWithoutProviderNativeIdentity(t *testin
 	ref := targetNative.ID
 	sw := domain.AgentSwitch{
 		ID: "switch-provider-id-pending", SessionID: "proj-1", IdempotencyKey: "provider-id-pending",
-		RequestFingerprint: domain.ComputeAgentSwitchRequestFingerprint("proj-1", domain.HarnessCodex, ""),
+		RequestFingerprint: domain.ComputeAgentSwitchRequestFingerprint("proj-1", domain.HarnessCodex, "", ""),
 		FromHarness:        domain.HarnessClaudeCode, TargetHarness: domain.HarnessCodex,
 		TargetNativeSessionRef: &ref, TargetStartMode: domain.AgentSwitchTargetStartFresh,
 		State: domain.AgentSwitchStartingTarget, AgentHandoffStatus: domain.AgentHandoffUnavailable,

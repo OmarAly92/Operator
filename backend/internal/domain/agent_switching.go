@@ -27,14 +27,16 @@ const agentSwitchRequestFingerprintPrefix = "v1:"
 // ComputeAgentSwitchRequestFingerprint deterministically binds an idempotency
 // key to the stable request tuple. Note whitespace is normalized in the same
 // way as the switch entry point before it is hashed.
-func ComputeAgentSwitchRequestFingerprint(sessionID SessionID, targetHarness AgentHarness, note string) AgentSwitchRequestFingerprint {
+func ComputeAgentSwitchRequestFingerprint(sessionID SessionID, targetHarness AgentHarness, targetAccount ClaudeAccountID, note string) AgentSwitchRequestFingerprint {
 	payload, _ := json.Marshal(struct {
-		SessionID     SessionID    `json:"sessionId"`
-		TargetHarness AgentHarness `json:"targetHarness"`
-		Note          string       `json:"note"`
+		SessionID     SessionID       `json:"sessionId"`
+		TargetHarness AgentHarness    `json:"targetHarness"`
+		TargetAccount string          `json:"targetAccount"`
+		Note          string          `json:"note"`
 	}{
 		SessionID:     sessionID,
 		TargetHarness: targetHarness,
+		TargetAccount: string(targetAccount),
 		Note:          strings.TrimSpace(note),
 	})
 	sum := sha256.Sum256(payload)
@@ -297,6 +299,8 @@ type AgentSwitch struct {
 	RequestFingerprint      AgentSwitchRequestFingerprint     `json:"-"`
 	FromHarness             AgentHarness                      `json:"fromHarness"`
 	TargetHarness           AgentHarness                      `json:"targetHarness"`
+	FromClaudeAccountID     ClaudeAccountID                   `json:"fromClaudeAccountId,omitempty"`
+	TargetClaudeAccountID   ClaudeAccountID                   `json:"targetClaudeAccountId,omitempty"`
 	TargetNativeSessionRef  *AgentNativeSessionID             `json:"targetNativeSessionRef,omitempty"`
 	TargetStartMode         AgentSwitchTargetStartMode        `json:"targetStartMode,omitempty"`
 	State                   AgentSwitchState                  `json:"state"`
@@ -338,6 +342,8 @@ type AgentSwitchTargetActivation struct {
 	SourceGenerationID            AgentGenerationID
 	ExpectedSourceRuntimeLaunchID string
 	TargetHarness                 AgentHarness
+	SourceClaudeAccountID         ClaudeAccountID
+	TargetClaudeAccountID         ClaudeAccountID
 	TargetNativeSessionRef        AgentNativeSessionID
 	TargetGenerationID            AgentGenerationID
 	RuntimeHandleID               string

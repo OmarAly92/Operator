@@ -89,7 +89,7 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 	cfg.TargetHarness = domain.AgentHarness(strings.TrimSpace(string(cfg.TargetHarness)))
 	cfg.Note = boundedString(strings.TrimSpace(cfg.Note), maxSwitchNoteBytes)
 	cfg.IdempotencyKey = strings.TrimSpace(cfg.IdempotencyKey)
-	requestFingerprint := domain.ComputeAgentSwitchRequestFingerprint(id, cfg.TargetHarness, cfg.Note)
+	requestFingerprint := domain.ComputeAgentSwitchRequestFingerprint(id, cfg.TargetHarness, "", cfg.Note)
 	if cfg.IdempotencyKey != "" {
 		if existing, ok, err := store.GetAgentSwitchByIdempotencyKey(ctx, id, cfg.IdempotencyKey); err != nil {
 			return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: idempotency lookup: %w", id, err)
