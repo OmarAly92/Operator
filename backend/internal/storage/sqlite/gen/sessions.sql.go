@@ -55,7 +55,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions WHERE id = ?
 `
 
@@ -99,6 +99,7 @@ type GetSessionRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	SpawnedBy                 domain.SessionID
+	ClaudeAccountID           domain.ClaudeAccountID
 }
 
 func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessionRow, error) {
@@ -144,6 +145,7 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.NativeTranscriptPath,
 		&i.AutoInjectReview,
 		&i.SpawnedBy,
+		&i.ClaudeAccountID,
 	)
 	return i, err
 }
@@ -157,13 +159,13 @@ INSERT INTO sessions (
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     provider_conversation_id, controller_generation, spawned_by,
-    created_at, updated_at, is_pinned, pinned_at, auto_inject_review
+    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -207,6 +209,7 @@ type InsertSessionParams struct {
 	IsPinned                  bool
 	PinnedAt                  sql.NullTime
 	AutoInjectReview          bool
+	ClaudeAccountID           domain.ClaudeAccountID
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
@@ -250,6 +253,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.IsPinned,
 		arg.PinnedAt,
 		arg.AutoInjectReview,
+		arg.ClaudeAccountID,
 	)
 	return err
 }
@@ -263,7 +267,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions ORDER BY project_id, num
 `
 
@@ -307,6 +311,7 @@ type ListAllSessionsRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	SpawnedBy                 domain.SessionID
+	ClaudeAccountID           domain.ClaudeAccountID
 }
 
 func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, error) {
@@ -358,6 +363,7 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
 			&i.SpawnedBy,
+			&i.ClaudeAccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -381,7 +387,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions WHERE project_id = ? ORDER BY num
 `
 
@@ -425,6 +431,7 @@ type ListSessionsByProjectRow struct {
 	NativeTranscriptPath      string
 	AutoInjectReview          bool
 	SpawnedBy                 domain.SessionID
+	ClaudeAccountID           domain.ClaudeAccountID
 }
 
 func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.ProjectID) ([]ListSessionsByProjectRow, error) {
@@ -476,6 +483,7 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID domain.Pr
 			&i.NativeTranscriptPath,
 			&i.AutoInjectReview,
 			&i.SpawnedBy,
+			&i.ClaudeAccountID,
 		); err != nil {
 			return nil, err
 		}

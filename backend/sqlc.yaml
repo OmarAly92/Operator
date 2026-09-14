@@ -112,6 +112,24 @@ sql:
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"
+          - column: "sessions.claude_account_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ClaudeAccountID"
+          - column: "claude_accounts.id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ClaudeAccountID"
+          - column: "claude_accounts.is_default"
+            go_type: "bool"
+          - column: "agent_switches.from_claude_account_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ClaudeAccountID"
+          - column: "agent_switches.target_claude_account_id"
+            go_type:
+              import: "github.com/OmarAly92/operator/backend/internal/domain"
+              type: "ClaudeAccountID"
           - column: "sessions.project_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"

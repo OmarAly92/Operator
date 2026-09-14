@@ -421,6 +421,7 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 			ControllerGeneration:      row.ControllerGeneration,
 		},
 		SpawnedBy:         row.SpawnedBy,
+		ClaudeAccountID:   domain.NormalizeClaudeAccountID(row.ClaudeAccountID),
 		CleanupGeneration: row.CleanupGeneration,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
@@ -479,6 +480,7 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		ProviderConversationID:    rec.Metadata.ProviderConversationID,
 		ControllerGeneration:      rec.Metadata.ControllerGeneration,
 		SpawnedBy:                 rec.SpawnedBy,
+		ClaudeAccountID:           domain.NormalizeClaudeAccountID(rec.ClaudeAccountID),
 		CreatedAt:                 rec.CreatedAt,
 		UpdatedAt:                 rec.UpdatedAt,
 	}

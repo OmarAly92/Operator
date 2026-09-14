@@ -10,13 +10,13 @@ INSERT INTO sessions (
     latest_user_prompt, latest_assistant_update, native_transcript_path,
     preview_url, preview_revision, preview_opened_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     provider_conversation_id, controller_generation, spawned_by,
-    created_at, updated_at, is_pinned, pinned_at, auto_inject_review
+    created_at, updated_at, is_pinned, pinned_at, auto_inject_review, claude_account_id
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
 );
 
 -- name: UpdateSession :exec
@@ -49,7 +49,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
@@ -61,7 +61,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -73,7 +73,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
     reviewer_harness, is_pinned, pinned_at,
     provider_conversation_id, controller_generation, browser_capability_verifier,
-    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by
+    latest_user_prompt, latest_assistant_update, native_transcript_path, auto_inject_review, spawned_by, claude_account_id
 FROM sessions ORDER BY project_id, num;
 
 

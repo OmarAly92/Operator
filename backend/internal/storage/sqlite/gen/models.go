@@ -57,6 +57,8 @@ type AgentSwitch struct {
 	UpdatedAt               time.Time
 	FinalHandoffPath        string
 	FinalHandoffHash        string
+	FromClaudeAccountID     domain.ClaudeAccountID
+	TargetClaudeAccountID   domain.ClaudeAccountID
 }
 
 type AppSetting struct {
@@ -98,6 +100,14 @@ type ChangeLog struct {
 	SessionID *domain.SessionID
 	EventType cdc.EventType
 	Payload   string
+	CreatedAt time.Time
+}
+
+type ClaudeAccount struct {
+	ID        domain.ClaudeAccountID
+	Label     string
+	ConfigDir sql.NullString
+	IsDefault bool
 	CreatedAt time.Time
 }
 
@@ -314,6 +324,7 @@ type Session struct {
 	PreviewOpenedRevision     int64
 	WorkspaceMode             string
 	SpawnedBy                 domain.SessionID
+	ClaudeAccountID           domain.ClaudeAccountID
 }
 
 type SessionCleanupFact struct {

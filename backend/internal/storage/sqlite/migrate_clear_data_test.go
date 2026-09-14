@@ -90,7 +90,7 @@ func assertClearOrderRespectsForeignKeys(t *testing.T, db *sql.DB) {
 func applicationTableNames(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 	rows, err := db.Query(`SELECT name FROM sqlite_master
-		WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('app_settings', 'goose_db_version')
+		WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('app_settings', 'goose_db_version', 'claude_accounts')
 		ORDER BY name`)
 	if err != nil {
 		t.Fatalf("list application tables: %v", err)

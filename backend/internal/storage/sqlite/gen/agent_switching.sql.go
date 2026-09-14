@@ -51,24 +51,26 @@ func (q *Queries) AcknowledgeAgentSwitchTarget(ctx context.Context, arg Acknowle
 const activateSessionAgentSwitchTarget = `-- name: ActivateSessionAgentSwitchTarget :execrows
 UPDATE sessions SET
     harness = ?1,
+    claude_account_id = ?2,
     activity_state = 'idle',
-    activity_last_at = ?2,
+    activity_last_at = ?3,
     first_signal_at = NULL,
-    runtime_handle_id = ?3,
-    runtime_launch_id = ?4,
-    agent_session_id = ?5,
-    native_transcript_path = ?6,
-    updated_at = ?2
-WHERE id = ?7
+    runtime_handle_id = ?4,
+    runtime_launch_id = ?5,
+    agent_session_id = ?6,
+    native_transcript_path = ?7,
+    updated_at = ?3
+WHERE id = ?8
   AND is_terminated = 0
   AND activity_state = 'exited'
-  AND harness = ?8
-  AND runtime_launch_id = ?9
-  AND activity_last_at <= ?2
+  AND harness = ?9
+  AND runtime_launch_id = ?10
+  AND activity_last_at <= ?3
 `
 
 type ActivateSessionAgentSwitchTargetParams struct {
 	TargetHarness                 domain.AgentHarness
+	TargetClaudeAccountID         domain.ClaudeAccountID
 	ActivatedAt                   time.Time
 	RuntimeHandleID               string
 	TargetGenerationID            string
@@ -82,6 +84,7 @@ type ActivateSessionAgentSwitchTargetParams struct {
 func (q *Queries) ActivateSessionAgentSwitchTarget(ctx context.Context, arg ActivateSessionAgentSwitchTargetParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, activateSessionAgentSwitchTarget,
 		arg.TargetHarness,
+		arg.TargetClaudeAccountID,
 		arg.ActivatedAt,
 		arg.RuntimeHandleID,
 		arg.TargetGenerationID,
@@ -245,7 +248,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ?
   AND state NOT IN ('completed', 'failed')
@@ -278,6 +281,8 @@ func (q *Queries) GetActiveAgentSwitch(ctx context.Context, sessionID domain.Ses
 		&i.UpdatedAt,
 		&i.FinalHandoffPath,
 		&i.FinalHandoffHash,
+		&i.FromClaudeAccountID,
+		&i.TargetClaudeAccountID,
 	)
 	return i, err
 }
@@ -316,7 +321,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE id = ?
 `
@@ -348,6 +353,8 @@ func (q *Queries) GetAgentSwitch(ctx context.Context, id domain.AgentSwitchID) (
 		&i.UpdatedAt,
 		&i.FinalHandoffPath,
 		&i.FinalHandoffHash,
+		&i.FromClaudeAccountID,
+		&i.TargetClaudeAccountID,
 	)
 	return i, err
 }
@@ -361,7 +368,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ? AND idempotency_key = ?
 `
@@ -398,6 +405,8 @@ func (q *Queries) GetAgentSwitchByIdempotencyKey(ctx context.Context, arg GetAge
 		&i.UpdatedAt,
 		&i.FinalHandoffPath,
 		&i.FinalHandoffHash,
+		&i.FromClaudeAccountID,
+		&i.TargetClaudeAccountID,
 	)
 	return i, err
 }
@@ -451,9 +460,9 @@ INSERT INTO agent_switches (
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 ON CONFLICT DO NOTHING
 `
@@ -482,6 +491,8 @@ type InsertAgentSwitchParams struct {
 	UpdatedAt               time.Time
 	FinalHandoffPath        string
 	FinalHandoffHash        string
+	FromClaudeAccountID     domain.ClaudeAccountID
+	TargetClaudeAccountID   domain.ClaudeAccountID
 }
 
 func (q *Queries) InsertAgentSwitch(ctx context.Context, arg InsertAgentSwitchParams) (int64, error) {
@@ -509,6 +520,8 @@ func (q *Queries) InsertAgentSwitch(ctx context.Context, arg InsertAgentSwitchPa
 		arg.UpdatedAt,
 		arg.FinalHandoffPath,
 		arg.FinalHandoffHash,
+		arg.FromClaudeAccountID,
+		arg.TargetClaudeAccountID,
 	)
 	if err != nil {
 		return 0, err
@@ -567,7 +580,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ?
 ORDER BY requested_at DESC, id DESC
@@ -606,6 +619,8 @@ func (q *Queries) ListAgentSwitches(ctx context.Context, sessionID domain.Sessio
 			&i.UpdatedAt,
 			&i.FinalHandoffPath,
 			&i.FinalHandoffHash,
+			&i.FromClaudeAccountID,
+			&i.TargetClaudeAccountID,
 		); err != nil {
 			return nil, err
 		}

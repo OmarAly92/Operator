@@ -491,7 +491,8 @@ func (s *Store) ActivateAgentSwitchTarget(ctx context.Context, activation domain
 		sw.SourceGenerationID != activation.SourceGenerationID || sw.TargetGenerationID != activation.TargetGenerationID ||
 		(sw.TargetRuntimeHandleID != "" && sw.TargetRuntimeHandleID != activation.RuntimeHandleID) ||
 		sw.TargetNativeSessionRef == nil || *sw.TargetNativeSessionRef != activation.TargetNativeSessionRef ||
-		sw.TargetAcknowledgedAt != nil {
+		sw.TargetAcknowledgedAt != nil ||
+		sw.FromClaudeAccountID != activation.SourceClaudeAccountID || sw.TargetClaudeAccountID != activation.TargetClaudeAccountID {
 		return false, nil
 	}
 	if activation.ActivatedAt.Before(sw.UpdatedAt) {
@@ -518,6 +519,7 @@ func (s *Store) ActivateAgentSwitchTarget(ctx context.Context, activation domain
 
 	n, err := q.ActivateSessionAgentSwitchTarget(ctx, gen.ActivateSessionAgentSwitchTargetParams{
 		TargetHarness: activation.TargetHarness, ActivatedAt: activation.ActivatedAt,
+		TargetClaudeAccountID:      domain.NormalizeClaudeAccountID(activation.TargetClaudeAccountID),
 		RuntimeHandleID:            activation.RuntimeHandleID,
 		TargetGenerationID:         string(activation.TargetGenerationID),
 		TargetNativeSessionID:      targetNative.NativeSessionID,
@@ -651,8 +653,12 @@ func validateAgentSwitchTargetActivation(activation domain.AgentSwitchTargetActi
 		strings.TrimSpace(activation.RuntimeHandleID) == "" || activation.ActivatedAt.IsZero() {
 		return fmt.Errorf("activate agent switch target %s: switch, session, source/target generations, native target, runtime handle, and timestamp are required", activation.SwitchID)
 	}
-	if !activation.SourceHarness.IsKnown() || !activation.TargetHarness.IsKnown() || activation.SourceHarness == activation.TargetHarness {
-		return fmt.Errorf("activate agent switch target %s: source and distinct known target harnesses are required", activation.SwitchID)
+	if !activation.SourceHarness.IsKnown() || !activation.TargetHarness.IsKnown() {
+		return fmt.Errorf("activate agent switch target %s: known source and target harnesses are required", activation.SwitchID)
+	}
+	if activation.SourceHarness == activation.TargetHarness &&
+		domain.NormalizeClaudeAccountID(activation.SourceClaudeAccountID) == domain.NormalizeClaudeAccountID(activation.TargetClaudeAccountID) {
+		return fmt.Errorf("activate agent switch target %s: target must differ from source by harness or Claude account", activation.SwitchID)
 	}
 	return nil
 }
@@ -744,6 +750,7 @@ func agentSwitchToInsert(rec domain.AgentSwitch) gen.InsertAgentSwitchParams {
 		TargetAcknowledgedAt:    timePtrToNull(rec.TargetAcknowledgedAt),
 		ErrorCode:               string(rec.ErrorCode),
 		RequestedAt:             rec.RequestedAt, UpdatedAt: rec.UpdatedAt,
+		FromClaudeAccountID: rec.FromClaudeAccountID, TargetClaudeAccountID: rec.TargetClaudeAccountID,
 	}
 }
 
@@ -767,6 +774,7 @@ func agentSwitchFromGen(row gen.AgentSwitch) domain.AgentSwitch {
 		TargetAcknowledgedAt:    nullTimeToPtr(row.TargetAcknowledgedAt),
 		ErrorCode:               domain.AgentSwitchErrorCode(row.ErrorCode),
 		RequestedAt:             row.RequestedAt, UpdatedAt: row.UpdatedAt,
+		FromClaudeAccountID: row.FromClaudeAccountID, TargetClaudeAccountID: row.TargetClaudeAccountID,
 	}
 }
 

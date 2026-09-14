@@ -52,9 +52,9 @@ INSERT INTO agent_switches (
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 ON CONFLICT DO NOTHING;
 
@@ -67,7 +67,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE id = ?;
 
@@ -80,7 +80,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ? AND idempotency_key = ?;
 
@@ -93,7 +93,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ?
   AND state NOT IN ('completed', 'failed');
@@ -107,7 +107,7 @@ SELECT id, session_id, idempotency_key, request_fingerprint,
     source_generation_id, target_generation_id, target_runtime_handle_id,
     target_acknowledged_at, error_code,
     requested_at, updated_at,
-    final_handoff_path, final_handoff_hash
+    final_handoff_path, final_handoff_hash, from_claude_account_id, target_claude_account_id
 FROM agent_switches
 WHERE session_id = ?
 ORDER BY requested_at DESC, id DESC;
@@ -279,6 +279,7 @@ WHERE id = sqlc.arg(id)
 -- name: ActivateSessionAgentSwitchTarget :execrows
 UPDATE sessions SET
     harness = sqlc.arg(target_harness),
+    claude_account_id = sqlc.arg(target_claude_account_id),
     activity_state = 'idle',
     activity_last_at = sqlc.arg(activated_at),
     first_signal_at = NULL,
