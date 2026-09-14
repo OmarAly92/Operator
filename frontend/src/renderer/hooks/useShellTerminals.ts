@@ -28,7 +28,7 @@ export type ShellTerminal = {
 export const shellTerminalsQueryKey = ["shell-terminals"] as const;
 const usePreviewData = import.meta.env.VITE_RENDERER_PREVIEW === "1";
 
-function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): ShellTerminal {
+export function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): ShellTerminal {
 	return {
 		handleId: t.handleId,
 		projectId: t.projectId,
