@@ -32,8 +32,9 @@ type DelegateTaskInput struct {
 	WorkspaceMode  domain.WorkspaceMode
 	// Cols/Rows are the grid of the pane that will show the worker; zero when
 	// the caller has no pane (the CLI, an orchestrator).
-	Cols int
-	Rows int
+	Cols            int
+	Rows            int
+	ClaudeAccountID domain.ClaudeAccountID
 }
 
 // DelegateTaskOutcome identifies the spawned worker. OrchestratorID remains
@@ -61,16 +62,17 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	}
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
-		ProjectID:     in.ProjectID,
-		Kind:          domain.KindWorker,
-		Harness:       in.RequestedAgent,
-		Prompt:        prompt,
-		DisplayName:   delegatedTaskDisplayName(in.Brief),
-		AgentConfig:   ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
-		Attachments:   in.Attachments,
-		WorkspaceMode: in.WorkspaceMode,
-		Cols:          in.Cols,
-		Rows:          in.Rows,
+		ProjectID:       in.ProjectID,
+		Kind:            domain.KindWorker,
+		Harness:         in.RequestedAgent,
+		Prompt:          prompt,
+		DisplayName:     delegatedTaskDisplayName(in.Brief),
+		AgentConfig:     ports.AgentConfig{Model: strings.TrimSpace(in.Model)},
+		Attachments:     in.Attachments,
+		WorkspaceMode:   in.WorkspaceMode,
+		Cols:            in.Cols,
+		Rows:            in.Rows,
+		ClaudeAccountID: in.ClaudeAccountID,
 	})
 	if err != nil {
 		return DelegateTaskOutcome{}, toAPIError(err)
@@ -153,7 +155,7 @@ func (s *Service) taskTitleOrchestrator(ctx context.Context, projectID domain.Pr
 	}
 	unlock()
 
-	orchestrator, err := s.SpawnOrchestrator(ctx, projectID, false)
+	orchestrator, err := s.SpawnOrchestrator(ctx, projectID, false, "")
 	if err != nil {
 		return "", fmt.Errorf("start project orchestrator: %w", err)
 	}

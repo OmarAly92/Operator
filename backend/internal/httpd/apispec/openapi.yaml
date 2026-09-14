@@ -4904,6 +4904,8 @@ components:
         brief:
           maxLength: 2048
           type: string
+        claudeAccountId:
+          type: string
         createdAt:
           format: date-time
           type: string
@@ -5028,6 +5030,7 @@ components:
       - isTerminated
       - terminateOnPrMerge
       - autoInjectReview
+      - claudeAccountId
       - createdAt
       - updatedAt
       - isPinned
@@ -5095,6 +5098,11 @@ components:
           type: array
         brief:
           maxLength: 4096
+          type: string
+        claudeAccountId:
+          description: Claude account for a claude-code worker. Omit for the default
+            account.
+          maxLength: 64
           type: string
         cols:
           description: Columns of the terminal pane that will show the session, so
@@ -6955,6 +6963,9 @@ components:
       type: object
     SpawnOrchestratorRequest:
       properties:
+        claudeAccountId:
+          maxLength: 64
+          type: string
         clean:
           type: boolean
         projectId:
@@ -6976,6 +6987,11 @@ components:
             $ref: '#/components/schemas/AttachmentInput'
           type: array
         branch:
+          type: string
+        claudeAccountId:
+          description: Claude account for a claude-code session. Omit for the default
+            account, or for a worker to inherit its orchestrator's account.
+          maxLength: 64
           type: string
         cols:
           description: Columns of the terminal pane that will show the session, so

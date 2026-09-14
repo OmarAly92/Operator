@@ -38,7 +38,8 @@ type SpawnConfig struct {
 	DisplayName string
 	// RequestedBy is the orchestrator session id that asked for this spawn,
 	// or empty for a human spawn. Persisted verbatim as SessionRecord.SpawnedBy.
-	RequestedBy domain.SessionID
+	RequestedBy     domain.SessionID
+	ClaudeAccountID domain.ClaudeAccountID
 	// Cols/Rows are the grid of the pane that will show the session, so the
 	// pty is born at that size instead of being resized on first attach.
 	// Zero means unknown.

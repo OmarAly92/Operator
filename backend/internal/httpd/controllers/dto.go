@@ -220,7 +220,8 @@ type SpawnSessionRequest struct {
 	// The CLI fills it from OPERATOR_SESSION_ID when set; empty means a human
 	// spawn. The daemon rejects a value that does not resolve to a live
 	// orchestrator in the same project.
-	RequestedBy domain.SessionID `json:"requestedBy,omitempty"`
+	RequestedBy     domain.SessionID       `json:"requestedBy,omitempty"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code session. Omit for the default account, or for a worker to inherit its orchestrator's account."`
 }
 
 // AttachmentInput is one file attached to a spawn, delegate, stage, or send
@@ -707,10 +708,11 @@ type DelegateTaskRequest struct {
 	// brief. Each carries bytes as standard base64 (no data: URL prefix). The
 	// daemon writes them into the spawned worker worktree and appends path
 	// references to the worker prompt.
-	Attachments   []AttachmentInput `json:"attachments,omitempty"`
-	WorkspaceMode string            `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
-	Cols          int               `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
-	Rows          int               `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
+	Attachments     []AttachmentInput      `json:"attachments,omitempty"`
+	WorkspaceMode   string                 `json:"workspaceMode,omitempty" enum:"worktree,in_place"`
+	Cols            int                    `json:"cols,omitempty" description:"Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown." minimum:"1" maximum:"1000"`
+	Rows            int                    `json:"rows,omitempty" description:"Rows of the terminal pane that will show the session; see cols." minimum:"1" maximum:"1000"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64" description:"Claude account for a claude-code worker. Omit for the default account."`
 }
 
 // DelegateTaskResponse confirms which worker was spawned and, when available,
@@ -995,8 +997,9 @@ type ReviewSessionIDParam struct {
 
 // SpawnOrchestratorRequest is the body of POST /api/v1/orchestrators.
 type SpawnOrchestratorRequest struct {
-	ProjectID domain.ProjectID `json:"projectId"`
-	Clean     bool             `json:"clean,omitempty"`
+	ProjectID       domain.ProjectID       `json:"projectId"`
+	Clean           bool                   `json:"clean,omitempty"`
+	ClaudeAccountID domain.ClaudeAccountID `json:"claudeAccountId,omitempty" maxLength:"64"`
 }
 
 // SpawnOrchestratorResponse is the body of POST /api/v1/orchestrators.

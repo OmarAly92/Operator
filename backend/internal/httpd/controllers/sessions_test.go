@@ -167,7 +167,7 @@ func (f *fakeSessionService) Spawn(_ context.Context, cfg ports.SpawnConfig) (do
 	return s, len(cfg.Prompt), 0, nil
 }
 
-func (f *fakeSessionService) SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool) (domain.Session, error) {
+func (f *fakeSessionService) SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool, account domain.ClaudeAccountID) (domain.Session, error) {
 	if clean {
 		active := true
 		existing, err := f.List(ctx, sessionsvc.ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
@@ -180,7 +180,7 @@ func (f *fakeSessionService) SpawnOrchestrator(ctx context.Context, projectID do
 			}
 		}
 	}
-	s, _, _, err := f.Spawn(ctx, ports.SpawnConfig{ProjectID: projectID, Kind: domain.KindOrchestrator})
+	s, _, _, err := f.Spawn(ctx, ports.SpawnConfig{ProjectID: projectID, Kind: domain.KindOrchestrator, ClaudeAccountID: account})
 	return s, err
 }
 
@@ -2081,6 +2081,19 @@ func TestSessionsAPI_SpawnPassesRequestedByThrough(t *testing.T) {
 	}
 }
 
+func TestSessionsAPI_SpawnPassesClaudeAccountThrough(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions", `{"projectId":"p","harness":"claude-code","claudeAccountId":"personal"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("spawn = %d, want 201; body=%s", status, body)
+	}
+	if svc.lastSpawnConfig.ClaudeAccountID != "personal" {
+		t.Fatalf("lastSpawnConfig.ClaudeAccountID = %q, want personal", svc.lastSpawnConfig.ClaudeAccountID)
+	}
+}
+
 // A requestedBy that does not name a live orchestrator is dropped by the service
 // and the spawn proceeds unattributed, so there is no INVALID_REQUESTED_BY code
 // to surface. What the envelope must carry is the budget refusal, which is the
@@ -2219,6 +2232,19 @@ func TestSessionsAPI_DelegateTask(t *testing.T) {
 	}
 	if got := svc.delegationInput.Attachments[0]; got.Ext != ".png" || string(got.Data) != "\x01\x02\x03" {
 		t.Fatalf("attachment = %#v, want decoded png", got)
+	}
+}
+
+func TestSessionsAPI_DelegateTaskPassesClaudeAccountThrough(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/orchestrators/delegate", `{"projectId":"p","brief":"x","agent":"claude-code","claudeAccountId":"personal"}`)
+	if status != http.StatusAccepted {
+		t.Fatalf("delegate = %d, want 202; body=%s", status, body)
+	}
+	if svc.delegationInput.ClaudeAccountID != "personal" {
+		t.Fatalf("delegationInput.ClaudeAccountID = %q, want personal", svc.delegationInput.ClaudeAccountID)
 	}
 }
 

@@ -241,10 +241,11 @@ type Store interface {
 // Manager coordinates internal session spawn, restore, kill, and cleanup over
 // the outbound ports. User-facing read-model assembly lives in the service package.
 type Manager struct {
-	runtime   runtimeController
-	agents    ports.AgentResolver
-	workspace ports.Workspace
-	store     Store
+	runtime        runtimeController
+	agents         ports.AgentResolver
+	workspace      ports.Workspace
+	store          Store
+	claudeAccounts ClaudeAccountLauncher
 	// menuReader overrides menuReaderFor's resolution against m.agents. It is
 	// nil in production; tests set it directly since their fakeAgents do not
 	// implement ports.TerminalMenuReader.
@@ -423,6 +424,7 @@ type Deps struct {
 	Agents              ports.AgentResolver
 	Workspace           ports.Workspace
 	Store               Store
+	ClaudeAccounts      ClaudeAccountLauncher
 	Messenger           ports.AgentMessenger
 	Lifecycle           lifecycleRecorder
 	Preview             PreviewLifecycle
@@ -456,6 +458,7 @@ func New(d Deps) *Manager {
 		agents:                       d.Agents,
 		workspace:                    d.Workspace,
 		store:                        d.Store,
+		claudeAccounts:               d.ClaudeAccounts,
 		lcm:                          d.Lifecycle,
 		preview:                      d.Preview,
 		browser:                      d.Browser,
@@ -557,6 +560,12 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
 	}
 
+	claudeAccount, err := m.resolveSpawnClaudeAccount(ctx, cfg)
+	if err != nil {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
+	}
+	cfg.ClaudeAccountID = claudeAccount
+
 	prompt, systemPrompt, err := m.buildSpawnTexts(ctx, cfg)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: prompt: %w", err)
@@ -620,10 +629,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
 	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(cfg.Kind, project.Config), cfg.AgentConfig)
-	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(id, cfg.ProjectID, cfg.IssueID, project.Config.Env)
+	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: browser capability: %w", id, err)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: launch env: %w", id, err)
 	}
 	rec, err = m.persistBrowserCapabilityVerifier(ctx, rec, browserCapabilityVerifier)
 	if err != nil {
@@ -1484,9 +1493,9 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	// Restore re-applies the project's resolved agent config so a configured
 	// model/permissions carry across a restore, matching fresh spawn.
 	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
-	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
+	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
 	if err != nil {
-		return RestoreResult{}, fmt.Errorf("%s %s: browser capability: %w", operation, rec.ID, err)
+		return RestoreResult{}, fmt.Errorf("%s %s: launch env: %w", operation, rec.ID, err)
 	}
 	rec, err = m.persistBrowserCapabilityVerifier(ctx, rec, browserCapabilityVerifier)
 	if err != nil {
@@ -2693,6 +2702,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		AutoInjectReview: true,
 		Metadata:         domain.SessionMetadata{WorkspaceMode: cfg.WorkspaceMode},
 		SpawnedBy:        cfg.RequestedBy,
+		ClaudeAccountID:  domain.NormalizeClaudeAccountID(cfg.ClaudeAccountID),
 	}
 }
 
@@ -3081,27 +3091,32 @@ func (m *Manager) spawnEnv(id domain.SessionID, project domain.ProjectID, issue 
 // command, which fails every callback and silently kills activity tracking).
 // When the pin cannot be applied the inherited PATH is kept and a warning is
 // logged so the degradation isn't silent.
-func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) map[string]string {
-	env := m.spawnEnv(id, project, issue, projectEnv)
+func (m *Manager) runtimeEnv(ctx context.Context, rec domain.SessionRecord, account domain.ClaudeAccountID, projectEnv map[string]string) (map[string]string, error) {
+	env := m.spawnEnv(rec.ID, rec.ProjectID, rec.IssueID, projectEnv)
 	env[EnvBrowserCapability] = ""
 	env[EnvBrowserRuntimeToken] = ""
 	env[EnvBrowserRuntimeTokenStdin] = ""
-	path, err := HookPATH(m.executable, os.Getenv, projectEnv)
-	if err != nil {
+	if path, err := HookPATH(m.executable, os.Getenv, projectEnv); err != nil {
 		m.logger.Warn("session PATH not pinned to the daemon binary; `opr hooks` callbacks may resolve to a different opr and activity tracking will stall",
-			"session", id, "error", err)
-		return env
+			"session", rec.ID, "error", err)
+	} else {
+		env["PATH"] = path
 	}
-	env["PATH"] = path
-	return env
+	if err := m.applyClaudeAccount(ctx, env, account); err != nil {
+		return nil, err
+	}
+	return env, nil
 }
 
-func (m *Manager) launchRuntimeEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) (map[string]string, string, error) {
-	env := m.runtimeEnv(id, project, issue, projectEnv)
+func (m *Manager) launchRuntimeEnv(ctx context.Context, rec domain.SessionRecord, account domain.ClaudeAccountID, projectEnv map[string]string) (map[string]string, string, error) {
+	env, err := m.runtimeEnv(ctx, rec, account, projectEnv)
+	if err != nil {
+		return nil, "", err
+	}
 	if m.browserCapabilities == nil {
 		return env, "", nil
 	}
-	token, verifier, err := m.browserCapabilities.Issue(id)
+	token, verifier, err := m.browserCapabilities.Issue(rec.ID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -3328,7 +3343,12 @@ func (m *Manager) cleanupAgentWorkspace(ctx context.Context, rec domain.SessionR
 	}
 	env := m.spawnEnv(rec.ID, rec.ProjectID, rec.IssueID, nil)
 	if project, err := m.loadProject(ctx, rec.ProjectID); err == nil {
-		env = m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
+		if projectEnv, envErr := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env); envErr == nil {
+			env = projectEnv
+		} else {
+			m.logger.Warn("workspace cleanup: session env unavailable; agent cleanup using Operator env only",
+				"sessionID", rec.ID, "error", envErr)
+		}
 	} else {
 		m.logger.Warn("workspace cleanup: project env unavailable; agent cleanup using Operator env only",
 			"sessionID", rec.ID, "projectID", rec.ProjectID, "error", err)

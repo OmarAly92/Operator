@@ -211,7 +211,10 @@ func (m *Manager) SwitchAgent(ctx context.Context, id domain.SessionID, cfg Swit
 		// the target generation is always a real OPERATOR_RUNTIME_LAUNCH_ID.
 		sourceGeneration = domain.AgentGenerationID("legacy-" + uuid.NewString())
 	}
-	sourceEnv := m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
+	sourceEnv, err := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
+	if err != nil {
+		return domain.AgentSwitch{}, fmt.Errorf("switch agent %s: source env: %w", id, err)
+	}
 	m.augmentAgentRuntimeEnv(sourceAgent, sourceEnv)
 	sourceNative, err := m.preserveCurrentNativeSession(ctx, store, rec, sourceAgent, sourceEnv, sourceGeneration)
 	if err != nil {
@@ -739,7 +742,10 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
 	}
 	config := effectiveAgentConfig(rec.Kind, project.Config)
-	env := m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
+	env, err := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
+	if err != nil {
+		return preparedTargetActivation{}, fmt.Errorf("target env: %w", err)
+	}
 	m.augmentAgentRuntimeEnv(agent, env)
 	configDir, err := nativeConfigDir(ctx, agent, env)
 	if err != nil {
@@ -2530,7 +2536,10 @@ func (m *Manager) cleanupRecoveredTargetWorkspace(ctx context.Context, rec domai
 	if err != nil {
 		return fmt.Errorf("agent switch recovery: load project for target workspace cleanup: %w", err)
 	}
-	env := m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
+	env, err := m.runtimeEnv(ctx, rec, rec.ClaudeAccountID, project.Config.Env)
+	if err != nil {
+		return fmt.Errorf("agent switch recovery: target env: %w", err)
+	}
 	m.augmentAgentRuntimeEnv(agent, env)
 	if err := m.cleanupPreparedAgentWorkspaceStrict(ctx, agent, rec.ID, rec.Metadata.WorkspacePath, env); err != nil {
 		return fmt.Errorf("agent switch recovery: clean target workspace state: %w", err)

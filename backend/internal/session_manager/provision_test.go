@@ -43,9 +43,12 @@ func TestRuntimeEnvRunFileCannotBeOverridden(t *testing.T) {
 		RunFilePath: "/state/running.json",
 		Executable:  func() (string, error) { return "/opt/operator/opr", nil },
 	})
-	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
+	env, err := manager.runtimeEnv(context.Background(), domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}, domain.DefaultClaudeAccountID, map[string]string{
 		EnvRunFile: "/stale/test/running.json",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if env[EnvRunFile] != "/state/running.json" {
 		t.Fatalf("OPERATOR_RUN_FILE = %q, want authoritative daemon run file", env[EnvRunFile])
@@ -59,7 +62,7 @@ func TestRuntimeEnvInjectsBrowserCapability(t *testing.T) {
 		executable:          func() (string, error) { return filepath.Join("/opt", "aod", "opr"), nil },
 		logger:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-	env, verifier, err := manager.launchRuntimeEnv("mer-1", "mer", "", nil)
+	env, verifier, err := manager.launchRuntimeEnv(context.Background(), domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}, domain.DefaultClaudeAccountID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,10 +80,13 @@ func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 		executable: func() (string, error) { return filepath.Join("/opt", "aod", "opr"), nil },
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
+	env, err := manager.runtimeEnv(context.Background(), domain.SessionRecord{ID: "mer-1", ProjectID: "mer"}, domain.DefaultClaudeAccountID, map[string]string{
 		EnvBrowserRuntimeToken:      "runtime-secret",
 		EnvBrowserRuntimeTokenStdin: "1",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if env[EnvBrowserRuntimeToken] != "" || env[EnvBrowserRuntimeTokenStdin] != "" {
 		t.Fatalf("daemon browser runtime credentials leaked to worker: token=%q stdin=%q", env[EnvBrowserRuntimeToken], env[EnvBrowserRuntimeTokenStdin])
 	}

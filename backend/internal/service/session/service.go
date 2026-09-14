@@ -412,6 +412,7 @@ func (s *Service) SpawnOrchestrator(
 	ctx context.Context,
 	projectID domain.ProjectID,
 	clean bool,
+	account domain.ClaudeAccountID,
 ) (domain.Session, error) {
 	unlock := s.lockOrchestratorProject(projectID)
 	defer unlock()
@@ -441,8 +442,9 @@ func (s *Service) SpawnOrchestrator(
 		}
 	}
 	sess, _, _, err := s.spawn(ctx, ports.SpawnConfig{
-		ProjectID: projectID,
-		Kind:      domain.KindOrchestrator,
+		ProjectID:       projectID,
+		Kind:            domain.KindOrchestrator,
+		ClaudeAccountID: account,
 	})
 	if err != nil {
 		return domain.Session{}, err
@@ -892,6 +894,10 @@ func toAPIError(err error) error {
 			"This session has no saved agent session or prompt to resume from", nil)
 	case errors.Is(err, sessionmanager.ErrProjectNotResolvable):
 		return apierr.Invalid("PROJECT_NOT_RESOLVABLE", "Project is not registered or has no repo. Register it with `opr project add`", nil)
+	case errors.Is(err, domain.ErrInvalidClaudeAccount), errors.Is(err, domain.ErrClaudeAccountNotFound):
+		return apierr.Invalid("INVALID_CLAUDE_ACCOUNT", "Unknown Claude account, or an account was given for an agent other than Claude Code", nil)
+	case errors.Is(err, domain.ErrClaudeAccountFolderUnavailable):
+		return apierr.Conflict("CLAUDE_ACCOUNT_FOLDER_UNAVAILABLE", "The Claude account folder is missing or unusable; check Settings → Claude accounts", nil)
 	case errors.Is(err, sessionmanager.ErrUnknownHarness):
 		return apierr.Invalid("UNKNOWN_HARNESS", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrMissingHarness):

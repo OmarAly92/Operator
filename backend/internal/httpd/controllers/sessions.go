@@ -83,7 +83,7 @@ var (
 type SessionService interface {
 	List(ctx context.Context, filter sessionsvc.ListFilter) ([]domain.Session, error)
 	Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error)
-	SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool) (domain.Session, error)
+	SpawnOrchestrator(ctx context.Context, projectID domain.ProjectID, clean bool, account domain.ClaudeAccountID) (domain.Session, error)
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 	Restore(ctx context.Context, id domain.SessionID, grid ports.PaneGrid) (sessionsvc.RestoreOutcome, error)
 	ResumeAgent(ctx context.Context, id domain.SessionID) (sessionsvc.ResumeAgentOutcome, error)
@@ -326,7 +326,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		}
 		workspaceMode = parsed
 	}
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, RequestedBy: in.RequestedBy})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, Prompt: in.Prompt, DisplayName: displayName, Attachments: attachments, WorkspaceMode: workspaceMode, Cols: in.Cols, Rows: in.Rows, RequestedBy: in.RequestedBy, ClaudeAccountID: in.ClaudeAccountID})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -1556,14 +1556,15 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 	}
 
 	out, err := c.Svc.DelegateTask(r.Context(), sessionsvc.DelegateTaskInput{
-		ProjectID:      in.ProjectID,
-		Brief:          domain.SanitizeControlChars(in.Brief),
-		RequestedAgent: in.Agent,
-		Model:          domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
-		Attachments:    attachments,
-		WorkspaceMode:  workspaceMode,
-		Cols:           in.Cols,
-		Rows:           in.Rows,
+		ProjectID:       in.ProjectID,
+		Brief:           domain.SanitizeControlChars(in.Brief),
+		RequestedAgent:  in.Agent,
+		Model:           domain.SanitizeControlChars(strings.TrimSpace(in.Model)),
+		Attachments:     attachments,
+		WorkspaceMode:   workspaceMode,
+		Cols:            in.Cols,
+		Rows:            in.Rows,
+		ClaudeAccountID: domain.ClaudeAccountID(strings.TrimSpace(string(in.ClaudeAccountID))),
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -1731,7 +1732,7 @@ func (c *SessionsController) spawnOrchestrator(w http.ResponseWriter, r *http.Re
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "PROJECT_ID_REQUIRED", "projectId is required", nil)
 		return
 	}
-	sess, err := c.Svc.SpawnOrchestrator(r.Context(), in.ProjectID, in.Clean)
+	sess, err := c.Svc.SpawnOrchestrator(r.Context(), in.ProjectID, in.Clean, in.ClaudeAccountID)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

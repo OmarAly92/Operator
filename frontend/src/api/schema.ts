@@ -1749,6 +1749,7 @@ export interface components {
             autoInjectReview: boolean;
             branch?: string;
             brief?: string;
+            claudeAccountId: string;
             /** Format: date-time */
             createdAt: string;
             displayName?: string;
@@ -1798,6 +1799,8 @@ export interface components {
             agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
             attachments?: components["schemas"]["AttachmentInput"][];
             brief: string;
+            /** @description Claude account for a claude-code worker. Omit for the default account. */
+            claudeAccountId?: string;
             /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
             cols?: number;
             model?: string;
@@ -2528,6 +2531,7 @@ export interface components {
             shift: boolean;
         };
         SpawnOrchestratorRequest: {
+            claudeAccountId?: string;
             clean?: boolean;
             projectId: string;
         };
@@ -2537,6 +2541,8 @@ export interface components {
         SpawnSessionRequest: {
             attachments?: components["schemas"]["AttachmentInput"][];
             branch?: string;
+            /** @description Claude account for a claude-code session. Omit for the default account, or for a worker to inherit its orchestrator's account. */
+            claudeAccountId?: string;
             /** @description Columns of the terminal pane that will show the session, so the pty is born at that width instead of being resized on first attach. Omit when unknown. */
             cols?: number;
             displayName?: string;
