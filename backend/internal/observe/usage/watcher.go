@@ -103,6 +103,29 @@ func (w *TranscriptWatcher) Start(ctx context.Context) <-chan struct{} {
 	return w.done
 }
 
+func (w *TranscriptWatcher) AddRoot(ctx context.Context, root string) error {
+	normalized, err := normalizeTranscriptRoots([]string{root})
+	if err != nil {
+		return err
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	resolved, err := resolveTranscriptRoot(ctx, normalized[0])
+	if err != nil {
+		return fmt.Errorf("resolve transcript root: %w", redactFilesystemError(err))
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, existing := range w.roots {
+		if existing == resolved {
+			return nil
+		}
+	}
+	w.roots = append(w.roots, resolved)
+	return nil
+}
+
 // Rebuild replaces the current watch set using exact durable source paths. It
 // is safe during event handling and also serves as fsnotify-overflow recovery.
 func (w *TranscriptWatcher) Rebuild(ctx context.Context, sourcePaths []string) error {

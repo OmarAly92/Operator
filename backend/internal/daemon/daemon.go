@@ -38,6 +38,7 @@ import (
 	agentsvc "github.com/OmarAly92/operator/backend/internal/service/agent"
 	blockevent "github.com/OmarAly92/operator/backend/internal/service/blockevent"
 	browsersvc "github.com/OmarAly92/operator/backend/internal/service/browser"
+	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
 	devimportsvc "github.com/OmarAly92/operator/backend/internal/service/devimport"
 	importsvc "github.com/OmarAly92/operator/backend/internal/service/importer"
 	notificationsvc "github.com/OmarAly92/operator/backend/internal/service/notification"
@@ -69,6 +70,12 @@ func Run() error {
 	ignoreBrokenPipeSignal()
 
 	log := newLogger()
+	if inherited, ok := os.LookupEnv(domain.ClaudeConfigDirEnv); ok {
+		log.Warn("ignoring inherited CLAUDE_CONFIG_DIR; Claude accounts are chosen per session", "value", inherited)
+		if err := os.Unsetenv(domain.ClaudeConfigDirEnv); err != nil {
+			return fmt.Errorf("unset inherited %s: %w", domain.ClaudeConfigDirEnv, err)
+		}
+	}
 	browserAuthority := browsersvc.NewAuthority()
 	browserStateRoot, browserStateRootErr := config.StateRoot()
 	if browserStateRootErr != nil {
@@ -196,6 +203,16 @@ func Run() error {
 		func() time.Time { return time.Now().UTC() },
 	)
 
+	userHome, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		return fmt.Errorf("resolve home directory for claude accounts: %w", homeErr)
+	}
+	claudeAccounts := claudeaccountssvc.New(claudeaccountssvc.Deps{
+		Store:  store,
+		Prober: claudeaccountssvc.NewCommandProber(3 * time.Second),
+		Home:   userHome,
+	})
+
 	// One-time legacy desktop preference import (Electron's ui-settings.json,
 	// update-settings.json, keybindings.json, and the app-state.json migration
 	// block). Runs before HTTP serves settings so no client ever sees
@@ -210,7 +227,7 @@ func Run() error {
 		cfg.DataDir,
 	}})
 
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, standaloneBrowser, browserAuthority, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, claudeAccounts, managedPreview, standaloneBrowser, browserAuthority, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -285,6 +302,31 @@ func Run() error {
 	if roots, rootsErr := usagesvc.DefaultSourceRoots(ctx); rootsErr != nil {
 		log.Warn("usage collection disabled", "err", rootsErr)
 	} else {
+		roots.ClaudeProjectRoots = func(ctx context.Context) []string {
+			dirs, err := claudeAccounts.ConfigDirs(ctx)
+			if err != nil {
+				return []string{roots.ClaudeProjects}
+			}
+			out := make([]string, 0, len(dirs))
+			for _, dir := range dirs {
+				out = append(out, filepath.Join(dir, "projects"))
+			}
+			return out
+		}
+		roots.ClaudeProjectsFor = func(ctx context.Context, id domain.SessionID) (string, error) {
+			rec, ok, err := store.GetSession(ctx, id)
+			if err != nil {
+				return "", err
+			}
+			if !ok {
+				return "", domain.ErrClaudeAccountNotFound
+			}
+			dir, err := claudeAccounts.ConfigDirFor(ctx, rec.ClaudeAccountID)
+			if err != nil {
+				return "", err
+			}
+			return filepath.Join(dir, "projects"), nil
+		}
 		usageCollector = usagesvc.NewCollector(store, roots, func(reconcile bool) {
 			if usagePipeline == nil {
 				return
@@ -296,11 +338,7 @@ func Run() error {
 			}
 		})
 		ingestor := usagepipeline.NewIngestor(store, usagepipeline.IngestorConfig{})
-		usagePipeline = usagepipeline.NewPipeline(store, ingestor, []string{
-			roots.ClaudeProjects,
-			roots.CodexSessions,
-			roots.CodexArchived,
-		}, usagepipeline.CoordinatorConfig{
+		usagePipeline = usagepipeline.NewPipeline(store, ingestor, append(roots.ClaudeProjectRoots(ctx), roots.CodexSessions, roots.CodexArchived), usagepipeline.CoordinatorConfig{
 			Logger:     log,
 			Initialize: usageCollector.BackfillActive,
 			Reconcile: func(reconcileCtx context.Context) error {
@@ -309,6 +347,9 @@ func Run() error {
 			ReconcilePath: usageCollector.ReconcilePath,
 		})
 		lcStack.LCM.SetUsageFinalizer(usageCollector)
+		claudeAccounts.OnAccountAdded(func(dir string) {
+			usagePipeline.AddRoot(ctx, filepath.Join(dir, "projects"))
+		})
 	}
 	lcStack.scmDone = startSCMObserver(ctx, store, lcStack.LCM, log)
 	var prActions prsvc.ActionManager
@@ -437,19 +478,30 @@ func Run() error {
 	var transcriptWatcher transcriptsvc.Watcher
 	if roots, rootsErr := usagesvc.DefaultSourceRoots(ctx); rootsErr != nil {
 		log.Warn("transcript block projection falls back to polling", "err", rootsErr)
-	} else if watcher, watchErr := usagepipeline.NewTranscriptWatcher(ctx, []string{
-		roots.ClaudeProjects,
-		roots.CodexSessions,
-	}); watchErr != nil {
-		log.Warn("transcript block projection falls back to polling", "err", watchErr)
 	} else {
-		transcriptWatcher = watcher
+		claudeRoots := []string{roots.ClaudeProjects}
+		if dirs, dirsErr := claudeAccounts.ConfigDirs(ctx); dirsErr == nil {
+			claudeRoots = claudeRoots[:0]
+			for _, dir := range dirs {
+				claudeRoots = append(claudeRoots, filepath.Join(dir, "projects"))
+			}
+		}
+		if watcher, watchErr := usagepipeline.NewTranscriptWatcher(ctx, append(claudeRoots, roots.CodexSessions)); watchErr != nil {
+			log.Warn("transcript block projection falls back to polling", "err", watchErr)
+		} else {
+			transcriptWatcher = watcher
+			claudeAccounts.OnAccountAdded(func(dir string) {
+				if err := watcher.AddRoot(ctx, filepath.Join(dir, "projects")); err != nil {
+					log.Warn("transcript watcher could not add claude account root", "err", err)
+				}
+			})
+		}
 	}
 	transcriptDone := transcriptsvc.NewSupervisor(transcriptsvc.Deps{
 		Sessions: store,
 		Offsets:  store,
 		Sink:     blockEvents,
-		Resolver: transcriptsvc.NewResolver(agents),
+		Resolver: transcriptsvc.NewResolver(agents, claudeAccounts),
 		Watcher:  transcriptWatcher,
 		Logger:   log,
 	}).Start(ctx)

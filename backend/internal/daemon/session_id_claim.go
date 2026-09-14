@@ -59,7 +59,8 @@ func sessionIDClaimProbe(log *slog.Logger, sources ...any) func(context.Context,
 // One adapter failing is not the whole answer, so probing continues and the
 // first error surfaces only when no adapter claimed the id.
 type agentSessionIDClaims struct {
-	agents ports.AgentResolver
+	agents           ports.AgentResolver
+	claudeConfigDirs func(context.Context) ([]string, error)
 }
 
 func (a agentSessionIDClaims) IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error) {
@@ -72,11 +73,20 @@ func (a agentSessionIDClaims) IsSessionIDClaimed(ctx context.Context, sessionID 
 		if !ok {
 			continue
 		}
-		checker, ok := agent.(ports.SessionIDClaimChecker)
-		if !ok {
+		var claimed bool
+		var err error
+		if multi, ok := agent.(ports.MultiConfigSessionIDClaimChecker); ok && a.claudeConfigDirs != nil {
+			dirs, dirsErr := a.claudeConfigDirs(ctx)
+			if dirsErr != nil {
+				err = dirsErr
+			} else {
+				claimed, err = multi.IsSessionIDClaimedIn(ctx, sessionID, dirs)
+			}
+		} else if checker, ok := agent.(ports.SessionIDClaimChecker); ok {
+			claimed, err = checker.IsSessionIDClaimed(ctx, sessionID)
+		} else {
 			continue
 		}
-		claimed, err := checker.IsSessionIDClaimed(ctx, sessionID)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err

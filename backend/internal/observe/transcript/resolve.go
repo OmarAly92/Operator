@@ -18,15 +18,20 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/ports"
 )
 
+type ClaudeAccountEnv interface {
+	EnvFor(ctx context.Context, id domain.ClaudeAccountID) (map[string]string, error)
+}
+
 // Resolver turns a session record into the absolute path of the provider
 // transcript that session is currently writing.
 type Resolver struct {
-	agents ports.AgentResolver
+	agents   ports.AgentResolver
+	accounts ClaudeAccountEnv
 }
 
 // NewResolver builds a resolver over the daemon's per-session agent registry.
-func NewResolver(agents ports.AgentResolver) *Resolver {
-	return &Resolver{agents: agents}
+func NewResolver(agents ports.AgentResolver, accounts ClaudeAccountEnv) *Resolver {
+	return &Resolver{agents: agents, accounts: accounts}
 }
 
 // Path returns the transcript path for a session, or "" when the harness has no
@@ -46,7 +51,15 @@ func (r *Resolver) Path(ctx context.Context, rec domain.SessionRecord) string {
 	if !ok {
 		return ""
 	}
-	configDir, err := provider.NativeSessionConfigDir(ctx, nil)
+	env := map[string]string{}
+	if r.accounts != nil {
+		accountEnv, err := r.accounts.EnvFor(ctx, rec.ClaudeAccountID)
+		if err != nil {
+			return ""
+		}
+		env = accountEnv
+	}
+	configDir, err := provider.NativeSessionConfigDir(ctx, env)
 	if err != nil || strings.TrimSpace(configDir) == "" {
 		return ""
 	}

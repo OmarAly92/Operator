@@ -59,7 +59,7 @@ func newSupervisor(t *testing.T, sessions *fakeSessions, sink Sink, offsets Offs
 		Sessions: sessions,
 		Offsets:  offsets,
 		Sink:     sink,
-		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}),
+		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}, nil),
 		Watcher:  watcher,
 	})
 }
@@ -137,7 +137,7 @@ func TestReconcileSkipsResolutionForAnAlreadyTrackedLivePath(t *testing.T) {
 		Sessions: sessions,
 		Offsets:  &fakeOffsets{},
 		Sink:     &fakeSink{},
-		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Resolver: NewResolver(fakeResolver{agent: agent}, nil),
 		Watcher:  newFakeWatcher(),
 	})
 
@@ -169,7 +169,7 @@ func TestReconcileReResolvesWhenTheTrackedPathDisappears(t *testing.T) {
 		Sessions: sessions,
 		Offsets:  &fakeOffsets{},
 		Sink:     &fakeSink{},
-		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Resolver: NewResolver(fakeResolver{agent: agent}, nil),
 		Watcher:  newFakeWatcher(),
 	})
 
@@ -267,7 +267,7 @@ func TestStartStopsWithTheContext(t *testing.T) {
 		Sessions: sessions,
 		Offsets:  &fakeOffsets{},
 		Sink:     sink,
-		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}),
+		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}, nil),
 		Watcher:  newFakeWatcher(),
 		Interval: 10 * time.Millisecond,
 	})
@@ -341,7 +341,7 @@ func TestReconcileThrottlesResolutionForASessionWithNoTranscript(t *testing.T) {
 		Sessions: sessions,
 		Offsets:  &fakeOffsets{},
 		Sink:     &fakeSink{},
-		Resolver: NewResolver(fakeResolver{agent: agent}),
+		Resolver: NewResolver(fakeResolver{agent: agent}, nil),
 		Watcher:  newFakeWatcher(),
 		Clock:    func() time.Time { return now },
 	})
@@ -411,7 +411,7 @@ func TestStartProjectsWithoutAWatcher(t *testing.T) {
 		Sessions: sessions,
 		Offsets:  &fakeOffsets{},
 		Sink:     sink,
-		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}),
+		Resolver: NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}, nil),
 		Interval: 10 * time.Millisecond,
 	})
 

@@ -57,9 +57,11 @@ type HookSignal struct {
 // SourceRoots are the provider-owned directories from which Operator may read usage
 // transcripts.
 type SourceRoots struct {
-	ClaudeProjects string
-	CodexSessions  string
-	CodexArchived  string
+	ClaudeProjects     string
+	CodexSessions      string
+	CodexArchived      string
+	ClaudeProjectRoots func(context.Context) []string
+	ClaudeProjectsFor  func(context.Context, domain.SessionID) (string, error)
 }
 
 // DefaultSourceRoots resolves the native Claude Code and Codex transcript
@@ -251,7 +253,7 @@ func (c *Collector) RecordHook(ctx context.Context, sessionID domain.SessionID, 
 	}
 	if signal.NativeSessionID != "" && mainPath == "" &&
 		(session.Harness == domain.HarnessCodex || finalizing && !existsForDiscovery) {
-		mainPath, err = c.discoverPath(ctx, session.Harness, signal.NativeSessionID)
+		mainPath, err = c.discoverPath(ctx, session.Harness, session.ID, signal.NativeSessionID)
 		if err != nil {
 			return err
 		}
@@ -496,7 +498,7 @@ func (c *Collector) backfillSession(ctx context.Context, session domain.SessionR
 	if err != nil {
 		return err
 	}
-	path, err := c.discoverPath(ctx, session.Harness, nativeID)
+	path, err := c.discoverPath(ctx, session.Harness, session.ID, nativeID)
 	if err != nil {
 		return err
 	}
@@ -775,7 +777,7 @@ func (c *Collector) reconcileBinding(ctx context.Context, binding domain.UsageBi
 		targetState = domain.UsageBindingFinalizing
 	}
 
-	path, err := c.discoverPath(ctx, binding.Harness, binding.NativeRootID)
+	path, err := c.discoverPath(ctx, binding.Harness, binding.SessionID, binding.NativeRootID)
 	if err != nil {
 		return err
 	}
@@ -1574,7 +1576,7 @@ func (c *Collector) validateSourcePath(ctx context.Context, harness domain.Agent
 	if err != nil || !info.Mode().IsRegular() {
 		return "", "", 0, errors.New(domain.UsageErrorArtifactMissing)
 	}
-	roots := c.allowedRoots(harness)
+	roots := c.allowedRoots(ctx, harness)
 	allowed := false
 	for _, root := range roots {
 		if root == "" {
@@ -1645,15 +1647,29 @@ func validateSourceAttribution(
 	return nil
 }
 
-func (c *Collector) allowedRoots(harness domain.AgentHarness) []string {
+func (c *Collector) allowedRoots(ctx context.Context, harness domain.AgentHarness) []string {
 	switch harness {
 	case domain.HarnessClaudeCode:
+		if c.roots.ClaudeProjectRoots != nil {
+			return c.roots.ClaudeProjectRoots(ctx)
+		}
 		return []string{c.roots.ClaudeProjects}
 	case domain.HarnessCodex:
 		return []string{c.roots.CodexSessions, c.roots.CodexArchived}
 	default:
 		return nil
 	}
+}
+
+func (c *Collector) claudeProjectsRoot(ctx context.Context, sessionID domain.SessionID) string {
+	if c.roots.ClaudeProjectsFor == nil {
+		return c.roots.ClaudeProjects
+	}
+	root, err := c.roots.ClaudeProjectsFor(ctx, sessionID)
+	if err != nil {
+		return ""
+	}
+	return root
 }
 
 func (c *Collector) codexDiscoveryStillPending(ctx context.Context, event, hookPath, discoveredPath string) bool {
@@ -1688,14 +1704,18 @@ func pathWithinRoot(ctx context.Context, path, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-func (c *Collector) discoverPath(ctx context.Context, harness domain.AgentHarness, nativeID string) (string, error) {
+func (c *Collector) discoverPath(ctx context.Context, harness domain.AgentHarness, sessionID domain.SessionID, nativeID string) (string, error) {
 	if !nativeUsageIDPattern.MatchString(nativeID) {
 		return "", nil
 	}
 	var patterns []string
 	switch harness {
 	case domain.HarnessClaudeCode:
-		patterns = []string{filepath.Join(c.roots.ClaudeProjects, "*", nativeID+".jsonl")}
+		root := c.claudeProjectsRoot(ctx, sessionID)
+		if root == "" {
+			return "", nil
+		}
+		patterns = []string{filepath.Join(root, "*", nativeID+".jsonl")}
 	case domain.HarnessCodex:
 		return c.discoverCodexPath(ctx, nativeID, "")
 	}

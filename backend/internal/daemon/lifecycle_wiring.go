@@ -24,6 +24,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/observe/reaper"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	reviewcore "github.com/OmarAly92/operator/backend/internal/review"
+	claudeaccountssvc "github.com/OmarAly92/operator/backend/internal/service/claudeaccounts"
 	reviewsvc "github.com/OmarAly92/operator/backend/internal/service/review"
 	sessionsvc "github.com/OmarAly92/operator/backend/internal/service/session"
 	sessionmanager "github.com/OmarAly92/operator/backend/internal/session_manager"
@@ -156,7 +157,7 @@ func (m sessionLifecycleMessenger) Send(ctx context.Context, id domain.SessionID
 // LCM, the per-session agent resolver, and the agent messenger. The returned
 // service is mounted at httpd APIDeps.Sessions. It also returns the manager so
 // the caller can wire Reconcile into the boot sequence.
-func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
+func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, claudeAccounts *claudeaccountssvc.Service, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
 	gitWS, err := gitworktree.New(gitworktree.Options{
 		// Per-session worktrees live under the data dir, so a single OPERATOR_DATA_DIR
 		// override moves all durable per-user state together.
@@ -190,7 +191,13 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 	// workspace root survives a reset or fresh migration — either can already
 	// hold the id MAX(num)+1 just produced, and the spawn then dies at launch or
 	// on a dirty workspace. Let the allocator skip those.
-	store.SetSessionIDInUse(sessionIDClaimProbe(log, runtime, ws, agentSessionIDClaims{agents: agents}))
+	var claudeConfigDirs func(context.Context) ([]string, error)
+	var claudeAccountLauncher sessionmanager.ClaudeAccountLauncher
+	if claudeAccounts != nil {
+		claudeConfigDirs = claudeAccounts.ConfigDirs
+		claudeAccountLauncher = claudeAccounts
+	}
+	store.SetSessionIDInUse(sessionIDClaimProbe(log, runtime, ws, agentSessionIDClaims{agents: agents, claudeConfigDirs: claudeConfigDirs}))
 	mgr := sessionmanager.New(sessionmanager.Deps{
 		Runtime:             runtime,
 		Agents:              agents,
@@ -201,6 +208,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Preview:             previewLifecycle,
 		Browser:             browserLifecycle,
 		BrowserCapabilities: browserCapabilities,
+		ClaudeAccounts:      claudeAccountLauncher,
 		DataDir:             cfg.DataDir,
 		RunFilePath:         cfg.RunFilePath,
 		Logger:              log,

@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,9 @@ type Pipeline struct {
 	restartWait time.Duration
 	reconcile   chan struct{}
 	inventory   chan struct{}
+
+	mu      sync.Mutex
+	current transcriptWatcher
 }
 
 // NewPipeline constructs a supervised usage collection pipeline.
@@ -80,7 +84,10 @@ func (p *Pipeline) Start(ctx context.Context) <-chan struct{} {
 
 func (p *Pipeline) run(ctx context.Context) {
 	for {
-		watcher, err := p.newWatcher(ctx, p.roots)
+		p.mu.Lock()
+		roots := append([]string(nil), p.roots...)
+		p.mu.Unlock()
+		watcher, err := p.newWatcher(ctx, roots)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -91,6 +98,9 @@ func (p *Pipeline) run(ctx context.Context) {
 			}
 			continue
 		}
+		p.mu.Lock()
+		p.current = watcher
+		p.mu.Unlock()
 
 		if !p.runCoordinator(ctx, watcher) {
 			return
@@ -121,6 +131,27 @@ func (p *Pipeline) runCoordinator(ctx context.Context, watcher transcriptWatcher
 			coordinator.NotifyInventoryChanged()
 		}
 	}
+}
+
+func (p *Pipeline) AddRoot(ctx context.Context, root string) {
+	p.mu.Lock()
+	for _, existing := range p.roots {
+		if existing == root {
+			p.mu.Unlock()
+			return
+		}
+	}
+	p.roots = append(p.roots, root)
+	current := p.current
+	p.mu.Unlock()
+	if adder, ok := current.(interface {
+		AddRoot(context.Context, string) error
+	}); ok {
+		if err := adder.AddRoot(ctx, root); err != nil {
+			p.logger.Warn("usage transcript watcher could not add root", "err", err)
+		}
+	}
+	p.NotifySourcesChanged()
 }
 
 func waitForPipelineRetry(ctx context.Context, delay time.Duration) bool {

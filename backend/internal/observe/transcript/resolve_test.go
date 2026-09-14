@@ -55,7 +55,7 @@ func TestPathPrefersTheHookReportedTranscript(t *testing.T) {
 	configDir := filepath.Join(root, "config")
 	path := writeTranscript(t, filepath.Join(configDir, "projects", "p"), "native.jsonl")
 
-	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}})
+	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}, nil)
 	rec := domain.SessionRecord{Harness: "claude-code"}
 	rec.Metadata.NativeTranscriptPath = path
 
@@ -71,7 +71,7 @@ func TestPathFallsBackToTheAdapterLocator(t *testing.T) {
 	configDir := filepath.Join(root, "config")
 	path := writeTranscript(t, filepath.Join(configDir, "sessions"), "rollout.jsonl")
 
-	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir, located: path, found: true}})
+	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir, located: path, found: true}}, nil)
 	rec := domain.SessionRecord{Harness: "codex"}
 	rec.Metadata.AgentSessionID = "native-1"
 
@@ -90,7 +90,7 @@ func TestPathRejectsAPathOutsideTheConfigDir(t *testing.T) {
 	}
 	outside := writeTranscript(t, filepath.Join(root, "elsewhere"), "evil.jsonl")
 
-	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}})
+	resolver := NewResolver(fakeResolver{agent: &fakeAgent{configDir: configDir}}, nil)
 	rec := domain.SessionRecord{Harness: "claude-code"}
 	rec.Metadata.NativeTranscriptPath = outside
 
@@ -100,7 +100,7 @@ func TestPathRejectsAPathOutsideTheConfigDir(t *testing.T) {
 }
 
 func TestPathIsEmptyWithoutAnAdapter(t *testing.T) {
-	resolver := NewResolver(fakeResolver{})
+	resolver := NewResolver(fakeResolver{}, nil)
 	if got := resolver.Path(context.Background(), domain.SessionRecord{Harness: "nope"}); got != "" {
 		t.Fatalf("Path = %q", got)
 	}
