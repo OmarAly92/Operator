@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import type { components } from "../../api/schema";
 import { apiClient, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { paneGridBody } from "../lib/pane-grid";
@@ -45,8 +46,10 @@ export function useClaudeAccounts() {
 
 export function useRefreshClaudeAccounts() {
 	const queryClient = useQueryClient();
-	return () =>
-		queryClient.fetchQuery({ queryKey: claudeAccountsQueryKey, queryFn: () => fetchClaudeAccounts(true), staleTime: 0 });
+	return useCallback(
+		() => queryClient.fetchQuery({ queryKey: claudeAccountsQueryKey, queryFn: () => fetchClaudeAccounts(true), staleTime: 0 }),
+		[queryClient],
+	);
 }
 
 function useInvalidatingMutation<TInput, TOutput>(fn: (input: TInput) => Promise<TOutput>) {

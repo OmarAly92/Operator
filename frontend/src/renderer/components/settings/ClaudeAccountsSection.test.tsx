@@ -55,6 +55,11 @@ beforeEach(() => {
 	];
 });
 
+test("refreshes accounts on mount", () => {
+	render(<ClaudeAccountsSection />);
+	expect(h.refresh).toHaveBeenCalled();
+});
+
 test("lists default first with plan badges and no remove on default", () => {
 	render(<ClaudeAccountsSection />);
 	const defaultRow = screen.getByTestId("claude-account-default");

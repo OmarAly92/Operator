@@ -60,7 +60,6 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 	const [pendingRemove, setPendingRemove] = useState<ClaudeAccount | null>(null);
 	const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [loginTerminalOpen, setLoginTerminalOpen] = useState(false);
 
 	useEffect(() => {
 		const onFocus = () => void refreshAccounts();
@@ -69,9 +68,8 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 	}, [refreshAccounts]);
 
 	useEffect(() => {
-		if (loginTerminalOpen) return;
 		void refreshAccounts();
-	}, [loginTerminalOpen, refreshAccounts]);
+	}, [refreshAccounts]);
 
 	const openLogin = async (id: string) => {
 		setError(null);
@@ -79,7 +77,6 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 			const shell = await login.mutateAsync(id);
 			closeSettings();
 			setActiveShellTerminal(shell.handleId);
-			setLoginTerminalOpen(true);
 			void navigate({ to: "/terminals" });
 		} catch (err) {
 			setError(errorText(err));
