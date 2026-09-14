@@ -436,6 +436,48 @@ Mobile does not manage accounts or switch a session's account.
 - Accounts for agents other than Claude Code.
 - Two-way MCP sync.
 
+## 13. Amendments from planning (2026-09-14)
+
+These supersede the sections they name.
+
+1. **Default account env (§5.1).** The default account removes
+   `CLAUDE_CONFIG_DIR` from the launch env and never sets it to `""`. An empty
+   value makes Claude's projects directory the relative path `projects` (P7).
+   The daemon unsets an inherited `CLAUDE_CONFIG_DIR` at boot and logs a
+   warning.
+2. **No foreign key (§3.2, §4.1 DELETE).** SQLite's `ALTER TABLE ADD COLUMN`
+   rules mean a column with a `REFERENCES` clause can't be added with a non-NULL
+   default. So `sessions.claude_account_id` is `TEXT NOT NULL DEFAULT 'default'`
+   without a foreign key. `DeleteClaudeAccount` counts referencing sessions
+   inside the same write transaction and refuses with
+   `CLAUDE_ACCOUNT_IN_USE`.
+3. **Switch columns (§3.3).** `from_claude_account_id` and
+   `target_claude_account_id` are `TEXT NOT NULL DEFAULT ''`, appended at the
+   end of the table; `''` means "not recorded". A switch to a non-Claude target
+   records the session's current account as the target account, so the column
+   is stable across the switch.
+4. **Session label (§3.2, §8.4).** The session read model carries
+   `claudeAccountId` only (via `SessionRecord`). Clients resolve the label from
+   `GET /claude-accounts`.
+5. **Account id.** `claude_accounts.id` is the slug fixed at creation.
+   Renaming the label changes neither the id nor the folder.
+6. **Login terminal (§4.1).** The login route opens a shell-terminal record
+   whose argv is the resolved `claude` binary itself, not an interactive shell.
+   The pane ends when Claude exits.
+7. **Mobile data (§8.5).** Accounts are read through the existing
+   `SpawnRemoteDataSource` / `SpawnRepository`, not a new data source, so DI and
+   the network guard stay unchanged.
+8. **Read-only listing (§4.1, §7).** `GET /claude-accounts` never creates links.
+   `sharedSetup` comes from a read-only `claudesetup.Inspect`. Links are created
+   or repaired on create, login, relink and launch.
+9. **Usage path check (§5.4).** `validateSourcePath` only has the harness in
+   scope (`collector.go:1555`), so the containment check accepts a transcript
+   under **any registered account's** `projects` folder, not only the session's.
+   Discovery by native id still searches only the session's own account folder
+   (`ClaudeProjectsFor`). Both roots are provider-owned, so the containment
+   guarantee is unchanged. Only cross-account attribution depends on discovery
+   rather than on the path check.
+
 ## 12. File map
 
 **Backend**

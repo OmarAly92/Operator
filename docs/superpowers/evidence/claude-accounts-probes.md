@@ -84,3 +84,24 @@ must exist before the first launch or Claude creates real files in their place.
 `~/.claude/plugins/installed_plugins.json` stores 8 absolute paths, all under
 `/Users/omaraly/.claude/plugins` or the user's own project folders, so a linked
 `plugins/` directory resolves correctly from any account folder.
+
+## P7. An empty `CLAUDE_CONFIG_DIR` is not the same as an unset one
+
+```bash
+env CLAUDE_CONFIG_DIR= claude auth status
+# loggedIn: true, subscriptionType: max, projectsDirectory: "projects"
+claude auth status
+# projectsDirectory: "/Users/omaraly/.claude/projects"
+```
+
+- An empty value still finds the default Keychain login.
+- The projects directory becomes the **relative** path `projects`, so
+  transcripts would most likely be written under the session's working
+  directory (the worktree).
+- The pty host copies `cfg.Env` into the child environment
+  (`backend/internal/adapters/runtime/ptyhost/runtime.go:223`). Whether the host
+  process also inherits the daemon's own environment was not established.
+
+Consequences: the default account must remove the key from the launch env,
+never set it to `""` (the repo's usual clearing idiom); and the daemon must
+unset an inherited `CLAUDE_CONFIG_DIR` at boot so nothing downstream inherits it.
