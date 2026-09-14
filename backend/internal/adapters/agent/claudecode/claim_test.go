@@ -69,3 +69,23 @@ func TestIsSessionIDClaimedIgnoresAnotherSessionsTranscript(t *testing.T) {
 		t.Fatal("scratch-17 must not be blocked by scratch-16's transcript")
 	}
 }
+
+func TestIsSessionIDClaimedInSearchesEveryFolder(t *testing.T) {
+	first := t.TempDir()
+	second := t.TempDir()
+	project := filepath.Join(second, "projects", "-Users-u-repo")
+	if err := os.MkdirAll(project, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, SessionUUID("proj-7")+".jsonl"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := New().IsSessionIDClaimedIn(context.Background(), "proj-7", []string{first, second})
+	if err != nil || !claimed {
+		t.Fatalf("claimed = %v err=%v", claimed, err)
+	}
+	claimed, err = New().IsSessionIDClaimedIn(context.Background(), "proj-8", []string{first, second})
+	if err != nil || claimed {
+		t.Fatalf("unclaimed id reported claimed=%v err=%v", claimed, err)
+	}
+}

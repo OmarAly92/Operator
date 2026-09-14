@@ -938,3 +938,43 @@ func containsSubsequence(values, needle []string) bool {
 	}
 	return false
 }
+
+func TestClaudeGlobalConfigPathFollowsEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	got, err := claudeGlobalConfigPath(map[string]string{})
+	if err != nil || got != filepath.Join(home, ".claude.json") {
+		t.Fatalf("default = %q err=%v", got, err)
+	}
+	got, err = claudeGlobalConfigPath(map[string]string{claudeConfigDirEnv: "/Users/u/.claude-personal"})
+	if err != nil || got != "/Users/u/.claude-personal/.claude.json" {
+		t.Fatalf("account = %q err=%v", got, err)
+	}
+}
+
+func TestPreLaunchTrustsWorkspaceInAccountConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	account := filepath.Join(t.TempDir(), ".claude-personal")
+	if err := os.MkdirAll(account, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	err := New().PreLaunch(context.Background(), ports.LaunchConfig{
+		WorkspacePath: workspace,
+		Env:           map[string]string{claudeConfigDirEnv: account},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(account, ".claude.json"))
+	if err != nil {
+		t.Fatalf("account config not written: %v", err)
+	}
+	if !strings.Contains(string(data), workspace) {
+		t.Fatalf("workspace trust missing from account config: %s", data)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(err) {
+		t.Fatalf("default ~/.claude.json was touched: %v", err)
+	}
+}

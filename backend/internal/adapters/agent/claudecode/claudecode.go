@@ -33,6 +33,7 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/adapters"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/agentbase"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/binaryutil"
+	"github.com/OmarAly92/operator/backend/internal/adapters/agent/claudecode/claudesetup"
 	"github.com/OmarAly92/operator/backend/internal/adapters/agent/terminalui"
 	"github.com/OmarAly92/operator/backend/internal/ports"
 	aoprocess "github.com/OmarAly92/operator/backend/internal/process"
@@ -233,7 +234,7 @@ func (p *Plugin) PreLaunch(ctx context.Context, cfg ports.LaunchConfig) error {
 	if cfg.WorkspacePath == "" {
 		return nil
 	}
-	cfgPath, err := claudeConfigPath()
+	cfgPath, err := claudeGlobalConfigPath(cfg.Env)
 	if err != nil {
 		return err
 	}
@@ -358,7 +359,7 @@ func claudeLocalAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool, er
 	if strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")) != "" {
 		return ports.AgentAuthStatusAuthorized, true, nil
 	}
-	cfgPath, err := claudeConfigPath()
+	cfgPath, err := claudeGlobalConfigPath(nil)
 	if err != nil {
 		return ports.AgentAuthStatusUnknown, false, err
 	}
@@ -516,9 +517,10 @@ func (p *Plugin) claudeBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// claudeConfigPath returns the path to Claude Code's global config file,
-// ~/.claude.json.
-func claudeConfigPath() (string, error) {
+func claudeGlobalConfigPath(env map[string]string) (string, error) {
+	if dir := strings.TrimSpace(env[claudeConfigDirEnv]); dir != "" {
+		return filepath.Join(dir, ".claude.json"), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("claude-code: resolve home directory: %w", err)
@@ -534,14 +536,9 @@ func claudeConfigPath() (string, error) {
 // rest of the entry and every other project), and writes back via a
 // temp-file + atomic rename. If the path is already trusted, it makes no
 // write at all. A missing config file is treated as an empty one.
-// claudeTrustMu serializes ensureWorkspaceTrusted within the process. Concurrent
-// spawns to different workspaces otherwise read the same ~/.claude.json snapshot
-// and the last rename drops the other's trust entry.
-var claudeTrustMu sync.Mutex
-
 func ensureWorkspaceTrusted(configPath, workspacePath string) error {
-	claudeTrustMu.Lock()
-	defer claudeTrustMu.Unlock()
+	unlock := claudesetup.LockPath(configPath)
+	defer unlock()
 
 	root := map[string]any{}
 	data, err := os.ReadFile(configPath)

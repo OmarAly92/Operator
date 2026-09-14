@@ -105,6 +105,10 @@ type SessionIDClaimChecker interface {
 	IsSessionIDClaimed(ctx context.Context, sessionID domain.SessionID) (bool, error)
 }
 
+type MultiConfigSessionIDClaimChecker interface {
+	IsSessionIDClaimedIn(ctx context.Context, sessionID domain.SessionID, configDirs []string) (bool, error)
+}
+
 // RuntimeRestarter is an optional runtime capability for replacing the process
 // inside an existing terminal session. Implementations should preserve the
 // handle when possible so attached clients do not need a new terminal identity.
