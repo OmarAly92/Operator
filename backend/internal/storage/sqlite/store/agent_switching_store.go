@@ -578,8 +578,12 @@ func validateAgentSwitch(rec domain.AgentSwitch, create bool) error {
 	if !rec.RequestFingerprint.Valid() {
 		return fmt.Errorf("agent switch %s: a valid request fingerprint is required", rec.ID)
 	}
-	if !rec.FromHarness.IsKnown() || !rec.TargetHarness.IsKnown() || rec.FromHarness == rec.TargetHarness {
-		return fmt.Errorf("agent switch %s: source and distinct known target harnesses are required", rec.ID)
+	if !rec.FromHarness.IsKnown() || !rec.TargetHarness.IsKnown() {
+		return fmt.Errorf("agent switch %s: known source and target harnesses are required", rec.ID)
+	}
+	if rec.FromHarness == rec.TargetHarness &&
+		domain.NormalizeClaudeAccountID(rec.FromClaudeAccountID) == domain.NormalizeClaudeAccountID(rec.TargetClaudeAccountID) {
+		return fmt.Errorf("agent switch %s: target must differ from source by harness or Claude account", rec.ID)
 	}
 	if !rec.State.Valid() || !rec.TargetStartMode.Valid() || !rec.AgentHandoffStatus.Valid() || !rec.SourceTranscriptStatus.Valid() {
 		return fmt.Errorf("agent switch %s: invalid state, target start mode, handoff status, or transcript status", rec.ID)

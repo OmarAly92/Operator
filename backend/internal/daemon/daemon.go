@@ -295,6 +295,13 @@ func Run() error {
 	// terminal mux) as session panes, but keep their own ids, storage, and
 	// lifetime — see internal/service/shellterm.
 	shellTermSvc := startShellTerminals(ctx, cfg, runtimeAdapter, store, projectSvc, captureSup, log)
+	claudeProjectRoots := func(ctx context.Context, fallback string) []string {
+		roots, err := claudeAccounts.ProjectRoots(ctx)
+		if err != nil {
+			return []string{fallback}
+		}
+		return roots
+	}
 	var (
 		usageCollector *usagesvc.Collector
 		usagePipeline  *usagepipeline.Pipeline
@@ -303,15 +310,7 @@ func Run() error {
 		log.Warn("usage collection disabled", "err", rootsErr)
 	} else {
 		roots.ClaudeProjectRoots = func(ctx context.Context) []string {
-			dirs, err := claudeAccounts.ConfigDirs(ctx)
-			if err != nil {
-				return []string{roots.ClaudeProjects}
-			}
-			out := make([]string, 0, len(dirs))
-			for _, dir := range dirs {
-				out = append(out, filepath.Join(dir, "projects"))
-			}
-			return out
+			return claudeProjectRoots(ctx, roots.ClaudeProjects)
 		}
 		roots.ClaudeProjectsFor = func(ctx context.Context, id domain.SessionID) (string, error) {
 			rec, ok, err := store.GetSession(ctx, id)
@@ -321,11 +320,7 @@ func Run() error {
 			if !ok {
 				return "", domain.ErrClaudeAccountNotFound
 			}
-			dir, err := claudeAccounts.ConfigDirFor(ctx, rec.ClaudeAccountID)
-			if err != nil {
-				return "", err
-			}
-			return filepath.Join(dir, "projects"), nil
+			return claudeAccounts.ProjectRootFor(ctx, rec.ClaudeAccountID)
 		}
 		usageCollector = usagesvc.NewCollector(store, roots, func(reconcile bool) {
 			if usagePipeline == nil {
@@ -347,8 +342,8 @@ func Run() error {
 			ReconcilePath: usageCollector.ReconcilePath,
 		})
 		lcStack.LCM.SetUsageFinalizer(usageCollector)
-		claudeAccounts.OnAccountAdded(func(dir string) {
-			usagePipeline.AddRoot(ctx, filepath.Join(dir, "projects"))
+		claudeAccounts.OnAccountAdded(func(root string) {
+			usagePipeline.AddRoot(ctx, root)
 		})
 	}
 	lcStack.scmDone = startSCMObserver(ctx, store, lcStack.LCM, log)
@@ -480,19 +475,13 @@ func Run() error {
 	if roots, rootsErr := usagesvc.DefaultSourceRoots(ctx); rootsErr != nil {
 		log.Warn("transcript block projection falls back to polling", "err", rootsErr)
 	} else {
-		claudeRoots := []string{roots.ClaudeProjects}
-		if dirs, dirsErr := claudeAccounts.ConfigDirs(ctx); dirsErr == nil {
-			claudeRoots = claudeRoots[:0]
-			for _, dir := range dirs {
-				claudeRoots = append(claudeRoots, filepath.Join(dir, "projects"))
-			}
-		}
+		claudeRoots := claudeProjectRoots(ctx, roots.ClaudeProjects)
 		if watcher, watchErr := usagepipeline.NewTranscriptWatcher(ctx, append(claudeRoots, roots.CodexSessions)); watchErr != nil {
 			log.Warn("transcript block projection falls back to polling", "err", watchErr)
 		} else {
 			transcriptWatcher = watcher
-			claudeAccounts.OnAccountAdded(func(dir string) {
-				if err := watcher.AddRoot(ctx, filepath.Join(dir, "projects")); err != nil {
+			claudeAccounts.OnAccountAdded(func(root string) {
+				if err := watcher.AddRoot(ctx, root); err != nil {
 					log.Warn("transcript watcher could not add claude account root", "err", err)
 				}
 			})

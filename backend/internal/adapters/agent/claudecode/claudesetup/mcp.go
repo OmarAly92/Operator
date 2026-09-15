@@ -20,14 +20,14 @@ func LockPath(path string) func() {
 }
 
 func SyncMCP(defaultConfigPath, accountConfigPath string) error {
-	source, err := readObject(defaultConfigPath)
+	source, err := ReadObject(defaultConfigPath)
 	if err != nil {
 		return err
 	}
 	servers, hasServers := source["mcpServers"]
 	unlock := LockPath(accountConfigPath)
 	defer unlock()
-	target, err := readObject(accountConfigPath)
+	target, err := ReadObject(accountConfigPath)
 	if err != nil {
 		return err
 	}
@@ -42,10 +42,10 @@ func SyncMCP(defaultConfigPath, accountConfigPath string) error {
 	default:
 		target["mcpServers"] = servers
 	}
-	return writeObjectAtomic(accountConfigPath, target)
+	return WriteObjectAtomic(accountConfigPath, target)
 }
 
-func readObject(path string) (map[string]any, error) {
+func ReadObject(path string) (map[string]any, error) {
 	out := map[string]any{}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -60,10 +60,13 @@ func readObject(path string) (map[string]any, error) {
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, fmt.Errorf("claudesetup: parse %s: %w", path, err)
 	}
+	if out == nil {
+		out = map[string]any{}
+	}
 	return out, nil
 }
 
-func writeObjectAtomic(path string, value map[string]any) error {
+func WriteObjectAtomic(path string, value map[string]any) error {
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return fmt.Errorf("claudesetup: encode %s: %w", path, err)

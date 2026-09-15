@@ -62,12 +62,6 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		const onFocus = () => void refreshAccounts();
-		window.addEventListener("focus", onFocus);
-		return () => window.removeEventListener("focus", onFocus);
-	}, [refreshAccounts]);
-
-	useEffect(() => {
 		void refreshAccounts();
 	}, [refreshAccounts]);
 

@@ -147,7 +147,7 @@ func (s *Service) Create(ctx context.Context, label string) (domain.ClaudeAccoun
 	hooks := append([]func(string){}, s.added...)
 	s.mu.Unlock()
 	for _, hook := range hooks {
-		hook(dir)
+		hook(claudecode.ProjectsDir(dir))
 	}
 	return account, nil
 }
@@ -197,8 +197,12 @@ func (s *Service) Relink(ctx context.Context, id domain.ClaudeAccountID) (claude
 	return report, nil
 }
 
+func (s *Service) Get(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
+	return s.store.GetClaudeAccount(ctx, domain.NormalizeClaudeAccountID(id))
+}
+
 func (s *Service) PrepareLaunch(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
-	account, err := s.store.GetClaudeAccount(ctx, domain.NormalizeClaudeAccountID(id))
+	account, err := s.Get(ctx, id)
 	if err != nil {
 		return domain.ClaudeAccount{}, err
 	}
@@ -236,7 +240,7 @@ func (s *Service) Login(ctx context.Context, id domain.ClaudeAccountID) (LoginLa
 }
 
 func (s *Service) EnvFor(ctx context.Context, id domain.ClaudeAccountID) (map[string]string, error) {
-	account, err := s.store.GetClaudeAccount(ctx, domain.NormalizeClaudeAccountID(id))
+	account, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -246,11 +250,31 @@ func (s *Service) EnvFor(ctx context.Context, id domain.ClaudeAccountID) (map[st
 }
 
 func (s *Service) ConfigDirFor(ctx context.Context, id domain.ClaudeAccountID) (string, error) {
-	account, err := s.store.GetClaudeAccount(ctx, domain.NormalizeClaudeAccountID(id))
+	account, err := s.Get(ctx, id)
 	if err != nil {
 		return "", err
 	}
 	return s.configDir(account), nil
+}
+
+func (s *Service) ProjectRootFor(ctx context.Context, id domain.ClaudeAccountID) (string, error) {
+	dir, err := s.ConfigDirFor(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return claudecode.ProjectsDir(dir), nil
+}
+
+func (s *Service) ProjectRoots(ctx context.Context) ([]string, error) {
+	dirs, err := s.ConfigDirs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	roots := make([]string, len(dirs))
+	for i, dir := range dirs {
+		roots[i] = claudecode.ProjectsDir(dir)
+	}
+	return roots, nil
 }
 
 func (s *Service) ConfigDirs(ctx context.Context) ([]string, error) {

@@ -540,19 +540,9 @@ func ensureWorkspaceTrusted(configPath, workspacePath string) error {
 	unlock := claudesetup.LockPath(configPath)
 	defer unlock()
 
-	root := map[string]any{}
-	data, err := os.ReadFile(configPath)
-	switch {
-	case err == nil:
-		if len(data) > 0 {
-			if err := json.Unmarshal(data, &root); err != nil {
-				return fmt.Errorf("claude-code: parse %s: %w", configPath, err)
-			}
-		}
-	case os.IsNotExist(err):
-		// Treat as empty config; we'll create it.
-	default:
-		return fmt.Errorf("claude-code: read %s: %w", configPath, err)
+	root, err := claudesetup.ReadObject(configPath)
+	if err != nil {
+		return err
 	}
 
 	projects, _ := root["projects"].(map[string]any)
@@ -573,31 +563,5 @@ func ensureWorkspaceTrusted(configPath, workspacePath string) error {
 	}
 	entry["hasTrustDialogAccepted"] = true
 
-	out, err := json.MarshalIndent(root, "", "  ")
-	if err != nil {
-		return fmt.Errorf("claude-code: encode %s: %w", configPath, err)
-	}
-
-	// Atomic write: temp file in the same directory, then rename. Matches
-	// how Claude Code itself updates this file, so concurrent updates are
-	// last-writer-wins rather than corrupting.
-	dir := filepath.Dir(configPath)
-	tmp, err := os.CreateTemp(dir, ".claude.json.tmp-*")
-	if err != nil {
-		return fmt.Errorf("claude-code: create temp config: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }() // no-op once renamed
-
-	if _, err := tmp.Write(out); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("claude-code: write temp config: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("claude-code: close temp config: %w", err)
-	}
-	if err := os.Rename(tmpName, configPath); err != nil {
-		return fmt.Errorf("claude-code: replace config: %w", err)
-	}
-	return nil
+	return claudesetup.WriteObjectAtomic(configPath, root)
 }

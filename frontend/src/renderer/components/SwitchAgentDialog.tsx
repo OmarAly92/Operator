@@ -1,6 +1,6 @@
 import { ArrowLeftRight, FileWarning, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	createSwitchAgentIdempotencyKey,
@@ -86,24 +86,19 @@ export function SwitchAgentDialog({
 	const noteId = useId();
 	const targetId = useId();
 	const historyId = useId();
-	const claudeAccounts = useClaudeAccounts().data ?? [];
+	const accountsQuery = useClaudeAccounts();
+	const claudeAccounts = accountsQuery.data ?? [];
 	const currentAccountId = session.claudeAccountId ?? "default";
 	const otherAccount = claudeAccounts.find((account) => account.id !== currentAccountId);
 	const sessionOnClaude = session.provider === "claude-code";
-	const defaultTargetHarness: SwitchAgentHarness = sessionOnClaude && !otherAccount ? "codex" : "claude-code";
-	const [targetHarness, setTargetHarness] = useState<SwitchAgentHarness>(defaultTargetHarness);
-	const [targetAccountId, setTargetAccountId] = useState<string>(sessionOnClaude ? (otherAccount?.id ?? currentAccountId) : currentAccountId);
+	const [chosenHarness, setTargetHarness] = useState<SwitchAgentHarness | undefined>();
+	const [chosenAccountId, setTargetAccountId] = useState<string | undefined>();
+	const targetHarness: SwitchAgentHarness = chosenHarness ?? (sessionOnClaude && !otherAccount ? "codex" : "claude-code");
+	const targetAccountId = chosenAccountId ?? (sessionOnClaude ? otherAccount?.id : undefined) ?? currentAccountId;
 	const accountId = useId();
 	const accountMatchesCurrent = sessionOnClaude && targetHarness === "claude-code" && targetAccountId === currentAccountId;
 	const currentAgentLabel = useClaudeAccountAgentLabel(session, agentLabel(session.provider));
 	const [note, setNote] = useState("");
-
-	useEffect(() => {
-		if (sessionOnClaude && targetAccountId === currentAccountId && otherAccount) {
-			setTargetHarness("claude-code");
-			setTargetAccountId(otherAccount.id);
-		}
-	}, [sessionOnClaude, targetAccountId, currentAccountId, otherAccount]);
 	const switchAgent = useSwitchAgent();
 	const switchMutation = useSwitchAgentState(session.id);
 	const switchesQuery = useAgentSwitches(session.id);
@@ -115,7 +110,7 @@ export function SwitchAgentDialog({
 		!recoverySwitch && (activeSwitch || (switchMutation.isPending && pendingInput)),
 	);
 	const terminalHistory = switches.filter(isTerminalAgentSwitch).slice(0, 5);
-	const checkingStatus = switchesQuery.isPending;
+	const checkingStatus = switchesQuery.isPending || accountsQuery.isPending;
 	const switchBlocked = Boolean(recoverySwitch || switchInProgress || checkingStatus);
 
 	const clearFailedAttempt = () => {

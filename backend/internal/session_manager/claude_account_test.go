@@ -22,17 +22,20 @@ func newFakeClaudeAccounts() *fakeClaudeAccounts {
 	}}
 }
 
-func (f *fakeClaudeAccounts) PrepareLaunch(_ context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
-	id = domain.NormalizeClaudeAccountID(id)
-	f.prepared = append(f.prepared, id)
-	if f.err != nil {
-		return domain.ClaudeAccount{}, f.err
-	}
-	account, ok := f.accounts[id]
+func (f *fakeClaudeAccounts) Get(_ context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
+	account, ok := f.accounts[domain.NormalizeClaudeAccountID(id)]
 	if !ok {
 		return domain.ClaudeAccount{}, domain.ErrClaudeAccountNotFound
 	}
 	return account, nil
+}
+
+func (f *fakeClaudeAccounts) PrepareLaunch(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
+	f.prepared = append(f.prepared, domain.NormalizeClaudeAccountID(id))
+	if f.err != nil {
+		return domain.ClaudeAccount{}, f.err
+	}
+	return f.Get(ctx, id)
 }
 
 type fakeSessionReader struct {
@@ -68,13 +71,24 @@ func TestRuntimeEnvAppliesAccount(t *testing.T) {
 	}
 }
 
-func TestRuntimeEnvPropagatesFolderUnavailable(t *testing.T) {
+func TestLaunchRuntimeEnvPreparesClaudeLaunchOnly(t *testing.T) {
 	accounts := newFakeClaudeAccounts()
 	accounts.err = domain.ErrClaudeAccountFolderUnavailable
 	m := New(Deps{ClaudeAccounts: accounts, Executable: func() (string, error) { return "/opt/opr/opr", nil }})
-	_, err := m.runtimeEnv(context.Background(), domain.SessionRecord{ID: "proj-1"}, "personal", nil)
-	if !errors.Is(err, domain.ErrClaudeAccountFolderUnavailable) {
-		t.Fatalf("err = %v", err)
+	ctx := context.Background()
+
+	if _, err := m.runtimeEnv(ctx, domain.SessionRecord{ID: "proj-1", Harness: domain.HarnessClaudeCode}, "personal", nil); err != nil {
+		t.Fatalf("runtimeEnv err = %v", err)
+	}
+	if _, _, err := m.launchRuntimeEnv(ctx, domain.SessionRecord{ID: "proj-1", Harness: domain.HarnessCodex}, "personal", nil); err != nil {
+		t.Fatalf("codex launch err = %v", err)
+	}
+	if len(accounts.prepared) != 0 {
+		t.Fatalf("prepared = %v, want none", accounts.prepared)
+	}
+	_, _, err := m.launchRuntimeEnv(ctx, domain.SessionRecord{ID: "proj-1", Harness: domain.HarnessClaudeCode}, "personal", nil)
+	if !errors.Is(err, domain.ErrClaudeAccountFolderUnavailable) || len(accounts.prepared) != 1 {
+		t.Fatalf("claude launch err = %v prepared = %v", err, accounts.prepared)
 	}
 }
 

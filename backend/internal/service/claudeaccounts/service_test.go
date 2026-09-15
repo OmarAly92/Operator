@@ -164,7 +164,7 @@ func TestCreateMakesFolderLinksAndNotifies(t *testing.T) {
 	if target, err := os.Readlink(filepath.Join(wantDir, "CLAUDE.md")); err != nil || target != filepath.Join(home, ".claude", "CLAUDE.md") {
 		t.Fatalf("CLAUDE.md link = %q err=%v", target, err)
 	}
-	if len(added) != 1 || added[0] != wantDir {
+	if len(added) != 1 || added[0] != filepath.Join(wantDir, "projects") {
 		t.Fatalf("added = %v", added)
 	}
 }

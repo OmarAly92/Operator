@@ -3109,6 +3109,9 @@ func (m *Manager) runtimeEnv(ctx context.Context, rec domain.SessionRecord, acco
 }
 
 func (m *Manager) launchRuntimeEnv(ctx context.Context, rec domain.SessionRecord, account domain.ClaudeAccountID, projectEnv map[string]string) (map[string]string, string, error) {
+	if err := m.prepareClaudeAccountLaunch(ctx, rec.Harness, account); err != nil {
+		return nil, "", err
+	}
 	env, err := m.runtimeEnv(ctx, rec, account, projectEnv)
 	if err != nil {
 		return nil, "", err

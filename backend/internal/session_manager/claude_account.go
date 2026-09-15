@@ -10,6 +10,7 @@ import (
 )
 
 type ClaudeAccountLauncher interface {
+	Get(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error)
 	PrepareLaunch(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error)
 }
 
@@ -17,11 +18,21 @@ func (m *Manager) applyClaudeAccount(ctx context.Context, env map[string]string,
 	if m.claudeAccounts == nil {
 		return nil
 	}
-	account, err := m.claudeAccounts.PrepareLaunch(ctx, domain.NormalizeClaudeAccountID(id))
+	account, err := m.claudeAccounts.Get(ctx, domain.NormalizeClaudeAccountID(id))
 	if err != nil {
 		return fmt.Errorf("claude account %s: %w", domain.NormalizeClaudeAccountID(id), err)
 	}
 	account.ApplyEnv(env)
+	return nil
+}
+
+func (m *Manager) prepareClaudeAccountLaunch(ctx context.Context, harness domain.AgentHarness, id domain.ClaudeAccountID) error {
+	if m.claudeAccounts == nil || harness != domain.HarnessClaudeCode {
+		return nil
+	}
+	if _, err := m.claudeAccounts.PrepareLaunch(ctx, domain.NormalizeClaudeAccountID(id)); err != nil {
+		return fmt.Errorf("claude account %s: %w", domain.NormalizeClaudeAccountID(id), err)
+	}
 	return nil
 }
 
@@ -69,7 +80,7 @@ func (m *Manager) checkClaudeAccount(ctx context.Context, id domain.ClaudeAccoun
 	if m.claudeAccounts == nil {
 		return nil
 	}
-	if _, err := m.claudeAccounts.PrepareLaunch(ctx, id); err != nil {
+	if _, err := m.claudeAccounts.Get(ctx, id); err != nil {
 		if errors.Is(err, domain.ErrClaudeAccountNotFound) {
 			return fmt.Errorf("%w: %s", domain.ErrInvalidClaudeAccount, id)
 		}

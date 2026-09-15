@@ -89,7 +89,7 @@ func (p *Plugin) LocateTranscript(ctx context.Context, ref ports.NativeSessionRe
 		return "", false, nil
 	}
 
-	projectsDir := filepath.Join(configDir, "projects")
+	projectsDir := ProjectsDir(configDir)
 	projects, err := os.ReadDir(projectsDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", false, nil
@@ -124,4 +124,8 @@ func canonicalClaudeNativeSessionID(value string) (string, error) {
 		return "", fmt.Errorf("claude-code: invalid native session id: %w", err)
 	}
 	return parsed.String(), nil
+}
+
+func ProjectsDir(configDir string) string {
+	return filepath.Join(configDir, "projects")
 }

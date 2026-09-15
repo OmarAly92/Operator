@@ -99,6 +99,9 @@ func (p *Pipeline) run(ctx context.Context) {
 			continue
 		}
 		p.mu.Lock()
+		for _, root := range p.roots[len(roots):] {
+			p.addWatcherRoot(ctx, watcher, root)
+		}
 		p.current = watcher
 		p.mu.Unlock()
 
@@ -144,14 +147,20 @@ func (p *Pipeline) AddRoot(ctx context.Context, root string) {
 	p.roots = append(p.roots, root)
 	current := p.current
 	p.mu.Unlock()
-	if adder, ok := current.(interface {
-		AddRoot(context.Context, string) error
-	}); ok {
-		if err := adder.AddRoot(ctx, root); err != nil {
-			p.logger.Warn("usage transcript watcher could not add root", "err", err)
-		}
-	}
+	p.addWatcherRoot(ctx, current, root)
 	p.NotifySourcesChanged()
+}
+
+func (p *Pipeline) addWatcherRoot(ctx context.Context, watcher transcriptWatcher, root string) {
+	adder, ok := watcher.(interface {
+		AddRoot(context.Context, string) error
+	})
+	if !ok {
+		return
+	}
+	if err := adder.AddRoot(ctx, root); err != nil {
+		p.logger.Warn("usage transcript watcher could not add root", "err", err)
+	}
 }
 
 func waitForPipelineRetry(ctx context.Context, delay time.Duration) bool {

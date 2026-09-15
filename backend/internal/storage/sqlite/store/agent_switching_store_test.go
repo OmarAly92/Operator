@@ -1080,3 +1080,32 @@ func TestAgentSwitchAndOwnerChangesEmitSessionInvalidationCDC(t *testing.T) {
 		t.Fatalf("owner update events = %+v, want one session_updated", events)
 	}
 }
+
+func TestCreateAgentSwitchAllowsSameHarnessAcrossAccounts(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "switch-accounts")
+	session, err := s.CreateSession(ctx, sampleRecord("switch-accounts"))
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	now := session.CreatedAt
+	base := domain.AgentSwitch{
+		ID: "switch-accounts", SessionID: session.ID, IdempotencyKey: "switch-accounts",
+		RequestFingerprint: domain.ComputeAgentSwitchRequestFingerprint(session.ID, domain.HarnessClaudeCode, "personal", ""),
+		FromHarness:        domain.HarnessClaudeCode, FromClaudeAccountID: "default",
+		TargetHarness: domain.HarnessClaudeCode, TargetClaudeAccountID: "personal",
+		State: domain.AgentSwitchPreparingHandoff, TargetStartMode: domain.AgentSwitchTargetStartPending,
+		AgentHandoffStatus: domain.AgentHandoffNotAttempted, SourceGenerationID: "source-generation",
+		RequestedAt: now, UpdatedAt: now,
+	}
+	if _, created, err := s.CreateAgentSwitch(ctx, base); err != nil || !created {
+		t.Fatalf("create account switch: created=%v err=%v", created, err)
+	}
+	same := base
+	same.ID, same.IdempotencyKey = "switch-same", "switch-same"
+	same.TargetClaudeAccountID = "default"
+	if _, _, err := s.CreateAgentSwitch(ctx, same); err == nil {
+		t.Fatal("expected error for identical harness and account")
+	}
+}

@@ -47,7 +47,10 @@ export function useClaudeAccounts() {
 export function useRefreshClaudeAccounts() {
 	const queryClient = useQueryClient();
 	return useCallback(
-		() => queryClient.fetchQuery({ queryKey: claudeAccountsQueryKey, queryFn: () => fetchClaudeAccounts(true), staleTime: 0 }),
+		() =>
+			queryClient
+				.fetchQuery({ queryKey: claudeAccountsQueryKey, queryFn: () => fetchClaudeAccounts(true), staleTime: 0 })
+				.catch(() => undefined),
 		[queryClient],
 	);
 }
