@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { useCallback } from "react";
 import type { components } from "../../api/schema";
 import { apiClient, hasTrustedApiBaseUrl } from "../lib/api-client";
@@ -26,13 +27,20 @@ export function claudeAccountSlug(label: string): string {
 		.replace(/^-+|-+$/g, "");
 }
 
-export function claudeAccountPlanKey(account: ClaudeAccount): "max" | "pro" | "notLoggedIn" | "unknown" | "other" {
+const PLAN_KEYS = {
+	max: "settings.claudeAccounts.plan.max",
+	pro: "settings.claudeAccounts.plan.pro",
+	notLoggedIn: "settings.claudeAccounts.plan.notLoggedIn",
+	unknown: "settings.claudeAccounts.plan.unknown",
+} as const;
+
+export function claudeAccountPlanLabel(account: ClaudeAccount, t: TFunction): string {
 	const loggedIn = account.status?.loggedIn;
-	if (loggedIn === false) return "notLoggedIn";
-	if (loggedIn !== true) return "unknown";
+	if (loggedIn === false) return t(PLAN_KEYS.notLoggedIn);
+	if (loggedIn !== true) return t(PLAN_KEYS.unknown);
 	const plan = account.status?.subscriptionType ?? "";
-	if (plan === "max" || plan === "pro") return plan;
-	return plan ? "other" : "unknown";
+	if (plan === "max" || plan === "pro") return t(PLAN_KEYS[plan]);
+	return plan || t(PLAN_KEYS.unknown);
 }
 
 export function useClaudeAccounts() {

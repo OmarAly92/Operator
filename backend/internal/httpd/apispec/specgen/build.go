@@ -282,7 +282,6 @@ var schemaNames = map[string]string{
 	"ControllersListShellTerminalsResponse": "ListShellTerminalsResponse",
 	"ControllersShellTerminalEnvelope":      "ShellTerminalEnvelope",
 	"ControllersTerminalBlockView":          "TerminalBlockView",
-	// httpd/controllers — Claude account wire envelopes
 	"ControllersClaudeAccountView":          "ClaudeAccountView",
 	"ControllersClaudeAccountStatus":        "ClaudeAccountStatus",
 	"ControllersListClaudeAccountsResponse": "ListClaudeAccountsResponse",

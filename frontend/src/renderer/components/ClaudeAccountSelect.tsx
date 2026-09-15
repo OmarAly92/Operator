@@ -1,13 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { claudeAccountPlanKey, useClaudeAccounts, type ClaudeAccount } from "../hooks/useClaudeAccounts";
+import { claudeAccountPlanLabel, useClaudeAccounts, type ClaudeAccount } from "../hooks/useClaudeAccounts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-
-const PLAN_KEYS = {
-	max: "settings.claudeAccounts.plan.max",
-	pro: "settings.claudeAccounts.plan.pro",
-	notLoggedIn: "settings.claudeAccounts.plan.notLoggedIn",
-	unknown: "settings.claudeAccounts.plan.unknown",
-} as const;
 
 export function ClaudeAccountSelect({
 	id,
@@ -27,11 +20,8 @@ export function ClaudeAccountSelect({
 	excludeId?: string;
 }) {
 	const { t } = useTranslation();
-	const optionLabel = (account: ClaudeAccount) => {
-		const key = claudeAccountPlanKey(account);
-		const plan = key === "other" ? (account.status?.subscriptionType ?? "") : t(PLAN_KEYS[key]);
-		return t("claudeAccounts.planSuffix", { label: account.label, plan });
-	};
+	const optionLabel = (account: ClaudeAccount) =>
+		t("claudeAccounts.planSuffix", { label: account.label, plan: claudeAccountPlanLabel(account, t) });
 	return (
 		<Select value={value} onValueChange={onChange}>
 			<SelectTrigger id={id} aria-label={ariaLabel} className={triggerClassName}>

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-	claudeAccountPlanKey,
+	claudeAccountPlanLabel,
 	claudeAccountSlug,
 	type ClaudeAccount,
 	useClaudeAccountLogin,
@@ -15,6 +15,7 @@ import {
 } from "../../hooks/useClaudeAccounts";
 import { apiErrorMessage } from "../../lib/api-client";
 import { useUiStore } from "../../stores/ui-store";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
 	Dialog,
@@ -28,13 +29,6 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { SettingsSection } from "./SettingsSection";
-
-const PLAN_KEYS = {
-	max: "settings.claudeAccounts.plan.max",
-	pro: "settings.claudeAccounts.plan.pro",
-	notLoggedIn: "settings.claudeAccounts.plan.notLoggedIn",
-	unknown: "settings.claudeAccounts.plan.unknown",
-} as const;
 
 function errorText(error: unknown): string {
 	if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
@@ -119,8 +113,7 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 		<SettingsSection title={t("settings.claudeAccounts.title")} titleHidden={titleHidden} sectionId="claude-accounts">
 			{accountsQuery.error ? <p className="px-3 text-caption text-destructive">{t("settings.claudeAccounts.loadFailed")}</p> : null}
 			{accounts.map((account) => {
-				const planKey = claudeAccountPlanKey(account);
-				const planLabel = planKey === "other" ? (account.status?.subscriptionType ?? "") : t(PLAN_KEYS[planKey]);
+				const planLabel = claudeAccountPlanLabel(account, t);
 				const replaced = Object.entries(account.sharedSetup ?? {})
 					.filter(([, state]) => state === "replaced")
 					.map(([name]) => name)
@@ -139,10 +132,8 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 							) : (
 								<span className="truncate text-sm text-settings-label">{account.label}</span>
 							)}
-							{account.isDefault ? (
-								<span className="rounded px-1.5 text-micro text-settings-muted ring-1 ring-border">{t("settings.claudeAccounts.default")}</span>
-							) : null}
-							<span className="rounded px-1.5 text-micro text-settings-muted ring-1 ring-border">{planLabel}</span>
+							{account.isDefault ? <Badge variant="outline">{t("settings.claudeAccounts.default")}</Badge> : null}
+							<Badge variant="outline">{planLabel}</Badge>
 							<div className="ml-auto flex shrink-0 items-center gap-1.5">
 								<Button type="button" variant="outline" onClick={() => void openLogin(account.id)} disabled={login.isPending}>
 									{account.status?.loggedIn ? t("settings.claudeAccounts.loginAgain") : t("settings.claudeAccounts.login")}
