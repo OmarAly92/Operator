@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/api_consumer.dart';
 import 'package:operator_mobile/core/api/api_request_helpers/dio_consumer.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/database/app_database.dart';
+import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
 import 'package:operator_mobile/core/deep_link/deep_link_service.dart';
 import 'package:operator_mobile/core/helpers/network/network_status.dart';
 import 'package:operator_mobile/core/mux/mux_client.dart';
@@ -27,7 +29,9 @@ import 'package:operator_mobile/feature/notification/presentation/notifications_
 import 'package:operator_mobile/feature/orchestrator/data/data_source/orchestrator_remote_data_source.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/desktops_local_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pairing/data/repository/pairing_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
 import 'package:operator_mobile/feature/pairing/presentation/manual_connect_screen/logic/manual_connect_cubit.dart';
@@ -78,6 +82,13 @@ class ServiceLocator {
     sl.registerLazySingleton<FlutterSecureStorage>(
       () => const FlutterSecureStorage(),
     );
+
+    sl.registerLazySingleton<AppDatabase>(AppDatabase.new);
+    sl.registerLazySingleton<DesktopDao>(() => DesktopDao(sl<AppDatabase>()));
+    sl.registerLazySingleton<DesktopsLocalDataSource>(
+      () => DesktopsLocalDataSourceImp(sl<DesktopDao>(), sl<FlutterSecureStorage>()),
+    );
+    sl.registerLazySingleton<DesktopsRepository>(() => DesktopsRepositoryImp(sl<DesktopsLocalDataSource>()));
 
     sl.registerLazySingleton<ServerConfigStore>(
       () => ServerConfigStore(sl<FlutterSecureStorage>()),
