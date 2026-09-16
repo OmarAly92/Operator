@@ -1,11 +1,12 @@
 import 'package:equatable/equatable.dart';
 
 class ClaudeAccountModel extends Equatable {
-  const ClaudeAccountModel({this.id, this.label, this.isDefault, this.loggedIn, this.subscriptionType});
+  const ClaudeAccountModel({this.id, this.label, this.isDefault, this.isPreferred, this.loggedIn, this.subscriptionType});
 
   final String? id;
   final String? label;
   final bool? isDefault;
+  final bool? isPreferred;
   final bool? loggedIn;
   final String? subscriptionType;
 
@@ -15,6 +16,7 @@ class ClaudeAccountModel extends Equatable {
       id: json['id'] as String?,
       label: json['label'] as String?,
       isDefault: json['isDefault'] as bool?,
+      isPreferred: json['isPreferred'] as bool?,
       loggedIn: status['loggedIn'] as bool?,
       subscriptionType: status['subscriptionType'] as String?,
     );
@@ -24,6 +26,13 @@ class ClaudeAccountModel extends Equatable {
     final raw = json['accounts'];
     if (raw is! List) return const [];
     return raw.whereType<Map<String, dynamic>>().map(ClaudeAccountModel.fromJson).toList();
+  }
+
+  static String preferredId(List<ClaudeAccountModel> accounts) {
+    for (final account in accounts) {
+      if (account.isPreferred == true && account.id != null) return account.id!;
+    }
+    return 'default';
   }
 
   String get planLabel {
@@ -40,5 +49,5 @@ class ClaudeAccountModel extends Equatable {
   String get displayLabel => '${label ?? id ?? ''} · $planLabel';
 
   @override
-  List<Object?> get props => [id, label, isDefault, loggedIn, subscriptionType];
+  List<Object?> get props => [id, label, isDefault, isPreferred, loggedIn, subscriptionType];
 }

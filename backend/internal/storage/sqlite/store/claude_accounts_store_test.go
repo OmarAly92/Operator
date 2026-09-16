@@ -50,6 +50,47 @@ func TestClaudeAccountsInsertRenameGet(t *testing.T) {
 	}
 }
 
+func TestPreferredClaudeAccount(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	got, err := s.PreferredClaudeAccount(ctx)
+	if err != nil || got.ID != domain.DefaultClaudeAccountID {
+		t.Fatalf("unset preferred = %+v err=%v, want default", got, err)
+	}
+	for _, id := range []domain.ClaudeAccountID{"personal", "work"} {
+		if err := s.InsertClaudeAccount(ctx, domain.ClaudeAccount{ID: id, Label: string(id), ConfigDir: "/Users/u/.claude-" + string(id), CreatedAt: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetPreferredClaudeAccount(ctx, "personal"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPreferredClaudeAccount(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := s.ListClaudeAccounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range accounts {
+		if a.IsPreferred != (a.ID == "work") {
+			t.Fatalf("preferred flag on %s = %v", a.ID, a.IsPreferred)
+		}
+	}
+	if err := s.SetPreferredClaudeAccount(ctx, "missing"); !errors.Is(err, domain.ErrClaudeAccountNotFound) {
+		t.Fatalf("missing err = %v", err)
+	}
+	if got, err := s.PreferredClaudeAccount(ctx); err != nil || got.ID != "work" {
+		t.Fatalf("preferred after failed set = %+v err=%v", got, err)
+	}
+	if err := s.DeleteClaudeAccount(ctx, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.PreferredClaudeAccount(ctx); err != nil || got.ID != domain.DefaultClaudeAccountID {
+		t.Fatalf("preferred after delete = %+v err=%v, want default", got, err)
+	}
+}
+
 func TestClaudeAccountsInsertRejectsEmptyFolder(t *testing.T) {
 	s := newTestStore(t)
 	err := s.InsertClaudeAccount(context.Background(), domain.ClaudeAccount{ID: "x", Label: "X", CreatedAt: time.Now().UTC()})

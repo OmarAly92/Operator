@@ -24,6 +24,7 @@ type ClaudeAccountService interface {
 	Create(ctx context.Context, label string) (domain.ClaudeAccount, error)
 	Rename(ctx context.Context, id domain.ClaudeAccountID, label string) (domain.ClaudeAccount, error)
 	Delete(ctx context.Context, id domain.ClaudeAccountID) error
+	SetPreferred(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error)
 	Relink(ctx context.Context, id domain.ClaudeAccountID) (claudesetup.Report, error)
 	Login(ctx context.Context, id domain.ClaudeAccountID) (claudeaccountssvc.LoginLaunch, error)
 }
@@ -40,6 +41,7 @@ func (c *ClaudeAccountsController) Register(r chi.Router) {
 	r.Delete("/claude-accounts/{accountId}", c.remove)
 	r.Post("/claude-accounts/{accountId}/login", c.login)
 	r.Post("/claude-accounts/{accountId}/relink", c.relink)
+	r.Post("/claude-accounts/{accountId}/prefer", c.prefer)
 }
 
 func claudeAccountID(r *http.Request) domain.ClaudeAccountID {
@@ -88,6 +90,7 @@ func claudeAccountView(view claudeaccountssvc.AccountView) ClaudeAccountView {
 		Label:       view.Account.Label,
 		ConfigDir:   configDir,
 		IsDefault:   view.Account.IsDefault,
+		IsPreferred: view.Account.IsPreferred,
 		Status:      status,
 		SharedSetup: setup,
 	}
@@ -164,6 +167,19 @@ func (c *ClaudeAccountsController) remove(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (c *ClaudeAccountsController) prefer(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/claude-accounts/{accountId}/prefer")
+		return
+	}
+	account, err := c.Svc.SetPreferred(r.Context(), claudeAccountID(r))
+	if err != nil {
+		envelope.WriteError(w, r, claudeAccountAPIError(err))
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ClaudeAccountEnvelope{Account: claudeAccountView(claudeaccountssvc.AccountView{Account: account})})
 }
 
 func (c *ClaudeAccountsController) relink(w http.ResponseWriter, r *http.Request) {

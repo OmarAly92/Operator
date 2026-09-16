@@ -13,12 +13,46 @@ import (
 
 func claudeAccountFromGen(row gen.ClaudeAccount) domain.ClaudeAccount {
 	return domain.ClaudeAccount{
-		ID:        row.ID,
-		Label:     row.Label,
-		ConfigDir: row.ConfigDir.String,
-		IsDefault: row.IsDefault,
-		CreatedAt: row.CreatedAt,
+		ID:          row.ID,
+		Label:       row.Label,
+		ConfigDir:   row.ConfigDir.String,
+		IsDefault:   row.IsDefault,
+		IsPreferred: row.IsPreferred,
+		CreatedAt:   row.CreatedAt,
 	}
+}
+
+func (s *Store) PreferredClaudeAccount(ctx context.Context) (domain.ClaudeAccount, error) {
+	row, err := s.qr.GetPreferredClaudeAccount(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return s.GetClaudeAccount(ctx, domain.DefaultClaudeAccountID)
+	}
+	if err != nil {
+		return domain.ClaudeAccount{}, fmt.Errorf("get preferred claude account: %w", err)
+	}
+	return claudeAccountFromGen(row), nil
+}
+
+func (s *Store) SetPreferredClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin prefer claude account %s: %w", id, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := s.qw.WithTx(tx)
+	if err := q.ClearPreferredClaudeAccount(ctx); err != nil {
+		return fmt.Errorf("prefer claude account %s: clear: %w", id, err)
+	}
+	n, err := q.MarkPreferredClaudeAccount(ctx, id)
+	if err != nil {
+		return fmt.Errorf("prefer claude account %s: %w", id, err)
+	}
+	if n == 0 {
+		return domain.ErrClaudeAccountNotFound
+	}
+	return tx.Commit()
 }
 
 func (s *Store) ListClaudeAccounts(ctx context.Context) ([]domain.ClaudeAccount, error) {

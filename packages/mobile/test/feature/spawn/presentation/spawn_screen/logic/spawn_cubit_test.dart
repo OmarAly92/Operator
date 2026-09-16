@@ -217,6 +217,42 @@ void main() {
   );
 
   blocTest<SpawnCubit, SpawnState>(
+    'preselects the preferred account and resets to it on agent change',
+    build: () {
+      when(() => repository.getClaudeAccounts()).thenAnswer(
+        (_) async => Result.success(
+          GlobalResponse(
+            data: const [
+              ClaudeAccountModel(id: 'default', label: 'Default', isDefault: true, isPreferred: false, loggedIn: true, subscriptionType: 'max'),
+              ClaudeAccountModel(id: 'personal', label: 'Personal', isDefault: false, isPreferred: true, loggedIn: true, subscriptionType: 'pro'),
+            ],
+          ),
+        ),
+      );
+      return buildCubit();
+    },
+    act: (cubit) async {
+      await cubit.loadCatalog();
+      expect(cubit.claudeAccountId, 'personal');
+      cubit.setClaudeAccount('default');
+      cubit.setHarness('claude-code');
+    },
+    verify: (cubit) => expect(cubit.claudeAccountId, 'personal'),
+  );
+
+  test('ClaudeAccountModel parses isPreferred and resolves the preferred id', () {
+    final accounts = ClaudeAccountModel.listFromJson({
+      'accounts': [
+        {'id': 'default', 'label': 'Default', 'isDefault': true, 'isPreferred': false, 'status': {'loggedIn': true}},
+        {'id': 'personal', 'label': 'Personal', 'isDefault': false, 'isPreferred': true, 'status': {'loggedIn': true}},
+      ],
+    });
+    expect(accounts[1].isPreferred, isTrue);
+    expect(ClaudeAccountModel.preferredId(accounts), 'personal');
+    expect(ClaudeAccountModel.preferredId(const []), 'default');
+  });
+
+  blocTest<SpawnCubit, SpawnState>(
     'changing the agent resets the account',
     build: buildCubit,
     act: (cubit) async {

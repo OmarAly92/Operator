@@ -13,6 +13,15 @@ import (
 	"github.com/OmarAly92/operator/backend/internal/domain"
 )
 
+const clearPreferredClaudeAccount = `-- name: ClearPreferredClaudeAccount :exec
+UPDATE claude_accounts SET is_preferred = 0 WHERE is_preferred = 1
+`
+
+func (q *Queries) ClearPreferredClaudeAccount(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearPreferredClaudeAccount)
+	return err
+}
+
 const countSessionsByClaudeAccount = `-- name: CountSessionsByClaudeAccount :one
 SELECT COUNT(*) FROM sessions WHERE claude_account_id = ?
 `
@@ -37,8 +46,7 @@ func (q *Queries) DeleteClaudeAccount(ctx context.Context, id domain.ClaudeAccou
 }
 
 const getClaudeAccount = `-- name: GetClaudeAccount :one
-SELECT id, label, config_dir, is_default, created_at
-FROM claude_accounts WHERE id = ?
+SELECT id, label, config_dir, is_default, created_at, is_preferred FROM claude_accounts WHERE id = ?
 `
 
 func (q *Queries) GetClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) (ClaudeAccount, error) {
@@ -50,13 +58,32 @@ func (q *Queries) GetClaudeAccount(ctx context.Context, id domain.ClaudeAccountI
 		&i.ConfigDir,
 		&i.IsDefault,
 		&i.CreatedAt,
+		&i.IsPreferred,
+	)
+	return i, err
+}
+
+const getPreferredClaudeAccount = `-- name: GetPreferredClaudeAccount :one
+SELECT id, label, config_dir, is_default, created_at, is_preferred FROM claude_accounts WHERE is_preferred = 1
+`
+
+func (q *Queries) GetPreferredClaudeAccount(ctx context.Context) (ClaudeAccount, error) {
+	row := q.db.QueryRowContext(ctx, getPreferredClaudeAccount)
+	var i ClaudeAccount
+	err := row.Scan(
+		&i.ID,
+		&i.Label,
+		&i.ConfigDir,
+		&i.IsDefault,
+		&i.CreatedAt,
+		&i.IsPreferred,
 	)
 	return i, err
 }
 
 const insertClaudeAccount = `-- name: InsertClaudeAccount :exec
-INSERT INTO claude_accounts (id, label, config_dir, is_default, created_at)
-VALUES (?, ?, ?, 0, ?)
+INSERT INTO claude_accounts (id, label, config_dir, is_default, is_preferred, created_at)
+VALUES (?, ?, ?, 0, 0, ?)
 `
 
 type InsertClaudeAccountParams struct {
@@ -77,8 +104,7 @@ func (q *Queries) InsertClaudeAccount(ctx context.Context, arg InsertClaudeAccou
 }
 
 const listClaudeAccounts = `-- name: ListClaudeAccounts :many
-SELECT id, label, config_dir, is_default, created_at
-FROM claude_accounts
+SELECT id, label, config_dir, is_default, created_at, is_preferred FROM claude_accounts
 ORDER BY is_default DESC, created_at, id
 `
 
@@ -97,6 +123,7 @@ func (q *Queries) ListClaudeAccounts(ctx context.Context) ([]ClaudeAccount, erro
 			&i.ConfigDir,
 			&i.IsDefault,
 			&i.CreatedAt,
+			&i.IsPreferred,
 		); err != nil {
 			return nil, err
 		}
@@ -109,6 +136,18 @@ func (q *Queries) ListClaudeAccounts(ctx context.Context) ([]ClaudeAccount, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const markPreferredClaudeAccount = `-- name: MarkPreferredClaudeAccount :execrows
+UPDATE claude_accounts SET is_preferred = 1 WHERE id = ?
+`
+
+func (q *Queries) MarkPreferredClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markPreferredClaudeAccount, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const renameClaudeAccount = `-- name: RenameClaudeAccount :execrows

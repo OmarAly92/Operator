@@ -122,6 +122,8 @@ sql:
               type: "ClaudeAccountID"
           - column: "claude_accounts.is_default"
             go_type: "bool"
+          - column: "claude_accounts.is_preferred"
+            go_type: "bool"
           - column: "agent_switches.from_claude_account_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"

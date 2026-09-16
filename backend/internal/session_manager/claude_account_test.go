@@ -30,6 +30,15 @@ func (f *fakeClaudeAccounts) Get(_ context.Context, id domain.ClaudeAccountID) (
 	return account, nil
 }
 
+func (f *fakeClaudeAccounts) Preferred(ctx context.Context) (domain.ClaudeAccount, error) {
+	for _, account := range f.accounts {
+		if account.IsPreferred {
+			return account, nil
+		}
+	}
+	return f.Get(ctx, domain.DefaultClaudeAccountID)
+}
+
 func (f *fakeClaudeAccounts) PrepareLaunch(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
 	f.prepared = append(f.prepared, domain.NormalizeClaudeAccountID(id))
 	if f.err != nil {
@@ -112,6 +121,42 @@ func TestResolveSpawnClaudeAccount(t *testing.T) {
 		{name: "codex omitted", cfg: ports.SpawnConfig{Harness: domain.HarnessCodex}, want: domain.DefaultClaudeAccountID},
 		{name: "worker inherits orchestrator", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1"}, want: "personal"},
 		{name: "explicit beats orchestrator", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1", ClaudeAccountID: "default"}, want: domain.DefaultClaudeAccountID},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := m.resolveSpawnClaudeAccount(ctx, tc.cfg)
+			if tc.err != nil {
+				if !errors.Is(err, tc.err) {
+					t.Fatalf("err = %v, want %v", err, tc.err)
+				}
+				return
+			}
+			if err != nil || got != tc.want {
+				t.Fatalf("got %q err=%v, want %q", got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveSpawnClaudeAccountUsesPreferred(t *testing.T) {
+	accounts := newFakeClaudeAccounts()
+	accounts.accounts["personal"] = domain.ClaudeAccount{ID: "personal", ConfigDir: "/Users/u/.claude-personal", IsPreferred: true}
+	store := fakeSessionReader{sessions: map[domain.SessionID]domain.SessionRecord{
+		"orch-1": {ID: "orch-1", ClaudeAccountID: "default"},
+	}}
+	m := New(Deps{Store: store, ClaudeAccounts: accounts})
+	ctx := context.Background()
+
+	cases := []struct {
+		name string
+		cfg  ports.SpawnConfig
+		want domain.ClaudeAccountID
+		err  error
+	}{
+		{name: "omitted uses preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode}, want: "personal"},
+		{name: "explicit beats preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, ClaudeAccountID: "default"}, want: domain.DefaultClaudeAccountID},
+		{name: "orchestrator beats preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessClaudeCode, RequestedBy: "orch-1"}, want: domain.DefaultClaudeAccountID},
+		{name: "codex ignores preferred", cfg: ports.SpawnConfig{Harness: domain.HarnessCodex}, want: domain.DefaultClaudeAccountID},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

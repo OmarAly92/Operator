@@ -1289,6 +1289,7 @@ type ClaudeAccountView struct {
 	Label       string                 `json:"label"`
 	ConfigDir   string                 `json:"configDir"`
 	IsDefault   bool                   `json:"isDefault"`
+	IsPreferred bool                   `json:"isPreferred"`
 	Status      ClaudeAccountStatus    `json:"status"`
 	SharedSetup map[string]string      `json:"sharedSetup"`
 }

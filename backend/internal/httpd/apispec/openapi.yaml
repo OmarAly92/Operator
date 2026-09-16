@@ -540,6 +540,39 @@ paths:
       summary: Open a terminal running Claude against the account folder for /login
       tags:
       - claudeAccounts
+  /api/v1/claude-accounts/{accountId}/prefer:
+    post:
+      operationId: preferClaudeAccount
+      parameters:
+      - description: Claude account identifier.
+        in: path
+        name: accountId
+        required: true
+        schema:
+          description: Claude account identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaudeAccountEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Make this the account new Claude Code sessions use unless one is chosen
+      tags:
+      - claudeAccounts
   /api/v1/claude-accounts/{accountId}/relink:
     post:
       operationId: relinkClaudeAccount
@@ -5016,6 +5049,8 @@ components:
           type: string
         isDefault:
           type: boolean
+        isPreferred:
+          type: boolean
         label:
           type: string
         sharedSetup:
@@ -5031,6 +5066,7 @@ components:
       - label
       - configDir
       - isDefault
+      - isPreferred
       - status
       - sharedSetup
       type: object

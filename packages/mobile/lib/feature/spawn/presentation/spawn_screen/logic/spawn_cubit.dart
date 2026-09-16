@@ -28,6 +28,7 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   List<ClaudeAccountModel> claudeAccounts = const [];
   String claudeAccountId = 'default';
+  bool _accountChosen = false;
 
   List<RankedAgent> get agents => rankAgents(_catalog);
 
@@ -39,12 +40,14 @@ class SpawnCubit extends Cubit<SpawnState> {
 
   void setHarness(String next) {
     harness = next;
-    claudeAccountId = 'default';
+    claudeAccountId = ClaudeAccountModel.preferredId(claudeAccounts);
+    _accountChosen = false;
     _bump();
   }
 
   void setClaudeAccount(String next) {
     claudeAccountId = next;
+    _accountChosen = true;
     _bump();
   }
 
@@ -79,7 +82,9 @@ class SpawnCubit extends Cubit<SpawnState> {
     result.when(
       onSuccess: (response) {
         claudeAccounts = response.data ?? const [];
-        if (!claudeAccounts.any((account) => account.id == claudeAccountId)) claudeAccountId = 'default';
+        if (!_accountChosen || !claudeAccounts.any((account) => account.id == claudeAccountId)) {
+          claudeAccountId = ClaudeAccountModel.preferredId(claudeAccounts);
+        }
         _bump();
       },
       onFailure: (_) {},

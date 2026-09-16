@@ -104,11 +104,12 @@ type ChangeLog struct {
 }
 
 type ClaudeAccount struct {
-	ID        domain.ClaudeAccountID
-	Label     string
-	ConfigDir sql.NullString
-	IsDefault bool
-	CreatedAt time.Time
+	ID          domain.ClaudeAccountID
+	Label       string
+	ConfigDir   sql.NullString
+	IsDefault   bool
+	CreatedAt   time.Time
+	IsPreferred bool
 }
 
 type ModelUsageEvent struct {

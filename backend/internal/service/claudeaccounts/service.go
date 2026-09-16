@@ -30,6 +30,8 @@ type Store interface {
 	InsertClaudeAccount(ctx context.Context, account domain.ClaudeAccount) error
 	RenameClaudeAccount(ctx context.Context, id domain.ClaudeAccountID, label string) error
 	DeleteClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) error
+	PreferredClaudeAccount(ctx context.Context) (domain.ClaudeAccount, error)
+	SetPreferredClaudeAccount(ctx context.Context, id domain.ClaudeAccountID) error
 }
 
 type AccountView struct {
@@ -195,6 +197,18 @@ func (s *Service) Relink(ctx context.Context, id domain.ClaudeAccountID) (claude
 		return nil, fmt.Errorf("%w: %w", domain.ErrClaudeAccountFolderUnavailable, err)
 	}
 	return report, nil
+}
+
+func (s *Service) Preferred(ctx context.Context) (domain.ClaudeAccount, error) {
+	return s.store.PreferredClaudeAccount(ctx)
+}
+
+func (s *Service) SetPreferred(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
+	id = domain.NormalizeClaudeAccountID(id)
+	if err := s.store.SetPreferredClaudeAccount(ctx, id); err != nil {
+		return domain.ClaudeAccount{}, err
+	}
+	return s.store.GetClaudeAccount(ctx, id)
 }
 
 func (s *Service) Get(ctx context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {

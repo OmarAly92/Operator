@@ -23,11 +23,12 @@ var (
 )
 
 type ClaudeAccount struct {
-	ID        ClaudeAccountID `json:"id"`
-	Label     string          `json:"label"`
-	ConfigDir string          `json:"configDir,omitempty"`
-	IsDefault bool            `json:"isDefault"`
-	CreatedAt time.Time       `json:"createdAt"`
+	ID          ClaudeAccountID `json:"id"`
+	Label       string          `json:"label"`
+	ConfigDir   string          `json:"configDir,omitempty"`
+	IsDefault   bool            `json:"isDefault"`
+	IsPreferred bool            `json:"isPreferred"`
+	CreatedAt   time.Time       `json:"createdAt"`
 }
 
 func (a ClaudeAccount) ApplyEnv(env map[string]string) {

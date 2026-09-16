@@ -73,6 +73,31 @@ func (m *memStore) RenameClaudeAccount(_ context.Context, id domain.ClaudeAccoun
 	return nil
 }
 
+func (m *memStore) PreferredClaudeAccount(ctx context.Context) (domain.ClaudeAccount, error) {
+	m.mu.Lock()
+	for _, a := range m.accounts {
+		if a.IsPreferred {
+			m.mu.Unlock()
+			return a, nil
+		}
+	}
+	m.mu.Unlock()
+	return m.GetClaudeAccount(ctx, domain.DefaultClaudeAccountID)
+}
+
+func (m *memStore) SetPreferredClaudeAccount(_ context.Context, id domain.ClaudeAccountID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.accounts[id]; !ok {
+		return domain.ErrClaudeAccountNotFound
+	}
+	for key, a := range m.accounts {
+		a.IsPreferred = key == id
+		m.accounts[key] = a
+	}
+	return nil
+}
+
 func (m *memStore) DeleteClaudeAccount(_ context.Context, id domain.ClaudeAccountID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

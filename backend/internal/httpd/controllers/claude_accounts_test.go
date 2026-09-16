@@ -23,6 +23,7 @@ type fakeClaudeAccountService struct {
 	createErr  error
 	refreshed  bool
 	loginInput domain.ClaudeAccountID
+	preferred  domain.ClaudeAccountID
 }
 
 func (f *fakeClaudeAccountService) List(_ context.Context, refresh bool) ([]claudeaccountssvc.AccountView, error) {
@@ -53,6 +54,11 @@ func (f *fakeClaudeAccountService) Rename(_ context.Context, id domain.ClaudeAcc
 
 func (f *fakeClaudeAccountService) Delete(context.Context, domain.ClaudeAccountID) error {
 	return f.deleteErr
+}
+
+func (f *fakeClaudeAccountService) SetPreferred(_ context.Context, id domain.ClaudeAccountID) (domain.ClaudeAccount, error) {
+	f.preferred = id
+	return domain.ClaudeAccount{ID: id, Label: "Personal", ConfigDir: "/Users/u/.claude-personal", IsPreferred: true}, nil
 }
 
 func (f *fakeClaudeAccountService) Relink(context.Context, domain.ClaudeAccountID) (claudesetup.Report, error) {
@@ -105,6 +111,20 @@ func TestClaudeAccountsList(t *testing.T) {
 	}
 	if resp.Accounts[0].Status.LoggedIn != nil {
 		t.Fatalf("unknown status should be null: %+v", resp.Accounts[0].Status)
+	}
+}
+
+func TestClaudeAccountsPrefer(t *testing.T) {
+	svc := &fakeClaudeAccountService{}
+	srv := newClaudeAccountsTestServer(t, svc, nil)
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/claude-accounts/personal/prefer", "")
+	if status != http.StatusOK || svc.preferred != "personal" {
+		t.Fatalf("status = %d preferred=%q body=%s", status, svc.preferred, body)
+	}
+	var resp controllers.ClaudeAccountEnvelope
+	mustJSON(t, body, &resp)
+	if resp.Account.ID != "personal" || !resp.Account.IsPreferred {
+		t.Fatalf("account = %+v", resp.Account)
 	}
 }
 

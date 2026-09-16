@@ -737,6 +737,16 @@ func shellTerminalOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPost, path: "/api/v1/claude-accounts/{accountId}/prefer", id: "preferClaudeAccount", tag: "claudeAccounts",
+			summary:    "Make this the account new Claude Code sessions use unless one is chosen",
+			pathParams: []any{controllers.ClaudeAccountIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ClaudeAccountEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/claude-accounts/{accountId}/relink", id: "relinkClaudeAccount", tag: "claudeAccounts",
 			summary:    "Back up files that replaced shared setup links, then re-link them",
 			pathParams: []any{controllers.ClaudeAccountIDParam{}},
