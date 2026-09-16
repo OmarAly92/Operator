@@ -140,7 +140,7 @@ class ServiceLocator {
 
   static void _sessionsFeatureSetup() {
     sl.registerLazySingleton<SessionsCubit>(
-      () => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>()),
+      () => SessionsCubit(sl<SessionsRepository>(), sl<MuxClient>(), sl<ServerConfigStore>()),
     );
 
     sl.registerLazySingleton<SessionsRepository>(

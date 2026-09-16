@@ -8,6 +8,9 @@ class _StubStore implements ServerConfigSource {
 
   @override
   final ServerConfig? current;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
 }
 
 void main() {

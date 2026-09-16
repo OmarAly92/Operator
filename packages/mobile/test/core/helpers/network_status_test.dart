@@ -13,6 +13,9 @@ class _StubSource implements ServerConfigSource {
 
   @override
   final ServerConfig? current;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
 }
 
 const _config = ServerConfig(

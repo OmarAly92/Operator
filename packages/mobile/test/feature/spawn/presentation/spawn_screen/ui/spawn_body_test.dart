@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
@@ -29,6 +31,14 @@ class _MockSpawnRepository extends Mock implements SpawnRepository {}
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _StubConfigSource implements ServerConfigSource {
+  @override
+  ServerConfig? get current => null;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
+}
 
 AgentInfo _agent(String id) => AgentInfo(id: id, label: id, authStatus: 'authorized');
 
@@ -66,7 +76,7 @@ void main() {
   tearDown(() => sl.reset());
 
   SessionsCubit buildSessionsCubit({String activeProjectId = 'p1'}) {
-    final cubit = SessionsCubit(sessionsRepository, mux);
+    final cubit = SessionsCubit(sessionsRepository, mux, _StubConfigSource());
     cubit.activeProjectId = activeProjectId;
     sl.registerLazySingleton<SessionsCubit>(() => cubit);
     return cubit;

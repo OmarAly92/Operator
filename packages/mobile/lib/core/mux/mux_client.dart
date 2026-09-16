@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/mux/mux_backoff.dart';
 import 'package:operator_mobile/core/mux/mux_socket.dart';
 import 'package:operator_mobile/core/mux/session_patch.dart';
@@ -65,7 +66,9 @@ final class BlockEventEnvelope extends Equatable {
 /// for the RN reference (`lib/mux.ts`) this mirrors.
 class MuxClient {
   MuxClient(this._configSource, {MuxSocket Function(Uri uri, Map<String, String> headers)? connect})
-    : _connect = connect ?? IOMuxSocket.connect;
+    : _connect = connect ?? IOMuxSocket.connect {
+    _configSource.changes.listen(_onConfigChanged);
+  }
 
   final ServerConfigSource _configSource;
   final MuxSocket Function(Uri uri, Map<String, String> headers) _connect;
@@ -88,7 +91,9 @@ class MuxClient {
   StreamSubscription<dynamic>? _sub;
   bool _isOpen = false;
   bool _boardStreamReady = false;
-  bool _closedByUser = false;
+  bool _closedByUser = true;
+  ServerConfig? _dialled;
+  int _dialGeneration = 0;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   int _backoffMs = MuxBackoff.initialMs;
@@ -131,16 +136,19 @@ class MuxClient {
 
     final socket = _connect(uri, headers);
     _socket = socket;
+    _dialled = cfg;
+    final generation = _dialGeneration;
 
     try {
       await socket.ready;
     } catch (_) {
+      if (generation != _dialGeneration) return;
       _setStatus(MuxStatus.error);
       _scheduleReconnect();
       return;
     }
 
-    if (_closedByUser) {
+    if (_closedByUser || generation != _dialGeneration) {
       await socket.close();
       return;
     }
@@ -231,6 +239,24 @@ class MuxClient {
     }
   }
 
+  void _onConfigChanged(ServerConfig? next) {
+    if (_closedByUser || _dialled == next) return;
+    _dialGeneration++;
+    _reconnectTimer?.cancel();
+    _clearPing();
+    _isOpen = false;
+    _dialled = null;
+    unawaited(_sub?.cancel());
+    unawaited(_socket?.close());
+    _sub = null;
+    _socket = null;
+    if (next == null) {
+      _setStatus(MuxStatus.closed);
+      return;
+    }
+    unawaited(_open());
+  }
+
   void _onClosed() {
     _isOpen = false;
     _clearPing();
@@ -296,6 +322,7 @@ class MuxClient {
     _reconnectTimer?.cancel();
     _clearPing();
     _isOpen = false;
+    _dialled = null;
     await _sub?.cancel();
     await _socket?.close();
     _socket = null;

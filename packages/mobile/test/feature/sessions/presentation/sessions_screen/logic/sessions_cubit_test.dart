@@ -4,7 +4,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
@@ -21,9 +23,27 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
 
+class _StubConfigSource implements ServerConfigSource {
+  final controller = StreamController<ServerConfig?>.broadcast(sync: true);
+
+  @override
+  ServerConfig? current;
+
+  @override
+  Stream<ServerConfig?> get changes => controller.stream;
+
+  void set(ServerConfig? next) {
+    current = next;
+    controller.add(next);
+  }
+}
+
+const _configB = ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'pw');
+
 void main() {
   late _MockSessionsRepository repository;
   late _MockMuxClient mux;
+  late _StubConfigSource source;
   late StreamController<void> changesController;
   late StreamController<MuxStatus> statusController;
   var streamReady = false;
@@ -33,6 +53,7 @@ void main() {
     await CacheHelper.init();
     repository = _MockSessionsRepository();
     mux = _MockMuxClient();
+    source = _StubConfigSource();
     streamReady = false;
     changesController = StreamController<void>.broadcast();
     statusController = StreamController<MuxStatus>.broadcast();
@@ -46,6 +67,113 @@ void main() {
   tearDown(() async {
     await changesController.close();
     await statusController.close();
+    await source.controller.close();
+  });
+
+  blocTest<SessionsCubit, SessionsState>(
+    'a config change clears the board, resets to the initial state and refreshes',
+    build: () {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(
+          GlobalResponse(
+            data: BoardSnapshot(
+              sessions: [SessionModel(id: 'worker-$fetches')],
+              orchestrators: [OrchestratorModel(id: 'orchestrator-$fetches')],
+              projects: [ProjectModel(id: 'project-$fetches')],
+            ),
+          ),
+        );
+      });
+      return SessionsCubit(repository, mux, source);
+    },
+    act: (cubit) async {
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.sessions.single.id, 'worker-1');
+      source.set(_configB);
+      expect(cubit.sessions, isEmpty);
+      expect(cubit.orchestrators, isEmpty);
+      expect(cubit.projects, isEmpty);
+      await Future<void>.delayed(Duration.zero);
+    },
+    expect: () => [
+      isA<GetSessionsLoadingState>(),
+      isA<GetSessionsSuccessState>(),
+      isA<SessionsInitialState>(),
+      isA<GetSessionsLoadingState>(),
+      isA<GetSessionsSuccessState>(),
+    ],
+    verify: (cubit) {
+      expect(cubit.sessions.single.id, 'worker-2');
+      verify(() => repository.getBoard()).called(2);
+    },
+  );
+
+  test('a config change resumes fetching after an auth stop', () {
+    fakeAsync((async) {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        if (fetches == 1) return Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401));
+        return Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'b')])));
+      });
+      final cubit = SessionsCubit(repository, mux, source);
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 60));
+      expect(fetches, 1);
+
+      source.set(_configB);
+      async.flushMicrotasks();
+      expect(fetches, 2);
+      expect(cubit.sessions.single.id, 'b');
+      async.elapse(const Duration(seconds: 30));
+      expect(fetches, 3);
+      cubit.close();
+    });
+  });
+
+  test('a null config clears the board without fetching', () {
+    fakeAsync((async) {
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) async {
+        fetches++;
+        return Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'a')])));
+      });
+      final cubit = SessionsCubit(repository, mux, source);
+      async.flushMicrotasks();
+      expect(cubit.sessions, hasLength(1));
+
+      source.set(null);
+      async.flushMicrotasks();
+      expect(cubit.sessions, isEmpty);
+      expect(cubit.state, isA<SessionsInitialState>());
+      expect(fetches, 1);
+      cubit.close();
+    });
+  });
+
+  test('a board fetch started before a config change does not repopulate the new board', () {
+    fakeAsync((async) {
+      final pending = Completer<Result<GlobalResponse<BoardSnapshot>, Failure>>();
+      var fetches = 0;
+      when(() => repository.getBoard()).thenAnswer((_) {
+        fetches++;
+        if (fetches == 1) return pending.future;
+        return Future.value(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'b')]))));
+      });
+      final cubit = SessionsCubit(repository, mux, source);
+      async.flushMicrotasks();
+      expect(fetches, 1);
+
+      source.set(_configB);
+      async.flushMicrotasks();
+      pending.complete(Result.success(GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'a')]))));
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 200));
+      expect(cubit.sessions.map((s) => s.id), ['b']);
+      cubit.close();
+    });
   });
 
   blocTest<SessionsCubit, SessionsState>(
@@ -56,7 +184,7 @@ void main() {
           GlobalResponse(data: const BoardSnapshot(sessions: [SessionModel(id: 'proj-1', status: 'working')])),
         ),
       );
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     expect: () => [isA<GetSessionsLoadingState>(), isA<GetSessionsSuccessState>()],
     verify: (cubit) {
@@ -81,7 +209,7 @@ void main() {
           ),
         );
       });
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       changesController.add(null);
       changesController.add(null);
@@ -110,7 +238,7 @@ void main() {
           ),
         );
       });
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       changesController.add(null);
       async.elapse(const Duration(milliseconds: 200));
@@ -136,7 +264,7 @@ void main() {
         fetches++;
         return Result.success(GlobalResponse(data: const BoardSnapshot()));
       });
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       async.elapse(const Duration(seconds: 30));
       expect(fetches, 2);
@@ -168,7 +296,7 @@ void main() {
         fetches++;
         return Result.success(GlobalResponse(data: const BoardSnapshot()));
       });
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       cubit.pauseUpdates();
       changesController.add(null);
@@ -190,7 +318,7 @@ void main() {
         if (fetches == 2) return Result.failure(ServerFailure.noNetwork());
         return Result.success(GlobalResponse(data: const BoardSnapshot()));
       });
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       changesController.add(null);
       async.elapse(const Duration(milliseconds: 200));
@@ -209,7 +337,7 @@ void main() {
     build: () {
       when(() => repository.getBoard()).thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
       when(() => repository.kill('proj-1')).thenAnswer((_) async => Result.success(true));
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     act: (cubit) async {
       await Future<void>.delayed(Duration.zero);
@@ -223,7 +351,7 @@ void main() {
     build: () {
       when(() => repository.getBoard()).thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
       when(() => repository.kill('proj-1')).thenAnswer((_) async => Result.failure(ServerFailure.noNetwork()));
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     act: (cubit) async {
       await Future<void>.delayed(Duration.zero);
@@ -242,7 +370,7 @@ void main() {
         return Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401));
       });
 
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       expect(callCount, 1);
 
@@ -266,7 +394,7 @@ void main() {
         );
       });
 
-      final cubit = SessionsCubit(repository, mux);
+      final cubit = SessionsCubit(repository, mux, source);
       async.flushMicrotasks();
       expect(callCount, 1);
       expect(cubit.state, isA<GetSessionsFailureState>());
@@ -301,7 +429,7 @@ void main() {
           ),
         ),
       );
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     act: (cubit) => Future<void>.delayed(Duration.zero),
     verify: (cubit) {
@@ -326,7 +454,7 @@ void main() {
           ),
         ),
       );
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     act: (cubit) async {
       await Future<void>.delayed(Duration.zero);
@@ -350,7 +478,7 @@ void main() {
       when(() => repository.getBoard()).thenAnswer(
         (_) async => Result.success(GlobalResponse(data: const BoardSnapshot())),
       );
-      return SessionsCubit(repository, mux);
+      return SessionsCubit(repository, mux, source);
     },
     verify: (cubit) => expect(cubit.activeProjectId, kAllProjects),
   );

@@ -90,6 +90,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Scan screen'), findsOneWidget);
+    final route = observer.pushed.last;
+    expect(route.name, RoutesStrings.pairingScan);
+    expect(route.arguments, {'fromOnboarding': true});
   });
 
   testWidgets('a non-auth failure shows the message without Scan again', (tester) async {

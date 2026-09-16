@@ -1,8 +1,10 @@
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/database/app_database.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/desktops_local_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/model/params/rename_desktop_params.dart';
 import 'package:operator_mobile/feature/pairing/data/model/params/save_desktop_params.dart';
@@ -65,6 +67,39 @@ void main() {
     expect(await source.getActive(), isNull);
     await source.activate(saved.id!);
     expect((await source.getActive())?.id, saved.id);
+  });
+
+  test('activate with a name refreshes the label unless the user renamed it', () async {
+    final saved = await source.save(_params);
+    await source.activate(saved.id!, name: 'New');
+    expect((await source.getActive())?.name, 'New');
+
+    await source.rename(RenameDesktopParams(id: saved.id!, name: 'Mine'));
+    await source.activate(saved.id!, name: 'Newer');
+    expect((await source.getActive())?.name, 'Mine');
+  });
+
+  test('activate ignores a blank name', () async {
+    final saved = await source.save(_params);
+    await source.activate(saved.id!, name: '  ');
+    expect((await source.getActive())?.name, 'Mac');
+  });
+
+  test('a keychain write failure surfaces as LocalFailure', () async {
+    when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+        .thenAnswer((_) async => throw PlatformException(code: 'keychain'));
+    await expectLater(source.save(_params), throwsA(isA<LocalFailure<void>>()));
+  });
+
+  test('a keychain read failure surfaces as LocalFailure', () async {
+    when(() => storage.read(key: any(named: 'key'))).thenAnswer((_) async => throw PlatformException(code: 'keychain'));
+    await expectLater(source.passwordFor('x'), throwsA(isA<LocalFailure<void>>()));
+  });
+
+  test('a keychain delete failure surfaces as LocalFailure', () async {
+    final saved = await source.save(_params);
+    when(() => storage.delete(key: any(named: 'key'))).thenAnswer((_) async => throw PlatformException(code: 'keychain'));
+    await expectLater(source.remove(saved.id!), throwsA(isA<LocalFailure<void>>()));
   });
 
   test('rename changes the label', () async {

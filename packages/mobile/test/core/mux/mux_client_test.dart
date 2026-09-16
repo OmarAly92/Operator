@@ -63,6 +63,16 @@ const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, 
 class _StubSource implements ServerConfigSource {
   @override
   ServerConfig? current = _config;
+
+  final _changes = StreamController<ServerConfig?>.broadcast(sync: true);
+
+  @override
+  Stream<ServerConfig?> get changes => _changes.stream;
+
+  void set(ServerConfig? next) {
+    current = next;
+    _changes.add(next);
+  }
 }
 
 late _StubSource _source;
@@ -144,6 +154,146 @@ void main() {
 
         client.disconnect();
       });
+    });
+
+    test('a config change while open closes the old socket and dials the new desktop', () {
+      fakeAsync((async) {
+        final uris = <Uri>[];
+        final headers = <Map<String, String>>[];
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(
+          _source,
+          connect: (uri, h) {
+            uris.add(uri);
+            headers.add(h);
+            final socket = _FakeMuxSocket();
+            sockets.add(socket);
+            return socket;
+          },
+        );
+        client.connect();
+        async.flushMicrotasks();
+        client.subscribeSessions();
+        client.openTerminal('s1', projectId: 'p1');
+
+        _source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'other'));
+        async.flushMicrotasks();
+
+        expect(sockets, hasLength(2));
+        expect(sockets.first.closed, isTrue);
+        expect(uris.last, Uri.parse('ws://10.0.0.9:3011/mux'));
+        expect(headers.last['Authorization'], 'Bearer other');
+        expect(client.currentStatus, MuxStatus.open);
+        final replayed = sockets.last.sent.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+        expect(replayed.any((m) => m['ch'] == 'subscribe'), isTrue);
+        expect(replayed.any((m) => m['ch'] == 'terminal' && m['id'] == 's1' && m['type'] == 'open'), isTrue);
+        client.disconnect();
+      });
+    });
+
+    test('a null config closes the socket without reconnecting; the next config dials again', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(_source, connect: (_, _) {
+          final socket = _FakeMuxSocket();
+          sockets.add(socket);
+          return socket;
+        });
+        client.connect();
+        async.flushMicrotasks();
+
+        _source.set(null);
+        async.flushMicrotasks();
+        expect(sockets.single.closed, isTrue);
+        expect(client.currentStatus, MuxStatus.closed);
+        async.elapse(const Duration(seconds: 30));
+        expect(sockets, hasLength(1));
+
+        _source.set(_config);
+        async.flushMicrotasks();
+        expect(sockets, hasLength(2));
+        expect(client.currentStatus, MuxStatus.open);
+        client.disconnect();
+      });
+    });
+
+    test('re-setting the same config keeps the socket', () {
+      fakeAsync((async) {
+        final sockets = <_FakeMuxSocket>[];
+        final client = MuxClient(_source, connect: (_, _) {
+          final socket = _FakeMuxSocket();
+          sockets.add(socket);
+          return socket;
+        });
+        client.connect();
+        async.flushMicrotasks();
+
+        _source.set(_config);
+        async.flushMicrotasks();
+
+        expect(sockets, hasLength(1));
+        expect(sockets.single.closed, isFalse);
+        client.disconnect();
+      });
+    });
+
+    test('a config change after disconnect does not dial', () {
+      fakeAsync((async) {
+        var connectCount = 0;
+        final client = MuxClient(_source, connect: (_, _) {
+          connectCount++;
+          return _FakeMuxSocket();
+        });
+        client.connect();
+        async.flushMicrotasks();
+        client.disconnect();
+        async.flushMicrotasks();
+
+        _source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'other'));
+        async.flushMicrotasks();
+
+        expect(connectCount, 1);
+      });
+    });
+
+    test('a config change before connect does not dial', () {
+      fakeAsync((async) {
+        var connectCount = 0;
+        MuxClient(_source, connect: (_, _) {
+          connectCount++;
+          return _FakeMuxSocket();
+        });
+
+        _source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'other'));
+        async.flushMicrotasks();
+
+        expect(connectCount, 0);
+      });
+    });
+
+    test('a config change while a dial is in flight abandons that socket', () async {
+      final readyCompleter = Completer<void>();
+      final slow = _SlowFakeMuxSocket(readyCompleter.future);
+      final fast = _FakeMuxSocket();
+      var dials = 0;
+      final client = MuxClient(_source, connect: (_, _) => dials++ == 0 ? slow : fast);
+      client.connect();
+      await Future<void>.delayed(Duration.zero);
+
+      _source.set(const ServerConfig(host: '10.0.0.9', httpPort: '3011', secure: false, password: 'other'));
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      readyCompleter.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(dials, 2);
+      expect(slow.closed, isTrue);
+      expect(client.currentStatus, MuxStatus.open);
+      client.subscribeSessions();
+      expect(slow.sent, isEmpty);
+      expect(fast.sent, hasLength(1));
+      await client.disconnect();
     });
 
     test('decodes a sessions snapshot into SessionPatch', () async {

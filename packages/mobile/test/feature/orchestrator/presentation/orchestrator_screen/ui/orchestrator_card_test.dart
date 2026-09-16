@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
@@ -26,6 +28,14 @@ class _MockOrchestratorRepository extends Mock implements OrchestratorRepository
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _StubConfigSource implements ServerConfigSource {
+  @override
+  ServerConfig? get current => null;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
+}
 
 void main() {
   late _MockOrchestratorRepository repository;
@@ -67,7 +77,7 @@ void main() {
           builder: (context, child) => MaterialApp(
             home: MultiBlocProvider(
               providers: [
-                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(sessionsRepository, mux)),
+                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(sessionsRepository, mux, _StubConfigSource())),
                 BlocProvider<OrchestratorCubit>(create: (_) => OrchestratorCubit(repository)),
               ],
               child: Scaffold(

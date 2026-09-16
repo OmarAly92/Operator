@@ -118,6 +118,7 @@ void main() {
     sl.registerFactory<OrchestratorCubit>(() => OrchestratorCubit(_MockOrchestratorRepository()));
     final serverConfigStore = _MockServerConfigStore();
     when(() => serverConfigStore.current).thenReturn(null);
+    when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
     final desktopsRepository = _MockDesktopsRepository();
     when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
@@ -155,7 +156,7 @@ void main() {
           builder: (context, child) => MaterialApp(
             home: MultiBlocProvider(
               providers: [
-                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux)),
+                BlocProvider<SessionsCubit>(create: (_) => SessionsCubit(repository, mux, sl<ServerConfigStore>())),
                 BlocProvider<SkinCubit>(create: (_) => SkinCubit()),
                 BlocProvider<NotificationsCubit>(
                   create: (_) => NotificationsCubit(

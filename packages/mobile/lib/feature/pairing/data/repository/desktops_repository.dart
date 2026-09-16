@@ -9,7 +9,7 @@ abstract class DesktopsRepository {
   Stream<List<DesktopModel>> watchDesktops();
   FutureResult<DesktopModel?> getActive();
   FutureResult<DesktopModel> save(SaveDesktopParams params);
-  FutureResult<void> activate(String id);
+  FutureResult<void> activate(String id, {String? name});
   FutureResult<void> deactivate();
   FutureResult<void> rename(RenameDesktopParams params);
   FutureResult<void> remove(String id);
@@ -31,7 +31,7 @@ class DesktopsRepositoryImp implements DesktopsRepository {
   FutureResult<DesktopModel> save(SaveDesktopParams params) => _guard(() => _local.save(params));
 
   @override
-  FutureResult<void> activate(String id) => _guard(() => _local.activate(id));
+  FutureResult<void> activate(String id, {String? name}) => _guard(() => _local.activate(id, name: name));
 
   @override
   FutureResult<void> deactivate() => _guard(_local.deactivate);

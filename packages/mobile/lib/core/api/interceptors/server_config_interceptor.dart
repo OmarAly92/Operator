@@ -3,6 +3,7 @@ import 'package:operator_mobile/core/api/server_config.dart';
 
 abstract class ServerConfigSource {
   ServerConfig? get current;
+  Stream<ServerConfig?> get changes;
 }
 
 class ServerConfigInterceptor extends Interceptor {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
@@ -49,6 +50,14 @@ class _MockSpawnRepository extends Mock implements SpawnRepository {}
 class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _StubConfigSource implements ServerConfigSource {
+  @override
+  ServerConfig? get current => null;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
+}
 
 const ServerConfig _config = ServerConfig(
   host: '10.0.0.5',
@@ -158,7 +167,7 @@ void main() {
           ? Result.failure(ServerFailure(error: 'down', message: 'down', statusCode: 503))
           : Result.success(const GlobalResponse(data: BoardSnapshot())),
     );
-    final cubit = SessionsCubit(repository, mux);
+    final cubit = SessionsCubit(repository, mux, _StubConfigSource());
     await Future<void>.delayed(Duration.zero);
 
     fail = true;
@@ -190,7 +199,7 @@ void main() {
     when(() => repository.restore(any())).thenAnswer(
       (_) async => Result.failure(ServerFailure(error: 'nope', message: 'nope', statusCode: 500)),
     );
-    final cubit = SessionsCubit(repository, mux);
+    final cubit = SessionsCubit(repository, mux, _StubConfigSource());
     await Future<void>.delayed(Duration.zero);
     client.captures.clear();
 

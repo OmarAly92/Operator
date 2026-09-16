@@ -43,6 +43,19 @@ void main() {
     expect((await dao.getAll()).single.name, 'Mine');
   });
 
+  test('refreshName updates an un-renamed row and leaves a renamed one', () async {
+    await dao.upsert(_row('a', host: '1.1.1.1', name: 'Old'));
+    await dao.upsert(_row('b', host: '2.2.2.2', name: 'Old'));
+    await dao.rename('b', 'Mine');
+
+    await dao.refreshName('a', 'Fresh');
+    await dao.refreshName('b', 'Fresh');
+
+    final byId = {for (final d in await dao.getAll()) d.id: d.name};
+    expect(byId['a'], 'Fresh');
+    expect(byId['b'], 'Mine');
+  });
+
   test('setActive leaves exactly one active row and stamps lastConnectedAt', () async {
     await dao.upsert(_row('a', host: '1.1.1.1'));
     await dao.upsert(_row('b', host: '2.2.2.2'));

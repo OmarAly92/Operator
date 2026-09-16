@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
@@ -29,6 +30,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _StubConfigSource implements ServerConfigSource {
+  @override
+  ServerConfig? get current => null;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
+}
 
 class _MockOrchestratorRepository extends Mock implements OrchestratorRepository {}
 
@@ -102,7 +111,7 @@ void main() {
         ),
       ),
     );
-    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux, _StubConfigSource());
     sessionsCubit.setActiveProject('p2');
 
     await pumpBody(tester, sessionsCubit);
@@ -122,7 +131,7 @@ void main() {
         ),
       ),
     );
-    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux, _StubConfigSource());
 
     await pumpBody(tester, sessionsCubit);
     await tester.tap(find.byTooltip('Open orchestrator'));
@@ -137,7 +146,7 @@ void main() {
     when(() => sessionsRepository.getBoard()).thenAnswer(
       (_) async => Result.failure(ServerFailure(error: 'x', message: 'bad', statusCode: 401)),
     );
-    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux, _StubConfigSource());
 
     await pumpBody(tester, sessionsCubit);
 
@@ -149,7 +158,7 @@ void main() {
   testWidgets('with no projects and no failure, No projects shows', (tester) async {
     when(() => sessionsRepository.getBoard())
         .thenAnswer((_) async => Result.success(GlobalResponse(data: const BoardSnapshot())));
-    final sessionsCubit = SessionsCubit(sessionsRepository, mux);
+    final sessionsCubit = SessionsCubit(sessionsRepository, mux, _StubConfigSource());
 
     await pumpBody(tester, sessionsCubit);
 

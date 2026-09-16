@@ -8,9 +8,6 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
-/// A single row in the "Your desktops" group card
-/// (`docs/design/connections/connections.md`). Takes primitive fields
-/// rather than the whole `DesktopModel` so it stays reusable.
 class ConnectionRow extends StatelessWidget {
   const ConnectionRow({
     super.key,
@@ -39,10 +36,6 @@ class ConnectionRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onMenuTap;
 
-  /// The prototype's `brandInk` value on the connecting icon wrap — same
-  /// brand-on-tint concept as `AppPill`'s active-chip text judgment call
-  /// (`docs/design/components.md`), reused here rather than adding a third
-  /// variant.
   Color _brandInk(BuildContext context) {
     final skin = context.skin;
     return skin.themeMode == ThemeMode.dark ? skin.accent : const Color(0xFF117E3F);
@@ -132,10 +125,6 @@ class ConnectionRow extends StatelessWidget {
   }
 }
 
-/// The connecting-row's spinning `progress_activity` glyph
-/// (`AppMotion.spin`, 1000ms linear infinite). Mounted only while a row is
-/// connecting — a bounded ~900ms window, not one of the perpetual
-/// animations `components.md`'s testing note warns about.
 class _ConnectingIcon extends StatefulWidget {
   const _ConnectingIcon({required this.color});
 

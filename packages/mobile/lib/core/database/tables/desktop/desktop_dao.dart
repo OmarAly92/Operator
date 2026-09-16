@@ -43,6 +43,11 @@ class DesktopDao extends DatabaseAccessor<AppDatabase> with _$DesktopDaoMixin {
   Future<void> clearActive() =>
       update(desktops).write(const DesktopsCompanion(isActive: Value(false))).handleLocalFailure();
 
+  Future<void> refreshName(String id, String name) =>
+      (update(desktops)..where((t) => t.id.equals(id) & t.renamed.equals(false)))
+          .write(DesktopsCompanion(name: Value(name)))
+          .handleLocalFailure();
+
   Future<void> rename(String id, String name) => (update(desktops)..where((t) => t.id.equals(id)))
       .write(DesktopsCompanion(name: Value(name), renamed: const Value(true)))
       .handleLocalFailure();

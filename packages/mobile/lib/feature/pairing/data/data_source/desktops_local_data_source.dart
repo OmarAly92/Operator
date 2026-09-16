@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:operator_mobile/core/database/app_database.dart';
 import 'package:operator_mobile/core/database/tables/desktop/desktop_dao.dart';
+import 'package:operator_mobile/core/error_handling/drift_error_handler/drift_error_handler.dart';
 import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
 import 'package:operator_mobile/feature/pairing/data/model/params/rename_desktop_params.dart';
 import 'package:operator_mobile/feature/pairing/data/model/params/save_desktop_params.dart';
@@ -11,7 +12,7 @@ abstract class DesktopsLocalDataSource {
   Stream<List<DesktopModel>> watchAll();
   Future<DesktopModel?> getActive();
   Future<DesktopModel> save(SaveDesktopParams params);
-  Future<void> activate(String id);
+  Future<void> activate(String id, {String? name});
   Future<void> deactivate();
   Future<void> rename(RenameDesktopParams params);
   Future<void> remove(String id);
@@ -47,14 +48,18 @@ class DesktopsLocalDataSourceImp implements DesktopsLocalDataSource {
         secure: params.secure,
       ),
     );
-    await _secureStorage.write(key: passwordKey(id), value: params.password);
+    await _secureStorage.write(key: passwordKey(id), value: params.password).handleLocalFailure();
     await _dao.setActive(id);
     final row = await _dao.getActive();
     return DesktopModel.fromDB(row!);
   }
 
   @override
-  Future<void> activate(String id) => _dao.setActive(id);
+  Future<void> activate(String id, {String? name}) async {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isNotEmpty) await _dao.refreshName(id, trimmed);
+    await _dao.setActive(id);
+  }
 
   @override
   Future<void> deactivate() => _dao.clearActive();
@@ -65,11 +70,11 @@ class DesktopsLocalDataSourceImp implements DesktopsLocalDataSource {
   @override
   Future<void> remove(String id) async {
     await _dao.remove(id);
-    await _secureStorage.delete(key: passwordKey(id));
+    await _secureStorage.delete(key: passwordKey(id)).handleLocalFailure();
   }
 
   @override
-  Future<String?> passwordFor(String id) => _secureStorage.read(key: passwordKey(id));
+  Future<String?> passwordFor(String id) => _secureStorage.read(key: passwordKey(id)).handleLocalFailure();
 
   static String _newId() {
     final random = Random.secure();

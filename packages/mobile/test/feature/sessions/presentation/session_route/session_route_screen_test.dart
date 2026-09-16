@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
 import 'package:operator_mobile/core/api/models/global_response.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/feature/blocks/data/model/params/get_session_blocks_params.dart';
 import 'package:operator_mobile/core/app_themes/colors/dark_skin.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
@@ -36,6 +38,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockMuxClient extends Mock implements MuxClient {}
+
+class _StubConfigSource implements ServerConfigSource {
+  @override
+  ServerConfig? get current => null;
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
+}
 
 class _MockTerminalRepository extends Mock implements TerminalRepository {}
 
@@ -192,7 +202,7 @@ void main() {
             home: MultiBlocProvider(
               providers: [
                 BlocProvider<SessionsCubit>(
-                  create: (_) => SessionsCubit(repository, mux),
+                  create: (_) => SessionsCubit(repository, mux, _StubConfigSource()),
                 ),
               ],
               child: const SessionRouteScreen(sessionId: 'w-1'),
@@ -211,7 +221,7 @@ void main() {
         GlobalResponse(data: BoardSnapshot(sessions: sessions)),
       ),
     );
-    final cubit = SessionsCubit(repository, mux);
+    final cubit = SessionsCubit(repository, mux, _StubConfigSource());
     await cubit.stream.firstWhere((state) => state is GetSessionsSuccessState);
     clearInteractions(repository);
     return cubit;

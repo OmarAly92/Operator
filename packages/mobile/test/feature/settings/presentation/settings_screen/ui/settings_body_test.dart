@@ -144,6 +144,7 @@ void main() {
       (_) async => Result.success(GlobalResponse(data: const BoardSnapshot())),
     );
     when(() => serverConfigStore.current).thenReturn(null);
+    when(() => serverConfigStore.changes).thenAnswer((_) => const Stream.empty());
 
     await sl.reset();
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
@@ -166,7 +167,7 @@ void main() {
   tearDown(() => sl.reset());
 
   SessionsCubit buildSessionsCubit({String activeProjectId = kAllProjects}) {
-    final cubit = SessionsCubit(sessionsRepository, mux);
+    final cubit = SessionsCubit(sessionsRepository, mux, serverConfigStore);
     cubit.activeProjectId = activeProjectId;
     return cubit;
   }

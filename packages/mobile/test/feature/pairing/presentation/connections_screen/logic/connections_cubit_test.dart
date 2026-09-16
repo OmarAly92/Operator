@@ -60,12 +60,36 @@ void main() {
   );
 
   blocTest<ConnectionsCubit, ConnectionsState>(
+    'a desktop becoming active drops its stale error',
+    build: build,
+    act: (cubit) {
+      cubit.errors['a'] = describeConnectionFailure(
+        ConnectionFailure.auth,
+        host: '10.0.0.5',
+        port: '3011',
+        platform: TargetPlatform.iOS,
+      );
+      cubit.errors['b'] = describeConnectionFailure(
+        ConnectionFailure.unreachable,
+        host: '10.0.0.6',
+        port: '3011',
+        platform: TargetPlatform.iOS,
+      );
+      list.add([_a.copyWithActive(true), _b]);
+    },
+    expect: () => [
+      DesktopsUpdatedState([_a.copyWithActive(true), _b]),
+    ],
+    verify: (cubit) => expect(cubit.errors.keys, ['b']),
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
     'connectTo identifies with the stored password, activates, sets the store',
     build: build,
     setUp: () {
       when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
       when(() => remote.identify(_config)).thenAnswer((_) async => const DesktopIdentityModel(name: 'Mac'));
-      when(() => desktops.activate('a')).thenAnswer((_) async => Result.success(null));
+      when(() => desktops.activate('a', name: 'Mac')).thenAnswer((_) async => Result.success(null));
     },
     seed: () => const DesktopsUpdatedState([_a]),
     act: (cubit) {
@@ -75,7 +99,7 @@ void main() {
     expect: () => [const ConnectLoadingState('a'), const ConnectSuccessState('a')],
     verify: (_) => verifyInOrder([
       () => remote.identify(_config),
-      () => desktops.activate('a'),
+      () => desktops.activate('a', name: 'Mac'),
       () => store.set(_config),
     ]),
   );
@@ -99,7 +123,7 @@ void main() {
     ],
     verify: (cubit) {
       expect(cubit.errors['a'], isNotNull);
-      verifyNever(() => desktops.activate(any()));
+      verifyNever(() => desktops.activate(any(), name: any(named: 'name')));
       verifyNever(() => store.set(any()));
     },
   );
@@ -147,7 +171,7 @@ void main() {
     },
     expect: () => [const ConnectLoadingState('a')],
     verify: (cubit) {
-      verifyNever(() => desktops.activate(any()));
+      verifyNever(() => desktops.activate(any(), name: any(named: 'name')));
       verifyNever(() => store.set(any()));
       expect(cubit.connectingId, isNull);
     },
@@ -159,7 +183,7 @@ void main() {
     setUp: () {
       when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
       when(() => remote.identify(_config)).thenAnswer((_) async => const DesktopIdentityModel(name: 'Mac'));
-      when(() => desktops.activate('a')).thenAnswer((_) async => Result.failure(LocalFailure<void>(error: 'disk')));
+      when(() => desktops.activate('a', name: any(named: 'name'))).thenAnswer((_) async => Result.failure(LocalFailure<void>(error: 'disk')));
     },
     act: (cubit) {
       cubit.desktops = [_a];

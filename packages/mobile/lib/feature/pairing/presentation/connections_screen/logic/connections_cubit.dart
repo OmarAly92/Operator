@@ -31,6 +31,9 @@ class ConnectionsCubit extends Cubit<ConnectionsState> {
   void _onDesktops(List<DesktopModel> next) {
     final hadDesktops = desktops.isNotEmpty;
     desktops = next;
+    for (final desktop in next) {
+      if (desktop.isActive == true) errors.remove(desktop.id);
+    }
     emit(DesktopsUpdatedState(next));
     if (hadDesktops && next.isEmpty) emit(const LastDesktopRemovedState());
   }
@@ -53,9 +56,9 @@ class ConnectionsCubit extends Cubit<ConnectionsState> {
       final password = await _desktops.passwordFor(id);
       final config = desktop.toServerConfig(password.valueOrNull ?? '');
       try {
-        await _remote.identify(config);
+        final identity = await _remote.identify(config);
         if (byId(id) == null) return;
-        final activated = await _desktops.activate(id);
+        final activated = await _desktops.activate(id, name: identity.name);
         if (activated.isFailure) {
           _fail(id, desktop, ConnectionFailure.local, platform);
           return;

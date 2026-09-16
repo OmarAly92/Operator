@@ -36,6 +36,13 @@ void main() {
     expect(result.isFailure, isTrue);
   });
 
+  test('activate forwards the identified name', () async {
+    when(() => local.activate('a', name: 'Mac')).thenAnswer((_) async {});
+    final result = await repository.activate('a', name: 'Mac');
+    expect(result.isSuccess, isTrue);
+    verify(() => local.activate('a', name: 'Mac')).called(1);
+  });
+
   test('watchDesktops passes the stream through', () {
     when(() => local.watchAll()).thenAnswer((_) => Stream.value([_model]));
     expect(repository.watchDesktops(), emits([_model]));

@@ -6,6 +6,9 @@ import 'package:operator_mobile/core/api/server_config.dart';
 class _StaticConfig implements ServerConfigSource {
   @override
   ServerConfig? get current => const ServerConfig(host: 'h', httpPort: '3011', secure: false, password: 'pw');
+
+  @override
+  Stream<ServerConfig?> get changes => const Stream.empty();
 }
 
 void main() {

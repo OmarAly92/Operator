@@ -40,6 +40,33 @@ void main() {
     expect(store.current, isNull);
   });
 
+  test('set emits the config on changes and clear emits null', () async {
+    const config = ServerConfig(host: 'h', httpPort: '1', secure: true, password: 'p');
+    final seen = <ServerConfig?>[];
+    final sub = store.changes.listen(seen.add);
+
+    store.set(config);
+    store.clear();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(seen, [config, null]);
+    await sub.cancel();
+  });
+
+  test('load does not emit on changes', () async {
+    when(() => local.getActive()).thenAnswer((_) async => _active);
+    when(() => local.passwordFor('a')).thenAnswer((_) async => 'pw');
+    final seen = <ServerConfig?>[];
+    final sub = store.changes.listen(seen.add);
+
+    await store.load();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(seen, isEmpty);
+    expect(store.current, isNotNull);
+    await sub.cancel();
+  });
+
   test('set and clear only touch memory', () {
     const config = ServerConfig(host: 'h', httpPort: '1', secure: true, password: 'p');
     store.set(config);

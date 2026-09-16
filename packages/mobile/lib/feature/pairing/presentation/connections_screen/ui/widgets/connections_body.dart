@@ -102,7 +102,10 @@ class ConnectionsBody extends StatelessWidget {
                                         activeDotKey: Key('active-dot-$id'),
                                         error: error,
                                         onScanAgain: error?.isAuth ?? false
-                                            ? () => Navigator.of(context).pushNamed(RoutesStrings.pairingScan)
+                                            ? () => Navigator.of(context).pushNamed(
+                                                RoutesStrings.pairingScan,
+                                                arguments: {'fromOnboarding': true},
+                                              )
                                             : null,
                                         onTap: () => cubit.connectTo(id, Theme.of(context).platform),
                                         onMenuTap: () => _openMenu(context, d),

@@ -26,7 +26,18 @@ Future<void> main() async {
   await EasyLocalization.ensureInitialized();
   await CacheHelper.init();
   await ServiceLocator.init();
-  await sl<ServerConfigStore>().load();
+
+  LaunchDestination destination;
+  try {
+    await sl<ServerConfigStore>().load();
+    final desktops = await sl<DesktopsRepository>().watchDesktops().first;
+    destination = launchDestination(
+      desktopCount: desktops.length,
+      hasActive: sl<ServerConfigStore>().current != null,
+    );
+  } on Object {
+    destination = LaunchDestination.onboarding;
+  }
 
   final packageInfo = await PackageInfo.fromPlatform();
   final physical = await isPhysicalDevice();
@@ -40,11 +51,7 @@ Future<void> main() async {
   );
   unawaited(TelemetryRuntime.active());
 
-  final desktops = await sl<DesktopsRepository>().watchDesktops().first;
-  final initialRoute = switch (launchDestination(
-    desktopCount: desktops.length,
-    hasActive: sl<ServerConfigStore>().current != null,
-  )) {
+  final initialRoute = switch (destination) {
     LaunchDestination.onboarding => RoutesStrings.onboarding,
     LaunchDestination.desktops => RoutesStrings.connections,
     LaunchDestination.sessions => RoutesStrings.sessions,

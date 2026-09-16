@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:operator_mobile/core/api/interceptors/server_config_interceptor.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
@@ -20,7 +22,7 @@ part 'sessions_state.dart';
 const String kAllProjects = 'all';
 
 class SessionsCubit extends Cubit<SessionsState> {
-  SessionsCubit(this._repository, this._muxClient) : super(const SessionsInitialState()) {
+  SessionsCubit(this._repository, this._muxClient, this._configSource) : super(const SessionsInitialState()) {
     _muxSub = _muxClient.boardChanges.listen((_) {
       _syncFallback();
       _scheduleRefresh();
@@ -29,6 +31,7 @@ class SessionsCubit extends Cubit<SessionsState> {
       _syncFallback();
       if (status == MuxStatus.open) _scheduleRefresh();
     });
+    _configSub = _configSource.changes.listen(_onConfigChanged);
     _muxClient.connect();
     _muxClient.subscribeSessions();
     scheduleMicrotask(() => unawaited(_refreshBoard()));
@@ -37,6 +40,7 @@ class SessionsCubit extends Cubit<SessionsState> {
 
   final SessionsRepository _repository;
   final MuxClient _muxClient;
+  final ServerConfigSource _configSource;
 
   List<SessionModel> sessions = [];
   List<OrchestratorModel> orchestrators = [];
@@ -56,6 +60,8 @@ class SessionsCubit extends Cubit<SessionsState> {
   Timer? _fallbackTimer;
   StreamSubscription<void>? _muxSub;
   StreamSubscription<MuxStatus>? _statusSub;
+  StreamSubscription<ServerConfig?>? _configSub;
+  int _boardEpoch = 0;
   Timer? _refreshTimer;
   Future<void>? _refreshFuture;
   bool _refreshQueued = false;
@@ -88,10 +94,33 @@ class SessionsCubit extends Cubit<SessionsState> {
     }
   }
 
+  void _onConfigChanged(ServerConfig? next) {
+    if (isClosed) return;
+    _boardEpoch++;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _refreshQueued = false;
+    sessions = [];
+    orchestrators = [];
+    projects = [];
+    _needsRetry = false;
+    _connectionOpen = false;
+    _revision = 0;
+    emit(const SessionsInitialState());
+    if (next == null) {
+      _stopped = true;
+      _fallbackTimer?.cancel();
+      _fallbackTimer = null;
+      return;
+    }
+    unawaited(refresh());
+  }
+
   Future<void> _loadBoard() async {
+    final epoch = _boardEpoch;
     if (_revision == 0) emit(const GetSessionsLoadingState());
     final result = await _repository.getBoard();
-    if (isClosed || _paused) return;
+    if (isClosed || _paused || epoch != _boardEpoch) return;
     result.when(
       onSuccess: (response) {
         _needsRetry = false;
@@ -176,6 +205,7 @@ class SessionsCubit extends Cubit<SessionsState> {
     _refreshTimer?.cancel();
     unawaited(_muxSub?.cancel());
     unawaited(_statusSub?.cancel());
+    unawaited(_configSub?.cancel());
     return super.close();
   }
 }
