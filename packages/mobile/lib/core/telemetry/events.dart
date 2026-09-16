@@ -22,7 +22,6 @@ sealed class MobileEvents {
   static const String connected = 'opr.v2.mobile_app.connected';
   static const String onboardingStarted = 'opr.v2.mobile_app.onboarding_started';
   static const String onboardingCompleted = 'opr.v2.mobile_app.onboarding_completed';
-  static const String onboardingSkipped = 'opr.v2.mobile_app.onboarding_skipped';
   static const String notificationOpened = 'opr.v2.mobile_app.notification_opened';
   static const String featureUsed = 'opr.v2.mobile_app.feature_used';
 
@@ -37,7 +36,6 @@ sealed class MobileEvents {
     },
     onboardingStarted: {},
     onboardingCompleted: {},
-    onboardingSkipped: {},
     notificationOpened: {
       'target': OneOfRule(['session', 'prs']),
       'cold_start': FlagRule(),

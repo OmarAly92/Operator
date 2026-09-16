@@ -40,8 +40,7 @@ Future<void> main() async {
   unawaited(TelemetryRuntime.active());
 
   final configured = sl<ServerConfigStore>().current != null;
-  final skipped = (CacheHelper.get(CacheKeys.onboardingSkipped) as bool?) ?? false;
-  final initialRoute = shouldOnboard(configured: configured, skipped: skipped)
+  final initialRoute = shouldOnboard(configured: configured)
       ? RoutesStrings.onboarding
       : RoutesStrings.sessions;
 

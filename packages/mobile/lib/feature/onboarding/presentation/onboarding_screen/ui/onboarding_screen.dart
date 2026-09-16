@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_routes/routes_strings.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
-import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/telemetry/events.dart';
 import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_scaffold.dart';
@@ -25,13 +24,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     TelemetryRuntime.capture(MobileEvents.onboardingStarted);
   }
 
-  Future<void> _skip(BuildContext context) async {
-    TelemetryRuntime.capture(MobileEvents.onboardingSkipped);
-    await CacheHelper.save(CacheKeys.onboardingSkipped, true);
-    if (!context.mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.sessions, (_) => false);
-  }
-
   void _pair(BuildContext context) {
     Navigator.of(context).pushNamed(RoutesStrings.pairingScan, arguments: {'fromOnboarding': true});
   }
@@ -52,19 +44,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     children: [
-                      Image.asset('assets/images/mascot.png', width: 28, height: 28),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: Image.asset('assets/images/app_icon_image.png', width: 28, height: 28),
+                      ),
                       const HorizontalSpace(8),
                       AppText(
                         'Operator',
                         style: AppTextStyle.style15SemiBold.copyWith(letterSpacing: -0.2),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () => _skip(context),
-                        child: AppText(
-                          'Skip',
-                          style: AppTextStyle.style13Medium.copyWith(color: skin.textSecondary),
-                        ),
                       ),
                     ],
                   ),

@@ -122,7 +122,7 @@ void main() {
     await cubit.close();
   });
 
-  testWidgets('the onboarding screen reports started on mount and skipped on Skip', (tester) async {
+  testWidgets('the onboarding screen reports started on mount', (tester) async {
     await tester.pumpWidget(
       SkinScope(
         skin: const DarkSkin(),
@@ -138,11 +138,6 @@ void main() {
     await tester.pump();
 
     expect(events(), [MobileEvents.onboardingStarted]);
-
-    await tester.tap(find.text('Skip'));
-    await tester.pumpAndSettle();
-
-    expect(events(), [MobileEvents.onboardingStarted, MobileEvents.onboardingSkipped]);
   });
 
   test('the board reports connected once per open, with launch then reconnect', () async {
