@@ -1497,3 +1497,10 @@ type MigrationState struct {
 type TriggerReviewRequest struct {
 	Harness domain.ReviewerHarness `json:"harness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,kiro,pi,qwen,agy,continue,goose,vibe,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
 }
+
+// DesktopResponse is the body of GET /api/v1/desktop: how this machine
+// introduces itself to a phone that has just authenticated.
+type DesktopResponse struct {
+	Name     string `json:"name" description:"Display name derived from the hostname: trailing .local stripped, hyphens as spaces. Never empty."`
+	Hostname string `json:"hostname" description:"os.Hostname() verbatim; empty if the OS could not report one."`
+}

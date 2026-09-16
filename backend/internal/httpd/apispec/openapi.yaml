@@ -608,6 +608,19 @@ paths:
       summary: Back up files that replaced shared setup links, then re-link them
       tags:
       - claudeAccounts
+  /api/v1/desktop:
+    get:
+      operationId: getDesktop
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesktopResponse'
+          description: OK
+      summary: Identify this desktop to an authenticated phone
+      tags:
+      - desktop
   /api/v1/dev/ancestor-repository:
     post:
       operationId: findDevAncestorRepository
@@ -5491,6 +5504,19 @@ components:
       - ok
       - workerId
       type: object
+    DesktopResponse:
+      properties:
+        hostname:
+          description: os.Hostname() verbatim; empty if the OS could not report one.
+          type: string
+        name:
+          description: 'Display name derived from the hostname: trailing .local stripped,
+            hyphens as spaces. Never empty.'
+          type: string
+      required:
+      - name
+      - hostname
+      type: object
     DevAncestorRepositoryRequest:
       properties:
         path:
@@ -8023,3 +8049,5 @@ tags:
   name: inbox
 - description: 'Claude account folders: creation, login, relink, and status'
   name: claudeAccounts
+- description: Desktop machine identification for a paired phone
+  name: desktop

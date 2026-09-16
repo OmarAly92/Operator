@@ -210,6 +210,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/desktop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Identify this desktop to an authenticated phone */
+        get: operations["getDesktop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dev/ancestor-repository": {
         parameters: {
             query?: never;
@@ -1931,6 +1948,12 @@ export interface components {
             ok: boolean;
             orchestratorId?: string;
             workerId: string;
+        };
+        DesktopResponse: {
+            /** @description os.Hostname() verbatim; empty if the OS could not report one. */
+            hostname: string;
+            /** @description Display name derived from the hostname: trailing .local stripped, hyphens as spaces. Never empty. */
+            name: string;
         };
         DevAncestorRepositoryRequest: {
             path: string;
@@ -3662,6 +3685,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getDesktop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopResponse"];
                 };
             };
         };

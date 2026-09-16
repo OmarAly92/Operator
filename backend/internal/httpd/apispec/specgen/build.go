@@ -87,6 +87,8 @@ func Build() ([]byte, error) {
 			"Per-project orchestrator inbox of pending worker/CI/review events"),
 		*(&openapi31.Tag{Name: "claudeAccounts"}).WithDescription(
 			"Claude account folders: creation, login, relink, and status"),
+		*(&openapi31.Tag{Name: "desktop"}).WithDescription(
+			"Desktop machine identification for a paired phone"),
 	}
 
 	for _, op := range operations() {
@@ -324,6 +326,8 @@ var schemaNames = map[string]string{
 	"ControllersMobileStatusResponse":   "MobileStatusResponse",
 	"ControllersMobileTunnelStatus":     "MobileTunnelStatus",
 	"ControllersMobileAuthtokenRequest": "MobileAuthtokenRequest",
+	// httpd/controllers: desktop wire envelope
+	"ControllersDesktopResponse": "DesktopResponse",
 	// devimport report
 	"DevimportReport":   "DevImportProjectsReport",
 	"DevimportConflict": "DevImportProjectsConflict",
@@ -434,6 +438,7 @@ func operations() []operation {
 	ops = append(ops, importOperations()...)
 	ops = append(ops, devOperations()...)
 	ops = append(ops, mobileOperations()...)
+	ops = append(ops, desktopOperations()...)
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	ops = append(ops, inboxOperations()...)
@@ -886,6 +891,21 @@ func mobileOperations() []operation {
 				{http.StatusOK, controllers.MobileStatusResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusForbidden, envelope.APIError{}},
+			},
+		},
+	}
+}
+
+// desktopOperations declares the single /desktop operation. Must stay 1:1
+// with the route DesktopController.Register mounts (enforced by the parity
+// test).
+func desktopOperations() []operation {
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/desktop", id: "getDesktop", tag: "desktop",
+			summary: "Identify this desktop to an authenticated phone",
+			resps: []respUnit{
+				{http.StatusOK, controllers.DesktopResponse{}},
 			},
 		},
 	}

@@ -82,3 +82,9 @@ func TestTunnelRoutesAre404OnTheLANListener(t *testing.T) {
 		}
 	}
 }
+
+func TestDesktopRouteIsNotLANBlocked(t *testing.T) {
+	if isLANControlBlockedPath("/api/v1/desktop") {
+		t.Fatal("/api/v1/desktop must be reachable from the phone")
+	}
+}
