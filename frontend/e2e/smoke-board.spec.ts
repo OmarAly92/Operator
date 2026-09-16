@@ -20,7 +20,7 @@ test("renderer: card moves columns when its status changes @T0 @BRD", async ({ p
 	await expect(page.locator(columnCard("action", "mover"))).toHaveCount(0);
 
 	// Fake agent hits waiting_input → the card must move to the "Needs you" column.
-	await page.evaluate(() => window.__aoFakeAgent!.setStatus("mover", "needs_input", "waiting_input"));
+	await page.evaluate(() => window.__oprFakeAgent!.setStatus("mover", "needs_input", "waiting_input"));
 
 	await expect(page.locator(columnCard("action", "mover"))).toBeVisible();
 	await expect(page.locator(columnCard("working", "mover"))).toHaveCount(0);
@@ -35,7 +35,7 @@ test("renderer: SSE pushes card updates without a manual refresh @T0 @BRD", asyn
 
 	// A single CDC frame (no page.reload) must repaint the card into "Ready to
 	// merge" with its new badge.
-	await page.evaluate(() => window.__aoFakeAgent!.setStatus("live", "mergeable", "idle"));
+	await page.evaluate(() => window.__oprFakeAgent!.setStatus("live", "mergeable", "idle"));
 
 	await expect(page.locator(columnCard("merge", "live"))).toBeVisible();
 	await expect(page.locator(columnCard("merge", "live"))).toContainText("Ready");

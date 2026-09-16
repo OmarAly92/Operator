@@ -177,7 +177,7 @@ test("restores durable shell blocks with live text, styling, metadata, and exits
 	await expect(page.locator(".terminal-editor")).toBeVisible();
 
 	await page.evaluate(
-		({ handleId, text }) => window.__aoFakeTerminalMux!.emit(handleId, text),
+		({ handleId, text }) => window.__oprFakeTerminalMux!.emit(handleId, text),
 		{ handleId: "shellterm-demo-1", text: terminalPrompt(fixtures[0]!.id, definitions[0]!.cwd, definitions[0]!.branch) },
 	);
 
@@ -189,7 +189,7 @@ test("restores durable shell blocks with live text, styling, metadata, and exits
 		await expect
 			.poll(async () =>
 				page.evaluate(
-					(handleId) => window.__aoFakeTerminalMux!.stats().inputs[handleId]?.join("") ?? "",
+					(handleId) => window.__oprFakeTerminalMux!.stats().inputs[handleId]?.join("") ?? "",
 					"shellterm-demo-1",
 				),
 			)
@@ -199,7 +199,7 @@ test("restores durable shell blocks with live text, styling, metadata, and exits
 			terminalCompletion(fixture.id, fixture.command, definitions[index]!.output, fixture.exitCode) +
 			(next ? terminalPrompt(fixtures[index + 1]!.id, next.cwd, next.branch) : "");
 		await page.evaluate(
-			({ handleId, text }) => window.__aoFakeTerminalMux!.emit(handleId, text),
+			({ handleId, text }) => window.__oprFakeTerminalMux!.emit(handleId, text),
 			{ handleId: "shellterm-demo-1", text },
 		);
 	}

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-16
 **Decision owner:** Omar Aly
-**Status:** approved for planning
+**Status:** implemented 2026-09-16 (see reports/2026-09-16-defork-report.md)
 
 ## Why
 

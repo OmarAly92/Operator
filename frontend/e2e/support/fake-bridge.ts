@@ -19,7 +19,7 @@ import type { DaemonStatus } from "../../src/shared/daemon-status";
 // `EventSource`, and the workspace snapshot are all faked here, this harness
 // CANNOT catch daemon, storage, API, bridge, PTY, or filesystem regressions.
 // In particular, `useWorkspaceQuery` reads an already-shaped `WorkspaceSummary`
-// straight from `window.__aoFakeAgent.snapshot()`, BYPASSING the generated API
+// straight from `window.__oprFakeAgent.snapshot()`, BYPASSING the generated API
 // client + DTO mapping; DTO/client coverage comes from unit tests, never from
 // these specs. Treat green here as "the renderer renders the injected state,"
 // not "the boundary works."
@@ -158,7 +158,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 //      exactly what drives the renderer's cache-invalidation → refetch path (no
 //      manual refresh), matching the real daemon's behaviour.
 //   3. A mutable workspace snapshot read by `useWorkspaceQuery` via
-//      `window.__aoFakeAgent.snapshot()` (dev:web seam). Controller mutations +
+//      `window.__oprFakeAgent.snapshot()` (dev:web seam). Controller mutations +
 //      an SSE push = the card the renderer repaints.
 
 export type FakeWorker = {
@@ -202,14 +202,14 @@ export type FakeAgentController = {
 
 declare global {
 	interface Window {
-		__aoFakeAgent?: FakeAgentController;
+		__oprFakeAgent?: FakeAgentController;
 	}
 }
 
 /**
  * Install the fake-agent bridge + SSE + snapshot seam before any page script.
  * Drive the timeline from specs with
- * `page.evaluate(() => window.__aoFakeAgent!.setStatus(...))`.
+ * `page.evaluate(() => window.__oprFakeAgent!.setStatus(...))`.
  */
 export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}): Promise<void> {
 	const version = opts.version ?? "9.9.9-test";
@@ -410,7 +410,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					emit("/api/v1/notifications/stream", "notification_created", payload);
 				},
 			};
-			(window as unknown as { __aoFakeAgent: unknown }).__aoFakeAgent = controller;
+			(window as unknown as { __oprFakeAgent: unknown }).__oprFakeAgent = controller;
 
 			const unsubscribe = () => () => undefined;
 			const status: DaemonStatus = { state: "ready", port: daemonPort };

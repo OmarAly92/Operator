@@ -10,7 +10,7 @@ void main() {
       expect(EndPoints.sessionResumeAgent('w-1'), '/api/v1/sessions/w-1/resume-agent');
     });
 
-    test('escape identifiers so a slash cannot forge a route', () {
+    test('escape identifiers so a slash cannot spoof a route', () {
       expect(EndPoints.sessionAttachments('a/b'), '/api/v1/sessions/a%2Fb/attachments');
     });
 

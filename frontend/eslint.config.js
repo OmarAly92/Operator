@@ -8,7 +8,6 @@ export default tseslint.config(
 	{
 		ignores: [
 			"dist/**",
-			"out/**",
 			"src-tauri/target/**",
 			"node_modules/**",
 			"**/*.gen.ts",

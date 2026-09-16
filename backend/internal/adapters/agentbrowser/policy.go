@@ -299,7 +299,7 @@ func nativeWaitArguments(args map[string]interface{}) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression := fmt.Sprintf(`(() => { const key = "__aoDomStability"; const now = performance.now(); let state = globalThis[key]; if (!state) { state = { lastMutation: now }; state.observer = new MutationObserver(() => { state.lastMutation = performance.now(); }); state.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); globalThis[key] = state; } if (performance.now() - state.lastMutation < %d) return false; state.observer.disconnect(); delete globalThis[key]; return true; })()`, int(stable))
+		expression := fmt.Sprintf(`(() => { const key = "__oprDomStability"; const now = performance.now(); let state = globalThis[key]; if (!state) { state = { lastMutation: now }; state.observer = new MutationObserver(() => { state.lastMutation = performance.now(); }); state.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); globalThis[key] = state; } if (performance.now() - state.lastMutation < %d) return false; state.observer.disconnect(); delete globalThis[key]; return true; })()`, int(stable))
 		return []string{"wait", "--fn", expression, "--timeout", timeoutText}, nil
 	}
 	if ms, ok := numericField(args, "ms"); ok && ms > 0 {

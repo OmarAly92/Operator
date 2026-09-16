@@ -280,7 +280,7 @@ func TestSourceKeyIgnoresForwardedHeaderFromNonLoopback(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 
 	if got := sourceKey(req, trust); got != "192.168.1.44" {
-		t.Errorf("got %q — a LAN client must not be able to forge its lockout bucket", got)
+		t.Errorf("got %q — a LAN client must not be able to spoof its lockout bucket", got)
 	}
 }
 

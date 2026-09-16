@@ -26,7 +26,7 @@ test("renderer: new session card appears in the spawning/working state @T0 @SES"
 	await expect(page.locator(card("fake-spawn"))).toHaveCount(0);
 
 	await page.evaluate(() =>
-		window.__aoFakeAgent!.createWorker({ id: "fake-spawn", title: "Spawning worker", activity: "exited" }),
+		window.__oprFakeAgent!.createWorker({ id: "fake-spawn", title: "Spawning worker", activity: "exited" }),
 	);
 
 	await expect(page.locator(columnCard("working", "fake-spawn"))).toBeVisible();

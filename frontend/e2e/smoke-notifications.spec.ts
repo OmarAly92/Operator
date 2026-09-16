@@ -53,7 +53,7 @@ test("renderer: notification center shows the correct unread count @T0 @NTF", as
 	// A session-driven needs-input notification arrives over SSE (no refetch); the
 	// count climbs to 3 through the transport's merge path.
 	await page.evaluate(() =>
-		window.__aoFakeAgent!.notify({
+		window.__oprFakeAgent!.notify({
 			id: "n3",
 			type: "needs_input",
 			title: "Second worker needs input",

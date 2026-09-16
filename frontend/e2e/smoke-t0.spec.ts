@@ -97,7 +97,7 @@ test("renderer: daemon health reflected with a hydrated board @T0 @DMN", async (
 	// board hydrates with sessions rather than an error/empty shell.
 	//
 	// Use installFakeAgent so the session card is served through the
-	// window.__aoFakeAgent.snapshot() workspace seam (the daemon-backed source),
+	// window.__oprFakeAgent.snapshot() workspace seam (the daemon-backed source),
 	// not the static mockWorkspaces fallback — otherwise the card would render
 	// regardless of the daemon and the "daemon → has data" link would be a false
 	// green.
@@ -130,7 +130,7 @@ test("renderer: board state rehydrates after a renderer relaunch @T0 @DMN", asyn
 	// (reload), i.e. the app rebuilds from the daemon rather than in-memory state.
 	//
 	// Use installFakeAgent (not installFakeBridge): its board data is read through
-	// the `window.__aoFakeAgent.snapshot()` workspace seam — the same source the
+	// the `window.__oprFakeAgent.snapshot()` workspace seam — the same source the
 	// real daemon fills — so the reload genuinely re-reads from the daemon-backed
 	// source. installFakeBridge alone would fall back to the static mockWorkspaces
 	// import, and the reload would pass by re-reading the same mock (false green).

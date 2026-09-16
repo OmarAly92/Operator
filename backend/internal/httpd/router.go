@@ -133,8 +133,8 @@ func mountControl(r chi.Router, deps ControlDeps) {
 // localControlRequest (which rejects any Origin-bearing request and is meant for
 // the CLI). The "phone must never toggle its own access" invariant is enforced
 // on the LAN listener instead, by lanControlBlock, which 404s /api/v1/mobile on
-// the 0.0.0.0 socket the phone reaches — a transport-based check that cannot be
-// spoofed with a forged Host header. On the loopback listener these routes are
+// the 0.0.0.0 socket the phone reaches — a transport-based check that a spoofed
+// Host header cannot defeat. On the loopback listener these routes are
 // protected by the same CORS allowlist as every other app route.
 func mountMobile(r chi.Router, c *controllers.MobileController) {
 	if c == nil {

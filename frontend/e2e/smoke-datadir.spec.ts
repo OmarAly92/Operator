@@ -14,7 +14,7 @@ import { installFakeAgent, installFakeBridge } from "./support/fake-bridge";
 
 test("renderer: reflects daemon data-dir readiness @P0 @DATADIR", async ({ page }) => {
 	// Use installFakeAgent so the board card is served through the
-	// window.__aoFakeAgent.snapshot() workspace seam — the daemon-backed source —
+	// window.__oprFakeAgent.snapshot() workspace seam — the daemon-backed source —
 	// not the static mockWorkspaces fallback. Otherwise the card assertion below
 	// would pass even if daemon/data-dir-backed hydration were broken (false green).
 	await installFakeAgent(page, {

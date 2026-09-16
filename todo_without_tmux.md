@@ -66,7 +66,7 @@ still need actual measured evidence, which this pass did not collect.
 |---|---|---|
 | `vtebench` | not run, both runtimes | the workload shells out to a `vtebench` binary (`frontend/perf/terminal/harness.tsx`) that is not installed and has no brew formula |
 | `reconnect` | **fixed 2026-09-02**, not yet re-run | `forceDisconnect` called `mux.dispose()`, which is deliberately silent: it clears `connectionListeners` before closing the socket, so `setConnectionState` early-returns and the `"closed"` transition never arrives. That transition is what bumps `attachmentGeneration`, so the attach effect never re-ran, nothing re-attached, and the run stalled at the first sample — matching the observed "one `/mux` upgrade, then zero attached clients". `forceDisconnect` now bumps the generation itself. The pre-existing unit test missed it because it emitted `"closed"` straight onto a fake mux, bypassing `dispose()`; the new test drives the real `operator:terminal-benchmark-reconnect` event and fails without the fix. Still leaves the spec's open question about a rendered ring snapshot unanswered until the scenario is actually run |
-| `cpu-time`, `active-memory` | **fix completed 2026-09-02**, not end-to-end verified | Two defects, both now fixed. (1) Benchmark mode deliberately skips the daemon auto-start (`if audit_mode.is_none() && !terminal_benchmark`) and registers `daemon_start` as an invokable command instead, but the harness page never called it — `frontend/perf/terminal/main.tsx` now calls `startTauriDaemonForScenario`, gated to exactly these two scenarios. (2) That fix could not have worked on its own: the benchmark window runs under the `terminal-benchmark` capability, which granted only `allow-terminal-benchmark-runtime-identity`, so the `daemon_start` invoke would have been denied by Tauri's capability system — `allow-daemon-start` is granted to the `main` window only, in `phase0.json`. The capability now grants it, pinned by a Rust test that fails when the permission is removed. Still needs a desktop session to confirm `running.json` appears end to end. A port collision was ruled out earlier by re-running on `OPERATOR_PORT=3055` |
+| `cpu-time`, `active-memory` | **fix completed 2026-09-02**, not end-to-end verified | Two defects, both now fixed. (1) Benchmark mode deliberately skips the daemon auto-start (`if audit_mode.is_none() && !terminal_benchmark`) and registers `daemon_start` as an invokable command instead, but the harness page never called it — `frontend/perf/terminal/main.tsx` now calls `startTauriDaemonForScenario`, gated to exactly these two scenarios. (2) That fix could not have worked on its own: the benchmark window runs under the `terminal-benchmark` capability, which granted only `allow-terminal-benchmark-runtime-identity`, so the `daemon_start` invoke would have been denied by Tauri's capability system — `allow-daemon-start` is granted to the `main` window only, in `main.json`. The capability now grants it, pinned by a Rust test that fails when the permission is removed. Still needs a desktop session to confirm `running.json` appears end to end. A port collision was ruled out earlier by re-running on `OPERATOR_PORT=3055` |
 
 ## 3. What the evidence that *did* land actually shows
 
@@ -374,26 +374,6 @@ What to run:
 - **CJK through an IME** — the composition target moved in the DOM twice.
 - **The Focus Terminal shortcut**, and **Ctrl+K** reaching the shell rather than
   opening the palette.
-
-### 11.2 `bench:terminal` has still never run
-
-The harness is rebuilt and the runner's dead path is gone, but nothing has driven
-it end to end. It now reaches `OPERATOR_BENCH_DAEMON_URL is required`, which is
-the expected next gate — progress, not proof. Until someone runs it against a live
-paired daemon and a desktop session, §2's `reconnect` fix and its
-`cpu-time`/`active-memory` fix stay unverified, exactly as §2 says.
-
-```bash
-npm --prefix frontend run bench:terminal -- --shell tauri --scenario reconnect
-```
-
-**Decide one thing before recording numbers.** The harness mounts
-`createTerminalCore` + `DomBlockRenderer` directly rather than `TerminalSurface`,
-because at the time the surface did not expose `onPaint`. It does now
-(`8edaf829c`). Switching the harness would start including React and the line
-editor in the measurement, which is closer to what users run but moves the numbers
-and breaks comparability with anything recorded before. Switch and re-baseline in
-the same run, or stay put deliberately — but do not switch after recording.
 
 ### 11.3 `find-500k` has never been measured
 
