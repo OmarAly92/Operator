@@ -31,11 +31,17 @@ bool isLocalNetworkHost(String host) {
 }
 
 class ConnectionErrorCopy {
-  const ConnectionErrorCopy({required this.title, required this.message, required this.showLocalNetworkHint});
+  const ConnectionErrorCopy({
+    required this.title,
+    required this.message,
+    required this.showLocalNetworkHint,
+    this.isAuth = false,
+  });
 
   final String title;
   final String message;
   final bool showLocalNetworkHint;
+  final bool isAuth;
 }
 
 ConnectionErrorCopy describeConnectionFailure(
@@ -73,6 +79,7 @@ ConnectionErrorCopy describeConnectionFailure(
         title: 'Your desktop rejected the password',
         message: 'That password was rotated. Re-scan the code on your computer.',
         showLocalNetworkHint: false,
+        isAuth: true,
       );
     case ConnectionFailure.rateLimited:
       return const ConnectionErrorCopy(

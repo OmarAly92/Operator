@@ -1,67 +1,132 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
-import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:operator_mobile/core/api/server_config.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_identity_model.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
+import 'package:operator_mobile/feature/pairing/data/model/params/rename_desktop_params.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/connections_cubit.dart';
 
+class _MockDesktops extends Mock implements DesktopsRepository {}
+
+class _MockRemote extends Mock implements PairingRemoteDataSource {}
+
+class _MockStore extends Mock implements ServerConfigStore {}
+
+const _a = DesktopModel(id: 'a', name: 'Mac', host: '10.0.0.5', port: '3011', secure: false, isActive: false);
+const _b = DesktopModel(id: 'b', name: 'iMac', host: '10.0.0.6', port: '3011', secure: false, isActive: false);
+const _config = ServerConfig(host: '10.0.0.5', httpPort: '3011', secure: false, password: 'pw');
+
 void main() {
-  group('ConnectionsCubit', () {
-    test('starts with the dummy saved connections', () {
-      final cubit = ConnectionsCubit();
-      expect(cubit.connections, hasLength(2));
-      expect(cubit.connections.first.name, "Alex's MacBook Pro");
-      expect(cubit.connections.first.address, '100.94.12.3');
-      cubit.close();
-    });
+  late _MockDesktops desktops;
+  late _MockRemote remote;
+  late _MockStore store;
+  late StreamController<List<DesktopModel>> list;
 
-    blocTest<ConnectionsCubit, ConnectionsState>(
-      'connectTo marks the row connecting then succeeds after the delay',
-      build: ConnectionsCubit.new,
-      act: (cubit) {
-        fakeAsync((async) {
-          cubit.connectTo('alex-macbook-pro');
-          expect(cubit.connectingId, 'alex-macbook-pro');
-          async.elapse(const Duration(milliseconds: 900));
-          expect(cubit.connectingId, isNull);
-        });
-      },
-      expect: () => [const ConnectLoadingState('alex-macbook-pro'), const ConnectSuccessState('alex-macbook-pro')],
-    );
-
-    blocTest<ConnectionsCubit, ConnectionsState>(
-      'addConnection appends a new entry',
-      build: ConnectionsCubit.new,
-      act: (cubit) => cubit.addConnection(name: 'Studio iMac', address: '192.168.1.42'),
-      expect: () => [const AddConnectionSuccessState()],
-      verify: (cubit) {
-        expect(cubit.connections, hasLength(3));
-        expect(cubit.connections.last.name, 'Studio iMac');
-        expect(cubit.connections.last.address, '192.168.1.42');
-        expect(cubit.connections.last.lastConnectedLabel, isNull);
-      },
-    );
-
-    blocTest<ConnectionsCubit, ConnectionsState>(
-      'updateConnection edits the matching entry in place',
-      build: ConnectionsCubit.new,
-      act: (cubit) => cubit.updateConnection('office-imac', name: 'Home iMac', address: '10.0.0.9'),
-      expect: () => [const UpdateConnectionSuccessState()],
-      verify: (cubit) {
-        expect(cubit.connections, hasLength(2));
-        final updated = cubit.byId('office-imac');
-        expect(updated?.name, 'Home iMac');
-        expect(updated?.address, '10.0.0.9');
-      },
-    );
-
-    blocTest<ConnectionsCubit, ConnectionsState>(
-      'removeConnection deletes the matching entry',
-      build: ConnectionsCubit.new,
-      act: (cubit) => cubit.removeConnection('office-imac'),
-      expect: () => [const RemoveConnectionSuccessState()],
-      verify: (cubit) {
-        expect(cubit.connections, hasLength(1));
-        expect(cubit.byId('office-imac'), isNull);
-      },
-    );
+  setUpAll(() {
+    registerFallbackValue(_config);
+    registerFallbackValue(const RenameDesktopParams(id: '', name: ''));
   });
+
+  setUp(() {
+    desktops = _MockDesktops();
+    remote = _MockRemote();
+    store = _MockStore();
+    list = StreamController<List<DesktopModel>>.broadcast();
+    when(() => desktops.watchDesktops()).thenAnswer((_) => list.stream);
+  });
+
+  tearDown(() => list.close());
+
+  ConnectionsCubit build() => ConnectionsCubit(desktops, remote, store);
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'mirrors the repository stream into desktops',
+    build: build,
+    act: (_) => list.add([_a, _b]),
+    expect: () => [
+      const DesktopsUpdatedState([_a, _b]),
+    ],
+    verify: (cubit) => expect(cubit.desktops, [_a, _b]),
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'connectTo identifies with the stored password, activates, sets the store',
+    build: build,
+    setUp: () {
+      when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
+      when(() => remote.identify(_config)).thenAnswer((_) async => const DesktopIdentityModel(name: 'Mac'));
+      when(() => desktops.activate('a')).thenAnswer((_) async => Result.success(null));
+    },
+    seed: () => const DesktopsUpdatedState([_a]),
+    act: (cubit) {
+      cubit.desktops = [_a];
+      return cubit.connectTo('a', TargetPlatform.iOS);
+    },
+    expect: () => [const ConnectLoadingState('a'), const ConnectSuccessState('a')],
+    verify: (_) => verifyInOrder([
+      () => remote.identify(_config),
+      () => desktops.activate('a'),
+      () => store.set(_config),
+    ]),
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'a 401 surfaces the rotated-password copy on that row',
+    build: build,
+    setUp: () {
+      when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
+      when(() => remote.identify(any())).thenThrow(
+        ServerFailure<Map<String, dynamic>>(error: 'x', message: 'bad', statusCode: 401),
+      );
+    },
+    act: (cubit) {
+      cubit.desktops = [_a];
+      return cubit.connectTo('a', TargetPlatform.iOS);
+    },
+    expect: () => [
+      const ConnectLoadingState('a'),
+      isA<ConnectFailureState>().having((s) => s.copy.title, 'title', 'Your desktop rejected the password'),
+    ],
+    verify: (cubit) {
+      expect(cubit.errors['a'], isNotNull);
+      verifyNever(() => desktops.activate(any()));
+      verifyNever(() => store.set(any()));
+    },
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'removing the active desktop clears the store; removing the last one signals it',
+    build: build,
+    setUp: () {
+      when(() => desktops.remove('a')).thenAnswer((_) async => Result.success(null));
+    },
+    act: (cubit) async {
+      cubit.desktops = [_a.copyWithActive(true)];
+      await cubit.remove('a');
+      list.add(const []);
+    },
+    expect: () => [const DesktopsUpdatedState([]), const LastDesktopRemovedState()],
+    verify: (_) => verify(() => store.clear()).called(1),
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'rename forwards to the repository',
+    build: build,
+    setUp: () => when(() => desktops.rename(any())).thenAnswer((_) async => Result.success(null)),
+    act: (cubit) => cubit.rename('a', 'Studio'),
+    expect: () => <ConnectionsState>[],
+    verify: (_) {
+      final params = verify(() => desktops.rename(captureAny())).captured.single as RenameDesktopParams;
+      expect(params.name, 'Studio');
+    },
+  );
 }

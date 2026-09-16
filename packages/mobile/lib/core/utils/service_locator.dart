@@ -122,7 +122,9 @@ class ServiceLocator {
       () =>
           ManualConnectCubit(sl<PairingRepository>(), sl<ServerConfigStore>()),
     );
-    sl.registerFactory<ConnectionsCubit>(() => ConnectionsCubit());
+    sl.registerFactory<ConnectionsCubit>(
+      () => ConnectionsCubit(sl<DesktopsRepository>(), sl<PairingRemoteDataSource>(), sl<ServerConfigStore>()),
+    );
 
     sl.registerLazySingleton<PairingRepository>(
       () => PairingRepositoryImp(

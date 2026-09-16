@@ -32,7 +32,11 @@ sealed class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case RoutesStrings.onboarding:
-        return MaterialPageRoute(builder: (context) => const OnboardingScreen(), settings: settings);
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (context) => OnboardingScreen(fromDesktops: args?['fromDesktops'] as bool? ?? false),
+          settings: settings,
+        );
 
       case RoutesStrings.pairingScan:
         final args = settings.arguments as Map<String, dynamic>?;

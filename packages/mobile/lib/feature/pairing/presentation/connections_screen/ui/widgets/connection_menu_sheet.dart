@@ -8,7 +8,7 @@ import 'package:operator_mobile/core/widgets/main_widgets/app_sheet_chrome.dart'
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
-enum ConnectionMenuAction { connect, edit, remove }
+enum ConnectionMenuAction { rename, remove }
 
 Future<ConnectionMenuAction?> showConnectionMenuSheet(BuildContext context, {required String name}) {
   return showExpressiveSheet<ConnectionMenuAction>(
@@ -21,20 +21,11 @@ Future<ConnectionMenuAction?> showConnectionMenuSheet(BuildContext context, {req
           AppText(name, style: AppTextStyle.style17Bold, maxLines: 2),
           const VerticalSpace(8),
           _MenuRow(
-            icon: Icons.link,
-            label: 'Connect',
-            onTap: () {
-              Haptics.select();
-              Navigator.of(sheetContext).pop(ConnectionMenuAction.connect);
-            },
-          ),
-          _MenuDivider(),
-          _MenuRow(
             icon: Icons.edit_outlined,
-            label: 'Edit details',
+            label: 'Rename',
             onTap: () {
               Haptics.select();
-              Navigator.of(sheetContext).pop(ConnectionMenuAction.edit);
+              Navigator.of(sheetContext).pop(ConnectionMenuAction.rename);
             },
           ),
           _MenuDivider(),

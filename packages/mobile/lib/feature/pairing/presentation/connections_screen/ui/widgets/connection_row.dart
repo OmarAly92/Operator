@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:operator_mobile/core/app_themes/app_motion.dart';
 import 'package:operator_mobile/core/app_themes/colors/skin_scope.dart';
 import 'package:operator_mobile/core/app_themes/text_style/app_text_style.dart';
+import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/utils/app_constants.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_container.dart';
 import 'package:operator_mobile/core/widgets/main_widgets/app_text.dart';
@@ -9,22 +10,32 @@ import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 
 /// A single row in the "Your desktops" group card
 /// (`docs/design/connections/connections.md`). Takes primitive fields
-/// rather than the whole `SavedConnection` model so it stays reusable.
+/// rather than the whole `DesktopModel` so it stays reusable.
 class ConnectionRow extends StatelessWidget {
   const ConnectionRow({
     super.key,
     required this.name,
+    required this.host,
     required this.address,
     required this.lastConnectedLabel,
     required this.connecting,
+    required this.active,
     required this.onTap,
     required this.onMenuTap,
+    this.error,
+    this.onScanAgain,
+    this.activeDotKey,
   });
 
   final String name;
+  final String host;
   final String address;
-  final String? lastConnectedLabel;
+  final String lastConnectedLabel;
   final bool connecting;
+  final bool active;
+  final ConnectionErrorCopy? error;
+  final VoidCallback? onScanAgain;
+  final Key? activeDotKey;
   final VoidCallback onTap;
   final VoidCallback onMenuTap;
 
@@ -39,8 +50,7 @@ class ConnectionRow extends StatelessWidget {
 
   String _metaText() {
     if (connecting) return 'Connecting…';
-    if (lastConnectedLabel != null) return '$address · last connected $lastConnectedLabel';
-    return '$address · not connected yet';
+    return '$address · ${isLocalNetworkHost(host) ? 'LAN' : 'Remote'} · $lastConnectedLabel';
   }
 
   @override
@@ -72,9 +82,38 @@ class ConnectionRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppText(name, style: AppTextStyle.style14p5SemiBold),
+                Row(
+                  children: [
+                    if (active) ...[
+                      Container(
+                        key: activeDotKey,
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(color: skin.accent, shape: BoxShape.circle),
+                      ),
+                      const HorizontalSpace(6),
+                    ],
+                    Flexible(child: AppText(name, style: AppTextStyle.style14p5SemiBold)),
+                  ],
+                ),
                 const VerticalSpace(3),
                 AppText(_metaText(), style: AppTextStyle.mono11Regular.copyWith(color: skin.textTertiary)),
+                if (error != null) ...[
+                  const VerticalSpace(4),
+                  AppText(
+                    error!.message,
+                    style: AppTextStyle.style11Regular.copyWith(color: skin.red),
+                    maxLines: 3,
+                  ),
+                  if (onScanAgain != null)
+                    GestureDetector(
+                      onTap: onScanAgain,
+                      child: AppText(
+                        'Scan again',
+                        style: AppTextStyle.style11SemiBold.copyWith(color: skin.accent),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),

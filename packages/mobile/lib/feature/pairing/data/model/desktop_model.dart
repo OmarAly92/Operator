@@ -28,6 +28,10 @@ class DesktopModel extends Equatable {
 
   String get address => '$host:$port';
 
+  DesktopModel copyWithActive(bool active) => DesktopModel(
+    id: id, name: name, host: host, port: port, secure: secure, isActive: active, lastConnectedAt: lastConnectedAt,
+  );
+
   @override
   List<Object?> get props => [id, name, host, port, secure, isActive, lastConnectedAt];
 }

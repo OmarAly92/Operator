@@ -31,6 +31,11 @@ extension ResultExtensions<T, E> on Result<T, E> {
 
   bool get isFailure => this is _ResultFailure<T, E>;
 
+  T? get valueOrNull => switch (this) {
+    _ResultSuccess<T, E>(:final value) => value,
+    _ResultFailure<T, E>() => null,
+  };
+
   T getOrDefault(T defaultValue) {
     return switch (this) {
       _ResultSuccess<T, E>(:final value) => value,

@@ -1,80 +1,91 @@
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:operator_mobile/feature/pairing/presentation/connections_screen/logic/saved_connection.dart';
+import 'package:operator_mobile/core/api/server_config_store.dart';
+import 'package:operator_mobile/core/error_handling/connection_error.dart';
+import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
+import 'package:operator_mobile/feature/pairing/data/model/desktop_model.dart';
+import 'package:operator_mobile/feature/pairing/data/model/params/rename_desktop_params.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 
 part 'connections_state.dart';
 
-/// UI-only for now — dummy data (`docs/design/connections/connections.md`).
-/// There is no multi-connection persistence layer yet (`ServerConfigStore`
-/// only holds one active `ServerConfig`), so this cubit keeps its list
-/// in-memory rather than reading/writing a repository.
 class ConnectionsCubit extends Cubit<ConnectionsState> {
-  ConnectionsCubit()
-    : connections = const [
-        SavedConnection(
-          id: 'alex-macbook-pro',
-          name: "Alex's MacBook Pro",
-          address: '100.94.12.3',
-          lastConnectedLabel: '2h ago',
-        ),
-        SavedConnection(
-          id: 'office-imac',
-          name: 'Office iMac',
-          address: '192.168.1.42',
-          lastConnectedLabel: '3d ago',
-        ),
-      ],
-      super(const ConnectionsInitialState());
+  ConnectionsCubit(this._desktops, this._remote, this._store) : super(const ConnectionsInitialState()) {
+    _subscription = _desktops.watchDesktops().listen(_onDesktops);
+  }
 
-  List<SavedConnection> connections;
+  final DesktopsRepository _desktops;
+  final PairingRemoteDataSource _remote;
+  final ServerConfigStore _store;
+
+  List<DesktopModel> desktops = const [];
   String? connectingId;
-  Timer? _connectTimer;
+  final Map<String, ConnectionErrorCopy> errors = {};
+  StreamSubscription<List<DesktopModel>>? _subscription;
 
-  SavedConnection? byId(String id) {
-    for (final connection in connections) {
-      if (connection.id == id) return connection;
+  void _onDesktops(List<DesktopModel> next) {
+    final hadDesktops = desktops.isNotEmpty;
+    desktops = next;
+    emit(DesktopsUpdatedState(next));
+    if (hadDesktops && next.isEmpty) emit(const LastDesktopRemovedState());
+  }
+
+  DesktopModel? byId(String id) {
+    for (final desktop in desktops) {
+      if (desktop.id == id) return desktop;
     }
     return null;
   }
 
-  // TODO(connections): drive this from real pairing/connect state once the
-  // daemon supports multiple saved connections, instead of this fixed delay
-  // (the prototype itself is a stub — see connections.md's States section).
-  void connectTo(String id) {
+  Future<void> connectTo(String id, TargetPlatform platform) async {
+    final desktop = byId(id);
+    if (desktop == null || connectingId != null) return;
     connectingId = id;
+    errors.remove(id);
     emit(ConnectLoadingState(id));
-    _connectTimer?.cancel();
-    _connectTimer = Timer(const Duration(milliseconds: 900), () {
+
+    final password = await _desktops.passwordFor(id);
+    final config = desktop.toServerConfig(password.valueOrNull ?? '');
+    try {
+      await _remote.identify(config);
+      await _desktops.activate(id);
+      _store.set(config);
       connectingId = null;
       emit(ConnectSuccessState(id));
-    });
+    } on Failure catch (failure) {
+      connectingId = null;
+      final copy = describeConnectionFailure(
+        classifyConnectionFailure(failure.statusCode),
+        host: desktop.host ?? '',
+        port: desktop.port ?? '',
+        platform: platform,
+      );
+      errors[id] = copy;
+      emit(ConnectFailureState(id, copy));
+    }
   }
 
-  void addConnection({required String name, required String address}) {
-    connections = [...connections, SavedConnection(id: _generateId(), name: name, address: address)];
-    emit(const AddConnectionSuccessState());
+  Future<void> rename(String id, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    await _desktops.rename(RenameDesktopParams(id: id, name: trimmed));
   }
 
-  void updateConnection(String id, {required String name, required String address}) {
-    connections = [
-      for (final connection in connections)
-        if (connection.id == id) connection.copyWith(name: name, address: address) else connection,
-    ];
-    emit(const UpdateConnectionSuccessState());
+  Future<void> remove(String id) async {
+    final wasActive = byId(id)?.isActive ?? false;
+    await _desktops.remove(id);
+    errors.remove(id);
+    if (wasActive) _store.clear();
   }
-
-  void removeConnection(String id) {
-    connections = connections.where((connection) => connection.id != id).toList();
-    emit(const RemoveConnectionSuccessState());
-  }
-
-  String _generateId() => DateTime.now().microsecondsSinceEpoch.toString();
 
   @override
   Future<void> close() {
-    _connectTimer?.cancel();
+    _subscription?.cancel();
     return super.close();
   }
 }

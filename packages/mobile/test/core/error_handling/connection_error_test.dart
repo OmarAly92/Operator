@@ -88,6 +88,14 @@ void main() {
       expect(d.message, contains('rotated'));
       expect(d.message, isNot(contains('Wi-Fi')));
       expect(d.showLocalNetworkHint, isFalse);
+      expect(d.isAuth, isTrue);
+    });
+
+    test('only the auth copy is flagged isAuth', () {
+      for (final reason in ConnectionFailure.values) {
+        final d = describeConnectionFailure(reason, host: '', port: '', platform: TargetPlatform.iOS);
+        expect(d.isAuth, reason == ConnectionFailure.auth);
+      }
     });
 
     test('gives every cause a distinct, non-empty title', () {

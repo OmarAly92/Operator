@@ -16,7 +16,10 @@ class ConnectionsHeader extends StatelessWidget {
     final skin = context.skin;
     return Row(
       children: [
-        Image.asset('assets/images/mascot.png', width: 28, height: 28),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: Image.asset('assets/images/app_icon_image.png', width: 28, height: 28),
+        ),
         const HorizontalSpace(8),
         AppText('Operator', style: AppTextStyle.style15SemiBold),
         const Spacer(),

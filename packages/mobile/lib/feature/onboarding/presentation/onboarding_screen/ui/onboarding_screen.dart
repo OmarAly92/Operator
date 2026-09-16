@@ -11,7 +11,9 @@ import 'package:operator_mobile/core/widgets/main_widgets/space_widgets.dart';
 import 'package:operator_mobile/feature/onboarding/presentation/onboarding_screen/ui/widgets/onboarding_step.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.fromDesktops = false});
+
+  final bool fromDesktops;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -32,7 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final skin = context.skin;
     return PopScope(
-      canPop: false,
+      canPop: widget.fromDesktops,
       child: AppScaffold(
         body: SafeArea(
           child: Padding(
@@ -44,6 +46,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     children: [
+                      if (widget.fromDesktops)
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(7),
                         child: Image.asset('assets/images/app_icon_image.png', width: 28, height: 28),
