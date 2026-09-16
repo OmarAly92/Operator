@@ -111,8 +111,7 @@ test("stagedMarkerPath points at the engine's staging record under the state roo
 });
 
 test("updateSettingsPayload matches the Go updates-settings PATCH shape", () => {
-	assert.deepEqual(updateSettingsPayload("latest"), { enabled: true, channel: "latest", nightlyAck: false });
-	assert.deepEqual(updateSettingsPayload("nightly"), { enabled: true, channel: "nightly", nightlyAck: true });
+	assert.deepEqual(updateSettingsPayload(), { enabled: true, feature: null });
 });
 
 test("patchUpdateSettings PATCHes the daemon loopback endpoint", async () => {
@@ -121,12 +120,12 @@ test("patchUpdateSettings PATCHes the daemon loopback endpoint", async () => {
 		seen = { url, init };
 		return { ok: true };
 	};
-	await patchUpdateSettings(43110, "nightly", { fetchImpl: fakeFetch });
+	await patchUpdateSettings(43110, { fetchImpl: fakeFetch });
 	assert.equal(seen.url, "http://127.0.0.1:43110/api/v1/settings/updates");
 	assert.equal(seen.init.method, "PATCH");
-	assert.deepEqual(JSON.parse(seen.init.body), { enabled: true, channel: "nightly", nightlyAck: true });
+	assert.deepEqual(JSON.parse(seen.init.body), { enabled: true, feature: null });
 	const failing = async () => ({ ok: false, status: 500 });
-	await assert.rejects(() => patchUpdateSettings(43110, "latest", { fetchImpl: failing }), /500|failed/i);
+	await assert.rejects(() => patchUpdateSettings(43110, { fetchImpl: failing }), /500|failed/i);
 });
 
 test("removeRunFile deletes only a genuine Operator running.json handshake", () => {

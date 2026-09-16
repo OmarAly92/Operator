@@ -103,7 +103,7 @@ function createBrowserPreviewBridge(): OperatorBridge {
 			setMigration: async () => undefined,
 		},
 		updateSettings: {
-			get: async () => ({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
+			get: async () => ({ enabled: false, feature: null }),
 			set: async () => undefined,
 		},
 		uiSettings: {

@@ -117,7 +117,7 @@ beforeEach(async () => {
 	]) {
 		m.mockReset();
 	}
-	getUpdate.mockResolvedValue({ enabled: true, channel: "latest", nightlyAck: false, feature: null });
+	getUpdate.mockResolvedValue({ enabled: true, feature: null });
 	setUpdate.mockResolvedValue(undefined);
 	getUiSettings.mockResolvedValue({ locale: "en" });
 	setUiSettings.mockImplementation(async (settings: { locale: string }) => ({
@@ -231,24 +231,11 @@ describe("GlobalSettingsForm", () => {
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("shows the nightly warning when the nightly channel is loaded", async () => {
-		getUpdate.mockResolvedValue({ enabled: true, channel: "nightly", nightlyAck: true, feature: null });
+	it("offers no channel picker, only the enable toggle and feature pin row", async () => {
 		renderForm();
-		expect(await screen.findByText(/Nightly builds are cut every day/i)).toBeInTheDocument();
+		await screen.findByLabelText("Automatic Updates");
+		expect(screen.queryByText("Updates channel")).toBeNull();
 		expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
-	});
-
-	it("auto-saves when the updates channel changes while automatic updates are enabled", async () => {
-		renderForm();
-		await screen.findByLabelText("Updates channel");
-		await userEvent.click(screen.getByLabelText("Updates channel"));
-		await userEvent.click(await screen.findByRole("menuitem", { name: "Nightly (Pre-release)" }));
-		await waitFor(() =>
-			expect(setUpdate).toHaveBeenCalledWith(
-				expect.objectContaining({ channel: "nightly", enabled: true, nightlyAck: true, feature: null }),
-			),
-		);
-		expect(await screen.findByText(/Nightly builds are cut every day/i)).toBeInTheDocument();
 	});
 
 	it("auto-saves when automatic updates are toggled", async () => {
@@ -257,14 +244,8 @@ describe("GlobalSettingsForm", () => {
 		await userEvent.click(screen.getByLabelText("Automatic Updates"));
 		await userEvent.click(await screen.findByRole("menuitem", { name: "Disabled" }));
 		await waitFor(() =>
-			expect(setUpdate).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, channel: "latest" })),
+			expect(setUpdate).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, feature: null })),
 		);
-	});
-
-	it("hides the nightly warning on the stable channel", async () => {
-		renderForm();
-		await screen.findByText("Updates");
-		expect(screen.queryByText(/Nightly builds are cut every day/i)).not.toBeInTheDocument();
 	});
 
 	it("shows the current app version", async () => {
@@ -433,10 +414,9 @@ describe("GlobalSettingsForm", () => {
 
 	it("surfaces a Return action for a persisted feature pin", async () => {
 		// A pin persists in settings but is not yet running; updates are on the stable channel.
-		getUpdate.mockResolvedValue({ enabled: true, channel: "latest", nightlyAck: false, feature: { pr: 2270 } });
+		getUpdate.mockResolvedValue({ enabled: true, feature: { pr: 2270 } });
 		featGetActive.mockResolvedValue(null);
 		renderForm();
-		// The concealed pin is announced even though the channel option/picker are hidden.
 		expect(await screen.findByText("PR #2270 is pinned but not yet installed.")).toBeInTheDocument();
 		// The fall-home copy must be truthful: automatic updates keep tracking the pin,
 		// they do NOT silently return the user home on the next check.
@@ -445,8 +425,6 @@ describe("GlobalSettingsForm", () => {
 				/Automatic updates, if enabled, keep tracking PR #2270 until you return home or the build retires\./i,
 			),
 		).toBeInTheDocument();
-		await userEvent.click(screen.getByLabelText("Updates channel"));
-		await userEvent.keyboard("{Escape}");
 		// Return delegates to the single updater-serialized returnHome operation.
 		await userEvent.click(screen.getByRole("button", { name: "Return to Stable" }));
 		await waitFor(() => expect(updReturnHome).toHaveBeenCalledWith(expect.any(String)));
@@ -454,7 +432,7 @@ describe("GlobalSettingsForm", () => {
 	});
 
 	it("returns to Stable, then auto-progresses check -> download -> install", async () => {
-		getUpdate.mockResolvedValue({ enabled: true, channel: "latest", nightlyAck: false, feature: { pr: 2270 } });
+		getUpdate.mockResolvedValue({ enabled: true, feature: { pr: 2270 } });
 		featGetActive.mockResolvedValue({ pr: 2270 });
 		let emit: (s: { state: string; version?: string; requestId?: string }) => void = () => undefined;
 		updOnStatus.mockImplementation((cb: (s: unknown) => void) => {

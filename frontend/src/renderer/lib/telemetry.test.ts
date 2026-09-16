@@ -16,7 +16,6 @@ import {
 	startDailyActiveHeartbeat,
 	withTelemetryContext,
 	releaseChannelFrom,
-	versionChannelFrom,
 } from "./telemetry";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
 
@@ -295,9 +294,9 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("builds stable Operator version context for PostHog events", () => {
-		expect(buildTelemetryContext(" 1.2.3-nightly.20260707 ", "linux")).toMatchObject({
-			app_version: "1.2.3-nightly.20260707",
-			ao_version: "1.2.3-nightly.20260707",
+		expect(buildTelemetryContext(" 1.2.3 ", "linux")).toMatchObject({
+			app_version: "1.2.3",
+			ao_version: "1.2.3",
 			platform: "linux",
 			telemetry_schema_version: 2,
 		});
@@ -598,55 +597,20 @@ describe("reserveCapture", () => {
 });
 
 describe("daily active heartbeat", () => {
-	it("derives the running channel from the version string", () => {
-		expect(versionChannelFrom("0.11.3")).toBe("stable");
-		expect(versionChannelFrom("0.11.3-nightly.5")).toBe("nightly");
-		expect(versionChannelFrom("0.12.0-NIGHTLY.1")).toBe("nightly");
-		// A pinned feature build is not nightly, and an absent version is unknown.
-		expect(versionChannelFrom("0.11.3-feature.42")).toBe("stable");
-		expect(versionChannelFrom("")).toBe("unknown");
-		expect(versionChannelFrom("unknown")).toBe("unknown");
-	});
-
 	it("classifies the desktop app with client=desktop on every event", () => {
 		const ctx = buildTelemetryContext("0.11.3", "darwin", "stable");
 		expect(ctx.client).toBe("desktop");
 	});
 
-	it("carries intent and reality as separate context properties", () => {
-		const ctx = buildTelemetryContext("0.11.3", "darwin", "nightly");
-		// opted into nightly, still running a stable binary: the gap is the signal.
-		expect(ctx.release_channel).toBe("nightly");
-		expect(ctx.version_channel).toBe("stable");
+	it("carries the opted-in channel as context", () => {
+		const ctx = buildTelemetryContext("0.11.3", "darwin", "feature");
+		expect(ctx.release_channel).toBe("feature");
 	});
 
-	it("maps the Updates setting to a release channel, not the version string", () => {
-		expect(releaseChannelFrom({ channel: "latest", feature: null })).toBe("stable");
-		expect(releaseChannelFrom({ channel: "nightly", feature: null })).toBe("nightly");
-		// A pinned feature build wins regardless of the underlying channel, which
-		// is what version-string parsing got wrong.
-		expect(releaseChannelFrom({ channel: "latest", feature: 1234 })).toBe("feature");
-		expect(releaseChannelFrom({ channel: "nightly", feature: 1234 })).toBe("feature");
+	it("releaseChannelFrom reports feature pins and stable only", () => {
+		expect(releaseChannelFrom({ enabled: true, feature: null })).toBe("stable");
+		expect(releaseChannelFrom({ enabled: true, feature: { pr: 7 } })).toBe("feature");
 		expect(releaseChannelFrom(null)).toBe("unknown");
-		expect(releaseChannelFrom({})).toBe("unknown");
-	});
-
-	it("reports only the two channel names on a switch", async () => {
-		const safe = await sanitizeRendererProperties("opr.renderer.update_channel_changed", {
-			from_channel: "stable",
-			to_channel: "nightly",
-			feature: 1234,
-			branch: "feat/secret-thing",
-		});
-		expect(safe).toEqual({ from_channel: "stable", to_channel: "nightly" });
-	});
-
-	it("drops an unrecognised channel value", async () => {
-		const safe = await sanitizeRendererProperties("opr.renderer.update_channel_changed", {
-			from_channel: "canary",
-			to_channel: "nightly",
-		});
-		expect(safe).toEqual({ to_channel: "nightly" });
 	});
 
 	it("reserves one active capture per UTC day, not per six-hour slot", () => {

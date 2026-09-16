@@ -1,13 +1,9 @@
-export type UpdateChannel = "latest" | "nightly";
-
 export interface FeaturePin {
 	pr: number;
 }
 
 export interface UpdateSettings {
 	enabled: boolean;
-	channel: UpdateChannel;
-	nightlyAck: boolean;
 	feature: FeaturePin | null;
 }
 

@@ -2,6 +2,7 @@ import { operatorBridge } from "./bridge";
 import { isLoopbackHostname } from "./loopback";
 import { ORCHESTRATOR_SPAWN_SOURCES } from "./orchestrator-spawn-sources";
 import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from "../../shared/posthog-config";
+import type { UpdateSettings } from "../../shared/update-settings";
 
 // The PostHog SDK measured 518,723 bytes when inlined into the 1,729,775-byte
 // renderer entry chunk, and nothing on the critical paint path needs it: every
@@ -95,38 +96,14 @@ export type DailyActiveHeartbeatOptions = {
 };
 
 /**
- * Release channel, read from the user's own Updates setting.
- *
- * Previously this had to be inferred by looking for "-nightly." inside the
- * version string, which broke for anyone pinned to a feature build and told you
- * nothing about someone who had switched channels but not yet updated. The
- * setting is the truth; the version is a consequence of it.
+ * Release channel, read from the user's own Updates setting: a feature pin
+ * means "feature", otherwise the install tracks stable.
  */
-export type ReleaseChannel = "stable" | "nightly" | "feature" | "unknown";
+export type ReleaseChannel = "stable" | "feature" | "unknown";
 
-export function releaseChannelFrom(settings: { channel?: unknown; feature?: unknown } | null | undefined): ReleaseChannel {
+export function releaseChannelFrom(settings: UpdateSettings | null | undefined): ReleaseChannel {
 	if (!settings) return "unknown";
-	if (settings.feature != null) return "feature";
-	if (settings.channel === "nightly") return "nightly";
-	if (settings.channel === "latest") return "stable";
-	return "unknown";
-}
-
-/**
- * Channel of the build actually running, read from the version string.
- *
- * Distinct from release_channel, which is what the user opted into. A nightly
- * build carries "-nightly." in its version (CI stamps 0.11.3-nightly.5); a plain
- * semver is stable. This is "what am I running", release_channel is "what did I
- * choose". The two disagree exactly when someone switched channels but has not
- * updated yet, and that gap is the adoption-lag signal.
- */
-export type VersionChannel = "stable" | "nightly" | "unknown";
-
-export function versionChannelFrom(appVersion: string): VersionChannel {
-	const v = appVersion.trim();
-	if (!v || v === "unknown") return "unknown";
-	return /-nightly\./i.test(v) ? "nightly" : "stable";
+	return settings.feature != null ? "feature" : "stable";
 }
 
 export function buildTelemetryContext(
@@ -144,18 +121,10 @@ export function buildTelemetryContext(
 		app_version: version,
 		ao_version: version,
 		platform,
-		// What they opted into.
 		release_channel: channel,
-		// What they are actually running.
-		version_channel: versionChannelFrom(version),
 		build_mode: import.meta.env.DEV ? "dev" : "packaged",
 		telemetry_schema_version: TELEMETRY_SCHEMA_VERSION,
 	};
-}
-
-/** Refreshes the channel in context after the user changes it, without a restart. */
-export function setReleaseChannelContext(channel: ReleaseChannel): void {
-	telemetryContext = { ...telemetryContext, release_channel: channel };
 }
 
 /**
@@ -164,9 +133,9 @@ export function setReleaseChannelContext(channel: ReleaseChannel): void {
  * Never throws and never blocks startup: if the bridge is unavailable the
  * channel reports "unknown" rather than delaying the first heartbeat.
  */
-async function readUpdateSettingsForTelemetry(): Promise<{ channel?: unknown; feature?: unknown } | null> {
+async function readUpdateSettingsForTelemetry(): Promise<UpdateSettings | null> {
 	try {
-		return (await operatorBridge.updateSettings.get()) as { channel?: unknown; feature?: unknown };
+		return await operatorBridge.updateSettings.get();
 	} catch {
 		return null;
 	}
@@ -553,16 +522,6 @@ export async function sanitizeRendererProperties(
 			// Whether the bridge was already on when the modal opened separates
 			// "came to set this up" from "came back to re-scan the QR".
 			if (typeof properties?.bridge_enabled === "boolean") safe.bridge_enabled = properties.bridge_enabled;
-			break;
-		case "opr.renderer.update_channel_changed":
-			// Closed vocabulary on both ends. A feature build's PR number or branch
-			// name is deliberately absent: it names unreleased work.
-			for (const key of ["from_channel", "to_channel"] as const) {
-				const value = properties?.[key];
-				if (value === "stable" || value === "nightly" || value === "feature" || value === "unknown") {
-					safe[key] = value;
-				}
-			}
 			break;
 		case "opr.renderer.support_opened":
 			break;

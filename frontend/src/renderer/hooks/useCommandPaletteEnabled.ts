@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { operatorBridge } from "../lib/bridge";
-import { isCommandPaletteEnabled } from "../lib/build-channel";
+
+export function isCommandPaletteEnabled(version?: string, isDev: boolean = import.meta.env.DEV): boolean {
+	return isDev || Boolean(version?.trim());
+}
 
 export function useAppVersion(): string | undefined {
 	const { data } = useQuery({

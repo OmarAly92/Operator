@@ -1,22 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { operatorBridge } from "../../lib/bridge";
 import { useUpdateStatus } from "../../hooks/useUpdateStatus";
-import type { UpdateChannel, UpdateSettings, UpdateState, UpdateStatus } from "../../../shared/update-settings";
+import type { UpdateSettings, UpdateState, UpdateStatus } from "../../../shared/update-settings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { SettingsOptionMenu } from "./SettingsOptionMenu";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
-import { captureRendererEvent, releaseChannelFrom, setReleaseChannelContext } from "../../lib/telemetry";
 
 export const updateSettingsQueryKey = ["update-settings"] as const;
 
-type PrimaryValue = UpdateChannel;
-
-const DEFAULT_SETTINGS: UpdateSettings = { enabled: false, channel: "latest", nightlyAck: false, feature: null };
+const DEFAULT_SETTINGS: UpdateSettings = { enabled: false, feature: null };
 
 let updateRequestSequence = 0;
 
@@ -82,37 +79,10 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 		{ value: "off" as const, label: t("settings.updates.disabled") },
 	];
 
-	const channelOptions: { value: PrimaryValue; label: string }[] = [
-		{ value: "latest", label: t("settings.updates.channel.stable") },
-		{ value: "nightly", label: t("settings.updates.channel.nightly") },
-	];
-	const primaryValue: PrimaryValue = form.channel;
-
 	const setEnabled = (enabled: boolean) => {
 		const next = { ...formRef.current, enabled };
 		setForm(next);
 		save.mutate(next);
-	};
-
-	const handlePrimaryChannel = (value: PrimaryValue) => {
-		if (!formRef.current.enabled) return;
-		const next = {
-			...formRef.current,
-			channel: value,
-			nightlyAck: value === "nightly",
-			feature: null,
-		};
-		const from = releaseChannelFrom(formRef.current);
-		const to = releaseChannelFrom(next);
-		setForm(next);
-		save.mutate(next);
-		if (from !== to) {
-			// Reported on the switch rather than inferred later, because someone who
-			// moves to nightly and does not update yet is on nightly by intent while
-			// still running a stable build.
-			setReleaseChannelContext(to);
-			void captureRendererEvent("opr.renderer.update_channel_changed", { from_channel: from, to_channel: to });
-		}
 	};
 
 	const handleReturnToHome = async () => {
@@ -154,7 +124,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 									: t("settings.updates.featurePinned", { pr: featurePr })}
 							</span>
 							<Button type="button" variant="outline" size="sm" onClick={() => void handleReturnToHome()}>
-								{form.channel === "nightly" ? t("settings.updates.returnToNightly") : t("settings.updates.returnToStable")}
+								{t("settings.updates.returnToStable")}
 							</Button>
 						</div>
 						<p className="px-1 text-xs text-settings-muted">
@@ -173,39 +143,18 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 					/>
 				</SettingsRow>
 
-				<div className="w-full">
-					<SettingsRow label={t("settings.updates.channel")} className="rounded-none">
-						<SettingsOptionMenu
-							aria-label={t("settings.updates.channel")}
-							value={primaryValue}
-							options={channelOptions}
-							onChange={handlePrimaryChannel}
-							disabled={!form.enabled || save.isPending}
-						/>
-					</SettingsRow>
-
-					{primaryValue === "nightly" && form.enabled && (
-						<p className="nightly-warning px-(--size-settings-row-padding) pb-(--size-settings-row-padding) text-xs leading-row text-warning">
-							<span className="mr-2 inline-flex align-middle" aria-hidden="true">
-								<AlertTriangle className="size-icon-sm" />
-							</span>
-							{t("settings.updates.nightlyWarning")}
-						</p>
-					)}
-				</div>
-
 				{save.isError && (
 					<p className="px-1 text-xs text-error">{save.error instanceof Error ? save.error.message : t("settings.updates.saveFailed")}</p>
 				)}
 
-				<UpdateActions status={status} suppressTopBorder={primaryValue === "nightly" && form.enabled} />
+				<UpdateActions status={status} />
 			</SettingsSection>
 
 		</>
 	);
 }
 
-function UpdateActions({ status, suppressTopBorder = false }: { status: UpdateStatus; suppressTopBorder?: boolean }) {
+function UpdateActions({ status }: { status: UpdateStatus }) {
 	const { t } = useTranslation();
 	const version = useQuery({ queryKey: ["app-version"], queryFn: () => operatorBridge.app.getVersion() });
 
@@ -223,7 +172,7 @@ function UpdateActions({ status, suppressTopBorder = false }: { status: UpdateSt
 
 	return (
 		<>
-			<SettingsRow label={t("settings.updates.checksForUpdates")} className={suppressTopBorder ? "!border-t-0" : undefined}>
+			<SettingsRow label={t("settings.updates.checksForUpdates")}>
 				<div className="flex items-center gap-2">
 					<span className="text-control text-settings-muted" data-testid="app-version">
 						{t("settings.updates.currentVersion", { version: version.data ? `v${version.data}` : "…" })}

@@ -19,8 +19,6 @@ type SettingsPayload = components["schemas"]["SettingsResponse"];
 const PENDING_MIGRATION: MigrationState = { status: "pending" };
 const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
 	enabled: false,
-	channel: "latest",
-	nightlyAck: false,
 	feature: null,
 };
 const BOOTSTRAP_BASE_URL_TIMEOUT_MS = 10_000;
@@ -275,8 +273,6 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				const settings: UpdateSettings = updates
 					? {
 							enabled: updates.enabled,
-							channel: updates.channel,
-							nightlyAck: updates.nightlyAck,
 							feature: updates.feature ?? null,
 						}
 					: DEFAULT_UPDATE_SETTINGS;
@@ -287,8 +283,6 @@ export function createTauriBridge({ invoke, listen }: TauriBridgeTransports): Op
 				const { error } = await apiClient.PATCH("/api/v1/settings/updates", {
 					body: {
 						enabled: settings.enabled,
-						channel: settings.channel,
-						nightlyAck: settings.nightlyAck,
 						...(settings.feature ? { feature: { pr: settings.feature.pr } } : {}),
 					},
 				});

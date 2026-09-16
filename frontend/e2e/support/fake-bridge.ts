@@ -113,7 +113,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					setMigration: async () => undefined,
 				},
 				updateSettings: {
-					get: async () => ({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
+					get: async () => ({ enabled: false, feature: null }),
 					set: async () => undefined,
 				},
 				uiSettings: {
@@ -475,7 +475,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				tray: { setAttentionState: () => undefined, onOpenSession: unsubscribe },
 				appState: { getMigration: async () => ({ status: "completed" }), setMigration: async () => undefined },
 				updateSettings: {
-					get: async () => ({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
+					get: async () => ({ enabled: false, feature: null }),
 					set: async () => undefined,
 				},
 				uiSettings: {

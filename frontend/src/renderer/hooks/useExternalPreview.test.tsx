@@ -42,7 +42,7 @@ function setBridge(overrides: BridgeOverrides = {}) {
 		notifications: { show: async () => undefined, setBadge: async () => undefined, devBounce: async () => undefined, onClick: () => () => undefined },
 		tray: { setAttentionState: () => undefined, onOpenSession: () => () => undefined },
 		appState: { getMigration: async () => ({ status: "pending" }), setMigration: async () => undefined },
-		updateSettings: { get: async () => ({ enabled: false, channel: "latest", nightlyAck: false, feature: null }), set: async () => undefined },
+		updateSettings: { get: async () => ({ enabled: false, feature: null }), set: async () => undefined },
 		uiSettings: { get: async () => ({ locale: "en" as const }), set: async (settings: { locale: string }) => ({ locale: settings.locale as "en" }) },
 		keybindings: { get: async () => ({}), set: async (overrides: unknown) => overrides, setRecording: async () => undefined },
 		updates: {

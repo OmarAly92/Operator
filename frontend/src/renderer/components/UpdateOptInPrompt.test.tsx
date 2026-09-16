@@ -36,21 +36,21 @@ beforeEach(() => {
 
 describe("UpdateOptInPrompt", () => {
 	it("asks once while the native shell still has updates disabled by default", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		renderPrompt();
 		expect(await screen.findByTestId("updates-opt-in")).toBeInTheDocument();
 	});
 
 	it("stays hidden outside the native shell", async () => {
 		delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		renderPrompt();
 		await waitFor(() => expect(getUpdateSettings).toHaveBeenCalled());
 		expect(screen.queryByTestId("updates-opt-in")).not.toBeInTheDocument();
 	});
 
 	it("stays hidden when updates are already enabled", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: true, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: true, feature: null });
 		renderPrompt();
 		await waitFor(() => expect(getUpdateSettings).toHaveBeenCalled());
 		expect(screen.queryByTestId("updates-opt-in")).not.toBeInTheDocument();
@@ -64,29 +64,29 @@ describe("UpdateOptInPrompt", () => {
 	});
 
 	it("declining persists disabled defaults and remembers the answer only after the settings write lands", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		const setItem = vi.spyOn(window.localStorage, "setItem");
 		renderPrompt();
 		await userEvent.click(await screen.findByTestId("updates-opt-in-decline"));
 		await waitFor(() => expect(setItem).toHaveBeenCalledWith(UPDATE_OPT_IN_ASKED_KEY, "1"));
-		expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, feature: null });
 		expect(setUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(setItem.mock.invocationCallOrder[0]);
 		await waitFor(() => expect(screen.queryByTestId("updates-opt-in")).not.toBeInTheDocument());
 		vi.restoreAllMocks();
 	});
 
 	it("accepting enables stable-channel updates and remembers the answer", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		renderPrompt();
 		await userEvent.click(await screen.findByTestId("updates-opt-in-accept"));
 		await waitFor(() =>
-			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: true, channel: "latest", nightlyAck: false, feature: null }),
+			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: true, feature: null }),
 		);
 		await waitFor(() => expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBe("1"));
 	});
 
 	it("does not remember the answer when persisting settings fails so the ask can retry next launch", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		setUpdateSettings.mockRejectedValue(new Error("settings write failed"));
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		renderPrompt();
@@ -98,14 +98,14 @@ describe("UpdateOptInPrompt", () => {
 	});
 
 	it("still records the choice when the asked-flag cannot be stored; the prompt re-asks next launch", async () => {
-		getUpdateSettings.mockResolvedValue({ enabled: false, channel: "latest", nightlyAck: false, feature: null });
+		getUpdateSettings.mockResolvedValue({ enabled: false, feature: null });
 		vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
 			throw new Error("storage blocked");
 		});
 		renderPrompt();
 		await userEvent.click(await screen.findByTestId("updates-opt-in-decline"));
 		await waitFor(() =>
-			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, channel: "latest", nightlyAck: false, feature: null }),
+			expect(setUpdateSettings).toHaveBeenCalledWith({ enabled: false, feature: null }),
 		);
 		expect(window.localStorage.getItem(UPDATE_OPT_IN_ASKED_KEY)).toBeNull();
 		vi.restoreAllMocks();

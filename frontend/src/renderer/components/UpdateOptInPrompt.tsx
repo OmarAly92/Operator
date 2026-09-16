@@ -22,8 +22,8 @@ import {
 // matching Electron's "Not now" button.
 export const UPDATE_OPT_IN_ASKED_KEY = "operator-update-opt-in-asked";
 
-const DECLINED_SETTINGS: UpdateSettings = { enabled: false, channel: "latest", nightlyAck: false, feature: null };
-const ENABLED_SETTINGS: UpdateSettings = { enabled: true, channel: "latest", nightlyAck: false, feature: null };
+const DECLINED_SETTINGS: UpdateSettings = { enabled: false, feature: null };
+const ENABLED_SETTINGS: UpdateSettings = { enabled: true, feature: null };
 
 function tauriShellPresent(): boolean {
 	return typeof window !== "undefined" && Boolean((window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);

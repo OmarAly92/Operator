@@ -159,20 +159,19 @@ export function stagedMarkerPath(stateDir, version) {
 }
 
 // updateSettingsPayload matches the Go PATCH /api/v1/settings/updates body
-// exactly (see backend/internal/httpd/controllers/settings_test.go). Nightly
-// requires the instability acknowledgement or the daemon coerces it away.
-export function updateSettingsPayload(channel) {
-	return { enabled: true, channel, nightlyAck: channel === "nightly" };
+// exactly (see backend/internal/httpd/controllers/settings_test.go).
+export function updateSettingsPayload() {
+	return { enabled: true, feature: null };
 }
 
 // patchUpdateSettings flips auto-updates on through the daemon's loopback API —
 // the same store the packaged shell reads at launch (header note 1).
-export async function patchUpdateSettings(port, channel, dependencies = {}) {
+export async function patchUpdateSettings(port, dependencies = {}) {
 	const fetchImpl = dependencies.fetchImpl ?? fetch;
 	const response = await fetchImpl(`http://127.0.0.1:${port}/api/v1/settings/updates`, {
 		method: "PATCH",
 		headers: { "content-type": "application/json" },
-		body: JSON.stringify(updateSettingsPayload(channel)),
+		body: JSON.stringify(updateSettingsPayload()),
 	});
 	if (!response.ok) {
 		throw new Error(`update settings PATCH failed with status ${response.status}`);
@@ -293,7 +292,7 @@ async function run(opts) {
 	}).unref();
 
 	await waitFor("the first launch's daemon to answer /healthz", opts.launchTimeoutMs, () => isDaemonAlive(opts.runFile));
-	await patchUpdateSettings(await daemonPort(opts.runFile), opts.channel);
+	await patchUpdateSettings(await daemonPort(opts.runFile));
 	console.log(`auto-updates enabled on channel ${opts.channel}; relaunching for the launch-time check`);
 
 	quitApp(opts.appName);
