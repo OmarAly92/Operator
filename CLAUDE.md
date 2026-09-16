@@ -100,8 +100,9 @@ completes, so no data source ever sees host/port/password. `ServerConfigStore` h
 the current config and `ServerConfigInterceptor` stamps `baseUrl` and the
 `Authorization: Bearer` header onto every request; a request may pass a
 `pairingTarget` in Dio's `extra` to aim at a server that is not saved yet, which is
-how pairing verifies before persisting. The password lives in `flutter_secure_storage`,
-everything else in `shared_preferences`.
+how pairing verifies before persisting. Saved desktops live in the drift `desktops`
+table; each one's password lives in `flutter_secure_storage` keyed by desktop id;
+`ServerConfigStore` holds only the active one in memory, loaded at launch.
 
 **Two load-bearing behaviors that look like inefficiencies.** Do not "optimize" either:
 
@@ -137,12 +138,16 @@ Material scale would visibly change the design.
 - **No `freezed` or `json_serializable`** in first-party code. Models are hand-written
   with all fields nullable and `fromJson` doing the wire→domain mapping. One params
   class per method under `data/model/params/`, never shared.
-- **`drift` and `build_runner` are permitted for the on-device replica cache only**
-  (`lib/core/cache/`), by explicit user decision 2026-08-28. No other package imports
-  `package:drift/drift.dart`, and wire models stay hand-written — drift never parses
-  the wire. See `docs/superpowers/plans/2026-08-28-mobile-replica-cache.md` for the
-  boundary. Generated `*.g.dart` is committed, because CI runs `flutter analyze` and
-  `flutter test` with no generation step.
+- **`drift` and `build_runner` are permitted for on-device state under
+  `lib/core/database/`** (saved desktops today; the replica cache when it lands),
+  following the `flutter-knowledge:drift-local-database` layout: tables and DAOs
+  in `core/database/tables/<table>/`, local data sources in the feature, no drift
+  import above the data source. Wire models stay hand-written — drift never
+  parses the wire. Passwords never enter SQLite; they stay in
+  `flutter_secure_storage` under `server.password.<id>`. Generated `*.g.dart` is
+  committed, because CI runs `flutter analyze` and `flutter test` with no
+  generation step. Regenerate with `dart run build_runner build
+  --delete-conflicting-outputs`.
 - Parameterized paths get static methods on `EndPoints`; interpolating at a call site is
   forbidden.
 - Feature code never imports `flutter_screenutil` — spacing, padding and radii take raw ints.
