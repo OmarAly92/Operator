@@ -602,14 +602,16 @@ if [[ "$PLATFORM" == "win32" ]]; then
 			fail "nsis installer '$NSIS_EXE' does not carry an x64 architecture token"
 		fi
 		check_sig_sidecar "$NSIS_DIR" "$NSIS_EXE"
+		# The NSIS stub is always a 32-bit PE; the x64 payload lives inside it,
+		# so the machine type says nothing about the bundled app.
 		if command -v file >/dev/null 2>&1; then
-			if file "$NSIS_DIR/$NSIS_EXE" | grep -q "x86-64\|PE32+"; then
-				pass "nsis installer is an x86-64 PE binary"
+			if file "$NSIS_DIR/$NSIS_EXE" | grep -q "Nullsoft Installer"; then
+				pass "nsis installer is a Nullsoft self-extracting PE"
 			else
-				fail "nsis installer is not an x86-64 PE binary: $(file "$NSIS_DIR/$NSIS_EXE")"
+				fail "nsis installer is not a Nullsoft PE: $(file "$NSIS_DIR/$NSIS_EXE")"
 			fi
 		else
-			gate "'file' unavailable; PE machine type unverified for $NSIS_EXE"
+			gate "'file' unavailable; installer format unverified for $NSIS_EXE"
 		fi
 		# License notices ride inside the installer payload next to the bundled
 		# resources. Listing an NSIS payload is BEST-EFFORT (7z): a confirmed

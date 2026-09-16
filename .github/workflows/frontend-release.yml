@@ -370,7 +370,8 @@ jobs:
             --platform darwin --arch x64 \
             --expect-version "$VERSION" --emit-gates artifact-gates.json
           gh release create "$TAG" --title "$TAG" --notes "Operator desktop release ${TAG}." || true
-          gh release upload "$TAG" dist/* --clobber
+          find dist -maxdepth 1 -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.sig' \) -print0 |
+            xargs -0 gh release upload "$TAG" --clobber
           cp "dist/operator-darwin-x64-${VERSION}.zip" operator-darwin-x64.zip
           cp "dist/operator-darwin-x64.dmg" operator-darwin-x64.dmg
           gh release upload "$TAG" operator-darwin-x64.zip operator-darwin-x64.dmg --clobber
