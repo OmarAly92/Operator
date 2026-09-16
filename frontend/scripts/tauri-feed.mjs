@@ -6,7 +6,7 @@
 // sidecars, wrong OS/architecture assets, cross-channel assets, insecure
 // production URLs, duplicate platforms, and any private-key material found in
 // the dist directory (spec §5 "Feeds reject ..."). A feature (pr<N>) channel
-// can never write latest* or nightly* manifests (#2270 poisoning class).
+// can never write latest* manifests (#2270 poisoning class).
 //
 // macOS permanence: whenever a mac updater archive (.app.tar.gz) is selected,
 // the same directory must carry the matching ditto zip, so `opr start` keeps
@@ -34,7 +34,6 @@ export const PRODUCTION_FEED_BASE_URL =
 	"https://github.com/OmarAly92/operator/releases/latest/download/";
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
-const NIGHTLY_TOKEN = /-nightly\.\d{12}(?:$|\+)/;
 const PR_TOKEN = /-pr(\d+)\.\d{12}(?:$|\+)/;
 
 function stripBuildMetadata(version) {
@@ -52,8 +51,8 @@ export function isValidSemver(version) {
 }
 
 // assertChannelVersion pins the channel/version contract: stable releases are
-// bare x.y.z; nightlies carry -nightly.<YYYYMMDDHHMM>; feature builds carry
-// -pr<N>.<ts>. Any disagreement throws before a feed byte is written.
+// bare x.y.z; feature builds carry -pr<N>.<ts>. Any disagreement throws
+// before a feed byte is written.
 export function assertChannelVersion(channel, version) {
 	if (!isValidSemver(version)) {
 		throw new Error(`tauri-feed: '${version}' is not a valid semver version`);
@@ -64,12 +63,6 @@ export function assertChannelVersion(channel, version) {
 			throw new Error(
 				`tauri-feed: stable channel requires a bare x.y.z version with no prerelease, got '${bare}'`,
 			);
-		}
-		return;
-	}
-	if (channel === "nightly") {
-		if (!NIGHTLY_TOKEN.exec(bare)) {
-			throw new Error(`tauri-feed: nightly channel requires a -nightly.<timestamp> prerelease, got '${bare}'`);
 		}
 		return;
 	}
@@ -118,11 +111,6 @@ export function selectUpdaterArchives(filenames, version) {
 		if (!name.includes(stripBuildMetadata(version))) {
 			throw new Error(
 				`tauri-feed: updater archive '${name}' does not carry this release's version '${stripBuildMetadata(version)}'`,
-			);
-		}
-		if (/-nightly\./.test(name) && !NIGHTLY_TOKEN.test(version)) {
-			throw new Error(
-				`tauri-feed: cross-channel asset '${name}' carries a nightly token on a non-nightly channel`,
 			);
 		}
 		if (/-pr\d+\./.test(name) && !PR_TOKEN.test(version)) {
@@ -302,9 +290,9 @@ export function expectedFeedFilenames(channel) {
 export function assertNoCrossChannelFeedNames(channel, writtenNames) {
 	if (/^pr\d+$/.test(channel)) {
 		for (const name of writtenNames) {
-			if (/^(latest|nightly)/.test(name)) {
+			if (/^latest/.test(name)) {
 				throw new Error(
-					`tauri-feed: feature channel '${channel}' produced forbidden manifest '${name}'; feature builds must never write latest*/nightly* feeds`,
+					`tauri-feed: feature channel '${channel}' produced forbidden manifest '${name}'; feature builds must never write latest* feeds`,
 				);
 			}
 		}

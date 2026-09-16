@@ -13,11 +13,10 @@
 #
 #   2. Expiry sweep (schedule, daily): any surviving feature build whose
 #      published_at is older than 7 days is deleted. The sweep identifies
-#      candidates by tag pattern v*-pr<digits>.* and skips all
-#      nightly (*-nightly.*) and stable releases.
+#      candidates by tag pattern v*-pr<digits>.* and skips stable releases.
 #
 # Both jobs only ever delete pr<N> feature prereleases. They never touch
-# latest/stable releases or nightly prereleases.
+# latest/stable releases.
 
 name: Feature release cleanup
 
@@ -88,7 +87,6 @@ jobs:
           # minimise API round-trips.
           # A candidate must:
           #   - have a tag matching v*-pr<digits>.<anything>  (feature build)
-          #   - NOT match *-nightly.*  (skip nightly builds)
           #   - carry the opr-feature-build marker in the body (belt-and-suspenders)
           #   OR match the tag pattern alone (body may be absent in edge cases)
           # We use the tag pattern as the primary guard; the marker check is
@@ -99,7 +97,6 @@ jobs:
                 .[] |
                 select(
                   (.tag_name | test("^v.*-pr[0-9]+\\.")) and
-                  (.tag_name | test("-nightly\\.") | not) and
                   .prerelease == true
                 ) |
                 {tag: .tag_name, published_at: .published_at, body: (.body // "")}

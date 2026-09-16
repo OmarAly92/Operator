@@ -31,12 +31,6 @@ test("parseArgs rejects misuse loudly before any slow work", () => {
 	assert.throws(() => parseArgs([...REQUIRED, "--app", "/Applications/Operator"]), /\.app bundle/);
 	assert.throws(() => parseArgs([...REQUIRED, "--state-dir", "relative/path"]), /absolute/);
 	assert.throws(() => parseArgs([...REQUIRED, "--run-file", "running.json"]), /absolute/);
-	assert.throws(() => parseArgs([...REQUIRED, "--channel", "beta"]), /latest or nightly/);
-});
-
-test("parseArgs accepts latest and nightly channels", () => {
-	assert.equal(parseArgs([...REQUIRED, "--channel", "latest"]).channel, "latest");
-	assert.equal(parseArgs([...REQUIRED, "--channel", "nightly"]).channel, "nightly");
 });
 
 test("parseArgs accepts timeouts as positive seconds", () => {

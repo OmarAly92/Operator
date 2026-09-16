@@ -35,7 +35,7 @@
 //
 // usage:
 //   node scripts/e2e-mac-update.mjs --app "/Applications/Operator.app" \
-//     --expect-version 0.10.4 [--state-dir ~/.operator] [--channel latest|nightly] \
+//     --expect-version 0.10.4 [--state-dir ~/.operator] \
 //     [--expect-stage-only] [--feed-url https://.../download/]
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -43,7 +43,6 @@ import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 
 const DEFAULTS = {
-	channel: "latest",
 	// A full mac zip is a few hundred MB; be generous but bounded.
 	downloadTimeoutMs: 20 * 60 * 1000,
 	// The apply swap of the staged bundle.
@@ -79,12 +78,6 @@ export function parseArgs(argv) {
 				break;
 			case "--run-file":
 				opts.runFile = needsValue();
-				break;
-			case "--channel":
-				opts.channel = needsValue();
-				if (opts.channel !== "latest" && opts.channel !== "nightly") {
-					throw new UsageError(`--channel must be latest or nightly, got ${opts.channel}`);
-				}
 				break;
 			case "--feed-url":
 				opts.feedUrl = validateFeedUrl(needsValue());
@@ -284,7 +277,7 @@ async function run(opts) {
 	removeRunFile(opts.runFile);
 
 	const env = launchEnv(opts);
-	console.log(`launching ${opts.app} (channel: ${opts.channel}, run file: ${opts.runFile})`);
+	console.log(`launching ${opts.app} (run file: ${opts.runFile})`);
 	spawn(join(opts.app, "Contents", "MacOS", plistValue(opts.app, "CFBundleExecutable")), [], {
 		env,
 		stdio: "inherit",
@@ -293,7 +286,7 @@ async function run(opts) {
 
 	await waitFor("the first launch's daemon to answer /healthz", opts.launchTimeoutMs, () => isDaemonAlive(opts.runFile));
 	await patchUpdateSettings(await daemonPort(opts.runFile));
-	console.log(`auto-updates enabled on channel ${opts.channel}; relaunching for the launch-time check`);
+	console.log("auto-updates enabled; relaunching for the launch-time check");
 
 	quitApp(opts.appName);
 	await sleep(5000);

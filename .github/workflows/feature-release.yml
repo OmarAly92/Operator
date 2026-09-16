@@ -496,7 +496,7 @@ jobs:
   # ── publish-feed ──────────────────────────────────────────────────────────
   # Generates the pr<N> feed from the versioned prerelease assets — a single
   # family: pr<N>.json (Tauri updater). The guard below aborts if anything
-  # would write latest* or nightly* manifests. Gated by the `release`
+  # would write latest* manifests. Gated by the `release`
   # environment: this job also deletes/renames GitHub releases with
   # `contents: write`, so it must never run on PR-controlled code without the
   # same approval the build jobs require. `always()` is kept so our own
@@ -546,7 +546,7 @@ jobs:
           gh release download "$tag" --dir dist --clobber
           node scripts/tauri-feed.mjs dist "$version" "$channel" --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-      - name: "Guard: assert feed channel and reject latest*/nightly* assets"
+      - name: "Guard: assert feed channel and reject latest* assets"
         shell: bash
         env:
           PR_NUMBER: ${{ inputs.pr }}
@@ -554,20 +554,20 @@ jobs:
           channel="pr${PR_NUMBER}"
           # Validate channel matches ^pr[0-9]+$
           if ! echo "$channel" | grep -qP '^pr[0-9]+$'; then
-            echo "::error::Feed channel '$channel' does not match ^pr[0-9]+$ - aborting to protect stable/nightly channels."
+            echo "::error::Feed channel '$channel' does not match ^pr[0-9]+$ - aborting to protect the stable channel."
             exit 1
           fi
-          # Reject any generated feed file that matches latest* or nightly*.
+          # Reject any generated feed file that matches latest*.
           shopt -s nullglob
           bad_files=()
           for f in dist/latest*.json; do
             [ -f "$f" ] && bad_files+=("$f")
           done
           if [ ${#bad_files[@]} -gt 0 ]; then
-            echo "::error::Feed guard triggered: found forbidden manifest(s): ${bad_files[*]}. Feature builds must not write latest* or nightly* manifests."
+            echo "::error::Feed guard triggered: found forbidden manifest(s): ${bad_files[*]}. Feature builds must not write latest* manifests."
             exit 1
           fi
-          echo "Feed guard passed: channel='$channel', no latest*/nightly* manifests found."
+          echo "Feed guard passed: channel='$channel', no latest* manifests found."
 
       - name: Upload pr<N> feed assets
         shell: bash

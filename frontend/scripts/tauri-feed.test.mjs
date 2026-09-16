@@ -22,7 +22,6 @@ import {
 } from "./tauri-feed.mjs";
 
 const V = "0.10.4";
-const NIGHTLY_V = "0.10.5-nightly.202608240900";
 const PR_V = "0.10.4-pr2270.202608240900";
 
 function fixtureDir(files) {
@@ -87,7 +86,6 @@ const BASE_FILES = () => ({
 
 test("isValidSemver accepts strict x.y.z with prerelease and build metadata", () => {
 	assert.equal(isValidSemver("0.10.4"), true);
-	assert.equal(isValidSemver("0.10.5-nightly.202608240900"), true);
 	assert.equal(isValidSemver("0.10.4-pr2270.202608240900+ab12cd3"), true);
 	assert.equal(isValidSemver("01.2.3"), false);
 	assert.equal(isValidSemver("0.10"), false);
@@ -98,14 +96,9 @@ test("isValidSemver accepts strict x.y.z with prerelease and build metadata", ()
 
 test("assertChannelVersion rejects channel/version disagreement", () => {
 	assertChannelVersion("latest", V);
-	assertChannelVersion("nightly", NIGHTLY_V);
 	assertChannelVersion("pr2270", PR_V);
-	assert.throws(() => assertChannelVersion("latest", NIGHTLY_V), /prerelease/);
 	assert.throws(() => assertChannelVersion("latest", PR_V), /prerelease/);
-	assert.throws(() => assertChannelVersion("nightly", V), /nightly/);
 	assert.throws(() => assertChannelVersion("pr2270", V), /pr2270/);
-	assert.throws(() => assertChannelVersion("nightly", PR_V), /channel/);
-	assert.throws(() => assertChannelVersion("pr2270", NIGHTLY_V), /channel/);
 	assert.throws(() => assertChannelVersion("latest", "bogus"), /semver/i);
 });
 
@@ -172,15 +165,11 @@ test("selectUpdaterArchives rejects duplicate platforms and version-mismatched a
 
 test("selectUpdaterArchives rejects cross-channel assets", () => {
 	assert.throws(
-		() => selectUpdaterArchives(["operator-darwin-arm64-0.10.4-nightly.202608240900.app.tar.gz"], V),
-		/cross-channel|-nightly\./,
-	);
-	assert.throws(
 		() => selectUpdaterArchives(["operator-darwin-arm64-0.10.4-pr2270.202608240900.app.tar.gz"], V),
 		/cross-channel|-pr\d+\./,
 	);
 	assert.doesNotThrow(() =>
-		selectUpdaterArchives(["operator-darwin-arm64-0.10.5-nightly.202608240900.app.tar.gz"], NIGHTLY_V),
+		selectUpdaterArchives(["operator-darwin-arm64-0.10.4-pr2270.202608240900.app.tar.gz"], PR_V),
 	);
 });
 
@@ -232,11 +221,11 @@ test("feedUrl enforces https outside loopback", () => {
 		/insecure|https/,
 	);
 	assert.throws(() => feedUrl("http://evil.example/a.tar.gz"), /insecure|https/);
-	const dev = feedUrl("nightly.json", {
+	const dev = feedUrl("pr2270.json", {
 		base: "http://127.0.0.1:9876/",
 		allowInsecure: true,
 	});
-	assert.equal(dev, "http://127.0.0.1:9876/nightly.json");
+	assert.equal(dev, "http://127.0.0.1:9876/pr2270.json");
 });
 
 test("buildTauriFeed serializes deterministically with canonical platform order", () => {
@@ -334,7 +323,7 @@ test("generateFeeds refuses private-key material in the dist directory", async (
 	rmSync(dir, { recursive: true, force: true });
 });
 
-test("generateFeeds never writes stable or nightly feeds for a feature channel", async () => {
+test("generateFeeds never writes stable feeds for a feature channel", async () => {
 	const sig = fakeSignature();
 	const dir = fixtureDir({
 		[`operator-darwin-arm64-${PR_V}.app.tar.gz`]: "tar",
@@ -347,7 +336,6 @@ test("generateFeeds never writes stable or nightly feeds for a feature channel",
 	const names = readdirSync(dir);
 	assert.ok(names.includes("pr2270.json"));
 	assert.ok(!names.some((name) => /^latest/.test(name)));
-	assert.ok(!names.some((name) => /^nightly/.test(name)));
 	rmSync(dir, { recursive: true, force: true });
 });
 

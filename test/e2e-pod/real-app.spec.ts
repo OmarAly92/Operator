@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 
 // Real-app integration smoke: launch the installed packaged app, prove the GUI
 // window paints AND the bundled daemon (real Go binary + embedded SQLite) reaches
-// ready. Testid-free on purpose — the published nightly predates the new
+// ready. Testid-free on purpose — the published build predates the new
 // data-testids, so these assertions exercise the real IPC/daemon path only.
 //
 // Isolation is per test: each launch gets a unique ephemeral OPERATOR_PORT and a fresh

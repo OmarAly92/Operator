@@ -119,7 +119,7 @@ surface (`npm run sqlc`, `npm run api`).
   opening anything. The embedded Browser panel was removed with the Tauri port
   (`docs/todo/browser-panel-webview.md` records the deferral).
 - Updates: a pinned-plugin updater engine with staged downloads under
-  `<state-root>/updater`, latest/nightly/feature channels, downgrade support,
+  `<state-root>/updater`, latest/feature channels, downgrade support,
   interrupted-download recovery, and first-run opt-in that keeps updates
   disabled until accepted. Applying an update still fails closed
   (`APPLY_DEFERRED_MESSAGE`) pending the project-owned verified-apply path — a
@@ -189,8 +189,7 @@ surface (`npm run sqlc`, `npm run api`).
   explicit deferral: Electron's `hidden`/`hiddenInset` titlebars were not ported,
   so macOS and Windows ship fully decorated native chrome until a coordinated
   drag-region migration lands, and that divergence requires explicit user
-  sign-off before any release (Task 13 ruling). The nightly channel has updater
-  tooling but no schedule-triggered nightly producer workflow on this branch.
+  sign-off before any release (Task 13 ruling).
   The shell-side GitHub HTTPS transports (`ReleasesSource`, `EscalationFeeds`)
   remain unwired by design after the Task 17 TLS-surface ruling; the stopped
   transports degrade safely and parity holds without them, with a dedicated

@@ -32,11 +32,6 @@ on:
         description: "Version the app must end up on, no leading v (e.g. 0.10.4)"
         required: true
         type: string
-      channel:
-        description: "Update channel to run the test on"
-        required: false
-        default: latest
-        type: string
       mode:
         description: "stage-only or full-install"
         required: false
@@ -50,10 +45,6 @@ on:
         type: string
       target_version:
         required: true
-        type: string
-      channel:
-        required: false
-        default: latest
         type: string
       mode:
         required: false
@@ -125,11 +116,10 @@ jobs:
       - name: Run the update end to end
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
-          CHANNEL: ${{ inputs.channel }}
           MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
-          flags=(--app "/Applications/Operator.app" --expect-version "$TARGET_VERSION" --channel "$CHANNEL")
+          flags=(--app "/Applications/Operator.app" --expect-version "$TARGET_VERSION")
           if [ "$MODE" != "full-install" ]; then flags+=(--expect-stage-only); fi
           node frontend/scripts/e2e-mac-update.mjs "${flags[@]}"
 

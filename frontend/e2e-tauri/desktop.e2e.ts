@@ -356,7 +356,7 @@ describe("Operator Tauri desktop parity", () => {
 		assert.equal(status.state, "unsupported");
 		assert.match(String(status.message ?? ""), /installed app/i);
 		await invoke("updates_apply_settings", {
-			settings: { enabled: true, channel: "latest", nightlyAck: false, feature: null },
+			settings: { enabled: true, feature: null },
 		});
 	});
 
@@ -365,7 +365,7 @@ describe("Operator Tauri desktop parity", () => {
 		await rest("PATCH", "/api/v1/settings/keybindings", {
 			"new-session": [{ key: "e", ctrl: true }],
 		});
-		await rest("PATCH", "/api/v1/settings/updates", { enabled: true, channel: "nightly", nightlyAck: true });
+		await rest("PATCH", "/api/v1/settings/updates", { enabled: true, feature: { pr: 31 } });
 		await rest("PATCH", "/api/v1/settings/migration", {
 			status: "declined",
 			lastAttemptAt: new Date().toISOString(),
@@ -390,7 +390,7 @@ describe("Operator Tauri desktop parity", () => {
 
 		const settings = await rest("GET", "/api/v1/settings");
 		assert.equal(settings.ui?.locale, "ja");
-		assert.deepEqual(settings.updates, { enabled: true, channel: "nightly", nightlyAck: true });
+		assert.deepEqual(settings.updates, { enabled: true, feature: { pr: 31 } });
 		assert.deepEqual(settings.keybindings?.["new-session"], [
 			{ key: "e", ctrl: true, meta: false, shift: false, alt: false },
 		]);
@@ -398,10 +398,10 @@ describe("Operator Tauri desktop parity", () => {
 
 		await rest("PATCH", "/api/v1/settings/ui", { locale: "en" });
 		await rest("PATCH", "/api/v1/settings/keybindings", {});
-		await rest("PATCH", "/api/v1/settings/updates", { enabled: false, channel: "latest", nightlyAck: false });
+		await rest("PATCH", "/api/v1/settings/updates", { enabled: false, feature: null });
 		await rest("PATCH", "/api/v1/settings/migration", { status: "pending" });
 		await invoke("updates_apply_settings", {
-			settings: { enabled: false, channel: "latest", nightlyAck: false, feature: null },
+			settings: { enabled: false, feature: null },
 		});
 	});
 

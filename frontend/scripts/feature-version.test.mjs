@@ -79,8 +79,8 @@ describe("parseFeatureBuild", () => {
 		expect(parseFeatureBuild("0.2.0")).toBeNull();
 	});
 
-	it("returns null for a nightly version", () => {
-		expect(parseFeatureBuild("0.2.1-nightly.202507061200")).toBeNull();
-		expect(parseFeatureBuild("0.2.1-nightly.202507061200+abc1234")).toBeNull();
+	it("returns null for a non-pr prerelease version", () => {
+		expect(parseFeatureBuild("0.2.1-beta.202507061200")).toBeNull();
+		expect(parseFeatureBuild("0.2.1-beta.202507061200+abc1234")).toBeNull();
 	});
 });
