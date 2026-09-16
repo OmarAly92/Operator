@@ -4,8 +4,8 @@ import { expect, test, vi } from "vitest";
 import { ClaudeAccountSelect } from "./ClaudeAccountSelect";
 
 const accounts = [
-	{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
-	{ id: "personal", label: "Personal", configDir: "/Users/u/.claude-personal", isDefault: false, status: { loggedIn: false }, sharedSetup: {} },
+	{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, isPreferred: true, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
+	{ id: "personal", label: "Personal", configDir: "/Users/u/.claude-personal", isDefault: false, isPreferred: false, status: { loggedIn: false }, sharedSetup: {} },
 ];
 
 test("shows each account with its plan and reports the chosen id", async () => {

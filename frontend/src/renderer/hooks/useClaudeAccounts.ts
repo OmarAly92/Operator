@@ -102,6 +102,19 @@ export function useDeleteClaudeAccount() {
 	});
 }
 
+export function usePreferClaudeAccount() {
+	return useInvalidatingMutation(async (id: string) => {
+		const { error } = await apiClient.POST("/api/v1/claude-accounts/{accountId}/prefer", {
+			params: { path: { accountId: id } },
+		});
+		if (error) throw error;
+	});
+}
+
+export function preferredClaudeAccountId(accounts: ClaudeAccount[] | undefined): string {
+	return accounts?.find((account) => account.isPreferred)?.id ?? "default";
+}
+
 export function useRelinkClaudeAccount() {
 	return useInvalidatingMutation(async (id: string) => {
 		const { error } = await apiClient.POST("/api/v1/claude-accounts/{accountId}/relink", {

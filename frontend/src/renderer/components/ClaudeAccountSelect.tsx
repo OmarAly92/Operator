@@ -22,10 +22,11 @@ export function ClaudeAccountSelect({
 	const { t } = useTranslation();
 	const optionLabel = (account: ClaudeAccount) =>
 		t("claudeAccounts.planSuffix", { label: account.label, plan: claudeAccountPlanLabel(account, t) });
+	const selected = accounts.find((account) => account.id === value);
 	return (
 		<Select value={value} onValueChange={onChange}>
 			<SelectTrigger id={id} aria-label={ariaLabel} className={triggerClassName}>
-				<SelectValue />
+				<SelectValue>{selected?.label}</SelectValue>
 			</SelectTrigger>
 			<SelectContent align="start" position="popper">
 				{accounts

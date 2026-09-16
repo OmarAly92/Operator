@@ -880,9 +880,8 @@ button.settings-link-row:active {
 }
 
 .composer-run-controls {
-	display: grid;
+	display: flex;
 	min-width: 0;
-	grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
 	align-items: center;
 	overflow: hidden;
 	border-radius: var(--radius-md);
@@ -894,13 +893,14 @@ button.settings-link-row:active {
 }
 
 .composer-toolbar-slot {
+	flex: 1 1 auto;
 	min-width: 0;
 }
 
 .composer-toolbar-divider {
+	flex: none;
 	align-self: stretch;
 	width: 1px;
-	height: 100%;
 	background-color: var(--color-border);
 }
 
@@ -3580,6 +3580,10 @@ html[data-native-browser-composition="true"] .browser-popout-overlay {
 
 .desktop-new-task .composer-toolbar > label {
 	font-size: 13px;
+}
+
+.desktop-new-task .composer-run-controls:has(.composer-toolbar-slot ~ .composer-toolbar-slot ~ .composer-toolbar-slot) {
+	grid-column: 1 / -1;
 }
 
 .desktop-new-task .composer-toolbar > button[type="button"] {

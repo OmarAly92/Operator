@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { Ellipsis } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -9,6 +10,7 @@ import {
 	useClaudeAccounts,
 	useCreateClaudeAccount,
 	useDeleteClaudeAccount,
+	usePreferClaudeAccount,
 	useRefreshClaudeAccounts,
 	useRelinkClaudeAccount,
 	useRenameClaudeAccount,
@@ -28,6 +30,7 @@ import {
 	settingsDialogHeaderClass,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { SettingsSection } from "./SettingsSection";
 
 function errorText(error: unknown): string {
@@ -49,6 +52,7 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 	const removeAccount = useDeleteClaudeAccount();
 	const relink = useRelinkClaudeAccount();
 	const rename = useRenameClaudeAccount();
+	const prefer = usePreferClaudeAccount();
 	const [adding, setAdding] = useState(false);
 	const [label, setLabel] = useState("");
 	const [pendingRemove, setPendingRemove] = useState<ClaudeAccount | null>(null);
@@ -119,58 +123,101 @@ export function ClaudeAccountsSection({ titleHidden }: { titleHidden?: boolean }
 					.map(([name]) => name)
 					.sort();
 				const isRenaming = renaming?.id === account.id;
+				const menuAction = (fn: () => Promise<unknown>) => () => {
+					setError(null);
+					void fn().catch((err) => setError(errorText(err)));
+				};
 				return (
-					<div key={account.id} data-testid={`claude-account-${account.id}`} className="settings-row-bar flex-col items-stretch gap-1.5">
+					<div key={account.id} data-testid={`claude-account-${account.id}`} className="settings-row-bar h-auto min-h-0 flex-col items-stretch gap-1 px-3 py-2.5">
 						<div className="flex min-w-0 items-center gap-2">
 							{isRenaming ? (
-								<Input
-									aria-label={t("settings.claudeAccounts.labelField")}
-									value={renaming.label}
-									onChange={(event) => setRenaming({ id: account.id, label: event.target.value })}
-									className="max-w-48"
-								/>
-							) : (
-								<span className="truncate text-sm text-settings-label">{account.label}</span>
-							)}
-							{account.isDefault ? <Badge variant="outline">{t("settings.claudeAccounts.default")}</Badge> : null}
-							<Badge variant="outline">{planLabel}</Badge>
-							<div className="ml-auto flex shrink-0 items-center gap-1.5">
-								<Button type="button" variant="outline" onClick={() => void openLogin(account.id)} disabled={login.isPending}>
-									{account.status?.loggedIn ? t("settings.claudeAccounts.loginAgain") : t("settings.claudeAccounts.login")}
-								</Button>
-								{!account.isDefault && !isRenaming ? (
-									<Button type="button" variant="outline" onClick={() => setRenaming({ id: account.id, label: account.label })}>
-										{t("settings.claudeAccounts.rename")}
-									</Button>
-								) : null}
-								{isRenaming ? (
-									<Button type="button" variant="outline" onClick={() => void submitRename()} disabled={rename.isPending}>
+								<form
+									className="flex items-center gap-1.5"
+									onSubmit={(event) => {
+										event.preventDefault();
+										void submitRename();
+									}}
+								>
+									<Input
+										aria-label={t("settings.claudeAccounts.labelField")}
+										value={renaming.label}
+										onChange={(event) => setRenaming({ id: account.id, label: event.target.value })}
+										className="h-control-md max-w-44 text-sm"
+										autoFocus
+									/>
+									<Button type="submit" size="sm" disabled={rename.isPending}>
 										{t("settings.claudeAccounts.save")}
 									</Button>
-								) : null}
-								{!account.isDefault ? (
-									<Button type="button" variant="outline" onClick={() => setPendingRemove(account)}>
-										{t("settings.claudeAccounts.remove")}
+									<Button type="button" size="sm" variant="ghost" onClick={() => setRenaming(null)}>
+										{t("settings.claudeAccounts.cancel")}
+									</Button>
+								</form>
+							) : (
+								<span className="truncate text-sm font-medium text-settings-label">{account.label}</span>
+							)}
+							<span className="flex shrink-0 items-center gap-1">
+								{account.isDefault ? <Badge variant="outline">{t("settings.claudeAccounts.default")}</Badge> : null}
+								<Badge variant="outline">{planLabel}</Badge>
+								{account.isPreferred ? <Badge variant="accent">{t("settings.claudeAccounts.preferred")}</Badge> : null}
+							</span>
+							<div className="ml-auto flex shrink-0 items-center gap-1">
+								{!account.isPreferred ? (
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										onClick={menuAction(() => prefer.mutateAsync(account.id))}
+										disabled={prefer.isPending}
+									>
+										{t("settings.claudeAccounts.prefer")}
 									</Button>
 								) : null}
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button type="button" size="icon-sm" variant="ghost" aria-label={t("settings.claudeAccounts.actions", { label: account.label })}>
+											<Ellipsis aria-hidden="true" className="size-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										<DropdownMenuItem onSelect={() => void openLogin(account.id)} disabled={login.isPending}>
+											{account.status?.loggedIn ? t("settings.claudeAccounts.loginAgain") : t("settings.claudeAccounts.login")}
+										</DropdownMenuItem>
+										{!account.isDefault ? (
+											<DropdownMenuItem onSelect={() => setRenaming({ id: account.id, label: account.label })}>
+												{t("settings.claudeAccounts.rename")}
+											</DropdownMenuItem>
+										) : null}
+										{replaced.length > 0 ? (
+											<DropdownMenuItem onSelect={menuAction(() => relink.mutateAsync(account.id))}>
+												{t("settings.claudeAccounts.relink")}
+											</DropdownMenuItem>
+										) : null}
+										{!account.isDefault ? (
+											<>
+												<DropdownMenuSeparator />
+												<DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setPendingRemove(account)}>
+													{t("settings.claudeAccounts.remove")}
+												</DropdownMenuItem>
+											</>
+										) : null}
+									</DropdownMenuContent>
+								</DropdownMenu>
 							</div>
 						</div>
-						<span className="truncate font-mono text-md-sm text-settings-muted">{account.configDir}</span>
-						{account.status?.reportedEmail ? (
-							<span className="truncate text-caption text-settings-muted">
-								{t("settings.claudeAccounts.reportedEmail", { email: account.status.reportedEmail })}
-							</span>
-						) : null}
+						<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-caption text-settings-muted">
+							<span className="truncate font-mono">{account.configDir}</span>
+							{account.status?.reportedEmail ? <span className="truncate">{account.status.reportedEmail}</span> : null}
+						</div>
 						{replaced.length > 0 ? (
 							<div className="flex items-center gap-2 text-caption text-warning">
 								<span>{t("settings.claudeAccounts.setupReplaced", { items: replaced.join(", ") })}</span>
-								<Button
+								<button
 									type="button"
-									variant="outline"
-									onClick={() => void relink.mutateAsync(account.id).catch((err) => setError(errorText(err)))}
+									className="underline underline-offset-2 hover:text-foreground"
+									onClick={menuAction(() => relink.mutateAsync(account.id))}
 								>
 									{t("settings.claudeAccounts.relink")}
-								</Button>
+								</button>
 							</div>
 						) : null}
 					</div>

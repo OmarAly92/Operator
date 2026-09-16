@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appI18n } from "../i18n";
-import { GlobalSettingsForm } from "./GlobalSettingsForm";
+import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
 import { useLocaleStore } from "../stores/locale-store";
 
 const {
@@ -82,11 +82,11 @@ vi.mock("../lib/bridge", () => ({
 	},
 }));
 
-function renderForm() {
+function renderForm(section?: GlobalSettingsSection) {
 	const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(
 		<QueryClientProvider client={qc}>
-			<GlobalSettingsForm />
+			<GlobalSettingsForm section={section} />
 		</QueryClientProvider>,
 	);
 	return qc;
@@ -154,6 +154,17 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.getByText("Updates")).toBeInTheDocument();
 		expect(screen.getByText("Get help")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Report a problem" })).toBeInTheDocument();
+	});
+
+	it("keeps Claude accounts out of General and on its own page", async () => {
+		renderForm("general");
+		expect(await screen.findByRole("button", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Add account" })).not.toBeInTheDocument();
+
+		cleanup();
+		renderForm("claudeAccounts");
+		expect(await screen.findByRole("button", { name: "Add account" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
 	});
 
 	it("gives settings link rows internal padding and rounded borders", async () => {

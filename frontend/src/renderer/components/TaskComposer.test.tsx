@@ -638,6 +638,41 @@ describe("TaskComposer", () => {
 		expect(screen.queryByRole("combobox", { name: "Account" })).toBeNull();
 	});
 
+	it("preselects the preferred Claude account", async () => {
+		const onCreated = vi.fn();
+		h.get.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/claude-accounts") {
+				return {
+					data: {
+						accounts: [
+							{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, isPreferred: false, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
+							{ id: "personal", label: "Personal", configDir: "/Users/u/.claude-personal", isDefault: false, isPreferred: true, status: { loggedIn: true, subscriptionType: "pro" }, sharedSetup: {} },
+						],
+					},
+				};
+			}
+			if (path.includes("/models")) {
+				return { data: { agent: "claude-code", selectionMode: "text", models: [], allowCustom: true, refreshRecommended: false } };
+			}
+			return { data: { status: "ok", project: { kind: "single_repo", agent: "claude-code", config: {} } } };
+		});
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-pref" } });
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={onCreated} />
+			</Wrap>,
+		);
+		const accountSelect = await screen.findByRole("combobox", { name: "Account" });
+		await waitFor(() => expect(accountSelect).toHaveTextContent("Personal"));
+		fireEvent.click(await screen.findByRole("button", { name: "Start task" }));
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ claudeAccountId: "personal" }) }),
+			),
+		);
+	});
+
 	it("sends the chosen Claude account with the delegate request", async () => {
 		const onCreated = vi.fn();
 		h.get.mockImplementation(async (path: string) => {

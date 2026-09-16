@@ -7,7 +7,7 @@ import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
 
-export type GlobalSettingsSection = "general" | "updates" | "help" | "all";
+export type GlobalSettingsSection = "general" | "claudeAccounts" | "updates" | "help" | "all";
 
 export function GlobalSettingsForm({
 	section = "all",
@@ -44,9 +44,9 @@ export function GlobalSettingsForm({
 								onClick={() => onOpenKeyboardShortcuts?.()}
 							/>
 						</SettingsSection>
-						<ClaudeAccountsSection titleHidden={leadingTitleHidden} />
 					</>
 				)}
+				{(section === "all" || section === "claudeAccounts") && <ClaudeAccountsSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "help") && (
 					<SettingsSection title={t("settings.getHelp")} titleHidden={leadingTitleHidden} grouped>

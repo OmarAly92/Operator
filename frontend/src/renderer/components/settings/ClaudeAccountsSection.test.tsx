@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
 	remove: vi.fn(),
 	relink: vi.fn(),
 	rename: vi.fn(),
+	prefer: vi.fn(),
 	refresh: vi.fn(),
 	closeSettings: vi.fn(),
 	setActiveShellTerminal: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("../../hooks/useClaudeAccounts", async (importOriginal) => {
 		useDeleteClaudeAccount: () => ({ mutateAsync: h.remove, isPending: false }),
 		useRelinkClaudeAccount: () => ({ mutateAsync: h.relink, isPending: false }),
 		useRenameClaudeAccount: () => ({ mutateAsync: h.rename, isPending: false }),
+		usePreferClaudeAccount: () => ({ mutateAsync: h.prefer, isPending: false }),
 	};
 });
 
@@ -39,11 +41,11 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => h.navigate }));
 import { ClaudeAccountsSection } from "./ClaudeAccountsSection";
 
 beforeEach(() => {
-	for (const fn of [h.create, h.login, h.remove, h.relink, h.rename, h.refresh, h.closeSettings, h.setActiveShellTerminal, h.navigate]) {
+	for (const fn of [h.create, h.login, h.remove, h.relink, h.rename, h.prefer, h.refresh, h.closeSettings, h.setActiveShellTerminal, h.navigate]) {
 		fn.mockReset();
 	}
 	h.accounts = [
-		{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
+		{ id: "default", label: "Default", configDir: "/Users/u/.claude", isDefault: true, isPreferred: true, status: { loggedIn: true, subscriptionType: "max" }, sharedSetup: {} },
 		{
 			id: "personal",
 			label: "Personal",
@@ -60,15 +62,29 @@ test("refreshes accounts on mount", () => {
 	expect(h.refresh).toHaveBeenCalled();
 });
 
-test("lists default first with plan badges and no remove on default", () => {
+test("lists default first with plan badges and no remove on default", async () => {
 	render(<ClaudeAccountsSection />);
 	const defaultRow = screen.getByTestId("claude-account-default");
 	expect(within(defaultRow).getByText("Max")).toBeInTheDocument();
-	expect(within(defaultRow).queryByRole("button", { name: "Remove" })).toBeNull();
+	await userEvent.click(within(defaultRow).getByRole("button", { name: "Actions for Default" }));
+	expect(await screen.findByRole("menuitem", { name: "Log in again" })).toBeInTheDocument();
+	expect(screen.queryByRole("menuitem", { name: "Remove" })).toBeNull();
+	expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull();
+	await userEvent.keyboard("{Escape}");
 	const personal = screen.getByTestId("claude-account-personal");
 	expect(within(personal).getByText("Not logged in")).toBeInTheDocument();
 	expect(within(personal).getByText("/Users/u/.claude-personal")).toBeInTheDocument();
 	expect(within(personal).getByText("Setup no longer shared: settings.json")).toBeInTheDocument();
+});
+
+test("use for new tasks marks the preferred account", async () => {
+	h.prefer.mockResolvedValue(undefined);
+	render(<ClaudeAccountsSection />);
+	const defaultRow = screen.getByTestId("claude-account-default");
+	expect(within(defaultRow).getByText("New tasks")).toBeInTheDocument();
+	expect(within(defaultRow).queryByRole("button", { name: "Use for new tasks" })).toBeNull();
+	await userEvent.click(within(screen.getByTestId("claude-account-personal")).getByRole("button", { name: "Use for new tasks" }));
+	expect(h.prefer).toHaveBeenCalledWith("personal");
 });
 
 test("re-link calls the mutation", async () => {
@@ -96,8 +112,9 @@ test("add dialog previews the folder, creates, then opens the login terminal", a
 test("remove asks for confirmation and shows the in-use error", async () => {
 	h.remove.mockRejectedValue({ code: "CLAUDE_ACCOUNT_IN_USE", message: "Sessions still use this account; remove or switch them first" });
 	render(<ClaudeAccountsSection />);
-	await userEvent.click(within(screen.getByTestId("claude-account-personal")).getByRole("button", { name: "Remove" }));
-	await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove" }));
+	await userEvent.click(within(screen.getByTestId("claude-account-personal")).getByRole("button", { name: "Actions for Personal" }));
+	await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+	await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove" }));
 	expect(h.remove).toHaveBeenCalledWith("personal");
 	expect(await screen.findByText("Sessions still use this account; remove or switch them first")).toBeInTheDocument();
 });

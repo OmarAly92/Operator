@@ -30,7 +30,7 @@ import {
 import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 import { ClaudeAccountSelect } from "./ClaudeAccountSelect";
-import { useClaudeAccounts } from "../hooks/useClaudeAccounts";
+import { preferredClaudeAccountId, useClaudeAccounts } from "../hooks/useClaudeAccounts";
 
 type Project = components["schemas"]["Project"];
 type DelegateAgent = components["schemas"]["DelegateTaskRequest"]["agent"];
@@ -74,9 +74,10 @@ export function TaskComposer({
 	const [agentTouched, setAgentTouched] = useState(false);
 	const [useWorktree, setUseWorktree] = useState(false);
 	const [modelTouched, setModelTouched] = useState(false);
-	const [claudeAccount, setClaudeAccount] = useState("default");
+	const [claudeAccount, setClaudeAccount] = useState("");
 	const claudeAccountSelectId = useId();
 	const claudeAccountsQuery = useClaudeAccounts();
+	const selectedClaudeAccount = claudeAccount || preferredClaudeAccountId(claudeAccountsQuery.data);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | undefined>();
 	const [modelWarning, setModelWarning] = useState<string | undefined>();
@@ -213,7 +214,7 @@ export function TaskComposer({
 				model: requestedModel,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 				workspaceMode: canChooseWorktree ? (useWorktree ? "worktree" : "in_place") : undefined,
-				claudeAccountId: selectedAgent === "claude-code" ? claudeAccount : undefined,
+				claudeAccountId: selectedAgent === "claude-code" ? selectedClaudeAccount : undefined,
 			});
 			onCreated(sessionId);
 		} catch (err) {
@@ -390,7 +391,7 @@ export function TaskComposer({
 								<ClaudeAccountSelect
 									id={claudeAccountSelectId}
 									ariaLabel={t("newTask.account")}
-									value={claudeAccount}
+									value={selectedClaudeAccount}
 									onChange={setClaudeAccount}
 									accounts={claudeAccountsQuery.data ?? []}
 									triggerClassName="composer-toolbar-option w-full justify-between"
