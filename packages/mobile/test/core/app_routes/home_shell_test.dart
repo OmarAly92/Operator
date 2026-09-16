@@ -25,6 +25,7 @@ import 'package:operator_mobile/feature/notification/logic/push_token_source.dar
 import 'package:operator_mobile/feature/notification/presentation/notifications_screen/logic/notifications_cubit.dart';
 import 'package:operator_mobile/feature/orchestrator/data/repository/orchestrator_repository.dart';
 import 'package:operator_mobile/feature/orchestrator/presentation/orchestrator_screen/logic/orchestrator_cubit.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/pull_request/data/repository/pull_request_repository.dart';
 import 'package:operator_mobile/feature/pull_request/presentation/pull_requests_screen/logic/pull_request_cubit.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
@@ -45,6 +46,8 @@ class _MockOrchestratorRepository extends Mock implements OrchestratorRepository
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 class _MockNotificationRepository extends Mock implements NotificationRepository {}
+
+class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
 class _MemorySecureStorage implements PushSecureStorage {
   final Map<String, String> values = {};
@@ -116,7 +119,9 @@ void main() {
     final serverConfigStore = _MockServerConfigStore();
     when(() => serverConfigStore.current).thenReturn(null);
     sl.registerLazySingleton<ServerConfigStore>(() => serverConfigStore);
-    sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore));
+    final desktopsRepository = _MockDesktopsRepository();
+    when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
+    sl.registerFactory<SettingsCubit>(() => SettingsCubit(repository, serverConfigStore, desktopsRepository));
     sl.registerLazySingleton<PushRegistrar>(
       () => PushRegistrar(
         notificationRepository,

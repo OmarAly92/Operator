@@ -18,6 +18,7 @@ import 'package:operator_mobile/core/telemetry/runtime.dart';
 import 'package:operator_mobile/core/utils/device_kind.dart';
 import 'package:operator_mobile/core/utils/service_locator.dart';
 import 'package:operator_mobile/feature/onboarding/logic/onboarding.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 Future<void> main() async {
@@ -39,10 +40,15 @@ Future<void> main() async {
   );
   unawaited(TelemetryRuntime.active());
 
-  final configured = sl<ServerConfigStore>().current != null;
-  final initialRoute = shouldOnboard(configured: configured)
-      ? RoutesStrings.onboarding
-      : RoutesStrings.sessions;
+  final desktops = await sl<DesktopsRepository>().watchDesktops().first;
+  final initialRoute = switch (launchDestination(
+    desktopCount: desktops.length,
+    hasActive: sl<ServerConfigStore>().current != null,
+  )) {
+    LaunchDestination.onboarding => RoutesStrings.onboarding,
+    LaunchDestination.desktops => RoutesStrings.connections,
+    LaunchDestination.sessions => RoutesStrings.sessions,
+  };
 
   runApp(
     EasyLocalization(

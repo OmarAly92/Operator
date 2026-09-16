@@ -6,6 +6,7 @@ import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
 import 'package:operator_mobile/core/helpers/cache/cache_helper.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
 import 'package:operator_mobile/feature/sessions/data/repository/sessions_repository.dart';
@@ -17,15 +18,20 @@ class _MockSessionsRepository extends Mock implements SessionsRepository {}
 
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
+class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
+
 void main() {
   late _MockSessionsRepository repository;
   late _MockServerConfigStore store;
+  late _MockDesktopsRepository desktops;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await CacheHelper.init();
     repository = _MockSessionsRepository();
     store = _MockServerConfigStore();
+    desktops = _MockDesktopsRepository();
+    when(() => desktops.deactivate()).thenAnswer((_) async => Result.success(null));
   });
 
   blocTest<SettingsCubit, SettingsState>(
@@ -36,7 +42,7 @@ void main() {
           data: const BoardSnapshot(sessions: [SessionModel(id: 'a'), SessionModel(id: 'b')]),
         )),
       );
-      return SettingsCubit(repository, store);
+      return SettingsCubit(repository, store, desktops);
     },
     act: (cubit) => cubit.testConnection(),
     expect: () => [
@@ -51,7 +57,7 @@ void main() {
       when(() => repository.getBoard()).thenAnswer(
         (_) async => Result.failure(ServerFailure(error: 'x', message: 'nope', statusCode: 401)),
       );
-      return SettingsCubit(repository, store);
+      return SettingsCubit(repository, store, desktops);
     },
     act: (cubit) => cubit.testConnection(),
     expect: () => [isA<PingLoadingState>(), isA<PingFailureState>()],
@@ -61,7 +67,7 @@ void main() {
     'clears the saved server on forget',
     build: () {
       when(() => store.clear()).thenAnswer((_) async {});
-      return SettingsCubit(repository, store);
+      return SettingsCubit(repository, store, desktops);
     },
     act: (cubit) => cubit.forget(),
     expect: () => [isA<ForgetSuccessState>()],

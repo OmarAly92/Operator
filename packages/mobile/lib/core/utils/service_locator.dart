@@ -198,7 +198,7 @@ class ServiceLocator {
 
   static void _settingsFeatureSetup() {
     sl.registerFactory<SettingsCubit>(
-      () => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>()),
+      () => SettingsCubit(sl<SessionsRepository>(), sl<ServerConfigStore>(), sl<DesktopsRepository>()),
     );
   }
 

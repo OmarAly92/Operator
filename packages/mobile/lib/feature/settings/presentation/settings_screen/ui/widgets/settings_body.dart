@@ -175,7 +175,7 @@ class _SettingsBodyState extends State<SettingsBody> {
           Haptics.error();
         }
         if (state is ForgetSuccessState) {
-          Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.onboarding, (_) => false);
+          Navigator.of(context).pushNamedAndRemoveUntil(RoutesStrings.connections, (_) => false);
         }
       },
       builder: (context, state) {

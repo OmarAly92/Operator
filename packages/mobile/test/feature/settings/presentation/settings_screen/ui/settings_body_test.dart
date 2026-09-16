@@ -23,6 +23,7 @@ import 'package:operator_mobile/feature/notification/logic/push_registrar.dart';
 import 'package:operator_mobile/feature/notification/logic/push_registration.dart';
 import 'package:operator_mobile/feature/notification/logic/push_status.dart';
 import 'package:operator_mobile/feature/notification/logic/push_token_source.dart';
+import 'package:operator_mobile/feature/pairing/data/repository/desktops_repository.dart';
 import 'package:operator_mobile/feature/sessions/data/model/board_snapshot.dart';
 import 'package:operator_mobile/feature/sessions/data/model/project_model.dart';
 import 'package:operator_mobile/feature/sessions/data/model/session_model.dart';
@@ -40,6 +41,8 @@ class _MockMuxClient extends Mock implements MuxClient {}
 class _MockServerConfigStore extends Mock implements ServerConfigStore {}
 
 class _MockNotificationRepository extends Mock implements NotificationRepository {}
+
+class _MockDesktopsRepository extends Mock implements DesktopsRepository {}
 
 class _MemorySecureStorage implements PushSecureStorage {
   final Map<String, String> values = {};
@@ -108,6 +111,7 @@ void main() {
   late _MockMuxClient mux;
   late _MockServerConfigStore serverConfigStore;
   late _MockNotificationRepository notificationRepository;
+  late _MockDesktopsRepository desktopsRepository;
   late _FakeTokenSource tokenSource;
 
   setUpAll(() {
@@ -127,6 +131,8 @@ void main() {
     sessionsRepository = _MockSessionsRepository();
     mux = _MockMuxClient();
     serverConfigStore = _MockServerConfigStore();
+    desktopsRepository = _MockDesktopsRepository();
+    when(() => desktopsRepository.deactivate()).thenAnswer((_) async => Result.success(null));
 
     when(() => mux.sessionPatches).thenAnswer((_) => const Stream<List<SessionPatch>>.empty());
     when(() => mux.boardChanges).thenAnswer((_) => const Stream<void>.empty());
@@ -192,7 +198,9 @@ void main() {
               providers: [
                 BlocProvider<SessionsCubit>(create: (_) => sessionsCubit),
                 BlocProvider<SkinCubit>(create: (_) => skinCubit ?? SkinCubit()),
-                BlocProvider<SettingsCubit>(create: (_) => SettingsCubit(sessionsRepository, serverConfigStore)),
+                BlocProvider<SettingsCubit>(
+                  create: (_) => SettingsCubit(sessionsRepository, serverConfigStore, desktopsRepository),
+                ),
               ],
               child: Scaffold(body: SettingsBody(onOpenBoard: onOpenBoard ?? () {})),
             ),
@@ -336,7 +344,7 @@ void main() {
     verifyNever(() => serverConfigStore.clear());
   });
 
-  testWidgets('confirming disconnect clears the server and navigates to onboarding', (tester) async {
+  testWidgets('confirming disconnect deactivates the desktop and navigates to the desktops list', (tester) async {
     when(() => serverConfigStore.clear()).thenAnswer((_) async {});
 
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
@@ -351,8 +359,9 @@ void main() {
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
 
+    verify(() => desktopsRepository.deactivate()).called(1);
     verify(() => serverConfigStore.clear()).called(1);
-    expect(find.text('Onboarding screen'), findsOneWidget);
+    expect(find.text('Connections screen'), findsOneWidget);
   });
 
   testWidgets('the push switch is off and explains itself with no Firebase configuration', (
