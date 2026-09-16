@@ -93,8 +93,8 @@ pub struct TrayStrings {
     pub zone_action: String,
 }
 
-pub fn is_tray_enabled(platform: MenuPlatform, is_packaged: bool, version: &str) -> bool {
-    platform == MenuPlatform::Macos && (!is_packaged || version.contains("-nightly."))
+pub fn is_tray_enabled(platform: MenuPlatform) -> bool {
+    platform == MenuPlatform::Macos
 }
 
 const EN_CATALOG: &[u8] = include_bytes!("../../src/renderer/i18n/en.json");
@@ -461,13 +461,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tray_is_darwin_only_and_nightly_gated_when_packaged() {
-        let darwin = MenuPlatform::Macos;
-        assert!(is_tray_enabled(darwin, false, "0.10.3"));
-        assert!(!is_tray_enabled(darwin, true, "0.10.3"));
-        assert!(is_tray_enabled(darwin, true, "0.11.0-nightly.20260822"));
+    fn tray_is_macos_only() {
+        assert!(is_tray_enabled(MenuPlatform::Macos));
         for platform in [MenuPlatform::Windows, MenuPlatform::Linux] {
-            assert!(!is_tray_enabled(platform, false, "0.11.0-nightly.20260822"));
+            assert!(!is_tray_enabled(platform));
         }
     }
 

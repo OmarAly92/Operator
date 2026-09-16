@@ -7,19 +7,11 @@ pub const DEFAULT_RELEASE_REPO_NAME: &str = "operator";
 pub const FEATURE_BUILD_MARKER: &str = "<!-- opr-feature-build:";
 pub const FEATURE_BUILD_MAX_AGE_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Channel {
-    Latest,
-    Nightly,
-}
-
 /// The channel the updater feed actually tracks: the home channel, or the
 /// `pr<N>` prerelease feed while a feature build is pinned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveChannel {
     Latest,
-    Nightly,
     Feature(i64),
 }
 
@@ -28,24 +20,11 @@ pub struct FeaturePin {
     pub pr: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSettings {
     pub enabled: bool,
-    pub channel: Channel,
-    pub nightly_ack: bool,
     pub feature: Option<FeaturePin>,
-}
-
-impl Default for UpdateSettings {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            channel: Channel::Latest,
-            nightly_ack: false,
-            feature: None,
-        }
-    }
 }
 
 impl UpdateSettings {
@@ -53,17 +32,14 @@ impl UpdateSettings {
     pub fn active_channel(&self) -> ActiveChannel {
         match self.feature {
             Some(pin) => ActiveChannel::Feature(pin.pr),
-            None => match self.channel {
-                Channel::Latest => ActiveChannel::Latest,
-                Channel::Nightly => ActiveChannel::Nightly,
-            },
+            None => ActiveChannel::Latest,
         }
     }
 }
 
 /// Coerces an untrusted settings payload into supported values, mirroring the
-/// daemon's normalization: unknown channels collapse to latest and a pin is
-/// kept only when its PR is a positive integer.
+/// daemon's normalization: a pin is kept only when its PR is a positive
+/// integer.
 pub fn coerce_settings(raw: &serde_json::Value) -> UpdateSettings {
     let object = match raw.as_object() {
         Some(object) => object,
@@ -71,15 +47,6 @@ pub fn coerce_settings(raw: &serde_json::Value) -> UpdateSettings {
     };
     UpdateSettings {
         enabled: object.get("enabled").and_then(serde_json::Value::as_bool) == Some(true),
-        channel: if object.get("channel").and_then(serde_json::Value::as_str) == Some("nightly") {
-            Channel::Nightly
-        } else {
-            Channel::Latest
-        },
-        nightly_ack: object
-            .get("nightlyAck")
-            .and_then(serde_json::Value::as_bool)
-            == Some(true),
         feature: match object.get("feature") {
             Some(value) => value
                 .get("pr")
@@ -93,7 +60,7 @@ pub fn coerce_settings(raw: &serde_json::Value) -> UpdateSettings {
 
 /// Electron allowDowngrade=true parity: any semantically different candidate
 /// the feed offers is surfaced to the shell, including older versions, so a
-/// return-home from a pr<N>/nightly build can never strand the user.
+/// return-home from a pr<N> build can never strand the user.
 pub fn feed_offers_candidate(current: &str, candidate: &str) -> bool {
     match (
         semver::Version::parse(candidate),
@@ -137,7 +104,6 @@ pub fn select_feed_url(
     }
     let file = match channel {
         ActiveChannel::Latest => "latest.json",
-        ActiveChannel::Nightly => "nightly.json",
         ActiveChannel::Feature(pr) if pr > 0 => {
             return Ok(join_feed_file(&parsed, &format!("pr{pr}.json")))
         }

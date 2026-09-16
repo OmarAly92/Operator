@@ -11,8 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use tauri_plugin_updater::UpdaterExt as _;
 
-use channel::{ActiveChannel, Channel, ReleasesSource, UpdateSettings};
-use escalation::EscalationFeeds;
+use channel::{ActiveChannel, ReleasesSource, UpdateSettings};
 use status::{UpdateOutcome, UpdatePhase, UpdateState, UpdateStatus, UpdateTrigger};
 use storage::UpdaterStorage;
 
@@ -22,10 +21,6 @@ pub const AUTOMATIC_CHECK_INTERVAL_MS: u64 = 60 * 60 * 1000;
 pub const ESCALATION_INTERVAL_MS: u64 = 30 * 60 * 1000;
 pub const RETIREMENT_POLL_INTERVAL_MS: u64 = 30 * 60 * 1000;
 pub const UNSUPPORTED_MESSAGE: &str = "Updates are only available in the installed app.";
-pub const MANIFEST_404_CHECK_MESSAGE: &str =
-    "Couldn't check for updates — the update information was not found on the server.";
-pub const MANIFEST_404_DOWNLOAD_MESSAGE: &str =
-    "Download failed — the update file was not found on the server.";
 pub const APPLY_DEFERRED_MESSAGE: &str =
     "update installation is deferred to the packaging task: the pinned updater plugin writes installer and recovery files to OS-default temp and cache directories that are not configurable";
 
@@ -192,7 +187,6 @@ pub struct UpdaterEngine<C: FeedClient> {
     release_slot: Mutex<Option<(C::Release, String)>>,
     client: Arc<C>,
     settings: Arc<dyn SettingsSource>,
-    feeds: Arc<dyn EscalationFeeds>,
     releases: Arc<dyn ReleasesSource>,
     storage: UpdaterStorage,
     sink: Arc<dyn StatusSink>,
@@ -207,11 +201,9 @@ pub struct CheckOptions {
 }
 
 impl<C: FeedClient> UpdaterEngine<C> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Arc<C>,
         settings: Arc<dyn SettingsSource>,
-        feeds: Arc<dyn EscalationFeeds>,
         releases: Arc<dyn ReleasesSource>,
         storage: UpdaterStorage,
         sink: Arc<dyn StatusSink>,
@@ -238,7 +230,6 @@ impl<C: FeedClient> UpdaterEngine<C> {
             release_slot: Mutex::new(None),
             client,
             settings,
-            feeds,
             releases,
             storage,
             sink,
@@ -324,40 +315,12 @@ impl<C: FeedClient> UpdaterEngine<C> {
             }
             return;
         }
-        self.broadcast_error(op, message);
+        self.broadcast_error(message);
     }
 
     /// Promise-rejection path: broadcasts an error without telemetry, exactly
     /// like Electron's catch blocks around each serialized operation.
-    fn broadcast_error(&self, op: Operation, message: &str) {
-        if is_manifest_404(message) {
-            if op == Operation::ManualDownload {
-                self.broadcast(
-                    UpdateStatus {
-                        state: UpdateState::Error,
-                        message: Some(MANIFEST_404_DOWNLOAD_MESSAGE.to_string()),
-                        ..UpdateStatus::idle()
-                    },
-                    true,
-                );
-                return;
-            }
-            let staged_status =
-                self.with_state(|state| state.staged.as_ref().map(Self::staged_downloaded_status));
-            if let Some(staged_status) = staged_status {
-                self.broadcast(staged_status, true);
-            } else {
-                self.broadcast(
-                    UpdateStatus {
-                        state: UpdateState::Error,
-                        message: Some(MANIFEST_404_CHECK_MESSAGE.to_string()),
-                        ..UpdateStatus::idle()
-                    },
-                    true,
-                );
-            }
-            return;
-        }
+    fn broadcast_error(&self, message: &str) {
         self.broadcast(
             UpdateStatus {
                 state: UpdateState::Error,
@@ -554,13 +517,13 @@ impl<C: FeedClient> UpdaterEngine<C> {
         self.begin(Operation::ManualCheck, options.request_id);
         if let Some(next) = options.settings {
             if let Err(error) = self.settings.write(next).await {
-                self.broadcast_error(Operation::ManualCheck, &error);
+                self.broadcast_error(&error);
                 self.end(Operation::ManualCheck);
                 return;
             }
         }
         match self.settings.read().await {
-            Err(error) => self.broadcast_error(Operation::ManualCheck, &error),
+            Err(error) => self.broadcast_error(&error),
             Ok(current) => {
                 let settings = self.reconcile_pin(current).await;
                 self.with_state(|state| state.automatic_scheduled = settings.enabled);
@@ -579,13 +542,13 @@ impl<C: FeedClient> UpdaterEngine<C> {
         let _guard = self.op_lock.lock().await;
         self.begin(Operation::ReturnHome, request_id);
         match self.settings.read().await {
-            Err(error) => self.broadcast_error(Operation::ReturnHome, &error),
+            Err(error) => self.broadcast_error(&error),
             Ok(current) => {
                 let mut cleared = current.clone();
                 if current.feature.is_some() {
                     cleared.feature = None;
                     if let Err(error) = self.settings.write(cleared.clone()).await {
-                        self.broadcast_error(Operation::ReturnHome, &error);
+                        self.broadcast_error(&error);
                         self.end(Operation::ReturnHome);
                         return;
                     }
@@ -617,10 +580,7 @@ impl<C: FeedClient> UpdaterEngine<C> {
                     .await;
             }
             None => {
-                self.broadcast_error(
-                    Operation::ManualDownload,
-                    "no update is ready to download; check for updates first",
-                );
+                self.broadcast_error("no update is ready to download; check for updates first");
             }
         }
         self.end(Operation::ManualDownload);
@@ -695,24 +655,7 @@ impl<C: FeedClient> UpdaterEngine<C> {
         if self.with_state(|state| state.last_status.state) == UpdateState::Downloading {
             return;
         }
-        let Ok(settings) = self.settings.read().await else {
-            return;
-        };
-        let (important, latest_stable) = if settings.channel == Channel::Nightly {
-            let important = self.feeds.nightly_important(&staged.version).await;
-            let latest_stable = self.feeds.latest_stable_version().await;
-            (important, latest_stable)
-        } else {
-            (false, None)
-        };
-        let escalated = escalation::evaluate_escalation(escalation::EscalationInput {
-            channel: settings.channel,
-            staged_at_ms: staged.at_ms,
-            now_ms: self.now_ms(),
-            important,
-            running_version: &self.config.app_version,
-            latest_stable_version: latest_stable.as_deref(),
-        });
+        let escalated = escalation::evaluate_escalation(staged.at_ms, self.now_ms());
         let status = self.with_state(|state| {
             if let Some(staged) = state.staged.as_mut() {
                 staged.escalated = escalated;
@@ -772,48 +715,19 @@ impl<C: FeedClient> UpdaterEngine<C> {
     }
 }
 
-/// The first-run opt-in policy: a decline persists disabled defaults, an
-/// enable picks stable unless the nightly instability disclaimer was
-/// acknowledged, and dismissing nightly falls back to stable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FirstRunAnswer {
     Decline,
     EnableLatest,
-    EnableNightlyAcked,
-    EnableNightlyDeclined,
 }
 
 pub fn first_run_settings(answer: FirstRunAnswer) -> UpdateSettings {
     match answer {
         FirstRunAnswer::Decline => UpdateSettings::default(),
-        FirstRunAnswer::EnableLatest | FirstRunAnswer::EnableNightlyDeclined => UpdateSettings {
+        FirstRunAnswer::EnableLatest => UpdateSettings {
             enabled: true,
-            channel: Channel::Latest,
-            nightly_ack: false,
             feature: None,
         },
-        FirstRunAnswer::EnableNightlyAcked => UpdateSettings {
-            enabled: true,
-            channel: Channel::Nightly,
-            nightly_ack: true,
-            feature: None,
-        },
-    }
-}
-
-/// A 404 on a release-manifest YAML is routine (missing channel file), not an
-/// actionable error; anything else passes through verbatim.
-fn is_manifest_404(message: &str) -> bool {
-    let lowered = message.to_lowercase();
-    if !lowered.contains("404") {
-        return false;
-    }
-    match lowered.find(".yml") {
-        Some(index) => lowered[index + 4..]
-            .chars()
-            .next()
-            .is_none_or(|next| !next.is_ascii_alphanumeric()),
-        None => false,
     }
 }
 
@@ -1020,7 +934,7 @@ async fn daemon_port(manager: &crate::daemon::supervisor::DaemonManager) -> Opti
 }
 
 /// Settings access against the daemon's `/api/v1/settings`, which is the store
-/// of record for update opt-in, channel, nightly acknowledgement, and pins.
+/// of record for update opt-in and pins.
 pub struct DaemonSettingsSource {
     pub manager: crate::daemon::supervisor::DaemonManager,
 }
@@ -1032,11 +946,6 @@ impl DaemonSettingsSource {
             .map(|pin| serde_json::json!({ "pr": pin.pr }));
         serde_json::json!({
             "enabled": settings.enabled,
-            "channel": match settings.channel {
-                Channel::Latest => "latest",
-                Channel::Nightly => "nightly",
-            },
-            "nightlyAck": settings.nightly_ack,
             "feature": feature,
         })
     }
@@ -1087,21 +996,6 @@ impl ReleasesSource for StoppedReleasesSource {
 
     fn is_pr_open<'a>(&'a self, _pr: i64) -> BoxFuture<'a, bool> {
         Box::pin(async move { true })
-    }
-}
-
-/// Recorded stop with graceful degradation: escalation feed probes behave
-/// exactly like an unreachable GitHub in Electron — no important flag, no
-/// stable-version comparison — so latest still escalates on its 48-hour rule.
-pub struct StoppedEscalationFeeds;
-
-impl EscalationFeeds for StoppedEscalationFeeds {
-    fn latest_stable_version<'a>(&'a self) -> BoxFuture<'a, Option<String>> {
-        Box::pin(async move { None })
-    }
-
-    fn nightly_important<'a>(&'a self, _version: &str) -> BoxFuture<'a, bool> {
-        Box::pin(async move { false })
     }
 }
 
@@ -1288,7 +1182,6 @@ pub fn open_shell_engine(
     Ok(Arc::new(UpdaterEngine::new(
         client,
         Arc::new(DaemonSettingsSource { manager }),
-        Arc::new(StoppedEscalationFeeds),
         Arc::new(StoppedReleasesSource),
         storage,
         sink,

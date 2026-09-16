@@ -10,11 +10,11 @@ use crate::updater::storage::PARTIAL_MAX_AGE_MS;
 
 use super::channel::{
     coerce_settings, collect_feature_builds, list_feature_builds, parse_feature_build,
-    reconcile_feature_pin, select_feed_url, validate_public_key, ActiveChannel, Channel,
-    FeatureBuild, FeaturePin, FeedUrlError, GitHubRelease, PublicKeyError, ReconcileResult,
-    ReleasesSource, UpdateSettings,
+    reconcile_feature_pin, select_feed_url, validate_public_key, ActiveChannel, FeatureBuild,
+    FeaturePin, FeedUrlError, GitHubRelease, PublicKeyError, ReconcileResult, ReleasesSource,
+    UpdateSettings,
 };
-use super::escalation::{evaluate_escalation, EscalationFeeds, EscalationInput, H48_MS};
+use super::escalation;
 use super::status::{
     update_failure_category, update_failure_outcome, UpdateFailureCategory, UpdatePhase,
     UpdateState, UpdateStatus, UpdateTrigger,
@@ -23,7 +23,7 @@ use super::storage::{StorageError, UpdaterStorage};
 use super::{
     first_run_settings, BoxFuture, CheckOptions, ClockFn, EngineConfig, FeedClient, FirstRunAnswer,
     ProgressCallback, ReleaseHandle, StatusSink, UpdaterEngine, APPLY_DEFERRED_MESSAGE,
-    MANIFEST_404_CHECK_MESSAGE, MANIFEST_404_DOWNLOAD_MESSAGE, UNSUPPORTED_MESSAGE,
+    UNSUPPORTED_MESSAGE,
 };
 
 const APP_VERSION: &str = "1.0.0";
@@ -284,37 +284,6 @@ impl super::SettingsSource for FakeSettings {
     }
 }
 
-struct FakeFeedsState {
-    stable: Option<String>,
-    important: bool,
-}
-
-#[derive(Clone)]
-struct FakeFeeds {
-    state: Arc<Mutex<FakeFeedsState>>,
-}
-
-impl FakeFeeds {
-    fn new() -> Self {
-        Self {
-            state: Arc::new(Mutex::new(FakeFeedsState {
-                stable: None,
-                important: false,
-            })),
-        }
-    }
-}
-
-impl EscalationFeeds for FakeFeeds {
-    fn latest_stable_version<'a>(&'a self) -> BoxFuture<'a, Option<String>> {
-        Box::pin(async move { self.state.lock().unwrap().stable.clone() })
-    }
-
-    fn nightly_important<'a>(&'a self, _version: &str) -> BoxFuture<'a, bool> {
-        Box::pin(async move { self.state.lock().unwrap().important })
-    }
-}
-
 struct FakeReleasesState {
     list: Result<Vec<GitHubRelease>, String>,
     open: HashMap<i64, bool>,
@@ -417,7 +386,6 @@ struct Harness {
     engine: Arc<UpdaterEngine<FakeClient>>,
     client: FakeClient,
     settings: FakeSettings,
-    feeds: FakeFeeds,
     releases: FakeReleases,
     sink: VecSink,
     clock: SharedClock,
@@ -464,8 +432,6 @@ mod tempfile_guard {
 fn enabled_latest() -> UpdateSettings {
     UpdateSettings {
         enabled: true,
-        channel: Channel::Latest,
-        nightly_ack: false,
         feature: None,
     }
 }
@@ -473,8 +439,6 @@ fn enabled_latest() -> UpdateSettings {
 fn pinned(pr: i64) -> UpdateSettings {
     UpdateSettings {
         enabled: true,
-        channel: Channel::Latest,
-        nightly_ack: false,
         feature: Some(FeaturePin { pr }),
     }
 }
@@ -503,7 +467,6 @@ impl HarnessBuilder {
         let storage = UpdaterStorage::open(keep.path()).unwrap();
         let updater_root = storage.root().to_path_buf();
         let settings = FakeSettings::new(self.settings);
-        let feeds = FakeFeeds::new();
         let releases = FakeReleases::new(Ok(Vec::new()));
         let sink = VecSink::default();
         let clock = clock_at(BASE_TIME);
@@ -516,7 +479,6 @@ impl HarnessBuilder {
         let engine = Arc::new(UpdaterEngine::new(
             Arc::new(client.clone()),
             Arc::new(settings.clone()),
-            Arc::new(feeds.clone()),
             Arc::new(releases.clone()),
             storage,
             Arc::new(sink.clone()),
@@ -530,7 +492,6 @@ impl HarnessBuilder {
             engine,
             client,
             settings,
-            feeds,
             releases,
             sink,
             clock,
@@ -547,7 +508,7 @@ fn staged_at(status: &UpdateStatus) -> i64 {
 // ---------------------------------------------------------------- channel
 
 #[test]
-fn channel_selects_latest_and_nightly_feed_urls() {
+fn channel_selects_latest_and_feature_feed_urls() {
     assert_eq!(
         select_feed_url(
             "https://releases.example.com/op/",
@@ -556,15 +517,6 @@ fn channel_selects_latest_and_nightly_feed_urls() {
         )
         .unwrap(),
         "https://releases.example.com/op/latest.json"
-    );
-    assert_eq!(
-        select_feed_url(
-            "https://releases.example.com/op",
-            ActiveChannel::Nightly,
-            true
-        )
-        .unwrap(),
-        "https://releases.example.com/op/nightly.json"
     );
     assert_eq!(
         select_feed_url(
@@ -688,10 +640,6 @@ fn feed_offers_candidate_permits_downgrades_and_rejects_equality() {
     );
     assert!(!feed_offers_candidate("2.0.0", "2.0.0"));
     assert!(feed_offers_candidate("2.0.0", "2.0.1"));
-    assert!(
-        feed_offers_candidate("2.0.0-nightly.202608010000", "2.0.0"),
-        "a nightly running build is offered stable of the same base"
-    );
 }
 
 #[test]
@@ -702,11 +650,6 @@ fn parse_feature_build_matches_electron_parser() {
         Some(2270)
     );
     assert_eq!(parse_feature_build("0.2.0"), None);
-    assert_eq!(parse_feature_build("0.3.0-nightly.202607060000"), None);
-    assert_eq!(
-        parse_feature_build("0.3.0-nightly.202607060000+abc1234"),
-        None
-    );
     assert_eq!(parse_feature_build(""), None);
     assert_eq!(parse_feature_build("0.2.0-pr0.202607061200"), None);
 }
@@ -715,11 +658,8 @@ fn parse_feature_build_matches_electron_parser() {
 fn settings_coerce_matches_daemon_normalization() {
     let coerced = coerce_settings(&json!({
         "enabled": true,
-        "channel": "bogus",
-        "nightlyAck": true,
         "feature": { "pr": 2709 },
     }));
-    assert_eq!(coerced.channel, Channel::Latest);
     assert_eq!(coerced.feature, Some(FeaturePin { pr: 2709 }));
 
     let cleared = coerce_settings(&json!({ "enabled": false, "feature": { "pr": -1 } }));
@@ -732,6 +672,20 @@ fn settings_coerce_matches_daemon_normalization() {
     let active = pinned(42);
     assert_eq!(active.active_channel(), ActiveChannel::Feature(42));
     assert_eq!(enabled_latest().active_channel(), ActiveChannel::Latest);
+}
+
+#[test]
+fn settings_parse_ignores_removed_channel_keys() {
+    let parsed = coerce_settings(&json!({
+        "enabled": true, "channel": "latest", "feature": null
+    }));
+    assert_eq!(
+        parsed,
+        UpdateSettings {
+            enabled: true,
+            feature: None
+        }
+    );
 }
 
 #[tokio::test]
@@ -851,7 +805,6 @@ async fn reconcile_pin_keeps_live_pins_and_clears_retired_ones() {
     let retired_result = reconcile_feature_pin(&retired, pinned(2270), BASE_TIME).await;
     assert!(retired_result.cleared);
     assert_eq!(retired_result.settings.feature, None);
-    assert_eq!(retired_result.settings.channel, Channel::Latest);
 
     let failing = FakeReleases::new(Err("rate limited".to_string()));
     let failing_result = reconcile_feature_pin(&failing, pinned(2270), BASE_TIME).await;
@@ -951,51 +904,9 @@ fn failure_outcomes_carry_phase_trigger_and_target_version() {
 // ---------------------------------------------------------------- escalation
 
 #[test]
-fn escalation_latest_channel_uses_the_48h_rule() {
-    let now = BASE_TIME;
-    let input = |staged_at: i64| EscalationInput {
-        channel: Channel::Latest,
-        staged_at_ms: staged_at,
-        now_ms: now,
-        important: false,
-        running_version: "0.10.4",
-        latest_stable_version: Some("0.10.5"),
-    };
-    assert!(!evaluate_escalation(input(now - H48_MS + 1000)));
-    assert!(evaluate_escalation(input(now - H48_MS)));
-    assert!(evaluate_escalation(input(now - H48_MS - 1)));
-}
-
-#[test]
-fn escalation_nightly_uses_importance_and_stable_comparison() {
-    const fn input<'a>(running: &'a str, stable: Option<&'a str>) -> EscalationInput<'a> {
-        EscalationInput {
-            channel: Channel::Nightly,
-            staged_at_ms: BASE_TIME,
-            now_ms: BASE_TIME,
-            important: false,
-            running_version: running,
-            latest_stable_version: stable,
-        }
-    }
-    let important = EscalationInput {
-        important: true,
-        ..input("0.10.4-nightly.202607031330", None)
-    };
-    assert!(evaluate_escalation(important));
-    assert!(evaluate_escalation(input(
-        "0.10.4-nightly.202607031330",
-        Some("0.10.4")
-    )));
-    assert!(!evaluate_escalation(input(
-        "0.10.4-nightly.202607031330",
-        Some("0.10.3")
-    )));
-    assert!(!evaluate_escalation(input(
-        "0.10.4-nightly.202607031330",
-        None
-    )));
-    assert!(!evaluate_escalation(input("not-a-version", Some("0.10.4"))));
+fn escalation_is_the_48_hour_rule() {
+    assert!(!escalation::evaluate_escalation(0, escalation::H48_MS - 1));
+    assert!(escalation::evaluate_escalation(0, escalation::H48_MS));
 }
 
 // ---------------------------------------------------------------- storage
@@ -1137,8 +1048,6 @@ fn first_run_opt_in_policy_writes_expected_defaults() {
         first_run_settings(FirstRunAnswer::Decline),
         UpdateSettings {
             enabled: false,
-            channel: Channel::Latest,
-            nightly_ack: false,
             feature: None,
         }
     );
@@ -1146,23 +1055,8 @@ fn first_run_opt_in_policy_writes_expected_defaults() {
         first_run_settings(FirstRunAnswer::EnableLatest),
         UpdateSettings {
             enabled: true,
-            channel: Channel::Latest,
-            nightly_ack: false,
             feature: None,
         }
-    );
-    assert_eq!(
-        first_run_settings(FirstRunAnswer::EnableNightlyAcked),
-        UpdateSettings {
-            enabled: true,
-            channel: Channel::Nightly,
-            nightly_ack: true,
-            feature: None,
-        }
-    );
-    assert_eq!(
-        first_run_settings(FirstRunAnswer::EnableNightlyDeclined),
-        first_run_settings(FirstRunAnswer::EnableLatest)
     );
 }
 
@@ -1445,67 +1339,6 @@ async fn downloaded_flow_keeps_request_ownership_through_rebroadcasts() {
 }
 
 #[tokio::test]
-async fn manifest_404s_broadcast_friendly_errors_per_operation() {
-    let err = "Cannot find latest-mac.yml in the latest release artifacts\nHttpError: 404 \"method: GET url: https://x/latest-mac.yml\"";
-
-    let check_harness = harness().build(FakeClient::new().failed_check(err));
-    check_harness
-        .engine
-        .manual_check(CheckOptions::default())
-        .await;
-    assert_eq!(
-        check_harness.engine.status().message.as_deref(),
-        Some(MANIFEST_404_CHECK_MESSAGE)
-    );
-
-    let download_harness = harness().build(
-        FakeClient::new()
-            .release_check("2.0.0")
-            .failed_download(err),
-    );
-    download_harness
-        .engine
-        .manual_check(CheckOptions::default())
-        .await;
-    download_harness.engine.download_now(None).await;
-    assert_eq!(
-        download_harness.engine.status().message.as_deref(),
-        Some(MANIFEST_404_DOWNLOAD_MESSAGE)
-    );
-}
-
-#[tokio::test]
-async fn manifest_404_restores_a_staged_build_instead_of_erroring() {
-    let err = "Cannot find latest-mac.yml artifacts\nHttpError: 404";
-    let h = harness().build(
-        FakeClient::new()
-            .release_check("2.1.0")
-            .progress_plan(&[])
-            .download_bytes(b"pkg")
-            .failed_check(err),
-    );
-    h.engine.manual_check(CheckOptions::default()).await;
-    h.engine.download_now(None).await;
-    assert_eq!(h.engine.status().state, UpdateState::Downloaded);
-
-    h.engine.manual_check(CheckOptions::default()).await;
-
-    assert_eq!(h.engine.status().state, UpdateState::Downloaded);
-    assert_eq!(h.engine.status().version.as_deref(), Some("2.1.0"));
-}
-
-#[tokio::test]
-async fn non_manifest_404_errors_surface_verbatim() {
-    let err = "HttpError: 404 \"method: GET url: https://x/some-file.png\"";
-    let h = harness().build(FakeClient::new().failed_check(err));
-
-    h.engine.manual_check(CheckOptions::default()).await;
-
-    assert_eq!(h.engine.status().state, UpdateState::Error);
-    assert_eq!(h.engine.status().message.as_deref(), Some(err));
-}
-
-#[tokio::test]
 async fn unpackaged_shell_reports_unsupported_without_touching_settings() {
     let mut builder = harness();
     builder.packaged = false;
@@ -1543,25 +1376,19 @@ async fn unpackaged_shell_reports_unsupported_without_touching_settings() {
 #[tokio::test]
 async fn return_home_clears_the_pin_through_settings_before_checking_home() {
     let mut builder = harness();
-    builder.settings = UpdateSettings {
-        enabled: true,
-        channel: Channel::Nightly,
-        nightly_ack: true,
-        feature: Some(FeaturePin { pr: 2270 }),
-    };
+    builder.settings = pinned(2270);
     let h = builder.build(FakeClient::new().no_release());
 
     h.engine.return_home(Some("req-1".to_string())).await;
 
     assert_eq!(
         h.client.urls(),
-        vec!["https://releases.example.com/operator/nightly.json"]
+        vec!["https://releases.example.com/operator/latest.json"]
     );
     let writes = h.settings.writes();
     assert_eq!(writes.len(), 1);
     assert_eq!(writes[0].feature, None);
-    assert_eq!(writes[0].channel, Channel::Nightly);
-    assert!(writes[0].nightly_ack);
+    assert!(writes[0].enabled);
     assert_eq!(h.settings.order(), vec!["read", "write"]);
     assert_eq!(h.client.event_log(), vec!["check"]);
     let statuses = h.sink.statuses();
@@ -1575,12 +1402,7 @@ async fn return_home_clears_the_pin_through_settings_before_checking_home() {
 async fn return_home_to_an_older_home_channel_still_offers_it() {
     let mut builder = harness();
     builder.app_version = "2.0.0".to_string();
-    builder.settings = UpdateSettings {
-        enabled: true,
-        channel: Channel::Latest,
-        nightly_ack: false,
-        feature: Some(FeaturePin { pr: 2270 }),
-    };
+    builder.settings = pinned(2270);
     let h = builder.build(FakeClient::new().release_check("1.9.9"));
 
     h.engine.return_home(Some("req-home".to_string())).await;
@@ -1630,12 +1452,7 @@ async fn retirement_poll_clears_a_retired_pin_only_if_unchanged() {
         BASE_TIME - 24 * 60 * 60 * 1000,
         Some(marker(2710)),
     )]));
-    h.settings.replace_current(UpdateSettings {
-        enabled: true,
-        channel: Channel::Nightly,
-        nightly_ack: true,
-        feature: Some(FeaturePin { pr: 2710 }),
-    });
+    h.settings.replace_current(pinned(2710));
     h.engine.run_retirement_tick().await;
 
     let writes = h.settings.writes();
@@ -1672,20 +1489,11 @@ async fn apply_settings_arms_and_disarms_the_scheduler_without_local_writes() {
     let h = builder.build(FakeClient::new());
 
     assert!(!h.engine.automatic_scheduled_snapshot());
-    h.engine
-        .apply_settings(UpdateSettings {
-            enabled: true,
-            channel: Channel::Latest,
-            nightly_ack: false,
-            feature: None,
-        })
-        .await;
+    h.engine.apply_settings(enabled_latest()).await;
     assert!(h.engine.automatic_scheduled_snapshot());
     h.engine
         .apply_settings(UpdateSettings {
             enabled: false,
-            channel: Channel::Latest,
-            nightly_ack: false,
             feature: None,
         })
         .await;
@@ -1767,41 +1575,6 @@ async fn active_feature_reporting_parses_the_running_version() {
 
     let stable_harness = harness().build(FakeClient::new());
     assert_eq!(stable_harness.engine.active_feature(), None);
-}
-
-#[tokio::test]
-async fn nightly_escalation_uses_importance_then_stale_stable_comparison() {
-    let mut builder = harness();
-    builder.settings.channel = Channel::Nightly;
-    builder.settings.nightly_ack = true;
-    let h = builder.build(
-        FakeClient::new()
-            .release_check("2.1.0-nightly.202608010000")
-            .progress_plan(&[])
-            .download_bytes(b"pkg"),
-    );
-    h.feeds.state.lock().unwrap().important = true;
-    h.engine.manual_check(CheckOptions::default()).await;
-    h.engine.download_now(None).await;
-    assert_eq!(
-        h.engine.status().escalated,
-        Some(true),
-        "an important nightly escalates immediately"
-    );
-
-    h.feeds.state.lock().unwrap().important = false;
-    h.feeds.state.lock().unwrap().stable = Some("1.0.1".to_string());
-    *h.clock.lock().unwrap() = BASE_TIME + ESCALATION_STEP;
-    h.engine.run_escalation_tick().await;
-    assert_eq!(
-        h.engine.status().escalated,
-        Some(true),
-        "a nightly behind stable escalates"
-    );
-
-    h.feeds.state.lock().unwrap().stable = Some("0.9.0".to_string());
-    h.engine.run_escalation_tick().await;
-    assert_eq!(h.engine.status().escalated, Some(false));
 }
 
 #[tokio::test]
@@ -1935,8 +1708,6 @@ fn recover_sweeps_stale_intents_and_reports_pending() {
         .collect();
     assert_eq!(remaining, vec!["2.1.0"]);
 }
-
-const ESCALATION_STEP: i64 = 30 * 60 * 1000;
 
 fn release(
     tag_name: &str,
