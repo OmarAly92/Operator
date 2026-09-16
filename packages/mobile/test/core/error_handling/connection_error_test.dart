@@ -91,6 +91,13 @@ void main() {
       expect(d.isAuth, isTrue);
     });
 
+    test('a local save failure blames the phone, not the desktop', () {
+      final d = describeConnectionFailure(ConnectionFailure.local, host: '', port: '', platform: TargetPlatform.iOS);
+      expect(d.title, "Couldn't save this desktop");
+      expect(d.message, contains('saved desktops'));
+      expect(d.showLocalNetworkHint, isFalse);
+    });
+
     test('only the auth copy is flagged isAuth', () {
       for (final reason in ConnectionFailure.values) {
         final d = describeConnectionFailure(reason, host: '', port: '', platform: TargetPlatform.iOS);

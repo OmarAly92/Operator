@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError }
+enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError, local }
 
 ConnectionFailure classifyConnectionFailure(int? status) {
   if (status == null || status < 0) return ConnectionFailure.unreachable;
@@ -92,6 +92,12 @@ ConnectionErrorCopy describeConnectionFailure(
       return ConnectionErrorCopy(
         title: 'Your desktop returned an error',
         message: '$host:$port answered, but with an error. Check the Operator logs on your computer.',
+        showLocalNetworkHint: false,
+      );
+    case ConnectionFailure.local:
+      return const ConnectionErrorCopy(
+        title: "Couldn't save this desktop",
+        message: "This phone couldn't update its saved desktops. Try again.",
         showLocalNetworkHint: false,
       );
   }

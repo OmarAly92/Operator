@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:operator_mobile/core/api/server_config.dart';
 import 'package:operator_mobile/core/api/server_config_store.dart';
 import 'package:operator_mobile/core/error_handling/failures/failure.dart';
+import 'package:operator_mobile/core/error_handling/connection_error.dart';
 import 'package:operator_mobile/core/helpers/result/result.dart';
 import 'package:operator_mobile/feature/pairing/data/data_source/pairing_remote_data_source.dart';
 import 'package:operator_mobile/feature/pairing/data/model/desktop_identity_model.dart';
@@ -129,4 +130,81 @@ void main() {
       expect(params.name, 'Studio');
     },
   );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'connectTo does not activate or set the store when the desktop was removed mid-connect',
+    build: build,
+    setUp: () {
+      when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
+    },
+    act: (cubit) {
+      cubit.desktops = [_a];
+      when(() => remote.identify(_config)).thenAnswer((_) async {
+        cubit.desktops = const [];
+        return const DesktopIdentityModel(name: 'Mac');
+      });
+      return cubit.connectTo('a', TargetPlatform.iOS);
+    },
+    expect: () => [const ConnectLoadingState('a')],
+    verify: (cubit) {
+      verifyNever(() => desktops.activate(any()));
+      verifyNever(() => store.set(any()));
+      expect(cubit.connectingId, isNull);
+    },
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'a failed activate emits the local failure copy and does not set the store',
+    build: build,
+    setUp: () {
+      when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
+      when(() => remote.identify(_config)).thenAnswer((_) async => const DesktopIdentityModel(name: 'Mac'));
+      when(() => desktops.activate('a')).thenAnswer((_) async => Result.failure(LocalFailure<void>(error: 'disk')));
+    },
+    act: (cubit) {
+      cubit.desktops = [_a];
+      return cubit.connectTo('a', TargetPlatform.iOS);
+    },
+    expect: () => [
+      const ConnectLoadingState('a'),
+      isA<ConnectFailureState>().having((s) => s.copy.title, 'title', "Couldn't save this desktop"),
+    ],
+    verify: (cubit) {
+      verifyNever(() => store.set(any()));
+      expect(cubit.errors['a']?.title, "Couldn't save this desktop");
+      expect(cubit.connectingId, isNull);
+    },
+  );
+
+  blocTest<ConnectionsCubit, ConnectionsState>(
+    'a failed remove leaves the store untouched',
+    build: build,
+    setUp: () {
+      when(() => desktops.remove('a')).thenAnswer((_) async => Result.failure(LocalFailure<void>(error: 'disk')));
+    },
+    act: (cubit) {
+      cubit.desktops = [_a.copyWithActive(true)];
+      return cubit.remove('a');
+    },
+    expect: () => <ConnectionsState>[],
+    verify: (_) => verifyNever(() => store.clear()),
+  );
+
+  test('connectingId is cleared when identify throws a non-Failure', () async {
+    when(() => desktops.passwordFor('a')).thenAnswer((_) async => Result.success('pw'));
+    when(() => remote.identify(_config)).thenThrow(StateError('boom'));
+    final cubit = build();
+    cubit.desktops = [_a];
+
+    await expectLater(cubit.connectTo('a', TargetPlatform.iOS), throwsA(isA<StateError>()));
+
+    expect(cubit.connectingId, isNull);
+    await cubit.close();
+  });
+
+  test('describeConnectionFailure knows the local reason', () {
+    final copy = describeConnectionFailure(ConnectionFailure.local, host: '', port: '', platform: TargetPlatform.iOS);
+    expect(copy.title, "Couldn't save this desktop");
+    expect(copy.isAuth, isFalse);
+  });
 }

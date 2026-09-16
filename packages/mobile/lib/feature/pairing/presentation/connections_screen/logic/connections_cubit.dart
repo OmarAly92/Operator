@@ -49,25 +49,36 @@ class ConnectionsCubit extends Cubit<ConnectionsState> {
     errors.remove(id);
     emit(ConnectLoadingState(id));
 
-    final password = await _desktops.passwordFor(id);
-    final config = desktop.toServerConfig(password.valueOrNull ?? '');
     try {
-      await _remote.identify(config);
-      await _desktops.activate(id);
-      _store.set(config);
+      final password = await _desktops.passwordFor(id);
+      final config = desktop.toServerConfig(password.valueOrNull ?? '');
+      try {
+        await _remote.identify(config);
+        if (byId(id) == null) return;
+        final activated = await _desktops.activate(id);
+        if (activated.isFailure) {
+          _fail(id, desktop, ConnectionFailure.local, platform);
+          return;
+        }
+        _store.set(config);
+        emit(ConnectSuccessState(id));
+      } on Failure catch (failure) {
+        _fail(id, desktop, classifyConnectionFailure(failure.statusCode), platform);
+      }
+    } finally {
       connectingId = null;
-      emit(ConnectSuccessState(id));
-    } on Failure catch (failure) {
-      connectingId = null;
-      final copy = describeConnectionFailure(
-        classifyConnectionFailure(failure.statusCode),
-        host: desktop.host ?? '',
-        port: desktop.port ?? '',
-        platform: platform,
-      );
-      errors[id] = copy;
-      emit(ConnectFailureState(id, copy));
     }
+  }
+
+  void _fail(String id, DesktopModel desktop, ConnectionFailure reason, TargetPlatform platform) {
+    final copy = describeConnectionFailure(
+      reason,
+      host: desktop.host ?? '',
+      port: desktop.port ?? '',
+      platform: platform,
+    );
+    errors[id] = copy;
+    emit(ConnectFailureState(id, copy));
   }
 
   Future<void> rename(String id, String name) async {
@@ -78,7 +89,8 @@ class ConnectionsCubit extends Cubit<ConnectionsState> {
 
   Future<void> remove(String id) async {
     final wasActive = byId(id)?.isActive ?? false;
-    await _desktops.remove(id);
+    final result = await _desktops.remove(id);
+    if (result.isFailure) return;
     errors.remove(id);
     if (wasActive) _store.clear();
   }
