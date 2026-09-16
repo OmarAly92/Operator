@@ -1,8 +1,6 @@
 // Generates the Tauri v2 updater JSON feed (<channel>.json) for a release's
-// updater archives, alongside the Electron-compatibility YAML feeds consumed
-// by the installed fleet (latest*.yml / nightly*.yml / pr<N>*.yml). Dependency-
-// free ESM mirroring feed.mjs so CI runs `node scripts/tauri-feed.mjs` directly
-// and node:test unit-tests the pure functions.
+// updater archives. Dependency-free ESM so CI runs `node scripts/tauri-feed.mjs`
+// directly and node:test unit-tests the pure functions.
 //
 // The builder is deliberately strict: it refuses invalid semver, missing .sig
 // sidecars, wrong OS/architecture assets, cross-channel assets, insecure
@@ -11,11 +9,10 @@
 // can never write latest* or nightly* manifests (#2270 poisoning class).
 //
 // macOS permanence: whenever a mac updater archive (.app.tar.gz) is selected,
-// the same directory must carry the matching ditto zip, so the compatibility
-// latest-mac.yml / nightly-mac.yml keeps pointing at a real zip every release.
+// the same directory must carry the matching ditto zip, so `opr start` keeps
+// finding a real zip to download every release.
 import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { generateFeeds as generateCompatYaml } from "./feed.mjs";
 
 export const UPDATER_PLATFORM_KEYS = Object.freeze([
 	"darwin-aarch64",
@@ -299,7 +296,7 @@ export function buildTauriFeed({ version, notes = "", pubDate, platforms, allowI
 }
 
 export function expectedFeedFilenames(channel) {
-	return [`${channel}.json`, `${channel}.yml`, `${channel}-mac.yml`, `${channel}-linux.yml`];
+	return [`${channel}.json`];
 }
 
 export function assertNoCrossChannelFeedNames(channel, writtenNames) {
@@ -319,10 +316,9 @@ export function missingAliases(presentNames) {
 	return VERSION_FREE_ALIASES.filter((alias) => !present.has(alias));
 }
 
-// generateFeeds writes `<channel>.json` plus the Electron-compatibility YAMLs
-// for everything already sitting in dir. options:
-//   releaseDate     ISO timestamp stamped into both feeds
-//   important       flags the nightly escalation bit in compat YAMLs
+// generateFeeds writes `<channel>.json` for everything already sitting in dir.
+// options:
+//   releaseDate     ISO timestamp stamped into the feed
 //   notes           release notes string for the JSON feed
 //   baseUrl         feed base used to validate absolute urls (default production)
 //   allowInsecure   permits loopback http urls (local dev only)
@@ -330,7 +326,6 @@ export function missingAliases(presentNames) {
 export async function generateFeeds(dir, rawVersion, channel, options = {}) {
 	const {
 		releaseDate = new Date().toISOString(),
-		important = false,
 		notes = "",
 		allowInsecure = false,
 		skipMacZipRequirement = false,
@@ -374,16 +369,13 @@ export async function generateFeeds(dir, rawVersion, channel, options = {}) {
 		}),
 	);
 
-	await generateCompatYaml(dir, rawVersion, channel, releaseDate, important, { blockmap: false });
-
-	const written = readdirSync(dir).filter((name) => name.endsWith(".json") || name.endsWith(".yml"));
+	const written = readdirSync(dir).filter((name) => name.endsWith(".json"));
 	assertNoCrossChannelFeedNames(channel, written);
 	return written.sort();
 }
 
 // requireMacDittoZips enforces macOS permanence: every mac updater archive in
-// the feed must be accompanied by its ditto zip, so latest-mac.yml /
-// nightly-mac.yml always point at a real published zip.
+// the feed must be accompanied by its ditto zip.
 function requireMacDittoZips(names, version, selected, { skip = false } = {}) {
 	if (skip) return;
 	const bare = stripBuildMetadata(version);
@@ -396,18 +388,18 @@ function requireMacDittoZips(names, version, selected, { skip = false } = {}) {
 		if (!selected[platform]) continue;
 		if (!macZipFor(archToken)) {
 			throw new Error(
-				`tauri-feed: no ditto zip beside the ${platform} updater archive; the permanent ${archToken} zip (and with it latest-mac.yml) would go missing`,
+				`tauri-feed: no ditto zip beside the ${platform} updater archive; the permanent ${archToken} zip opr start downloads would go missing`,
 			);
 		}
 	}
 }
 
 // CLI: node scripts/tauri-feed.mjs <dir> <version> <channel>
-//        [--release-date <iso>] [--important] [--notes <text>]
+//        [--release-date <iso>] [--notes <text>]
 if (import.meta.url === `file://${process.argv[1]}`) {
 	const [, , dir, version, channel] = process.argv;
 	if (!dir || !version || !channel) {
-		process.stderr.write("usage: node tauri-feed.mjs <dir> <version> <channel> [--release-date <iso>] [--important] [--notes <text>]\n");
+		process.stderr.write("usage: node tauri-feed.mjs <dir> <version> <channel> [--release-date <iso>] [--notes <text>]\n");
 		process.exit(2);
 	}
 	const flagValue = (flag) => {
@@ -416,7 +408,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 	};
 	generateFeeds(dir, version, channel, {
 		releaseDate: flagValue("--release-date") ?? new Date().toISOString(),
-		important: process.argv.includes("--important"),
 		notes: flagValue("--notes") ?? "",
 	})
 		.then((written) => {

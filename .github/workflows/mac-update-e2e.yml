@@ -18,7 +18,7 @@ name: macOS update e2e
 #
 # Requires, both hard:
 #   - The baseline release's signed macOS zip alias is published.
-#   - The target version's release and latest.json / latest-mac.yml feeds are
+#   - The target version's release and latest.json feed are
 #     already live.
 
 on:
@@ -110,10 +110,7 @@ jobs:
             "/Applications/Operator.app/Contents/Info.plist"
 
       - name: Check the baseline is the Tauri shell
-        # The harness drives the Tauri updater engine only. An Electron bundle
-        # has no engine, no staging record and no daemon settings PATCH path,
-        # so the run could only ever burn the full download timeout and report
-        # a "never staged" failure that looks like a broken update. Same check
+        # The harness drives the Tauri updater engine only. Same check
         # the harness makes, hoisted into its own step so an incapable baseline
         # is unmistakable in the log.
         run: |

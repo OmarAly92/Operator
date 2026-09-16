@@ -272,8 +272,7 @@ async function run(opts) {
 	if (startVersion === opts.expectVersion) {
 		throw new UsageError(`baseline is already ${opts.expectVersion}; --expect-version must be the NEW version`);
 	}
-	// Fail fast on an Electron bundle: it has no Tauri updater engine, so the
-	// staging poll below could only ever time out.
+	// Fail fast when the bundle has no Tauri updater engine.
 	const identifier = plistValue(opts.app, "CFBundleIdentifier");
 	if (identifier !== "dev.operator.desktop") {
 		throw new UsageError(

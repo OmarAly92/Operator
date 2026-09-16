@@ -2,9 +2,8 @@
 #
 # package-tauri-mac-zip.sh <path-to-Operator.app> <output.zip>
 #
-# Archives the SIGNED macOS app for release and for the permanent Electron
-# compatibility feed (latest-mac.yml points at this zip). Exactly one archive
-# command is allowed, per AGENTS.md:
+# Archives the SIGNED macOS app for release and for the permanent zip
+# `opr start` downloads. Exactly one archive command is allowed, per AGENTS.md:
 #
 #   ditto -c -k --sequesterRsrc --keepParent
 #

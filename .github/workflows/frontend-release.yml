@@ -1,7 +1,7 @@
 name: Desktop release
 
 # Builds and publishes the Tauri desktop app. Generates a GitHub Release with
-# installers + Tauri updater feeds + Electron-compatibility YAML feeds, then
+# installers + the Tauri updater feed, then
 # uploads stable, version-free asset aliases so `opr start`'s constant
 # releases/latest/download/<name> URL resolves.
 #
@@ -466,11 +466,9 @@ jobs:
           echo "::error::opr-stable-gate: app smoke failed and OPERATOR_GATE_BLOCKING=true — failing the release."
           exit 1
 
-  # After every platform has built and uploaded its installers, generate BOTH
-  # feed families from the versioned assets and upload them to the same
-  # release: latest.json (Tauri updater) plus latest*.yml (Electron
-  # compatibility for the installed fleet, including the permanent
-  # latest-mac.yml). Runs once, on Linux: it only hashes already-built assets.
+  # After every platform has built and uploaded its installers, generate latest.json
+  # from the versioned assets and upload it to the same release. Runs once, on
+  # Linux: it only hashes already-built assets.
   publish-feed:
     needs: [release, release-intel]
     runs-on: ubuntu-latest
@@ -499,6 +497,6 @@ jobs:
           gh release download "$TAG" --dir dist --clobber
           node scripts/tauri-feed.mjs dist "${TAG#v}" latest --release-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --notes "Operator desktop release ${TAG}."
           shopt -s nullglob
-          assets=(dist/latest.json dist/latest*.yml)
+          assets=(dist/latest.json)
           if [ ${#assets[@]} -eq 0 ]; then echo "no feed assets generated" >&2; exit 1; fi
           gh release upload "$TAG" "${assets[@]}" --clobber

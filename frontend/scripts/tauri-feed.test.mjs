@@ -9,7 +9,6 @@ import {
 	UPDATER_PLATFORM_KEYS,
 	VERSION_FREE_ALIASES,
 	assertChannelVersion,
-	assertNoCrossChannelFeedNames,
 	assertNoPrivateKeyMaterial,
 	buildTauriFeed,
 	expectedFeedFilenames,
@@ -285,23 +284,9 @@ test("buildTauriFeed rejects unknown and duplicate platforms", () => {
 	);
 });
 
-test("expectedFeedFilenames keeps pr channels off latest*/nightly*", () => {
-	assert.deepEqual(expectedFeedFilenames("latest"), ["latest.json", "latest.yml", "latest-mac.yml", "latest-linux.yml"]);
-	assert.deepEqual(expectedFeedFilenames("nightly"), [
-		"nightly.json",
-		"nightly.yml",
-		"nightly-mac.yml",
-		"nightly-linux.yml",
-	]);
-	assert.deepEqual(expectedFeedFilenames("pr2270"), [
-		"pr2270.json",
-		"pr2270.yml",
-		"pr2270-mac.yml",
-		"pr2270-linux.yml",
-	]);
-	assert.throws(() => assertNoCrossChannelFeedNames("pr2270", ["latest-mac.yml"]), /latest/);
-	assert.throws(() => assertNoCrossChannelFeedNames("pr2270", ["nightly.json"]), /nightly/);
-	assert.doesNotThrow(() => assertNoCrossChannelFeedNames("pr2270", ["pr2270.json", "pr2270-mac.yml"]));
+test("expectedFeedFilenames is the single Tauri manifest per channel", () => {
+	assert.deepEqual(expectedFeedFilenames("latest"), ["latest.json"]);
+	assert.deepEqual(expectedFeedFilenames("pr2270"), ["pr2270.json"]);
 });
 
 test("missingAliases reports every unpublished version-free alias", () => {
@@ -313,26 +298,16 @@ test("missingAliases reports every unpublished version-free alias", () => {
 	assert.equal(VERSION_FREE_ALIASES.length, 6);
 });
 
-test("generateFeeds writes the Tauri JSON feed plus compat YAMLs and no blockmaps", async () => {
+test("generateFeeds writes only the Tauri JSON feed", async () => {
 	const dir = fixtureDir(BASE_FILES());
-	await generateFeeds(dir, V, "latest", { releaseDate: "2026-08-24T00:00:00Z" });
+	const written = await generateFeeds(dir, V, "latest", { releaseDate: "2026-08-24T00:00:00Z" });
+	assert.deepEqual(written, ["latest.json"]);
 
 	const json = JSON.parse(readFileSync(join(dir, "latest.json"), "utf8"));
 	assert.equal(json.version, V);
 	assert.equal(json.platforms["darwin-aarch64"].url, "operator-darwin-arm64-0.10.4.app.tar.gz");
 	assert.ok(json.platforms["darwin-aarch64"].signature.length > 0);
 	assert.equal(json.platforms["linux-x86_64"].url, "operator_0.10.4_amd64.AppImage");
-
-	const names = readdirSync(dir).sort();
-	assert.ok(names.includes("latest-mac.yml"));
-	assert.ok(names.includes("latest.yml"));
-	assert.ok(names.includes("latest-linux.yml"));
-	assert.ok(!names.some((name) => name.endsWith(".blockmap")));
-
-	const macYml = readFileSync(join(dir, "latest-mac.yml"), "utf8");
-	assert.ok(macYml.includes("url: Operator-darwin-arm64-0.10.4.zip"));
-	const winYml = readFileSync(join(dir, "latest.yml"), "utf8");
-	assert.ok(winYml.includes("Operator_0.10.4_x64-setup.exe"));
 
 	rmSync(dir, { recursive: true, force: true });
 });
@@ -349,7 +324,7 @@ test("generateFeeds requires the macOS ditto zip beside every mac updater archiv
 	const files = BASE_FILES();
 	delete files["Operator-darwin-arm64-0.10.4.zip"];
 	const dir = fixtureDir(files);
-	await assert.rejects(() => generateFeeds(dir, V, "latest", {}), /ditto zip|latest-mac\.yml|zip/);
+	await assert.rejects(() => generateFeeds(dir, V, "latest", {}), /ditto zip/);
 	rmSync(dir, { recursive: true, force: true });
 });
 

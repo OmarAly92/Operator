@@ -2,8 +2,8 @@ name: Desktop feature release
 
 # Manual-only, per-unmerged-PR prerelease build. Produces a signed Tauri
 # installer for a single PR's head SHA, published as a prerelease under the
-# isolated `pr<N>` channel. This channel writes ONLY pr<N>.json plus pr<N>*.yml
-# compatibility feeds — it can never disrupt stable or nightly auto-updates.
+# isolated `pr<N>` channel. This channel writes ONLY pr<N>.json — it can never
+# disrupt stable auto-updates.
 # Only one live feature build per PR is allowed; a new run deletes the previous
 # one before publishing. The build jobs are gated by the `release` environment
 # (same required-reviewer approval as the stable release workflow).
@@ -14,7 +14,7 @@ name: Desktop feature release
 #
 # Version format: <base>-pr<N>.<UTCts>+<sha>  (computed in the guard job via
 # the GitHub contents API + bash; no PR-controlled code ever executes there)
-# Feed channel:   pr<N>          (e.g. pr42.json, pr42.yml, pr42-mac.yml)
+# Feed channel:   pr<N>          (e.g. pr42.json)
 
 on:
   workflow_dispatch:
@@ -494,9 +494,8 @@ jobs:
           gh release upload "$TAG" dist/* --clobber
 
   # ── publish-feed ──────────────────────────────────────────────────────────
-  # Generates the pr<N> feeds from the versioned prerelease assets — BOTH feed
-  # families: pr<N>.json (Tauri updater) and pr<N>*.yml (Electron
-  # compatibility). Includes a hard guard that rejects any feed file that
+  # Generates the pr<N> feed from the versioned prerelease assets — a single
+  # family: pr<N>.json (Tauri updater). The guard below aborts if anything
   # would write latest* or nightly* manifests. Gated by the `release`
   # environment: this job also deletes/renames GitHub releases with
   # `contents: write`, so it must never run on PR-controlled code without the
@@ -561,7 +560,7 @@ jobs:
           # Reject any generated feed file that matches latest* or nightly*.
           shopt -s nullglob
           bad_files=()
-          for f in dist/latest*.yml dist/latest*.json dist/nightly*.yml dist/nightly*.json; do
+          for f in dist/latest*.json; do
             [ -f "$f" ] && bad_files+=("$f")
           done
           if [ ${#bad_files[@]} -gt 0 ]; then
@@ -582,7 +581,7 @@ jobs:
           tag="v$version"
           channel="pr${PR_NUMBER}"
           shopt -s nullglob
-          assets=(dist/"${channel}".json dist/"${channel}"*.yml)
+          assets=(dist/"${channel}".json)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "::error::No feed assets generated for channel '$channel'" >&2
             exit 1

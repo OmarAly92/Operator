@@ -542,7 +542,7 @@ if [[ "$PLATFORM" == "darwin" ]]; then
 			inspect_mac_zip "$FIND_DIR" "$FIND_NAME"
 			TRUST_TARGETS+=("$FIND_DIR/$FIND_NAME")
 		else
-			fail "no operator-darwin-*.zip in $DIST or any --extra-dist (latest-mac.yml would lose its target)"
+			fail "no operator-darwin-*.zip in $DIST or any --extra-dist (opr start's permanent zip would go missing)"
 		fi
 
 		if find_across_dists "*.dmg"; then
@@ -573,7 +573,7 @@ if [[ "$PLATFORM" == "darwin" ]]; then
 				inspect_mac_zip "$FIND_DIR" "$FIND_NAME"
 				TRUST_TARGETS+=("$FIND_DIR/$FIND_NAME")
 			else
-				fail "no operator-darwin-${arch}*.zip in $DIST or any --extra-dist (--arch $arch declared; latest-mac.yml would lose its target)"
+				fail "no operator-darwin-${arch}*.zip in $DIST or any --extra-dist (--arch $arch declared; opr start's permanent zip would go missing)"
 			fi
 
 			if find_across_dists "${dmg_globs[@]}"; then

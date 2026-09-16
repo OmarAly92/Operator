@@ -1,8 +1,8 @@
 name: Release latest guard
 
 # Guard against accidental non-stable GitHub releases taking over
-# /releases/latest and breaking the stable channel (both the Tauri latest.json
-# feed and the Electron-compatibility YAML feeds the installed fleet follows).
+# /releases/latest and breaking the stable channel (the Tauri latest.json
+# feed).
 on:
   release:
     types: [published, edited, released]
@@ -50,9 +50,6 @@ jobs:
 
           required_assets=(
             latest.json
-            latest.yml
-            latest-mac.yml
-            latest-linux.yml
             operator-darwin-arm64.zip
             operator-win32-x64.exe
             operator-linux-x64.AppImage
