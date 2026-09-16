@@ -11,7 +11,7 @@
          network-security config cannot express that — it allowlists concrete
          domains, not address ranges. Matches the RN build's setting. -->
     <application
-        android:label="operator_mobile"
+        android:label="Operator"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
