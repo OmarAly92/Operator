@@ -90,7 +90,7 @@ jobs:
         id: wasm-bindgen-cli
         with:
           path: ~/.cargo/bin/wasm-bindgen*
-          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}
+          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}-${{ runner.arch }}
       - if: steps.wasm-bindgen-cli.outputs.cache-hit != 'true'
         run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
       - run: npm ci --prefix ../packages/terminal
@@ -299,7 +299,7 @@ jobs:
         id: wasm-bindgen-cli
         with:
           path: ~/.cargo/bin/wasm-bindgen*
-          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}
+          key: wasm-bindgen-cli-0.2.127-${{ runner.os }}-${{ runner.arch }}
       - if: steps.wasm-bindgen-cli.outputs.cache-hit != 'true'
         run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
       - run: npm ci --prefix ../packages/terminal
