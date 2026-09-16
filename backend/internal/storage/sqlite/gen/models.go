@@ -23,7 +23,7 @@ type AgentModelCatalog struct {
 
 type AgentNativeSession struct {
 	ID               domain.AgentNativeSessionID
-	AoSessionID      domain.SessionID
+	SessionID        domain.SessionID
 	Harness          domain.AgentHarness
 	ConfigDir        string
 	NativeSessionID  string

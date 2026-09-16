@@ -122,7 +122,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		"--no-context-files",
 		"--no-approve",
 		"--extension", extensionPath,
-		"--tools", "ao_read,ao_search,git_inspect,github_post_review,ao_review_submit",
+		"--tools", "opr_read,opr_search,git_inspect,github_post_review,opr_review_submit",
 		"--session-dir", sessionDir,
 	}
 	if inv.SystemPromptFile != "" {
@@ -192,4 +192,4 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 
 const piPolicy = `Pi reviewer security policy
 
-You are running in Pi's interactive TUI with no built-in tools and no project or user resources. Use only the Operator review tools supplied by the loaded Operator extension. Use github_post_review instead of the task file's gh command, and use ao_review_submit instead of its opr CLI command. Those structured tools enforce the current review queue and do not provide arbitrary shell execution. Never ask for or attempt to enable other tools or resources.`
+You are running in Pi's interactive TUI with no built-in tools and no project or user resources. Use only the Operator review tools supplied by the loaded Operator extension. Use github_post_review instead of the task file's gh command, and use opr_review_submit instead of its opr CLI command. Those structured tools enforce the current review queue and do not provide arbitrary shell execution. Never ask for or attempt to enable other tools or resources.`

@@ -14,7 +14,7 @@ can_write_dir() {
   [[ -d "${dir}" && -w "${dir}" ]]
 }
 
-resolve_ao() {
+resolve_opr() {
   local resolved
 
   resolved="$(command -v opr || true)"
@@ -52,7 +52,7 @@ select_install_dir() {
   local candidate
   local -a path_entries
   gopath="$(go env GOPATH)"
-  existing_path="$(resolve_ao)"
+  existing_path="$(resolve_opr)"
 
   if [[ -n "${existing_path}" && "${existing_path}" = /* ]] && can_write_dir "$(dirname "${existing_path}")"; then
     dirname "${existing_path}"
@@ -112,7 +112,7 @@ if [[ -n "${goexe}" ]]; then
   chmod +x "${shim_path}"
 fi
 
-resolved="$(resolve_ao)"
+resolved="$(resolve_opr)"
 if [[ -z "${resolved}" ]]; then
   printf 'opr did not resolve on PATH after installing %s\n' "${install_path}" >&2
   exit 1

@@ -128,7 +128,7 @@ Safe properties:
 - `error_category`, for example `daemon_unavailable`, `timeout`, or
   `backend_5xx`
 - `error_code`, when it is a stable code such as `CONNECTION_REFUSED`
-- `app_version` / `ao_version`
+- `app_version`
 - `telemetry_schema_version`
 
 Do not send raw error messages, stack traces, local paths, project names,

@@ -119,7 +119,6 @@ export function buildTelemetryContext(
 		// than by inferring from the platform value set.
 		client: "desktop",
 		app_version: version,
-		ao_version: version,
 		platform,
 		release_channel: channel,
 		build_mode: import.meta.env.DEV ? "dev" : "packaged",

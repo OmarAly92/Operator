@@ -425,8 +425,8 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 	}
 
 	props := emit(newSink(" 0.11.2 "))
-	if props["app_version"] != "0.11.2" || props["ao_version"] != "0.11.2" {
-		t.Fatalf("version properties = %#v / %#v, want trimmed 0.11.2", props["app_version"], props["ao_version"])
+	if props["app_version"] != "0.11.2" {
+		t.Fatalf("app_version = %#v, want trimmed 0.11.2", props["app_version"])
 	}
 
 	// An unset supervisor env var must leave the properties off rather than
@@ -434,8 +434,5 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 	props = emit(newSink(""))
 	if _, ok := props["app_version"]; ok {
 		t.Fatalf("app_version present without the option: %#v", props["app_version"])
-	}
-	if _, ok := props["ao_version"]; ok {
-		t.Fatalf("ao_version present without the option: %#v", props["ao_version"])
 	}
 }

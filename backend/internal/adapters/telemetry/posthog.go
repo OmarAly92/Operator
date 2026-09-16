@@ -214,7 +214,7 @@ type PostHogSink struct {
 	distinctID   string
 	defaultAgent string
 	tenure       *tenureTracker
-	// appVersion stamps app_version/ao_version on every exported event. Empty
+	// appVersion stamps app_version on every exported event. Empty
 	// leaves the properties off entirely rather than reporting a misleading
 	// "unknown" that would show up as a real version in release breakdowns.
 	appVersion string
@@ -343,7 +343,6 @@ func (s *PostHogSink) properties(ev ports.TelemetryEvent) map[string]any {
 	// carry app_version; these are the matching daemon-side values.
 	if s.appVersion != "" {
 		props["app_version"] = s.appVersion
-		props["ao_version"] = s.appVersion
 	}
 	// Which agent this install actually defaults to. Without it, "how many people
 	// use Claude versus Codex" is only answerable for sessions that were spawned,

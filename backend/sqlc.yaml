@@ -180,7 +180,7 @@ sql:
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "AgentNativeSessionID"
-          - column: "agent_native_sessions.ao_session_id"
+          - column: "agent_native_sessions.session_id"
             go_type:
               import: "github.com/OmarAly92/operator/backend/internal/domain"
               type: "SessionID"

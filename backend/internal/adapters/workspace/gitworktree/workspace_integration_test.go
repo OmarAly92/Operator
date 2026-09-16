@@ -431,7 +431,7 @@ func TestWorkspaceIntegrationCreateInRemotelessRepo(t *testing.T) {
 	run(t, git, "init", repo)
 	runGit(t, git, repo, "config", "core.autocrlf", "false")
 	runGit(t, git, repo, "config", "user.email", "opr@example.com")
-	runGit(t, git, repo, "config", "user.name", "Ao Agents")
+	runGit(t, git, repo, "config", "user.name", "Operator Agents")
 	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatalf("write seed: %v", err)
 	}
@@ -537,7 +537,7 @@ func setupOriginClone(t *testing.T, git, tmp string) string {
 	run(t, git, "init", seed)
 	runGit(t, git, seed, "config", "core.autocrlf", "false")
 	runGit(t, git, seed, "config", "user.email", "opr@example.com")
-	runGit(t, git, seed, "config", "user.name", "Ao Agents")
+	runGit(t, git, seed, "config", "user.name", "Operator Agents")
 	if err := os.WriteFile(filepath.Join(seed, "README.md"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatalf("write seed: %v", err)
 	}
@@ -553,7 +553,7 @@ func setupOriginClone(t *testing.T, git, tmp string) string {
 	// worktrees would fail with "empty ident name". Set it on the clone; worktrees
 	// inherit the common dir config.
 	runGit(t, git, repo, "config", "user.email", "opr@example.com")
-	runGit(t, git, repo, "config", "user.name", "Ao Agents")
+	runGit(t, git, repo, "config", "user.name", "Operator Agents")
 	runGit(t, git, repo, "checkout", "main")
 	runGit(t, git, repo, "reset", "--hard", "HEAD")
 	return repo

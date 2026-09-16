@@ -141,12 +141,12 @@ func TestPreviewFileSetsScopedCookie(t *testing.T) {
 	}
 	var c *http.Cookie
 	for _, ck := range w.Result().Cookies() {
-		if ck.Name == authCookieName {
+		if ck.Name == "opr_conn" {
 			c = ck
 		}
 	}
 	if c == nil {
-		t.Fatal("expected auth cookie on preview file response")
+		t.Fatal("expected opr_conn auth cookie on preview file response")
 		return
 	}
 	if c.Path != "/api/v1/sessions/abc/preview/files/" { //nolint:staticcheck // SA5011 false positive: t.Fatal above halts the test

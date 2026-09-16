@@ -49,7 +49,7 @@ ingestion drop rules, see [posthog-cost-controls.md](posthog-cost-controls.md).
   registry, never user input. This exists because `opr.session.spawned` only shows
   which harness *ran*, so an install with six authorized agents that always picks
   one was indistinguishable from an install that only had that one
-- Operator version context (`app_version` / `ao_version`), platform, and build mode
+- Operator version context (`app_version`), platform, and build mode
 - Mobile app product events (`client = "mobile"` / `"mobile-web"`), all under the
   `opr.v2.*` namespace and carrying `telemetry_schema_version = 2`:
   `opr.v2.app.active` (once per UTC day), `opr.v2.mobile_app.paired`
@@ -240,7 +240,7 @@ OPERATOR_TELEMETRY_POSTHOG_HOST=https://us.i.posthog.com
 
 The supervisor also passes `OPERATOR_TELEMETRY_APP_VERSION` (the desktop app
 version from `frontend/package.json`) so daemon events carry
-`app_version`/`ao_version`. The daemon binary has no version of its own that
+`app_version`. The daemon binary has no version of its own that
 release tooling sets, so without this every daemon event arrives unattributable
 to a release and a failure rate cannot be traced to the build that caused it.
 

@@ -296,13 +296,11 @@ describe("telemetry sanitizers", () => {
 	it("builds stable Operator version context for PostHog events", () => {
 		expect(buildTelemetryContext(" 1.2.3 ", "linux")).toMatchObject({
 			app_version: "1.2.3",
-			ao_version: "1.2.3",
 			platform: "linux",
 			telemetry_schema_version: 2,
 		});
 		expect(buildTelemetryContext("", "darwin")).toMatchObject({
 			app_version: "unknown",
-			ao_version: "unknown",
 			platform: "darwin",
 			telemetry_schema_version: 2,
 		});

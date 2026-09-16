@@ -130,7 +130,7 @@ func bearerToken(r *http.Request) string {
 
 // authCookieName carries the connection token for a preview page's in-page
 // subresource requests. See connectionToken / maybeSetPreviewAuthCookie.
-const authCookieName = "ao_conn"
+const authCookieName = "opr_conn"
 
 // previewFilesMarker is the path segment that identifies a preview-file request
 // (GET /api/v1/sessions/{id}/preview/files/*). The auth cookie is both scoped to

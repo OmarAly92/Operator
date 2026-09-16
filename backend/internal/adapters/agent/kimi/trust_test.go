@@ -94,12 +94,12 @@ func TestKimiWorkdirKeyMatchesKimiCodeLayout(t *testing.T) {
 		want      string
 	}{
 		{
-			workspace: "/Users/nikhilachale/.ao/dev/data/worktrees/agent-orchestrator/agent-orchestrator-346",
-			want:      "wd_agent-orchestrator-346_82331d819f35",
+			workspace: "/Users/dev/.operator/dev/data/worktrees/operator/operator-346",
+			want:      "wd_operator-346_f6d5ac10d71e",
 		},
 		{
-			workspace: "/Users/nikhilachale/.ao/dev/data/worktrees/agent-orchestrator/agent-orchestrator-350",
-			want:      "wd_agent-orchestrator-350_2ca3feb01d85",
+			workspace: "/Users/dev/.operator/dev/data/worktrees/operator/operator-350",
+			want:      "wd_operator-350_19e162a4a8a6",
 		},
 	}
 	for _, tc := range cases {

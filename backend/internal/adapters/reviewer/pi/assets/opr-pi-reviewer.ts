@@ -90,7 +90,7 @@ async function authorizedTask(runId: string, prUrl: string, targetSha: string): 
 
 export default function (pi: ExtensionAPI) {
 	pi.registerTool({
-		name: "ao_read",
+		name: "opr_read",
 		label: "Read",
 		description: "Read a UTF-8 file from the review checkout or the Operator-owned review prompt directory. Cannot write files.",
 		parameters: Type.Object({ path: Type.String(), offset: Type.Optional(Type.Integer({ minimum: 1 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 4000 })) }),
@@ -105,7 +105,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
-		name: "ao_search",
+		name: "opr_search",
 		label: "Search",
 		description: "Search checkout text files for a literal string without invoking a shell.",
 		parameters: Type.Object({ query: Type.String({ minLength: 1 }), path: Type.Optional(Type.String()) }),
@@ -181,7 +181,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
-		name: "ao_review_submit",
+		name: "opr_review_submit",
 		label: "Submit Operator review",
 		description: "Submit structured results for run ids in Operator's exact active review manifest. The worker session is fixed by Operator.",
 		parameters: Type.Object({ reviews: Type.Array(Type.Object({ runId: Type.String(), verdict: Type.Union([Type.Literal("approved"), Type.Literal("changes_requested")]), githubReviewId: Type.Optional(Type.String()), body: Type.String() }), { minItems: 1 }) }),

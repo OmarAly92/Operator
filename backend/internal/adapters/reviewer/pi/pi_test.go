@@ -114,7 +114,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 			t.Fatalf("argv missing %q: %#v", required, spec.Argv)
 		}
 	}
-	if !strings.Contains(joined, "ao_read,ao_search,git_inspect,github_post_review,ao_review_submit") {
+	if !strings.Contains(joined, "opr_read,opr_search,git_inspect,github_post_review,opr_review_submit") {
 		t.Fatalf("argv missing exact tool allowlist: %#v", spec.Argv)
 	}
 	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the Operator review task in `/opr/task.md`." {
@@ -141,7 +141,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 		t.Fatalf("read materialized extension: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"--no-pager", "--no-ext-diff", "github_post_review", "ao_review_submit"} {
+	for _, want := range []string{"--no-pager", "--no-ext-diff", "github_post_review", "opr_review_submit"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("extension missing %q", want)
 		}

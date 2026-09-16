@@ -1,34 +1,34 @@
 -- name: InsertAgentNativeSession :execrows
 INSERT INTO agent_native_sessions (
-    id, ao_session_id, harness, config_dir,
+    id, session_id, harness, config_dir,
     native_session_id, transcript_path,
     last_generation_id, created_at, last_used_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT DO NOTHING;
 
 -- name: GetAgentNativeSession :one
-SELECT id, ao_session_id, harness, config_dir,
+SELECT id, session_id, harness, config_dir,
     native_session_id, transcript_path,
     last_generation_id, created_at, last_used_at
 FROM agent_native_sessions
 WHERE id = ?;
 
 -- name: FindAgentNativeSession :one
-SELECT id, ao_session_id, harness, config_dir,
+SELECT id, session_id, harness, config_dir,
     native_session_id, transcript_path,
     last_generation_id, created_at, last_used_at
 FROM agent_native_sessions
-WHERE ao_session_id = ?
+WHERE session_id = ?
   AND harness = ?
   AND config_dir = ?
   AND native_session_id = ?;
 
 -- name: ListAgentNativeSessions :many
-SELECT id, ao_session_id, harness, config_dir,
+SELECT id, session_id, harness, config_dir,
     native_session_id, transcript_path,
     last_generation_id, created_at, last_used_at
 FROM agent_native_sessions
-WHERE ao_session_id = ?
+WHERE session_id = ?
 ORDER BY last_used_at DESC, created_at DESC, id DESC;
 
 -- name: UpdateAgentNativeSession :execrows
@@ -39,7 +39,7 @@ UPDATE agent_native_sessions SET
     last_generation_id = sqlc.arg(next_generation_id),
     last_used_at = sqlc.arg(last_used_at)
 WHERE id = sqlc.arg(id)
-  AND ao_session_id = sqlc.arg(ao_session_id)
+  AND session_id = sqlc.arg(session_id)
   AND last_generation_id = sqlc.arg(expected_generation_id);
 
 -- name: InsertAgentSwitch :execrows
