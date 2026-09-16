@@ -283,3 +283,25 @@ The branch is based on master `85761aaaf`. Master has since moved to
 `npm run api` must regenerate `openapi.yaml`/`schema.ts` (and `git status`
 on `backend/internal/httpd/apispec` and `frontend/src/api` must be clean)
 or the `api-drift` job fails.
+
+## Review session (2026-09-17)
+
+- Rebased onto master `4eaa7bd06` (saved desktops + `GET /api/v1/desktop`);
+  the one conflict in `specgen/build.go` kept `desktopOperations` and dropped
+  `importOperations`; `npm run api && npm run sqlc` left the generated files
+  unchanged.
+- Gates re-run on the rebased tree: `go build/vet/test ./...` clean; frontend
+  typecheck 0 errors, lint 0 errors / 143 warnings (master: 144), vitest
+  121 files / 1425 tests; cargo 212 tests after dropping the dead
+  `FirstRunAnswer`/`first_run_settings` and `is_tray_enabled` helpers
+  (`91ca3d708`); the one changed mobile test passes.
+- Migrations 0105→0113 applied to a copy of the real `~/.operator/data/opr.db`
+  by the branch daemon: `app_settings` rebuilt with opt-in preserved,
+  `agent_native_sessions.session_id` renamed with all 18 triggers rewritten.
+- Real app: `npm run tauri:dev` (scrubbed env, `~/.operator/dev/data`) booted
+  on migrated data; board and projects rendered; `GET/PATCH /settings/updates`
+  round-tripped `{enabled, feature}`; `/api/v1/import` and
+  `PATCH /settings/migration` return 404; spawned `scratch-30`, attached over
+  `/mux`, killed it. Settings → Updates shows no channel row.
+- Pre-existing, unchanged: two "Operator daemon is starting" unhandled
+  rejections from `fetchSettings` during the first second of boot.
