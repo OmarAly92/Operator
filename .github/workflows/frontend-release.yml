@@ -19,9 +19,10 @@ name: Desktop release
 #     fails closed without it.
 #   - The production feed base URL is baked from src-tauri/tauri.release.conf.json.
 #
-# ⚠️ Until these secrets are configured, published builds stay unsigned and will
-# NOT pass Gatekeeper or verify with --strict-trust; the workflow still produces
-# installable artifacts.
+# ⚠️ Until the Apple secrets are configured (MAC_SIGNED == false), macOS builds
+# are ad-hoc signed, notarization is skipped and the verifier runs without
+# --strict-trust: they auto-update fine but a fresh download must be allowed
+# through Gatekeeper by hand (Privacy & Security > Open Anyway).
 
 on:
   push:
@@ -56,6 +57,10 @@ jobs:
       OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # "true" only once the Apple Developer ID material is configured. Until
+      # then macOS builds are ad-hoc signed, the notarize/staple steps are
+      # skipped and the artifact verifier runs without --strict-trust.
+      MAC_SIGNED: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
       CGO_ENABLED: 0
       # Selects the pinned toolchain for every cargo/rustc invocation in this
       # job (npm run tauri:* shells out to cargo); installing alone never
@@ -84,7 +89,7 @@ jobs:
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
       - name: macOS signing setup
-        if: startsWith(matrix.os, 'macos')
+        if: startsWith(matrix.os, 'macos') && env.MAC_SIGNED == 'true'
         uses: ./.github/actions/macos-signing-setup
         with:
           csc-link: ${{ secrets.CSC_LINK }}
@@ -96,6 +101,9 @@ jobs:
       - name: Build (signed, updater artifacts)
         shell: bash
         run: |
+          if [ "$RUNNER_OS" = macOS ] && [ "$MAC_SIGNED" != true ]; then
+            export APPLE_SIGNING_IDENTITY="-"
+          fi
           UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
           # The conf file carries an empty plugins.updater.pubkey placeholder;
           # the operational public key arrives as this build-time overlay (the
@@ -108,7 +116,7 @@ jobs:
           echo "::error::tauri build failed after 3 attempts" >&2
           exit 1
       - name: Notarize and staple macOS artifacts
-        if: startsWith(matrix.os, 'macos')
+        if: startsWith(matrix.os, 'macos') && env.MAC_SIGNED == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -162,11 +170,13 @@ jobs:
         # recorded gates, never fatal. --arch scopes absence checks to THIS
         # leg's artifacts: each matrix runner only ever holds its own arch,
         # so sibling-arch absence is matrix topology, not a defect.
-        run: >
-          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust
-          --arch "$(uname -m | sed 's/x86_64/x64/')"
-          --expect-version "$(node -p "require('./package.json').version")"
-          --emit-gates artifact-gates.json
+        run: |
+          STRICT=--strict-trust
+          if [ "$RUNNER_OS" = macOS ] && [ "$MAC_SIGNED" != true ]; then STRICT=; fi
+          ./scripts/verify-tauri-artifacts.sh --dist dist $STRICT \
+            --arch "$(uname -m | sed 's/x86_64/x64/')" \
+            --expect-version "$(node -p "require('./package.json').version")" \
+            --emit-gates artifact-gates.json
       - name: Publish to the v<version> release
         shell: bash
         env:
@@ -246,6 +256,10 @@ jobs:
       OPERATOR_UPDATER_PUBLIC_KEY: ${{ vars.OPERATOR_UPDATER_PUBLIC_KEY }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # "true" only once the Apple Developer ID material is configured. Until
+      # then macOS builds are ad-hoc signed, the notarize/staple steps are
+      # skipped and the artifact verifier runs without --strict-trust.
+      MAC_SIGNED: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
       CGO_ENABLED: 0
       # Same toolchain pin as the matrix release leg (see the comment there).
       RUSTUP_TOOLCHAIN: "1.96.0"
@@ -266,6 +280,7 @@ jobs:
           npm run build:daemon
           npm run browser-runtime:prepare -- --quiet
       - name: macOS signing setup
+        if: env.MAC_SIGNED == 'true'
         uses: ./.github/actions/macos-signing-setup
         with:
           csc-link: ${{ secrets.CSC_LINK }}
@@ -277,6 +292,9 @@ jobs:
       - name: Build (signed, updater artifacts)
         shell: bash
         run: |
+          if [ "$RUNNER_OS" = macOS ] && [ "$MAC_SIGNED" != true ]; then
+            export APPLE_SIGNING_IDENTITY="-"
+          fi
           UPDATER_PUBKEY_OVERLAY_JSON="{\"plugins\":{\"updater\":{\"pubkey\":\"$OPERATOR_UPDATER_PUBLIC_KEY\"}}}"
           # The conf file carries an empty plugins.updater.pubkey placeholder;
           # the operational public key arrives as this build-time overlay (the
@@ -298,12 +316,17 @@ jobs:
           TAG="v$VERSION"
           APP="src-tauri/target/release/bundle/macos/Operator.app"
           DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
-          codesign --verify --deep --strict "$APP"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
-            --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
-          xcrun stapler staple "$APP"
-          xcrun stapler staple "$DMG"
+          STRICT=--strict-trust
+          if [ "$MAC_SIGNED" = true ]; then
+            codesign --verify --deep --strict "$APP"
+            ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/app-for-notary.zip"
+            xcrun notarytool submit "$RUNNER_TEMP/app-for-notary.zip" \
+              --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+            xcrun stapler staple "$APP"
+            xcrun stapler staple "$DMG"
+          else
+            STRICT=
+          fi
           mkdir -p dist
           ./scripts/package-tauri-mac-zip.sh "$APP" "dist/operator-darwin-x64-${VERSION}.zip"
           cp "$DMG" "dist/operator-darwin-x64.dmg"
@@ -315,7 +338,7 @@ jobs:
           # leg's dist holds ONLY x64 artifacts, so scope the absence checks
           # to darwin/x64: arm64 classes are matrix topology (the matrix leg
           # builds them), not defects.
-          ./scripts/verify-tauri-artifacts.sh --dist dist --strict-trust \
+          ./scripts/verify-tauri-artifacts.sh --dist dist $STRICT \
             --platform darwin --arch x64 \
             --expect-version "$VERSION" --emit-gates artifact-gates.json
           gh release create "$TAG" --title "$TAG" --notes "Operator desktop release ${TAG}." || true
