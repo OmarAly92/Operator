@@ -96,6 +96,31 @@ void main() {
       expect(blocks.single.body, 'orphan');
     });
 
+    test('a transcript assistant_text landing after the stop hook replaces its block instead of twinning it', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'whats up'),
+        _event(2, 'stop', text: 'Not much.'),
+        _event(3, 'turn_model', text: 'claude-sonnet-5', source: 'transcript'),
+        _event(4, 'assistant_text', sourceId: 'a1', text: 'Not much.', source: 'transcript'),
+      ]);
+
+      expect(blocks.where((b) => b.kind == BlockKind.assistant), hasLength(1));
+      expect(blocks.last.body, 'Not much.');
+      expect(blocks.last.model, 'claude-sonnet-5');
+      expect(blocks.first.status, BlockStatus.ok);
+    });
+
+    test('a later transcript assistant_text in the same turn still appends', () {
+      final blocks = assembleBlocks([
+        _event(1, 'prompt_submit', text: 'go'),
+        _event(2, 'stop', text: 'final'),
+        _event(3, 'assistant_text', sourceId: 'a1', text: 'first', source: 'transcript'),
+        _event(4, 'assistant_text', sourceId: 'a2', text: 'final', source: 'transcript'),
+      ]);
+
+      expect(blocks.where((b) => b.kind == BlockKind.assistant).map((b) => b.body), ['first', 'final']);
+    });
+
     test('only the most recent open prompt is resolved', () {
       final blocks = assembleBlocks([
         _event(1, 'prompt_submit', text: 'first'),

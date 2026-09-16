@@ -16,6 +16,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
   int? questionIndex;
   int? hookQuestionIndex;
   var sawTranscriptAssistant = false;
+  int? hookAssistantIndex;
   var lastPromptSeq = 0;
 
   for (final event in ordered) {
@@ -40,6 +41,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
         questionIndex = null;
         hookQuestionIndex = null;
         sawTranscriptAssistant = false;
+        hookAssistantIndex = null;
         _upsert(blocks, indexById, _create(event, id, BlockKind.prompt, BlockStatus.running, 'Prompt', text, model));
 
       case 'turn_model':
@@ -48,7 +50,16 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
       case 'assistant_text':
         sawTranscriptAssistant = true;
         final title = event.rawEvent == 'commentary' ? 'Assistant · note' : 'Assistant';
-        _upsert(blocks, indexById, _create(event, id, BlockKind.assistant, BlockStatus.ok, title, text, model));
+        final block = _create(event, id, BlockKind.assistant, BlockStatus.ok, title, text, model);
+        final hookAt = hookAssistantIndex;
+        if (hookAt != null) {
+          indexById.remove(blocks[hookAt].id);
+          blocks[hookAt] = block;
+          indexById[block.id] = hookAt;
+          hookAssistantIndex = null;
+        } else {
+          _upsert(blocks, indexById, block);
+        }
 
       case 'reasoning':
         _upsert(blocks, indexById, _create(event, id, BlockKind.reasoning, BlockStatus.ok, 'Reasoning', text, model));
@@ -201,6 +212,7 @@ List<SessionBlock> assembleBlocks(Iterable<BlockEventModel> events) {
               model,
             ),
           );
+          hookAssistantIndex = indexById[id];
         }
 
       case 'unknown':
