@@ -333,11 +333,11 @@ void main() {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
     await tester.dragUntilVisible(
-      find.text('Disconnect & forget server'),
+      find.text('Disconnect'),
       find.byType(ListView),
       const Offset(0, -200),
     );
-    await tester.tap(find.text('Disconnect & forget server'));
+    await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -351,13 +351,13 @@ void main() {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
 
     await tester.dragUntilVisible(
-      find.text('Disconnect & forget server'),
+      find.text('Disconnect'),
       find.byType(ListView),
       const Offset(0, -200),
     );
-    await tester.tap(find.text('Disconnect & forget server'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disconnect').last);
     await tester.pumpAndSettle();
 
     verify(() => desktopsRepository.deactivate()).called(1);
@@ -377,9 +377,9 @@ void main() {
     expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
   });
 
-  testWidgets('the Saved connections row opens the connections route', (tester) async {
+  testWidgets('the Your desktops row opens the connections route', (tester) async {
     await pumpBody(tester, sessionsCubit: buildSessionsCubit());
-    await tester.tap(find.text('Saved connections'));
+    await tester.tap(find.text('Your desktops'));
     await tester.pumpAndSettle();
 
     expect(find.text('Connections screen'), findsOneWidget);

@@ -16,6 +16,11 @@ class ConnectionsHeader extends StatelessWidget {
     final skin = context.skin;
     return Row(
       children: [
+        if (Navigator.of(context).canPop())
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ClipRRect(
           borderRadius: BorderRadius.circular(7),
           child: Image.asset('assets/images/app_icon_image.png', width: 28, height: 28),

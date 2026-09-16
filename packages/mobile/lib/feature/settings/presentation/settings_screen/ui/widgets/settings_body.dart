@@ -150,8 +150,8 @@ class _SettingsBodyState extends State<SettingsBody> {
   Future<void> _disconnect(BuildContext context) async {
     final confirmed = await AppDialog.confirm(
       context,
-      title: 'Disconnect & forget server?',
-      message: 'This clears the saved connection. You can pair again with a new QR code any time.',
+      title: 'Disconnect from this desktop?',
+      message: 'It stays in Your desktops, so you can reconnect with one tap any time.',
       confirmLabel: 'Disconnect',
       destructive: true,
     );
@@ -227,7 +227,7 @@ class _SettingsBodyState extends State<SettingsBody> {
                 ),
                 SettingsRow(
                   icon: Icons.devices_other,
-                  label: 'Saved connections',
+                  label: 'Your desktops',
                   onTap: () => Navigator.of(context).pushNamed(RoutesStrings.connections),
                 ),
                 TestConnectionRow(
@@ -310,7 +310,7 @@ class _SettingsBodyState extends State<SettingsBody> {
                 ),
                 SettingsRow(
                   icon: Icons.link_off,
-                  label: 'Disconnect & forget server',
+                  label: 'Disconnect',
                   destructive: true,
                   onTap: () => _disconnect(context),
                 ),
