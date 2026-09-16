@@ -94,14 +94,10 @@ surface (`npm run sqlc`, `npm run api`).
   The Rust shell (`frontend/src-tauri`) supervises the daemon, owns native
   integrations, and pins every webview/state path under `~/.operator`. The
   Electron main process, preload, Forge pipeline, and broker were deleted with
-  Task 21 of the Tauri port; `node --test scripts/no-electron.test.mjs` and the
-  parity checker guard that absence.
-- Desktop parity is ledgered row by row in `frontend/perf/parity-ledger.json`
-  (102 entries; `npm run check:desktop-parity` verifies the live Tauri bridge
-  against it and rejects reappearance of archived surfaces). WebdriverIO E2E
-  drives the real binary through Tauri's embedded WebDriver (`npm run
-  test:e2e:tauri`); Windows/Linux legs are authored but await their first
-  native CI runs.
+  Task 21 of the Tauri port; `node --test scripts/no-electron.test.mjs` guards
+  that absence. WebdriverIO E2E drives the real binary through Tauri's
+  embedded WebDriver (`npm run test:e2e:tauri`); Windows/Linux legs are
+  authored but await their first native CI runs.
 - Native integrations live in Rust behind narrow ACLs: window
   overlay/fullscreen/theme events, application menus and keyboard shortcuts
   (persisted through Go settings), tray with attention/session actions,

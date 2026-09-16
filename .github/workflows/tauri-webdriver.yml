@@ -35,7 +35,6 @@ on:
       - "frontend/scripts/e2e-tauri-build-contract.test.mjs"
       - "frontend/package.json"
       - "frontend/package-lock.json"
-      - "frontend/perf/parity-ledger.json"
       - ".github/workflows/tauri-webdriver.yml"
 
 permissions:

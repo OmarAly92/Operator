@@ -1,5 +1,5 @@
 {
-	"identifier": "phase0",
+	"identifier": "main",
 	"description": "Operator shell commands and inbound event subscriptions",
 	"windows": ["main"],
 	"permissions": [

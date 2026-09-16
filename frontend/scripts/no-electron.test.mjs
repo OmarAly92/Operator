@@ -48,7 +48,6 @@ const removedScripts = new Set(["dev", "predev", "package", "prepackage", "make"
 const requiredScripts = [
 	"browser-runtime:prepare",
 	"build:daemon",
-	"check:desktop-parity",
 	"dev:web",
 	"feed:tauri",
 	"package:tauri-mac-zip",

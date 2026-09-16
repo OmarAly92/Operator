@@ -119,7 +119,7 @@ for (const operatorDirectoryName of [".operator", "neutral-state-root"]) {
 		const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "state-boundary-test-"));
 		const operatorDirectory = path.join(fixtureRoot, operatorDirectoryName);
 		const allowedRoot = path.join(operatorDirectory, "audit");
-		const outsideState = path.join(operatorDirectory, "electron", "state");
+		const outsideState = path.join(operatorDirectory, "legacy", "state");
 		await mkdir(allowedRoot, { recursive: true });
 		const targets = [{ statePath: operatorDirectory, depth: Number.POSITIVE_INFINITY }];
 		const beforeSnapshot = await snapshotTargets(targets);

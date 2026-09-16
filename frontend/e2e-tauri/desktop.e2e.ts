@@ -4,12 +4,7 @@
 // process a packaged user runs — window, renderer webview, Tauri commands,
 // tray/menu/shortcut state, and the daemon the shell owns.
 //
-// Scope contract with perf/parity-ledger.json ("status" field): every assertion
-// here is named in that ledger as `e2e-tauri:desktop`. Behaviors that cannot be
-// driven headlessly (real native chooser click-through, OS-level hotkey
-// synthesis, notification click activation, verified update install) stay on
-// their named lower-level contract tests or external gates and are NOT faked
-// here. The build-contract proof that the embedded driver is absent from normal
+// The build-contract proof that the embedded driver is absent from normal
 // builds lives in scripts/e2e-tauri-build-contract.mjs, not in this suite.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";

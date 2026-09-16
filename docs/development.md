@@ -41,7 +41,6 @@ operator/
     src-tauri/          # Rust shell: daemon supervision, native integrations, updater
     e2e/                # Playwright renderer E2E tests
     e2e-tauri/          # WebdriverIO tests against the real Tauri binary
-    perf/               # Benchmark harness, parity ledger, checked-in results
   packages/
     mobile/             # Flutter mobile companion app
     opr/                # Legacy npm CLI package (frozen)
@@ -237,7 +236,6 @@ prompt keeps updates disabled until accepted.
 cd frontend
 npm run test                   # Vitest unit suite
 npm run typecheck              # tsc --noEmit
-npm run check:desktop-parity   # parity ledger (perf/parity-ledger.json) covers every desktop surface
 node --test scripts/no-electron.test.mjs   # proves no Electron import/package/config remains
 npm run test:e2e:renderer      # Playwright @T0/@P0 renderer suite (drives dev:web)
 npm run typecheck:e2e          # Playwright suite types
@@ -246,27 +244,6 @@ npm run typecheck:e2e-tauri    # WDIO suite types
 ```
 
 Or from repo root: `npm run frontend:typecheck`.
-
-### Phase 0 evidence and benchmarks
-
-The Phase 0 decision tooling derives its verdict from verified raw evidence;
-until native-runner artifacts land it exits 1 with `stop-port`, naming every
-missing evidence file:
-
-```bash
-cd frontend
-node scripts/phase0-decision.mjs --results perf/results   # stop-port until native evidence lands
-npm run bench:terminal                     # terminal throughput/input harness
-npm run test:tauri-state                   # state-audit regression suite; the audit itself
-                                           # (npm run audit:tauri-state) runs per-OS inside the Phase 0 workflow
-node scripts/route-bundle-report.mjs --label after    # initial-route parse-bytes report -> perf/results/route-graph/
-node scripts/heap-summary.mjs --label after --probe empty-board   # RSS probes -> perf/results/heap/
-```
-
-`scripts/benchmark-shell.mjs` still supports only the Electron shell; warm-start
-and idle-memory comparisons need native runners. The measurement contract,
-binding gates, and honest scope of local probes live in
-[`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md).
 
 ### Verify packaged artifacts
 
