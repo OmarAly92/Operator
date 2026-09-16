@@ -6,7 +6,7 @@ import { installFakeAgent } from "./support/fake-bridge";
 // Scope: this runs under `dev:web` (VITE_RENDERER_PREVIEW=1) with an injected
 // `window.operator` + a fake CDC/SSE stream + an in-page workspace snapshot. It
 // exercises the renderer's SSE → invalidate → refetch path only — NOT the real
-// daemon, storage, API, preload, PTY, or filesystem. The case IDs cross-reference
+// daemon, storage, API, bridge, PTY, or filesystem. The case IDs cross-reference
 // the #2483 catalog; they are not a claim of full-boundary coverage, and this
 // suite is not the canonical T0/P0 gate.
 

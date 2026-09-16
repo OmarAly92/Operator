@@ -31,7 +31,7 @@ test("never forwards the raw updater message", () => {
 	expect(JSON.stringify(outcome)).not.toContain("someone");
 });
 
-// phase and trigger come from the main process, which is the only place that
+// phase and trigger come from the Tauri shell, which is the only place that
 // knows whether the hourly timer or the user started the operation.
 test("records the phase and trigger it was given", () => {
 	expect(updateFailureOutcome("boom", "check", "automatic", undefined)).toMatchObject({

@@ -167,14 +167,21 @@ fn relaunch_preserves_provenance_while_refreshing_facts() {
 #[test]
 fn write_drops_unknown_top_level_keys() {
     let dir = scratch_dir("top-level-keys");
-    let seeded = r#"{"schemaVersion":9,"appPath":"/x","rogue":true}"#;
+    let seeded = r#"{"schemaVersion":9,"appPath":"/x","installedAt":"2020-01-02T03:04:05.000Z","installSource":"dmg","migration":{"offered":true,"legacyRoot":"/old"},"rogue":true}"#;
     fs::write(marker_path(&dir), seeded).unwrap();
 
     write_marker(&dir, "/y", "0.10.3", None, instant(1_700_000_000, 0)).unwrap();
 
     let raw = fs::read_to_string(marker_path(&dir)).unwrap();
     assert!(!raw.contains("rogue"));
-    assert_eq!(read_marker(&dir).unwrap().schema_version, 2);
+    assert!(!raw.contains("migration"));
+    let marker = read_marker(&dir).unwrap();
+    assert_eq!(marker.schema_version, 2);
+    assert_eq!(
+        marker.installed_at.as_deref(),
+        Some("2020-01-02T03:04:05.000Z")
+    );
+    assert_eq!(marker.install_source.as_deref(), Some("dmg"));
 }
 
 #[test]

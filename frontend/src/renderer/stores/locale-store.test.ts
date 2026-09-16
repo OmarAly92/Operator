@@ -33,7 +33,7 @@ describe("locale-store", () => {
 		expect(document.documentElement.lang).toBe("en");
 	});
 
-	it("loads persisted locale from the main process", async () => {
+	it("loads persisted locale from the daemon", async () => {
 		getUiSettings.mockResolvedValue({ locale: "zh-CN" });
 		await useLocaleStore.getState().load();
 		expect(useLocaleStore.getState().locale).toBe("zh-CN");
@@ -93,7 +93,7 @@ describe("locale-store", () => {
 	});
 
 	it("keeps the English fallback usable when persisted settings cannot be read", async () => {
-		getUiSettings.mockRejectedValue(new Error("IPC unavailable"));
+		getUiSettings.mockRejectedValue(new Error("bridge unavailable"));
 		await expect(useLocaleStore.getState().load()).resolves.toBeUndefined();
 		expect(useLocaleStore.getState().locale).toBe("en");
 		expect(useLocaleStore.getState().loaded).toBe(true);

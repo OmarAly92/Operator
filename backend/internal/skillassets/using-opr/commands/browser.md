@@ -1,6 +1,6 @@
 # opr browser
 
-Inspect and control the current Operator session's target-isolated browser. The desktop app must be open. The agent and user share the same live page, cookies, navigation state, and `WebContentsView`; the runtime remains usable while the Browser panel is hidden. Tabs in this worker share an ephemeral browser profile, while other Operator workers use isolated profiles.
+Inspect and control the current Operator session's target-isolated browser. The desktop app must be open. The agent and user share the same live page, cookies, and navigation state; the runtime remains usable while the Browser panel is hidden. Tabs in this worker share an ephemeral browser profile, while other Operator workers use isolated profiles.
 
 `OPERATOR_SESSION_ID` selects the target, so run these commands from inside an Operator worker session.
 

@@ -3034,9 +3034,9 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	-webkit-app-region: no-drag;
 }
 
-/* BaseWindow's explicit shell WebContentsView does not always expose the
-   Window Controls Overlay safe-area env value. Keep maximized browser/files
-   surfaces below the Windows native min/max/close controls in that mode. */
+/* The Tauri webview does not always expose the Window Controls Overlay
+   safe-area env value. Keep maximized browser/files surfaces below the
+   Windows native min/max/close controls in that mode. */
 html[data-native-browser-composition="true"][data-opr-platform="win32"] .browser-popout-overlay,
 html[data-native-browser-composition="true"][data-opr-platform="win32"] .files-popout-overlay {
 	top: var(--size-window-titlebar);

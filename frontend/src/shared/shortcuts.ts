@@ -14,9 +14,6 @@ export type ShortcutChord = {
 	alt: boolean;
 };
 
-export const SET_CLOSE_SHELL_TERMINAL_SHORTCUT_ENABLED_CHANNEL =
-	"app:set-close-shell-terminal-shortcut-enabled";
-
 export type AppShortcutId =
 	"new-session" | "new-shell-terminal" | "close-shell-terminal" | "keyboard-shortcuts" | "toggle-sidebar" | "open-project" | "toggle-inspector" | "command-palette" | "open-settings" | "previous-session" | "next-session" | "previous-tab" | "next-tab" | "focus-terminal" | "toggle-browser-devtools";
 
@@ -274,31 +271,16 @@ export function shortcutBindingLabel(binding: ShortcutBinding, isMac: boolean): 
 	return shortcutBindingKeys(binding, isMac).join(isMac ? "" : "+");
 }
 
-// IPC channel the main process uses to tell the renderer shell to open the New
-// Task flow. Lives here (not in main/) so the main process, preload, and
-// renderer can all reference one constant without crossing bundle boundaries.
-export const NEW_SESSION_SHORTCUT_CHANNEL = "app:new-session";
-export const KEYBOARD_SHORTCUTS_HELP_CHANNEL = "app:keyboard-shortcuts-help";
-export const NEW_SHELL_TERMINAL_SHORTCUT_CHANNEL = "app:new-shell-terminal";
-export const CLOSE_SHELL_TERMINAL_SHORTCUT_CHANNEL = "app:close-shell-terminal";
-export const OPEN_SETTINGS_SHORTCUT_CHANNEL = "app:open-settings";
-export const PREVIOUS_SESSION_SHORTCUT_CHANNEL = "app:previous-session";
-export const NEXT_SESSION_SHORTCUT_CHANNEL = "app:next-session";
-export const PREVIOUS_TAB_SHORTCUT_CHANNEL = "app:previous-tab";
-export const NEXT_TAB_SHORTCUT_CHANNEL = "app:next-tab";
-export const FOCUS_TERMINAL_SHORTCUT_CHANNEL = "app:focus-terminal";
-
 // New session: ⌘N on macOS, Ctrl+Shift+N on Windows/Linux. Plain Ctrl+N is a
 // live terminal keystroke (readline/vim "next line"), so the non-mac binding
-// adds Shift to stay clear of the shell. Handled at the application level
-// (main-process before-input-event) so it fires even when focus is inside
-// xterm's helper textarea or a native Browser-preview WebContentsView.
+// adds Shift to stay clear of the shell. Handled by the Tauri shell's global
+// shortcut so it fires even when focus is inside xterm's helper textarea.
 export function matchesNewSessionShortcut(chord: ShortcutChord, isMac: boolean): boolean {
 	return matchesAppShortcut("new-session", chord, isMac);
 }
 
 // Terminal tabs follow the desktop tab convention: ⌘T on macOS and Ctrl+T on
-// Windows/Linux. Handled in the main process so xterm cannot swallow it.
+// Windows/Linux. Handled by the Tauri shell so xterm cannot swallow it.
 export function matchesNewShellTerminalShortcut(chord: ShortcutChord, isMac: boolean): boolean {
 	return matchesAppShortcut("new-shell-terminal", chord, isMac);
 }

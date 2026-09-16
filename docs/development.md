@@ -43,7 +43,7 @@ operator/
   packages/
     mobile/             # Flutter mobile companion app
     opr/                # Legacy npm CLI package (frozen)
-  docs/                 # Architecture, ADRs, benchmarks, status
+  docs/                 # Architecture, ADRs, status
   CONTRIBUTING.md       # Contribution guide
 ```
 

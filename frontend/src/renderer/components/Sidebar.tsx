@@ -178,7 +178,7 @@ export function Sidebar({
 	const { state, setOpen } = useSidebar();
 	const isCollapsed = state === "collapsed";
 	const [expandedChromeVisible, setExpandedChromeVisible] = useState(!isCollapsed);
-	// One IPC subscription for both footer variants of the restart-to-update prompt.
+	// One Tauri event subscription for both footer variants of the restart-to-update prompt.
 	const updateStatus = useUpdateStatus();
 	// Daemon status for the smoke suite's sr-only mirror in the footer. Null when
 	// rendered outside the shell (unit tests) — the mirror simply doesn't render.
@@ -1032,7 +1032,7 @@ function SessionRow({
 
 // RestartToUpdateRow sits directly above the Settings row when an update is
 // downloaded and staged. Transparent while fresh; orange (working tokens) once
-// the main-process evaluator flags it escalated. Clicking installs immediately;
+// the shell's evaluator flags it escalated. Clicking installs immediately;
 // the row itself is the prompt, so no confirmation dialog. Renders nothing in
 // every other update state.
 function RestartToUpdateRow({ status, tabIndex }: { status: UpdateStatus; tabIndex: number }) {

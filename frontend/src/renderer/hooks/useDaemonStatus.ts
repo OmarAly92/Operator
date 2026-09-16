@@ -33,7 +33,7 @@ export function useDaemonStatus(queryClient: QueryClient = defaultQueryClient) {
 					if (active && requestVersion === statusVersion) applyStatus(nextStatus);
 				})
 				.catch(() => {
-					// IPC unavailable (browser preview, broken preload): stay on the
+					// Tauri command unavailable (browser preview): stay on the
 					// last known status and keep the recovery loop alive.
 				})
 				.finally(() => {

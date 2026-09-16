@@ -1,12 +1,13 @@
 # De-fork report — 2026-09-16
 
 Spec: `docs/superpowers/specs/2026-09-16-defork-design.md`. Branch `defork`,
-11 commits above master `85761aaaf`. Version bumped 0.13.0 → 0.14.0.
+12 commits above master `85761aaaf`. Version bumped 0.13.0 → 0.14.0.
 
-## Commits (`git log --oneline master..HEAD`)
+## Commits (`git log --oneline 85761aaaf..HEAD`)
 
 ```
-release: bump to 0.14.0 after the de-fork cleanup
+(this commit) chore: close the de-fork review findings
+4cef34b83 release: bump to 0.14.0 after the de-fork cleanup
 c49cc2f0d chore: remove the last Electron-era names from code, skills and docs
 34e62b327 chore: rename every inherited ao identifier to Operator
 1125690f7 daemon+renderer: delete the legacy import and migration offer
@@ -21,10 +22,26 @@ e79c2fc90 tauri: remove the nightly update channel
 
 ## Final sweep
 
-Run from the repo root. Output was empty.
+Run from the repo root with `/usr/bin/grep` explicitly. The interactive
+shell's `grep` is a function wrapping ugrep that honours `.gitignore`, and
+`.superpowers/` is gitignored, so the earlier sweep silently skipped the
+tracked `.superpowers/sdd/2026-08-20-tauri-port/*` ledger (force-added
+before the ignore rule; deleted by the fix commit). The sweep is run twice:
+once with the plan's exclusions plus the ruled additions below (sweep A),
+and once with `--exclude-dir=.claude` replaced by `--exclude-dir=worktrees`
+so the tracked `.claude/skills/*` files are covered while the nested
+`.claude/worktrees/` checkouts stay out (sweep B). Both outputs are empty.
 
 ```bash
-grep -rniE "electron|\bforge\b|nightly|latest-mac|latest\.yml|blockmap|phase0|parity-ledger|legacyimport|src/landing|\bao_[a-z]+|agent[ _-]?orchestrator" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target --exclude-dir=.worktrees --exclude-dir=.claude --exclude-dir=build --exclude-dir=.dart_tool --exclude-dir=out . | grep -vE "^(\./)?(LICENSE|NOTICE|README\.md|DESIGN\.md|CLAUDE\.md|docs/superpowers/|packages/terminal/|translations/README\.pt-BR\.md|frontend/src/renderer/i18n/pt-BR\.json|docs/design/.*standalone\.html|packages/mobile/docs/design/.*standalone\.html|packages/mobile/packages/xterm/script/lines\.txt|.*package-lock\.json)" | grep -vE "(migrations/|migrate_burned_versions_test\.go.*)(0085|0088|0109|0111|0112|0113)" | grep -vE "mobile-parity-ledger\.md"
+/usr/bin/grep -rniIE "electron|\bforge\b|nightly|latest-mac|latest\.yml|blockmap|phase0|parity-ledger|legacyimport|src/landing|\bao_[a-z]+|agent[ _-]?orchestrator" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target --exclude-dir=.worktrees --exclude-dir=.claude --exclude-dir=build --exclude-dir=.dart_tool --exclude-dir=out . | /usr/bin/grep -vE "^(\./)?(LICENSE|NOTICE|README\.md|DESIGN\.md|CLAUDE\.md|docs/superpowers/|packages/terminal/|translations/README\.pt-BR\.md|frontend/src/renderer/i18n/pt-BR\.json|docs/design/.*standalone\.html|packages/mobile/docs/design/.*standalone\.html|packages/mobile/packages/xterm/script/lines\.txt|.*package-lock\.json|frontend/daemon/|frontend/agent-browser/|\.superpowers/sdd/2026-09-16-defork/)" | /usr/bin/grep -vE "(migrations/|migrate_burned_versions_test\.go.*)(0085|0088|0109|0111|0112|0113)" | /usr/bin/grep -vE "mobile-parity-ledger\.md"
+```
+
+```
+(no output)
+```
+
+```bash
+/usr/bin/grep -rniIE "electron|\bforge\b|nightly|latest-mac|latest\.yml|blockmap|phase0|parity-ledger|legacyimport|src/landing|\bao_[a-z]+|agent[ _-]?orchestrator" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target --exclude-dir=.worktrees --exclude-dir=worktrees --exclude-dir=build --exclude-dir=.dart_tool --exclude-dir=out . | /usr/bin/grep -vE "^(\./)?(LICENSE|NOTICE|README\.md|DESIGN\.md|CLAUDE\.md|docs/superpowers/|packages/terminal/|translations/README\.pt-BR\.md|frontend/src/renderer/i18n/pt-BR\.json|docs/design/.*standalone\.html|packages/mobile/docs/design/.*standalone\.html|packages/mobile/packages/xterm/script/lines\.txt|.*package-lock\.json|frontend/daemon/|frontend/agent-browser/|\.superpowers/sdd/2026-09-16-defork/)" | /usr/bin/grep -vE "(migrations/|migrate_burned_versions_test\.go.*)(0085|0088|0109|0111|0112|0113)" | /usr/bin/grep -vE "mobile-parity-ledger\.md"
 ```
 
 ```
@@ -32,6 +49,16 @@ grep -rniE "electron|\bforge\b|nightly|latest-mac|latest\.yml|blockmap|phase0|pa
 ```
 
 Differences from the command in the plan, each deliberate:
+
+- `-I` skips binaries: without it `/usr/bin/grep` reports the tracked
+  `packages/mobile/.../android12splash.png` and the gitignored
+  `frontend/daemon/opr` and `frontend/agent-browser/agent-browser` build
+  outputs as binary matches.
+- Path exclusions `frontend/daemon/`, `frontend/agent-browser/` (gitignored
+  build outputs; `LICENSE-agent-browser` there carries "electronic") and
+  `.superpowers/sdd/2026-09-16-defork/` (this de-fork's own gitignored review
+  ledger, which names every sweep term by construction). None of these is
+  tracked; the ugrep wrapper hid them before.
 
 - `^\./` became `^(\./)?`: BSD grep prints `docs/...` rather than `./docs/...`,
   so the plan's exclusion list never matched anything.
@@ -86,8 +113,7 @@ Differences from the command in the plan, each deliberate:
 
 ## Gates
 
-All run from the worktree root on the final tree (before the version bump;
-the bump changes only version strings).
+All run from the worktree root on the final tree after the fix commit.
 
 ```
 cd backend && go build ./... && go vet ./... && go test ./...
@@ -111,14 +137,16 @@ cd frontend && npm run typecheck && npm run lint && npm test && node --test scri
 ```
 cd frontend/src-tauri && cargo test
 ```
-`test result: ok. 213 passed; 0 failed; 0 ignored` (plus two empty doc-test
-harnesses, `0 passed; 0 failed`).
+`test result: ok. 214 passed; 0 failed; 0 ignored` (plus two empty doc-test
+harnesses, `0 passed; 0 failed`); the count rose by one with the restored
+`manual_check_errors_surface_verbatim`.
 
 ```
 cd packages/mobile && flutter analyze && flutter test
 ```
 `No issues found! (ran in 5.9s)`; `01:07 +1220: All tests passed!`
-(Flutter 3.44.5).
+(Flutter 3.44.5). Not re-run for the fix commit, which does not touch
+`packages/mobile`.
 
 ```
 python3 -c "import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"
@@ -145,9 +173,11 @@ The spec called for one (`0111_drop_fork_settings.sql`); three landed, because
 the work split across tasks:
 
 - `0111_drop_nightly_and_legacy_prefs.sql` (4f5c65ebe): rebuilds
-  `app_settings` via the table-copy pattern, dropping `update_nightly_ack` and
-  `legacy_desktop_imported_at` and recreating `update_channel` with
-  `CHECK (update_channel IN ('latest'))`.
+  `app_settings` via the table-copy pattern, dropping `update_channel`,
+  `update_nightly_ack` and `legacy_desktop_imported_at`. The rebuilt table
+  has no `update_channel` column at all: the spec's Constraints paragraph
+  said "recreate the CHECK", but its Shape decision (column dropped) is what
+  shipped; the single-value CHECK survives only in the `Down` section.
 - `0112_drop_migration_json.sql` (1125690f7): `ALTER TABLE app_settings DROP
   COLUMN migration_json`.
 - `0113_rename_ao_session_id.sql` (34e62b327): `ALTER TABLE
@@ -164,7 +194,8 @@ the work split across tasks:
   `lines.txt`, `package-lock.json` (`electron-to-chromium`), the migration
   filenames, and `docs/mobile-parity-ledger.md`.
 - The `terminal-benchmark` Tauri window and capability are kept: they are
-  driven by `packages/terminal/bench`, which is product-independent and
+  driven by `packages/terminal/scripts/smoke-tauri.mjs:270-271`
+  (`OPERATOR_TAURI_TERMINAL_BENCHMARK`), which is product-independent and
   out of scope. `todo_without_tmux.md` §2 keeps its historical table of
   benchmark scenarios (it records fixes made 2026-09-02), minus the
   `phase0.json` name.
@@ -173,8 +204,8 @@ the work split across tasks:
   remnant.
 - `frontend/src/docs` (upstream's operator-docs app) was deleted together with
   the landing site in 133424d66.
-- The Electron-driven release e2e pod gate was deleted with the release
-  workflow rewrite (8946fbd43 / 8ef8472b6); the Tauri launch marker's
+- The Electron-driven release e2e pod gate was deleted in c49cc2f0d (Task 10,
+  ruling 22), not in the release-workflow commits; the Tauri launch marker's
   `migration` block was deleted with the legacy import (1125690f7).
 - Only the sweep's `forge` term changed (`\bforge\b`); every other term is as
   the plan wrote it.
@@ -187,3 +218,68 @@ the work split across tasks:
 - `node --test scripts/*.test.mjs` keeps its three pre-existing vitest-style
   failures (listed under Gates); converting or moving those files is outside
   the de-fork.
+- Commit 4f5c65ebe leaves the `frontend` typecheck red until ade0f446e
+  (the daemon dropped the channel one commit before the renderer did); the
+  branch is accepted as non-bisectable across that intermediate.
+- Pre-existing, outside this spec: `FirstRunAnswer`/`first_run_settings` and
+  `is_tray_enabled` have no production caller (the production tray gate is
+  `cfg!(target_os = "macos")` at `frontend/src-tauri/src/tray.rs:415`); the
+  T2 settings-parse fixture carries no ack key; the T3 burned-version note
+  lost its "in a nightly" qualifier; `TELEMETRY_SCHEMA_VERSION` stays at 2
+  after the `version_channel` property was removed;
+  `.claude/worktrees/flutter-mobile-m1/.../UserInterfaceState.xcuserstate` is
+  tracked junk.
+
+## Review fix commit
+
+Closes the whole-branch review findings, one commit on top of 4cef34b83:
+
+- Tracked `.claude/skills/` remnants (hidden by `--exclude-dir=.claude`):
+  `opr-desktop-dev` deleted (it pointed at the `.agents` file Task 10
+  removed); `bug-triage/SKILL.md` reduced to the same pointer shape at
+  `.agents/skills/bug-triage/SKILL.md`; its byte-identical
+  `scripts/push_fix_to_github.py` copy deleted.
+- `.superpowers/sdd/2026-08-20-tauri-port/` (22 tracked files, the SDD ledger
+  of the deleted Tauri-port plan) deleted; the other tracked
+  `.superpowers/sdd/*` directories are untouched.
+- Living docs no longer link deleted files: `docs/README.md` index rows for
+  the two `todo/tauri-port-*.md` files, the `docs/STATUS.md` link to the
+  release-and-follow-ups todo, and its `EscalationFeeds` sentence (now the
+  48-hour `evaluate_escalation` rule, without the deleted follow-up brief link).
+- `frontend/src/site-theme` deleted (its only consumers were the deleted
+  `src/landing` and `src/docs`); `/usr/bin/grep -rn "site-theme" frontend
+  --exclude-dir=node_modules` is empty.
+- `frontend/src-tauri/src/relocation.rs` no longer cites the nonexistent
+  `frontend/src/main/relocation.ts`.
+- Electron vocabulary in living comments rewritten to Tauri/daemon wording
+  (shell, bridge, Tauri command/event) or deleted, across
+  `frontend/src/shared/{shortcuts,update-telemetry,ui-locale}.ts`,
+  `update-telemetry.test.ts`, `frontend/src/renderer/{hooks,lib,components,
+  routes,stores}/…`, `styles.css`, `tsconfig.e2e.json`,
+  `.github/workflows/frontend.yml`, the three `frontend/e2e/smoke-*.spec.ts`
+  headers, `backend/internal/skillassets/using-opr/commands/browser.md`,
+  `docs/todo/browser-panel-webview.md` and `docs/plans/chinese-ui-i18n.md`.
+  The dead `*_SHORTCUT_CHANNEL` / `KEYBOARD_SHORTCUTS_HELP_CHANNEL` /
+  `SET_CLOSE_SHELL_TERMINAL_SHORTCUT_ENABLED_CHANNEL` constants in
+  `shortcuts.ts` (Electron IPC channel names with no consumer; the Tauri shell
+  emits `shortcut:*` events) went with their comment. Remaining "IPC" hits
+  name Tauri's own invoke/event IPC; remaining "preload" hits are TanStack
+  Router's `defaultPreload`/`preLoaderRoute` API.
+- Coverage restored by renaming: `manual_check_errors_surface_verbatim`
+  (a manual check whose feed fetch fails surfaces the message verbatim in
+  `UpdateStatus.message`) and `write_drops_unknown_top_level_keys` now seeds
+  `installedAt`, `installSource` and a stale `migration` block and asserts
+  the first two survive `write_marker` while `migration` is dropped.
+- Deferred minors shipped: `docs/development.md` no longer says `docs/` holds
+  benchmarks; `scripts/.gitignore` (sole entry `scripts/node_modules/`,
+  `scripts/package.json` gone) deleted.
+
+## Base and merge
+
+The branch is based on master `85761aaaf`. Master has since moved to
+`4eaa7bd06` (12 commits: mobile saved-desktops and `GET /api/v1/desktop`).
+`git merge-tree --write-tree master HEAD` reports one conflict,
+`backend/internal/httpd/apispec/specgen/build.go`. After resolving it,
+`npm run api` must regenerate `openapi.yaml`/`schema.ts` (and `git status`
+on `backend/internal/httpd/apispec` and `frontend/src/api` must be clean)
+or the `api-drift` job fails.

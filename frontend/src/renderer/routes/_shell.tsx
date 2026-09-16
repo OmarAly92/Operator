@@ -551,9 +551,9 @@ function ShellLayout() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [navigate, toggleSidebar, workspaces]);
 
-	// New session (⌘N / Ctrl+Shift+N) is detected in the main process and
-	// delivered here, so it fires even when focus is inside xterm or a native
-	// Browser-preview view. The shell owns the routing: open the New Task flow
+	// New session (⌘N / Ctrl+Shift+N) is detected by the Tauri shell and
+	// delivered here as an event, so it fires even when focus is inside xterm.
+	// The renderer owns the routing: open the New Task flow
 	// for the in-scope project, else fall back to create-project.
 	useEffect(
 		() =>
@@ -569,7 +569,7 @@ function ShellLayout() {
 
 	useEffect(() => operatorBridge.app.onKeyboardShortcutsHelp(() => setIsKeyboardShortcutsOpen(true)), []);
 
-	// New standalone terminal (⌘T / Ctrl+T), also detected in the main process so it
+	// New standalone terminal (⌘T / Ctrl+T), also detected by the Tauri shell so it
 	// fires from inside a terminal pane. It raises the same store signal as the
 	// tab-strip + button so the two cannot drift apart.
 	useEffect(() => operatorBridge.app.onNewShellTerminalShortcut(() => requestNewShellTerminal()), [requestNewShellTerminal]);

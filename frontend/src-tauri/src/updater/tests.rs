@@ -1232,6 +1232,17 @@ async fn manual_check_carries_request_ids_and_reports_available() {
 }
 
 #[tokio::test]
+async fn manual_check_errors_surface_verbatim() {
+    let err = "feed fetch failed: connection reset by peer";
+    let h = harness().build(FakeClient::new().failed_check(err));
+
+    h.engine.manual_check(CheckOptions::default()).await;
+
+    assert_eq!(h.engine.status().state, UpdateState::Error);
+    assert_eq!(h.engine.status().message.as_deref(), Some(err));
+}
+
+#[tokio::test]
 async fn no_update_check_clears_the_previous_download_candidate() {
     let h = harness().build(
         FakeClient::new()

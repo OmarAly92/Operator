@@ -9,8 +9,8 @@ import { operatorBridge } from "../lib/bridge";
  *
  * Deliberately carries no telemetry. Two components mount this hook, so each
  * would report the same outcome, and the statuses it sees are the UI's view:
- * the main process suppresses them for automatic checks. Update telemetry is
- * owned by the main process and subscribed once in lib/update-telemetry.ts.
+ * the Tauri shell suppresses them for automatic checks. Update telemetry is
+ * owned by the shell and subscribed once in lib/update-telemetry.ts.
  */
 export function useUpdateStatus(): UpdateStatus {
 	const [status, setStatus] = useState<UpdateStatus>({ state: "idle" });

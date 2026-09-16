@@ -41,13 +41,13 @@ the daemon preview routes are preserved unchanged; only where the target renders
 An embedded panel on the OS webview target (WKWebView / WebKitGTK / WebView2) would depend on
 Chromium APIs that target does not have:
 
-| Capability | Chromium API | OS webview |
+| Capability | Embedded Chromium | OS webview |
 |---|---|---|
-| Network capture for agents | `webContents.debugger` + CDP `Network.enable` | none |
-| Annotation snapshots | `capturePage()` | none cross-platform |
-| Per-tab storage isolation | `partition:` | none |
-| Popup interception | `setWindowOpenHandler` | none |
-| In-window embedding | `WebContentsView` + synced bounds | partial, platform-divergent |
+| Network capture for agents | CDP `Network.enable` | none |
+| Annotation snapshots | CDP `Page.captureScreenshot` | none cross-platform |
+| Per-tab storage isolation | per-tab browser contexts | none |
+| Popup interception | a window-open handler | none |
+| In-window embedding | an embedded Chromium view with synced bounds | partial, platform-divergent |
 
 Keeping full parity would have required embedding a separate Chromium-class runtime or accepting
 the capability losses above. Either choice conflicted with this port's size and parity goals.

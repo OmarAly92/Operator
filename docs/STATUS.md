@@ -168,20 +168,17 @@ surface (`npm run sqlc`, `npm run api`).
   unmeasured pending native runners; Windows/Linux WebdriverIO legs await their
   first native runs. Release-gating follow-ups that must land before any release
   ships: the project-owned verified-apply updater path (updates currently fail
-  closed at apply) and real OS toast-click activation. The complete release-blocker and
-  deferred-work ledger is
-  [`docs/todo/tauri-port-release-and-follow-ups.md`](todo/tauri-port-release-and-follow-ups.md).
+  closed at apply) and real OS toast-click activation.
 - **Release sign-off ledger**: recorded here so release sign-off is auditable
   without the SDD workspace. By explicit deferral, `hidden`/`hiddenInset`
   titlebars are not implemented,
   so macOS and Windows ship fully decorated native chrome until a coordinated
   drag-region migration lands, and that divergence requires explicit user
   sign-off before any release (Task 13 ruling).
-  The shell-side GitHub HTTPS transports (`ReleasesSource`, `EscalationFeeds`)
-  remain unwired by design after the Task 17 TLS-surface ruling; the stopped
-  transports degrade safely and parity holds without them, with a dedicated
-  non-gating follow-up brief
-  ([`.superpowers/sdd/2026-08-20-tauri-port/followup-github-transports-brief.md`](../.superpowers/sdd/2026-08-20-tauri-port/followup-github-transports-brief.md)).
+  The shell-side GitHub HTTPS transport (`ReleasesSource`) remains unwired by
+  design after the Task 17 TLS-surface ruling; the stopped transport degrades
+  safely, and escalation is only the 48-hour rule for a staged stable update
+  (`evaluate_escalation(staged_at_ms, now_ms)`).
 - **Browser automation acceptance**: the runtime implementation is complete.
   Browser automation is owned by the daemon: one checksum-pinned `agent-browser`
   binary, per-session isolated Chromium profiles under the state root, a closed

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { installFakeAgent } from "./support/fake-bridge";
 
 // BRD-* RENDERER SMOKE (issue #2483, renderer slice). dev:web + fake bridge —
-// does NOT hit the real daemon/storage/API/preload/PTY/FS.
+// does NOT hit the real daemon/storage/API/bridge/PTY/FS.
 // Drives the board off the fake-agent CDC SSE stream so
 // column moves and live updates exercise the same SSE → invalidate → refetch
 // path the real daemon uses (see fake-bridge.ts). IDs cross-reference #2483.

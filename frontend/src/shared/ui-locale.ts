@@ -19,7 +19,7 @@ export function coerceLocale(raw: unknown): AppLocale {
 	return DEFAULT_LOCALE;
 }
 
-/** Normalize unknown persisted or IPC data to the supported UI-settings schema. */
+/** Normalize unknown persisted or bridge data to the supported UI-settings schema. */
 export function coerceUiSettings(raw: unknown): UiSettings {
 	const locale =
 		typeof raw === "object" && raw !== null ? coerceLocale((raw as Record<string, unknown>).locale) : DEFAULT_LOCALE;

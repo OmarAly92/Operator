@@ -16,7 +16,7 @@ Operator uses `i18next` with `react-i18next` for desktop display text. English r
 | React integration | One `I18nextProvider`; components use `useTranslation()` |
 | Locales | `en` and `zh-CN` |
 | Default | `en`; do not infer the OS language on first launch |
-| Persistence | Main-process `~/.operator/ui-settings.json` through preload IPC |
+| Persistence | Daemon settings through the bridge's `uiSettings` (`PATCH /api/v1/settings/ui`) |
 | Fallback | Selected locale → English → key identifier |
 | Interpolation | Standard i18next `{{name}}` syntax |
 | Plurals | i18next/CLDR `_one` and `_other` forms with `count` |
@@ -33,7 +33,7 @@ PR #2503 explored the same library direction. This implementation stays on the c
 - `frontend/src/renderer/main.tsx` provides that instance to React.
 - `frontend/src/renderer/stores/locale-store.ts` owns only persisted locale loading and selection. i18next owns translation state and React subscriptions.
 - Pure presentation helpers use the configured i18next instance. Callers whose memoized output contains translated text pass the reactive `t` function explicitly.
-- `frontend/src/main/ui-settings.ts` reads and atomically writes the selected locale beneath the Operator data directory; preload exposes only the typed get/set bridge.
+- The bridge's `uiSettings` reads and writes the selected locale through the daemon's `/api/v1/settings/ui` route; the renderer sees only the typed get/set pair.
 
 Both catalogs are bundled today. Their combined size is small enough that lazy locale loading would add complexity without a useful startup or package-size benefit. Revisit loading strategy when more locales or materially larger catalogs are added.
 
@@ -58,7 +58,7 @@ The first migration covers high-visibility desktop chrome, including:
 - Command palette actions, headings, states, and footer help
 - Session files and diffs, migration, restore/replacement failures, terminal tabs, and reusable dialog/sidebar chrome
 
-English remains the source of truth. The language selector persists through the main process, changes visible React text without restart, and updates the document language and direction.
+English remains the source of truth. The language selector persists through the daemon, changes visible React text without restart, and updates the document language and direction.
 
 ## Scope boundaries
 
@@ -66,7 +66,7 @@ The desktop renderer's application chrome is extracted in this change. A CI test
 
 Separate product work:
 
-- Native main-process menus and operating-system dialogs
+- Native shell menus and operating-system dialogs
 - Formatting known daemon notification/error types at the display layer
 - Mobile, landing, documentation, and CLI localization
 
@@ -75,7 +75,7 @@ Always leave agent terminal I/O, PR titles/bodies, branch names, paths, reposito
 ## Verification
 
 - i18next unit tests cover English defaulting, zh-CN selection, English fallback, missing-key behavior, standard interpolation, CLDR plural selection, catalog/placeholder parity, and required plural families.
-- Locale-store tests cover persisted loading, switching, `lang`, `dir`, single-flight initialization, stale-read protection, and IPC failure behavior.
+- Locale-store tests cover persisted loading, switching, `lang`, `dir`, single-flight initialization, stale-read protection, and bridge failure behavior.
 - Component tests cover live language switches, persistence failures, localized accessibility labels, and localized PR plural output.
 - The renderer coverage test prevents newly hardcoded English JSX chrome from bypassing the catalogs.
 - Command-palette tests require an explicit reactive translator so memoized commands cannot remain in the previous language.

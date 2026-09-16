@@ -13,7 +13,7 @@ pub enum RelocationAction {
     Handoff,
 }
 
-/// Inputs to the macOS relocation decision (mirrors frontend/src/main/relocation.ts).
+/// Inputs to the macOS relocation decision.
 pub struct RelocationInputs<'a> {
     /// True for /Applications AND <home>/Applications.
     pub in_applications_folder: bool,

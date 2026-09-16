@@ -3,7 +3,7 @@ import { operatorBridge } from "./bridge";
 import { captureRendererEvent } from "./telemetry";
 
 /**
- * Forwards update outcomes decided by the main process.
+ * Forwards update outcomes decided by the Tauri shell.
  *
  * Subscribed exactly once from main.tsx, not from a hook. `useUpdateStatus` is
  * mounted by both the sidebar row and the settings section, so a hook-based
@@ -11,7 +11,7 @@ import { captureRendererEvent } from "./telemetry";
  * captureRendererEvent rate-limits but does not deduplicate, so the duplicate
  * would survive.
  *
- * The payload is already reduced to enum-like fields by the main process, which
+ * The payload is already reduced to enum-like fields by the Tauri shell, which
  * is also the only place that knows whether an operation was automatic and what
  * version it was fetching.
  */

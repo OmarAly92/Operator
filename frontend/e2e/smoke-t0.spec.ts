@@ -7,8 +7,8 @@ import { installFakeAgent, installFakeBridge } from "./support/fake-bridge";
 // (VITE_RENDERER_PREVIEW=1) with an injected `window.operator` (installFakeBridge /
 // installFakeAgent) plus a fake CDC/SSE stream and workspace snapshot. They
 // assert the renderer's rendering + interaction logic ONLY. They do NOT exercise
-// the real daemon, storage, API, preload, PTY, or filesystem — those boundaries
-// are faked, so a daemon/storage/API/preload/PTY/FS regression can still pass
+// the real daemon, storage, API, bridge, PTY, or filesystem — those boundaries
+// are faked, so a daemon/storage/API/bridge/PTY/FS regression can still pass
 // here.
 //
 // Cases that inject state (a version string, a daemon status, board data) prove

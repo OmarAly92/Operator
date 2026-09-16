@@ -86,7 +86,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 	};
 
 	const handleReturnToHome = async () => {
-		// Optimistic; the main process clears the pin against persisted state.
+		// Optimistic; the Tauri shell clears the pin against persisted state.
 		setForm({ ...formRef.current, feature: null });
 		const requestId = nextUpdateRequestId();
 		autoProgressRef.current = requestId;

@@ -44,7 +44,7 @@ export function startDaemonFailureTelemetry(): () => void {
 	try {
 		stopListener = operatorBridge.daemon.onStatus(reportStatus);
 	} catch {
-		// Preload bridge unavailable (browser preview): initial getStatus already handled.
+		// Tauri event bridge unavailable (browser preview): initial getStatus already handled.
 	}
 	return () => {
 		started = false;

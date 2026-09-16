@@ -1,19 +1,19 @@
 /**
- * Update-outcome telemetry, owned by the main process.
+ * Update-outcome telemetry, owned by the Tauri shell.
  *
  * The app downloads updates automatically and installs them on quit, yet a
  * large share of installs sit on an old version for weeks. A stuck install
  * looks identical whether the check failed, the download failed, or the user
  * simply never quits, so these outcomes separate the cases.
  *
- * This lives in the main process rather than the renderer because the renderer
- * only ever sees *broadcast* statuses, and `auto-updater.ts` deliberately
+ * This lives in the Tauri shell rather than the renderer because the renderer
+ * only ever sees *broadcast* statuses, and the shell's updater deliberately
  * suppresses the UI status for automatic checks: on failure it logs, restores
  * the previous status, and returns. Automatic checks run hourly and are how
  * updates normally happen, so a renderer-side observer would miss precisely the
  * silent-failure case this exists to diagnose. Reporting at the operation
  * boundary also makes `phase` and `to_version` authoritative, since only the
- * main process knows which operation was running and what it was fetching.
+ * shell knows which operation was running and what it was fetching.
  *
  * Only enum-like fields cross the wire. The updater's raw message can carry
  * feed URLs and local staging paths, so it is bucketed into a category here and
