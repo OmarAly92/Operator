@@ -45,7 +45,7 @@ describe("apiClient runtime base URL", () => {
 
 	it("rebases POSTs without Request-as-init, preserving method, body, and headers", async () => {
 		// Regression: `new Request(target, input)` needs the source request's
-		// `duplex` getter, which Electron's Chromium lacks — every request with a
+		// `duplex` getter, which some webview engines lack — every request with a
 		// body threw. The rewrite must copy fields explicitly instead.
 		const seen: { url: string; method?: string; body?: string; contentType?: string | null }[] = [];
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {

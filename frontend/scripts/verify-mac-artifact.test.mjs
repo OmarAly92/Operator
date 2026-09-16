@@ -91,10 +91,10 @@ describe("verify-mac-artifact.sh", () => {
 		expect(stderr).toContain("expected an .app bundle directory");
 	});
 
-	// A .dmg is a first-class input now: forge.config.ts's postMake seals the dmg
-	// and then gates on this script (#3267 decision 3 step 4). Same usage
-	// contract, so the same paths have to exit 2 rather than fall through to
-	// macOS-only tooling.
+	// A .dmg is a first-class input: the release pipeline seals the dmg and then
+	// gates on this script (#3267 decision 3 step 4). Same usage contract, so
+	// the same paths have to exit 2 rather than fall through to macOS-only
+	// tooling.
 	it("accepts .dmg as a known artifact type", async () => {
 		const { readFileSync } = await import("node:fs");
 		const src = readFileSync(SCRIPT, "utf8");

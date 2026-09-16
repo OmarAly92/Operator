@@ -10,8 +10,7 @@ Triage bugs into well-structured GitHub issues on the Operator repo.
 
 > **Operator is Go + Tauri.** The backend is a Go daemon (`backend/`)
 > exposing a loopback HTTP API on `127.0.0.1:3001`; the frontend is a Tauri +
-> React supervisor (`frontend/`). Electron was removed and is gated against by
-> `scripts/no-electron.test.mjs`. There is **no** pm2/tmux/Node runtime here —
+> React renderer inside the Tauri shell (`frontend/`). There is **no** pm2/tmux/Node runtime here —
 > the daemon owns lifecycle and sessions run under the **Zellij** runtime
 > adapter. Triage against _this_ stack, not the old TypeScript operator.
 

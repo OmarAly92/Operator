@@ -145,7 +145,7 @@ const (
 	// EnvBrowserCapability proves ownership of the session's browser target.
 	EnvBrowserCapability = "OPERATOR_BROWSER_CAPABILITY"
 	// EnvBrowserRuntimeToken must never be inherited by a worker. It authenticates
-	// the privileged Electron runtime, not session-scoped browser callers.
+	// the privileged shell runtime, not session-scoped browser callers.
 	EnvBrowserRuntimeToken = "OPERATOR_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
 	// EnvBrowserRuntimeTokenStdin is the daemon-only token handoff marker and
 	// must be cleared before a worker process is spawned.
@@ -381,7 +381,7 @@ type PreviewLifecycle interface {
 	StopSession(ctx context.Context, id domain.SessionID) error
 }
 
-// BrowserLifecycle is the narrow Electron-target teardown hook consumed by
+// BrowserLifecycle is the narrow browser-target teardown hook consumed by
 // Session Manager. It must work even when no renderer panel mounted.
 type BrowserLifecycle interface {
 	DestroySession(ctx context.Context, id domain.SessionID) error

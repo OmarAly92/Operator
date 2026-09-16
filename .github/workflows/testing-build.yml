@@ -5,10 +5,6 @@ name: Testing build (all platforms)
 # jobs publish to a single 0.0.0-testing-<short-sha> prerelease (distinct asset
 # names).
 #
-# This is the ONLY desktop testing pipeline since task 18: the former disabled
-# desktop-testing.yml Electron pipeline was retired rather than ported, so no
-# parallel stale workflow remains.
-#
 # Per OS: macOS .app/.zip/.dmg, Windows NSIS .exe, Linux AppImage/.deb/.rpm —
 # all unsigned, so macOS is quarantined once downloaded
 # (xattr -dr com.apple.quarantine "Operator.app") and Windows SmartScreen warns.

@@ -238,9 +238,9 @@ export const SKIN_TOKENS = {
 	 * `renderer/styles.css` referenced this before any block defined it.
 	 * `prMerged`: GitHub's PR-merged purple for the notification glyph — the
 	 * accent token is a near-black surface colour and reads as invisible there.
-	 * `windowOverlayBg`/`windowOverlaySymbol`: Electron paints the Windows
+	 * `windowOverlayBg`/`windowOverlaySymbol`: the shell paints the Windows
 	 * min/max/close overlay natively and cannot read CSS, so `WindowTitlebar`
-	 * hands it these two values. They must stay in a format Electron can parse
+	 * hands it these two values. They must stay in a format the shell can parse
 	 * (hex) rather than `oklch()` or `var()`.
 	 */
 	scrollbarHover: "--color-scrollbar-hover",

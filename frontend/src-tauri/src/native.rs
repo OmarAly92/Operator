@@ -450,7 +450,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn app_open_external_accepts_the_electron_allowlist() {
+    fn app_open_external_accepts_the_scheme_allowlist() {
         for allowed in [
             "http://example.com",
             "https://example.com/path?query=1#fragment",
@@ -516,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn chooser_titles_fall_back_like_the_electron_default() {
+    fn chooser_titles_fall_back_to_the_platform_default() {
         assert_eq!(chooser_title(None), DEFAULT_CHOOSER_TITLE);
         assert_eq!(chooser_title(Some("")), DEFAULT_CHOOSER_TITLE);
         assert_eq!(chooser_title(Some("   ")), DEFAULT_CHOOSER_TITLE);

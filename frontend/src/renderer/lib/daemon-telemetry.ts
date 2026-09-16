@@ -1,6 +1,6 @@
-// Daemon failures happen in the Electron main process, which has no PostHog
-// client. Main stamps a machine-readable `code` on every failing DaemonStatus
-// (shared/daemon-status.ts); this module rides the existing daemon:status IPC
+// Daemon failures happen in the Tauri shell, which has no PostHog client. The
+// shell stamps a machine-readable `code` on every failing DaemonStatus
+// (shared/daemon-status.ts); this module rides the existing daemon:status
 // push and reports those failures through the renderer's telemetry client.
 import type { DaemonStatus } from "../../shared/daemon-status";
 import { operatorBridge } from "./bridge";

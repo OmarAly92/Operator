@@ -44,7 +44,7 @@ type ControlDeps struct {
 //	                 per-session and cannot be enumerated in the CORS allowlist,
 //	                 and preview responses carry no Access-Control-Allow-Origin,
 //	                 so cross-origin reads stay browser-blocked
-//	cors           → CORS allowlist for the Electron renderer / dev origins;
+//	cors           → CORS allowlist for the Tauri renderer / dev origins;
 //	                 rejects every other Origin-bearing request before handlers
 //
 // The per-request timeout is deliberately not global: it wraps only bounded
@@ -90,8 +90,8 @@ func previewOriginMiddleware(sessions *controllers.SessionsController) func(http
 	}
 }
 
-// mountHealth registers the liveness and readiness probes the Electron
-// supervisor polls before letting the renderer connect.
+// mountHealth registers the liveness and readiness probes the Tauri shell
+// polls before letting the renderer connect.
 func mountHealth(r chi.Router, cfg config.Config) {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		envelope.WriteJSON(w, http.StatusOK, daemonProbePayload("ok", cfg))

@@ -7,8 +7,7 @@ import type { UpdateSettings } from "../../shared/update-settings";
 // The PostHog SDK measured 518,723 bytes when inlined into the 1,729,775-byte
 // renderer entry chunk, and nothing on the critical paint path needs it: every
 // consumer here already awaits initTelemetry(). Loading it through a dynamic
-// import keeps it out of the eager parse set entirely
-// (route-bundle-report before.json/after.json, 2026-08-24).
+// import keeps it out of the eager parse set entirely.
 type PostHogClient = typeof import("posthog-js/dist/module.full.no-external").default;
 
 let posthogModulePromise: Promise<PostHogClient> | null = null;

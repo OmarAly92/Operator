@@ -3,7 +3,7 @@ import { operatorBridge } from "../lib/bridge";
 import { isMacPlatform } from "../lib/platform";
 
 /**
- * Whether the Electron BrowserWindow is in native fullscreen. macOS-only: used
+ * Whether the shell window is in native fullscreen. macOS-only: used
  * to drop the traffic-light clearance above TitlebarNav when the lights are gone.
  * No-ops on Win/Linux (TitlebarNav / drag strip are not mounted there).
  */

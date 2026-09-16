@@ -96,7 +96,7 @@ function queryClient() {
 	return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
-// A covered or background Electron window still reports "visible" on Windows
+// A covered or background window still reports "visible" on Windows
 // and Linux, so visibility and focus have to be stubbed independently.
 function setWindowState({ focused, visible }: { focused: boolean; visible: boolean }) {
 	vi.spyOn(document, "visibilityState", "get").mockReturnValue(visible ? "visible" : "hidden");

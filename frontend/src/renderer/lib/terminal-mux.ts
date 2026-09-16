@@ -14,7 +14,7 @@
 //     server → block{id,block}
 //
 // The renderer connects directly to the loopback daemon (same host/port as the
-// REST API, path `/mux`); it is not proxied through the Electron main process.
+// REST API, path `/mux`); it is not proxied through the shell.
 
 import type { components } from "../../api/schema";
 

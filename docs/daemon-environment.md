@@ -1,16 +1,13 @@
 # Daemon environment: the GUI-launch PATH/credentials problem
 
 Status: implemented (login-shell resolution ships in the Tauri supervisor)
-Scope: desktop (Tauri shell; formerly Electron) launch of the Operator daemon on
-macOS (and any GUI-launched desktop platform)
+Scope: desktop (Tauri shell) launch of the Operator daemon on macOS (and any
+GUI-launched desktop platform)
 
-> **Where it lives now.** The Electron `daemonEnv()` this document proposed was
-> replaced by the Tauri port: `frontend/src-tauri/src/daemon/supervisor.rs`
+> **Where it lives.** `frontend/src-tauri/src/daemon/supervisor.rs`
 > (`ensure_shell_env`) resolves the login-shell environment once and
 > `frontend/src-tauri/src/daemon/discovery.rs` picks the shell, brackets the
-> payload, and parses it. The rest of this document is kept as the design
-> record; every mention of Electron main / `frontend/src/main.ts` below is
-> historical.
+> payload, parses it, and builds the daemon environment (`build_daemon_env`).
 
 ## Summary
 
@@ -24,9 +21,10 @@ startup and use it as the base for the daemon's environment.
 
 ## Problem statement
 
-The Electron supervisor spawns the Go daemon with the environment it forwards in
-`daemonEnv()` (`frontend/src/main.ts`), which is essentially `...process.env`
-plus Operator's telemetry defaults. The daemon, in turn, is the parent of every agent
+The Tauri shell spawns the Go daemon with the environment it forwards from
+`build_daemon_env` (`frontend/src-tauri/src/daemon/discovery.rs`), which is the
+shell's own process environment plus Operator's telemetry defaults. The daemon,
+in turn, is the parent of every agent
 session (its pty-host runs `claude`/`codex`, etc.), and the agent's
 `PATH` is derived from the daemon's own `PATH`
 (`runtimeEnv` -> `HookPATH(m.executable, os.Getenv, ...)` in
@@ -35,7 +33,7 @@ session (its pty-host runs `claude`/`codex`, etc.), and the agent's
 So whatever environment the daemon receives propagates to the entire stack:
 
 ```
-launchd (or terminal) -> Electron main -> daemon -> pty-host -> agent (claude/codex)
+launchd (or terminal) -> Tauri shell -> daemon -> pty-host -> agent (claude/codex)
 ```
 
 When that environment is impoverished, everything downstream breaks.
@@ -75,13 +73,13 @@ parent differs by launch method:
   (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`, `HOME`, `USER`, `TMPDIR`, little else).
   No shell runs anywhere in the chain, so no rc/profile file is ever sourced.
   The homebrew `PATH` and the exported credentials simply do not exist for the
-  app, and `daemonEnv()` faithfully forwards that minimal env down to the daemon.
+  app, and a plain forward hands that minimal env down to the daemon.
 
 This is deliberate on Apple's part: GUI apps are decoupled from interactive shell
 configuration on purpose (it can be slow, interactive, or machine-specific). The
 old `~/.MacOSX/environment.plist` escape hatch was removed years ago. This is the
-single most common macOS-Electron footgun; it is why packages like `fix-path` and
-`shell-env` exist.
+single most common footgun for GUI-launched macOS apps; it is why packages like
+`fix-path` and `shell-env` exist.
 
 ### Why "just forward env" is correct in principle
 
@@ -95,15 +93,15 @@ Forwarding the environment is not the bug. The daemon and agents genuinely need:
 - locale/proxy (`LANG`, `LC_*`, `HTTPS_PROXY`);
 - Operator's own vars (telemetry, `OPERATOR_DATA_DIR`, `OPERATOR_RUN_FILE`, session ids).
 
-The bug is the _source_ of what we forward: under a GUI launch, `process.env` is
-launchd's minimal env, not the shell's. The fix is to forward a _good_ base env,
-not to stop forwarding.
+The bug is the _source_ of what we forward: under a GUI launch, the shell's
+process environment is launchd's minimal env, not the login shell's. The fix is
+to forward a _good_ base env, not to stop forwarding.
 
-## Proposed solution: resolve the login-shell environment
+## Solution: resolve the login-shell environment
 
 Do not reconstruct the shell environment by hand. Run the user's login shell
-once, ask it to print its environment, and adopt that as the base for
-`daemonEnv()`.
+once, ask it to print its environment, and adopt that as the base for the daemon
+environment.
 
 ### The mechanism
 
@@ -123,7 +121,7 @@ into key/value pairs and merge it under the existing forwarded env so explicit
 overrides still win:
 
 ```
-finalEnv = { ...shellEnv, ...process.env, OPERATOR_*: defaults }
+finalEnv = { ...shellEnv, ...processEnv, OPERATOR_*: defaults }
 ```
 
 ### Worked example
@@ -150,18 +148,18 @@ credentials.
 
 ### Implementation details
 
-Place the resolution in Electron's `daemonEnv()` (`frontend/src/main.ts`), the
-parent that hands env to the daemon.
+The resolution lives in the Tauri supervisor (`ensure_shell_env`), the parent
+that hands env to the daemon.
 
 - **Resolve once, cache.** Sourcing rc files can take 100ms to >1s
   (nvm/pyenv/...). Do it a single time at startup; never per-session.
-- **Pick the shell robustly.** Prefer `process.env.SHELL`; under launchd it may
+- **Pick the shell robustly.** Prefer `$SHELL`; under launchd it may
   be absent, so fall back to the user record
   (`dscl . -read /Users/$USER UserShell`), then `/bin/zsh`. Do not hardcode zsh;
   honor bash/fish.
 - **Isolate the payload.** Interactive shells can print banners/motd/prompts to
   stdout. Bracket the real output with a sentinel and read only after it:
-  `zsh -ilc 'echo __OPERATOR_ENV_START__; env -0'`.
+  `zsh -ilc "printf '%s' '__OPERATOR_SHELL_ENV__'; env -0"`.
 - **No stdin, with a timeout.** Run with `</dev/null` and a ~2-3s timeout so a
   misconfigured rc that waits for input cannot hang startup.
 - **Fallback on any failure.** If the probe fails, times out, or exits nonzero,
@@ -193,8 +191,10 @@ it. We shell out once to the user's own shell and adopt its result.
 
 ## Relevant code
 
-- `frontend/src/main.ts` - `daemonEnv()` (env forwarded to the daemon), daemon
-  spawn.
+- `frontend/src-tauri/src/daemon/supervisor.rs` - `ensure_shell_env` (login-shell
+  resolution, cached once), daemon spawn.
+- `frontend/src-tauri/src/daemon/discovery.rs` - `shell_env_args`,
+  `resolve_shell_path`, `build_daemon_env` (env forwarded to the daemon).
 - `backend/internal/session_manager/manager.go` - `runtimeEnv` / `HookPATH`
   (agent `PATH` derived from the daemon's `PATH`); `spawnEnv`.
 - `backend/internal/adapters/runtime/ptyhost/spawn.go` - the pty-host is

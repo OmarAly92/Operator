@@ -1,6 +1,5 @@
-// DaemonStatus is the supervisor → renderer handshake payload, shared by the
-// Electron main process (which derives it) and the preload bridge (which types
-// the IPC surface). The renderer picks it up through the preload's OperatorBridge type.
+// DaemonStatus is the supervisor → renderer handshake payload the Tauri shell
+// derives. The renderer picks it up through the OperatorBridge type.
 // Machine-readable failure classification for telemetry. `message` is
 // human-facing and may contain local paths; `code` is what gets reported.
 // Statuses without a code (normal ready, user-initiated stop) are not failures.
@@ -22,7 +21,7 @@ export type DaemonStatus = {
 	executablePath?: string;
 	workingDirectory?: string;
 	message?: string;
-	// Recent daemon stdout/stderr retained by the Electron supervisor for local
+	// Recent daemon stdout/stderr retained by the shell for local
 	// troubleshooting. It is never sent to telemetry.
 	details?: string;
 	code?: DaemonFailureCode;

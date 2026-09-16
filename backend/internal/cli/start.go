@@ -29,8 +29,7 @@ import (
 // (#3523) would strand every `opr start` download the day that redirect stops.
 var releaseRepo = "OmarAly92/operator"
 
-// appBundleName is the macOS bundle directory name produced by electron-forge
-// (spaced, per frontend/forge.config.ts).
+// appBundleName is the macOS bundle directory name Tauri produces.
 const appBundleName = "Operator.app"
 
 // appStateFileName is the marker the desktop app writes under ~/.operator on every
@@ -197,8 +196,7 @@ func operatorStateDir() (string, error) {
 }
 
 // knownAppLocations lists the platform's standard install paths to scan when the
-// marker misses (covers website installs and stale markers, spec §6.2). Tauri
-// layouts rank ahead of the legacy electron-builder ones they replace.
+// marker misses (covers website installs and stale markers, spec §6.2).
 func knownAppLocations() []string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -208,21 +206,7 @@ func knownAppLocations() []string {
 		}
 		return paths
 	case "windows":
-		var paths []string
-		if local := os.Getenv("LOCALAPPDATA"); local != "" {
-			paths = append(paths,
-				// Tauri NSIS currentUser install ($LOCALAPPDATA\<productName>).
-				tauriWindowsInstalledExe(local),
-				// Default electron-builder NSIS per-user install (perMachine:false).
-				windowsInstalledExe(local),
-			)
-		}
-		// Per-machine fallback (if a user chose an all-users install); the Tauri
-		// NSIS perMachine default lands in the same Program Files directory.
-		if pf := os.Getenv("ProgramFiles"); pf != "" {
-			paths = append(paths, filepath.Join(pf, "Operator", "operator.exe"))
-		}
-		return paths
+		return windowsAppLocations(os.Getenv("LOCALAPPDATA"), os.Getenv("ProgramFiles"))
 	case "linux":
 		paths := []string{linuxDebRpmExe(), linuxAppImagePath()}
 		if home, err := os.UserHomeDir(); err == nil {
@@ -234,6 +218,17 @@ func knownAppLocations() []string {
 	}
 }
 
+func windowsAppLocations(localAppData, programFiles string) []string {
+	var paths []string
+	if localAppData != "" {
+		paths = append(paths, tauriWindowsInstalledExe(localAppData))
+	}
+	if programFiles != "" {
+		paths = append(paths, filepath.Join(programFiles, "Operator", "operator.exe"))
+	}
+	return paths
+}
+
 // tauriWindowsInstalledExe is the Tauri NSIS currentUser install target for the
 // app exe: $LOCALAPPDATA\<productName>\<mainBinaryName>.exe.
 func tauriWindowsInstalledExe(localAppData string) string {
@@ -243,24 +238,6 @@ func tauriWindowsInstalledExe(localAppData string) string {
 // linuxDebRpmExe is where the Tauri deb/rpm packages install the binary.
 func linuxDebRpmExe() string {
 	return "/usr/bin/operator"
-}
-
-// windowsInstalledExe is the default per-user electron-builder NSIS install
-// target for the app exe under %LOCALAPPDATA%.
-func windowsInstalledExe(localAppData string) string {
-	return filepath.Join(localAppData, "Programs", "Operator", "operator.exe")
-}
-
-func resolveWindowsInstalledExe(localAppData string, usable func(string) bool) string {
-	for _, path := range []string{
-		tauriWindowsInstalledExe(localAppData),
-		windowsInstalledExe(localAppData),
-	} {
-		if usable(path) {
-			return path
-		}
-	}
-	return ""
 }
 
 // linuxAppImagePath is the stable location `opr start` downloads the AppImage to
@@ -359,7 +336,7 @@ func (c *commandContext) fetchAppDarwin(ctx context.Context, w io.Writer) (strin
 //
 // ponytail: the silent-install flow (NSIS `/S`, default per-user dir) is
 // untested on real Windows hardware (this build host is macOS). If the installed
-// exe isn't where electron-builder's defaults put it, this surfaces as a clear
+// exe isn't where the Tauri NSIS defaults put it, this surfaces as a clear
 // "not found" error rather than silently launching the wrong thing.
 func (c *commandContext) fetchAppWindows(ctx context.Context, w io.Writer) (string, error) {
 	asset, err := assetName()
@@ -399,9 +376,9 @@ func (c *commandContext) fetchAppWindows(ctx context.Context, w io.Writer) (stri
 	if local == "" {
 		return "", fmt.Errorf("opr start: LOCALAPPDATA not set; cannot locate installed app")
 	}
-	appPath := resolveWindowsInstalledExe(local, isUsableBundle)
-	if appPath == "" {
-		return "", fmt.Errorf("opr start: installed app not found at %s or %s", tauriWindowsInstalledExe(local), windowsInstalledExe(local))
+	appPath := tauriWindowsInstalledExe(local)
+	if !isUsableBundle(appPath) {
+		return "", fmt.Errorf("opr start: installed app not found at %s", appPath)
 	}
 	return appPath, nil
 }
@@ -628,10 +605,6 @@ func (c *commandContext) openApp(ctx context.Context, appPath string) (bool, err
 		// No `open`-style launcher on these platforms; exec the bundle directly,
 		// detached, so `opr start` does not block on the app. StartProcess uses
 		// cmd.Start() + a detached SysProcAttr (see process.go).
-		//
-		// ponytail: on some Linux hosts the AppImage may need --no-sandbox; not
-		// added here without evidence the bundled Electron requires it. If sandbox
-		// launch failures appear, append "--no-sandbox" as the follow-up.
 		err := c.deps.StartProcess(processStartConfig{
 			Path: appPath,
 			Args: []string{"--installed-via=npm-bootstrap"},

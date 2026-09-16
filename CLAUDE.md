@@ -22,8 +22,7 @@ Two facts that are easy to get wrong from the code alone:
   none`. Never reach for `document.getSelection()` in terminal code.
 - **The desktop shell is Tauri.** `npm run tauri:dev` from the repo root starts
   the app and supervises the daemon, and rebuilds `packages/terminal` on start.
-  `RUN_APP_COMMANDS.md` is the truth; the `opr-desktop-dev` skill still describes
-  the old Electron shell and is marked stale.
+  `RUN_APP_COMMANDS.md` is the truth.
 
 **`AGENTS.md` covers `backend/` and `frontend/` only.** The third deliverable, the Flutter
 mobile client at `packages/mobile`, is documented below.

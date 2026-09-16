@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-02
 
-**Surfaces:** Electron renderer first; main-process locale persistence for future native chrome
+**Surfaces:** Tauri renderer first; shell-side locale persistence for future native chrome
 
 ## Decision
 
@@ -79,4 +79,4 @@ Always leave agent terminal I/O, PR titles/bodies, branch names, paths, reposito
 - Component tests cover live language switches, persistence failures, localized accessibility labels, and localized PR plural output.
 - The renderer coverage test prevents newly hardcoded English JSX chrome from bypassing the catalogs.
 - Command-palette tests require an explicit reactive translator so memoized commands cannot remain in the previous language.
-- Frontend typecheck, the complete Vitest suite, and all Electron/Vite builds must pass before merge.
+- Frontend typecheck, the complete Vitest suite, and all Tauri/Vite builds must pass before merge.

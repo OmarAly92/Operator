@@ -165,7 +165,7 @@ fn relaunch_preserves_provenance_while_refreshing_facts() {
 }
 
 #[test]
-fn write_drops_unknown_top_level_keys_like_the_electron_writer() {
+fn write_drops_unknown_top_level_keys() {
     let dir = scratch_dir("top-level-keys");
     let seeded = r#"{"schemaVersion":9,"appPath":"/x","rogue":true}"#;
     fs::write(marker_path(&dir), seeded).unwrap();

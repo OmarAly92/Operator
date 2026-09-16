@@ -3,9 +3,7 @@
 Current `codex/tauri-port` ships a working single-user local loop: the Go daemon
 and the Tauri + React desktop shell both drive a live daemon over HTTP/SSE/WebSocket.
 The core GitHub flow works end-to-end: add project → spawn session/orchestrator →
-attach terminal → observe PR → merge. The Electron shell was removed with Task 21
-of the Tauri port (`docs/benchmarks/tauri-port-baseline.md` records the port's
-measurement contract and its still-open external gates).
+attach terminal → observe PR → merge.
 
 This file tracks progress. For what the product _is_ and how to run it, see the
 top-level [`README.md`](../README.md); for the backend mental model see
@@ -21,8 +19,7 @@ cd backend && go build ./... && go test -race ./...
 
 `npm run lint` (from the repo root) runs `go test ./...` plus golangci-lint v2.12.2.
 Frontend checks live under `frontend/` (`npm run typecheck`, `npm run tauri:build`,
-Playwright renderer E2E, WebdriverIO native-shell E2E,
-`npm run check:desktop-parity`, `node --test scripts/no-electron.test.mjs`).
+Playwright renderer E2E, WebdriverIO native-shell E2E).
 See [`docs/development.md`](development.md) for the full command matrix and
 [`AGENTS.md`](../AGENTS.md) for the regen workflow when touching the API
 surface (`npm run sqlc`, `npm run api`).
@@ -92,10 +89,8 @@ surface (`npm run sqlc`, `npm run api`).
 
 - Tauri 2 + React 19 + TanStack Router/Query + Tailwind + shadcn primitives.
   The Rust shell (`frontend/src-tauri`) supervises the daemon, owns native
-  integrations, and pins every webview/state path under `~/.operator`. The
-  Electron main process, preload, Forge pipeline, and broker were deleted with
-  Task 21 of the Tauri port; `node --test scripts/no-electron.test.mjs` guards
-  that absence. WebdriverIO E2E drives the real binary through Tauri's
+  integrations, and pins every webview/state path under `~/.operator`.
+  WebdriverIO E2E drives the real binary through Tauri's
   embedded WebDriver (`npm run test:e2e:tauri`); Windows/Linux legs are
   authored but await their first native CI runs.
 - Native integrations live in Rust behind narrow ACLs: window
@@ -137,9 +132,7 @@ surface (`npm run sqlc`, `npm run api`).
   intentionally not part of the desktop V1 API/UI.
 - Terminal pane (xterm over WebGL where the platform allows) rides the mux
   WebSocket, with a live SSE events connection and port-rebind on daemon
-  restart. Startup parse weight dropped ~34.5% via route-level code splitting;
-  binding warm-start/idle-memory comparisons remain unmeasured pending native
-  runners (`docs/benchmarks/tauri-port-baseline.md`).
+  restart. Startup parse weight dropped ~34.5% via route-level code splitting.
 - Shell-terminal history replays decoded raw bytes before its live mux attachment opens,
   preserving chronological block order across page reloads and daemon restarts.
 - In-app notification center with click access, Unread/All filters, paginated
@@ -175,14 +168,12 @@ surface (`npm run sqlc`, `npm run api`).
   unmeasured pending native runners; Windows/Linux WebdriverIO legs await their
   first native runs. Release-gating follow-ups that must land before any release
   ships: the project-owned verified-apply updater path (updates currently fail
-  closed at apply) and real OS toast-click activation. See
-  [`docs/benchmarks/tauri-port-baseline.md`](benchmarks/tauri-port-baseline.md)
-  for the measurement contract and gate table. The complete release-blocker and
+  closed at apply) and real OS toast-click activation. The complete release-blocker and
   deferred-work ledger is
   [`docs/todo/tauri-port-release-and-follow-ups.md`](todo/tauri-port-release-and-follow-ups.md).
 - **Release sign-off ledger**: recorded here so release sign-off is auditable
-  without the SDD workspace. Window chrome diverges from the Electron shell by
-  explicit deferral: Electron's `hidden`/`hiddenInset` titlebars were not ported,
+  without the SDD workspace. By explicit deferral, `hidden`/`hiddenInset`
+  titlebars are not implemented,
   so macOS and Windows ship fully decorated native chrome until a coordinated
   drag-region migration lands, and that divergence requires explicit user
   sign-off before any release (Task 13 ruling).

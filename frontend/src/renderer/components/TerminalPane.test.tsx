@@ -349,7 +349,7 @@ describe("TerminalPane empty states", () => {
 		}
 	});
 
-	it("uses the live terminal path in Tauri without an Electron preload", () => {
+	it("uses the live terminal path in Tauri without an injected bridge", () => {
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		const previousOperator = window.operator;
 		const holder = window as typeof window & { __TAURI_INTERNALS__?: unknown };

@@ -1064,7 +1064,7 @@ previews open in the user's default browser (see
 The session-facing entry point is the `opr browser` CLI (`backend/internal/cli/browser.go`),
 which routes through the daemon so capability issuance stays server-side.
 
-Panel-only capabilities were dropped with the Electron panel: DevTools control and
+Panel-only capabilities are not offered: DevTools control and
 request/network capture have no standalone implementation — the adapter rejects
 them with stable error codes (`BROWSER_DEVTOOLS_UNAVAILABLE`,
 `BROWSER_AUTOMATION_UNAVAILABLE`) instead of approximating them. Ending the

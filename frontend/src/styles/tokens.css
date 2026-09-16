@@ -1,7 +1,7 @@
 /*
  * Design tokens — Operator frontend
  * ============================================
- * Source of truth for the app (Electron renderer) visual system.
+ * Source of truth for the app renderer visual system.
  * Extracted from the existing dark-first Cursor-like UI in
  * src/renderer/styles.css — not a restyle.
  *
@@ -180,7 +180,7 @@
 	   the sidebar hangs below. Distinct from --size-toolbar (40px) because
 	   the shell header is taller (56px) to accommodate the project crumb. */
 	--size-shell-topbar: 56px;
-	/* Windows custom title bar (.window-titlebar) — keep in sync with TITLEBAR_HEIGHT in main.ts. */
+	/* Windows custom title bar (.window-titlebar) — keep in sync with the Window Controls Overlay height. */
 	--size-window-titlebar: 36px;
 	--size-inspector-tabs: var(--size-topbar-secondary);
 	--size-topbar-context-max: 32rem;

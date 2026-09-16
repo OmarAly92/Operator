@@ -46,7 +46,7 @@ export type UpdateOutcome = {
 /**
  * Buckets an updater error into a safe category.
  *
- * electron-updater surfaces failures as free-text, so this matches on
+ * The updater surfaces failures as free-text, so this matches on
  * substrings. Anything unrecognized becomes "unknown" rather than leaking the
  * original text.
  */

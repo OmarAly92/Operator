@@ -261,7 +261,7 @@ export function keepLatestNotificationsPage(
  * the one on screen, this window is visible, and this window has focus.
  *
  * Each check covers a way "looks visible" lies. Visibility alone is not enough
- * — on Windows and Linux an unfocused or fully covered Electron window still
+ * — on Windows and Linux an unfocused or fully covered window still
  * reports `visibilityState === "visible"`. The route alone is not enough
  * either: the session pane renders one terminal at a time, so an open shell or
  * reviewer tab hides the agent while the URL still names that session. The

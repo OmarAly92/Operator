@@ -10,19 +10,17 @@ import type { DaemonStatus } from "../../src/shared/daemon-status";
 // need a deterministic *ready* daemon and a known version string, so we inject
 // a complete `window.operator` before any page script runs — the same seam the
 // packaged shell's bridge fills. This is a fake *bridge*, not a fake agent: no worker
-// process and no GitHub repo are involved, matching the T0 POD constraints.
+// process and no GitHub repo are involved.
 //
-// In a real Linux pod running the packaged build, `window.operator` is the live
-// bridge; the injected bridge is only the deterministic stand-in for the
-// browser harness.
+// In the packaged build, `window.operator` is the live bridge; the injected
+// bridge is only the deterministic stand-in for the browser harness.
 //
 // SCOPE / CAVEAT — renderer smoke, not full e2e. Because `window.operator`,
 // `EventSource`, and the workspace snapshot are all faked here, this harness
-// CANNOT catch daemon, storage, API, bridge, PTY, or filesystem regressions —
-// those are the packaged-app pod gate's job (#2697). In particular,
-// `useWorkspaceQuery` reads an already-shaped `WorkspaceSummary` straight from
-// `window.__aoFakeAgent.snapshot()`, BYPASSING the generated API client + DTO
-// mapping; DTO/client coverage comes from the pod gate + unit tests, never from
+// CANNOT catch daemon, storage, API, bridge, PTY, or filesystem regressions.
+// In particular, `useWorkspaceQuery` reads an already-shaped `WorkspaceSummary`
+// straight from `window.__aoFakeAgent.snapshot()`, BYPASSING the generated API
+// client + DTO mapping; DTO/client coverage comes from unit tests, never from
 // these specs. Treat green here as "the renderer renders the injected state,"
 // not "the boundary works."
 
@@ -162,9 +160,6 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 //   3. A mutable workspace snapshot read by `useWorkspaceQuery` via
 //      `window.__aoFakeAgent.snapshot()` (dev:web seam). Controller mutations +
 //      an SSE push = the card the renderer repaints.
-//
-// The real Go fake-agent plugin drives the same states in the later real-daemon
-// pod run; here the same specs run against this bridge-level simulation.
 
 export type FakeWorker = {
 	id: string;

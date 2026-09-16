@@ -12,23 +12,18 @@ import { installFakeAgent, installFakeBridge } from "./support/fake-bridge";
 // here.
 //
 // Cases that inject state (a version string, a daemon status, board data) prove
-// the renderer RENDERS that state, not that the daemon PRODUCES it. The real
-// boundaries (daemon, storage, API, preload, PTY, FS) are exercised only in the
-// packaged-app pod gate (#2697) — which today runs a boot-level smoke (app
-// launches + paints, daemon reaches ready), NOT these specific cases; per-case
-// runtime coverage in the pod is future work. Each test carries its #2483
-// catalog ID in a comment for traceability; this is renderer smoke, NOT the
-// canonical T0/P0 gate.
+// the renderer RENDERS that state, not that the daemon PRODUCES it. Each test
+// carries its #2483 catalog ID in a comment for traceability; this is renderer
+// smoke, NOT the canonical T0/P0 gate.
 
 // ── INS: install / first run ────────────────────────────────────────────────
 
 // #2483 INS-001.
 test("renderer: packaged bundle launches and paints @T0 @INS", async ({ page }) => {
-	// The real "deb/zip installs cleanly on the reference image" check is a pod
+	// The real "deb/zip installs cleanly on the reference image" check is a
 	// packaging step with no renderer surface. The renderer-observable proof that
 	// the install produced a runnable app is that the bundle loads, the shell
-	// paints, and the app carries a real version string (bundle integrity). The
-	// on-image install itself stays in the pod INS script.
+	// paints, and the app carries a real version string (bundle integrity).
 	await installFakeBridge(page, { version: "9.9.9-test" });
 	await page.goto("/");
 	await expect(page.getByTestId("board")).toBeVisible();
@@ -39,12 +34,12 @@ test("renderer: packaged bundle launches and paints @T0 @INS", async ({ page }) 
 });
 
 // #2483 INS-007.
-test("renderer: update settings surface renders (feed/checksum checks are pod) @T0 @INS", async ({ page }) => {
+test("renderer: update settings surface renders (feed/checksum checks are release-side) @T0 @INS", async ({ page }) => {
 	// INS-007 (updater feed ymls reference real uploaded assets with matching
 	// checksums) is a release-artifact check with no renderer surface — it belongs
-	// to the pod/CI updater leg. The renderer slice we can lock is that the update
+	// to the CI updater leg. The renderer slice we can lock is that the update
 	// settings surface (channel + version) renders, i.e. the app is wired to a
-	// feed at all. Checksum + asset-existence verification stays in the pod.
+	// feed at all.
 	await installFakeBridge(page, { version: "9.9.9-test" });
 	await page.goto("/#/settings");
 	await expect(page.getByTestId("settings-page")).toBeVisible();
@@ -55,11 +50,10 @@ test("renderer: update settings surface renders (feed/checksum checks are pod) @
 
 // #2483 INS-002.
 test("renderer: first-run home renders with the app launched @T0 @INS", async ({ page }) => {
-	// "Empty data dir" is a pod-side precondition; under dev:web the mock
+	// "Empty data dir" is a packaged-build precondition; under dev:web the mock
 	// fixtures are always present, so the BoardWelcome empty state can't render
 	// and we assert the home board surface + a mounted daemon-status indicator
-	// (proof the shell booted). The empty-state testid (`board-welcome`) is wired
-	// for the real empty-dir pod run.
+	// (proof the shell booted).
 	await page.goto("/");
 	await expect(page.getByTestId("board")).toBeVisible();
 	await expect(page.getByTestId("daemon-status")).toBeAttached();
@@ -119,7 +113,7 @@ test("renderer: daemon health reflected with a hydrated board @T0 @DMN", async (
 // #2483 DMN-005.
 test("renderer: daemon stop surfaced cleanly with no renderer crash @T0 @DMN", async ({ page }) => {
 	// The real DMN-005 ("graceful quit stops the daemon, no orphan processes") is
-	// a process-tree assertion for the pod. The renderer slice: a stopped daemon
+	// a process-tree assertion. The renderer slice: a stopped daemon
 	// is surfaced as a stopped status and the app stays alive (no crash/blank),
 	// which is the visible half of a clean shutdown.
 	await installFakeBridge(page, { daemonState: "stopped" });
@@ -131,7 +125,7 @@ test("renderer: daemon stop surfaced cleanly with no renderer crash @T0 @DMN", a
 // #2483 DMN-009.
 test("renderer: board state rehydrates after a renderer relaunch @T0 @DMN", async ({ page }) => {
 	// The real DMN-009 ("create state, restart the daemon, all state survives") is
-	// a daemon/storage persistence check for the pod. The renderer slice we can
+	// a daemon/storage persistence check. The renderer slice we can
 	// lock: state present on the board rehydrates after a full renderer relaunch
 	// (reload), i.e. the app rebuilds from the daemon rather than in-memory state.
 	//

@@ -643,7 +643,7 @@ fn feed_offers_candidate_permits_downgrades_and_rejects_equality() {
 }
 
 #[test]
-fn parse_feature_build_matches_electron_parser() {
+fn parse_feature_build_reads_the_pr_number() {
     assert_eq!(parse_feature_build("0.2.0-pr2270.202607061200"), Some(2270));
     assert_eq!(
         parse_feature_build("v0.2.0-pr2270.202607061200"),
@@ -852,7 +852,7 @@ fn status_serializes_the_renderer_wire_shape() {
 }
 
 #[test]
-fn failure_categories_bucket_like_electron() {
+fn failure_categories_bucket_by_substring() {
     assert_eq!(
         update_failure_category(Some("request failed: ENOTFOUND api.github.com")),
         UpdateFailureCategory::Network

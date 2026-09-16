@@ -27,7 +27,7 @@ func browserCLIServer(t *testing.T, capture *browserRequestCapture) *httptest.Se
 		capture.capability = r.Header.Get(browserCapabilityHeader)
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/browser/status" {
-			_, _ = io.WriteString(w, `{"sessionId":"opr-1","connected":true,"transport":"electron-webcontents-debugger"}`)
+			_, _ = io.WriteString(w, `{"sessionId":"opr-1","connected":true,"transport":"webview-debugger"}`)
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/browser/commands" {

@@ -387,9 +387,6 @@ paired daemon and a desktop session, §2's `reconnect` fix and its
 npm --prefix frontend run bench:terminal -- --shell tauri --scenario reconnect
 ```
 
-`--shell tauri` is mandatory; the electron path attaches to an already-running
-daemon and cannot select a runtime.
-
 **Decide one thing before recording numbers.** The harness mounts
 `createTerminalCore` + `DomBlockRenderer` directly rather than `TerminalSurface`,
 because at the time the surface did not expose `onPaint`. It does now

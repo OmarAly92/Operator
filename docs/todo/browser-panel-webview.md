@@ -1,17 +1,13 @@
 # Future: rebuild the browser panel on the OS webview
 
 **Recorded:** 2026-08-16
-**Updated:** 2026-08-24 (Task 16 shipped; Task 21 deleted the remaining Electron implementation)
+**Updated:** 2026-08-24 (Task 16 shipped)
 **Status:** deferred, not scheduled
-**Context:** `docs/superpowers/specs/2026-08-16-tauri-port-design.md`
 
 ## What this records
 
-The Tauri port removed the embedded browser panel (the inspector rail's Browser tab, and the
-in-window target of `opr preview`) instead of porting it to the OS webview target. The renderer
-side is gone as of Task 16, and Task 21 deleted the Electron-only implementation it depended on —
-`frontend/src/main/browser-view-host.ts`, the `preload.browser` namespace, and the Go
-`internal/browserruntime` broker that served it.
+There is no embedded browser panel (no inspector-rail Browser tab, no in-window target of
+`opr preview`) on the OS webview target.
 
 Two daemon-side paths replace the panel:
 
@@ -40,12 +36,12 @@ Two daemon-side paths replace the panel:
 `opr preview start/status/stop/clear`, relative-file previews, the preview-server lifecycle, and
 the daemon preview routes are preserved unchanged; only where the target renders changed.
 
-## Why the embedded panel was removed rather than ported
+## Why there is no embedded panel
 
-The panel was not ported to the OS webview target (WKWebView / WebKitGTK / WebView2) because it
-depends on Chromium APIs that target does not have:
+An embedded panel on the OS webview target (WKWebView / WebKitGTK / WebView2) would depend on
+Chromium APIs that target does not have:
 
-| Capability | Electron API | OS webview |
+| Capability | Chromium API | OS webview |
 |---|---|---|
 | Network capture for agents | `webContents.debugger` + CDP `Network.enable` | none |
 | Annotation snapshots | `capturePage()` | none cross-platform |

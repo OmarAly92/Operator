@@ -72,7 +72,7 @@ jobs:
     # the renderer under `dev:web` with an injected window.operator + fake CDC/snapshot.
     # This is fast renderer-regression coverage; it is NOT the canonical T0/P0
     # end-to-end gate. Real daemon/storage/API/preload/PTY/FS boundaries are
-    # exercised by the packaged-app pod gate (#2697), not here.
+    # not exercised here.
     # playwright.config starts `dev:web` itself (webServer); we only need the
     # browser installed.
     runs-on: ubuntu-latest

@@ -143,8 +143,7 @@ pub fn inspect_installed_bundle_in(
     (true, read_bundle_version(&installed))
 }
 
-/// True when the bundle runs from /Applications or <home>/Applications,
-/// mirroring Electron's app.isInApplicationsFolder().
+/// True when the bundle runs from /Applications or <home>/Applications.
 pub fn is_in_applications_folder(bundle_path: &Path, home_dir: &Path) -> bool {
     bundle_path.starts_with(Path::new(APPLICATIONS_DIR))
         || bundle_path.starts_with(home_dir.join("Applications"))
@@ -153,8 +152,7 @@ pub fn is_in_applications_folder(bundle_path: &Path, home_dir: &Path) -> bool {
 /// Upper bound on uniquified Trash candidates before the move is declined.
 const TRASH_CANDIDATE_LIMIT: u32 = 100;
 
-/// Destination in <home>/.Trash for a bundle being set aside, mirroring
-/// Electron's default moveToApplicationsFolder conflict handling: the OLD
+/// Destination in <home>/.Trash for a bundle being set aside: the OLD
 /// install goes to the user's Trash under a Finder-uniquified name
 /// ("Operator.app", then "Operator 2.app", ...). None when every candidate name
 /// is already taken or the name has no usable form.

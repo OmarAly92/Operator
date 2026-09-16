@@ -1,4 +1,4 @@
-/** UI locales supported across the Electron main, preload, and renderer boundaries. */
+/** UI locales supported across the shell and renderer boundaries. */
 export const APP_LOCALES = ["en", "zh-CN", "ja", "ko", "es", "fr", "de", "pt-BR"] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];

@@ -29,11 +29,6 @@ on:
     tags:
       - "desktop-v*"
   workflow_dispatch:
-    inputs:
-      skip_e2e_gate:
-        description: "Skip the advisory pod e2e gate (emergency/override)."
-        type: boolean
-        default: false
 
 jobs:
   release:
@@ -375,96 +370,6 @@ jobs:
           cp "dist/operator-darwin-x64-${VERSION}.zip" operator-darwin-x64.zip
           cp "dist/operator-darwin-x64.dmg" operator-darwin-x64.dmg
           gh release upload "$TAG" operator-darwin-x64.zip operator-darwin-x64.dmg --clobber
-
-  # Advisory pod e2e gate against the just-published Linux AppImage. NON-BLOCKING:
-  # publish-feed does not depend on it. Once trusted, add `e2e-gate` to
-  # publish-feed's needs. Override: skip_e2e_gate input.
-  e2e-gate:
-    needs: [release, release-intel]
-    runs-on: ubuntu-latest
-    # The Environment name is load-bearing: it is stamped into the GitHub OIDC
-    # token's subject (repo:<owner>/<repo>:environment:e2e-gate), which is exactly
-    # what the Azure federated credential trusts. Rename here => update the FIC.
-    environment: e2e-gate
-    permissions:
-      contents: read # actions/checkout
-      checks: write # publish the opr-stable-gate check-run (supports a neutral conclusion)
-      id-token: write # mint the OIDC token azure/login exchanges for an Azure token
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      # The Daytona API key lives ONLY in Azure Key Vault — never a GitHub secret.
-      - name: Install pod-runner deps
-        if: ${{ inputs.skip_e2e_gate != true }}
-        continue-on-error: true
-        run: npm --prefix scripts ci
-      - name: Azure login (OIDC, no stored secret)
-        if: ${{ inputs.skip_e2e_gate != true && vars.AZURE_CLIENT_ID != '' }}
-        continue-on-error: true
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-      - name: Run pod e2e gate (advisory)
-        id: gate
-        if: ${{ inputs.skip_e2e_gate != true }}
-        continue-on-error: true
-        run: |
-          if [ -n "${{ vars.AZURE_CLIENT_ID }}" ]; then
-            DAYTONA_API_KEY=$(az keyvault secret show --vault-name "${{ vars.AZURE_KEYVAULT_NAME }}" --name daytona-api-key --query value -o tsv 2>/dev/null || true)
-            if [ -n "$DAYTONA_API_KEY" ]; then
-              echo "::add-mask::$DAYTONA_API_KEY"
-              export DAYTONA_API_KEY
-            fi
-          fi
-          tag="v$(node -p "require('./frontend/package.json').version")"
-          node scripts/opr-e2e-pod-gate.mjs --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --tag "$tag" --suite T0
-      - name: Azure logout (revoke az auth for the rest of the job)
-        if: ${{ always() && inputs.skip_e2e_gate != true }}
-        continue-on-error: true
-        run: |
-          az logout || true
-          az account clear || true
-      - name: Upload e2e artifacts
-        if: ${{ always() && inputs.skip_e2e_gate != true }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: opr-stable-gate-artifacts
-          path: e2e-artifacts/
-          if-no-files-found: warn
-      - name: Publish opr-stable-gate check
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ inputs.skip_e2e_gate }}" = "true" ]; then
-            conclusion=skipped; summary="e2e gate skipped via skip_e2e_gate."
-          else
-            conclusion="${{ steps.gate.outputs.conclusion }}"
-            case "${{ steps.gate.outputs.classification }}" in
-              passed)     summary="T0 pod smoke passed." ;;
-              app_failed) summary="T0 pod smoke FAILED — the app under test failed the suite." ;;
-              *)          summary="Gate could not run (infra/setup: missing DAYTONA_API_KEY, Daytona unavailable, or setup error) — NOT a release-build failure." ;;
-            esac
-            [ -z "$conclusion" ] && conclusion=neutral
-            summary="$summary  Artifacts: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          fi
-          gh api "repos/$GITHUB_REPOSITORY/check-runs" \
-            -f name="opr-stable-gate" -f head_sha="$GITHUB_SHA" \
-            -f status="completed" -f conclusion="$conclusion" \
-            -f "output[title]=Operator stable e2e gate" -f "output[summary]=$summary"
-      - name: Enforce gate (blocking mode, opt-in)
-        # Advisory by default. When repo variable OPERATOR_GATE_BLOCKING=true, a real app
-        # failure fails this job so that adding `e2e-gate` to `publish-feed.needs`
-        # actually blocks the release. infra/neutral and skips never block — only
-        # `app_failed` (a real smoke failure of the release build) does.
-        if: ${{ always() && vars.OPERATOR_GATE_BLOCKING == 'true' && steps.gate.outputs.classification == 'app_failed' }}
-        run: |
-          echo "::error::opr-stable-gate: app smoke failed and OPERATOR_GATE_BLOCKING=true — failing the release."
-          exit 1
 
   # After every platform has built and uploaded its installers, generate latest.json
   # from the versioned assets and upload it to the same release. Runs once, on

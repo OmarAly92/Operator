@@ -84,7 +84,7 @@ fn overrides_from(entries: &[(&str, &[BindingSpec])]) -> HashMap<String, Vec<Bin
 }
 
 #[test]
-fn default_accelerators_match_the_electron_platform_split() {
+fn default_accelerators_follow_the_platform_split() {
     let mac = ShortcutId::PRIORITY_ORDER.map(|id| {
         (
             id,
@@ -362,7 +362,7 @@ fn overlay_colors_require_hex_input() {
 }
 
 #[test]
-fn theme_preferences_accept_only_electron_values() {
+fn theme_preferences_accept_only_known_values() {
     assert_eq!(
         theme_preference("light"),
         Some(crate::window::ThemePreference::Light)

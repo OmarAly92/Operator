@@ -318,8 +318,8 @@ impl<C: FeedClient> UpdaterEngine<C> {
         self.broadcast_error(message);
     }
 
-    /// Promise-rejection path: broadcasts an error without telemetry, exactly
-    /// like Electron's catch blocks around each serialized operation.
+    /// Failure path: broadcasts an error without telemetry around each
+    /// serialized operation.
     fn broadcast_error(&self, message: &str) {
         self.broadcast(
             UpdateStatus {
@@ -1094,9 +1094,9 @@ pub async fn updates_apply_settings(
 
 /// Arms the three periodic loops: hourly automatic checks, 30-minute staged-
 /// update escalation re-evaluations, and 30-minute feature-pin retirement
-/// polls. The shell also checks ONCE at launch — Electron's initAutoUpdates
-/// checked at startup, and both the update E2E harness and packaged users
-/// depend on availability surfacing without waiting out the first hour.
+/// polls. The shell also checks ONCE at launch — both the update E2E harness
+/// and packaged users depend on availability surfacing without waiting out the
+/// first hour.
 pub fn spawn_updater_timers(engine: Arc<ShellEngine>) {
     let launch_check = engine.clone();
     tauri::async_runtime::spawn(async move { launch_check.run_hourly_tick().await });

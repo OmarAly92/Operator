@@ -311,7 +311,7 @@ describe("tauri-bridge native integrations", () => {
 		expect(seen).toEqual(["n9"]);
 	});
 
-	it("validates external URLs through the Electron allowlist on the Rust opener command", async () => {
+	it("validates external URLs through the scheme allowlist on the Rust opener command", async () => {
 		const invoke = vi.fn<Invoke>(async (_command, payload) => {
 			const url = (payload as { url?: string })?.url;
 			if (!url || !["https://example.com", "http://127.0.0.1:3001/x", "mailto:user@example.com"].includes(url)) {

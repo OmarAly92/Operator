@@ -36,7 +36,7 @@ const CDC_EVENT_TYPES = [
 
 /**
  * Wires live server state into the TanStack Query cache. Two sources feed it:
- *   - daemon lifecycle over Electron IPC (coming up/down changes session availability)
+ *   - daemon lifecycle over the shell bridge (coming up/down changes session availability)
  *   - the backend CDC stream over SSE (project/session/PR changes)
  * Both invalidate the ["workspaces"] query so the UI refetches. Invalidations are
  * debounced because a single user action can emit a burst of CDC events.

@@ -12,14 +12,11 @@ import {
 	settingsDialogHeaderClass,
 } from "./ui/dialog";
 
-// UpdateOptInPrompt is the Tauri first-run auto-update opt-in. The Electron shell
-// asked this once from the main process (auto-updater.ts ensureUpdatePrefs) when
-// no settings file existed; in the ported shell updates live in shared daemon
-// settings, so the equivalent one-time ask lives here: it shows only in the
-// native shell, only while updates are still disabled-by-default, and only until
-// the user answers once (the answer is remembered in webview localStorage and
-// persisted through updateSettings.set). Dismissing counts as declining —
-// matching Electron's "Not now" button.
+// UpdateOptInPrompt is the first-run auto-update opt-in. Updates live in shared
+// daemon settings, so the one-time ask lives here: it shows only in the native
+// shell, only while updates are still disabled-by-default, and only until the
+// user answers once (the answer is remembered in webview localStorage and
+// persisted through updateSettings.set). Dismissing counts as declining.
 export const UPDATE_OPT_IN_ASKED_KEY = "operator-update-opt-in-asked";
 
 const DECLINED_SETTINGS: UpdateSettings = { enabled: false, feature: null };

@@ -1,5 +1,5 @@
-// Package runfile manages running.json — the PID + port handshake the Electron
-// main process uses to discover, health-check, and reap the daemon. The daemon
+// Package runfile manages running.json — the PID + port handshake the Tauri
+// shell uses to discover, health-check, and reap the daemon. The daemon
 // writes it on startup and removes it on graceful shutdown. On startup the
 // daemon also checks for a stale entry left by a crashed predecessor so it can
 // fail fast instead of fighting over the port.

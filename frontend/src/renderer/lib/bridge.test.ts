@@ -51,7 +51,7 @@ describe("shell selection", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("selects the Tauri bridge when __TAURI_INTERNALS__ is present without Electron preload", async () => {
+	it("selects the Tauri bridge when __TAURI_INTERNALS__ is present without an injected bridge", async () => {
 		setTauriInternals(true);
 		const invokeStub = vi.fn<Invoke>().mockResolvedValue({ state: "stopped" });
 		const listenStub = vi.fn<Listen>().mockReturnValue(() => undefined);
@@ -64,9 +64,9 @@ describe("shell selection", () => {
 		expect("browser" in bridge).toBe(false);
 	});
 
-	it("prefers the Electron bridge when both shells coexist", async () => {
-		const electronBridge = { daemon: { getStatus: async () => ({ state: "ready" }) } };
-		setWindowOperator(electronBridge);
+	it("prefers the injected window bridge when both are present", async () => {
+		const injectedBridge = { daemon: { getStatus: async () => ({ state: "ready" }) } };
+		setWindowOperator(injectedBridge);
 		setTauriInternals(true);
 		const { operatorBridge } = await importBridge();
 		expect(await operatorBridge.daemon.getStatus()).toEqual({ state: "ready" });
@@ -194,7 +194,7 @@ describe("compile-time ownership of shared types", () => {
 		expectTypeOf<Bridge["updates"]["onTelemetry"]>().parameter(0).toEqualTypeOf<(outcome: UpdateOutcome) => void>();
 	});
 
-	it("keeps the full Electron bridge assignable to the shared contract", () => {
+	it("keeps the full window bridge assignable to the shared contract", () => {
 		expectTypeOf<OperatorBridge["daemon"]["getStatus"]>().returns.resolves.toEqualTypeOf<DaemonStatus>();
 		expectTypeOf<keyof SharedOperatorBridge>().toExtend<string>();
 	});

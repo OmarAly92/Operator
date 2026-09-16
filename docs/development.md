@@ -2,8 +2,7 @@
 
 How to set up, build, run, and test Operator locally.
 
-The desktop shell is **Tauri + React**; the Electron/Forge app this page once
-described was removed with Task 21 of the Tauri port. `npm run tauri:dev` is the
+The desktop shell is **Tauri + React**. `npm run tauri:dev` is the
 normal dev loop and it supervises the daemon for you.
 
 ## Prerequisites
@@ -236,7 +235,6 @@ prompt keeps updates disabled until accepted.
 cd frontend
 npm run test                   # Vitest unit suite
 npm run typecheck              # tsc --noEmit
-node --test scripts/no-electron.test.mjs   # proves no Electron import/package/config remains
 npm run test:e2e:renderer      # Playwright @T0/@P0 renderer suite (drives dev:web)
 npm run typecheck:e2e          # Playwright suite types
 npm run test:e2e:tauri         # builds the debug shell with the e2e Cargo feature, runs WebdriverIO against the real binary

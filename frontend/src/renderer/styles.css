@@ -2069,9 +2069,9 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 }
 
 /* Windows custom title bar (WindowTitlebar): the app paints the sidebar toggle
- * + menu on one row while Electron overlays the native min/max/close buttons on
- * the right. Height uses --size-window-titlebar and must match TITLEBAR_HEIGHT
- * + the Window Controls Overlay height in main.ts so the native buttons line up.
+ * + menu on one row while the Tauri shell overlays the native min/max/close
+ * buttons on the right. Height uses --size-window-titlebar and must match the
+ * Window Controls Overlay height so the native buttons line up.
  * The whole strip is the window-drag region; interactive children opt out with
  * -webkit-app-region: no-drag. */
 .window-titlebar {
@@ -2084,7 +2084,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	gap: 8px;
 	padding: 0 10px;
 	/* Matches the shell chrome (bg-sidebar) and the Window Controls Overlay
-	   color pushed in WindowTitlebar/main.ts, so the native min/max/close
+	   color pushed in WindowTitlebar, so the native min/max/close
 	   strip blends into the bar instead of reading as a separate box. */
 	background: var(--color-bg-sidebar);
 	-webkit-app-region: drag;
@@ -3015,7 +3015,7 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 
 /* Maximized browser overlay: a fixed layer over the app workspace (portaled to
    <body>, so it covers the sidebar + topbar too, not just the session area).
-   Electron's Window Controls Overlay owns the top-right titlebar region on
+   The Window Controls Overlay owns the top-right titlebar region on
    Windows, so start below its reported safe-area height. macOS hides the shell
    topbar; windowed mode reserves the native traffic-light band below, while
    native fullscreen keeps a 0px top inset. Linux now shows a ShellTopbar, so
@@ -3239,8 +3239,8 @@ html[data-native-browser-composition="true"][data-opr-platform="win32"] .files-p
 	font-size: 12px;
 }
 
-/* Native composition keeps the browser page in an Electron
- * WebContentsView below the transparent shell renderer. The normal renderer
+/* Native composition keeps the browser page in a native
+ * webview below the transparent shell renderer. The normal renderer
  * path remains available for web-only development; these rules remove the
  * opaque paint layers that would otherwise hide the native page behind the
  * shell. Toolbar and controls stay opaque so the app chrome remains readable. */

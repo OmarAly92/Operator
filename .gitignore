@@ -1,4 +1,4 @@
-# Node / Electron
+# Node
 node_modules/
 .pnpm/
 dist/
@@ -63,12 +63,6 @@ Thumbs.db
 # Personal local overrides (not for the team)
 .envrc.local
 
-# electron-forge / vite build output
-.vite/
-dist-electron/
-# electron-builder debug dump, written to the cwd on every NSIS build
-builder-debug.yml
-
 # playwright artifacts
 frontend/test-results/
 /output/
@@ -85,14 +79,9 @@ frontend/agent-browser/
 .agents/*
 !.agents/skills/
 .agents/skills/*
-!.agents/skills/opr-desktop-dev/
-!.agents/skills/opr-desktop-dev/**
 !.agents/skills/bug-triage/
 !.agents/skills/bug-triage/**
 skills-lock.json
-
-# e2e pod gate: downloaded pod logs/traces (uploaded as CI artifacts, not committed)
-e2e-artifacts/
 
 # Local pnpm artifacts
 pnpm-lock.yaml

@@ -202,14 +202,6 @@ func TestRequireAMD64(t *testing.T) {
 	}
 }
 
-func TestWindowsInstalledExe(t *testing.T) {
-	got := windowsInstalledExe("C:\\Users\\me\\AppData\\Local")
-	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Operator", "operator.exe")
-	if got != want {
-		t.Fatalf("windowsInstalledExe = %q, want %q", got, want)
-	}
-}
-
 // TestTauriWindowsInstalledExe locks the Tauri NSIS currentUser layout:
 // $LOCALAPPDATA\<productName>\<mainBinaryName>.exe with product Operator and
 // executable operator.exe.
@@ -221,36 +213,14 @@ func TestTauriWindowsInstalledExe(t *testing.T) {
 	}
 }
 
-func TestResolveWindowsInstalledExePrefersTauriThenFallsBackToLegacy(t *testing.T) {
-	local := "C:\\Users\\me\\AppData\\Local"
-	tauri := tauriWindowsInstalledExe(local)
-	legacy := windowsInstalledExe(local)
-
-	var checked []string
-	got := resolveWindowsInstalledExe(local, func(path string) bool {
-		checked = append(checked, path)
-		return true
-	})
-	if got != tauri || !reflect.DeepEqual(checked, []string{tauri}) {
-		t.Fatalf("both installed: got %q checked %v, want Tauri first", got, checked)
+func TestKnownWindowsAppLocationsAreTauriOnly(t *testing.T) {
+	got := windowsAppLocations("C:\\Users\\me\\AppData\\Local", "C:\\Program Files")
+	want := []string{
+		filepath.Join("C:\\Users\\me\\AppData\\Local", "Operator", "operator.exe"),
+		filepath.Join("C:\\Program Files", "Operator", "operator.exe"),
 	}
-
-	checked = nil
-	got = resolveWindowsInstalledExe(local, func(path string) bool {
-		checked = append(checked, path)
-		return path == legacy
-	})
-	if got != legacy || !reflect.DeepEqual(checked, []string{tauri, legacy}) {
-		t.Fatalf("legacy fallback: got %q checked %v, want Tauri then legacy", got, checked)
-	}
-
-	checked = nil
-	got = resolveWindowsInstalledExe(local, func(path string) bool {
-		checked = append(checked, path)
-		return false
-	})
-	if got != "" || !reflect.DeepEqual(checked, []string{tauri, legacy}) {
-		t.Fatalf("neither installed: got %q checked %v, want both checked then empty", got, checked)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }
 
@@ -278,7 +248,6 @@ func TestKnownAppLocations_IncludesTauriLayouts(t *testing.T) {
 		got := knownAppLocations()
 		want := []string{
 			filepath.Join("C:\\Users\\me\\AppData\\Local", "Operator", "operator.exe"),
-			filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Operator", "operator.exe"),
 			filepath.Join("C:\\Program Files", "Operator", "operator.exe"),
 		}
 		if !reflect.DeepEqual(got, want) {

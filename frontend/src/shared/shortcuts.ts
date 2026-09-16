@@ -1,10 +1,10 @@
-// Pure, platform-parameterized shortcut matchers shared by the main process
-// (Electron `before-input-event`) and any renderer code. Kept free of Electron
-// and DOM types so it is trivially unit-testable and usable on both sides.
+// Pure, platform-parameterized shortcut matchers shared by the shell and any
+// renderer code. Kept free of DOM types so it is trivially unit-testable and
+// usable on both sides.
 
 export type ShortcutChord = {
 	key: string;
-	// Physical key (KeyboardEvent.code / Electron input.code), independent of
+	// Physical key (KeyboardEvent.code), independent of
 	// layout and modifiers. Needed for chords whose character shifts — e.g.
 	// Ctrl+Shift+` reports key "~" on a US layout but code "Backquote".
 	code?: string;

@@ -83,7 +83,7 @@ fn write_launch_marker(
 
 /// Capture install provenance BEFORE relocation, decide the macOS relocation,
 /// then refresh the marker so appPath records the final bundle path while the
-/// sticky installSource survives (mirrors main.ts app.whenReady ordering).
+/// sticky installSource survives.
 fn launch_app_state_flow(
     process_env: &HashMap<String, String>,
     home: &Path,
@@ -205,8 +205,7 @@ fn open_new_macos_bundle_instance(path: &Path) -> bool {
 }
 
 /// Replace a strictly-older /Applications bundle with the running one via ditto,
-/// preserving the code signature. Like Electron's default
-/// moveToApplicationsFolder conflict handling, the old bundle first moves to the
+/// preserving the code signature. The old bundle first moves to the
 /// user's Trash under a uniquified name; when it cannot be trashed (all names
 /// taken, cross-volume rename, no Trash) it stays in place and the move is
 /// declined rather than deleting it. The decision layer guarantees `installed`

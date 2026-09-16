@@ -58,7 +58,7 @@ pub fn coerce_settings(raw: &serde_json::Value) -> UpdateSettings {
     }
 }
 
-/// Electron allowDowngrade=true parity: any semantically different candidate
+/// Downgrades are allowed: any semantically different candidate
 /// the feed offers is surfaced to the shell, including older versions, so a
 /// return-home from a pr<N> build can never strand the user.
 pub fn feed_offers_candidate(current: &str, candidate: &str) -> bool {

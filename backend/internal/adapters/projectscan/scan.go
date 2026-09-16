@@ -1,8 +1,7 @@
 // Package projectscan inspects local folders for importable Git repositories.
 //
-// It owns the desktop's import-folder scan that used to run in the Electron
-// main process (frontend/src/main/import-folder-scan.ts): the daemon serves it
-// behind LAN-blocked developer routes so every client resolves the same answer.
+// It owns the desktop's import-folder scan: the daemon serves it behind
+// LAN-blocked developer routes so every client resolves the same answer.
 package projectscan
 
 import (

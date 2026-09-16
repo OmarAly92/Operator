@@ -1,4 +1,0 @@
-interface:
-  display_name: "Operator Desktop Dev"
-  short_description: "Run the real Operator desktop app from a checkout"
-  default_prompt: "Use $opr-desktop-dev to launch this checkout’s desktop app against real local Operator data and verify the requested UI."

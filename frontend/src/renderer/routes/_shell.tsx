@@ -404,7 +404,7 @@ function ShellLayout() {
 	}, [themeStyle]);
 
 	// A daemon port is not enough to render a trustworthy empty state: the
-	// route loader may have cached [] before Electron reported the port. Fetch
+	// route loader may have cached [] before the shell reported the port. Fetch
 	// once against each ready daemon before allowing the board to decide
 	// between projects and the first-run import flow.
 	useEffect(() => {
@@ -463,8 +463,8 @@ function ShellLayout() {
 		workspaceStartupState,
 	]);
 
-	// Keep Electron's nativeTheme in step with the shell so the embedded preview
-	// WebContentsView (which follows prefers-color-scheme) flips at the same time.
+	// Keep the native theme in step with the shell so the embedded preview
+	// webview (which follows prefers-color-scheme) flips at the same time.
 	// Send the preference, not the resolved theme, so "system" keeps both surfaces
 	// following the OS instead of freezing matchMedia to a forced value.
 	useEffect(() => {

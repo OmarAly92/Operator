@@ -209,7 +209,7 @@ async function runtimeFetch(input: Request): Promise<Response> {
 
 		// Rebase onto the runtime base URL by copying fields explicitly and
 		// buffering the body. `new Request(target, input)` reads the source
-		// request's `duplex` getter, which Electron's Chromium lacks — it throws
+		// request's `duplex` getter, which some webview engines lack — they throw
 		// "The duplex member must be specified" for any request with a body, so
 		// every POST would fail in the packaged app. API bodies are small JSON;
 		// buffering sidesteps streaming-duplex semantics entirely.

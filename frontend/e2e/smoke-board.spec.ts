@@ -2,10 +2,8 @@ import { expect, test } from "@playwright/test";
 import { installFakeAgent } from "./support/fake-bridge";
 
 // BRD-* RENDERER SMOKE (issue #2483, renderer slice). dev:web + fake bridge —
-// does NOT hit the real daemon/storage/API/preload/PTY/FS. Those boundaries are
-// exercised only in the packaged-app pod gate (#2697), which today runs a
-// boot-level smoke (app launches, daemon ready), NOT these cases — per-case pod
-// coverage is future work. Drives the board off the fake-agent CDC SSE stream so
+// does NOT hit the real daemon/storage/API/preload/PTY/FS.
+// Drives the board off the fake-agent CDC SSE stream so
 // column moves and live updates exercise the same SSE → invalidate → refetch
 // path the real daemon uses (see fake-bridge.ts). IDs cross-reference #2483.
 

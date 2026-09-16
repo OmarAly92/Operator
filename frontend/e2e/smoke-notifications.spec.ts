@@ -2,9 +2,7 @@ import { expect, test } from "@playwright/test";
 import { installFakeAgent } from "./support/fake-bridge";
 
 // NTF-003 RENDERER SMOKE (issue #2483, renderer slice). dev:web + fake bridge —
-// not the canonical T0/P0 gate. The real transport boundary is exercised only in
-// the packaged-app pod gate (#2697), which today runs a boot-level smoke (app
-// launches, daemon ready), NOT this case — per-case pod coverage is future work.
+// not the canonical T0/P0 gate. The real transport boundary is not exercised here.
 // The notification bell (NotificationCenter) is
 // platform-gated to Linux, so we override navigator.platform. The daemon's
 // unread list is REST-routed; a needs-input notification then arrives over the

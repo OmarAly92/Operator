@@ -15,7 +15,7 @@ import {
 
 // Windows-only: macOS keeps its system menu bar and inset traffic lights; Linux
 // keeps the existing minimal chrome. Only Windows loses the native title bar and
-// needs the app to paint its own (see the win32 branch in main.ts).
+// needs the app to paint its own.
 const isWindows =
 	typeof navigator !== "undefined" &&
 	/win/i.test(
@@ -26,7 +26,7 @@ const isWindows =
 
 type MenuKey = "file" | "edit" | "view" | "window" | "help";
 
-// Dispatch a native-menu action to the main process (see menu:action in main.ts).
+// Dispatch a native-menu action to the shell.
 const act = (action: string) => () => {
 	void operatorBridge.menu.action(action);
 };
@@ -83,7 +83,7 @@ export function WindowTitlebar({
 	const { isSidebarOpen, toggleSidebar, openGlobalSettings } = useUiStore();
 	const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
 
-	// Electron draws the min/max/close overlay natively and can't read our CSS, so
+	// The shell draws the min/max/close overlay natively and can't read our CSS, so
 	// push the skin's overlay colours to it whenever the skin changes.
 	useEffect(() => {
 		if (!isWindows) return;

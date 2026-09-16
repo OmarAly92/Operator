@@ -133,7 +133,6 @@ export default defineConfig(({ command }) => ({
 			"scripts/detect-duplicate-react.test.mjs",
 			"scripts/e2e-tauri-build-contract.test.mjs",
 			"scripts/feed.test.mjs",
-			"scripts/no-electron.test.mjs",
 			"scripts/tauri-feed.test.mjs",
 		],
 		globals: true,

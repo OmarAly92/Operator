@@ -534,7 +534,7 @@ type BrowserStatusResponse struct {
 
 // BrowserCommandRequest is the stable daemon-facing command envelope. Action
 // arguments remain action-specific JSON so new target-scoped operations do not
-// require a new transport or Electron IPC surface.
+// require a new transport or shell IPC surface.
 type BrowserCommandRequest struct {
 	SessionID domain.SessionID       `json:"sessionId"`
 	Action    string                 `json:"action"`

@@ -134,7 +134,6 @@ version-free aliases with `--clobber`.
 
 After all legs: `publish-feed` downloads the release assets and runs
 `node scripts/tauri-feed.mjs dist <version> latest`, uploading `latest.json`.
-`e2e-gate` remains advisory pod smoke against the published Linux AppImage.
 
 ### 4. Verify
 

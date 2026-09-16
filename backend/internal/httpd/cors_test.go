@@ -89,7 +89,7 @@ func TestCORS(t *testing.T) {
 		wantACAO   string
 	}{
 		{
-			name:       "removed Electron origin is rejected",
+			name:       "removed legacy origin is rejected",
 			method:     http.MethodGet,
 			headers:    map[string]string{"Origin": "app://renderer"},
 			wantStatus: http.StatusForbidden,

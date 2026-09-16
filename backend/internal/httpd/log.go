@@ -17,7 +17,7 @@ import (
 // daemon's slog logger. Chi's built-in middleware.Logger writes to stdout
 // using stdlib log; reusing the daemon's slog keeps every line on stderr in
 // the same key=value shape as the rest of the daemon (one stream for the
-// Electron supervisor to capture, one format to grep).
+// Tauri shell to capture, one format to grep).
 //
 // Status, bytes, and duration come from a wrapped ResponseWriter so the log
 // is accurate even when the handler returns without calling WriteHeader. The

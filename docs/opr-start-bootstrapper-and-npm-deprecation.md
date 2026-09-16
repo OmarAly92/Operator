@@ -33,18 +33,13 @@ app present? if not, fetch it; then open it."
 
 ### 1.1 App identity and release target
 
-| Fact                         | Value                                                                  | Source                          |
-| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------- |
-| Product / bundle name        | **`Operator.app`** (spaced)                                  | `frontend/forge.config.ts:9,50` |
-| Bundle id                    | `dev.operator.desktop`                                       | `frontend/forge.config.ts:8`    |
-| Executable name              | `operator`                                                   | `frontend/forge.config.ts`      |
-| **Release repo (canonical)** | **`OmarAly92/operator`**                                  | per release owner               |
-| Forge publisher repo (TODAY) | `OmarAly92/operator` — **stale, must change to OmarAly92** | `frontend/forge.config.ts:86`   |
-| GitHub release mode          | **`draft: true`**, `prerelease: false`                                 | `frontend/forge.config.ts`      |
+| Fact                         | Value                                                                  | Source                                  |
+| ---------------------------- | ---------------------------------------------------------------------- | --------------------------------------- |
+| Product / bundle name        | **`Operator.app`**                                                     | `frontend/src-tauri/tauri.conf.json`    |
+| Bundle id                    | `dev.operator.desktop`                                                 | `frontend/src-tauri/tauri.conf.json`    |
+| Executable name              | `operator`                                                             | `frontend/src-tauri/tauri.conf.json`    |
+| **Release repo (canonical)** | **`OmarAly92/operator`**                                               | per release owner                       |
 
-> `OmarAly92/operator` was the **temporary** home during the rewrite; the
-> code is now ported and releases land on **`OmarAly92/operator`**.
-> The forge publisher still points at `operator-dev` and must be corrected (task T3).
 > The Go **module path** is also `github.com/OmarAly92/operator`; renaming
 > the module is a large, separate change and is **out of scope** here (it does not
 > affect the release/download URL).
@@ -52,16 +47,12 @@ app present? if not, fetch it; then open it."
 ### 1.2 Release / build pipeline
 
 - Workflow: `.github/workflows/frontend-release.yml`. Triggers: tag `desktop-v*`,
-  `workflow_dispatch`. Build: `npm run publish` → `build:daemon` +
-  `electron-forge publish`.
-- **Matrix: `[macos-latest, windows-latest]` only** (`:28`) — no Linux; deb/rpm
-  makers configured but never run (upstream issue OmarAly92/operator#2191).
-- Maker outputs (today): macOS `@electron-forge/maker-zip` → versioned `.zip`
-  under `out/make/zip/darwin/<arch>/`; Windows `MakerNSIS` → `Operator
-Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
-  `operator-<version>.{deb,rpm}`.
-- **No asset-rename step** and **`draft: true`** → a constant
-  `releases/latest/download/<stable-name>` URL cannot resolve until both are fixed.
+  `workflow_dispatch`. Build: `build:daemon` + `npm run tauri:build` per OS.
+- **Matrix: `[macos-latest, windows-latest, ubuntu-latest]`.**
+- Bundle outputs: macOS `.app`/`.zip`/`.dmg`; Windows NSIS `.exe` (per-user
+  installer); Linux AppImage/`.deb`/`.rpm`.
+- The workflow renames each output to a stable, version-free asset name before
+  upload so a constant `releases/latest/download/<stable-name>` URL resolves.
 
 ### 1.3 Versioning
 
@@ -71,29 +62,28 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
 
 ### 1.4 Signing / notarization / auto-update
 
-- `osxSign`/`osxNotarize` are gated on secrets (`forge.config.ts:24-40`) that are
-  **not set in CI**; the workflow header (`frontend-release.yml:13-15`) says builds
-  are **UNSIGNED**.
-- **Auto-update is already wired**: `frontend/src/main.ts:14` imports
-  `updateElectronApp` from `update-electron-app`; `initAutoUpdates()`
-  (`main.ts:817`) runs it when `app.isPackaged`. Inert today because builds are
-  unsigned and version is `0.0.0` (its own comment, `main.ts:813-816`).
+- macOS signing and notarization are gated on CI secrets (`MAC_SIGNED` in
+  `frontend-release.yml`); without them builds are **UNSIGNED**.
+- **Auto-update is wired** in the Tauri shell (`frontend/src-tauri/src/updater`)
+  and runs only in packaged builds. Inert while builds are unsigned and the
+  version is `0.0.0`.
 
 ### 1.5 `~/.operator` state and app lifecycle
 
 - Canonical home `~/.operator` (`backend/internal/config/config.go:296`,
-  `frontend/src/shared/daemon-discovery.ts:107`); overrides `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`.
-- `userData` pinned to `~/.operator/electron` (`main.ts:64`, before `whenReady`; CLAUDE.md
-  hard rule).
+  `frontend/src-tauri/src/daemon/discovery.rs` `resolve_data_dir`); overrides
+  `OPERATOR_DATA_DIR`/`OPERATOR_RUN_FILE`.
+- Every webview/state path is pinned under `~/.operator` (CLAUDE.md hard rule).
 - `~/.operator/running.json` is written by the **daemon** (`backend/internal/runfile/runfile.go`
-  `Write`, atomic temp+rename), read by the app (`daemon-discovery.ts parseRunFile`).
-  Only `running.json` exists in `~/.operator` today; **`app-state.json` does not exist yet**.
-- App startup (`main.ts:822` `whenReady`): `registerRendererProtocol()` →
-  `createWindow()` → `void startDaemon()` → `initAutoUpdates()`. The app already
-  **spawns and owns the daemon** (`startDaemon`, spawns the bundled `opr daemon`).
-- `app.moveToApplicationsFolder()` is **not used** anywhere (macOS-only).
+  `Write`, atomic temp+rename), read by the app (`discovery.rs resolve_run_file_path`).
+- App startup (`frontend/src-tauri/src/lib.rs` `launch_app_state_flow`): capture
+  install provenance → decide the macOS relocation → write the marker → create
+  the window → start the daemon → arm the updater. The app **spawns and owns the
+  daemon** (`frontend/src-tauri/src/daemon/supervisor.rs`, spawns the bundled
+  `opr daemon`).
+- macOS relocation lives in `frontend/src-tauri/src/relocation.rs`.
 - Login-shell env resolved at startup via `zsh -ilc '… env -0'`
-  (`frontend/src/shared/shell-env.ts:27`).
+  (`frontend/src-tauri/src/daemon/discovery.rs` `shell_env_args`).
 
 ### 1.6 npm delivery of the Go binary (the packaging gap)
 
@@ -101,7 +91,7 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
   same binary serves as both the CLI and `opr daemon`. `build-daemon.mjs` builds it
   to `frontend/daemon/opr` and bundles it into the desktop app.
 - **This repo has no npm-registry publish path for the `opr` binary** (only
-  electron-forge → GitHub Releases; no `NPM_TOKEN`, no publish workflow — research
+  the Tauri release workflow → GitHub Releases; no `NPM_TOKEN`, no publish workflow — research
   confirmed). The old Operator npm package shipped `opr` via npm; that delivery mechanism
   must be **ported/rebuilt here** (task T2). To honor "zero install scripts"
   (npm v12, est. July 2026, blocks unapproved install scripts), the Go binary
@@ -113,22 +103,20 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
 
 `backend/cmd/opr/main.go` → `backend/internal/cli`. Cobra root (`root.go:154-202`)
 registers **all** of: `daemon` (hidden), **`start`**, `stop`, `status`, `doctor`,
-`spawn`, `send`, `preview`, `hooks`, `launch`, `ptyhost`, `import`, `project`,
+`spawn`, `send`, `preview`, `hooks`, `launch`, `ptyhost`, `project`,
 `session`, `orchestrator`, `review`, `completion`, `version`. These are real
-(`doctor.go` is 20KB of health checks; `import.go` imports a legacy Operator install).
+(`doctor.go` is 20KB of health checks).
 The CLI is a thin client: commands "discover the local daemon, call its loopback
 HTTP API, and format output" (`root.go:1-3`).
 
 **Current `opr start` (`start.go:54-119`):** starts the daemon (spawns `opr daemon`,
-waits for ready) and runs a first-boot legacy import (`maybeFirstBootImport`,
-`start.go:84`). **This entire behavior is being replaced** (§6).
+waits for ready). **This entire behavior is being replaced** (§6).
 
 ---
 
 ## 2. Decisions locked
 
-1. **Releases land on `OmarAly92/operator`.** Fix the forge publisher
-   to match; the download URL uses it.
+1. **Releases land on `OmarAly92/operator`.** The download URL uses it.
 2. **`opr start` = fetch + open the desktop app.** It no longer starts the daemon;
    the frontend owns the daemon. The current daemon-spawn logic in `start.go` is
    removed.
@@ -156,21 +144,18 @@ waits for ready) and runs a first-boot legacy import (`maybeFirstBootImport`,
 
 - Rewrite the Go **`opr start`** subcommand: `resolve → fetch → open` the desktop
   app, then print a deprecation notice. (`backend/internal/cli/start.go`.)
-- Decide the fate of `opr start`'s current first-boot legacy import (§6.4).
 - **App-side:** write `~/.operator/app-state.json` every launch (app is sole writer);
-  own `moveToApplicationsFolder()` relocation (macOS).
-- **Release wiring:** point forge publisher at `OmarAly92/operator`,
-  add stable version-free asset names, finalize the draft (or Releases-API
-  fallback), add Linux to the matrix.
+  own relocation to `/Applications` (macOS).
+- **Release wiring:** stable version-free asset names, a published (non-draft)
+  release, all three platforms in the matrix.
 - **npm delivery** of the Go binary (port the old Operator mechanism; zero install
   scripts via optionalDeps platform packages).
 - macOS / Windows (NSIS) / Linux (deb/rpm or AppImage) fetch+open paths.
 
 **Out of scope:**
 
-- Track B: real version stamping, making the wired `update-electron-app` updater
-  live, configuring signing/notarization CI secrets, any copy promising
-  auto-update.
+- Track B: real version stamping, making the wired updater live, configuring
+  signing/notarization CI secrets, any copy promising auto-update.
 - Renaming the Go module path off `operator-dev` (separate, large, not needed here).
 - The other CLI subcommands (already wired; untouched).
 
@@ -186,8 +171,8 @@ waits for ready) and runs a first-boot legacy import (`maybeFirstBootImport`,
 3. **The app is the sole writer of `app-state.json`.** `opr start` is read-only with
    respect to it. This is what makes the npm and website routes converge without an
    orphaned second copy.
-4. **The app owns relocation** (`moveToApplicationsFolder()`), and rewrites the
-   marker path afterward. `opr start` never moves the app.
+4. **The app owns relocation** (`relocation.rs`), and rewrites the marker path
+   afterward. `opr start` never moves the app.
 5. **`opr start` is dumb about versions.** Decision is present-or-absent only; never
    compares versions. Updating an installed app is the app's own updater's job.
 6. **Resolution order is fixed:** marker path → `stat` → known-location scan →
@@ -216,7 +201,7 @@ New file, **app-written**, mirroring the daemon's proven atomic write
 | ------------------ | ------ | -------------------------------------------------------------------------------- |
 | `schemaVersion`    | app    | Marker format version.                                                           |
 | `appPath`          | app    | Bundle path as of the last launch.                                               |
-| `version`          | app    | `app.getVersion()`. For the tour/migration, NOT for `opr start` update decisions. |
+| `version`          | app    | The bundle version. For the tour, NOT for `opr start` update decisions.          |
 | `installedAt`      | app    | First marker write.                                                              |
 | `lastReconciledAt` | app    | Last launch that touched the marker.                                             |
 | `installSource`    | app    | `npm-bootstrap` / `website` / `github` / `unknown`; set only on first creation.  |
@@ -278,16 +263,7 @@ OmarAly92, with no source edit.
   an **AppImage** (single executable, no install) — better fit for fetch-and-run
   (decide §11).
 
-### 6.4 The legacy first-boot import
-
-`opr start` currently runs `maybeFirstBootImport` (`start.go:84`, imports a legacy
-Operator install before the daemon starts). With the daemon-spawn removed, this must
-move. Options (decide §11): (a) the **desktop app** runs the import when it first
-boots its daemon; (b) drop it from `opr start` and rely on the standalone `opr
-import` command (still wired). Recommended: (a), so the on-ramp still migrates
-existing data.
-
-### 6.5 Other subcommands / bare `opr`
+### 6.4 Other subcommands / bare `opr`
 
 Unchanged — they stay wired and talk to the app-owned daemon's loopback API. Add a
 one-line deprecation hint to the root long-help noting that npm is now an on-ramp
@@ -297,63 +273,44 @@ and the app is the home. Do **not** alter `stop`/`status`/`spawn`/etc. behavior.
 
 ## 7. App-side responsibilities
 
-### 7.1 Marker write + relocation (new)
+### 7.1 Marker write + relocation
 
-Hook into `app.whenReady()` (`main.ts:822`), **before** `createWindow()`, ordered
-**relocate → write marker** (the marker must record the post-relocation path):
+`launch_app_state_flow` (`frontend/src-tauri/src/lib.rs`) runs **before** the
+window is created, ordered **relocate → write marker** (the marker must record
+the post-relocation path). A successful relocation restarts the app, so the rest
+of the flow runs only when no move happened.
 
-```ts
-app.whenReady().then(async () => {
-	if (process.platform === "darwin" && app.isPackaged) {
-		try {
-			app.moveToApplicationsFolder();
-		} catch {
-			/* declined / not movable */
-		}
-		// success restarts the app, so code past here runs only if no move happened
-	}
-	await writeAppStateMarker(); // atomic temp+rename, mirror runfile.Write
-	registerRendererProtocol();
-	createWindow();
-	void startDaemon();
-	initAutoUpdates();
-});
-```
-
-`writeAppStateMarker()` records `app.getAppPath()`/`app.getVersion()` into
-`~/.operator/app-state.json`. On first creation, capture `installSource` from the
-`--installed-via` arg `opr start` passes (else `website`/`github`/`unknown`).
+`app_state::write_marker` records the bundle path and version into
+`~/.operator/app-state.json` (atomic temp+rename, mirroring `runfile.Write`).
+On first creation, `installSource` comes from the `--installed-via` arg
+`opr start` passes (else `website`/`github`/`unknown`).
 
 ### 7.2 Already done — rely on it
 
-Daemon ownership (`main.ts startDaemon` + the #2185 supervisor link,
-`main/supervisor-link.ts`), login-shell env (`shell-env.ts:27`), and the `userData`
-pin (`main.ts:64`) are in place. Do not re-implement.
+Daemon ownership (`frontend/src-tauri/src/daemon/supervisor.rs`), login-shell
+env (`discovery.rs` `shell_env_args`), and the `~/.operator` path pin are in
+place. Do not re-implement.
 
 ---
 
 ## 8. Release / build wiring
 
-- **Publisher repo is overridable** (`forge.config.ts:86`): default prod
-  `OmarAly92/operator`, but read from an env var (e.g.
-  `OPERATOR_RELEASE_REPO`) so a fork build publishes to
-  `harshitsinghbhandari/operator`. The dev loop publishes a draft+finalize
-  release **on the fork** and points the test binary's `cli.releaseRepo` at the same
-  fork. Never publish to OmarAly92 from a test run.
-- **Stable asset names:** add a release-workflow step renaming each maker output to
+- **Release repo is the workflow's own repository.** The dev loop publishes a
+  release **on the fork** and points the test binary's `cli.releaseRepo` at the
+  same fork. Never publish to OmarAly92 from a test run.
+- **Stable asset names:** the release workflow renames each bundle output to
   space-free names (`operator-darwin-arm64.zip`,
   `operator-win32-x64.exe`, the Linux artifact per §11) before upload.
-- **Finalize the draft:** flip `draft: false` or add a CI publish step; the constant
-  URL only resolves for a published release.
+- **Published release:** the constant URL only resolves for a published
+  (non-draft) release.
 - **`.zip` for macOS** unpacked with `ditto`; do not switch to `.tar.gz`.
-- **Linux in the matrix:** add `ubuntu-latest` (#2191).
 - **One tag drives versions** once Track B lands.
 
 ---
 
 ## 9. Track B prerequisites (NOT this effort; keeps v1 copy honest)
 
-The `update-electron-app` updater is wired (§1.4) but inert until **both**: real
+The Tauri updater is wired (§1.4) but inert until **both**: real
 version stamping (bump `package.json`; inject daemon version via `-ldflags -X
 …cli.Version=<tag>` in `build-daemon.mjs`) **and** signed+notarized macOS builds
 (`CSC_LINK` + `APPLE_*` in CI). Until then, v1 copy must **not** promise
@@ -376,7 +333,7 @@ website.
 | 8   | Windows `opr start`                                        | Downloads NSIS `.exe`, runs installer, resolves + opens installed exe.                                                                                      |
 | 9   | Linux `opr start`                                          | Fetches chosen artifact and launches.                                                                                                                       |
 | 10  | `opr stop`/`opr status`/`opr spawn` after `opr start`         | Work against the app-owned daemon (CLI is a client).                                                                                                        |
-| 11  | Existing CLI user runs `npm update` then `opr start`       | New binary in place; `opr start` no longer starts a daemon, it opens the app; their `opr import` data migrates (per §6.4).                                    |
+| 11  | Existing CLI user runs `npm update` then `opr start`       | New binary in place; `opr start` no longer starts a daemon, it opens the app.                                                                               |
 
 > `opr start` opens the app through the calling shell's enriched env, so a green
 > `opr start` proves nothing about the Dock-launch path. Test the Dock path
@@ -391,18 +348,15 @@ website.
    package did. Test scope is **`@theharshitsingh/opr`**; the **prod package name**
    (the legacy `opr` users already have) still needs confirming, plus an `NPM_TOKEN`
    - publish workflow for each.
-2. **Legacy first-boot import** (§6.4): move into the desktop app, or drop from
-   `opr start` and rely on `opr import`?
-3. **Linux artifact form:** `.deb`/`.rpm` (install) vs **AppImage** (fetch-and-run).
-4. **Draft release finalization:** `draft: false` vs a CI publish step.
-5. **Signing gate:** gate the launcher on signed+notarized builds, ship against
+2. **Linux artifact form:** `.deb`/`.rpm` (install) vs **AppImage** (fetch-and-run).
+3. **Signing gate:** gate the launcher on signed+notarized builds, ship against
    unsigned (Gatekeeper/SmartScreen warnings), or treat signing as a parallel
    effort meeting at release?
-6. **Download integrity:** SHA256 vs HTTPS-only vs `codesign --verify`.
-7. **First-run tour + `installSource`:** in-app tour now (no auto-update promise),
+4. **Download integrity:** SHA256 vs HTTPS-only vs `codesign --verify`.
+5. **First-run tour + `installSource`:** in-app tour now (no auto-update promise),
    defer tour but keep `installSource`, or neither?
-8. **Website URL** for the deprecation notice copy.
-9. **Module-path rename** off `operator-dev` — confirm out of scope for this effort.
+6. **Website URL** for the deprecation notice copy.
+7. **Module-path rename** off `operator-dev` — confirm out of scope for this effort.
 
 ---
 
@@ -412,15 +366,15 @@ website.
 
 - **T1. Rewrite `opr start` core (Go).** Replace `start.go` daemon-spawn with
   `resolveApp()` + the macOS fetch/open path + deprecation notice; remove
-  `waitForReady`/daemon logic; decide §11.2. Check: on a mac with the app present,
+  `waitForReady`/daemon logic. Check: on a mac with the app present,
   `opr start` opens it and writes nothing; with it absent, it fetches+opens.
 - **T2. npm delivery of the Go binary.** Per §11.1: optionalDeps platform packages
   - JS `bin` shim, zero install scripts; publish workflow. **Publish to the
     `@theharshitsingh/opr` test scope**, not the prod package. Check: `npm i -g
 @theharshitsingh/opr --ignore-scripts` yields a working `opr`.
-- **T3. Release repo + asset wiring (override-driven).** Make the forge publisher
-  repo + the `opr start` download repo build-time overridable (§6.3, §8); add the
-  stable-asset rename step; finalize the draft (§11.4); add Linux to the matrix.
+- **T3. Release repo + asset wiring (override-driven).** Make the `opr start`
+  download repo build-time overridable (§6.3, §8); keep the stable-asset rename
+  step and the published release.
   Check: a `workflow_dispatch` **on the fork** produces a published
   `harshitsinghbhandari/operator` release whose
   `releases/latest/download/<stable-name>` 302-resolves. **No prod (OmarAly92)
@@ -428,7 +382,7 @@ website.
 
 **Batch 2 — app-side + macOS end-to-end (after T1):**
 
-- **T4. App-side marker + relocation** (`main.ts whenReady`, §7.1). Check: a
+- **T4. App-side marker + relocation** (`launch_app_state_flow`, §7.1). Check: a
   packaged launch writes/updates `~/.operator/app-state.json` with the real bundle path.
 - **T5. macOS `opr start` end-to-end against the FORK release** (needs T3): build the
   test `opr` with `cli.releaseRepo=harshitsinghbhandari/operator`, install
@@ -438,13 +392,12 @@ website.
 **Batch 3 — cross-platform + integrity (after T1/T3):**
 
 - **T6. Windows path** (NSIS fetch+install+resolve, §6.3).
-- **T7. Linux path** (§11.3).
-- **T8. Download integrity** (§11.6).
+- **T7. Linux path** (§11.2).
+- **T8. Download integrity** (§11.4).
 
 **Batch 4 — rollout:**
 
-- **T9.** Deprecation notice / optional tour + `installSource` (§11.7); legacy
-  import placement (§11.2) if not done in T1.
+- **T9.** Deprecation notice / optional tour + `installSource` (§11.5).
 
 > Track B (version stamping, signing, making the updater live) is a separate
 > effort. Any copy added above must not promise auto-update until it lands.
