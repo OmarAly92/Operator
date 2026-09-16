@@ -13,8 +13,6 @@ export default tseslint.config(
 			"node_modules/**",
 			"**/*.gen.ts",
 			"src/shared/api/schema.ts",
-			"src/landing/**",
-			"src/docs/**",
 		],
 	},
 	js.configs.recommended,

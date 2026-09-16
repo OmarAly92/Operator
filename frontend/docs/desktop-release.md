@@ -51,7 +51,7 @@ workflow's guard step rejects any generated `latest*` manifest
 | `operator_<ver>_amd64.AppImage` (+ `.sig`) | Linux AppImage + updater archive |
 | `operator_<ver>_amd64.deb`, `operator-<ver>.x86_64.rpm` | System packages |
 | `latest.json` | Feed |
-| Version-free aliases: `operator-darwin-arm64.zip`, `operator-darwin-x64.zip`, `operator-darwin-arm64.dmg`, `operator-darwin-x64.dmg`, `operator-win32-x64.exe`, `operator-linux-x64.AppImage` | `opr start` / landing page constants — never renamed |
+| Version-free aliases: `operator-darwin-arm64.zip`, `operator-darwin-x64.zip`, `operator-darwin-arm64.dmg`, `operator-darwin-x64.dmg`, `operator-win32-x64.exe`, `operator-linux-x64.AppImage` | `opr start` downloads — never renamed |
 
 Every base artifact bundles the Go daemon, agent-browser 0.33.1, the Node
 22.23.2 ACP runtime, licenses, and the app icons; `npm run verify:tauri-artifacts`

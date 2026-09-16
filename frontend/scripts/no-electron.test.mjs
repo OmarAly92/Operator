@@ -242,7 +242,6 @@ test("VITE_NO_ELECTRON is renamed away from everything except dated planning rec
 			"superpowers",
 			"plans",
 			"todo",
-			"landing",
 		],
 	});
 	for (const filePath of files) {

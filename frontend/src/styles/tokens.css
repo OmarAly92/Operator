@@ -15,9 +15,6 @@
  * colour variable is written onto <html> at runtime from the active `AppSkin`.
  * See src/renderer/theme/README.md.
  *
- * The landing site does not import this file; it has its own
- * src/site-theme/tokens.css.
- *
  * Imported by src/renderer/styles.css. See DESIGN_TOKENS.md.
  */
 

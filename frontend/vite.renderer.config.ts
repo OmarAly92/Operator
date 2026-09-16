@@ -80,11 +80,6 @@ export default defineConfig(({ command }) => ({
 		// importer and emits a SECOND React whose hook dispatcher is always
 		// null, which is "null is not an object (evaluating 'c.H.useRef')" the
 		// moment a terminal pane mounts.
-		//
-		// Build only: under vitest the tracked src/landing preview app resolves
-		// react from its OWN nested node_modules, and collapsing that onto the
-		// frontend copy splits it from the @testing-library/react beside it --
-		// the same null dispatcher, in the other direction.
 		dedupe: command === "build" ? ["react", "react-dom"] : [],
 	},
 	// Dev proxy for VITE_RENDERER_PREVIEW=1 browser preview — forwards /api and
@@ -128,9 +123,7 @@ export default defineConfig(({ command }) => ({
 		environment: "jsdom",
 		testTimeout: 20_000,
 		// Anchor node_modules at any depth: a bare "node_modules/**" replaces
-		// vitest's default "**/node_modules/**" and only matches the root, so the
-		// tracked src/landing preview app's nested node_modules would otherwise
-		// have its vendored third-party test suites collected and run.
+		// vitest's default "**/node_modules/**" and only matches the root.
 		exclude: [
 			"**/node_modules/**",
 			"dist/**",
