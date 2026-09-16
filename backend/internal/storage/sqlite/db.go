@@ -26,12 +26,6 @@ import (
 // Store is the SQLite-backed persistence layer.
 type Store = sqlitestore.Store
 
-// LegacyDesktopSettingsImport contains the optional facets of one guarded legacy import.
-type LegacyDesktopSettingsImport = sqlitestore.LegacyDesktopSettingsImport
-
-// LegacyDesktopUpdateSettings contains one imported update-settings facet.
-type LegacyDesktopUpdateSettings = sqlitestore.LegacyDesktopUpdateSettings
-
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
@@ -156,9 +150,8 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("prepare browser verifier migration: %w", err)
 	}
 	// Builds can advance a database past a migration that is added or
-	// renumbered later (notably across fast-moving Nightly releases). Apply
-	// those embedded migrations instead of permanently wedging daemon startup
-	// on goose's out-of-order-history guard.
+	// renumbered later. Apply those embedded migrations instead of permanently
+	// wedging daemon startup on goose's out-of-order-history guard.
 	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}

@@ -23,15 +23,12 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Record, 
 		return settingssvc.Record{}, err
 	}
 	return settingssvc.Record{
-		UpdatedAt:               row.UpdatedAt,
-		UILocale:                row.UILocale,
-		UpdateOptIn:             row.UpdateOptIn,
-		UpdateChannel:           row.UpdateChannel,
-		UpdateNightlyAck:        row.UpdateNightlyAck,
-		UpdateFeaturePR:         row.UpdateFeaturePR,
-		KeybindingsJSON:         row.KeybindingsJSON,
-		MigrationJSON:           row.MigrationJSON,
-		LegacyDesktopImportedAt: row.LegacyDesktopImportedAt,
+		UpdatedAt:       row.UpdatedAt,
+		UILocale:        row.UILocale,
+		UpdateOptIn:     row.UpdateOptIn,
+		UpdateFeaturePR: row.UpdateFeaturePR,
+		KeybindingsJSON: row.KeybindingsJSON,
+		MigrationJSON:   row.MigrationJSON,
 	}, nil
 }
 
@@ -49,7 +46,7 @@ func (s settingsStore) SetUpdateSettings(
 		pr := prefs.Feature.PR
 		featurePR = &pr
 	}
-	return s.store.SetAppUpdateSettings(ctx, prefs.Enabled, string(prefs.Channel), prefs.NightlyAck, featurePR, now)
+	return s.store.SetAppUpdateSettings(ctx, prefs.Enabled, featurePR, now)
 }
 
 func (s settingsStore) SetKeybindings(
@@ -77,45 +74,4 @@ func (s settingsStore) SetMigrationState(
 		return err
 	}
 	return s.store.SetAppMigrationState(ctx, string(raw), now)
-}
-
-func (s settingsStore) MarkLegacyDesktopImported(ctx context.Context, importedAt time.Time) error {
-	return s.store.MarkAppLegacyDesktopImported(ctx, importedAt)
-}
-
-func (s settingsStore) ApplyLegacyDesktopImport(
-	ctx context.Context,
-	legacyImport settingssvc.LegacyDesktopImport,
-	importedAt time.Time,
-) error {
-	stored := sqlite.LegacyDesktopSettingsImport{UILocale: legacyImport.UILocale}
-	if legacyImport.Updates != nil {
-		updates := &sqlite.LegacyDesktopUpdateSettings{
-			OptIn:      legacyImport.Updates.Enabled,
-			Channel:    string(legacyImport.Updates.Channel),
-			NightlyAck: legacyImport.Updates.NightlyAck,
-		}
-		if legacyImport.Updates.Feature != nil {
-			pr := legacyImport.Updates.Feature.PR
-			updates.FeaturePR = &pr
-		}
-		stored.Updates = updates
-	}
-	if legacyImport.Keybindings != nil {
-		raw, err := json.Marshal(legacyImport.Keybindings)
-		if err != nil {
-			return err
-		}
-		encoded := string(raw)
-		stored.KeybindingsJSON = &encoded
-	}
-	if legacyImport.Migration != nil {
-		raw, err := json.Marshal(legacyImport.Migration)
-		if err != nil {
-			return err
-		}
-		encoded := string(raw)
-		stored.MigrationJSON = &encoded
-	}
-	return s.store.ImportLegacyDesktopSettings(ctx, stored, importedAt)
 }

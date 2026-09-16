@@ -2647,8 +2647,6 @@ export interface components {
         };
         SettingsResponse: {
             keybindings: components["schemas"]["KeybindingOverrides"];
-            /** Format: date-time */
-            legacyDesktopImportedAt: null | string;
             migration: components["schemas"]["MigrationState"];
             ui: components["schemas"]["UiSettings"];
             updates: components["schemas"]["UpdateSettings"];
@@ -2818,11 +2816,8 @@ export interface components {
             displayName: string;
         };
         UpdateSettings: {
-            /** @enum {string} */
-            channel: "latest" | "nightly";
             enabled: boolean;
             feature?: components["schemas"]["FeaturePin"];
-            nightlyAck: boolean;
         };
         UpdateShellTerminalRequest: {
             /** @description New tab title for the shell terminal. Trimmed; must be non-empty. */

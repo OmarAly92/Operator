@@ -7279,11 +7279,6 @@ components:
       properties:
         keybindings:
           $ref: '#/components/schemas/KeybindingOverrides'
-        legacyDesktopImportedAt:
-          format: date-time
-          type:
-          - "null"
-          - string
         migration:
           $ref: '#/components/schemas/MigrationState'
         ui:
@@ -7295,7 +7290,6 @@ components:
       - updates
       - keybindings
       - migration
-      - legacyDesktopImportedAt
       type: object
     ShellTerminalEnvelope:
       properties:
@@ -7736,21 +7730,12 @@ components:
       type: object
     UpdateSettings:
       properties:
-        channel:
-          enum:
-          - latest
-          - nightly
-          type: string
         enabled:
           type: boolean
         feature:
           $ref: '#/components/schemas/FeaturePin'
-        nightlyAck:
-          type: boolean
       required:
       - enabled
-      - channel
-      - nightlyAck
       type: object
     UpdateShellTerminalRequest:
       properties:

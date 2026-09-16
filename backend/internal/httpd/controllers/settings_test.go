@@ -68,10 +68,8 @@ func sampleSnapshot() settingssvc.Snapshot {
 		UpdatedAt: time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC),
 		UILocale:  "ja",
 		Updates: settingssvc.UpdateSettings{
-			Enabled:    true,
-			Channel:    settingssvc.UpdateChannelNightly,
-			NightlyAck: true,
-			Feature:    &settingssvc.FeaturePin{PR: 7},
+			Enabled: true,
+			Feature: &settingssvc.FeaturePin{PR: 7},
 		},
 		Keybindings: settingssvc.KeybindingOverrides{
 			"new-session": {},
@@ -83,7 +81,6 @@ func sampleSnapshot() settingssvc.Snapshot {
 			Status:        settingssvc.MigrationCompleted,
 			LastAttemptAt: &imported,
 		},
-		LegacyDesktopImportedAt: &imported,
 	}
 }
 
@@ -100,10 +97,8 @@ func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
 			Locale string `json:"locale"`
 		} `json:"ui"`
 		Updates struct {
-			Enabled    bool   `json:"enabled"`
-			Channel    string `json:"channel"`
-			NightlyAck bool   `json:"nightlyAck"`
-			Feature    *struct {
+			Enabled bool `json:"enabled"`
+			Feature *struct {
 				PR int64 `json:"pr"`
 			} `json:"feature"`
 		} `json:"updates"`
@@ -116,14 +111,13 @@ func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
 			Status        string `json:"status"`
 			LastAttemptAt string `json:"lastAttemptAt"`
 		} `json:"migration"`
-		LegacyDesktopImportedAt string `json:"legacyDesktopImportedAt"`
 	}
 	mustJSON(t, body, &resp)
 	if resp.UI.Locale != "ja" {
 		t.Errorf("locale = %q, want ja", resp.UI.Locale)
 	}
-	if !resp.Updates.Enabled || resp.Updates.Channel != "nightly" || !resp.Updates.NightlyAck {
-		t.Errorf("updates = %+v, want nightly opt-in", resp.Updates)
+	if !resp.Updates.Enabled {
+		t.Errorf("updates = %+v, want opt-in", resp.Updates)
 	}
 	if resp.Updates.Feature == nil || resp.Updates.Feature.PR != 7 {
 		t.Errorf("feature = %+v, want pr 7", resp.Updates.Feature)
@@ -136,9 +130,6 @@ func TestSettingsAPIGetReturnsFullPreferenceSet(t *testing.T) {
 	}
 	if resp.Migration.Status != "completed" || resp.Migration.LastAttemptAt == "" {
 		t.Errorf("migration = %+v, want completed with timestamp", resp.Migration)
-	}
-	if resp.LegacyDesktopImportedAt == "" {
-		t.Error("legacyDesktopImportedAt missing")
 	}
 }
 
@@ -160,12 +151,12 @@ func TestSettingsAPIPatchUpdateSettings(t *testing.T) {
 	srv := newSettingsTestServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, "PATCH", "/api/v1/settings/updates",
-		`{"enabled":true,"channel":"nightly","nightlyAck":true,"feature":{"pr":31}}`)
+		`{"enabled":true,"feature":{"pr":31}}`)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", status, body)
 	}
-	if !svc.gotUpdates.Enabled || svc.gotUpdates.Channel != settingssvc.UpdateChannelNightly {
-		t.Errorf("updates = %+v, want nightly opt-in", svc.gotUpdates)
+	if !svc.gotUpdates.Enabled {
+		t.Errorf("updates = %+v, want opt-in", svc.gotUpdates)
 	}
 	if svc.gotUpdates.Feature == nil || svc.gotUpdates.Feature.PR != 31 {
 		t.Errorf("feature = %+v, want pr 31", svc.gotUpdates.Feature)

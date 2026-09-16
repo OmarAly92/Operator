@@ -213,15 +213,6 @@ func Run() error {
 		Home:   userHome,
 	})
 
-	// One-time legacy desktop preference import (Electron's ui-settings.json,
-	// update-settings.json, keybindings.json, and the app-state.json migration
-	// block). Runs before HTTP serves settings so no client ever sees
-	// pre-import values; failures never block boot because every facet already
-	// has a validated default and the marker stays unset for a safe re-attempt.
-	if err := settingsSvc.ImportLegacyDesktop(ctx, settingssvc.LegacyFilesUnder(filepath.Dir(cfg.RunFilePath))); err != nil {
-		log.Warn("legacy desktop settings import failed; will retry next boot", "err", err)
-	}
-
 	folderScanner := projectscan.New(projectscan.Options{ProtectedRoots: []string{
 		filepath.Dir(cfg.RunFilePath),
 		cfg.DataDir,

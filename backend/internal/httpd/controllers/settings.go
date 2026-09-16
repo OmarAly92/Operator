@@ -177,11 +177,10 @@ func decodeSettingsBody(w http.ResponseWriter, r *http.Request, into any) bool {
 
 func (c *SettingsController) response(snapshot settingssvc.Snapshot) SettingsResponse {
 	return SettingsResponse{
-		UI:                      UiSettings{Locale: snapshot.UILocale},
-		Updates:                 snapshot.Updates,
-		Keybindings:             snapshot.Keybindings,
-		Migration:               wireMigrationState(snapshot.Migration),
-		LegacyDesktopImportedAt: snapshot.LegacyDesktopImportedAt,
+		UI:          UiSettings{Locale: snapshot.UILocale},
+		Updates:     snapshot.Updates,
+		Keybindings: snapshot.Keybindings,
+		Migration:   wireMigrationState(snapshot.Migration),
 	}
 }
 

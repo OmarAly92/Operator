@@ -1469,9 +1469,6 @@ type SettingsResponse struct {
 	Keybindings settingssvc.KeybindingOverrides `json:"keybindings"`
 	// Migration is the legacy desktop-import decision.
 	Migration MigrationState `json:"migration"`
-	// LegacyDesktopImportedAt records when legacy JSON settings were imported.
-	// Null until the import runs; once set it never clears or moves.
-	LegacyDesktopImportedAt *time.Time `json:"legacyDesktopImportedAt"`
 }
 
 // UiSettings holds the desktop presentation preferences.

@@ -115,6 +115,7 @@ var shippedMigrations = map[int64]string{
 	108: "0108_board_cdc.sql",
 	109: "0109_claude_accounts.sql",
 	110: "0110_claude_accounts_preferred.sql",
+	111: "0111_drop_nightly_and_legacy_prefs.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -122,7 +123,7 @@ var shippedMigrations = map[int64]string{
 // recorded as applied while this repository ships no file with that number. A
 // new file claiming one would be skipped silently there.
 //
-//   - 22 shipped in a nightly (#2412) and was deleted by the revert.
+//   - 22 shipped (#2412) and was deleted by the revert.
 //
 // Beware of the adjacent hazard this cannot catch: at least one field profile
 // has versions 40 through 51 recorded as applied by a foreign build

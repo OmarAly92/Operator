@@ -11,27 +11,9 @@ import (
 	"time"
 )
 
-const claimAppLegacyDesktopImport = `-- name: ClaimAppLegacyDesktopImport :execrows
-UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
-WHERE id = 1 AND legacy_desktop_imported_at IS NULL
-`
-
-type ClaimAppLegacyDesktopImportParams struct {
-	LegacyDesktopImportedAt sql.NullTime
-	UpdatedAt               time.Time
-}
-
-func (q *Queries) ClaimAppLegacyDesktopImport(ctx context.Context, arg ClaimAppLegacyDesktopImportParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, claimAppLegacyDesktopImport, arg.LegacyDesktopImportedAt, arg.UpdatedAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, updated_at, ui_locale, update_opt_in, update_channel, update_nightly_ack, update_feature_pr, keybindings_json, migration_json, legacy_desktop_imported_at FROM app_settings WHERE id = 1
+SELECT id, updated_at, ui_locale, update_opt_in, update_feature_pr, keybindings_json, migration_json FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -46,31 +28,11 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 		&i.UpdatedAt,
 		&i.UiLocale,
 		&i.UpdateOptIn,
-		&i.UpdateChannel,
-		&i.UpdateNightlyAck,
 		&i.UpdateFeaturePR,
 		&i.KeybindingsJson,
 		&i.MigrationJson,
-		&i.LegacyDesktopImportedAt,
 	)
 	return i, err
-}
-
-const markAppLegacyDesktopImported = `-- name: MarkAppLegacyDesktopImported :exec
-UPDATE app_settings SET legacy_desktop_imported_at = ?, updated_at = ?
-WHERE id = 1 AND legacy_desktop_imported_at IS NULL
-`
-
-type MarkAppLegacyDesktopImportedParams struct {
-	LegacyDesktopImportedAt sql.NullTime
-	UpdatedAt               time.Time
-}
-
-// The legacy-import marker is write-once at the database level: once set, a
-// later import attempt must not move it or re-open the import window.
-func (q *Queries) MarkAppLegacyDesktopImported(ctx context.Context, arg MarkAppLegacyDesktopImportedParams) error {
-	_, err := q.db.ExecContext(ctx, markAppLegacyDesktopImported, arg.LegacyDesktopImportedAt, arg.UpdatedAt)
-	return err
 }
 
 const setAppKeybindings = `-- name: SetAppKeybindings :exec
@@ -117,25 +79,17 @@ func (q *Queries) SetAppUILocale(ctx context.Context, arg SetAppUILocaleParams) 
 
 const setAppUpdateSettings = `-- name: SetAppUpdateSettings :exec
 UPDATE app_settings
-SET update_opt_in = ?, update_channel = ?, update_nightly_ack = ?, update_feature_pr = ?, updated_at = ?
+SET update_opt_in = ?, update_feature_pr = ?, updated_at = ?
 WHERE id = 1
 `
 
 type SetAppUpdateSettingsParams struct {
-	UpdateOptIn      bool
-	UpdateChannel    string
-	UpdateNightlyAck bool
-	UpdateFeaturePR  sql.NullInt64
-	UpdatedAt        time.Time
+	UpdateOptIn     bool
+	UpdateFeaturePR sql.NullInt64
+	UpdatedAt       time.Time
 }
 
 func (q *Queries) SetAppUpdateSettings(ctx context.Context, arg SetAppUpdateSettingsParams) error {
-	_, err := q.db.ExecContext(ctx, setAppUpdateSettings,
-		arg.UpdateOptIn,
-		arg.UpdateChannel,
-		arg.UpdateNightlyAck,
-		arg.UpdateFeaturePR,
-		arg.UpdatedAt,
-	)
+	_, err := q.db.ExecContext(ctx, setAppUpdateSettings, arg.UpdateOptIn, arg.UpdateFeaturePR, arg.UpdatedAt)
 	return err
 }

@@ -28,15 +28,6 @@ func CoerceUILocale(raw string) string {
 	return DefaultUILocale
 }
 
-// UpdateChannel is the release feed the desktop updater watches.
-type UpdateChannel string
-
-// The update channels.
-const (
-	UpdateChannelLatest  UpdateChannel = "latest"
-	UpdateChannelNightly UpdateChannel = "nightly"
-)
-
 // FeaturePin pins the desktop updater to one pull-request build.
 type FeaturePin struct {
 	PR int64 `json:"pr"`
@@ -44,21 +35,12 @@ type FeaturePin struct {
 
 // UpdateSettings is the desktop auto-update opt-in state.
 type UpdateSettings struct {
-	Enabled    bool          `json:"enabled"`
-	Channel    UpdateChannel `json:"channel" enum:"latest,nightly"`
-	NightlyAck bool          `json:"nightlyAck"`
-	Feature    *FeaturePin   `json:"feature,omitempty"`
+	Enabled bool        `json:"enabled"`
+	Feature *FeaturePin `json:"feature,omitempty"`
 }
 
 func coerceUpdateSettings(in UpdateSettings) UpdateSettings {
-	out := UpdateSettings{
-		Enabled:    in.Enabled,
-		Channel:    UpdateChannelLatest,
-		NightlyAck: in.NightlyAck,
-	}
-	if in.Channel == UpdateChannelNightly {
-		out.Channel = UpdateChannelNightly
-	}
+	out := UpdateSettings{Enabled: in.Enabled}
 	if in.Feature != nil && in.Feature.PR > 0 {
 		out.Feature = &FeaturePin{PR: in.Feature.PR}
 	}

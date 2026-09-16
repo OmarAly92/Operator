@@ -43,8 +43,6 @@ func (f *fakeStore) SetUpdateSettings(_ context.Context, prefs UpdateSettings, n
 		return f.err
 	}
 	f.rec.UpdateOptIn = prefs.Enabled
-	f.rec.UpdateChannel = string(prefs.Channel)
-	f.rec.UpdateNightlyAck = prefs.NightlyAck
 	if prefs.Feature != nil {
 		pr := prefs.Feature.PR
 		f.rec.UpdateFeaturePR = &pr
@@ -85,63 +83,6 @@ func (f *fakeStore) SetMigrationState(_ context.Context, state MigrationState, n
 	return nil
 }
 
-func (f *fakeStore) MarkLegacyDesktopImported(_ context.Context, importedAt time.Time) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return f.err
-	}
-	stamp := importedAt
-	f.rec.LegacyDesktopImportedAt = &stamp
-	f.rec.UpdatedAt = importedAt
-	return nil
-}
-
-func (f *fakeStore) ApplyLegacyDesktopImport(_ context.Context, values LegacyDesktopImport, importedAt time.Time) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return f.err
-	}
-	if f.rec.LegacyDesktopImportedAt != nil {
-		return nil
-	}
-	next := f.rec
-	if values.UILocale != nil {
-		next.UILocale = *values.UILocale
-	}
-	if values.Updates != nil {
-		next.UpdateOptIn = values.Updates.Enabled
-		next.UpdateChannel = string(values.Updates.Channel)
-		next.UpdateNightlyAck = values.Updates.NightlyAck
-		if values.Updates.Feature != nil {
-			pr := values.Updates.Feature.PR
-			next.UpdateFeaturePR = &pr
-		} else {
-			next.UpdateFeaturePR = nil
-		}
-	}
-	if values.Keybindings != nil {
-		raw, err := json.Marshal(values.Keybindings)
-		if err != nil {
-			return err
-		}
-		next.KeybindingsJSON = string(raw)
-	}
-	if values.Migration != nil {
-		raw, err := json.Marshal(values.Migration)
-		if err != nil {
-			return err
-		}
-		next.MigrationJSON = string(raw)
-	}
-	stamp := importedAt
-	next.LegacyDesktopImportedAt = &stamp
-	next.UpdatedAt = importedAt
-	f.rec = next
-	return nil
-}
-
 func newTestService(store *fakeStore) *Service {
 	return New(store, func() time.Time {
 		return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
@@ -150,14 +91,12 @@ func newTestService(store *fakeStore) *Service {
 
 func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 	store := &fakeStore{rec: Record{
-		UpdatedAt:        time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC),
-		UILocale:         "xx-YY",
-		UpdateOptIn:      true,
-		UpdateChannel:    "weekly",
-		UpdateNightlyAck: true,
-		UpdateFeaturePR:  nil,
-		KeybindingsJSON:  `{"new-session":not-json`,
-		MigrationJSON:    `{`,
+		UpdatedAt:       time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC),
+		UILocale:        "xx-YY",
+		UpdateOptIn:     true,
+		UpdateFeaturePR: nil,
+		KeybindingsJSON: `{"new-session":not-json`,
+		MigrationJSON:   `{`,
 	}}
 	svc := newTestService(store)
 
@@ -168,11 +107,8 @@ func TestGetNormalizesPersistedDesktopPreferences(t *testing.T) {
 	if snapshot.UILocale != DefaultUILocale {
 		t.Errorf("locale = %q, want fallback %q", snapshot.UILocale, DefaultUILocale)
 	}
-	if !snapshot.Updates.Enabled || !snapshot.Updates.NightlyAck {
+	if !snapshot.Updates.Enabled {
 		t.Errorf("updates = %+v, want strict booleans preserved", snapshot.Updates)
-	}
-	if snapshot.Updates.Channel != UpdateChannelLatest {
-		t.Errorf("channel = %q, want fallback %q", snapshot.Updates.Channel, UpdateChannelLatest)
 	}
 	if snapshot.Updates.Feature != nil {
 		t.Errorf("feature = %+v, want nil", snapshot.Updates.Feature)
@@ -207,41 +143,35 @@ func TestSetUILocaleCoercesUnknownToEnglish(t *testing.T) {
 	}
 }
 
-func TestSetUpdateSettingsCoercesChannelAndFeaturePin(t *testing.T) {
+func TestSetUpdateSettingsCoercesFeaturePin(t *testing.T) {
 	store := &fakeStore{}
 	svc := newTestService(store)
 	ctx := context.Background()
 
 	snapshot, err := svc.SetUpdateSettings(ctx, UpdateSettings{
-		Enabled:    true,
-		Channel:    UpdateChannelNightly,
-		NightlyAck: true,
-		Feature:    &FeaturePin{PR: 42},
+		Enabled: true,
+		Feature: &FeaturePin{PR: 42},
 	})
 	if err != nil {
-		t.Fatalf("set nightly: %v", err)
+		t.Fatalf("set pinned: %v", err)
 	}
-	if snapshot.Updates.Channel != UpdateChannelNightly {
-		t.Errorf("channel = %q, want nightly", snapshot.Updates.Channel)
+	if !snapshot.Updates.Enabled {
+		t.Errorf("updates = %+v, want enabled", snapshot.Updates)
 	}
 	if snapshot.Updates.Feature == nil || snapshot.Updates.Feature.PR != 42 {
 		t.Errorf("feature = %+v, want pr 42", snapshot.Updates.Feature)
 	}
 
 	snapshot, err = svc.SetUpdateSettings(ctx, UpdateSettings{
-		Channel: "beta",
 		Feature: &FeaturePin{PR: -3},
 	})
 	if err != nil {
-		t.Fatalf("set beta: %v", err)
-	}
-	if snapshot.Updates.Channel != UpdateChannelLatest {
-		t.Errorf("channel = %q, want fallback latest", snapshot.Updates.Channel)
+		t.Fatalf("set negative pin: %v", err)
 	}
 	if snapshot.Updates.Feature != nil {
 		t.Errorf("feature = %+v, want non-positive pr dropped", snapshot.Updates.Feature)
 	}
-	if snapshot.Updates.Enabled || snapshot.Updates.NightlyAck {
+	if snapshot.Updates.Enabled {
 		t.Errorf("updates = %+v, want strict booleans replaced by the payload", snapshot.Updates)
 	}
 }
@@ -482,7 +412,7 @@ func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	if _, err := svc.SetUILocale(ctx, "de"); err != nil {
 		t.Fatalf("set locale: %v", err)
 	}
-	if _, err := svc.SetUpdateSettings(ctx, UpdateSettings{Enabled: true, Channel: UpdateChannelNightly, NightlyAck: true}); err != nil {
+	if _, err := svc.SetUpdateSettings(ctx, UpdateSettings{Enabled: true, Feature: &FeaturePin{PR: 7}}); err != nil {
 		t.Fatalf("set updates: %v", err)
 	}
 	if _, err := svc.SetKeybindings(ctx, KeybindingOverrides{"toggle-sidebar": {binding("b", "c")}}); err != nil {
@@ -499,7 +429,7 @@ func TestFacetUpdatesPreserveUnrelatedFields(t *testing.T) {
 	if snapshot.UILocale != "de" {
 		t.Errorf("locale = %q, want de preserved through later facet writes", snapshot.UILocale)
 	}
-	if !snapshot.Updates.Enabled || snapshot.Updates.Channel != UpdateChannelNightly {
+	if !snapshot.Updates.Enabled || snapshot.Updates.Feature == nil || snapshot.Updates.Feature.PR != 7 {
 		t.Errorf("updates = %+v, want preserved", snapshot.Updates)
 	}
 	if len(snapshot.Keybindings["toggle-sidebar"]) != 1 {
@@ -525,7 +455,7 @@ func TestConcurrentFacetWritesAllLand(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		if _, err := svc.SetUpdateSettings(ctx, UpdateSettings{Enabled: true, Channel: UpdateChannelLatest}); err != nil {
+		if _, err := svc.SetUpdateSettings(ctx, UpdateSettings{Enabled: true}); err != nil {
 			t.Errorf("set updates: %v", err)
 		}
 	}()
@@ -558,24 +488,6 @@ func TestConcurrentFacetWritesAllLand(t *testing.T) {
 	}
 	if snapshot.Migration.Status != MigrationCompleted {
 		t.Errorf("migration = %q, want completed", snapshot.Migration.Status)
-	}
-}
-
-func TestMarkLegacyDesktopImportedRecordsMarker(t *testing.T) {
-	store := &fakeStore{}
-	svc := newTestService(store)
-	at := time.Date(2026, 8, 21, 7, 0, 0, 0, time.UTC)
-
-	if err := svc.MarkLegacyDesktopImported(context.Background(), at); err != nil {
-		t.Fatalf("mark imported: %v", err)
-	}
-
-	snapshot, err := svc.Get(context.Background())
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if snapshot.LegacyDesktopImportedAt == nil || !snapshot.LegacyDesktopImportedAt.Equal(at) {
-		t.Errorf("marker = %v, want %v", snapshot.LegacyDesktopImportedAt, at)
 	}
 }
 

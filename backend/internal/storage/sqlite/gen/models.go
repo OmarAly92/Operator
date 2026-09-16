@@ -62,16 +62,13 @@ type AgentSwitch struct {
 }
 
 type AppSetting struct {
-	ID                      int64
-	UpdatedAt               time.Time
-	UiLocale                string
-	UpdateOptIn             bool
-	UpdateChannel           string
-	UpdateNightlyAck        bool
-	UpdateFeaturePR         sql.NullInt64
-	KeybindingsJson         string
-	MigrationJson           string
-	LegacyDesktopImportedAt sql.NullTime
+	ID              int64
+	UpdatedAt       time.Time
+	UiLocale        string
+	UpdateOptIn     bool
+	UpdateFeaturePR sql.NullInt64
+	KeybindingsJson string
+	MigrationJson   string
 }
 
 type BlockEvent struct {
