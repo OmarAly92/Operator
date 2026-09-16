@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 enum ConnectionFailure { notOprQr, unsupportedPayload, unreachable, auth, rateLimited, serverError }
 
 ConnectionFailure classifyConnectionFailure(int? status) {
-  if (status == null) return ConnectionFailure.unreachable;
+  if (status == null || status < 0) return ConnectionFailure.unreachable;
   if (status == 401 || status == 403) return ConnectionFailure.auth;
   if (status == 429) return ConnectionFailure.rateLimited;
   return ConnectionFailure.serverError;

@@ -1,11 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_mobile/core/error_handling/connection_error.dart';
+import 'package:operator_mobile/core/error_handling/dio_error_handler/status_code.dart';
 
 void main() {
   group('classifyConnectionFailure', () {
     test('treats no answer as unreachable', () {
       expect(classifyConnectionFailure(null), ConnectionFailure.unreachable);
+    });
+
+    test('treats a local transport failure as unreachable', () {
+      expect(classifyConnectionFailure(StatusCode.noInternetConnection), ConnectionFailure.unreachable);
+      expect(classifyConnectionFailure(StatusCode.connectionTimeout), ConnectionFailure.unreachable);
+      expect(classifyConnectionFailure(StatusCode.receiveTimeout), ConnectionFailure.unreachable);
     });
 
     test('maps 401 and 403 to auth', () {
